@@ -2,7 +2,7 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: 네이버맵→Google Maps + KMP 전환 직후 (assembleDebug BUILD SUCCESSFUL 기준).
+> 최종 갱신: applicationId 분리(`com.chaminwoo.stary_ios`) + 새 Firebase(`momentdiary-f26c8`) 연동 + Maps/로그인 런타임 확인 + 시크릿 템플릿 제거. (installDebug BUILD SUCCESSFUL, 에뮬레이터에서 지도/Google 로그인 동작 확인.)
 
 ---
 
@@ -11,7 +11,8 @@
   좋아요/댓글/알림, Google 로그인, 프로필 이미지 업로드 기능.
 - 원본: Android 전용(Jetpack Compose + Firebase + 네이버맵).
 - 이 분기: **Android + iOS 확장형 KMP** 구조 + **Google Maps** + 민감값 전부 TODO.
-- 패키지 루트: `com.chaminwoo.stary` (androidApp), 공용은 동일 패키지 재사용 + `com.chaminwoo.stary.shared.*`.
+- 코드 패키지(namespace): `com.chaminwoo.stary` (androidApp), 공용은 동일 패키지 재사용 + `com.chaminwoo.stary.shared.*`.
+- ⚠️ **applicationId = `com.chaminwoo.stary_ios`** (namespace와 다름). 원본 앱 `com.chaminwoo.stary`와 충돌/Firebase 분리를 위해 분기. 액티비티 풀네임은 여전히 `com.chaminwoo.stary.MainActivity`.
 
 ## 2. 기술 스택
 - Kotlin 2.2.10, AGP 9.1.1, Gradle 9.3.1, Compose BOM 2024.09.00, minSdk 26 / compileSdk 36(.1).
@@ -85,12 +86,17 @@
 - 단순화됨: 네이버 Overlay 전용 per-marker pulse/float `ValueAnimator` 애니메이션은 제거(필요 시 재구현).
 
 ## 7. 민감값 주입 배선 (하드코딩 없음)
-- `secrets.properties`(루트, gitignore) → 없으면 `secrets.defaults.properties`(placeholder) 폴백.
-- `androidApp/build.gradle.kts` 가 두 파일 읽어서:
-  - `MAPS_API_KEY` → `defaultConfig.manifestPlaceholders["MAPS_API_KEY"]` → Manifest `com.google.android.geo.API_KEY`.
+- `secrets.properties`(루트, gitignore) 에서 읽음. 파일/키 없으면 build.gradle 의 `?:` 기본 placeholder 사용.
+  - ⚠️ 과거의 `secrets.defaults.properties` / `secrets.properties.example` 는 **삭제됨**(실제 키 혼입 우려 + gitignore 추가). 폴백 로직은 `takeIf{exists}` 라 없어도 무방.
+- `androidApp/build.gradle.kts` 가 `secrets.properties` 읽어서:
+  - `MAPS_API_KEY` → `defaultConfig.manifestPlaceholders["MAPS_API_KEY"]` → Manifest `com.google.android.geo.API_KEY`(`${MAPS_API_KEY}`).
   - `GOOGLE_WEB_CLIENT_ID` → `buildConfigField` → `BuildConfig.GOOGLE_WEB_CLIENT_ID` → `GoogleAuthHelper` 사용.
-- `google-services.json` : 현재 더미 placeholder(빌드 통과용). 실제 새 Firebase 파일로 교체 필요. 템플릿 `.example` 제공.
-- 관련 파일: `.gitignore`(secrets.properties / google-services.json / local.properties 제외), `secrets.properties.example`.
+- **Firebase 프로젝트**: 이 포크 = `momentdiary-f26c8`(번호 7962996464) / 앱 `com.chaminwoo.stary_ios`.
+  원본(연결 금지) = `momentdiary-52b78` / `com.chaminwoo.stary`.
+- `google-services.json`(androidApp/, gitignore): f26c8 실파일 사용 중. **로그인 3종(json·웹클라ID·SHA-1)은 반드시 같은 프로젝트(f26c8).**
+  - 웹 클라이언트 ID(`secrets.properties` GOOGLE_WEB_CLIENT_ID)는 json 의 `client_type:3` 값(`7962996464-...`)이어야 함. 다른 프로젝트 ID 넣으면 28444.
+  - Maps 키 흰화면 시: 키 제한에 `com.chaminwoo.stary_ios` + 디버그 SHA-1 추가 + Maps SDK enable.
+- 디버그 SHA-1: `F3:48:0A:53:FA:F3:EF:D7:60:1D:E7:A2:CA:EA:37:9C:E2:DE:A5:D0`.
 
 ## 8. 빌드 시스템 특이점 (재확인용)
 - `settings.gradle.kts`: `:shared`, `:androidApp` 포함. 네이버 maven 저장소 제거.
@@ -101,11 +107,11 @@
 - `gradle.properties`: `kotlin.native.ignoreDisabledTargets=true`, `android.useAndroidX=true`.
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
-- [ ] iOS 앱(Xcode 프로젝트) 추가 + iOS용 Repository 구현(Firebase iOS SDK) — 현재 `shared` 스캐폴딩만.
-- [ ] 실제 `secrets.properties` / 새 `google-services.json` 채워서 런타임 동작 확인.
+- [ ] iOS 앱(Xcode 프로젝트) 추가 + iOS용 Repository 구현(Firebase iOS SDK) — 현재 `shared` 스캐폴딩만(iosX64/Arm64/Sim 타깃만, iosApp/.xcodeproj 없음). **iOS 빌드·실행은 macOS+Xcode 필요(Windows 불가).**
+- [x] 실제 `secrets.properties` / `google-services.json`(f26c8) 채워 런타임 확인 — 지도·Google 로그인 동작 확인됨.
 - [ ] (선택) Google Maps 마커 클러스터/근접 애니메이션을 네이버 수준으로 재현.
 - [ ] ViewModel 들이 Firebase* 구현 대신 공용 인터페이스 타입을 주입받도록 DI 정리(현재는 직접 생성).
-- [ ] GitHub remote 연결 후 최초 푸시(사용자 테스트 완료 후).
+- [x] GitHub remote(`origin` = Chaminwoo/Stary) 연결 + 푸시 완료(main).
 
 ## 10. 빠른 네비게이션 (기능 → 파일)
 | 하고 싶은 일 | 파일 |
