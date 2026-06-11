@@ -19,7 +19,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -38,15 +37,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
-import com.chaminwoo.stary.feature.map.screen.DiaryGoogleMap
+import com.chaminwoo.stary.feature.map.screen.DiaryMap
 import com.chaminwoo.stary.shared.config.StaryConfig
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import com.google.android.gms.maps.model.LatLng as GmsLatLng
 
 @Composable
 fun MainListScreen(
@@ -59,7 +52,6 @@ fun MainListScreen(
     val diaries by diaryViewModel.diaries.collectAsState()
     val step = 0.0001
     val focusRequester = remember { FocusRequester() }
-    val coroutineScope = rememberCoroutineScope()
 
     var currentLatLng by remember {
         mutableStateOf(
@@ -67,7 +59,6 @@ fun MainListScreen(
                 ?: LatLng(StaryConfig.DEFAULT_LAT, StaryConfig.DEFAULT_LNG)
         )
     }
-    val cameraPositionState = rememberCameraPositionState()
     var isFollowing by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -106,58 +97,14 @@ fun MainListScreen(
         latLng?.let { currentLatLng = it }
 
         focusRequester.requestFocus()
-
-        val target = LocationHelper.cameraTarget
-
-        if (target == null) {
-            cameraPositionState.move(
-                CameraUpdateFactory.newCameraPosition(
-                    CameraPosition.fromLatLngZoom(
-                        GmsLatLng(currentLatLng.latitude, currentLatLng.longitude),
-                        15f
-                    )
-                )
-            )
-        } else {
-            isFollowing = false
-            LocationHelper.cameraTarget = null
-
-            // 1. 타겟 위치만 2초간 보여주기
-            cameraPositionState.move(
-                CameraUpdateFactory.newCameraPosition(
-                    CameraPosition.fromLatLngZoom(
-                        GmsLatLng(target.latitude, target.longitude),
-                        17f
-                    )
-                )
-            )
-
-            delay(2000)
-
-            // 2. 현재 위치 + 타겟 둘 다 보이게
-            val current = currentLatLng
-            val bounds = LatLngBounds.Builder()
-                .include(GmsLatLng(current.latitude, current.longitude))
-                .include(GmsLatLng(target.latitude, target.longitude))
-                .build()
-
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngBounds(bounds, 150)
-            )
-        }
+        // 초기 카메라(현재 위치 중심 또는 LocationHelper.cameraTarget 경계)는 DiaryMap 이 처리.
     }
 
     fun moveLocation(latDelta: Double, lngDelta: Double) {
         val newLatLng = LatLng(currentLatLng.latitude + latDelta, currentLatLng.longitude + lngDelta)
         currentLatLng = newLatLng
         LocationHelper.setCurrentLocation(newLatLng)
-        if (isFollowing) {
-            coroutineScope.launch {
-                cameraPositionState.animate(
-                    CameraUpdateFactory.newLatLng(GmsLatLng(newLatLng.latitude, newLatLng.longitude))
-                )
-            }
-        }
+        // follow 카메라 추적은 DiaryMap 이 currentLatLng/isFollowing 변화에 반응해 처리.
     }
 
 
@@ -178,10 +125,9 @@ fun MainListScreen(
                 } else false
             }
     ) {
-        DiaryGoogleMap(
+        DiaryMap(
             diaries = diaries,
             currentLatLng = currentLatLng,
-            cameraPositionState = cameraPositionState,
             isFollowing = isFollowing,
             onGestureDetected = { isFollowing = false },
             onRefollowClick = { isFollowing = true },

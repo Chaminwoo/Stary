@@ -13,9 +13,8 @@ firebaseFirestore = "26.2.0"
 secretsGradlePlugin = "2.0.1"
 coroutines = "1.8.1"
 
-# Google Maps (네이버맵 대체)
-playServicesMaps = "19.0.0"
-mapsCompose = "6.1.2"
+# 지도: MapLibre GL Native (Google Maps 대체) + 위치
+maplibre = "11.11.0"
 playServicesLocation = "21.3.0"
 appcompat = "1.7.1"
 constraintlayout = "2.2.1"
@@ -49,11 +48,9 @@ kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "ko
 
 jwt-decode = { group = "com.auth0.android", name = "jwtdecode", version = "2.0.2" }
 
-# Google Maps (네이버맵 대체)
-play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+# 지도: MapLibre (Google Maps 대체) + 위치
+maplibre-android = { group = "org.maplibre.gl", name = "android-sdk", version.ref = "maplibre" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
-maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
-maps-compose-utils = { group = "com.google.maps.android", name = "maps-compose-utils", version.ref = "mapsCompose" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 

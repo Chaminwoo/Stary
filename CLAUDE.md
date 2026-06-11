@@ -3,7 +3,7 @@
 이 파일은 Claude Code 가 매 세션 자동으로 읽는 **규칙/워크플로 파일**이다.
 코드 구조·분석 내용은 [`docs/PROJECT_NOTES.md`](docs/PROJECT_NOTES.md) 에 정리되어 있으니
 작업 시작 전 그 파일부터 읽으면 코드를 처음부터 다시 읽지 않아도 된다.
-사용자 셋업 절차(레포 생성·키 발급 등)는 [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md) 참고.
+기능 개발 로드맵/체크리스트는 [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md) 참고(초기 셋업은 완료됨).
 
 ---
 

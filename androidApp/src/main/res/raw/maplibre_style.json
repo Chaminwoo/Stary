@@ -1,0 +1,41 @@
+{
+  "version": 8,
+  "name": "stary-dark",
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "https://api.maptiler.com/tiles/v3/tiles.json?key=__MAPTILER_KEY__"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": ["interpolate", ["linear"], ["zoom"], 6, "#000000", 16, "#0B0B0D"]
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#050411", 16, "#04030D"]
+      }
+    },
+    {
+      "id": "road-major",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 8,
+      "filter": ["in", "class", "motorway", "trunk", "primary", "secondary", "tertiary"],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": ["interpolate", ["linear"], ["zoom"], 8, "#000000", 16, "#1E2020"],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.2, 14, 4.0, 17, 10.0]
+      }
+    }
+  ]
+}

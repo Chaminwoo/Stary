@@ -23,8 +23,8 @@ val secretsProps = Properties().apply {
 }
 val googleWebClientId: String = secretsProps.getProperty("GOOGLE_WEB_CLIENT_ID")
     ?: "TODO_ADD_GOOGLE_WEB_CLIENT_ID"
-val googleMapsApiKey: String = secretsProps.getProperty("MAPS_API_KEY")
-    ?: "TODO_ADD_YOUR_GOOGLE_MAPS_API_KEY"
+val maptilerKey: String = secretsProps.getProperty("MAPTILER_KEY")
+    ?: "TODO_ADD_MAPTILER_KEY"
 
 android {
     namespace = "com.chaminwoo.stary"
@@ -45,8 +45,8 @@ android {
 
         // TODO: secrets.properties 에 실제 값 채우기 (커밋 금지)
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
-        // Google Maps API Key -> AndroidManifest 의 ${MAPS_API_KEY} 치환
-        manifestPlaceholders["MAPS_API_KEY"] = googleMapsApiKey
+        // MapTiler 벡터 타일 키 -> MapLibre 스타일 JSON 의 __MAPTILER_KEY__ 치환에 사용
+        buildConfigField("String", "MAPTILER_KEY", "\"$maptilerKey\"")
     }
 
     buildTypes {
@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation("androidx.navigation:navigation-compose:2.8.5")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // 구글 로그인
@@ -117,9 +118,7 @@ dependencies {
     implementation("pl.droidsonroids.gif:android-gif-drawable:1.2.29")
     implementation("androidx.compose.material:material-icons-extended")
 
-    // Google Maps (네이버맵 대체)
-    implementation(libs.play.services.maps)
+    // 지도: MapLibre GL Native (Google Maps 대체) + 위치
+    implementation(libs.maplibre.android)
     implementation(libs.play.services.location)
-    implementation(libs.maps.compose)
-    implementation(libs.maps.compose.utils)
 }

@@ -23,18 +23,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Stary">
 
-        <!-- Maps API Key 는 secrets.properties 의 MAPS_API_KEY 가 build.gradle 의
-             manifestPlaceholders 를 통해 주입된다. (하드코딩/커밋 금지) -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
-
-        <!-- 앱 내부에서 Intent 로 실행되는 화면. 런처 진입점이 아니다
-             (런처는 MainActivity 하나만 유지). -->
-        <activity
-            android:name=".MapsActivity"
-            android:exported="false"
-            android:label="@string/title_activity_maps" />
+        <!-- 지도는 MapLibre + MapTiler 벡터 타일 사용. 키는 BuildConfig.MAPTILER_KEY 로 주입
+             (Google Maps geo API_KEY 메타데이터 불필요). -->
 
         <provider
             android:name="androidx.core.content.FileProvider"

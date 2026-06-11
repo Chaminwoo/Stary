@@ -1,164 +1,103 @@
-# SETUP_CHECKLIST.md — 사용자 구현 체크리스트
+# CHECKLIST — Stary-Project 진행 체크리스트
 
-> 이 분기 프로젝트를 처음부터 돌아가게 만들기 위해 **사용자가** 해야 할 일.
-> 각 단계에 ⌨️ 실행 명령(Windows PowerShell 기준)과 🤖 Claude 에게 줄 지시를 함께 적었다.
-> 푸시 규칙: **로컬 테스트가 끝나기 전에는 푸시하지 않는다.** (자세한 건 `CLAUDE.md`)
-
-작업 경로: `C:\Users\User\AndroidStudioProjects\Stary-Project`
+> 셋업(레포·시크릿·Firebase·Maps·로그인)은 **완료**됨. 이 문서는 이제 **기능 개발 로드맵**이다.
+> 작업 규칙/푸시 규칙은 `CLAUDE.md`, 코드 구조는 `docs/PROJECT_NOTES.md` 참고.
+> 작업 경로: `C:\Users\User\AndroidStudioProjects\Stary-Project`
 
 ---
 
-## 0. 사전 준비 (도구 확인)
-- [ ] Git / GitHub CLI 설치 확인. JDK(17+), Android Studio, Android SDK 설치 확인.
-
-⌨️
-```powershell
-git --version
-gh --version          # 없으면: winget install GitHub.cli   (또는 웹으로 레포 생성)
-java -version
-```
-
----
-
-## 1. GitHub 레포 생성 & 연결
-- [ ] 로컬을 git 저장소로 초기화하고 최초 커밋을 만든다. (아직 푸시는 안 함)
-- [ ] GitHub 원격 레포를 만들고 origin 연결한다.
-
-⌨️ (1-A) 로컬 git 초기화 + 첫 커밋
-```powershell
-cd C:\Users\User\AndroidStudioProjects\Stary-Project
-git init -b main
-git add .
-git status        # secrets.properties / google-services.json / local.properties 가 안 올라가는지 확인!
-git commit -m "chore: KMP 분기 초기 구성 (네이버맵->Google Maps, 시크릿 TODO)"
-```
-
-⌨️ (1-B) 원격 레포 생성 — gh CLI 사용 시 (푸시는 테스트 후이므로 --push 생략)
-```powershell
-gh auth login                                   # 최초 1회
-gh repo create stary-project --private --source=. --remote=origin
-```
-
-⌨️ (1-B') gh 없이 웹으로 만들 때: github.com 에서 빈 레포 생성 후
-```powershell
-git remote add origin https://github.com/<your-id>/stary-project.git
-```
-
-- [ ] ⚠️ `git status`/커밋에 **secrets.properties, google-services.json(실제), local.properties 가 포함되지 않았는지** 반드시 확인. (`.gitignore` 처리되어 있어야 정상)
-
-🤖 Claude 에게: 푸시는 이 시점에 하지 않는다. **6번(로컬 테스트) 완료 후** "테스트 완료" 라고 말하면 그때 Claude 가 푸시한다.
+## ✅ 완료 (아카이브 — 더 안 건드림)
+- GitHub 레포(`origin` = Chaminwoo/Stary) 생성 + main 푸시.
+- `.gitignore` 정비, 시크릿 템플릿(`secrets.defaults/.example`) 제거.
+- `applicationId` 분리: `com.chaminwoo.stary_ios` (namespace는 `com.chaminwoo.stary` 유지).
+- 새 Firebase `momentdiary-f26c8` 연동(`google-services.json`), SHA-1 등록.
+- `secrets.properties` 채움 → **지도 타일 로딩 + Google 로그인 에뮬레이터 동작 확인**.
+- `MapsActivity` 중복 LAUNCHER 제거(런처 진입점 = `MainActivity` 단일).
+- **지도 엔진 Google Maps → MapLibre + MapTiler 전환** + 커스텀 다크 스타일(배경/물/큰길, 줌 색보간) — 동작 확인.
 
 ---
 
-## 2. 시크릿 파일 만들기 (`secrets.properties`, 커밋 금지)
-- [ ] 예시 파일을 복사해 실제 값으로 채운다. (값은 4·5번에서 발급)
+## 🗺️ A. 지도 전면 리스타일 (= 아래 1번) — MapLibre + MapTiler
 
-⌨️
-```powershell
-Copy-Item secrets.properties.example secrets.properties
-notepad secrets.properties
-```
-```properties
-MAPS_API_KEY=여기에_Google_Maps_키
-GOOGLE_WEB_CLIENT_ID=여기에_웹_OAuth_클라이언트ID
-```
+> Google Maps는 레이어 선택 로드가 안 돼(가린 레이어도 다운로드됨) **MapLibre GL Native + MapTiler 벡터 타일**로 전환함.
+> 스타일은 자체 작성 `res/raw/maplibre_style.json`(MapLibre 스타일 스펙). 필요한 레이어만 넣어 불필요한 렌더/다운로드 없음.
 
----
+### A-1. 베이스 맵 색상 — ✅ 완료
+- [x] `res/raw/maplibre_style.json`: source=MapTiler `tiles/v3`, layers = **background / water / road-major만**.
+      배경 검정, 물, 큰 길(`class` ∈ motorway~tertiary). 건물·POI·라벨은 스타일에 아예 없음.
+- [x] 키 주입: `BuildConfig.MAPTILER_KEY` → 스타일의 `__MAPTILER_KEY__` 치환 (`DiaryMap.kt`).
 
-## 3. 새 Firebase 프로젝트 생성 + `google-services.json`
-> ⚠️ 원본 운영 프로젝트(`momentdiary-*`)에 연결하지 말 것. **새 프로젝트**를 만든다.
-- [ ] Firebase Console 에서 **새 프로젝트** 생성.
-- [ ] Android 앱 추가 — 패키지명 **`com.chaminwoo.stary`**.
-- [ ] **Firestore**, **Storage** 사용 설정. **Authentication → Google 로그인** 사용 설정.
-- [ ] `google-services.json` 다운로드 → 더미 파일을 교체.
+### A-2. 줌별 표현 — ✅ 완료
+- [x] 저줌 길 숨김: road-major `minzoom`(현재 8) 미만 줌에선 바다+땅만.
+- [x] 줌 색 보간: bg/water/road `paint` 색을 `["interpolate",["linear"],["zoom"],6,..,16,..]` 로(줌아웃=밝게, 줌인=검정계).
 
-⌨️ (다운받은 파일로 교체)
-```powershell
-Copy-Item "$env:USERPROFILE\Downloads\google-services.json" `
-  "C:\Users\User\AndroidStudioProjects\Stary-Project\androidApp\google-services.json" -Force
-```
-- [ ] (참고) Firestore 보안 규칙/인덱스는 앱 쿼리에 맞춰 설정. 컬렉션: `diaries`(+`comments`,`likes`), `notifications`, `users`.
+### A-3. 마커 (별 종류×색상, 4번과 연동) — ⏳ 남음
+- [ ] 다이어리 별 마커 **재구현**(현재 제거, 내 위치만 표시). MapLibre `SymbolManager`(annotation plugin) 또는
+      GeoJSON source + `SymbolLayer` 로 type(0~4)×color(0~11) 아이콘 렌더.
+- [ ] 색상 12색 / 종류 5형을 `core/designsystem` 상수로 정의(렌더·업로드 공용).
+- [ ] 마커 클릭 → 100m 게이팅(`LocationHelper.distanceBetween` ≤ `StaryConfig.DIARY_OPEN_RADIUS_M`).
+
+### A-4. 파티클 효과 — ⏳ 남음
+- [ ] MapLibre 내장 없음 → **지도 위 Compose 오버레이**(`Box { AndroidView(MapView) ; ParticleOverlay }`, `Canvas`).
+
+### A-5. 정리 — ✅ PROJECT_NOTES 6절(지도) 갱신 완료.
 
 ---
 
-## 4. Google Maps API 키 발급
-- [ ] Google Cloud Console(Firebase와 동일 프로젝트) → **APIs & Services → Maps SDK for Android** 사용 설정.
-- [ ] **Credentials → Create credentials → API key** 발급. (Android 앱 + SHA-1 로 키 제한 권장)
-- [ ] 발급한 키를 `secrets.properties` 의 `MAPS_API_KEY` 에 입력.
+## 📋 기능 백로그 (의존성 순서 고려)
 
-⌨️ (선택) gcloud 로 API 활성화
-```powershell
-gcloud services enable maps-android-backend.googleapis.com --project <PROJECT_ID>
-```
+### 1. 지도 UI 리팩토링  *(A-1·A-2 ✅ / A-3·A-4 남음)*
+- [x] MapLibre 전환 + 베이스 스타일(검정/물/큰길) + 줌 색보간. (`feature/map/screen/DiaryMap.kt`, `res/raw/maplibre_style.json`, `MainListScreen.kt`)
+- [ ] A-3 다이어리 마커 / A-4 파티클 (위 A 섹션 참고).
 
----
+### 2. "위치 보기" 버튼 제거 + 100m 밖 다이어리 → 도보 길찾기  *(A-3 마커 재구현과 함께)*
+- [ ] `DiaryMap`/`MainListScreen` 에서 재팔로우(`onRefollowClick`, `isFollowing`) **버튼 제거**.
+- [ ] 다이어리 마커 클릭 시(A-3) 100m 밖이면 Toast 대신 **도보 길찾기 실행**:
+      `Intent(ACTION_VIEW, Uri.parse("google.navigation:q=$lat,$lng&mode=w"))`(패키지 `com.google.android.apps.maps`),
+      폴백 `https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=walking`.
+- [ ] 100m 이내는 열람. (게이팅: `StaryConfig.DIARY_OPEN_RADIUS_M`)
 
-## 5. Google 로그인(OAuth) + SHA-1 등록
-- [ ] 디버그 키스토어의 **SHA-1** 을 확인한다.
-- [ ] Firebase Console → 프로젝트 설정 → 내 앱 → **SHA 인증서 지문 추가** 에 SHA-1 등록 후 `google-services.json` 재다운로드.
-- [ ] Console 의 **Web client (auto created by Google Service)** 의 client_id 를 `secrets.properties` 의 `GOOGLE_WEB_CLIENT_ID` 에 입력.
+### 3. 친구 추가 + FriendScreen  *(4·6·7의 선행)*
+- [ ] Firestore 설계: `users/{uid}/friends/{friendUid}` (+ 요청용 `friendRequests` 또는 상태 필드).
+- [ ] `shared` 에 `FriendRepository` 인터페이스 + Android Firebase 구현(`data/repository/FirebaseFriendRepository.kt`).
+- [ ] `feature/friend/screen/FriendScreen.kt` + ViewModel: 사용자 검색(이름/이메일)·요청·수락·목록.
+- [ ] `navigation/NavGraph.kt`·`NavRoute.kt` 에 라우트 추가, 진입점(프로필/메인) 연결.
 
-⌨️ SHA-1 확인 (둘 중 하나)
-```powershell
-cd C:\Users\User\AndroidStudioProjects\Stary-Project
-.\gradlew.bat :androidApp:signingReport         # 출력에서 Variant: debug 의 SHA1 사용
-```
-```powershell
-keytool -list -v -keystore "$env:USERPROFILE\.android\debug.keystore" `
-  -alias androiddebugkey -storepass android -keypass android
-```
+### 4. 업로드 시 별 종류·색상 선택 + Firestore 기록  *(A-3와 연동)*
+- [ ] `Diary` 모델에 `starType: Int`(0~4), `starColor: Int`(0~11) 추가 (`shared/core/model`). 기존 문서 기본값 처리.
+- [ ] `UploadScreen` 에 종류/색상 피커 UI. 업로드 시 두 값 저장(`FirebaseDiaryRepository`).
+- [ ] 마커 렌더가 이 값으로 그려지도록(A-3) 연결.
 
----
+### 5. 미조회 다이어리만 보기
+- [ ] 사용자별 조회 기록 필요: `users/{uid}/viewedDiaries/{diaryId}` (또는 로컬 캐시).
+- [ ] 다이어리 열람 시 기록 적재. 메인/리스트에 **미조회만** 토글 필터.
 
-## 6. 빌드 & 로컬 테스트
-- [ ] 디버그 APK 빌드가 성공하는지 확인.
-- [ ] 기기/에뮬레이터에서 실행: 지도 표시 / 현재위치 / 다이어리 마커 / 100m 열람 / 로그인 / 업로드 / 좋아요·댓글·알림 확인.
+### 6. 친구 다이어리만 보기  *(3 선행)*
+- [ ] 친구 목록 기준으로 `diaries` 필터(작성자 `userId` ∈ friends).
+- [ ] 메인 지도/리스트에 **친구만** 토글 필터(5번 토글과 함께 필터 상태 관리).
 
-⌨️ 빌드
-```powershell
-cd C:\Users\User\AndroidStudioProjects\Stary-Project
-.\gradlew.bat :androidApp:assembleDebug
-```
-⌨️ 설치 (연결된 기기)
-```powershell
-.\gradlew.bat :androidApp:installDebug
-```
+### 7. 친구 다이어리 알람  *(3 선행 + 서버)*
+- [ ] `NotificationType` 에 `FRIEND_POST` 추가, `AppNotification` 생성 경로 추가.
+- [ ] ⚠️ 타인에게 푸시하려면 **FCM + Cloud Functions(서버)** 필요(클라이언트만으로는 불가):
+      친구가 업로드 → Function 트리거 → 친구들에게 FCM 발송.
+- [ ] 인앱 알림 목록(`NotificationScreen`)에도 표시.
 
-🤖 Claude 에게:
-- 빌드만 대신 돌려보게 하려면 → **"빌드 확인해줘"**
-- 빌드 에러가 나면 → 에러 로그와 함께 **"이 에러 고쳐줘"**
+### 8. 알람·딥링크로 앱 실행  *(7과 함께)*
+- [ ] FCM 수신 서비스(`FirebaseMessagingService`) 추가 + 알림 표시(PendingIntent).
+- [ ] 딥링크: App Links(`https://`) 또는 커스텀 스킴 → `MainActivity`/NavGraph 에서 해당 다이어리로 라우팅.
+- [ ] iOS 미지원/이슈 시 대안: Firebase Dynamic Links 종료(2025) 고려 → **Universal Links + FCM data payload** 또는 인앱 라우팅으로 대체.
 
 ---
 
-## 7. 첫 푸시 (테스트 통과 후)
-- [ ] 6번 테스트가 정상이면 푸시한다.
-
-🤖 Claude 에게: **"테스트 완료"** 라고 말하면 Claude 가
-`git push -u origin main` 으로 푸시하고 `docs/PROJECT_NOTES.md` 를 최신화한다.
-
-⌨️ (직접 푸시할 경우)
-```powershell
-git push -u origin main
-```
+## 🍎 (추후) iOS 확장 — **macOS + Xcode 필요(Windows 불가)**
+- [ ] `iosApp/` Xcode(SwiftUI) 프로젝트 생성 + `:shared` 프레임워크 임포트(`linkDebugFrameworkIosSimulatorArm64`).
+- [ ] `Repositories.kt` 인터페이스를 Firebase iOS SDK로 구현, `GoogleService-Info.plist`(f26c8 iOS 앱) 추가.
+- [ ] iOS 지도: Google Maps iOS SDK 또는 MapKit 으로 `DiaryGoogleMap` 대응. 로그인: Google Sign-In iOS.
+- 🤖 "iOS 쪽 작업 시작하자" 하면 위 기준으로 진행.
 
 ---
 
-## 8. (추후) iOS 확장
-- [ ] macOS + Xcode 환경에서 Xcode 프로젝트 추가 후 `:shared` 프레임워크 임포트.
-- [ ] `shared/.../data/repository/Repositories.kt` 의 인터페이스를 iOS(Firebase iOS SDK)로 구현.
-- [ ] iOS 지도: Google Maps SDK for iOS 또는 MapKit 으로 `DiaryGoogleMap` 대응 화면 구현.
-
-🤖 Claude 에게: iOS 작업 시작할 때 **"iOS 쪽 작업 시작하자"** 라고 하면 `PROJECT_NOTES.md`의 남은 TODO 기준으로 진행.
-
----
-
-## 빠른 체크 요약
-| 단계 | 핵심 명령 |
-|---|---|
-| 1 git/레포 | `git init -b main` → `git add .` → `git commit` → `gh repo create ... --remote=origin` |
-| 2 시크릿 | `Copy-Item secrets.properties.example secrets.properties` |
-| 3 Firebase | Console에서 새 프로젝트 → `google-services.json` 교체 |
-| 4 Maps키 | Cloud Console에서 키 발급 → `secrets.properties` |
-| 5 SHA-1 | `.\gradlew.bat :androidApp:signingReport` |
-| 6 빌드 | `.\gradlew.bat :androidApp:assembleDebug` / `installDebug` |
-| 7 푸시 | (테스트 후) Claude에게 "테스트 완료" 또는 `git push -u origin main` |
+## 메모
+- 서버 작업 필요 항목: **7, 8 (FCM/Cloud Functions)**. 나머지는 클라이언트만으로 가능.
+- 의존성: 3 → (4 마커, 6 필터, 7 알림). A(맵 리스타일) → 1, 그리고 A-3 ↔ 4.
+- 각 항목 완료 시: 빌드 통과 + 에뮬 테스트 → "테스트 완료" → 푸시 → PROJECT_NOTES/이 체크리스트 갱신.
