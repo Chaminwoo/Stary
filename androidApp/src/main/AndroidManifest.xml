@@ -23,16 +23,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Stary">
 
-        <!--
-            Google Maps SDK API Key.
-            ${MAPS_API_KEY} 는 build.gradle.kts 의 manifestPlaceholders 가 주입한다
-            (secrets.properties -> 없으면 secrets.defaults.properties 플레이스홀더).
-            실제 키는 절대 하드코딩/커밋 금지.
-            TODO: secrets.properties 에 MAPS_API_KEY 실제 값 설정.
-        -->
+        <!-- Maps API Key 는 secrets.properties 의 MAPS_API_KEY 가 build.gradle 의
+             manifestPlaceholders 를 통해 주입된다. (하드코딩/커밋 금지) -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
+
+        <!-- 앱 내부에서 Intent 로 실행되는 화면. 런처 진입점이 아니다
+             (런처는 MainActivity 하나만 유지). -->
+        <activity
+            android:name=".MapsActivity"
+            android:exported="false"
+            android:label="@string/title_activity_maps" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -51,10 +53,10 @@
             android:theme="@style/Theme.Stary">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
     </application>
 
 </manifest>

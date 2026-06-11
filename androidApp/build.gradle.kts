@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.google.gms.google.services)
+    alias(libs.plugins.secrets.gradle.plugin)
 }
 
 // --- 민감값 로딩 (절대 하드코딩/커밋 금지) -------------------------------------
@@ -34,7 +35,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.chaminwoo.stary"
+        applicationId = "com.chaminwoo.stary_ios"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -64,6 +65,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        viewBinding = true
     }
 }
 
@@ -90,6 +92,7 @@ dependencies {
     implementation("androidx.credentials:credentials:1.2.2")
     implementation("androidx.credentials:credentials-play-services-auth:1.2.2")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    implementation(libs.androidx.constraintlayout)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -12,7 +12,9 @@
   - 원본 경로(절대 수정 금지): `C:\Users\User\AndroidStudioProjects\mobile-project-Chaminwoo\Stary`
   - 작업 경로: `C:\Users\User\AndroidStudioProjects\Stary-Project`
 - **민감값(API 키, Firebase 설정, OAuth, 지도 키)은 절대 하드코딩/커밋 금지.** 항상 TODO/placeholder + 주입.
-- 원본의 운영 Firebase(`momentdiary-*`)/DB/배포 설정에 **연결 금지.**
+- 원본의 운영 Firebase(**원본 = `momentdiary-52b78` / 앱 패키지 `com.chaminwoo.stary`**)/DB/배포 설정에 **연결 금지.**
+  - 이 포크 전용 Firebase는 `momentdiary-f26c8` / `com.chaminwoo.stary_ios` (별개 프로젝트, 사용 OK).
+- 확인 받고 작업하지 말고 확인은 푸시 직전에만 할 것
 
 ## 1. 작업 → 빌드 → 테스트 → 푸시 워크플로 (반드시 이 순서)
 
