@@ -8,7 +8,9 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
+# 루트 및 모든 모듈(:shared, :androidApp 등)의 빌드 산출물
 /build
+build/
 /captures
 .externalNativeBuild
 .cxx
@@ -16,6 +18,9 @@ local.properties
 
 # --- 민감값 (절대 커밋 금지) ---
 secrets.properties
+# 템플릿/기본값 파일도 추적 제외 (과거 실수로 실제 키가 들어가 히스토리에서 제거함)
+secrets.properties.example
+secrets.defaults.properties
 # 실제 Firebase 설정 (템플릿 google-services.json.example 만 커밋)
 /androidApp/google-services.json
 
