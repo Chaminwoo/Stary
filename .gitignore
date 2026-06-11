@@ -1,0 +1,28 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# --- 민감값 (절대 커밋 금지) ---
+secrets.properties
+# 실제 Firebase 설정 (템플릿 google-services.json.example 만 커밋)
+/androidApp/google-services.json
+
+# Kotlin/Native, KMP
+.kotlin
+
+# iOS (추후 Xcode 프로젝트 추가 시)
+xcuserdata/
+*.xcworkspace/xcuserdata/
+Pods/

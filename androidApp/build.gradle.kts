@@ -1,0 +1,122 @@
+import java.util.Properties
+
+plugins {
+    // 주의: AGP 9 는 com.android.application 적용 시 Kotlin 을 내장 지원하므로
+    // org.jetbrains.kotlin.android 를 명시적으로 적용하면 'kotlin' extension 중복 오류가 난다.
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.google.gms.google.services)
+}
+
+// --- 민감값 로딩 (절대 하드코딩/커밋 금지) -------------------------------------
+// secrets.properties(gitignore 대상)에서 값을 읽고, 없으면 secrets.defaults.properties
+// 의 플레이스홀더로 폴백한다. 두 파일 모두 프로젝트 루트에 둔다.
+//  - MAPS_API_KEY        : AndroidManifest 의 ${MAPS_API_KEY} 로 주입 (manifestPlaceholders)
+//  - GOOGLE_WEB_CLIENT_ID: BuildConfig.GOOGLE_WEB_CLIENT_ID 로 주입
+val secretsProps = Properties().apply {
+    rootProject.file("secrets.defaults.properties").takeIf { it.exists() }
+        ?.inputStream()?.use { load(it) }
+    rootProject.file("secrets.properties").takeIf { it.exists() }
+        ?.inputStream()?.use { load(it) }
+}
+val googleWebClientId: String = secretsProps.getProperty("GOOGLE_WEB_CLIENT_ID")
+    ?: "TODO_ADD_GOOGLE_WEB_CLIENT_ID"
+val googleMapsApiKey: String = secretsProps.getProperty("MAPS_API_KEY")
+    ?: "TODO_ADD_YOUR_GOOGLE_MAPS_API_KEY"
+
+android {
+    namespace = "com.chaminwoo.stary"
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
+
+    defaultConfig {
+        applicationId = "com.chaminwoo.stary"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // TODO: secrets.properties 에 실제 값 채우기 (커밋 금지)
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+        // Google Maps API Key -> AndroidManifest 의 ${MAPS_API_KEY} 치환
+        manifestPlaceholders["MAPS_API_KEY"] = googleMapsApiKey
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+}
+
+dependencies {
+    // 공용 KMP 모듈
+    implementation(project(":shared"))
+
+    implementation(libs.androidx.core.ktx)
+    // AppCompat: themes.xml 의 Theme.AppCompat.* 상속용.
+    // (기존엔 네이버맵 의존성이 transitive 로 제공했으나 Google Maps 전환으로 명시 추가)
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
+    // 구글 로그인
+    implementation("androidx.credentials:credentials:1.2.2")
+    implementation("androidx.credentials:credentials-play-services-auth:1.2.2")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.storage)
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.ktx)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.storage.ktx)
+    implementation(libs.jwt.decode)
+
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("pl.droidsonroids.gif:android-gif-drawable:1.2.29")
+    implementation("androidx.compose.material:material-icons-extended")
+
+    // Google Maps (네이버맵 대체)
+    implementation(libs.play.services.maps)
+    implementation(libs.play.services.location)
+    implementation(libs.maps.compose)
+    implementation(libs.maps.compose.utils)
+}

@@ -1,0 +1,35 @@
+{
+  "_README": "이 파일을 google-services.json 으로 복사한 뒤, Firebase Console 에서 받은 실제 값으로 교체하세요. 절대 실제 google-services.json 을 커밋하지 마세요 (.gitignore 처리됨).",
+  "project_info": {
+    "project_number": "TODO_PROJECT_NUMBER",
+    "project_id": "TODO_FIREBASE_PROJECT_ID",
+    "storage_bucket": "TODO_FIREBASE_PROJECT_ID.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:TODO_PROJECT_NUMBER:android:TODO_APP_ID_HASH",
+        "android_client_info": {
+          "package_name": "com.chaminwoo.stary"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "TODO_WEB_CLIENT_ID.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "TODO_FIREBASE_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
