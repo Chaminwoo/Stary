@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.staryFirestore
 import android.net.Uri
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
@@ -8,7 +9,7 @@ import com.google.firebase.storage.ktx.storage
 import kotlinx.coroutines.tasks.await
 
 class UserRepository {
-    private val db = Firebase.firestore
+    private val db = staryFirestore
     private val storage = Firebase.storage
 
     suspend fun getProfileImageUrl(userId: String): String? =

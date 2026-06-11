@@ -2,7 +2,10 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **지도 엔진 Google Maps → MapLibre GL Native + MapTiler 전환** + 커스텀 다크 스타일(검정 배경/물/큰 길만, 줌 색보간). (installDebug BUILD SUCCESSFUL, 에뮬레이터 동작 확인.) 이전: applicationId 분리(`com.chaminwoo.stary_ios`) + Firebase `momentdiary-f26c8` + 시크릿 템플릿 제거.
+> 최종 갱신: **기능 배치 1**(별 마커 5종×12색 Path 렌더, 친구, 미조회/친구 필터, 별 선택 업로드, FRIEND_POST 인앱 알림)
+> + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
+> ⚠️ 다음 세션 시작점: **콘솔에서 stary-db 규칙 + 익명 인증 활성화 대기 중** — `docs/SETUP_CHECKLIST.md` 버그 라운드 1 상단 참고.
+> 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
 
 ---
 
@@ -16,7 +19,9 @@
 
 ## 2. 기술 스택
 - Kotlin 2.2.10, AGP 9.1.1, Gradle 9.3.1, Compose BOM 2024.09.00, minSdk 26 / compileSdk 36(.1).
-- Firebase: Firestore, Storage, Auth(Google ID Token via Credential Manager), firebase-bom 26.2.0.
+- Firebase: Firestore(**named DB `stary-db`** — `StaryConfig.FIRESTORE_DB_ID`, 모든 접근은 `data/StaryFirestore.kt`의
+  `staryFirestore` 사용. 기본 `Firebase.firestore` 금지: (default) DB 없음→NOT_FOUND), Storage,
+  **FirebaseAuth(Google signInWithCredential + 비로그인 익명)**, firebase-bom **33.7.0**(named DB API 필요).
 - 지도: **MapLibre GL Native 11.11.0**(`org.maplibre.gl:android-sdk`, Google Maps 대체) + MapTiler 벡터 타일(OpenMapTiles v3), `play-services-location`.
 - 기타: Coil(이미지), android-gif-drawable(로그인 GIF), kotlinx-serialization-json, kotlinx-coroutines.
 
@@ -79,11 +84,17 @@
 - 엔진: **MapLibre GL Native**. Compose는 `AndroidView`로 `MapView` 래핑 + `rememberMapViewWithLifecycle()`(생명주기 연결). `MapLibre.getInstance()`는 MapView 생성 전 1회. 좌표 변환 `LatLng.toMl()`.
 - 스타일: `res/raw/maplibre_style.json`(자체 작성). 소스=MapTiler `tiles/v3?key=__MAPTILER_KEY__`(BuildConfig.MAPTILER_KEY 치환). 레이어 = **background / water(fill) / road-major(line)만** → 건물·POI·라벨은 아예 없음(다운로드·렌더 안 함 = 경량).
 - 큰 길만: road-major `filter` = transportation `class` ∈ {motorway,trunk,primary,secondary,tertiary}. `minzoom`(현재 8)으로 저줌에선 길 숨김(바다+땅만).
-- 줌 색 보간: background/water/road `paint` 색이 `["interpolate",["linear"],["zoom"],6,<줌아웃색>,16,<상세색>]` 로 줌6↔16 부드럽게 변함(줌아웃=어둡게, 줌인=덜 어둡게).
-- 내 위치: GeoJSON source(`current-location`) + CircleLayer. `currentLatLng` 변경→`setGeoJson` 갱신, follow면 `animateCamera`. 제스처 감지=`addOnCameraMoveStartedListener` REASON_API_GESTURE → follow 해제.
-- 초기 카메라(현재 위치 중심 / `LocationHelper.cameraTarget` 경계)는 DiaryMap이 style 로드 시 처리(과거 MainListScreen의 maps-compose 카메라 로직 제거).
-- ⚠️ 다이어리 별 마커/클러스터/100m 게이팅은 **현재 제거됨**(내 위치·길·물만). 별 종류(0~4)×색(0~11) 커스텀 마커 + 100m·도보 길찾기로 재구현 예정(체크리스트 A-3/기능2·4).
-- ⚠️ 키 없으면(placeholder `TODO_FILL_MAPTILER_KEY`) 타일 안 뜸. `secrets.properties`의 `MAPTILER_KEY` 필요.
+- 줌 색 보간: background/water/road `paint` 색이 `["interpolate",["linear"],["zoom"],6,<줌아웃색>,16,<상세색>]` 로 줌6↔16 부드럽게 변함.
+- 내 위치: GeoJSON source(`current-location`) + CircleLayer. "내 위치로" FAB = 카메라 이동.
+- **다이어리 별 마커**: GeoJSON source(`diaries`) + SymbolLayer(`diary-stars`).
+  - 아이콘 = `StarStyle.starPath`(5종: 십자/5각/6각/8각/대각 스파클 — 스파클은 오목 quad 곡선으로 꼭지 날카롭게)
+    × 12색, 글로우(blur)+본체+흰 하이라이트로 비트맵 생성(`starBitmap`), 사용 조합만 `style.addImage`.
+  - ⚠️ **PNG(star_1~5)를 마커로 쓰지 말 것** — 에뮬레이터에서 PNG→GL 텍스처가 대각선 빗금으로 깨짐. Path 렌더 유지.
+  - ⚠️ 비트맵은 정사각+4의 배수 변(현재 160px). addImage 는 기기밀도로 나눠 표시(화면크기 ≈ 160/density × iconSize).
+  - near(100m 이내) = feature bool 속성 → iconSize 확대 + pulse, 전체 float 애니메이션(50ms 루프 setProperties).
+  - 클릭: queryRenderedFeatures → 100m 이내 열람 / 밖 거리 토스트. (길찾기 기능은 사용자 요청으로 삭제)
+- 초기 카메라(현재 위치 중심 / `LocationHelper.cameraTarget` 경계)는 DiaryMap이 style 로드 시 처리.
+- ⚠️ 키 없으면(placeholder) 타일 안 뜸. `secrets.properties`의 `MAPTILER_KEY` 필요.
 
 ## 7. 민감값 주입 배선 (하드코딩 없음)
 - `secrets.properties`(루트, gitignore) 에서 읽음. 파일/키 없으면 build.gradle 의 `?:` 기본 placeholder 사용.
@@ -106,6 +117,18 @@
 - `:androidApp` → `kotlin.android` 명시 금지(AGP 내장 Kotlin과 충돌). AppCompat 의존성 명시 추가
   (themes.xml 이 `Theme.AppCompat.Light.NoActionBar` 상속 — 과거 네이버 의존성이 transitive 로 제공하던 것).
 - `gradle.properties`: `kotlin.native.ignoreDisabledTargets=true`, `android.useAndroidX=true`.
+
+## 8.5 기능 배치 1 (이번 라운드 추가 — 테스트는 콘솔 규칙 해제 후)
+- **친구**: `shared` `FriendRepository`/`Friend`/`FriendRequest`/`UserProfile` + `FirebaseFriendRepository`
+  (users/{uid}/friends 양방향, friendRequests 컬렉션, userName prefix 검색) + `feature/friend/` FriendScreen/ViewModel
+  + NavRoute.Friends(드로어 "친구"). 로그인 시 `upsertProfile` 로 users/{uid} 공개 프로필 기록(검색용, fire-and-forget).
+- **별 선택 업로드**: Diary += `starType`(0~4)/`starColor`(0~11). UploadScreen 피커(StarShapeIcon=마커와 동일 Path).
+- **필터**: MainListScreen 칩 "미조회만"(users/{uid}/viewedDiaries — DetailScreen 진입 시 기록) / "친구만"(friends 기준).
+- **FRIEND_POST 인앱 알림**: NotificationType.FRIEND_POST. saveDiary 성공 시 친구들에게 알림 문서 생성(fire-and-forget).
+  푸시(FCM)는 Cloud Functions 필요 — 미구현(체크리스트 7/8).
+- **안정화**: 스냅샷 리스너 `close(error)` 금지(권한 에러 크래시 방지), 로그인/저장 경로의 Firestore 부수 작업은
+  전부 fire-and-forget, GIF 인트로 속도 상향.
+- **위치 보기 버튼 삭제**(DetailScreen) — 100m 밖은 지도에서 거리 토스트만.
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] iOS 앱(Xcode 프로젝트) 추가 + iOS용 Repository 구현(Firebase iOS SDK) — 현재 `shared` 스캐폴딩만(iosX64/Arm64/Sim 타깃만, iosApp/.xcodeproj 없음). **iOS 빌드·실행은 macOS+Xcode 필요(Windows 불가).**

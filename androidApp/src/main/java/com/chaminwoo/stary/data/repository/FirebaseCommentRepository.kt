@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.core.model.Comment
 import com.chaminwoo.stary.core.model.NotificationType
@@ -17,7 +18,7 @@ import kotlinx.coroutines.tasks.await
 /** 공용 [CommentRepository] 의 Android/Firestore 구현. */
 class FirebaseCommentRepository : CommentRepository {
 
-    private val db = Firebase.firestore
+    private val db = staryFirestore
 
     override fun observeComments(diaryId: String): Flow<List<Comment>> = callbackFlow {
         val listener = db.collection(StaryConfig.Collections.DIARIES).document(diaryId)

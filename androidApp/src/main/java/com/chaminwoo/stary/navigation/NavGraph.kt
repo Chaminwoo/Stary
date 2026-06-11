@@ -6,11 +6,11 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
-import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.feature.auth.screen.LoginScreen
 import com.chaminwoo.stary.feature.diary.screen.DetailScreen
 import com.chaminwoo.stary.feature.diary.screen.NotificationScreen
 import com.chaminwoo.stary.feature.diary.screen.UploadScreen
+import com.chaminwoo.stary.feature.friend.screen.FriendScreen
 import com.chaminwoo.stary.feature.home.screen.MainListScreen
 import com.chaminwoo.stary.feature.profile.screen.MyScreen
 
@@ -50,6 +50,10 @@ fun NavGraph(
             )
         }
 
+        composable<NavRoute.Friends> {
+            FriendScreen()
+        }
+
         composable<NavRoute.MyPage> {
             MyScreen(
                 onDiaryClick = { diaryId ->
@@ -66,13 +70,6 @@ fun NavGraph(
             val detailArgs: NavRoute.Detail = backStackEntry.toRoute()
             DetailScreen(
                 diaryId = detailArgs.diaryId,
-                onLocationClick = { latLng ->
-
-                    LocationHelper.cameraTarget = latLng
-                    navController.navigate(NavRoute.Main) {
-                        popUpTo<NavRoute.Main> { inclusive = true }
-                    }
-                },
                 onBack = { navController.navigate(NavRoute.Main) {
                     popUpTo<NavRoute.Main> { inclusive = true }
                 }}

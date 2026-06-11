@@ -3,6 +3,9 @@ package com.chaminwoo.stary.shared.data.repository
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.core.model.Comment
 import com.chaminwoo.stary.core.model.Diary
+import com.chaminwoo.stary.core.model.Friend
+import com.chaminwoo.stary.core.model.FriendRequest
+import com.chaminwoo.stary.core.model.UserProfile
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -55,4 +58,20 @@ interface NotificationRepository {
     fun observeNotifications(ownerId: String): Flow<List<AppNotification>>
     fun observeUnreadCount(ownerId: String): Flow<Int>
     suspend fun markAllRead(ownerId: String)
+}
+
+interface FriendRepository {
+    fun observeFriends(userId: String): Flow<List<Friend>>
+    fun observeIncomingRequests(userId: String): Flow<List<FriendRequest>>
+    suspend fun searchUsers(query: String, excludeUserId: String): List<UserProfile>
+    suspend fun sendRequest(from: UserProfile, to: UserProfile): Boolean
+    suspend fun acceptRequest(request: FriendRequest): Boolean
+    suspend fun declineRequest(requestId: String)
+    suspend fun removeFriend(userId: String, friendId: String)
+}
+
+/** 미조회 다이어리 필터용 열람 기록. */
+interface ViewedDiaryRepository {
+    fun observeViewedIds(userId: String): Flow<Set<String>>
+    suspend fun markViewed(userId: String, diaryId: String)
 }

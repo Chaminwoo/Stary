@@ -78,6 +78,7 @@ private fun NotificationItem(notif: AppNotification) {
     val dateStr = SimpleDateFormat("MM.dd HH:mm", Locale.KOREA)
         .format(java.util.Date(notif.createdAt))
     val isLike = notif.type == NotificationType.LIKE.name
+    val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
 
     Row(
         modifier = Modifier
@@ -86,7 +87,7 @@ private fun NotificationItem(notif: AppNotification) {
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(if (isLike) "❤️" else "💬", fontSize = 20.sp)
+        Text(if (isFriendPost) "⭐" else if (isLike) "❤️" else "💬", fontSize = 20.sp)
 
         Column(modifier = Modifier.weight(1f)) {
             Row(
@@ -104,12 +105,15 @@ private fun NotificationItem(notif: AppNotification) {
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = if (isLike) "\"${notif.diaryTitle}\"를 좋아해요"
-                       else "\"${notif.diaryTitle}\"에 댓글을 남겼어요",
+                text = when {
+                    isFriendPost -> "새 다이어리 \"${notif.diaryTitle}\"를 남겼어요"
+                    isLike -> "\"${notif.diaryTitle}\"를 좋아해요"
+                    else -> "\"${notif.diaryTitle}\"에 댓글을 남겼어요"
+                },
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.secondary
             )
-            if (!isLike && notif.content.isNotEmpty()) {
+            if (!isLike && !isFriendPost && notif.content.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "\"${notif.content}\"",

@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.chaminwoo.stary.shared.data.repository.NotificationRepository
@@ -14,7 +15,7 @@ import kotlinx.coroutines.tasks.await
 /** 공용 [NotificationRepository] 의 Android/Firestore 구현. */
 class FirebaseNotificationRepository : NotificationRepository {
 
-    private val db = Firebase.firestore
+    private val db = staryFirestore
 
     override fun observeNotifications(ownerId: String): Flow<List<AppNotification>> = callbackFlow {
         val listener = db.collection(StaryConfig.Collections.NOTIFICATIONS)
@@ -36,6 +37,41 @@ class FirebaseNotificationRepository : NotificationRepository {
             .whereEqualTo("isRead", false)
             .addSnapshotListener { snap, _ -> trySend(snap?.size() ?: 0) }
         awaitClose { listener.remove() }
+    }
+
+    /**
+     * 친구 새 글 인앱 알림 — 업로더 클라이언트가 친구마다 알림 문서를 생성한다.
+     * (푸시(FCM)는 서버(Cloud Functions) 필요 — 체크리스트 7/8 잔여분)
+     */
+    suspend fun notifyFriendPost(
+        actorId: String,
+        actorName: String,
+        diaryId: String,
+        diaryTitle: String,
+        friendIds: List<String>,
+    ) {
+        if (friendIds.isEmpty()) return
+        try {
+            val batch = db.batch()
+            val now = System.currentTimeMillis()
+            friendIds.forEach { friendId ->
+                val doc = db.collection(StaryConfig.Collections.NOTIFICATIONS).document()
+                batch.set(
+                    doc,
+                    AppNotification(
+                        id = doc.id,
+                        type = com.chaminwoo.stary.core.model.NotificationType.FRIEND_POST.name,
+                        diaryId = diaryId,
+                        diaryTitle = diaryTitle,
+                        diaryOwnerId = friendId, // 알림 수신자
+                        actorId = actorId,
+                        actorName = actorName,
+                        createdAt = now
+                    )
+                )
+            }
+            batch.commit().await()
+        } catch (_: Exception) {}
     }
 
     override suspend fun markAllRead(ownerId: String) {

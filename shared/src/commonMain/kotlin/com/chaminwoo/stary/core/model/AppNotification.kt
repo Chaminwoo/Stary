@@ -1,6 +1,6 @@
 package com.chaminwoo.stary.core.model
 
-enum class NotificationType { LIKE, COMMENT }
+enum class NotificationType { LIKE, COMMENT, FRIEND_POST }
 
 data class AppNotification(
     val id: String = "",

@@ -51,6 +51,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -61,12 +64,29 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.chaminwoo.stary.R
+import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.ImageUploadHelper
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import kotlinx.coroutines.launch
+
+/** 지도 마커와 동일한 StarStyle.starPath 모양을 그리는 피커 아이콘 */
+@Composable
+private fun StarShapeIcon(type: Int, color: Color, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val path = StarStyle.starPath(type, size.minDimension)
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawPath(
+                path,
+                android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    this.color = color.toArgb()
+                }
+            )
+        }
+    }
+}
 
 @Composable
 fun UploadScreen(
@@ -76,6 +96,8 @@ fun UploadScreen(
 ) {
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
+    var starType by remember { mutableStateOf(0) }
+    var starColor by remember { mutableStateOf(0) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isUploading by remember { mutableStateOf(false) }
     var isAnonymous by remember { mutableStateOf(false) }
@@ -280,6 +302,67 @@ fun UploadScreen(
             )
         )
 
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // --- 별 모양 선택 (지도 마커로 표시됨) ---
+        Text("별 모양", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            repeat(StarStyle.TYPE_COUNT) { index ->
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            if (starType == index) Color.White.copy(alpha = 0.18f)
+                            else Color.Transparent
+                        )
+                        .border(
+                            width = if (starType == index) 2.dp else 1.dp,
+                            color = if (starType == index) StarStyle.colorOf(starColor)
+                            else MaterialTheme.colorScheme.outline,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        .clickable { starType = index },
+                    contentAlignment = Alignment.Center
+                ) {
+                    StarShapeIcon(
+                        type = index,
+                        color = StarStyle.colorOf(starColor),
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- 별 색상 선택 (12색) ---
+        Text("별 색상", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            StarStyle.palette.chunked(6).forEachIndexed { rowIdx, rowColors ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    rowColors.forEachIndexed { colIdx, color ->
+                        val index = rowIdx * 6 + colIdx
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(color)
+                                .border(
+                                    width = if (starColor == index) 3.dp else 1.dp,
+                                    color = if (starColor == index) Color.White
+                                    else Color.White.copy(alpha = 0.25f),
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                                .clickable { starColor = index }
+                        )
+                    }
+                }
+            }
+        }
+
         if (isLoggedIn) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -338,7 +421,9 @@ fun UploadScreen(
                             userName = userName,
                             isAnonymous = isAnonymous || !isLoggedIn,
                             latitude = lat,
-                            longitude = lng
+                            longitude = lng,
+                            starType = starType,
+                            starColor = starColor
                         )
                     )
                     isUploading = false

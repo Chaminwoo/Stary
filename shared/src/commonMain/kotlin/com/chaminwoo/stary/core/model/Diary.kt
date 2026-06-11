@@ -20,5 +20,9 @@ data class Diary(
     val createdAt: Long = 0L, // epoch millis (UTC)
     val likeCount: Int = 0,
     val commentCount: Int = 0,
-    val viewCount: Int = 0
+    val viewCount: Int = 0,
+    /** 별 모양 종류 인덱스 (0..4). 렌더는 starType×starColor 조합으로 결정. */
+    val starType: Int = 0,
+    /** 별 색상 팔레트 인덱스 (0..11). 팔레트는 androidApp designsystem StarStyle 참고. */
+    val starColor: Int = 0
 )

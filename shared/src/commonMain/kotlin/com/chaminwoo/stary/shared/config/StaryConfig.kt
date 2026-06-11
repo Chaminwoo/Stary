@@ -16,6 +16,12 @@ package com.chaminwoo.stary.shared.config
  */
 object StaryConfig {
 
+    /**
+     * Firestore 데이터베이스 ID (비밀 아님 — 구조 상수).
+     * momentdiary-f26c8 에는 (default) 가 아닌 named DB(stary-db)로 생성되어 있어 명시 지정 필요.
+     */
+    const val FIRESTORE_DB_ID = "stary-db"
+
     /** Firestore 컬렉션 이름 (비밀 아님). */
     object Collections {
         const val DIARIES = "diaries"
@@ -23,6 +29,12 @@ object StaryConfig {
         const val LIKES = "likes"
         const val NOTIFICATIONS = "notifications"
         const val USERS = "users"
+        /** users/{uid} 하위: 수락된 친구 목록 */
+        const val FRIENDS = "friends"
+        /** 최상위: pending 친구 요청 */
+        const val FRIEND_REQUESTS = "friendRequests"
+        /** users/{uid} 하위: 열람한 다이어리 기록 (미조회 필터용) */
+        const val VIEWED_DIARIES = "viewedDiaries"
     }
 
     /** 다이어리 열람 가능 반경(미터). */

@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.data.local.DiaryCache
 import com.chaminwoo.stary.shared.config.StaryConfig
@@ -9,9 +10,12 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -20,7 +24,7 @@ import kotlinx.coroutines.tasks.await
  */
 class FirebaseDiaryRepository : DiaryRepository {
 
-    private val diaries = Firebase.firestore.collection(StaryConfig.Collections.DIARIES)
+    private val diaries = staryFirestore.collection(StaryConfig.Collections.DIARIES)
 
     // 전체 다이어리 실시간 조회
     override fun observeAllDiaries(): Flow<List<Diary>> = callbackFlow {
@@ -28,7 +32,7 @@ class FirebaseDiaryRepository : DiaryRepository {
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot: QuerySnapshot?, error: Exception? ->
                 if (error != null) {
-                    close(error)
+                    // 권한/네트워크 에러로 앱이 죽지 않게 무시 (close 하면 Flow 예외가 크래시로 전파됨)
                     return@addSnapshotListener
                 }
                 val list = snapshot?.documents?.mapNotNull { doc ->
@@ -49,10 +53,32 @@ class FirebaseDiaryRepository : DiaryRepository {
                 createdAt = if (diary.createdAt == 0L) System.currentTimeMillis() else diary.createdAt
             )
             docRef.set(withMeta).await()
+            // fire-and-forget: 친구 알림 생성이 저장 완료 이벤트(토스트/화면전환)를 막지 않게 분리
+            CoroutineScope(Dispatchers.IO).launch { notifyFriendsOfPost(withMeta) }
             true
         } catch (e: Exception) {
             false
         }
+    }
+
+    /** 업로드 성공 시 친구들에게 FRIEND_POST 인앱 알림 생성 (실패해도 저장엔 영향 없음). */
+    private suspend fun notifyFriendsOfPost(diary: Diary) {
+        if (diary.userId.isBlank()) return
+        try {
+            val friendIds = staryFirestore
+                .collection(StaryConfig.Collections.USERS)
+                .document(diary.userId)
+                .collection(StaryConfig.Collections.FRIENDS)
+                .get().await()
+                .documents.map { it.id }
+            FirebaseNotificationRepository().notifyFriendPost(
+                actorId = diary.userId,
+                actorName = if (diary.isAnonymous) "익명" else diary.userName,
+                diaryId = diary.id,
+                diaryTitle = diary.title,
+                friendIds = friendIds
+            )
+        } catch (_: Exception) {}
     }
 
     // 다이어리 삭제
@@ -79,7 +105,7 @@ class FirebaseDiaryRepository : DiaryRepository {
             .whereEqualTo("userId", userId)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
-                if (error != null) { close(error); return@addSnapshotListener }
+                if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
                 val list = snapshot?.documents?.mapNotNull { doc ->
                     doc.toObject(Diary::class.java)?.copy(id = doc.id)
                 } ?: emptyList()

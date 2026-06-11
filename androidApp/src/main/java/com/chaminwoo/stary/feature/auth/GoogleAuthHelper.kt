@@ -7,9 +7,16 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import com.chaminwoo.stary.core.model.UserProfile
+import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 object GoogleAuthHelper {
@@ -45,6 +52,28 @@ object GoogleAuthHelper {
                 currentUserId = getUserIdFromToken(idToken)
                 currentUserName = googleIdTokenCredential.displayName
                 currentUserPhotoUrl = googleIdTokenCredential.profilePictureUri?.toString()
+                // Firebase Auth 에도 로그인 — Firestore/Storage 보안 규칙(request.auth != null)이
+                // 통과하려면 필수. 실패해도 앱 흐름은 막지 않는다.
+                try {
+                    FirebaseAuth.getInstance()
+                        .signInWithCredential(GoogleAuthProvider.getCredential(idToken, null))
+                        .await()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Firebase Auth 로그인 실패: ${e.localizedMessage}")
+                }
+                // 친구 검색이 가능하도록 공개 프로필(users/{uid}) 기록.
+                // fire-and-forget: Firestore 쓰기가 지연/실패해도 로그인 흐름을 막지 않는다.
+                currentUserId?.let { uid ->
+                    CoroutineScope(Dispatchers.IO).launch {
+                        FirebaseFriendRepository().upsertProfile(
+                            UserProfile(
+                                userId = uid,
+                                userName = currentUserName ?: "",
+                                profileImageUrl = currentUserPhotoUrl ?: ""
+                            )
+                        )
+                    }
+                }
                 idToken
             } else null
         } catch (e: Exception) {
@@ -58,6 +87,7 @@ object GoogleAuthHelper {
             currentUserId = null
             currentUserName = null
             currentUserPhotoUrl = null
+            FirebaseAuth.getInstance().signOut()
             val credentialManager = CredentialManager.create(context)
             credentialManager.clearCredentialState(ClearCredentialStateRequest())
             Log.d(TAG, "로그아웃 성공")

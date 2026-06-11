@@ -55,28 +55,27 @@ fun LoginScreen(onLoginClick: () -> Unit) {
         if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
             LocationHelper.startContinuousUpdates(context)
         }
-        delay(3_000)
+        delay(1_500)
         showUI = true
     }
 
-    // GIF 마지막 25% 구간에서 1.0x → 0.15x 로 서서히 감속
+    // GIF 재생 속도: 전체적으로 빠르게(2.5x 시작), 종반에만 살짝 감속(하한 0.5x)
     LaunchedEffect(gifRef.value) {
         val drawable = gifRef.value ?: return@LaunchedEffect
         val totalFrames = drawable.numberOfFrames
         if (totalFrames <= 0) return@LaunchedEffect
+        drawable.setSpeed(2.5f)
 
         while (drawable.isRunning) {
             val progress = drawable.currentFrameIndex.toFloat() / totalFrames
             if (progress <= 0.5f) {
-                // 0% → 25%: 1.5x → 1.0x 으로 자연스럽게 감속
-                val fastProgress = progress / 0.5f          // 0.0 → 1.0
-                val speed = 2f - fastProgress * 0.5f       // 1.5x → 1.0x
-                drawable.setSpeed(speed)
+                // 0% → 50%: 2.5x → 1.8x
+                val fastProgress = progress / 0.5f
+                drawable.setSpeed(2.5f - fastProgress * 0.7f)
             } else if (progress >= 0.75f) {
-                // 75% → 100%: 1.0x → 0.15x 으로 서서히 감속
-                val slowProgress = (progress - 0.75f) / 0.25f          // 0.0 → 1.0
-                val speed = (1.0f - slowProgress * 0.85f).coerceAtLeast(0.15f) // 1.0x → 0.15x
-                drawable.setSpeed(speed)
+                // 75% → 100%: 1.8x → 0.5x 로 감속 (과도하게 느려지지 않게 하한 0.5x)
+                val slowProgress = (progress - 0.75f) / 0.25f
+                drawable.setSpeed((1.8f - slowProgress * 1.3f).coerceAtLeast(0.5f))
             }
             delay(50)
         }

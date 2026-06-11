@@ -9,7 +9,8 @@ activityCompose = "1.13.0"
 kotlin = "2.2.10"
 composeBom = "2024.09.00"
 googleGmsGoogleServices = "4.4.4"
-firebaseFirestore = "26.2.0"
+# named DB(stary-db) 지원을 위해 33.x 필요 (구 26.2.0 = 2020년, firestore 22.x)
+firebaseFirestore = "33.7.0"
 secretsGradlePlugin = "2.0.1"
 coroutines = "1.8.1"
 

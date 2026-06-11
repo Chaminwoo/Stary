@@ -41,6 +41,14 @@ sealed class NavRoute {
     }
 
     @Serializable
+    data object Friends : NavRoute() {
+        override val title = "친구"
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
+    @Serializable
     data object MyPage : NavRoute() {
         override val title = "마이페이지"
         override val isRoot = false

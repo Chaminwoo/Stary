@@ -47,9 +47,9 @@ import coil.compose.AsyncImage
 import com.chaminwoo.stary.core.model.Comment
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.LocationHelper
-import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.data.local.DiaryCache
 import com.chaminwoo.stary.data.repository.FirebaseDiaryRepository
+import com.chaminwoo.stary.data.repository.FirebaseViewedRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.diary.InteractionViewModel
@@ -60,7 +60,6 @@ import java.util.Locale
 fun DetailScreen(
     diaryId: String,
     modifier: Modifier = Modifier,
-    onLocationClick: ((LatLng) -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     diaryViewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())
 ) {
@@ -76,6 +75,10 @@ fun DetailScreen(
         diary = DiaryCache.get(diaryId) ?: repository.getDiaryById(diaryId)
         isLoading = false
         repository.incrementViewCount(diaryId)
+        // 미조회 필터용 열람 기록
+        GoogleAuthHelper.currentUserId?.let { uid ->
+            FirebaseViewedRepository().markViewed(uid, diaryId)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -263,21 +266,7 @@ fun DetailScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 위치 보기 — 100m 밖에서만
-            if (currentDiary.latitude != 0.0 && currentDiary.longitude != 0.0 && !isNear) {
-                Button(
-                    onClick = { onLocationClick?.invoke(LatLng(currentDiary.latitude, currentDiary.longitude)) },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onBackground
-                    )
-                ) {
-                    Text("📍 위치 보기", fontSize = 14.sp)
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+            // ("위치 보기" 버튼 제거됨 — 100m 밖 다이어리는 지도 마커 클릭 시 도보 길찾기로 연결)
 
             if (isNear) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)

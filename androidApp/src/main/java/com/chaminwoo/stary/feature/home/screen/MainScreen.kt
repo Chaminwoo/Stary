@@ -69,6 +69,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
         currentDestination?.hasRoute<NavRoute.Main>() == true -> NavRoute.Main
         currentDestination?.hasRoute<NavRoute.Upload>() == true -> NavRoute.Upload
         currentDestination?.hasRoute<NavRoute.MyPage>() == true -> NavRoute.MyPage
+        currentDestination?.hasRoute<NavRoute.Friends>() == true -> NavRoute.Friends
         currentDestination?.hasRoute<NavRoute.Notification>() == true -> NavRoute.Notification
         currentDestination?.hasRoute<NavRoute.Detail>() == true -> NavRoute.Detail()
         else -> NavRoute.Login
@@ -120,6 +121,15 @@ fun MainScreen(modifier: Modifier = Modifier) {
                         label = { Text("마이페이지", fontSize = 20.sp, color = if (currentRoute is NavRoute.MyPage) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
                         selected = currentRoute is NavRoute.MyPage,
                         onClick = { onNavigate(NavRoute.MyPage) },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = Color(0xFF6EE7B7).copy(alpha = 0.10f),
+                            unselectedContainerColor = Color.Transparent
+                        )
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("친구", fontSize = 20.sp, color = if (currentRoute is NavRoute.Friends) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
+                        selected = currentRoute is NavRoute.Friends,
+                        onClick = { onNavigate(NavRoute.Friends) },
                         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
                             selectedContainerColor = Color(0xFF6EE7B7).copy(alpha = 0.10f),
                             unselectedContainerColor = Color.Transparent

@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.core.model.Like
 import com.chaminwoo.stary.core.model.NotificationType
@@ -16,7 +17,7 @@ import kotlinx.coroutines.tasks.await
 /** 공용 [LikeRepository] 의 Android/Firestore 구현. */
 class FirebaseLikeRepository : LikeRepository {
 
-    private val db = Firebase.firestore
+    private val db = staryFirestore
 
     override fun observeIsLiked(diaryId: String, userId: String): Flow<Boolean> = callbackFlow {
         if (userId.isBlank()) { trySend(false); awaitClose {}; return@callbackFlow }
