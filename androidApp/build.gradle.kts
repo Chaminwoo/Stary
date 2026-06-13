@@ -112,6 +112,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.storage.ktx)
+    implementation(libs.firebase.messaging)
     implementation(libs.jwt.decode)
 
     implementation("io.coil-kt:coil-compose:2.6.0")

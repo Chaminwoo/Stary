@@ -31,13 +31,14 @@
 - [x] 저줌 길 숨김: road-major `minzoom`(현재 8) 미만 줌에선 바다+땅만.
 - [x] 줌 색 보간: bg/water/road `paint` 색을 `["interpolate",["linear"],["zoom"],6,..,16,..]` 로(줌아웃=밝게, 줌인=검정계).
 
-### A-3. 마커 (별 종류×색상, 4번과 연동) — ⏳ 남음
-- [ ] 다이어리 별 마커 **재구현**(현재 제거, 내 위치만 표시). type 5개 생성 이후 type(0~4)×color(0~11) 아이콘 렌더 로직 생성
-- [ ] 색상 12색 / 종류 5형을 `core/designsystem` 상수로 정의(렌더·업로드 공용).
-- [ ] 마커 클릭 → 100m 게이팅(`LocationHelper.distanceBetween` ≤ `StaryConfig.DIARY_OPEN_RADIUS_M`).
+### A-3. 마커 (별 종류×색상, 4번과 연동) — ✅ 완료 (기능 배치 1 + 버그 라운드 1·2)
+- [x] 다이어리 별 마커: `StarStyle.starPath` 5종 × 12색 Path 직접 렌더(`starBitmap`), 위상 그룹 4레이어.
+- [x] 색상 12색 / 종류 5형 `core/designsystem/StarStyle` 상수(렌더·업로드 공용).
+- [x] 마커 클릭 → 100m 게이팅(`LocationHelper.distanceBetween` ≤ `StaryConfig.DIARY_OPEN_RADIUS_M`).
 
-### A-4. 파티클 효과 — ⏳ 남음
-- [ ] MapLibre 내장 없음 → **지도 위 Compose 오버레이**(`Box { AndroidView(MapView) ; ParticleOverlay }`, `Canvas`).
+### A-4. 파티클 효과 — ✅ 완료 (MapLibre 전환, 2026-06-13)
+- [x] ~~`StarParticleOverlay`(Compose Canvas)~~ → **삭제. MapLibre GeoJSON(`star-particles`) + SymbolLayer 4개로 재구현**:
+      시드 고정 400개(반경 20km), 줌 6 이하 숨김(6→10 등장), depth 별 크기, 레이어별 위상 반짝임. 컬링은 MapLibre.
 
 ### A-5. 정리 — ✅ PROJECT_NOTES 6절(지도) 갱신 완료.
 
@@ -81,6 +82,17 @@
 - [x] 10. (라운드 1.5) PERMISSION_DENIED 시 **앱 크래시** → 스냅샷 리스너의 `close(error)` 제거(에러 무시, Flow 유지).
 - [x] 11. (라운드 1.5) **Firebase Auth 연동 추가**: Google 로그인 시 `signInWithCredential`, 비로그인 시 익명 로그인,
       로그아웃 시 `FirebaseAuth.signOut()` — 보안 규칙(request.auth != null) 대응. (콘솔 ② 필요)
+
+## 🐞 버그/피드백 라운드 2 — ✅ 전부 완료 (스크린샷 검증)
+- [x] 1. 지도 팬/줌 끊김 → 원인: 50ms 애니메이션 `setProperties` + 위치 갱신마다 GeoJSON 재생성.
+      **카메라 이동 중 애니메이션 일시정지** + **다이어리/near 집합 변화 시에만 재생성**.
+- [x] 2. 마커 중심 코어: 흰색·작음(분리감) → **원색 계열 코어 + 80% 크기**(사용자 튜닝값 0.05/0.8 유지).
+- [x] 3. 로그인 중 지도 미리 렌더 → **Login 을 라우트가 아닌 MainScreen 오버레이로** 변경(NavHost start=Main).
+      GIF 도는 동안 지도 로딩 → 로그인 직후 즉시 표시. 로그아웃 시 오버레이 복귀.
+- [x] 4. float 위상 분산: 마커를 **4개 위상 그룹 레이어**(id 해시 % 4, phaseGroup 필터)로 나눠 그룹별 위상차 적용
+      → 별들이 따로따로 부유/맥동.
+- [x] 5. 줌아웃 시 마커 축소: iconSize 를 **줌 보간**(8→0.3x, 12→0.55x, 15→1x) × near × pulse 합성 표현식으로.
+- [x] 6. 별 색 밝게: 팔레트 전체에 **흰색 30% 혼합**(`lerp(c, White, 0.3f)`) — 피커·마커 공통.
 - [x] 8. "Storage 에 다이어리가 없음" → **다이어리 본문/메타는 Firestore(diaries 컬렉션)에 저장**되고 Storage 에는 첨부 이미지만 올라감.
       현재는 ①((default) DB 미생성) 때문에 서버에 아무것도 못 올라간 상태. 이미지 업로드는 ②(Storage 시작) 필요.
 
@@ -88,46 +100,40 @@
 
 ## 📋 기능 백로그 (의존성 순서 고려)
 
-### 1. 지도 UI 리팩토링  *(A-1·A-2 ✅ / A-3·A-4 남음)*
+### 1. 지도 UI 리팩토링 — ✅ 완료 *(A-1~A-4 전부)*
 - [x] MapLibre 전환 + 베이스 스타일(검정/물/큰길) + 줌 색보간. (`feature/map/screen/DiaryMap.kt`, `res/raw/maplibre_style.json`, `MainListScreen.kt`)
-- [ ] A-3 다이어리 마커 / A-4 파티클 (위 A 섹션 참고).
+- [x] A-3 다이어리 마커 / A-4 파티클 (위 A 섹션 참고).
 
-### 2. "위치 보기" 버튼 제거 + 100m 밖 다이어리 → 도보 길찾기  *(A-3 마커 재구현과 함께)*
-- [ ] `DiaryMap`/`MainListScreen` 에서 재팔로우(`onRefollowClick`, `isFollowing`) **버튼 제거**.
-- [ ] 다이어리 마커 클릭 시(A-3) 100m 밖이면 Toast 대신 **도보 길찾기 실행**:
-      `Intent(ACTION_VIEW, Uri.parse("google.navigation:q=$lat,$lng&mode=w"))`(패키지 `com.google.android.apps.maps`),
-      폴백 `https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=walking`.
-- [ ] 100m 이내는 열람. (게이팅: `StaryConfig.DIARY_OPEN_RADIUS_M`)
+### 2. ~~"위치 보기" 버튼 제거 + 100m 밖 → 도보 길찾기~~ — ✅ 종결 (방침 변경)
+- [x] "위치 보기" 버튼 삭제(DetailScreen) — 버그 라운드 1.
+- [x] ~~도보 길찾기~~ → **사용자 결정으로 길찾기 기능 전부 삭제**. 100m 밖 클릭 = 거리 안내 토스트만.
 
-### 3. 친구 추가 + FriendScreen  *(4·6·7의 선행)*
-- [ ] Firestore 설계: `users/{uid}/friends/{friendUid}` (+ 요청용 `friendRequests` 또는 상태 필드).
-- [ ] `shared` 에 `FriendRepository` 인터페이스 + Android Firebase 구현(`data/repository/FirebaseFriendRepository.kt`).
-- [ ] `feature/friend/screen/FriendScreen.kt` + ViewModel: 사용자 검색(이름/이메일)·요청·수락·목록.
-- [ ] `navigation/NavGraph.kt`·`NavRoute.kt` 에 라우트 추가, 진입점(프로필/메인) 연결.
+### 3. 친구 추가 + FriendScreen — ✅ 완료 (기능 배치 1)
+- [x] Firestore: `users/{uid}/friends/{friendUid}` 양방향 + `friendRequests` 컬렉션.
+- [x] `shared` `FriendRepository` + `FirebaseFriendRepository`, `feature/friend/` FriendScreen/ViewModel.
+- [x] NavRoute.Friends + 드로어 "친구" 진입점.
 
-### 4. 업로드 시 별 종류·색상 선택 + Firestore 기록  *(A-3와 연동)*
-- [ ] `Diary` 모델에 `starType: Int`(0~4), `starColor: Int`(0~11) 추가 (`shared/core/model`). 기존 문서 기본값 처리.
-- [ ] `UploadScreen` 에 종류/색상 피커 UI. 업로드 시 두 값 저장(`FirebaseDiaryRepository`).
-- [ ] 마커 렌더가 이 값으로 그려지도록(A-3) 연결.
+### 4. 업로드 시 별 종류·색상 선택 + Firestore 기록 — ✅ 완료 (기능 배치 1)
+- [x] `Diary.starType`(0~4)/`starColor`(0~11), UploadScreen 피커(StarShapeIcon=마커 동일 Path), 마커 렌더 연동.
 
-### 5. 미조회 다이어리만 보기
-- [ ] 사용자별 조회 기록 필요: `users/{uid}/viewedDiaries/{diaryId}` (또는 로컬 캐시).
-- [ ] 다이어리 열람 시 기록 적재. 메인/리스트에 **미조회만** 토글 필터.
+### 5. 미조회 다이어리만 보기 — ✅ 완료 (기능 배치 1)
+- [x] `users/{uid}/viewedDiaries`(DetailScreen 진입 시 기록) + MainListScreen "미조회만" 칩.
 
-### 6. 친구 다이어리만 보기  *(3 선행)*
-- [ ] 친구 목록 기준으로 `diaries` 필터(작성자 `userId` ∈ friends).
-- [ ] 메인 지도/리스트에 **친구만** 토글 필터(5번 토글과 함께 필터 상태 관리).
+### 6. 친구 다이어리만 보기 — ✅ 완료 (기능 배치 1)
+- [x] friends 기준 `diaries` 필터 + MainListScreen "친구만" 칩.
 
-### 7. 친구 다이어리 알람  *(3 선행 + 서버)*
-- [ ] `NotificationType` 에 `FRIEND_POST` 추가, `AppNotification` 생성 경로 추가.
-- [ ] ⚠️ 타인에게 푸시하려면 **FCM + Cloud Functions(서버)** 필요(클라이언트만으로는 불가):
-      친구가 업로드 → Function 트리거 → 친구들에게 FCM 발송.
-- [ ] 인앱 알림 목록(`NotificationScreen`)에도 표시.
+### 7. 친구 다이어리 알람  *(인앱 ✅ / 푸시는 8번 서버와 동일)*
+- [x] `NotificationType.FRIEND_POST` 추가, 업로드 성공 시 친구들에게 알림 문서 생성(fire-and-forget).
+- [x] 인앱 알림 목록(`NotificationScreen`)에 ⭐ "새 다이어리 …" 표시 + 미읽음 배지.
+- [ ] 실제 푸시 발송 = 8번의 Cloud Functions 배포 필요(클라이언트 수신부는 준비 완료).
 
-### 8. 알람·딥링크로 앱 실행  *(7과 함께)*
-- [ ] FCM 수신 서비스(`FirebaseMessagingService`) 추가 + 알림 표시(PendingIntent).
-- [ ] 딥링크: App Links(`https://`) 또는 커스텀 스킴 → `MainActivity`/NavGraph 에서 해당 다이어리로 라우팅.
-- [ ] iOS 미지원/이슈 시 대안: Firebase Dynamic Links 종료(2025) 고려 → **Universal Links + FCM data payload** 또는 인앱 라우팅으로 대체.
+### 8. 알람·딥링크로 앱 실행  *(클라이언트 ✅ / 서버 ⏳)*
+- [x] FCM 수신 서비스 `push/StaryMessagingService`: data 메시지 `{diaryId, title, body}` 수신 → 알림 표시(채널 stary_default).
+- [x] 딥링크: 알림 탭 → `MainActivity` extra `diaryId` → `MainScreen(initialDiaryId)` → Detail 라우팅(로그인 오버레이 생략).
+- [x] FCM 토큰 저장: 로그인 시 + `onNewToken` 시 `users/{uid}.fcmToken` merge. POST_NOTIFICATIONS 권한 요청(API 33+).
+- [ ] **서버(Cloud Functions) 배포 필요**: `diaries` onCreate 트리거 → 작성자의 `users/{uid}/friends` 조회 →
+      각 친구 `users/{fid}.fcmToken` 으로 data 메시지 `{diaryId, title: "{userName}님의 새 별", body: 제목}` 발송.
+      (Blaze 요금제 + `firebase deploy --only functions` — 클라이언트는 준비 완료)
 
 ---
 

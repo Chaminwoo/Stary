@@ -2,6 +2,7 @@ package com.chaminwoo.stary.core.designsystem
 
 import android.graphics.Path
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -16,7 +17,10 @@ object StarStyle {
     const val TYPE_COUNT = 5
     const val COLOR_COUNT = 12
 
-    /** 12색 팔레트 (ARGB). 어두운 지도 배경 위에서 잘 보이는 톤으로 구성. */
+    /**
+     * 12색 팔레트 (ARGB). 어두운 지도 배경 위에서 "빛나는" 인상을 위해
+     * 기본 톤에 흰색을 30% 섞어 전체적으로 밝게 사용한다. (피커·마커 공통)
+     */
     val palette: List<Color> = listOf(
         Color(0xFFFFFFFF), // 0 화이트
         Color(0xFFFFD54F), // 1 골드
@@ -30,7 +34,7 @@ object StarStyle {
         Color(0xFF6EE7B7), // 9 민트 (앱 포인트)
         Color(0xFFAED581), // 10 라임
         Color(0xFFA1887F), // 11 브라운
-    )
+    ).map { lerp(it, Color.White, 0.30f) }
 
     fun colorOf(index: Int): Color = palette[index.coerceIn(0, COLOR_COUNT - 1)]
 

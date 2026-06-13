@@ -9,6 +9,10 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import com.chaminwoo.stary.core.model.UserProfile
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
+import com.chaminwoo.stary.data.staryFirestore
+import com.chaminwoo.stary.shared.config.StaryConfig
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
@@ -72,6 +76,16 @@ object GoogleAuthHelper {
                                 profileImageUrl = currentUserPhotoUrl ?: ""
                             )
                         )
+                        // FCM 토큰 저장 — 친구 새 글 푸시(Cloud Functions) 발송 대상 조회용
+                        try {
+                            val fcmToken = FirebaseMessaging.getInstance().token.await()
+                            staryFirestore.collection(StaryConfig.Collections.USERS)
+                                .document(uid)
+                                .set(mapOf("fcmToken" to fcmToken), SetOptions.merge())
+                                .await()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "FCM 토큰 저장 실패: ${e.localizedMessage}")
+                        }
                     }
                 }
                 idToken

@@ -6,7 +6,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
-import com.chaminwoo.stary.feature.auth.screen.LoginScreen
 import com.chaminwoo.stary.feature.diary.screen.DetailScreen
 import com.chaminwoo.stary.feature.diary.screen.NotificationScreen
 import com.chaminwoo.stary.feature.diary.screen.UploadScreen
@@ -19,21 +18,13 @@ fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier
 ) {
+    // 로그인은 별도 라우트가 아니라 MainScreen 의 오버레이로 표시된다.
+    // (지도를 로그인 화면 뒤에서 미리 렌더링해 로그인 직후 바로 보이게 하기 위함)
     NavHost(
         navController = navController,
-        startDestination = NavRoute.Login,
+        startDestination = NavRoute.Main,
         modifier = modifier
     ) {
-        composable<NavRoute.Login> {
-            LoginScreen(
-                onLoginClick = {
-                    navController.navigate(NavRoute.Main) {
-                        popUpTo<NavRoute.Login> { inclusive = true } // 백스택 청소
-                    }
-                }
-            )
-        }
-
         composable<NavRoute.Main> {
             MainListScreen(
                 onItemClick = { diaryId ->

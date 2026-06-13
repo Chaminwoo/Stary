@@ -3,6 +3,7 @@ package com.chaminwoo.stary.feature.home.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,7 +34,9 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +54,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
+import com.chaminwoo.stary.feature.auth.screen.LoginScreen
 import com.chaminwoo.stary.feature.diary.NotificationViewModel
 import com.chaminwoo.stary.navigation.NavGraph
 import com.chaminwoo.stary.navigation.NavRoute
@@ -58,21 +62,35 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(modifier: Modifier = Modifier) {
+fun MainScreen(
+    modifier: Modifier = Modifier,
+    initialDiaryId: String? = null, // 푸시 알림 탭 딥링크 (해당 다이어리 상세로 이동)
+) {
     val context = LocalContext.current
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
     val currentRoute: NavRoute = when {
-        currentDestination?.hasRoute<NavRoute.Login>() == true -> NavRoute.Login
         currentDestination?.hasRoute<NavRoute.Main>() == true -> NavRoute.Main
         currentDestination?.hasRoute<NavRoute.Upload>() == true -> NavRoute.Upload
         currentDestination?.hasRoute<NavRoute.MyPage>() == true -> NavRoute.MyPage
         currentDestination?.hasRoute<NavRoute.Friends>() == true -> NavRoute.Friends
         currentDestination?.hasRoute<NavRoute.Notification>() == true -> NavRoute.Notification
         currentDestination?.hasRoute<NavRoute.Detail>() == true -> NavRoute.Detail()
-        else -> NavRoute.Login
+        else -> NavRoute.Main
+    }
+
+    // 로그인은 라우트가 아니라 오버레이 — 뒤에서 지도가 미리 렌더링되어
+    // 로그인 직후 바로 지도가 보인다. 로그아웃 시 다시 true.
+    // (푸시 딥링크로 진입한 경우엔 바로 다이어리를 보여주기 위해 오버레이 생략)
+    var showLogin by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf(initialDiaryId == null)
+    }
+
+    // 푸시 알림 탭 → 해당 다이어리 상세로 이동
+    androidx.compose.runtime.LaunchedEffect(initialDiaryId) {
+        initialDiaryId?.let { navController.navigate(NavRoute.Detail(diaryId = it)) }
     }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -93,6 +111,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
@@ -192,14 +211,16 @@ fun MainScreen(modifier: Modifier = Modifier) {
                                         if (isLoggedIn) {
                                             coroutineScope.launch {
                                                 GoogleAuthHelper.signOut(context)
-                                                navController.navigate(NavRoute.Login) {
+                                                navController.navigate(NavRoute.Main) {
                                                     popUpTo(0) { inclusive = true }
                                                 }
+                                                showLogin = true
                                             }
                                         } else {
-                                            navController.navigate(NavRoute.Login) {
+                                            navController.navigate(NavRoute.Main) {
                                                 popUpTo(0) { inclusive = true }
                                             }
+                                            showLogin = true
                                         }
                                     }
                                 ) {
@@ -247,6 +268,12 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 modifier = modifier.padding(paddingValues)
             )
         }
+    }
+
+    // 로그인 오버레이 — 보이는 동안 뒤에서 지도(MainListScreen)가 미리 렌더링된다.
+    if (showLogin) {
+        LoginScreen(onLoginClick = { showLogin = false })
+    }
     }
 }
 

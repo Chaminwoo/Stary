@@ -70,7 +70,23 @@ import org.maplibre.android.geometry.LatLng as MlLatLng
 private const val DEFAULT_ZOOM = 15.0
 private const val CURRENT_SOURCE = "current-location"
 private const val DIARY_SOURCE = "diaries"
-private const val DIARY_LAYER = "diary-stars"
+private const val STAR_PARTICLE_SOURCE = "star-particles"
+private const val PARTICLE_ICON_ID = "star-particle-dot"
+
+/**
+ * float/pulse 애니메이션 위상 그룹 수.
+ * 한 SymbolLayer 의 iconTranslate 는 레이어 전체에 일괄 적용되므로,
+ * 마커를 id 해시 기반 그룹으로 나눠 레이어별로 다른 위상을 줘 "따로따로" 부유하게 한다.
+ */
+private const val PHASE_GROUPS = 4
+private fun diaryLayerId(group: Int) = "diary-stars-$group"
+private val DIARY_LAYER_IDS = Array(PHASE_GROUPS) { diaryLayerId(it) }
+private fun particleLayerId(group: Int) = "star-particles-$group"
+
+/** 별가루 파티클: 개수/분포 반경/시드(고정 → 항상 같은 배치). */
+private const val PARTICLE_COUNT = 400
+private const val PARTICLE_RADIUS_M = 20_000.0
+private const val PARTICLE_SEED = 42
 
 /** 마커 비트맵 변(px). 4의 배수 유지(GL 행 정렬). */
 private const val MARKER_SIDE_PX = 160
@@ -118,23 +134,102 @@ private fun starBitmap(type: Int, colorIdx: Int): Bitmap {
     // 2) 본체
     canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
 
-    // 3) 흰 중심 하이라이트 (별 중심이 빛나 보이게, 45% 축소본)
+    // 3) 중심 코어: 원색보다 살짝 어두운 톤(35% 어둡게) + 65% 크기 —
+    //    흰색/작은 코어는 본체와 분리돼 보였음. 어두운 코어가 글로우와 한 덩어리로 빛나는 인상.
+    val coreColor = androidx.core.graphics.ColorUtils.blendARGB(color, AndroidColor.BLACK, 0.05f)
     val centerPath = android.graphics.Path(path)
-    val m = android.graphics.Matrix().apply { setScale(0.45f, 0.45f, side / 2f, side / 2f) }
+    val m = android.graphics.Matrix().apply { setScale(0.8f, 0.8f, side / 2f, side / 2f) }
     centerPath.transform(m)
-    canvas.drawPath(centerPath, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        this.color = AndroidColor.WHITE
-        alpha = 220
-    })
+    canvas.drawPath(centerPath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = coreColor })
     return out
 }
 
-/** near 여부에 따른 iconSize 표현식 (pulse 배율은 애니메이션 루프에서 곱해 갱신). */
-private fun starSizeExpression(pulse: Float): Expression =
-    Expression.switchCase(
+/**
+ * iconSize 표현식: 줌 보간(줌아웃일수록 작게) × near 확대 × pulse(애니메이션 루프에서 갱신).
+ * ["zoom"] 은 최상위 interpolate 에서만 허용되므로 줌 스톱의 출력값에 near 분기를 넣는다.
+ */
+private fun starSizeExpression(pulse: Float): Expression {
+    fun sized(zoomMult: Float): Expression = Expression.switchCase(
         Expression.eq(Expression.get("near"), Expression.literal(true)),
-        Expression.literal(STAR_SIZE_NEAR * pulse),
-        Expression.literal(STAR_SIZE_FAR)
+        Expression.literal(STAR_SIZE_NEAR * pulse * zoomMult),
+        Expression.literal(STAR_SIZE_FAR * zoomMult)
+    )
+    return Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        Expression.stop(8f, sized(0.3f)),
+        Expression.stop(12f, sized(0.55f)),
+        Expression.stop(15f, sized(1f)),
+    )
+}
+
+/** 파티클 비트맵 변(px). 4의 배수 유지(GL 행 정렬). */
+private const val PARTICLE_SIDE_PX = 24
+
+/** 별가루 파티클 비트맵 — 흰색 글로우 + 흰색 코어의 작은 점. */
+private fun particleBitmap(): Bitmap {
+    val side = PARTICLE_SIDE_PX
+    val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(out)
+    val c = side / 2f
+    val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE
+        maskFilter = android.graphics.BlurMaskFilter(4f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    canvas.drawCircle(c, c, side * 0.22f, glowPaint)
+    canvas.drawCircle(c, c, side * 0.13f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
+    return out
+}
+
+/**
+ * 별가루 파티클 FeatureCollection — [center] 기준 반경 [PARTICLE_RADIUS_M] 내 균등 분포.
+ * 시드 고정이라 매 실행 같은 배치. 한 번 생성 후 갱신하지 않는다(카메라 이동과 무관).
+ */
+private fun starParticleFeatures(center: LatLng): FeatureCollection {
+    val rnd = kotlin.random.Random(PARTICLE_SEED)
+    val cosLat = kotlin.math.cos(Math.toRadians(center.latitude)).coerceAtLeast(0.01)
+    val features = (0 until PARTICLE_COUNT).map { i ->
+        // sqrt 로 면적 균등 분포
+        val r = PARTICLE_RADIUS_M * kotlin.math.sqrt(rnd.nextDouble())
+        val theta = rnd.nextDouble() * 2.0 * Math.PI
+        val dLat = r * kotlin.math.cos(theta) / 111_320.0
+        val dLng = r * kotlin.math.sin(theta) / (111_320.0 * cosLat)
+        Feature.fromGeometry(
+            Point.fromLngLat(center.longitude + dLng, center.latitude + dLat)
+        ).apply {
+            addNumberProperty("phase", rnd.nextDouble() * 2.0 * Math.PI)
+            addNumberProperty("twinkleSpeed", 0.5 + rnd.nextDouble())
+            addNumberProperty("depth", 0.5 + rnd.nextDouble() * 0.5) // 0.5..1.0 크기 배율
+            addNumberProperty("phaseGroup", i % PHASE_GROUPS)
+        }
+    }
+    return FeatureCollection.fromFeatures(features)
+}
+
+/**
+ * 파티클 iconSize: 줌 6→0, 10→0.4, 15→0.8 보간 × per-feature depth(0.5..1.0).
+ * 데이터 주도 expression 이므로 한 번만 설정하면 된다.
+ * (사라지는 시점은 opacity 와 함께 줌 6 — 사용자 튜닝값)
+ */
+private fun particleSizeExpression(): Expression {
+    fun sized(base: Float): Expression =
+        Expression.product(Expression.literal(base), Expression.get("depth"))
+    return Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        Expression.stop(6f, sized(0f)),
+        Expression.stop(10f, sized(0.4f)),
+        Expression.stop(15f, sized(0.8f)),
+    )
+}
+
+/**
+ * 파티클 iconOpacity: 줌 6 이하 완전 숨김 → 10 에서 [twinkle] 까지 선형 등장.
+ * twinkle 은 애니메이션 루프에서 레이어(위상 그룹)별로 갱신해 반짝임을 만든다.
+ */
+private fun particleOpacityExpression(twinkle: Float): Expression =
+    Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        Expression.stop(6f, 0f),
+        Expression.stop(10f, twinkle),
     )
 
 /**
@@ -199,6 +294,8 @@ fun DiaryMap(
     var locationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var diarySource by remember { mutableStateOf<GeoJsonSource?>(null) }
     val addedIcons = remember { mutableSetOf<String>() }
+    // 지도 제스처/카메라 이동 중에는 스타일 변경(애니메이션 setProperties)을 멈춰 끊김 방지
+    val isCameraMoving = remember { mutableStateOf(false) }
 
     val onDiaryClickRef = rememberUpdatedState(onDiaryClick)
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
@@ -217,10 +314,12 @@ fun DiaryMap(
                     isTiltGesturesEnabled = false
                     isCompassEnabled = false
                 }
+                map.addOnCameraMoveStartedListener { isCameraMoving.value = true }
+                map.addOnCameraIdleListener { isCameraMoving.value = false }
                 // 별 클릭 → 100m 게이팅 (길찾기 기능은 제거됨 — 밖이면 안내 토스트만)
                 map.addOnMapClickListener { point ->
                     val screen = map.projection.toScreenLocation(point)
-                    val features = map.queryRenderedFeatures(screen, DIARY_LAYER)
+                    val features = map.queryRenderedFeatures(screen, *DIARY_LAYER_IDS)
                     val id = features.firstOrNull()?.getStringProperty("id")
                     if (id != null) {
                         val diary = diariesRef.value.firstOrNull { it.id == id }
@@ -245,17 +344,42 @@ fun DiaryMap(
                 map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
                     val start = initialLatLngRef.value
 
-                    // 다이어리 별 마커
+                    // 별가루 파티클 — 실제 지도 좌표 GeoJSON, MapLibre 컬링으로 화면 내만 렌더.
+                    // 다이어리 별보다 먼저 추가해 아래에 깔린다. 생성 후 갱신 없음.
+                    style.addImage(PARTICLE_ICON_ID, particleBitmap())
+                    style.addSource(
+                        GeoJsonSource(STAR_PARTICLE_SOURCE, starParticleFeatures(start))
+                    )
+                    for (g in 0 until PHASE_GROUPS) {
+                        val layer = SymbolLayer(particleLayerId(g), STAR_PARTICLE_SOURCE)
+                            .withProperties(
+                                PropertyFactory.iconImage(PARTICLE_ICON_ID),
+                                PropertyFactory.iconSize(particleSizeExpression()),
+                                PropertyFactory.iconOpacity(particleOpacityExpression(1f)),
+                                PropertyFactory.iconAllowOverlap(true),
+                                PropertyFactory.iconIgnorePlacement(true),
+                            )
+                        layer.setFilter(
+                            Expression.eq(Expression.get("phaseGroup"), Expression.literal(g))
+                        )
+                        style.addLayer(layer)
+                    }
+
+                    // 다이어리 별 마커 — 위상 그룹별 레이어(같은 source, phaseGroup 필터)
                     val dSrc = GeoJsonSource(DIARY_SOURCE, FeatureCollection.fromFeatures(emptyList()))
                     style.addSource(dSrc)
-                    style.addLayer(
-                        SymbolLayer(DIARY_LAYER, DIARY_SOURCE).withProperties(
+                    for (g in 0 until PHASE_GROUPS) {
+                        val layer = SymbolLayer(diaryLayerId(g), DIARY_SOURCE).withProperties(
                             PropertyFactory.iconImage(Expression.get("icon")),
                             PropertyFactory.iconSize(starSizeExpression(1f)),
                             PropertyFactory.iconAllowOverlap(true),
                             PropertyFactory.iconIgnorePlacement(true),
                         )
-                    )
+                        layer.setFilter(
+                            Expression.eq(Expression.get("phaseGroup"), Expression.literal(g))
+                        )
+                        style.addLayer(layer)
+                    }
                     diarySource = dSrc
 
                     // 내 위치 마커 (별 위에 표시)
@@ -358,10 +482,21 @@ fun DiaryMap(
     }
 
     // 다이어리/현재위치 변경 → 마커 갱신 (near = 100m 이내, 아이콘은 사용 조합만 등록)
+    // 위치는 자주 갱신되므로 "다이어리 목록 or near 집합"이 실제로 바뀐 경우에만 setGeoJson (끊김 방지)
+    var lastFeaturesKey by remember { mutableStateOf<Any?>(null) }
     LaunchedEffect(diaries, styleRef, currentLatLng) {
         val style = styleRef ?: return@LaunchedEffect
         val source = diarySource ?: return@LaunchedEffect
         val valid = diaries.filter { it.latitude != 0.0 && it.longitude != 0.0 }
+        val nearIds = valid.filter { d ->
+            LocationHelper.distanceBetween(
+                currentLatLng.latitude, currentLatLng.longitude, d.latitude, d.longitude
+            ) <= StaryConfig.DIARY_OPEN_RADIUS_M
+        }.map { it.id }.toSet()
+        val key = diaries to nearIds
+        if (key == lastFeaturesKey) return@LaunchedEffect
+        lastFeaturesKey = key
+
         valid.map {
             it.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1) to
                 it.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1)
@@ -374,12 +509,10 @@ fun DiaryMap(
                 }
             }
         val features = valid.map { d ->
-            val near = LocationHelper.distanceBetween(
-                currentLatLng.latitude, currentLatLng.longitude, d.latitude, d.longitude
-            ) <= StaryConfig.DIARY_OPEN_RADIUS_M
             Feature.fromGeometry(Point.fromLngLat(d.longitude, d.latitude)).apply {
                 addStringProperty("id", d.id)
-                addBooleanProperty("near", near)
+                addBooleanProperty("near", d.id in nearIds)
+                addNumberProperty("phaseGroup", kotlin.math.abs(d.id.hashCode()) % PHASE_GROUPS)
                 addStringProperty(
                     "icon",
                     starIconId(
@@ -392,19 +525,38 @@ fun DiaryMap(
         source.setGeoJson(FeatureCollection.fromFeatures(features))
     }
 
-    // 마커 애니메이션: 전체 별 float(상하 부유) + 근접 별 pulse(맥동 확대)
+    // 마커 애니메이션: float(상하 부유) + 근접 별 pulse(맥동 확대).
+    // 위상 그룹 레이어마다 다른 위상을 적용해 별들이 따로따로 부유한다.
+    // 카메라 이동 중엔 스타일 변경을 멈춰 팬/줌 끊김을 방지한다.
     LaunchedEffect(styleRef) {
         val style = styleRef ?: return@LaunchedEffect
         var t = 0f
         while (isActive) {
-            val layer = style.getLayer(DIARY_LAYER) as? SymbolLayer ?: break
+            if (isCameraMoving.value) {
+                delay(100)
+                continue
+            }
             t += 0.05f
-            val floatDy = (sin(t * 1.6f) * 3f) // -3..3 dp 부유
-            val pulse = 1f + 0.20f * ((sin(t * 3.2f) + 1f) / 2f) // 1.0..1.2 맥동
-            layer.setProperties(
-                PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                PropertyFactory.iconSize(starSizeExpression(pulse)),
-            )
+            for (g in 0 until PHASE_GROUPS) {
+                val layer = style.getLayer(diaryLayerId(g)) as? SymbolLayer ?: continue
+                val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
+                val floatDy = (sin(t * 1.6f + phase) * 3f) // -3..3 dp 부유
+                val pulse = 1f + 0.20f * ((sin(t * 3.2f + phase) + 1f) / 2f) // 1.0..1.2 맥동
+                layer.setProperties(
+                    PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
+                    PropertyFactory.iconSize(starSizeExpression(pulse)),
+                )
+            }
+            // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신 (GeoJSON 재생성 없음)
+            for (g in 0 until PHASE_GROUPS) {
+                val layer = style.getLayer(particleLayerId(g)) as? SymbolLayer ?: continue
+                val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
+                val speed = 2.0f + g * 0.4f // 그룹마다 다른 주기 → 덜 기계적인 반짝임
+                val twinkle = 0.25f + 0.75f * ((sin(t * speed + phase) + 1f) / 2f)
+                layer.setProperties(
+                    PropertyFactory.iconOpacity(particleOpacityExpression(twinkle))
+                )
+            }
             delay(50)
         }
     }

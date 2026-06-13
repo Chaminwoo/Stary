@@ -93,6 +93,13 @@
   - ⚠️ 비트맵은 정사각+4의 배수 변(현재 160px). addImage 는 기기밀도로 나눠 표시(화면크기 ≈ 160/density × iconSize).
   - near(100m 이내) = feature bool 속성 → iconSize 확대 + pulse, 전체 float 애니메이션(50ms 루프 setProperties).
   - 클릭: queryRenderedFeatures → 100m 이내 열람 / 밖 거리 토스트. (길찾기 기능은 사용자 요청으로 삭제)
+- **별가루 파티클**: GeoJSON source(`star-particles`) + SymbolLayer 4개(`star-particles-0..3`, phaseGroup 필터).
+  - Compose Canvas(`StarParticleOverlay`) 는 **삭제됨** — 실좌표 마커라 카메라 동기화 코드 불필요, 컬링은 MapLibre 가 담당.
+  - 시드 42 고정, 400개를 초기 currentLatLng 반경 20km 면적 균등 분포로 1회 생성(이후 setGeoJson 없음).
+    feature 속성: phase / twinkleSpeed / depth(0.5~1.0 크기 배율) / phaseGroup.
+  - 아이콘 = 24px 흰 점(글로우+코어) 비트맵. iconSize = 줌 보간(6→0, 10→0.4, 15→0.8) × depth.
+    iconOpacity = 줌 보간(6→0, 10→twinkle) — **줌 6 이하 완전 숨김**(사용자 튜닝: 8→6).
+  - 반짝임 = 기존 50ms 애니메이션 루프에서 레이어 4개의 iconOpacity 만 위상/주기 달리 갱신(GeoJSON 재생성 금지).
 - 초기 카메라(현재 위치 중심 / `LocationHelper.cameraTarget` 경계)는 DiaryMap이 style 로드 시 처리.
 - ⚠️ 키 없으면(placeholder) 타일 안 뜸. `secrets.properties`의 `MAPTILER_KEY` 필요.
 
@@ -129,6 +136,12 @@
 - **안정화**: 스냅샷 리스너 `close(error)` 금지(권한 에러 크래시 방지), 로그인/저장 경로의 Firestore 부수 작업은
   전부 fire-and-forget, GIF 인트로 속도 상향.
 - **위치 보기 버튼 삭제**(DetailScreen) — 100m 밖은 지도에서 거리 토스트만.
+- **(라운드 2)** 로그인 = MainScreen **오버레이**(NavHost start=Main, 지도 선로딩 → 로그인 직후 즉시 표시),
+  마커 위상 그룹 4개(따로 부유), iconSize 줌 보간(8→0.3x~15→1x), 팔레트 흰색 30% 혼합(밝게),
+  팬/줌 중 애니메이션 일시정지 + GeoJSON 변화시에만 재생성(끊김 해소).
+- **(라운드 3)** 별가루 파티클을 Compose Canvas(`StarParticleOverlay`) → **MapLibre GeoJSON+SymbolLayer 전환**(6절 참고).
+- **FCM 클라이언트**: `push/StaryMessagingService`(data {diaryId,title,body} → 알림), 알림 탭 →
+  `MainActivity` extra → Detail 딥링크, 토큰은 `users/{uid}.fcmToken`. **발송은 Cloud Functions 배포 필요**(체크리스트 8).
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] iOS 앱(Xcode 프로젝트) 추가 + iOS용 Repository 구현(Firebase iOS SDK) — 현재 `shared` 스캐폴딩만(iosX64/Arm64/Sim 타깃만, iosApp/.xcodeproj 없음). **iOS 빌드·실행은 macOS+Xcode 필요(Windows 불가).**
