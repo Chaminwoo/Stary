@@ -70,6 +70,10 @@ private val Green = Color(0xFF6EE7B7)
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 
+private enum class DiarySort(val label: String) {
+    LATEST("최신순"), POPULAR("인기순"), VIEWS("조회순")
+}
+
 @Composable
 fun MyScreen(
     onDiaryClick: (String) -> Unit,
@@ -99,6 +103,15 @@ fun MyScreen(
     val totalViews = myDiaries.sumOf { it.viewCount }
     val coroutineScope = rememberCoroutineScope()
     var isSeeding by remember { mutableStateOf(false) }
+    var sortMode by remember { mutableStateOf(DiarySort.LATEST) }
+
+    val sortedDiaries = remember(myDiaries, sortMode) {
+        when (sortMode) {
+            DiarySort.LATEST -> myDiaries.sortedByDescending { it.createdAt }
+            DiarySort.POPULAR -> myDiaries.sortedByDescending { it.likeCount }
+            DiarySort.VIEWS -> myDiaries.sortedByDescending { it.viewCount }
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         Image(
@@ -287,8 +300,37 @@ fun MyScreen(
                 }
             }
 
-            // ── Empty state ──────────────────────────────────────────────────
-            if (myDiaries.isEmpty()) {
+            // ── Sort selector ────────────────────────────────────────────────
+            if (myDiaries.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DiarySort.entries.forEach { mode ->
+                        val selected = sortMode == mode
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(if (selected) Green.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
+                                .clickable { sortMode = mode }
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = mode.label,
+                                fontSize = 12.sp,
+                                color = if (selected) Green else TextMuted,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Empty state / grid ────────────────────────────────────────────
+            if (sortedDiaries.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -297,28 +339,13 @@ fun MyScreen(
                 ) {
                     Text("아직 기록한 다이어리가 없어요", color = TextMuted, fontSize = 14.sp)
                 }
-            }
-
-            if (myDiaries.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 48.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "아직 기록한 다이어리가 없어요",
-                        color = TextMuted,
-                        fontSize = 14.sp
-                    )
-                }
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(
-                            (((myDiaries.size + 1) / 2) * 180).dp
+                            (((sortedDiaries.size + 1) / 2) * 180).dp
                         ),
                     contentPadding = PaddingValues(
                         horizontal = 16.dp,
@@ -328,7 +355,7 @@ fun MyScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(
-                        items = myDiaries,
+                        items = sortedDiaries,
                         key = { it.id }
                     ) { diary ->
                         DiaryCard(

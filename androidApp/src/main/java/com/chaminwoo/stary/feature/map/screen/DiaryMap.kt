@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.media.MediaPlayer
 import android.view.View
 import android.widget.Toast
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -82,6 +84,14 @@ private const val CONSTELLATION_SOURCE = "constellation-lines"
 private const val CONSTELLATION_LAYER = "constellation-layer"
 /** 별자리 연결 최대 거리 (미터). */
 private const val MAX_CONSTELLATION_DIST_M = 1000f
+
+/** 인기 별의 글로우 오오라(CircleLayer) id — 위상 그룹별(별과 같은 float 적용). */
+private fun auraLayerId(group: Int) = "diary-aura-$group"
+/** 화면상 클러스터 반경(dp). 이 거리 안에서 겹치는 별은 가장 좋아요 많은 별 하나로 합쳐 표시. */
+private const val CLUSTER_RADIUS_DP = 4f
+/** 좋아요 수 → 크기 배율 상한(좋아요 100개에서 3배). */
+private const val LIKES_FOR_MAX_SIZE = 100
+private const val MAX_LIKE_SIZE_MULT = 3f
 
 /**
  * float/pulse 애니메이션 위상 그룹 수.
@@ -159,17 +169,131 @@ private fun starBitmap(type: Int, colorIdx: Int): Bitmap {
  * ["zoom"] 은 최상위 interpolate 에서만 허용되므로 줌 스톱의 출력값에 near 분기를 넣는다.
  */
 private fun starSizeExpression(pulse: Float): Expression {
-    fun sized(zoomMult: Float): Expression = Expression.switchCase(
-        Expression.eq(Expression.get("near"), Expression.literal(true)),
-        Expression.literal(STAR_SIZE_NEAR * pulse * zoomMult),
-        Expression.literal(STAR_SIZE_FAR * zoomMult)
-    )
+    // ⚠️ MapLibre 는 ["zoom"] 이 최상위 interpolate 입력일 때만 줌에 따라 연속 평가한다.
+    // sizeMult(좋아요 배율) 곱셈을 바깥에서 하면 zoom 이 중첩돼 줌 보간이 멈춘 것처럼 보인다.
+    // → sizeMult/near 분기를 각 stop 출력 "안"에 넣고, interpolate(zoom) 을 최상위로 유지.
+    fun sized(zoomMult: Float): Expression {
+        val near = Expression.product(
+            Expression.literal(STAR_SIZE_NEAR * pulse * zoomMult), Expression.get("sizeMult")
+        )
+        val far = Expression.product(
+            Expression.literal(STAR_SIZE_FAR * zoomMult), Expression.get("sizeMult")
+        )
+        return Expression.switchCase(
+            Expression.eq(Expression.get("near"), Expression.literal(true)),
+            near, far
+        )
+    }
+    // 줌아웃일수록 훨씬 작게(저줌 배율 대폭 축소). 줌인(15)은 기존과 동일하게 유지.
     return Expression.interpolate(
         Expression.linear(), Expression.zoom(),
-        Expression.stop(8f, sized(0.3f)),
-        Expression.stop(12f, sized(0.55f)),
+        Expression.stop(6f, sized(0.06f)),
+        Expression.stop(10f, sized(0.2f)),
+        Expression.stop(13f, sized(0.5f)),
         Expression.stop(15f, sized(1f)),
     )
+}
+
+/**
+ * 인기 별 오오라(CircleLayer) 반경: 줌 보간 × per-feature sizeMult.
+ * 별이 클수록(좋아요 많을수록) 더 넓게 빛난다.
+ */
+private fun auraRadiusExpression(): Expression {
+    // starSizeExpression 과 동일하게 zoom 을 최상위로 유지하고 sizeMult 는 stop 안에서 곱한다.
+    fun r(base: Float): Expression =
+        Expression.product(Expression.literal(base), Expression.get("sizeMult"))
+    return Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        Expression.stop(6f, r(2f)),
+        Expression.stop(10f, r(6f)),
+        Expression.stop(13f, r(14f)),
+        Expression.stop(15f, r(26f)),
+    )
+}
+
+/**
+ * 오오라 불투명도: sizeMult 데이터 보간.
+ * sizeMult 1(좋아요 0) → 거의 안 보이고, 3(좋아요 100+) → 진하게.
+ * 즉 인기 별만 두드러지게 발광한다.
+ */
+private fun auraOpacityExpression(): Expression =
+    Expression.interpolate(
+        Expression.linear(), Expression.get("sizeMult"),
+        Expression.stop(1f, 0f),
+        Expression.stop(1.4f, 0.12f),
+        Expression.stop(3f, 0.42f),
+    )
+
+/** 좋아요 수 → 별 크기 배율(1..[MAX_LIKE_SIZE_MULT]). */
+private fun likeSizeMult(likeCount: Int): Float =
+    1f + (likeCount.coerceIn(0, LIKES_FOR_MAX_SIZE).toFloat() / LIKES_FOR_MAX_SIZE) * (MAX_LIKE_SIZE_MULT - 1f)
+
+/** 팔레트 색 → "#RRGGBB" (오오라 CircleLayer 색상용). */
+private fun starColorHex(colorIdx: Int): String =
+    String.format("#%06X", 0xFFFFFF and StarStyle.colorOf(colorIdx).toArgb())
+
+/** 클러스터링 결과: 대표 별 목록 + (다이어리 id → 그 별이 속한 대표 id) 배정표. */
+private data class ClusterResult(val reps: List<Diary>, val assignment: Map<String, String>)
+
+/**
+ * 화면 좌표 기반 클러스터링.
+ * 현재 카메라/줌에서 각 다이어리를 화면 픽셀로 투영해, [radiusPx] 이내로 겹치는 별들을
+ * **가장 좋아요가 많은 별 하나(대표)** 로 합친다. (배지/개수 표시 없음 — 대표 별만 렌더)
+ *
+ * 좋아요 내림차순으로 앵커를 잡으므로, 한 클러스터의 대표는 항상 그 묶음 중 최다 좋아요 별이다.
+ * 줌에 따라 화면 거리가 달라지므로 카메라가 멈출 때마다 다시 계산한다.
+ * 합쳐짐/펼쳐짐을 부드럽게 보이려면 [ClusterResult.assignment] 로 흡수 관계를 추적해 위치를 보간한다.
+ */
+private fun clusterTopLiked(
+    map: MapLibreMap,
+    valid: List<Diary>,
+    radiusPx: Float,
+): ClusterResult {
+    if (valid.isEmpty()) return ClusterResult(emptyList(), emptyMap())
+    val sorted = valid.sortedByDescending { it.likeCount }
+    val screen = sorted.map { map.projection.toScreenLocation(MlLatLng(it.latitude, it.longitude)) }
+    val assigned = BooleanArray(sorted.size)
+    val r2 = radiusPx * radiusPx
+    val reps = ArrayList<Diary>()
+    val assignment = HashMap<String, String>()
+    for (i in sorted.indices) {
+        if (assigned[i]) continue
+        assigned[i] = true
+        reps.add(sorted[i]) // 대표 = 미할당 중 최다 좋아요
+        assignment[sorted[i].id] = sorted[i].id
+        val pi = screen[i]
+        for (j in i + 1 until sorted.size) {
+            if (assigned[j]) continue
+            val pj = screen[j]
+            val dx = pi.x - pj.x; val dy = pi.y - pj.y
+            if (dx * dx + dy * dy <= r2) {
+                assigned[j] = true
+                assignment[sorted[j].id] = sorted[i].id // 흡수: 대표에 귀속
+            }
+        }
+    }
+    return ClusterResult(reps, assignment)
+}
+
+/** 합쳐진 다이어리 수 → 대표 별 크기 가산 배율(개수에 비례, 과도하지 않게 상한). */
+private fun clusterSizeBoost(count: Int): Float =
+    (1f + (count - 1) * 0.12f).coerceAtMost(2.2f)
+
+/**
+ * 다이어리 → 별 마커 Feature.
+ * [lng]/[lat] 와 [alpha] 는 합쳐짐/펼쳐짐 보간에 사용. [sizeMult] 는 최종 크기 배율(좋아요×클러스터 보너스).
+ */
+private fun diaryFeature(d: Diary, lng: Double, lat: Double, near: Boolean, alpha: Float, sizeMult: Float): Feature {
+    val colorIdx = d.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1)
+    return Feature.fromGeometry(Point.fromLngLat(lng, lat)).apply {
+        addStringProperty("id", d.id)
+        addBooleanProperty("near", near)
+        addNumberProperty("phaseGroup", kotlin.math.abs(d.id.hashCode()) % PHASE_GROUPS)
+        addNumberProperty("sizeMult", sizeMult)
+        addStringProperty("auraColor", starColorHex(colorIdx))
+        addNumberProperty("alpha", alpha)
+        addStringProperty("icon", starIconId(d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1), colorIdx))
+    }
 }
 
 /** 파티클 비트맵 변(px). 4의 배수 유지(GL 행 정렬). */
@@ -225,8 +349,8 @@ private fun particleSizeExpression(): Expression {
         Expression.product(Expression.literal(base), Expression.get("depth"))
     return Expression.interpolate(
         Expression.linear(), Expression.zoom(),
-        Expression.stop(6f, sized(0f)),
-        Expression.stop(10f, sized(0.4f)),
+        Expression.stop(9f, sized(0f)),
+        Expression.stop(12f, sized(0.45f)),
         Expression.stop(15f, sized(0.8f)),
     )
 }
@@ -238,8 +362,8 @@ private fun particleSizeExpression(): Expression {
 private fun particleOpacityExpression(twinkle: Float): Expression =
     Expression.interpolate(
         Expression.linear(), Expression.zoom(),
-        Expression.stop(6f, 0f),
-        Expression.stop(10f, twinkle),
+        Expression.stop(9f, 0f),
+        Expression.stop(12f, twinkle),
     )
 
 /** 별자리 라인 GeoJSON: 일정 거리 이내 다이어리 쌍을 선으로 연결 */
@@ -329,8 +453,13 @@ fun DiaryMap(
     var constellationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     val addedIcons = remember { mutableSetOf<String>() }
     val isCameraMoving = remember { mutableStateOf(false) }
+    // 카메라가 멈출 때마다 증가 → 줌/이동에 따라 화면 클러스터링 재계산 트리거
+    var cameraIdleTick by remember { mutableStateOf(0) }
+    val clusterRadiusPx = remember { CLUSTER_RADIUS_DP * context.resources.displayMetrics.density }
     var constellationEnabled by remember { mutableStateOf(false) }
-    var musicEnabled by remember { mutableStateOf(false) }
+    // 음악 on/off 를 기기에 저장 → 마지막 종료 상태 그대로 복원
+    val prefs = remember { context.getSharedPreferences("stary_prefs", android.content.Context.MODE_PRIVATE) }
+    var musicEnabled by remember { mutableStateOf(prefs.getBoolean("music_enabled", false)) }
 
     // 배경음악: musicEnabled 변경 시 MediaPlayer 시작/종료
     DisposableEffect(musicEnabled) {
@@ -339,6 +468,7 @@ fun DiaryMap(
         if (resId == 0) {
             Toast.makeText(context, "배경음악 파일이 없어요\nres/raw/ambient_music.mp3 를 추가해주세요", Toast.LENGTH_LONG).show()
             musicEnabled = false
+            prefs.edit().putBoolean("music_enabled", false).apply()
             return@DisposableEffect onDispose {}
         }
         val player = MediaPlayer.create(context, resId)?.apply { isLooping = true; start() }
@@ -365,7 +495,10 @@ fun DiaryMap(
                     isAttributionEnabled = false
                 }
                 map.addOnCameraMoveStartedListener { isCameraMoving.value = true }
-                map.addOnCameraIdleListener { isCameraMoving.value = false }
+                map.addOnCameraIdleListener {
+                    isCameraMoving.value = false
+                    cameraIdleTick++
+                }
                 // 별 클릭 → 100m 게이팅 (길찾기 기능은 제거됨 — 밖이면 안내 토스트만)
                 map.addOnMapClickListener { point ->
                     val screen = map.projection.toScreenLocation(point)
@@ -427,13 +560,30 @@ fun DiaryMap(
                     )
                     constellationSource = cSrc
 
-                    // 다이어리 별 마커 — 위상 그룹별 레이어(같은 source, phaseGroup 필터)
+                    // 다이어리 별 마커 source — 클러스터링은 클라이언트(화면 좌표)에서 처리.
                     val dSrc = GeoJsonSource(DIARY_SOURCE, FeatureCollection.fromFeatures(emptyList()))
                     style.addSource(dSrc)
+
+                    // 오오라(인기 별 글로우) — 별 아래에 깔리는 CircleLayer. 위상 그룹별로 나눠 별과 같이 float.
+                    for (g in 0 until PHASE_GROUPS) {
+                        val aura = CircleLayer(auraLayerId(g), DIARY_SOURCE).withProperties(
+                            PropertyFactory.circleColor(Expression.toColor(Expression.get("auraColor"))),
+                            PropertyFactory.circleRadius(auraRadiusExpression()),
+                            PropertyFactory.circleOpacity(
+                                Expression.product(auraOpacityExpression(), Expression.get("alpha"))
+                            ),
+                            PropertyFactory.circleBlur(1f),
+                        )
+                        aura.setFilter(Expression.eq(Expression.get("phaseGroup"), Expression.literal(g)))
+                        style.addLayer(aura)
+                    }
+
+                    // 별 마커 — 위상 그룹별 레이어(같은 source, phaseGroup 필터). iconOpacity = alpha(합쳐짐 보간).
                     for (g in 0 until PHASE_GROUPS) {
                         val layer = SymbolLayer(diaryLayerId(g), DIARY_SOURCE).withProperties(
                             PropertyFactory.iconImage(Expression.get("icon")),
                             PropertyFactory.iconSize(starSizeExpression(1f)),
+                            PropertyFactory.iconOpacity(Expression.get("alpha")),
                             PropertyFactory.iconAllowOverlap(true),
                             PropertyFactory.iconIgnorePlacement(true),
                         )
@@ -442,6 +592,7 @@ fun DiaryMap(
                         )
                         style.addLayer(layer)
                     }
+
                     diarySource = dSrc
 
                     // 내 위치 마커 (별 위에 표시)
@@ -509,29 +660,32 @@ fun DiaryMap(
                 onClick = { constellationEnabled = !constellationEnabled },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = if (constellationEnabled) Color(0xFF6EE7B7) else Color(0xFF1A1A1A),
+                containerColor = Color(0xFF1A1A1A),
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     Icons.Filled.AutoAwesome,
                     "별자리",
-                    tint = if (constellationEnabled) Color(0xFF0D0D0D) else Color.White,
+                    tint = if (constellationEnabled) Color(0xFF6EE7B7) else Color.White,
                     modifier = Modifier.size(20.dp)
                 )
             }
 
             // 배경음악 토글
             FloatingActionButton(
-                onClick = { musicEnabled = !musicEnabled },
+                onClick = {
+                    musicEnabled = !musicEnabled
+                    prefs.edit().putBoolean("music_enabled", musicEnabled).apply()
+                },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = if (musicEnabled) Color(0xFF6EE7B7) else Color(0xFF1A1A1A),
+                containerColor = Color(0xFF1A1A1A),
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     if (musicEnabled) Icons.Filled.MusicNote else Icons.Filled.MusicOff,
                     "배경음악",
-                    tint = if (musicEnabled) Color(0xFF0D0D0D) else Color.White,
+                    tint = if (musicEnabled) Color(0xFF6EE7B7) else Color.White,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -561,22 +715,38 @@ fun DiaryMap(
         }
     }
 
-    // 다이어리/현재위치 변경 → 마커 갱신 (near = 100m 이내, 아이콘은 사용 조합만 등록)
-    // 위치는 자주 갱신되므로 "다이어리 목록 or near 집합"이 실제로 바뀐 경우에만 setGeoJson (끊김 방지)
+    // 다이어리/현재위치/카메라 변경 → 화면 클러스터링 후 마커 갱신.
+    // 겹친 별은 가장 좋아요 많은 별 하나(대표)로 합친다. 합쳐짐/펼쳐짐은 위치+투명도 보간으로 부드럽게.
     var lastFeaturesKey by remember { mutableStateOf<Any?>(null) }
-    LaunchedEffect(diaries, styleRef, currentLatLng) {
+    // 직전 표시 상태의 배정표(다이어리 id → 대표 id). 전이의 "from".
+    var prevAssignment by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    LaunchedEffect(diaries, styleRef, currentLatLng, cameraIdleTick) {
         val style = styleRef ?: return@LaunchedEffect
         val source = diarySource ?: return@LaunchedEffect
+        val map = mapRef ?: return@LaunchedEffect
+
         val valid = diaries.filter { it.latitude != 0.0 && it.longitude != 0.0 }
-        val nearIds = valid.filter { d ->
+        val byId = valid.associateBy { it.id }
+
+        // 화면 좌표 기준 클러스터링 → 대표(최다 좋아요) + 배정표
+        val result = clusterTopLiked(map, valid, clusterRadiusPx)
+        val reps = result.reps
+        val assignment = result.assignment
+        val nearIds = reps.filter { d ->
             LocationHelper.distanceBetween(
                 currentLatLng.latitude, currentLatLng.longitude, d.latitude, d.longitude
             ) <= StaryConfig.DIARY_OPEN_RADIUS_M
         }.map { it.id }.toSet()
-        val key = diaries to nearIds
+        // 대표별 클러스터 크기(흡수된 다이어리 수, 자기 포함) → 크기 보너스
+        val clusterCount = assignment.values.groupingBy { it }.eachCount()
+        fun repSizeMult(d: Diary): Float =
+            likeSizeMult(d.likeCount) * clusterSizeBoost(clusterCount[d.id] ?: 1)
+
+        val key = reps.map { it.id } to nearIds
         if (key == lastFeaturesKey) return@LaunchedEffect
         lastFeaturesKey = key
 
+        // 전이 중 흡수되는 별도 잠깐 보이므로 valid 전체의 아이콘을 등록
         valid.map {
             it.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1) to
                 it.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1)
@@ -588,21 +758,57 @@ fun DiaryMap(
                     style.addImage(iconId, starBitmap(type, color))
                 }
             }
-        val features = valid.map { d ->
-            Feature.fromGeometry(Point.fromLngLat(d.longitude, d.latitude)).apply {
-                addStringProperty("id", d.id)
-                addBooleanProperty("near", d.id in nearIds)
-                addNumberProperty("phaseGroup", kotlin.math.abs(d.id.hashCode()) % PHASE_GROUPS)
-                addStringProperty(
-                    "icon",
-                    starIconId(
-                        d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1),
-                        d.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1)
-                    )
-                )
-            }
+
+        // 최종(정착) 상태: 대표만 alpha=1, 크기는 좋아요×클러스터 보너스
+        fun settle() {
+            source.setGeoJson(FeatureCollection.fromFeatures(
+                reps.map { d -> diaryFeature(d, d.longitude, d.latitude, d.id in nearIds, 1f, repSizeMult(d)) }
+            ))
         }
-        source.setGeoJson(FeatureCollection.fromFeatures(features))
+
+        val from = prevAssignment
+        prevAssignment = assignment
+
+        // 최초 1회는 애니메이션 없이 바로 표시
+        if (from.isEmpty()) {
+            settle()
+            return@LaunchedEffect
+        }
+
+        fun lngOf(id: String) = byId[id]?.longitude
+        fun latOf(id: String) = byId[id]?.latitude
+
+        // 합쳐짐/펼쳐짐 보간: 각 별을 (이전 대표 위치 ↔ 새 대표 위치) 로 이동 + 투명도 페이드
+        val durationNanos = 320_000_000.0
+        var startNanos = 0L
+        var t = 0f
+        do {
+            val frame = withFrameNanos { it }
+            if (startNanos == 0L) startNanos = frame
+            t = ((frame - startNanos) / durationNanos).toFloat().coerceIn(0f, 1f)
+            val e = FastOutSlowInEasing.transform(t)
+            val feats = ArrayList<Feature>(valid.size)
+            for (d in valid) {
+                val fromRep = from[d.id] ?: d.id
+                val toRep = assignment[d.id] ?: d.id
+                val fromAlpha = if (fromRep == d.id) 1f else 0f
+                val toAlpha = if (toRep == d.id) 1f else 0f
+                if (fromAlpha == 0f && toAlpha == 0f) continue // 계속 흡수됨 → 대표가 대신 표시
+                val fLng = lngOf(fromRep) ?: d.longitude
+                val fLat = latOf(fromRep) ?: d.latitude
+                val tLng = lngOf(toRep) ?: d.longitude
+                val tLat = latOf(toRep) ?: d.latitude
+                val lng = fLng + (tLng - fLng) * e
+                val lat = fLat + (tLat - fLat) * e
+                val a = fromAlpha + (toAlpha - fromAlpha) * e
+                // 대표로 정착하는 별만 클러스터 보너스 적용(흡수되는 별은 기본 크기로 페이드)
+                val sm = if (toRep == d.id) repSizeMult(d) else likeSizeMult(d.likeCount)
+                feats.add(diaryFeature(d, lng, lat, d.id in nearIds, a, sm))
+            }
+            source.setGeoJson(FeatureCollection.fromFeatures(feats))
+        } while (t < 1f)
+
+        settle()
     }
 
     // 별자리 라인 업데이트 (다이어리 목록 or 토글 변경 시)
@@ -634,6 +840,10 @@ fun DiaryMap(
                 layer.setProperties(
                     PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
                     PropertyFactory.iconSize(starSizeExpression(pulse)),
+                )
+                // 후광도 같은 float 적용 → 별과 함께 떠오른다
+                (style.getLayer(auraLayerId(g)) as? CircleLayer)?.setProperties(
+                    PropertyFactory.circleTranslate(arrayOf(0f, floatDy))
                 )
             }
             // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신 (GeoJSON 재생성 없음)

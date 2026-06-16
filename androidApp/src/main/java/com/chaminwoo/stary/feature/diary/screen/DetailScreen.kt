@@ -2,7 +2,6 @@ package com.chaminwoo.stary.feature.diary.screen
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -43,7 +42,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -64,7 +65,7 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.diary.InteractionViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
-import kotlinx.coroutines.launch
+import kotlin.math.sin
 
 @Composable
 fun DetailScreen(
@@ -73,22 +74,28 @@ fun DetailScreen(
     onBack: (() -> Unit)? = null,
     diaryViewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())
 ) {
-    var diary by remember { mutableStateOf<Diary?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
+    // diaryId 키로 묶어 재진입 시 상태가 항상 초기화되도록 한다.
+    var diary by remember(diaryId) { mutableStateOf<Diary?>(null) }
+    var isLoading by remember(diaryId) { mutableStateOf(true) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var editTitle by remember { mutableStateOf("") }
     var editContent by remember { mutableStateOf("") }
     val repository = remember { FirebaseDiaryRepository() }
 
-    // 물결 파장 애니메이션 상태 (diaryId 키 → 새 다이어리 진입 시 초기화)
-    val ripple1 = remember(diaryId) { Animatable(0f) }
-    val ripple2 = remember(diaryId) { Animatable(0f) }
-    val ripple3 = remember(diaryId) { Animatable(0f) }
-    val contentAlpha = remember(diaryId) { Animatable(0f) }
-    val contentScale = remember(diaryId) { Animatable(0.93f) }
-    var rippleActive by remember(diaryId) { mutableStateOf(false) }
+    // reveal = 물결 파장(진입 즉시 1초 재생), contentReveal = 파장 후 콘텐츠 등장.
+    val reveal = remember(diaryId) { Animatable(0f) }
+    val contentReveal = remember(diaryId) { Animatable(0f) }
 
+    // 진입 즉시 파장 1초 재생 → 끝나면 콘텐츠를 초점 복원하며 등장.
+    LaunchedEffect(diaryId) {
+        reveal.snapTo(0f)
+        contentReveal.snapTo(0f)
+        reveal.animateTo(1f, tween(1000, easing = FastOutSlowInEasing))
+        contentReveal.animateTo(1f, tween(500, easing = FastOutSlowInEasing))
+    }
+
+    // 데이터 로드는 파장 재생과 병렬로 진행 (보통 캐시에서 즉시 반환).
     LaunchedEffect(diaryId) {
         diary = DiaryCache.get(diaryId) ?: repository.getDiaryById(diaryId)
         isLoading = false
@@ -96,22 +103,6 @@ fun DetailScreen(
         GoogleAuthHelper.currentUserId?.let { uid ->
             FirebaseViewedRepository().markViewed(uid, diaryId)
         }
-    }
-
-    // 다이어리 로드 완료 → 파장 애니메이션 시작
-    LaunchedEffect(diary) {
-        if (diary == null || rippleActive) return@LaunchedEffect
-        rippleActive = true
-        // 3개 링 순차 시작 + 콘텐츠 페이드인
-        launch { ripple1.animateTo(1f, tween(900, easing = LinearEasing)) }
-        kotlinx.coroutines.delay(200)
-        launch { ripple2.animateTo(1f, tween(900, easing = LinearEasing)) }
-        kotlinx.coroutines.delay(200)
-        launch { ripple3.animateTo(1f, tween(900, easing = LinearEasing)) }
-        launch { contentAlpha.animateTo(1f, tween(700)) }
-        contentScale.animateTo(1f, tween(800, easing = FastOutSlowInEasing))
-        kotlinx.coroutines.delay(500) // 마지막 링 완료까지 대기
-        rippleActive = false
     }
 
     LaunchedEffect(Unit) {
@@ -128,7 +119,13 @@ fun DetailScreen(
         return
     }
 
-    val currentDiary = diary ?: return
+    val currentDiary = diary
+    if (currentDiary == null) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("다이어리를 불러올 수 없어요", color = MaterialTheme.colorScheme.secondary, fontSize = 15.sp)
+        }
+        return
+    }
 
     val currentLatLng = LocationHelper.getCurrentLatLng()
     val distance = currentLatLng?.let {
@@ -212,16 +209,28 @@ fun DetailScreen(
         )
     }
 
+    // 파장 진행도(오버레이용)
+    val p = reveal.value
+    // 콘텐츠 등장 진행도 — 파장(1초) 끝난 뒤 0→1
+    val c = contentReveal.value
+    // 초점 복원 blur: 물 속에서 떠오르듯 흐림→선명 (API 31+ 에서만 실제 blur, 그 외 무시)
+    val blurRadius = (16f * (1f - (c / 0.55f).coerceIn(0f, 1f))).dp
+    // 렌즈 펀치: 살짝 확대→원래 크기로 수렴
+    val baseScale = 1f + 0.05f * (1f - FastOutSlowInEasing.transform(c.coerceIn(0f, 1f)))
+    // 젤리 워블: 등장하며 가로/세로가 어긋나게 출렁이다 감쇠
+    val wobble = sin(c * Math.PI.toFloat() * 3f) * 0.018f * (1f - c)
+
     // 콘텐츠 + 파장 오버레이
     Box(modifier = modifier.fillMaxSize()) {
-        // 다이어리 본문 (scale + alpha 애니메이션으로 파장과 함께 등장)
+        // 다이어리 본문 — 표시는 항상 보장하고(왜곡만 애니메이션), 펀치/워블/초점 복원 적용
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .blur(blurRadius)
                 .graphicsLayer {
-                    scaleX = contentScale.value
-                    scaleY = contentScale.value
-                    alpha = contentAlpha.value
+                    scaleX = baseScale + wobble
+                    scaleY = baseScale - wobble
+                    alpha = (c / 0.3f).coerceIn(0f, 1f)
                 }
         ) {
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -307,19 +316,40 @@ fun DetailScreen(
             }
         }
 
-        // 파장 오버레이 (다이어리 위에 그려지는 확장 링들)
-        if (rippleActive) {
-            val rings = listOf(ripple1.value, ripple2.value, ripple3.value)
+        // 굴절 파장 오버레이 — 중심에서 퍼지는 여러 겹 링(밝은 굴절 가장자리 + 안쪽 그림자 + 넓은 띠)
+        if (p < 1f) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val center = Offset(size.width / 2f, size.height / 2f)
-                val maxR = size.maxDimension
-                rings.forEach { progress ->
-                    if (progress > 0f) {
-                        val radius = progress * maxR
-                        val alpha = (1f - progress).coerceIn(0f, 1f) * 0.6f
-                        val strokeW = (4f * (1f - progress * 0.5f)).coerceAtLeast(1f).dp.toPx()
-                        drawCircle(color = Color.White.copy(alpha = alpha), radius = radius, center = center, style = Stroke(width = strokeW))
-                    }
+                val maxR = size.maxDimension * 0.62f
+                val ringCount = 1
+                for (i in 0 until ringCount) {
+                    val startF = i * 0.12f
+                    val rp = ((p - startF) / (1f - startF)).coerceIn(0f, 1f)
+                    if (rp <= 0f || rp >= 1f) continue
+                    val radius = rp * maxR
+                    val fade = (1f - rp)
+                    // 넓고 흐린 굴절 띠 (빛이 휘는 듯한 두꺼운 그라데이션 스트로크)
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color.Transparent, Color.White.copy(alpha = fade * 0.18f), Color.Transparent),
+                            center = center, radius = radius.coerceAtLeast(1f)
+                        ),
+                        radius = radius,
+                        center = center,
+                        style = Stroke(width = (26f * fade).coerceAtLeast(1f).dp.toPx())
+                    )
+                    // 밝은 굴절 가장자리
+                    drawCircle(
+                        color = Color.White.copy(alpha = fade * 0.55f),
+                        radius = radius, center = center,
+                        style = Stroke(width = (3f * fade).coerceAtLeast(0.6f).dp.toPx())
+                    )
+                    // 안쪽 그림자(굴절 음영) — 가장자리 바로 안쪽
+                    drawCircle(
+                        color = Color.Black.copy(alpha = fade * 0.22f),
+                        radius = (radius - 5.dp.toPx()).coerceAtLeast(0f), center = center,
+                        style = Stroke(width = 2f.dp.toPx())
+                    )
                 }
             }
         }
