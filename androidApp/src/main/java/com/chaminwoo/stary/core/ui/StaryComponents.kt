@@ -183,36 +183,35 @@ fun DiaryCard(
             .clickable(onClick = onClick)
             .padding(14.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = diary.title,
-                fontSize = 25.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextMain,
-                maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-
-            Text(
-                text = SimpleDateFormat("MM.dd HH:mm", Locale.KOREA)
-                    .format(java.util.Date(diary.createdAt)),
-                fontSize = 15.sp,
-                color = TextMuted
-            )
-        }
-
-        // 내 별 모양을 카드 우측 상단에 표시
+        // 별 모양을 카드 가운데 크게 배치
         if (showStar) {
             StarShapeIcon(
                 type = diary.starType,
                 color = StarStyle.colorOf(diary.starColor),
                 modifier = Modifier
-                    .size(28.dp)
-                    .align(Alignment.TopEnd)
+                    .size(64.dp)
+                    .align(Alignment.Center)
             )
         }
+
+        // 제목 — 좌측 상단
+        Text(
+            text = diary.title,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextMain,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.TopStart)
+        )
+
+        // 날짜 — 우측 하단
+        Text(
+            text = SimpleDateFormat("MM.dd HH:mm", Locale.KOREA)
+                .format(java.util.Date(diary.createdAt)),
+            fontSize = 15.sp,
+            color = TextMuted,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 }
