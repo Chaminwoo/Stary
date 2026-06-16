@@ -64,6 +64,7 @@ import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -82,8 +83,9 @@ private const val STAR_PARTICLE_SOURCE = "star-particles"
 private const val PARTICLE_ICON_ID = "star-particle-dot"
 private const val CONSTELLATION_SOURCE = "constellation-lines"
 private const val CONSTELLATION_LAYER = "constellation-layer"
-/** 별자리 연결 최대 거리 (미터). */
-private const val MAX_CONSTELLATION_DIST_M = 1000f
+private const val CONSTELLATION_GLOW_LAYER = "constellation-glow-layer"
+/** 별자리: 각 별을 화면상 가장 가까운 별 몇 개와 연결. */
+private const val CONSTELLATION_NEIGHBORS = 2
 
 /** 인기 별의 글로우 오오라(CircleLayer) id — 위상 그룹별(별과 같은 float 적용). */
 private fun auraLayerId(group: Int) = "diary-aura-$group"
@@ -366,24 +368,51 @@ private fun particleOpacityExpression(twinkle: Float): Expression =
         Expression.stop(12f, twinkle),
     )
 
-/** 별자리 라인 GeoJSON: 일정 거리 이내 다이어리 쌍을 선으로 연결 */
-private fun buildConstellationFeatures(diaries: List<Diary>): FeatureCollection {
+/**
+ * 별자리 라인 GeoJSON — **현재 화면(뷰포트)에 보이는 별(클러스터 대표)** 들을 잇는다.
+ * 각 별을 화면 좌표상 가장 가까운 [CONSTELLATION_NEIGHBORS] 개 별과 연결([maxLinkPx] 이내).
+ * 카메라가 바뀌면 다시 계산해 항상 "지금 보이는 별"만 이어지게 한다.
+ */
+private fun buildConstellationFeatures(
+    map: MapLibreMap,
+    diaries: List<Diary>,
+    radiusPx: Float,
+    maxLinkPx: Float,
+): FeatureCollection {
     val valid = diaries.filter { it.latitude != 0.0 && it.longitude != 0.0 }
+    if (valid.size < 2) return FeatureCollection.fromFeatures(emptyList())
+    // 화면에 실제 표시되는 대표 별만 사용
+    val reps = clusterTopLiked(map, valid, radiusPx).reps
+    val bounds = map.projection.visibleRegion.latLngBounds
+    val visible = reps.filter { bounds.contains(MlLatLng(it.latitude, it.longitude)) }
+    if (visible.size < 2) return FeatureCollection.fromFeatures(emptyList())
+
+    val screen = visible.map { map.projection.toScreenLocation(MlLatLng(it.latitude, it.longitude)) }
+    val maxLink2 = maxLinkPx * maxLinkPx
+    val edges = HashSet<Long>() // i<j 를 i*N+j 로 인코딩해 중복 제거
     val lines = mutableListOf<Feature>()
-    for (i in valid.indices) {
-        for (j in i + 1 until valid.size) {
-            val a = valid[i]; val b = valid[j]
-            val dist = LocationHelper.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude)
-            if (dist <= MAX_CONSTELLATION_DIST_M) {
-                lines.add(
-                    Feature.fromGeometry(
-                        LineString.fromLngLats(listOf(
-                            Point.fromLngLat(a.longitude, a.latitude),
-                            Point.fromLngLat(b.longitude, b.latitude)
-                        ))
-                    )
-                )
+    for (i in visible.indices) {
+        // i 에서 가까운 순으로 이웃 정렬 → 상위 N 개(거리 제한 내) 연결
+        val nearest = visible.indices
+            .filter { it != i }
+            .map { j ->
+                val dx = screen[i].x - screen[j].x; val dy = screen[i].y - screen[j].y
+                j to (dx * dx + dy * dy)
             }
+            .filter { it.second <= maxLink2 }
+            .sortedBy { it.second }
+            .take(CONSTELLATION_NEIGHBORS)
+        for ((j, _) in nearest) {
+            val lo = minOf(i, j); val hi = maxOf(i, j)
+            if (!edges.add(lo.toLong() * visible.size + hi)) continue
+            lines.add(
+                Feature.fromGeometry(
+                    LineString.fromLngLats(listOf(
+                        Point.fromLngLat(visible[lo].longitude, visible[lo].latitude),
+                        Point.fromLngLat(visible[hi].longitude, visible[hi].latitude)
+                    ))
+                )
+            )
         }
     }
     return FeatureCollection.fromFeatures(lines)
@@ -456,6 +485,10 @@ fun DiaryMap(
     // 카메라가 멈출 때마다 증가 → 줌/이동에 따라 화면 클러스터링 재계산 트리거
     var cameraIdleTick by remember { mutableStateOf(0) }
     val clusterRadiusPx = remember { CLUSTER_RADIUS_DP * context.resources.displayMetrics.density }
+    // 별자리 최대 연결 거리(px) — 화면 짧은 변의 절반 정도까지만 이어 과한 장거리 연결 방지
+    val constellationMaxLinkPx = remember {
+        context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) * 0.55f }
+    }
     var constellationEnabled by remember { mutableStateOf(false) }
     // 음악 on/off 를 기기에 저장 → 마지막 종료 상태 그대로 복원
     val prefs = remember { context.getSharedPreferences("stary_prefs", android.content.Context.MODE_PRIVATE) }
@@ -548,14 +581,29 @@ fun DiaryMap(
                         style.addLayer(layer)
                     }
 
-                    // 별자리 라인 레이어 (파티클 위, 마커 아래)
+                    // 별자리 라인 (파티클 위, 마커 아래) — 글로우(후광) 라인 + 밝은 라인 2겹
                     val cSrc = GeoJsonSource(CONSTELLATION_SOURCE, FeatureCollection.fromFeatures(emptyList()))
                     style.addSource(cSrc)
+                    // 1) 뒤에 깔리는 후광: 굵고 흐리게(blur), 낮은 불투명도
+                    style.addLayer(
+                        LineLayer(CONSTELLATION_GLOW_LAYER, CONSTELLATION_SOURCE).withProperties(
+                            PropertyFactory.lineColor("#6EE7B7"),
+                            PropertyFactory.lineWidth(6.5f),
+                            PropertyFactory.lineBlur(7f),
+                            PropertyFactory.lineOpacity(0.28f),
+                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+                        )
+                    )
+                    // 2) 위에 그려지는 밝은 선: 얇고 선명하게
                     style.addLayer(
                         LineLayer(CONSTELLATION_LAYER, CONSTELLATION_SOURCE).withProperties(
-                            PropertyFactory.lineColor("#B2F7D8"),
-                            PropertyFactory.lineWidth(1.2f),
-                            PropertyFactory.lineOpacity(0.5f),
+                            PropertyFactory.lineColor("#E6FFF4"),
+                            PropertyFactory.lineWidth(1.6f),
+                            PropertyFactory.lineBlur(0.6f),
+                            PropertyFactory.lineOpacity(0.9f),
+                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
                         )
                     )
                     constellationSource = cSrc
@@ -811,11 +859,13 @@ fun DiaryMap(
         settle()
     }
 
-    // 별자리 라인 업데이트 (다이어리 목록 or 토글 변경 시)
-    LaunchedEffect(diaries, styleRef, constellationEnabled) {
+    // 별자리 라인 업데이트 — 토글/목록/카메라(뷰포트) 변경 시 "지금 화면에 보이는 별"로 다시 계산
+    LaunchedEffect(diaries, styleRef, constellationEnabled, cameraIdleTick) {
         val source = constellationSource ?: return@LaunchedEffect
+        val map = mapRef
         source.setGeoJson(
-            if (constellationEnabled) buildConstellationFeatures(diaries)
+            if (constellationEnabled && map != null)
+                buildConstellationFeatures(map, diaries, clusterRadiusPx, constellationMaxLinkPx)
             else FeatureCollection.fromFeatures(emptyList())
         )
     }

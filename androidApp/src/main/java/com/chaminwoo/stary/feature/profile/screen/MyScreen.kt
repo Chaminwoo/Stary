@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,9 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,7 +25,6 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
-import android.widget.Toast
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -38,7 +33,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,32 +41,22 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import kotlinx.coroutines.launch
 import com.chaminwoo.stary.R
-import com.chaminwoo.stary.core.ui.DiaryCard
 import com.chaminwoo.stary.core.ui.StatCard
-import com.chaminwoo.stary.core.ui.StyleButton
-import com.chaminwoo.stary.core.util.LocationHelper
-import com.chaminwoo.stary.core.util.TestDataHelper
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.profile.ProfileViewModel
-import com.chaminwoo.stary.core.geo.LatLng
 
 private val Green = Color(0xFF6EE7B7)
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
-
-private enum class DiarySort(val label: String) {
-    LATEST("최신순"), POPULAR("인기순"), VIEWS("조회순")
-}
+// DiarySort 는 DiaryStarBox.kt 로 이동(공용)
 
 @Composable
 fun MyScreen(
@@ -97,21 +81,11 @@ fun MyScreen(
         uri?.let { profileVm.uploadProfileImage(it) }
     }
 
-    val context = LocalContext.current
     val myDiaries by diaryViewModel.getMyDiaries(userId).collectAsState()
     val totalLikes = myDiaries.sumOf { it.likeCount }
     val totalViews = myDiaries.sumOf { it.viewCount }
-    val coroutineScope = rememberCoroutineScope()
-    var isSeeding by remember { mutableStateOf(false) }
+    // 시작은 최신순 정렬 상태
     var sortMode by remember { mutableStateOf(DiarySort.LATEST) }
-
-    val sortedDiaries = remember(myDiaries, sortMode) {
-        when (sortMode) {
-            DiarySort.LATEST -> myDiaries.sortedByDescending { it.createdAt }
-            DiarySort.POPULAR -> myDiaries.sortedByDescending { it.likeCount }
-            DiarySort.VIEWS -> myDiaries.sortedByDescending { it.viewCount }
-        }
-    }
 
     Box(modifier = modifier.fillMaxSize()) {
         Image(
@@ -239,41 +213,7 @@ fun MyScreen(
                 }, modifier = Modifier.weight(1f))
             }
 
-            // ── Action buttons ───────────────────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                StyleButton(
-                    text = "위치 초기화",
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { LocationHelper.setCurrentLocation(LatLng(37.5409, 127.0794)) }
-                )
-                StyleButton(
-                    text = if (isSeeding) "데이터 생성 중…" else "테스트 데이터 생성",
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = {
-                        if (!isSeeding) {
-                            isSeeding = true
-                            coroutineScope.launch {
-                                try {
-                                    TestDataHelper.seed(
-                                        userId = userId,
-                                        userName = GoogleAuthHelper.currentUserName ?: "테스트"
-                                    )
-                                    Toast.makeText(context, "테스트 데이터 생성 완료!", Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "생성 실패: ${e.message}", Toast.LENGTH_SHORT).show()
-                                } finally {
-                                    isSeeding = false
-                                }
-                            }
-                        }
-                    }
-                )
-            }
+            // (위치 초기화 / 테스트 데이터 생성 버튼 숨김)
 
             // ── Diary list header ────────────────────────────────────────────
             Row(
@@ -300,7 +240,7 @@ fun MyScreen(
                 }
             }
 
-            // ── Sort selector ────────────────────────────────────────────────
+            // ── 정렬 선택 ─────────────────────────────────────────────────────
             if (myDiaries.isNotEmpty()) {
                 Row(
                     modifier = Modifier
@@ -329,8 +269,8 @@ fun MyScreen(
                 }
             }
 
-            // ── Empty state / grid ────────────────────────────────────────────
-            if (sortedDiaries.isEmpty()) {
+            // ── 공중에 떠 있는 별들 ────────────────────────────────────────────
+            if (myDiaries.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -340,31 +280,12 @@ fun MyScreen(
                     Text("아직 기록한 다이어리가 없어요", color = TextMuted, fontSize = 14.sp)
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(
-                            (((sortedDiaries.size + 1) / 2) * 180).dp
-                        ),
-                    contentPadding = PaddingValues(
-                        horizontal = 16.dp,
-                        vertical = 8.dp
-                    ),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(
-                        items = sortedDiaries,
-                        key = { it.id }
-                    ) { diary ->
-                        DiaryCard(
-                            diary = diary,
-                            showStar = true,
-                            onClick = { onDiaryClick(diary.id) }
-                        )
-                    }
-                }
+                DiaryStarBox(
+                    diaries = myDiaries,
+                    sortMode = sortMode,
+                    onDiaryClick = onDiaryClick,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
             }
         }
     }
