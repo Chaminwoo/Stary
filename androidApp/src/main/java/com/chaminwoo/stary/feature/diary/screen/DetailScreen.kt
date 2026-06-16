@@ -65,7 +65,20 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.diary.InteractionViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
+import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.sin
+
+/**
+ * 다이어리 열람 시 파장이 시작될 화면상 위치(0..1 비율).
+ * 지도에서 별을 누르면 DiaryMap 이 그 별의 화면 위치를 넣어준다(별에서 파장이 퍼지도록).
+ * 그 외 경로(마이페이지/딥링크)는 중앙(0.5,0.5) 기본값.
+ */
+object DiaryOpenRipple {
+    var x: Float = 0.5f
+    var y: Float = 0.5f
+    fun reset() { x = 0.5f; y = 0.5f }
+}
 
 @Composable
 fun DetailScreen(
@@ -86,6 +99,10 @@ fun DetailScreen(
     // reveal = 물결 파장(진입 즉시 1초 재생), contentReveal = 파장 후 콘텐츠 등장.
     val reveal = remember(diaryId) { Animatable(0f) }
     val contentReveal = remember(diaryId) { Animatable(0f) }
+    // 파장 시작 위치(별 위치) — 진입 시점 값 캡처 후 홀더는 기본값으로 리셋
+    val rippleOriginX = remember(diaryId) { DiaryOpenRipple.x }
+    val rippleOriginY = remember(diaryId) { DiaryOpenRipple.y }
+    LaunchedEffect(diaryId) { DiaryOpenRipple.reset() }
 
     // 진입 즉시 파장 1초 재생 → 끝나면 콘텐츠를 초점 복원하며 등장.
     LaunchedEffect(diaryId) {
@@ -316,11 +333,15 @@ fun DetailScreen(
             }
         }
 
-        // 굴절 파장 오버레이 — 중심에서 퍼지는 여러 겹 링(밝은 굴절 가장자리 + 안쪽 그림자 + 넓은 띠)
+        // 굴절 파장 오버레이 — 별(다이어리) 위치에서 퍼지는 링(밝은 굴절 가장자리 + 안쪽 그림자 + 넓은 띠)
         if (p < 1f) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val center = Offset(size.width / 2f, size.height / 2f)
-                val maxR = size.maxDimension * 0.62f
+                val center = Offset(size.width * rippleOriginX, size.height * rippleOriginY)
+                // 시작점에서 가장 먼 모서리까지 덮도록 반경 계산
+                val maxR = max(
+                    max(hypot(center.x, center.y), hypot(size.width - center.x, center.y)),
+                    max(hypot(center.x, size.height - center.y), hypot(size.width - center.x, size.height - center.y))
+                )
                 val ringCount = 1
                 for (i in 0 until ringCount) {
                     val startF = i * 0.12f

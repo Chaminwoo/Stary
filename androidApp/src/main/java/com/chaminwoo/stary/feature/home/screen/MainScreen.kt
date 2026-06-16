@@ -71,10 +71,35 @@ fun MainScreen(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
+    // 앱 전역 배경음악 — 모든 스크린에서 재생, 생명주기에 맞춰 정지/이어재생
+    val musicLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(musicLifecycleOwner) {
+        com.chaminwoo.stary.core.util.MusicManager.init(context)
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_START -> com.chaminwoo.stary.core.util.MusicManager.resume()
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> com.chaminwoo.stary.core.util.MusicManager.pause()
+                else -> {}
+            }
+        }
+        musicLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            musicLifecycleOwner.lifecycle.removeObserver(observer)
+            com.chaminwoo.stary.core.util.MusicManager.release()
+        }
+    }
+    // 토글 변경 시 즉시 반영
+    androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.MusicManager.enabled) {
+        if (com.chaminwoo.stary.core.util.MusicManager.enabled) com.chaminwoo.stary.core.util.MusicManager.resume()
+        else com.chaminwoo.stary.core.util.MusicManager.pause()
+    }
+
     val currentRoute: NavRoute = when {
         currentDestination?.hasRoute<NavRoute.Main>() == true -> NavRoute.Main
         currentDestination?.hasRoute<NavRoute.Upload>() == true -> NavRoute.Upload
-        currentDestination?.hasRoute<NavRoute.MyPage>() == true -> NavRoute.MyPage
+        currentDestination?.hasRoute<NavRoute.MyDiary>() == true -> NavRoute.MyDiary
+        currentDestination?.hasRoute<NavRoute.Profile>() == true -> NavRoute.Profile
+        currentDestination?.hasRoute<NavRoute.Achievements>() == true -> NavRoute.Achievements
         currentDestination?.hasRoute<NavRoute.Friends>() == true -> NavRoute.Friends
         currentDestination?.hasRoute<NavRoute.Notification>() == true -> NavRoute.Notification
         currentDestination?.hasRoute<NavRoute.Detail>() == true -> NavRoute.Detail()
@@ -111,6 +136,16 @@ fun MainScreen(
         }
     }
 
+    // 로그아웃 → 로그인 화면으로 이동(오버레이 표시)
+    val onLogout: () -> Unit = {
+        coroutineScope.launch {
+            drawerState.close()
+            GoogleAuthHelper.signOut(context)
+            navController.navigate(NavRoute.Main) { popUpTo(0) { inclusive = true } }
+            showLogin = true
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -136,24 +171,46 @@ fun MainScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    val drawerColors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = Color(0xFF6EE7B7).copy(alpha = 0.10f),
+                        unselectedContainerColor = Color.Transparent
+                    )
                     NavigationDrawerItem(
-                        label = { Text("마이페이지", fontSize = 20.sp, color = if (currentRoute is NavRoute.MyPage) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
-                        selected = currentRoute is NavRoute.MyPage,
-                        onClick = { onNavigate(NavRoute.MyPage) },
-                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = Color(0xFF6EE7B7).copy(alpha = 0.10f),
-                            unselectedContainerColor = Color.Transparent
-                        )
+                        label = { Text("내 다이어리", fontSize = 20.sp, color = if (currentRoute is NavRoute.MyDiary) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
+                        selected = currentRoute is NavRoute.MyDiary,
+                        onClick = { onNavigate(NavRoute.MyDiary) },
+                        colors = drawerColors
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("프로필", fontSize = 20.sp, color = if (currentRoute is NavRoute.Profile) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
+                        selected = currentRoute is NavRoute.Profile,
+                        onClick = { onNavigate(NavRoute.Profile) },
+                        colors = drawerColors
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("업적", fontSize = 20.sp, color = if (currentRoute is NavRoute.Achievements) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
+                        selected = currentRoute is NavRoute.Achievements,
+                        onClick = { onNavigate(NavRoute.Achievements) },
+                        colors = drawerColors
                     )
                     NavigationDrawerItem(
                         label = { Text("친구", fontSize = 20.sp, color = if (currentRoute is NavRoute.Friends) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
                         selected = currentRoute is NavRoute.Friends,
                         onClick = { onNavigate(NavRoute.Friends) },
-                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = Color(0xFF6EE7B7).copy(alpha = 0.10f),
-                            unselectedContainerColor = Color.Transparent
-                        )
+                        colors = drawerColors
                     )
+                    // 비로그인 시에만 로그인 항목 노출
+                    if (GoogleAuthHelper.currentUserId == null) {
+                        NavigationDrawerItem(
+                            label = { Text("로그인", fontSize = 20.sp, color = Color(0xFF6EE7B7)) },
+                            selected = false,
+                            onClick = {
+                                coroutineScope.launch { drawerState.close() }
+                                showLogin = true
+                            },
+                            colors = drawerColors
+                        )
+                    }
                 }
             }
         }
@@ -204,34 +261,7 @@ fun MainScreen(
                                     }
                                 }
                             }
-                            if (currentRoute is NavRoute.MyPage) {
-                                val isLoggedIn = GoogleAuthHelper.currentUserId != null
-                                TextButton(
-                                    onClick = {
-                                        if (isLoggedIn) {
-                                            coroutineScope.launch {
-                                                GoogleAuthHelper.signOut(context)
-                                                navController.navigate(NavRoute.Main) {
-                                                    popUpTo(0) { inclusive = true }
-                                                }
-                                                showLogin = true
-                                            }
-                                        } else {
-                                            navController.navigate(NavRoute.Main) {
-                                                popUpTo(0) { inclusive = true }
-                                            }
-                                            showLogin = true
-                                        }
-                                    }
-                                ) {
-                                    Text(
-                                        text = if (isLoggedIn) "로그아웃" else "로그인",
-                                        color = if (isLoggedIn) Color(0xFFFF4F4F) else Color(0xFF6EE7B7),
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
+                            // (로그아웃은 프로필 화면 내 버튼으로 이동)
                         }
                     )
                 }
@@ -265,6 +295,7 @@ fun MainScreen(
         ) { paddingValues ->
             NavGraph(
                 navController = navController,
+                onLogout = onLogout,
                 modifier = modifier.padding(paddingValues)
             )
         }

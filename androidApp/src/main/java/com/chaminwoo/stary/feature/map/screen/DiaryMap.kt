@@ -3,7 +3,6 @@ package com.chaminwoo.stary.feature.map.screen
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.media.MediaPlayer
 import android.view.View
 import android.widget.Toast
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -490,23 +489,7 @@ fun DiaryMap(
         context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) * 0.55f }
     }
     var constellationEnabled by remember { mutableStateOf(false) }
-    // 음악 on/off 를 기기에 저장 → 마지막 종료 상태 그대로 복원
-    val prefs = remember { context.getSharedPreferences("stary_prefs", android.content.Context.MODE_PRIVATE) }
-    var musicEnabled by remember { mutableStateOf(prefs.getBoolean("music_enabled", false)) }
-
-    // 배경음악: musicEnabled 변경 시 MediaPlayer 시작/종료
-    DisposableEffect(musicEnabled) {
-        if (!musicEnabled) return@DisposableEffect onDispose {}
-        val resId = context.resources.getIdentifier("ambient_music", "raw", context.packageName)
-        if (resId == 0) {
-            Toast.makeText(context, "배경음악 파일이 없어요\nres/raw/ambient_music.mp3 를 추가해주세요", Toast.LENGTH_LONG).show()
-            musicEnabled = false
-            prefs.edit().putBoolean("music_enabled", false).apply()
-            return@DisposableEffect onDispose {}
-        }
-        val player = MediaPlayer.create(context, resId)?.apply { isLooping = true; start() }
-        onDispose { player?.stop(); player?.release() }
-    }
+    // 배경음악은 앱 전역(MusicManager, MainScreen 에서 생명주기 관리)에서 처리. 여기선 FAB 토글만.
 
     val onDiaryClickRef = rememberUpdatedState(onDiaryClick)
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
@@ -545,6 +528,14 @@ fun DiaryMap(
                                 cur.latitude, cur.longitude, diary.latitude, diary.longitude
                             )
                             if (distance <= StaryConfig.DIARY_OPEN_RADIUS_M) {
+                                // 파장이 이 별 위치에서 퍼지도록 화면상 위치(0..1) 전달
+                                val sp = map.projection.toScreenLocation(
+                                    MlLatLng(diary.latitude, diary.longitude)
+                                )
+                                val w = mv.width.toFloat().coerceAtLeast(1f)
+                                val h = mv.height.toFloat().coerceAtLeast(1f)
+                                com.chaminwoo.stary.feature.diary.screen.DiaryOpenRipple.x = (sp.x / w).coerceIn(0f, 1f)
+                                com.chaminwoo.stary.feature.diary.screen.DiaryOpenRipple.y = (sp.y / h).coerceIn(0f, 1f)
                                 onDiaryClickRef.value(id)
                             } else {
                                 Toast.makeText(
@@ -719,21 +710,19 @@ fun DiaryMap(
                 )
             }
 
-            // 배경음악 토글
+            // 배경음악 토글 (전역 MusicManager)
+            val musicOn = com.chaminwoo.stary.core.util.MusicManager.enabled
             FloatingActionButton(
-                onClick = {
-                    musicEnabled = !musicEnabled
-                    prefs.edit().putBoolean("music_enabled", musicEnabled).apply()
-                },
+                onClick = { com.chaminwoo.stary.core.util.MusicManager.setActive(!musicOn) },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
-                    if (musicEnabled) Icons.Filled.MusicNote else Icons.Filled.MusicOff,
+                    if (musicOn) Icons.Filled.MusicNote else Icons.Filled.MusicOff,
                     "배경음악",
-                    tint = if (musicEnabled) Color(0xFF6EE7B7) else Color.White,
+                    tint = if (musicOn) Color(0xFF6EE7B7) else Color.White,
                     modifier = Modifier.size(20.dp)
                 )
             }

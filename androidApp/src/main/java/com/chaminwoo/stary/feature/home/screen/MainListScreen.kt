@@ -27,7 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
@@ -42,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,6 +75,7 @@ import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.map.screen.DiaryMap
 import com.chaminwoo.stary.shared.config.StaryConfig
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 
@@ -100,7 +102,15 @@ fun MainListScreen(
         mutableStateOf(LocationHelper.getCurrentLatLng() ?: LatLng(StaryConfig.DEFAULT_LAT, StaryConfig.DEFAULT_LNG))
     }
 
-    val userId = GoogleAuthHelper.currentUserId
+    // currentUserId 는 일반 var(관찰 불가)라, 로그인 화면 뒤에서 미리 렌더된 이 화면이
+    // 로그인 완료 시 리컴포즈되지 않는다. FirebaseAuth 상태를 관찰해 reactive 하게 만든다.
+    var userId by remember { mutableStateOf(GoogleAuthHelper.currentUserId) }
+    DisposableEffect(Unit) {
+        val auth = FirebaseAuth.getInstance()
+        val listener = FirebaseAuth.AuthStateListener { userId = GoogleAuthHelper.currentUserId }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
     var unviewedOnly by remember { mutableStateOf(false) }
     var friendsOnly by remember { mutableStateOf(false) }
     var myOnly by remember { mutableStateOf(false) }
@@ -109,12 +119,14 @@ fun MainListScreen(
     var speedDialExpanded by remember { mutableStateOf(false) }
 
     val viewedIds by remember(userId) {
-        if (userId != null) FirebaseViewedRepository().observeViewedIds(userId)
+        val uid = userId
+        if (uid != null) FirebaseViewedRepository().observeViewedIds(uid)
         else flowOf(emptySet())
     }.collectAsState(initial = emptySet())
 
     val friends by remember(userId) {
-        if (userId != null) FirebaseFriendRepository().observeFriends(userId)
+        val uid = userId
+        if (uid != null) FirebaseFriendRepository().observeFriends(uid)
         else flowOf(emptyList<Friend>())
     }.collectAsState(initial = emptyList())
 
@@ -264,7 +276,7 @@ fun MainListScreen(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 88.dp),
+                    .padding(start = 16.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.Start,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -320,7 +332,7 @@ fun MainListScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.FilterList,
+                        imageVector = Icons.Filled.Explore,
                         contentDescription = "필터",
                         tint = if (anyActive) mint else Color.White.copy(alpha = 0.75f),
                         modifier = Modifier.size(22.dp)

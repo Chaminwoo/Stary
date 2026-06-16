@@ -35,7 +35,7 @@ import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.random.Random
 
-/** 마이페이지 정렬 기준. (DiaryStarBox 와 MyScreen 공용) */
+/** 내 다이어리 정렬 기준. (DiaryStarBox / 다이얼 공용) */
 enum class DiarySort(val label: String) {
     LATEST("최신순"), POPULAR("인기순"), DISTANCE("거리순")
 }
@@ -110,8 +110,8 @@ fun DiaryStarBox(
                     phase = rnd.nextFloat() * 6.2832f,
                     floatAmp = with(density) { (3f + rnd.nextFloat() * 4f).dp.toPx() },
                     floatSpeed = 0.5f + rnd.nextFloat() * 0.6f,
-                    jitterX = (rnd.nextFloat() - 0.5f) * 0.34f,
-                    jitterY = (rnd.nextFloat() - 0.5f) * 0.30f,
+                    jitterX = (rnd.nextFloat() - 0.5f) * 0.12f,
+                    jitterY = (rnd.nextFloat() - 0.5f) * 0.10f,
                     baseX = sx, baseY = sy
                 )
             }
@@ -140,8 +140,8 @@ fun DiaryStarBox(
             order.forEachIndexed { idx, b ->
                 val col = idx % cols
                 val row = idx / cols
-                // 홀수 행은 살짝 밀어 벌집처럼(딱딱한 격자 느낌 제거)
-                val rowShift = if (row % 2 == 1) cellW * 0.22f else 0f
+                // 홀수 행은 살짝 밀어 벌집처럼(딱딱한 격자 느낌 제거) — 아주 약간만
+                val rowShift = if (row % 2 == 1) cellW * 0.12f else 0f
                 val tx = col * cellW + cellW / 2f + rowShift + b.jitterX * cellW
                 val ty = row * cellH + cellH / 2f + b.jitterY * cellH
                 b.startX = b.baseX; b.startY = b.baseY
@@ -149,8 +149,9 @@ fun DiaryStarBox(
                 b.targetY = ty.coerceIn(b.r, hPx - b.r)
             }
 
-            val dur = 540f       // 개별 별 이동 시간(ms)
-            val stagger = 42f    // 별 사이 시차(ms) → 하나씩 끌려옴
+            // 모이는 단계 없이, 각 별이 제자리에서 슬롯으로 하나씩(staggered) 이동
+            val dur = 300f       // 개별 별 이동 시간(ms)
+            val stagger = 22f    // 별 사이 시차(ms) → 하나씩 끌려옴
             var startNanos = 0L
             while (true) {
                 val frame = withFrameNanos { it }
