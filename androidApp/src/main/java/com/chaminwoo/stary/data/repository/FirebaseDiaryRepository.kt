@@ -3,6 +3,7 @@ package com.chaminwoo.stary.data.repository
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.data.local.DiaryCache
+import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.chaminwoo.stary.shared.data.repository.DiaryRepository
 import com.google.firebase.firestore.FieldValue
@@ -31,12 +32,13 @@ class FirebaseDiaryRepository : DiaryRepository {
         val listener = diaries
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot: QuerySnapshot?, error: Exception? ->
-                if (error != null) {
-                    // 권한/네트워크 에러로 앱이 죽지 않게 무시 (close 하면 Flow 예외가 크래시로 전파됨)
-                    return@addSnapshotListener
-                }
+                if (error != null) return@addSnapshotListener
+                val currentUid = GoogleAuthHelper.currentUserId
                 val list = snapshot?.documents?.mapNotNull { doc ->
                     doc.toObject(Diary::class.java)?.copy(id = doc.id)
+                }?.filter { diary ->
+                    // private 다이어리는 본인만 볼 수 있음
+                    diary.visibilityType != "private" || diary.userId == currentUid
                 } ?: emptyList()
                 trySend(list)
             }

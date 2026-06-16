@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.core.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,26 +27,45 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 val PageBg = Color(0xFF0E1018)
 val CardBg = Color(0xFF181C2A)
-val CardBgTop = Color(0xFF1E2334)                 // 카드 상단 살짝 밝게
-val CardBorder = Color.White.copy(alpha = 0.06f)   // 헤어라인
+val CardBgTop = Color(0xFF1E2334)
+val CardBorder = Color.White.copy(alpha = 0.06f)
 val TextMain = Color(0xFFF2F4FA)
 val TextMuted = Color(0xFF8A92A6)
-
 
 fun Modifier.appCard(radius: Dp = 16.dp): Modifier = this
     .clip(RoundedCornerShape(radius))
     .background(Brush.verticalGradient(listOf(CardBgTop.copy(alpha = 0.85f), CardBg.copy(alpha = 0.85f))))
     .border(1.dp, CardBorder, RoundedCornerShape(radius))
+
+/** UploadScreen 피커와 DiaryCard에서 공통으로 쓰는 별 모양 아이콘. StarStyle 경로와 동일. */
+@Composable
+fun StarShapeIcon(type: Int, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val path = StarStyle.starPath(type, size.minDimension)
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawPath(
+                path,
+                android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    this.color = color.toArgb()
+                }
+            )
+        }
+    }
+}
 
 @Composable
 fun StarDiaryButton(
@@ -59,7 +79,6 @@ fun StarDiaryButton(
     val glow = Color(0xFFF3E4C0)
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        // 뒤에 깔리는 따뜻한 발광 (API 31+, 하위 버전은 효과 생략)
         Box(
             Modifier
                 .matchParentSize()
@@ -101,24 +120,6 @@ fun StyleButton(
     isDestructive: Boolean = false,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(14.dp)
-
-    // 일반: 카드와 같은 레이어드 배경 / 위험: 옅은 빨강 틴트
-    val bgBrush = if (isDestructive)
-        Brush.verticalGradient(
-            listOf(
-                Color(0xFFFF4F4F).copy(alpha = 0.12f),
-                Color(0xFFFF4F4F).copy(alpha = 0.07f)
-            )
-        )
-    else
-        Brush.verticalGradient(listOf(CardBgTop, CardBg))
-
-    val borderColor = if (isDestructive)
-        Color(0xFFFF4F4F).copy(alpha = 0.30f)     // 빨간 헤어라인
-    else
-        Color.White.copy(alpha = 0.06f)            // 일반 헤어라인
-
     val textColor = if (isDestructive) Color(0xFFFF6B6B) else TextMuted
 
     Box(
@@ -132,7 +133,7 @@ fun StyleButton(
             text = text,
             fontSize = 20.sp,
             fontWeight = FontWeight.Medium,
-            letterSpacing = 0.2.sp,   // 라벨 살짝 정돈
+            letterSpacing = 0.2.sp,
             color = textColor
         )
     }
@@ -156,7 +157,6 @@ fun StatCard(
             text = value,
             fontSize = 25.sp,
             fontWeight = FontWeight.SemiBold,
-            //letterSpacing = (-0.5).sp,
             color = TextMain
         )
         Row(
@@ -172,12 +172,13 @@ fun StatCard(
 @Composable
 fun DiaryCard(
     diary: Diary,
+    showStar: Boolean = false,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1f) // 정사각형 카드 느낌
+            .aspectRatio(1f)
             .appCard(18.dp)
             .clickable(onClick = onClick)
             .padding(14.dp)
@@ -200,6 +201,17 @@ fun DiaryCard(
                     .format(java.util.Date(diary.createdAt)),
                 fontSize = 15.sp,
                 color = TextMuted
+            )
+        }
+
+        // 내 별 모양을 카드 우측 상단에 표시
+        if (showStar) {
+            StarShapeIcon(
+                type = diary.starType,
+                color = StarStyle.colorOf(diary.starColor),
+                modifier = Modifier
+                    .size(28.dp)
+                    .align(Alignment.TopEnd)
             )
         }
     }

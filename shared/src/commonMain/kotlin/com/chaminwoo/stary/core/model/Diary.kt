@@ -24,5 +24,7 @@ data class Diary(
     /** 별 모양 종류 인덱스 (0..4). 렌더는 starType×starColor 조합으로 결정. */
     val starType: Int = 0,
     /** 별 색상 팔레트 인덱스 (0..11). 팔레트는 androidApp designsystem StarStyle 참고. */
-    val starColor: Int = 0
+    val starColor: Int = 0,
+    /** 공개 범위: "public"(전체), "friends"(친구만), "private"(나만보기). */
+    val visibilityType: String = "public"
 )

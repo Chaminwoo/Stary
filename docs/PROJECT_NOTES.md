@@ -2,9 +2,11 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **기능 배치 1**(별 마커 5종×12색 Path 렌더, 친구, 미조회/친구 필터, 별 선택 업로드, FRIEND_POST 인앱 알림)
+> 최종 갱신: **기능 배치 3**(업로드 별모양/색상 무한 캐러셀, 지도 필터 스피드다이얼 FAB, 맵 워터마크 제거)
+> 이전: **기능 배치 2**(파장 애니메이션, 공개범위, 나만보기/친구선택 필터, 별자리, 배경음악, 마이페이지 별 모양)
+> 이전: **기능 배치 1**(별 마커 5종×12색 Path 렌더, 친구, 미조회/친구 필터, 별 선택 업로드, FRIEND_POST 인앱 알림)
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
-> ⚠️ 다음 세션 시작점: **콘솔에서 stary-db 규칙 + 익명 인증 활성화 대기 중** — `docs/SETUP_CHECKLIST.md` 버그 라운드 1 상단 참고.
+> ⚠️ 배경음악: `androidApp/src/main/res/raw/ambient_music.mp3` 파일 추가 필요. 없으면 버튼만 보이고 토스트 안내.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
 
 ---
@@ -63,7 +65,7 @@
 ```
 
 ## 4. 데이터 모델 (commonMain, 모두 순수 Kotlin data class)
-- `Diary(id,userId,userName,isAnonymous,title,content,imageUrl,latitude,longitude,createdAt:Long,likeCount,commentCount,viewCount)`
+- `Diary(id,userId,userName,isAnonymous,title,content,imageUrl,latitude,longitude,createdAt:Long,likeCount,commentCount,viewCount,starType,starColor,visibilityType)`
 - `Comment(id,diaryId,userId,userName,content,createdAt:Long)`
 - `Like(userId,userName,createdAt:Long)`
 - `AppNotification(id,type,diaryId,diaryTitle,diaryOwnerId,actorId,actorName,content,createdAt:Long,isRead)`
@@ -142,12 +144,31 @@
 - **(라운드 3)** 별가루 파티클을 Compose Canvas(`StarParticleOverlay`) → **MapLibre GeoJSON+SymbolLayer 전환**(6절 참고).
 - **FCM 클라이언트**: `push/StaryMessagingService`(data {diaryId,title,body} → 알림), 알림 탭 →
   `MainActivity` extra → Detail 딥링크, 토큰은 `users/{uid}.fcmToken`. **발송은 Cloud Functions 배포 필요**(체크리스트 8).
+- **FCM 서버(코드 완료, 배포 대기)**: 루트 `firebase.json`/`.firebaserc`(default=momentdiary-f26c8) +
+  `functions/`(node 20, firebase-admin 12 / firebase-functions 6 v2 API).
+  `notifyFriendsOnDiaryCreate` = diaries onCreate(**database: stary-db** 명시) → 친구 fcmToken 수집(`db.getAll`) →
+  `sendEachForMulticast`(500개 청크, android priority high) → 만료 토큰(`registration-token-not-registered`) 은
+  users/{uid}.fcmToken 필드 삭제로 정리. ⚠️ `REGION`(현재 asia-northeast3)은 stary-db 리전과 일치 필수.
+  배포: Blaze + `cd functions && npm install` + `firebase deploy --only functions`.
+
+## 8.6 기능 배치 3 (BUILD SUCCESSFUL 확인됨)
+- **UploadScreen 무한 캐러셀**: 별 모양/색상 피커를 `HorizontalPager`(pageCount=10_000, initialPage=5000-based)로 교체.
+  - 중앙 외 페이지: `graphicsLayer(scale/alpha)` 로 페이드+축소 효과. `contentPadding` 으로 양쪽 미리보기.
+  - 별 모양 아이콘: `StarShapeIcon`(56px 박스+RoundedCorner18) 선택 시 mint 테두리/배경. 색상: CircleShape 원형 슬롯.
+- **MainListScreen 필터 스피드 다이얼**: 기존 수평 칩 Row 제거 → 좌측 하단 원형 FAB + `AnimatedVisibility`(expandVertically).
+  - 5가지 옵션 pill(전체보기/미조회만/친구만/나만보기/친구선택). 선택된 필터는 mint 색상 강조.
+  - FAB 자체도 활성 필터 있으면 mint 테두리로 표시.
+  - `private FilterOpt` data class로 옵션 정의(ImageVector 사용).
+- **MapLibre 워터마크 제거**: `map.uiSettings { isLogoEnabled=false; isAttributionEnabled=false }`.
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] iOS 앱(Xcode 프로젝트) 추가 + iOS용 Repository 구현(Firebase iOS SDK) — 현재 `shared` 스캐폴딩만(iosX64/Arm64/Sim 타깃만, iosApp/.xcodeproj 없음). **iOS 빌드·실행은 macOS+Xcode 필요(Windows 불가).**
 - [x] 실제 `secrets.properties` / `google-services.json`(f26c8) 채워 런타임 확인 — 지도·Google 로그인 동작 확인됨.
 - [x] 지도 엔진 Google Maps → **MapLibre + MapTiler** 전환 + 커스텀 스타일(검정/물/큰길, 줌 색보간) — 동작 확인.
-- [ ] 다이어리 별 마커(종류0~4×색0~11) 커스텀 렌더 재구현 + 클릭 100m 게이팅 + 100m 밖 도보 길찾기(체크리스트 A-3/기능2·4).
+- [x] 다이어리 별 마커(종류0~4×색0~11) 커스텀 렌더 + 클릭 100m 게이팅 — 완료(길찾기는 사용자 결정으로 미구현/삭제).
+- [x] 별가루 파티클 Canvas → MapLibre GeoJSON+SymbolLayer 전환(줌 6 이하 숨김) — 완료.
+- [ ] **FCM 푸시 발송 Function 배포(사용자)**: Blaze + `cd functions && npm install` + `firebase deploy --only functions`
+      (코드는 `functions/index.js` 완료, REGION=stary-db 리전 확인).
 - [ ] ViewModel 들이 Firebase* 구현 대신 공용 인터페이스 타입을 주입받도록 DI 정리(현재는 직접 생성).
 - [x] GitHub remote(`origin` = Chaminwoo/Stary) 연결 + 푸시 완료(main).
 

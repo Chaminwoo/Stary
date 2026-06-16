@@ -29,13 +29,17 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
+import android.widget.Toast
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,17 +47,20 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.ui.DiaryCard
 import com.chaminwoo.stary.core.ui.StatCard
 import com.chaminwoo.stary.core.ui.StyleButton
 import com.chaminwoo.stary.core.util.LocationHelper
+import com.chaminwoo.stary.core.util.TestDataHelper
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.profile.ProfileViewModel
@@ -86,10 +93,12 @@ fun MyScreen(
         uri?.let { profileVm.uploadProfileImage(it) }
     }
 
+    val context = LocalContext.current
     val myDiaries by diaryViewModel.getMyDiaries(userId).collectAsState()
     val totalLikes = myDiaries.sumOf { it.likeCount }
     val totalViews = myDiaries.sumOf { it.viewCount }
     val coroutineScope = rememberCoroutineScope()
+    var isSeeding by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize()) {
         Image(
@@ -229,6 +238,28 @@ fun MyScreen(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { LocationHelper.setCurrentLocation(LatLng(37.5409, 127.0794)) }
                 )
+                StyleButton(
+                    text = if (isSeeding) "데이터 생성 중…" else "테스트 데이터 생성",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        if (!isSeeding) {
+                            isSeeding = true
+                            coroutineScope.launch {
+                                try {
+                                    TestDataHelper.seed(
+                                        userId = userId,
+                                        userName = GoogleAuthHelper.currentUserName ?: "테스트"
+                                    )
+                                    Toast.makeText(context, "테스트 데이터 생성 완료!", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "생성 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                                } finally {
+                                    isSeeding = false
+                                }
+                            }
+                        }
+                    }
+                )
             }
 
             // ── Diary list header ────────────────────────────────────────────
@@ -302,6 +333,7 @@ fun MyScreen(
                     ) { diary ->
                         DiaryCard(
                             diary = diary,
+                            showStar = true,
                             onClick = { onDiaryClick(diary.id) }
                         )
                     }

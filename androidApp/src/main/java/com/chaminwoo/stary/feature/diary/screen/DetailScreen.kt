@@ -1,5 +1,10 @@
 package com.chaminwoo.stary.feature.diary.screen
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,9 +19,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -38,6 +43,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,6 +64,7 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.diary.InteractionViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun DetailScreen(
@@ -71,14 +81,37 @@ fun DetailScreen(
     var editContent by remember { mutableStateOf("") }
     val repository = remember { FirebaseDiaryRepository() }
 
+    // 물결 파장 애니메이션 상태 (diaryId 키 → 새 다이어리 진입 시 초기화)
+    val ripple1 = remember(diaryId) { Animatable(0f) }
+    val ripple2 = remember(diaryId) { Animatable(0f) }
+    val ripple3 = remember(diaryId) { Animatable(0f) }
+    val contentAlpha = remember(diaryId) { Animatable(0f) }
+    val contentScale = remember(diaryId) { Animatable(0.93f) }
+    var rippleActive by remember(diaryId) { mutableStateOf(false) }
+
     LaunchedEffect(diaryId) {
         diary = DiaryCache.get(diaryId) ?: repository.getDiaryById(diaryId)
         isLoading = false
         repository.incrementViewCount(diaryId)
-        // 미조회 필터용 열람 기록
         GoogleAuthHelper.currentUserId?.let { uid ->
             FirebaseViewedRepository().markViewed(uid, diaryId)
         }
+    }
+
+    // 다이어리 로드 완료 → 파장 애니메이션 시작
+    LaunchedEffect(diary) {
+        if (diary == null || rippleActive) return@LaunchedEffect
+        rippleActive = true
+        // 3개 링 순차 시작 + 콘텐츠 페이드인
+        launch { ripple1.animateTo(1f, tween(900, easing = LinearEasing)) }
+        kotlinx.coroutines.delay(200)
+        launch { ripple2.animateTo(1f, tween(900, easing = LinearEasing)) }
+        kotlinx.coroutines.delay(200)
+        launch { ripple3.animateTo(1f, tween(900, easing = LinearEasing)) }
+        launch { contentAlpha.animateTo(1f, tween(700)) }
+        contentScale.animateTo(1f, tween(800, easing = FastOutSlowInEasing))
+        kotlinx.coroutines.delay(500) // 마지막 링 완료까지 대기
+        rippleActive = false
     }
 
     LaunchedEffect(Unit) {
@@ -129,7 +162,6 @@ fun DetailScreen(
         cursorColor          = MaterialTheme.colorScheme.onBackground,
     )
 
-    // 삭제 다이얼로그
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -137,20 +169,16 @@ fun DetailScreen(
             title = { Text("다이어리 삭제", color = MaterialTheme.colorScheme.onBackground) },
             text = { Text("정말 삭제할까요? 되돌릴 수 없어요.", color = MaterialTheme.colorScheme.secondary) },
             confirmButton = {
-                TextButton(onClick = {
-                    showDeleteDialog = false
-                    diaryViewModel.deleteDiary(currentDiary.id) { onBack?.invoke() }
-                }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = { showDeleteDialog = false; diaryViewModel.deleteDiary(currentDiary.id) { onBack?.invoke() } }) {
+                    Text("삭제", color = MaterialTheme.colorScheme.error)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("취소", color = MaterialTheme.colorScheme.secondary)
-                }
+                TextButton(onClick = { showDeleteDialog = false }) { Text("취소", color = MaterialTheme.colorScheme.secondary) }
             }
         )
     }
 
-    // 수정 다이얼로그
     if (showEditDialog) {
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
@@ -159,250 +187,160 @@ fun DetailScreen(
             text = {
                 Column {
                     OutlinedTextField(
-                        value = editTitle,
-                        onValueChange = { editTitle = it },
-                        label = { Text("제목") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = fieldColors,
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
+                        value = editTitle, onValueChange = { editTitle = it },
+                        label = { Text("제목") }, modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp), colors = fieldColors,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
-                        value = editContent,
-                        onValueChange = { editContent = it },
-                        label = { Text("내용") },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 3,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = fieldColors,
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
+                        value = editContent, onValueChange = { editContent = it },
+                        label = { Text("내용") }, modifier = Modifier.fillMaxWidth(), minLines = 3,
+                        shape = RoundedCornerShape(10.dp), colors = fieldColors,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    showEditDialog = false
-                    diaryViewModel.updateDiary(currentDiary.copy(title = editTitle, content = editContent))
-                }) { Text("저장", color = MaterialTheme.colorScheme.onBackground) }
+                TextButton(onClick = { showEditDialog = false; diaryViewModel.updateDiary(currentDiary.copy(title = editTitle, content = editContent)) }) {
+                    Text("저장", color = MaterialTheme.colorScheme.onBackground)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) {
-                    Text("취소", color = MaterialTheme.colorScheme.secondary)
-                }
+                TextButton(onClick = { showEditDialog = false }) { Text("취소", color = MaterialTheme.colorScheme.secondary) }
             }
         )
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        // 이미지
-        if (currentDiary.imageUrl.isNotEmpty()) {
-            AsyncImage(
-                model = currentDiary.imageUrl,
-                contentDescription = null,
-                modifier = Modifier.fillMaxWidth().height(300.dp),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("사진 없음", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
+    // 콘텐츠 + 파장 오버레이
+    Box(modifier = modifier.fillMaxSize()) {
+        // 다이어리 본문 (scale + alpha 애니메이션으로 파장과 함께 등장)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = contentScale.value
+                    scaleY = contentScale.value
+                    alpha = contentAlpha.value
+                }
+        ) {
+            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                if (currentDiary.imageUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = currentDiary.imageUrl, contentDescription = null,
+                        modifier = Modifier.fillMaxWidth().height(300.dp), contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(180.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) { Text("사진 없음", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) }
+                }
+
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                    Text(currentDiary.title, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground, lineHeight = 30.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            SimpleDateFormat("yyyy.MM.dd HH:mm", Locale.KOREA).format(java.util.Date(currentDiary.createdAt)),
+                            fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary
+                        )
+                        Text("  ·  ${currentDiary.userName.ifEmpty { "익명" }}", fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.outline)
+                    Text(currentDiary.content, fontSize = 16.sp, lineHeight = 26.sp, color = MaterialTheme.colorScheme.onBackground)
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    if (isNear) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { interactionVm.toggleLike() }) {
+                                Icon(
+                                    imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    contentDescription = "좋아요",
+                                    tint = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                            Text("$likeCount", fontSize = 14.sp, color = MaterialTheme.colorScheme.secondary)
+                            Spacer(modifier = Modifier.weight(1f))
+                            if (isMyDiary) {
+                                TextButton(onClick = { editTitle = currentDiary.title; editContent = currentDiary.content; showEditDialog = true }) {
+                                    Text("수정", fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                TextButton(onClick = { showDeleteDialog = true }) {
+                                    Text("삭제", fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("댓글 ${comments.size}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = commentInput, onValueChange = { commentInput = it },
+                                placeholder = { Text("댓글을 입력하세요", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
+                                modifier = Modifier.weight(1f), singleLine = true,
+                                shape = RoundedCornerShape(12.dp), colors = fieldColors,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(onClick = { interactionVm.addComment(commentInput); commentInput = "" }, enabled = commentInput.isNotBlank()) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Send, contentDescription = "전송",
+                                    tint = if (commentInput.isNotBlank()) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        comments.forEach { comment ->
+                            CommentItem(comment = comment, isMyComment = comment.userId == userId, onDelete = { interactionVm.deleteComment(comment.id) })
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(40.dp))
+                }
             }
         }
 
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
-
-            // 제목
-            Text(
-                text = currentDiary.title,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                lineHeight = 30.sp
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // 메타 정보
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = SimpleDateFormat("yyyy.MM.dd HH:mm", Locale.KOREA)
-                        .format(java.util.Date(currentDiary.createdAt)),
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Text(
-                    text = "  ·  ${currentDiary.userName.ifEmpty { "익명" }}",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            }
-
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 16.dp),
-                color = MaterialTheme.colorScheme.outline
-            )
-
-            // 본문
-            Text(
-                text = currentDiary.content,
-                fontSize = 16.sp,
-                lineHeight = 26.sp,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // ("위치 보기" 버튼 제거됨 — 100m 밖 다이어리는 지도 마커 클릭 시 도보 길찾기로 연결)
-
-            if (isNear) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 좋아요 + 수정/삭제 row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { interactionVm.toggleLike() }) {
-                        Icon(
-                            imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            contentDescription = "좋아요",
-                            tint = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
-                        )
+        // 파장 오버레이 (다이어리 위에 그려지는 확장 링들)
+        if (rippleActive) {
+            val rings = listOf(ripple1.value, ripple2.value, ripple3.value)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val maxR = size.maxDimension
+                rings.forEach { progress ->
+                    if (progress > 0f) {
+                        val radius = progress * maxR
+                        val alpha = (1f - progress).coerceIn(0f, 1f) * 0.6f
+                        val strokeW = (4f * (1f - progress * 0.5f)).coerceAtLeast(1f).dp.toPx()
+                        drawCircle(color = Color.White.copy(alpha = alpha), radius = radius, center = center, style = Stroke(width = strokeW))
                     }
-                    Text(
-                        "$likeCount",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    if (isMyDiary) {
-                        TextButton(onClick = {
-                            editTitle = currentDiary.title
-                            editContent = currentDiary.content
-                            showEditDialog = true
-                        }) {
-                            Text("수정", fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        TextButton(onClick = { showDeleteDialog = true }) {
-                            Text("삭제", fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 댓글 헤더
-                Text(
-                    "댓글 ${comments.size}",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // 댓글 입력
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = commentInput,
-                        onValueChange = { commentInput = it },
-                        placeholder = {
-                            Text("댓글을 입력하세요", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
-                        },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = fieldColors,
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = { interactionVm.addComment(commentInput); commentInput = "" },
-                        enabled = commentInput.isNotBlank()
-                    ) {
-                        Icon(
-                            Icons.Filled.Send,
-                            contentDescription = "전송",
-                            tint = if (commentInput.isNotBlank())
-                                MaterialTheme.colorScheme.onBackground
-                            else MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 댓글 목록
-                comments.forEach { comment ->
-                    CommentItem(
-                        comment = comment,
-                        isMyComment = comment.userId == userId,
-                        onDelete = { interactionVm.deleteComment(comment.id) }
-                    )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
                 }
             }
-
-            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
 @Composable
 private fun CommentItem(comment: Comment, isMyComment: Boolean, onDelete: () -> Unit) {
-    val dateStr = SimpleDateFormat("MM.dd HH:mm", Locale.KOREA)
-        .format(java.util.Date(comment.createdAt))
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
+    val dateStr = SimpleDateFormat("MM.dd HH:mm", Locale.KOREA).format(java.util.Date(comment.createdAt))
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    comment.userName,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                Text(comment.userName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(dateStr, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
             }
             Spacer(modifier = Modifier.height(3.dp))
-            Text(
-                comment.content,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onBackground,
-                lineHeight = 20.sp
-            )
+            Text(comment.content, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, lineHeight = 20.sp)
         }
         if (isMyComment) {
-            TextButton(onClick = onDelete) {
-                Text("삭제", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
-            }
+            TextButton(onClick = onDelete) { Text("삭제", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary) }
         }
     }
 }

@@ -166,9 +166,11 @@ object TestDataHelper {
                     content = place.content,
                     latitude = place.lat + latOffset,
                     longitude = place.lng + lngOffset,
-                    createdAt = now - (i * 10_800_000L), // 3시간 간격 (epoch millis)
+                    createdAt = now - (i * 10_800_000L),
                     likeCount = Random.nextInt(5, 300),
-                    commentCount = Random.nextInt(0, 50)
+                    commentCount = Random.nextInt(0, 50),
+                    starType = Random.nextInt(0, 5),
+                    starColor = Random.nextInt(0, 12)
                 )
             )
         }

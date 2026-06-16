@@ -3,6 +3,7 @@ package com.chaminwoo.stary.feature.map.screen
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.media.MediaPlayer
 import android.view.View
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -15,6 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -57,11 +61,13 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import kotlin.math.sin
 import android.graphics.Color as AndroidColor
@@ -72,6 +78,10 @@ private const val CURRENT_SOURCE = "current-location"
 private const val DIARY_SOURCE = "diaries"
 private const val STAR_PARTICLE_SOURCE = "star-particles"
 private const val PARTICLE_ICON_ID = "star-particle-dot"
+private const val CONSTELLATION_SOURCE = "constellation-lines"
+private const val CONSTELLATION_LAYER = "constellation-layer"
+/** 별자리 연결 최대 거리 (미터). */
+private const val MAX_CONSTELLATION_DIST_M = 1000f
 
 /**
  * float/pulse 애니메이션 위상 그룹 수.
@@ -232,6 +242,29 @@ private fun particleOpacityExpression(twinkle: Float): Expression =
         Expression.stop(10f, twinkle),
     )
 
+/** 별자리 라인 GeoJSON: 일정 거리 이내 다이어리 쌍을 선으로 연결 */
+private fun buildConstellationFeatures(diaries: List<Diary>): FeatureCollection {
+    val valid = diaries.filter { it.latitude != 0.0 && it.longitude != 0.0 }
+    val lines = mutableListOf<Feature>()
+    for (i in valid.indices) {
+        for (j in i + 1 until valid.size) {
+            val a = valid[i]; val b = valid[j]
+            val dist = LocationHelper.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude)
+            if (dist <= MAX_CONSTELLATION_DIST_M) {
+                lines.add(
+                    Feature.fromGeometry(
+                        LineString.fromLngLats(listOf(
+                            Point.fromLngLat(a.longitude, a.latitude),
+                            Point.fromLngLat(b.longitude, b.latitude)
+                        ))
+                    )
+                )
+            }
+        }
+    }
+    return FeatureCollection.fromFeatures(lines)
+}
+
 /**
  * MapView 를 Compose 생명주기에 묶어 반환. (MapLibre.getInstance 는 MapView 생성 전 1회)
  */
@@ -293,9 +326,24 @@ fun DiaryMap(
     var styleRef by remember { mutableStateOf<Style?>(null) }
     var locationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var diarySource by remember { mutableStateOf<GeoJsonSource?>(null) }
+    var constellationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     val addedIcons = remember { mutableSetOf<String>() }
-    // 지도 제스처/카메라 이동 중에는 스타일 변경(애니메이션 setProperties)을 멈춰 끊김 방지
     val isCameraMoving = remember { mutableStateOf(false) }
+    var constellationEnabled by remember { mutableStateOf(false) }
+    var musicEnabled by remember { mutableStateOf(false) }
+
+    // 배경음악: musicEnabled 변경 시 MediaPlayer 시작/종료
+    DisposableEffect(musicEnabled) {
+        if (!musicEnabled) return@DisposableEffect onDispose {}
+        val resId = context.resources.getIdentifier("ambient_music", "raw", context.packageName)
+        if (resId == 0) {
+            Toast.makeText(context, "배경음악 파일이 없어요\nres/raw/ambient_music.mp3 를 추가해주세요", Toast.LENGTH_LONG).show()
+            musicEnabled = false
+            return@DisposableEffect onDispose {}
+        }
+        val player = MediaPlayer.create(context, resId)?.apply { isLooping = true; start() }
+        onDispose { player?.stop(); player?.release() }
+    }
 
     val onDiaryClickRef = rememberUpdatedState(onDiaryClick)
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
@@ -313,6 +361,8 @@ fun DiaryMap(
                     isRotateGesturesEnabled = false
                     isTiltGesturesEnabled = false
                     isCompassEnabled = false
+                    isLogoEnabled = false
+                    isAttributionEnabled = false
                 }
                 map.addOnCameraMoveStartedListener { isCameraMoving.value = true }
                 map.addOnCameraIdleListener { isCameraMoving.value = false }
@@ -364,6 +414,18 @@ fun DiaryMap(
                         )
                         style.addLayer(layer)
                     }
+
+                    // 별자리 라인 레이어 (파티클 위, 마커 아래)
+                    val cSrc = GeoJsonSource(CONSTELLATION_SOURCE, FeatureCollection.fromFeatures(emptyList()))
+                    style.addSource(cSrc)
+                    style.addLayer(
+                        LineLayer(CONSTELLATION_LAYER, CONSTELLATION_SOURCE).withProperties(
+                            PropertyFactory.lineColor("#B2F7D8"),
+                            PropertyFactory.lineWidth(1.2f),
+                            PropertyFactory.lineOpacity(0.5f),
+                        )
+                    )
+                    constellationSource = cSrc
 
                     // 다이어리 별 마커 — 위상 그룹별 레이어(같은 source, phaseGroup 필터)
                     val dSrc = GeoJsonSource(DIARY_SOURCE, FeatureCollection.fromFeatures(emptyList()))
@@ -430,10 +492,7 @@ fun DiaryMap(
                 onClick = {
                     mapRef?.animateCamera(
                         CameraUpdateFactory.newCameraPosition(
-                            CameraPosition.Builder()
-                                .target(currentLatLng.toMl())
-                                .zoom(DEFAULT_ZOOM)
-                                .build()
+                            CameraPosition.Builder().target(currentLatLng.toMl()).zoom(DEFAULT_ZOOM).build()
                         )
                     )
                 },
@@ -442,10 +501,37 @@ fun DiaryMap(
                 containerColor = Color(0xFF1A1A1A),
                 modifier = Modifier.size(48.dp)
             ) {
+                Icon(Icons.Filled.Navigation, "내 위치로", tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+
+            // 별자리 토글
+            FloatingActionButton(
+                onClick = { constellationEnabled = !constellationEnabled },
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                containerColor = if (constellationEnabled) Color(0xFF6EE7B7) else Color(0xFF1A1A1A),
+                modifier = Modifier.size(48.dp)
+            ) {
                 Icon(
-                    imageVector = Icons.Filled.Navigation,
-                    contentDescription = "내 위치로",
-                    tint = Color.White,
+                    Icons.Filled.AutoAwesome,
+                    "별자리",
+                    tint = if (constellationEnabled) Color(0xFF0D0D0D) else Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // 배경음악 토글
+            FloatingActionButton(
+                onClick = { musicEnabled = !musicEnabled },
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                containerColor = if (musicEnabled) Color(0xFF6EE7B7) else Color(0xFF1A1A1A),
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    if (musicEnabled) Icons.Filled.MusicNote else Icons.Filled.MusicOff,
+                    "배경음악",
+                    tint = if (musicEnabled) Color(0xFF0D0D0D) else Color.White,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -463,19 +549,13 @@ fun DiaryMap(
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFF6EE7B7), Color(0xFF3B82F6)),
-                                start = Offset(0f, 0f),
-                                end = Offset(80f, 80f)
+                                start = Offset(0f, 0f), end = Offset(80f, 80f)
                             ),
                             CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = "다이어리 생성",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Icon(Icons.Filled.Add, "다이어리 생성", tint = Color.White, modifier = Modifier.size(24.dp))
                 }
             }
         }
@@ -523,6 +603,15 @@ fun DiaryMap(
             }
         }
         source.setGeoJson(FeatureCollection.fromFeatures(features))
+    }
+
+    // 별자리 라인 업데이트 (다이어리 목록 or 토글 변경 시)
+    LaunchedEffect(diaries, styleRef, constellationEnabled) {
+        val source = constellationSource ?: return@LaunchedEffect
+        source.setGeoJson(
+            if (constellationEnabled) buildConstellationFeatures(diaries)
+            else FeatureCollection.fromFeatures(emptyList())
+        )
     }
 
     // 마커 애니메이션: float(상하 부유) + 근접 별 pulse(맥동 확대).

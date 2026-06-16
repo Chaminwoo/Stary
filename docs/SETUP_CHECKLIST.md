@@ -131,9 +131,45 @@
 - [x] FCM 수신 서비스 `push/StaryMessagingService`: data 메시지 `{diaryId, title, body}` 수신 → 알림 표시(채널 stary_default).
 - [x] 딥링크: 알림 탭 → `MainActivity` extra `diaryId` → `MainScreen(initialDiaryId)` → Detail 라우팅(로그인 오버레이 생략).
 - [x] FCM 토큰 저장: 로그인 시 + `onNewToken` 시 `users/{uid}.fcmToken` merge. POST_NOTIFICATIONS 권한 요청(API 33+).
-- [ ] **서버(Cloud Functions) 배포 필요**: `diaries` onCreate 트리거 → 작성자의 `users/{uid}/friends` 조회 →
-      각 친구 `users/{fid}.fcmToken` 으로 data 메시지 `{diaryId, title: "{userName}님의 새 별", body: 제목}` 발송.
-      (Blaze 요금제 + `firebase deploy --only functions` — 클라이언트는 준비 완료)
+- [x] **서버(Cloud Functions) 코드 작성 완료**: `functions/index.js` `notifyFriendsOnDiaryCreate` —
+      `diaries` onCreate(named DB stary-db) → `users/{uid}/friends` 조회 → 친구 `fcmToken` 으로
+      data 메시지 `{diaryId, title: "{userName}님의 새 별", body: 제목}` 발송(만료 토큰 자동 정리 포함).
+- [ ] **배포(사용자)**: ① Blaze 요금제 활성화 ② `functions/index.js` 의 `REGION` 을 stary-db 리전과 일치 확인
+      ③ `cd functions && npm install` ④ `firebase deploy --only functions` (firebase CLI 로그인 필요).
+
+---
+
+## 🌟 기능 배치 2 (2026-06-16)
+
+### 9. 다이어리 열람 파장 애니메이션 — ✅ 완료
+- [x] `DetailScreen` 진입 시 3개 물결 링이 중심에서 확장 (1초). `Animatable` + Canvas `Stroke`.
+- [x] 콘텐츠는 동시에 scale 0.93→1.0 + alpha 0→1 로 파장과 함께 등장.
+
+### 10. 업로드 공개 범위 선택 — ✅ 완료
+- [x] `Diary.visibilityType: String` 필드 추가 ("public"/"friends"/"private").
+- [x] `UploadScreen` 공개 범위 피커(전체공개/친구만/나만보기) 3-옵션 선택 UI.
+- [x] `FirebaseDiaryRepository.observeAllDiaries()`: private 다이어리 소유자 외 필터링.
+
+### 11. 추가 필터 (나만보기, 친구 선택) — ✅ 완료
+- [x] "나만보기" 칩: `diary.userId == currentUserId`.
+- [x] "친구 선택" 칩: 클릭 시 체크박스 다이얼로그 → 선택된 친구 ID Set 으로 필터.
+- [x] "friends" 공개범위 다이어리: 본인 or 친구 글만 지도에 표시.
+- [x] 필터 칩 행 `horizontalScroll` 처리(4개 칩 가로 스크롤).
+
+### 12. 별자리 기능 — ✅ 완료
+- [x] DiaryMap FAB "별자리" 토글(AutoAwesome 아이콘, 활성 시 민트색).
+- [x] `buildConstellationFeatures`: 1000m 이내 다이어리 쌍을 GeoJSON LineString 으로.
+- [x] `CONSTELLATION_SOURCE` + `LineLayer`(민트 점선, opacity 0.5). 파티클 위/마커 아래.
+
+### 13. 배경음악 — ✅ 인프라 완료 (음악 파일 추가 필요)
+- [x] DiaryMap FAB "음악" 토글(MusicNote/MusicOff 아이콘).
+- [x] `DisposableEffect(musicEnabled)` → `MediaPlayer` 루프 재생/해제.
+- [ ] **사용자**: `res/raw/ambient_music.mp3` (또는 .ogg) 파일 추가 필요.
+      파일 없으면 토스트 안내 표시 후 자동 비활성.
+
+### 14. 마이페이지 다이어리 별 모양 — ✅ 완료
+- [x] `DiaryCard(showStar = true)` → 카드 우측 상단에 `StarShapeIcon`(내 별 모양×색상).
+- [x] `StarShapeIcon` 을 `StaryComponents.kt` 로 이동(UploadScreen 과 공용).
 
 ---
 
