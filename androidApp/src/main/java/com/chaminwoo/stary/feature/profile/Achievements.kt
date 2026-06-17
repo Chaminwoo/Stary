@@ -21,7 +21,7 @@ data class UserStats(
 )
 
 /**
- * 업적 정의. 완료 시 보상으로 칭호 '성흔([stigma])'을 프로필에 장착할 수 있다.
+ * 업적 정의. 완료 시 보상으로 칭호 '칭호([stigma])'를 프로필에 장착할 수 있다.
  * [hidden] 이면 조건을 가려(???) 궁금증을 유발한다.
  */
 data class Achievement(
@@ -40,8 +40,8 @@ object Achievements {
         Achievement("popular", "인기쟁이", "좋아요 50개 받기") { it.likesReceived >= 50 },
         Achievement("watched_star", "주목받는 별", "총 조회수 100 달성하기") { it.viewsReceived >= 100 },
         Achievement("companion", "길동무", "친구 3명 만들기") { it.friends >= 3 },
-        Achievement("collector", "밤하늘 수집가", "다이어리 30개 작성하기") { it.diariesCreated >= 30 },
-        Achievement("guide", "별빛 인도자", "좋아요 200개 받기") { it.likesReceived >= 200 },
+        Achievement("collector", "우주의 순례자", "다이어리 50개 작성하기") { it.diariesCreated >= 30 },
+        Achievement("guide", "별빛의 인도자", "좋아요 200개 받기") { it.likesReceived >= 200 },
         // 숨겨진 업적 — 조건 비공개
         Achievement("cosmic_rascal", "우주의 악동", "???", hidden = true) { it.diariesViewed >= 42 },
         Achievement("lone_observer", "고독한 관측자", "???", hidden = true) { it.diariesCreated >= 20 && it.friends == 0 },

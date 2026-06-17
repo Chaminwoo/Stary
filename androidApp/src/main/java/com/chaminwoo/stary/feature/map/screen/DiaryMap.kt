@@ -538,11 +538,9 @@ fun DiaryMap(
                                 com.chaminwoo.stary.feature.diary.screen.DiaryOpenRipple.y = (sp.y / h).coerceIn(0f, 1f)
                                 onDiaryClickRef.value(id)
                             } else {
-                                Toast.makeText(
-                                    context,
-                                    "${StaryConfig.DIARY_OPEN_RADIUS_M.toInt()}m 이내에 있어야 열람할 수 있어요 (현재 ${distance.toInt()}m)",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                com.chaminwoo.stary.core.ui.StaryToast.show(
+                                    "${StaryConfig.DIARY_OPEN_RADIUS_M.toInt()}m 이내에 있어야 열람할 수 있어요 (현재 ${distance.toInt()}m)"
+                                )
                             }
                         }
                         true

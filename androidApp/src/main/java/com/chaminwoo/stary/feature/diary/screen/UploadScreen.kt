@@ -139,7 +139,7 @@ fun UploadScreen(
             val tmpFile = java.io.File.createTempFile("diary_img_", ".jpg", context.cacheDir)
             val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tmpFile)
             cameraUri.value = uri; cameraLauncher.launch(uri)
-        } else Toast.makeText(context, "카메라 권한이 필요해요", Toast.LENGTH_SHORT).show()
+        } else com.chaminwoo.stary.core.ui.StaryToast.show("카메라 권한이 필요해요")
     }
 
     fun launchCamera() {
@@ -177,7 +177,7 @@ fun UploadScreen(
 
     LaunchedEffect(Unit) {
         diaryViewModel.event.collect { msg ->
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            com.chaminwoo.stary.core.ui.StaryToast.show(msg)
             if (msg == "저장 완료!") onSaveClick()
         }
     }
@@ -358,19 +358,19 @@ fun UploadScreen(
 
             Button(
                 onClick = {
-                    if (title.isBlank()) { Toast.makeText(context, "제목을 입력해주세요", Toast.LENGTH_SHORT).show(); return@Button }
+                    if (title.isBlank()) { com.chaminwoo.stary.core.ui.StaryToast.show("제목을 입력해주세요"); return@Button }
                     coroutineScope.launch {
                         isUploading = true
                         val curLatLng = LocationHelper.getCurrentLatLng()
                         val lat = curLatLng?.latitude ?: LocationHelper.getCurrentLocation(context)?.latitude ?: 0.0
                         val lng = curLatLng?.longitude ?: LocationHelper.getCurrentLocation(context)?.longitude ?: 0.0
                         val imageUrl = if (selectedImageUri != null) {
-                            val url = ImageUploadHelper.uploadImage(context, selectedImageUri!!)
-                            if (url == null) {
-                                Toast.makeText(context, "이미지 업로드 실패. 다시 시도해주세요.", Toast.LENGTH_SHORT).show()
+                            val result = ImageUploadHelper.uploadImageResult(context, selectedImageUri!!)
+                            if (!result.isSuccess) {
+                                com.chaminwoo.stary.core.ui.StaryToast.show("이미지 업로드 실패: ${result.error}")
                                 isUploading = false; return@launch
                             }
-                            url
+                            result.url!!
                         } else ""
                         val uName = when { !isLoggedIn -> "익명"; isAnonymous -> "익명"; else -> GoogleAuthHelper.currentUserName ?: "알 수 없음" }
                         diaryViewModel.saveDiary(

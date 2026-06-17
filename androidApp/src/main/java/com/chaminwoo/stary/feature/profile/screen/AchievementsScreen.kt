@@ -72,10 +72,10 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
     ) {
         item {
             Column {
-                Text("성흔", color = TextMain, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("칭호", color = TextMain, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "업적을 달성하면 칭호 '성흔'을 얻어요. 완료한 성흔을 눌러 장착하세요.",
+                    "업적을 달성하면 칭호를 얻어요. 완료한 업적을 눌러 장착하세요.",
                     color = TextMuted, fontSize = 13.sp
                 )
                 Spacer(Modifier.height(6.dp))

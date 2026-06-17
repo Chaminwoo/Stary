@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.core.util.ImageUploadHelper
 import com.chaminwoo.stary.data.staryFirestore
 import android.net.Uri
 import com.google.firebase.firestore.SetOptions
@@ -17,6 +18,9 @@ class UserRepository {
             .getString("profileImageUrl")
 
     suspend fun uploadProfileImage(userId: String, uri: Uri): String {
+        // Storage 보안 규칙(request.auth != null)을 통과하려면 인증 세션 필요.
+        ImageUploadHelper.ensureAuthenticated()
+
         // 이전 이미지 삭제 (항상 같은 경로 사용)
         try {
             storage.reference.child("profile_images/$userId.jpg").delete().await()

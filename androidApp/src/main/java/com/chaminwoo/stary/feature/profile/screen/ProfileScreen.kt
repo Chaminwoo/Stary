@@ -32,7 +32,9 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -83,6 +85,13 @@ fun ProfileScreen(
     val isUploading by profileVm.isUploading.collectAsState()
     val galleryLauncher = rememberLauncherForActivityResult(GetContent()) { uri ->
         uri?.let { profileVm.uploadProfileImage(it) }
+    }
+    val uploadError by profileVm.uploadError.collectAsState()
+    LaunchedEffect(uploadError) {
+        uploadError?.let {
+            com.chaminwoo.stary.core.ui.StaryToast.show("프로필 이미지 업로드 실패: $it")
+            profileVm.clearError()
+        }
     }
 
     val stats = rememberUserStats(userId)
@@ -143,7 +152,7 @@ fun ProfileScreen(
                 Icon(Icons.Filled.AutoAwesome, null, tint = Green, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = equippedStigma ?: "성흔 없음 · 업적 보기",
+                    text = equippedStigma ?: "칭호 없음 · 업적 보기",
                     color = if (equippedStigma != null) Green else TextMuted,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
@@ -173,7 +182,7 @@ fun ProfileScreen(
             // 업적 바로가기
             ProfileMenuRow(
                 icon = Icons.Filled.AutoAwesome,
-                label = "업적 · 성흔",
+                label = "업적 · 칭호",
                 onClick = onOpenAchievements
             )
 

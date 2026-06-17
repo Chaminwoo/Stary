@@ -1,6 +1,7 @@
 package com.chaminwoo.stary.feature.home.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -250,10 +251,14 @@ fun MainScreen(
                                 IconButton(onClick = { navController.navigate(NavRoute.Notification) }) {
                                     BadgedBox(
                                         badge = {
+                                            // 미열람 알림이 있으면 하트 우측 상단에 빨간 동그라미(알림 점)
                                             if (unreadCount > 0) {
-                                                Badge(containerColor = Color(0xFF6EE7B7)) {
-                                                    Text(unreadCount.toString(), color = Color(0xFF0D0D0D))
-                                                }
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(10.dp)
+                                                        .background(Color(0xFFFF3B30), CircleShape)
+                                                        .border(1.5.dp, Color(0xFF0D0D0D), CircleShape)
+                                                )
                                             }
                                         }
                                     ) {
@@ -305,6 +310,9 @@ fun MainScreen(
     if (showLogin) {
         LoginScreen(onLoginClick = { showLogin = false })
     }
+
+    // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시
+    com.chaminwoo.stary.core.ui.StaryToastHost()
     }
 }
 

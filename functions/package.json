@@ -1,0 +1,17 @@
+{
+  "name": "stary-functions",
+  "description": "Stary Cloud Functions — 친구 다이어리 FCM 푸시 발송 (체크리스트 8 서버부)",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.1.0"
+  }
+}

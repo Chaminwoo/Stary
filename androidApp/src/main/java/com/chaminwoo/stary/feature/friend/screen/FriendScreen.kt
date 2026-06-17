@@ -79,7 +79,7 @@ fun FriendScreen(modifier: Modifier = Modifier) {
     var query by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        vm.event.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        vm.event.collect { com.chaminwoo.stary.core.ui.StaryToast.show(it) }
     }
 
     LazyColumn(

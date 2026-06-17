@@ -151,6 +151,23 @@
   users/{uid}.fcmToken 필드 삭제로 정리. ⚠️ `REGION`(현재 asia-northeast3)은 stary-db 리전과 일치 필수.
   배포: Blaze + `cd functions && npm install` + `firebase deploy --only functions`.
 
+## 8.7 기능 배치 4 (BUILD SUCCESSFUL + 테스트 완료)
+- **이미지 업로드 안정화/원인 추적**: `ImageUploadHelper` 가 업로드 직전 `ensureAuthenticated()`(세션 없으면
+  `signInAnonymously().await()`)로 Auth 세션 보장 → Storage 규칙(`request.auth != null`) 통과. 실패 시
+  실제 에러 메시지를 `Result(url,error)` 로 반환(기존엔 null 만 → 원인 묻힘). `UserRepository.uploadProfileImage` 도
+  동일하게 세션 보장. `ProfileViewModel` 에 `uploadError` StateFlow 추가 → `ProfileScreen` 에서 토스트로 노출.
+  - ⚠️ 경로의 userId 는 Google sub(JWT)라 Firebase uid 와 다름 → Storage 규칙에서 `auth.uid == userId` 쓰면 안 됨.
+- **Storage 보안 규칙 파일화**: 루트 `storage.rules`(diary_images/profile_images = 읽기공개 + 로그인+이미지<10MB 쓰기,
+  그 외 거부) + `firebase.json` 에 `"storage": {"rules":"storage.rules"}`. 배포: `firebase deploy --only storage`.
+  - ⚠️ 원본 앱(momentdiary-52b78)은 Firebase Auth 세션을 안 만들어(익명/credential 로그인 없음) `request.auth` 항상 null.
+    이 규칙을 원본에 적용하면 업로드 전부 거부됨 → 원본은 콘솔 버전기록 롤백 또는 오픈 규칙 필요(원본 코드 수정 금지).
+- **미열람 알림 빨간 점**: `MainScreen` 하트 BadgedBox 배지를 민트 숫자 → 빨간 동그라미 점(0xFFFF3B30, 어두운 테두리).
+- **커스텀 토스트**: `core/ui/StaryToast.kt` — 시스템 Toast(Android 12+ setView 무시) 대신 Compose 전역 오버레이
+  `StaryToastHost`(MainScreen 최상단, 로그인 오버레이 포함 위). 남색 그라데이션+PoorStory 폰트. 호출은 `StaryToast.show(msg)`.
+  기존 `Toast.makeText` 10곳 전부 교체(Profile/Login/MainList/Friend/DiaryMap/Upload).
+- **앱 아이콘**: `AndroidManifest` icon/roundIcon → `@drawable/app_image`. (런처에 따라 사각 PNG 그대로 보일 수 있음;
+  어댑티브 마스킹 원하면 별도 작업 필요.)
+
 ## 8.6 기능 배치 3 (BUILD SUCCESSFUL 확인됨)
 - **UploadScreen 무한 캐러셀**: 별 모양/색상 피커를 `HorizontalPager`(pageCount=10_000, initialPage=5000-based)로 교체.
   - 중앙 외 페이지: `graphicsLayer(scale/alpha)` 로 페이드+축소 효과. `contentPadding` 으로 양쪽 미리보기.

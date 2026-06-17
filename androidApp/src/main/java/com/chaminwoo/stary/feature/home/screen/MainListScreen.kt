@@ -196,7 +196,7 @@ fun MainListScreen(
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-        if (!isGranted) Toast.makeText(context, "위치 권한이 필요해요", Toast.LENGTH_SHORT).show()
+        if (!isGranted) com.chaminwoo.stary.core.ui.StaryToast.show("위치 권한이 필요해요")
     }
 
     LaunchedEffect(currentLatLng) {

@@ -18,6 +18,12 @@ class ProfileViewModel(private val userId: String) : ViewModel() {
     private val _isUploading = MutableStateFlow(false)
     val isUploading: StateFlow<Boolean> = _isUploading
 
+    /** 업로드 실패 메시지(1회성). 화면에서 토스트로 노출 후 [clearError] 로 비운다. */
+    private val _uploadError = MutableStateFlow<String?>(null)
+    val uploadError: StateFlow<String?> = _uploadError
+
+    fun clearError() { _uploadError.value = null }
+
     init {
         viewModelScope.launch {
             try {
@@ -31,7 +37,8 @@ class ProfileViewModel(private val userId: String) : ViewModel() {
             _isUploading.value = true
             try {
                 _profileImageUrl.value = repo.uploadProfileImage(userId, uri)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                _uploadError.value = e.localizedMessage ?: e.toString()
             } finally {
                 _isUploading.value = false
             }
