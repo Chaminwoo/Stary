@@ -167,6 +167,16 @@
   기존 `Toast.makeText` 10곳 전부 교체(Profile/Login/MainList/Friend/DiaryMap/Upload).
 - **앱 아이콘**: `AndroidManifest` icon/roundIcon → `@drawable/app_image`. (런처에 따라 사각 PNG 그대로 보일 수 있음;
   어댑티브 마스킹 원하면 별도 작업 필요.)
+- **토스트 확장**: 댓글 작성/삭제·좋아요(하트)·칭호 장착/해제에도 `StaryToast` 적용(DetailScreen/AchievementsScreen).
+- **미열람 알림 빨간 점 버그픽스**: ⚠️ Kotlin `Boolean isRead` 는 Firestore 에 **`read`** 필드로 저장됨(getter "is" 접두 제거).
+  쿼리/업데이트가 `"isRead"` 였어서 항상 0건 → `read` 로 수정(`FirebaseNotificationRepository`). 빨간 점 위로 살짝(-2dp)+테두리 제거.
+- **스플래시 완전 검정**: `values/themes.xml` windowBackground=검정, `values-v31/themes.xml` 시스템 스플래시 배경 검정 +
+  아이콘 숨김(`drawable/splash_icon_none` 투명). 콜드스타트 흰 번쩍임 제거.
+- **내 다이어리 배경**: `MyDiaryScreen` 을 Box 로 감싸 `drawable/mydiary_bg`(업로드와 동일 밝기) 깔음.
+- **정렬 효과음**: `MusicManager.playWind()`(`res/raw/wind.mp3`, 배경음악과 별개 SFX 플레이어, enabled 시만). 정렬 변경 시 호출.
+- **바나나 다이얼 수정**: 드래그 중엔 회전만, 선택 이벤트는 놓을 때/클릭 시·이전과 다를 때만(onDragCancel 추가).
+- **거리순 수정**: `DiaryStarBox.here` 가 위치 캐시 null 이면 `getCurrentLocation` 비동기 측정해 채움(이전엔 거리순 무반응).
+- **별자리 실제 배치**: `MyDiaryScreen.CONSTELLATIONS` = 최신순 사수자리(Teapot)/인기순 처녀자리/거리순 전갈자리(Scorpius).
 
 ## 8.6 기능 배치 3 (BUILD SUCCESSFUL 확인됨)
 - **UploadScreen 무한 캐러셀**: 별 모양/색상 피커를 `HorizontalPager`(pageCount=10_000, initialPage=5000-based)로 교체.

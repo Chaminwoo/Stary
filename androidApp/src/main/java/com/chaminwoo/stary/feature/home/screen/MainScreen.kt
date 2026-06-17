@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -255,9 +256,9 @@ fun MainScreen(
                                             if (unreadCount > 0) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(10.dp)
+                                                        .offset(x = 4.dp,y = (-4).dp)
+                                                        .size(7.dp)
                                                         .background(Color(0xFFFF3B30), CircleShape)
-                                                        .border(1.5.dp, Color(0xFF0D0D0D), CircleShape)
                                                 )
                                             }
                                         }

@@ -11,10 +11,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -117,7 +119,17 @@ fun DiaryStarBox(
             }
         }
 
-        val here = remember(diaries) { LocationHelper.getCurrentLatLng() }
+        // 현재 위치(거리순용). 캐시가 비어 있으면(아직 측정 전) 비동기로 한 번 가져와 채운다.
+        // (기존엔 캐시만 읽어 null 이면 거리순이 적용되지 않았음)
+        val context = LocalContext.current
+        var here by remember(diaries) { mutableStateOf(LocationHelper.getCurrentLatLng()) }
+        LaunchedEffect(diaries) {
+            if (here == null) {
+                LocationHelper.getCurrentLocation(context)?.let {
+                    here = com.chaminwoo.stary.core.geo.LatLng(it.latitude, it.longitude)
+                }
+            }
+        }
 
         var tick by remember { mutableIntStateOf(0) }
         var floatT by remember { mutableFloatStateOf(0f) }
@@ -126,12 +138,13 @@ fun DiaryStarBox(
         LaunchedEffect(bodies, sortMode, wPx, hPx, here) {
             if (bodies.isEmpty()) return@LaunchedEffect
 
+            val origin = here
             val order = when (sortMode) {
                 DiarySort.LATEST -> bodies.sortedByDescending { it.diary.createdAt }
                 DiarySort.POPULAR -> bodies.sortedByDescending { it.diary.likeCount }
                 DiarySort.DISTANCE ->
-                    if (here != null) bodies.sortedBy {
-                        LocationHelper.distanceBetween(here.latitude, here.longitude, it.diary.latitude, it.diary.longitude)
+                    if (origin != null) bodies.sortedBy {
+                        LocationHelper.distanceBetween(origin.latitude, origin.longitude, it.diary.latitude, it.diary.longitude)
                     } else bodies
             }
 

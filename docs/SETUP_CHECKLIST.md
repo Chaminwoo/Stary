@@ -173,6 +173,30 @@
 
 ---
 
+## 🛠️ 기능 배치 4 / 버그 라운드 (2026-06-18)
+
+### 15. 내 다이어리 바나나 다이얼 오류 수정 — ✅ 수정(테스트 대기)
+- [x] 다이얼 돌려도 정렬이 안 바뀌는 경우 多 → 드래그 중 실시간 `onSelect` 호출이 부모 recomposition 과
+      충돌하던 게 원인. **드래그 중엔 회전(rot)만, 이벤트는 놓을 때(onDragEnd)·클릭 시에만** 발생하도록 변경
+      + 이전 선택과 다를 때만 실행. `onDragCancel` 추가, `LaunchedEffect(selected)` 보정은 외부 변경 시에만.
+- [x] **거리순(DISTANCE) 미적용** → `DiaryStarBox.here`(현재 위치)가 캐시만 읽어 null 이면 정렬이 원본으로 떨어짐.
+      위치 캐시가 비면 `LocationHelper.getCurrentLocation` 으로 비동기 측정해 채우도록 수정(권한 필요).
+- [ ] 사용자 테스트: 다이얼로 3정렬(최신/인기/거리) 전부 전환되는지 확인.
+
+### 16. 별자리 구조를 실제 항성 배치로 교체 — ✅ 수정(테스트 대기)
+- [x] 정렬 기준별 별자리를 실제 선그림(주요 항성+연결선)으로 재배치 (`MyDiaryScreen.CONSTELLATIONS`):
+      **최신순=사수자리(Teapot)**, **인기순=처녀자리(Virgo)**, **거리순=전갈자리(Scorpius, 기존 물병자리에서 교체)**.
+- [ ] 사용자 테스트: 각 별자리 모양이 실제와 닮았는지 확인(좌표 미세조정 필요 시 `CONSTELLATIONS` 수정).
+
+### (기타 이번 라운드 반영분)
+- [x] 이미지 업로드: 업로드 전 Auth 세션 보장 + 실제 에러 노출, `storage.rules`/`firebase.json` 추가.
+- [x] 미열람 알림: 하트 우상단 **빨간 점**(Firestore Boolean `isRead`→실제 필드명 `read` 쿼리 버그 수정).
+- [x] 커스텀 남색 토스트(`StaryToast`/`StaryToastHost`) + 기존 토스트 전부 교체(댓글/좋아요/칭호 포함).
+- [x] 앱 아이콘 `@drawable/app_image`, 콜드스타트 스플래시 **완전 검정 배경**(values-v31, 아이콘 숨김).
+- [x] 내 다이어리 배경 `mydiary_bg`(업로드 화면과 동일 밝기), 정렬 시작 시 `wind.mp3` 효과음(MusicManager).
+
+---
+
 ## 🍎 (추후) iOS 확장 — **macOS + Xcode 필요(Windows 불가)**
 - [ ] `iosApp/` Xcode(SwiftUI) 프로젝트 생성 + `:shared` 프레임워크 임포트(`linkDebugFrameworkIosSimulatorArm64`).
 - [ ] `Repositories.kt` 인터페이스를 Firebase iOS SDK로 구현, `GoogleService-Info.plist`(f26c8 iOS 앱) 추가.

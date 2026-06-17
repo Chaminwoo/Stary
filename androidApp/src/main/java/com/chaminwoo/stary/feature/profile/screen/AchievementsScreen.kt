@@ -95,6 +95,9 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
                         val next = if (equipped == ach.id) null else ach.id
                         StigmaStore.equip(context, userId, next)
                         equipped = next
+                        com.chaminwoo.stary.core.ui.StaryToast.show(
+                            if (next != null) "‘${ach.stigma}’ 칭호를 장착했어요" else "칭호를 해제했어요"
+                        )
                     }
                 }
             )

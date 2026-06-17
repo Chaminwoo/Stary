@@ -283,7 +283,11 @@ fun DetailScreen(
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { interactionVm.toggleLike() }) {
+                            IconButton(onClick = {
+                                val willLike = !isLiked
+                                interactionVm.toggleLike()
+                                com.chaminwoo.stary.core.ui.StaryToast.show(if (willLike) "좋아요를 남겼어요 ♥" else "좋아요를 취소했어요")
+                            }) {
                                 Icon(
                                     imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                     contentDescription = "좋아요",
@@ -315,7 +319,10 @@ fun DetailScreen(
                                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            IconButton(onClick = { interactionVm.addComment(commentInput); commentInput = "" }, enabled = commentInput.isNotBlank()) {
+                            IconButton(onClick = {
+                                interactionVm.addComment(commentInput); commentInput = ""
+                                com.chaminwoo.stary.core.ui.StaryToast.show("댓글을 남겼어요")
+                            }, enabled = commentInput.isNotBlank()) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.Send, contentDescription = "전송",
                                     tint = if (commentInput.isNotBlank()) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.secondary
@@ -324,7 +331,10 @@ fun DetailScreen(
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                         comments.forEach { comment ->
-                            CommentItem(comment = comment, isMyComment = comment.userId == userId, onDelete = { interactionVm.deleteComment(comment.id) })
+                            CommentItem(comment = comment, isMyComment = comment.userId == userId, onDelete = {
+                                interactionVm.deleteComment(comment.id)
+                                com.chaminwoo.stary.core.ui.StaryToast.show("댓글을 삭제했어요")
+                            })
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                         }
                     }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Android 12+(API 31) 시스템 스플래시 — 완전 검정 배경만 보이도록.
+         배경=검정, 아이콘은 투명 드로어블로 대체해 숨긴다(아이콘 없이 검정 화면만). -->
+    <style name="Theme.Stary" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/black</item>
+        <item name="android:windowSplashScreenBackground">@color/black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_none</item>
+    </style>
+</resources>

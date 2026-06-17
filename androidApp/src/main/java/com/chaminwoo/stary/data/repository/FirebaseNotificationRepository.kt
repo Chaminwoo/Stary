@@ -32,9 +32,12 @@ class FirebaseNotificationRepository : NotificationRepository {
     }
 
     override fun observeUnreadCount(ownerId: String): Flow<Int> = callbackFlow {
+        // ⚠️ Firestore + Kotlin Boolean 함정: 모델 필드 `isRead`(Boolean) 는 getter `isRead()` 의
+        //    "is" 접두가 떨어져 **Firestore 문서에는 `read` 필드로 저장**된다(toObject 는 같은 규칙으로
+        //    역매핑되어 정상). 따라서 raw 문자열 쿼리는 반드시 "read" 를 써야 매칭된다("isRead" 로 쿼리하면 0건).
         val listener = db.collection(StaryConfig.Collections.NOTIFICATIONS)
             .whereEqualTo("diaryOwnerId", ownerId)
-            .whereEqualTo("isRead", false)
+            .whereEqualTo("read", false)
             .addSnapshotListener { snap, _ -> trySend(snap?.size() ?: 0) }
         awaitClose { listener.remove() }
     }
@@ -75,13 +78,14 @@ class FirebaseNotificationRepository : NotificationRepository {
     }
 
     override suspend fun markAllRead(ownerId: String) {
+        // 저장 필드명은 `read`(위 observeUnreadCount 주석 참고). 쿼리/업데이트 모두 "read" 사용.
         val unread = db.collection(StaryConfig.Collections.NOTIFICATIONS)
             .whereEqualTo("diaryOwnerId", ownerId)
-            .whereEqualTo("isRead", false)
+            .whereEqualTo("read", false)
             .get().await()
 
         val batch = db.batch()
-        unread.documents.forEach { batch.update(it.reference, "isRead", true) }
+        unread.documents.forEach { batch.update(it.reference, "read", true) }
         batch.commit().await()
     }
 }

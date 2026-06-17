@@ -25,6 +25,10 @@ object MusicManager {
     private var initialized = false
     private var appContext: Context? = null
 
+    // 효과음(SFX) — 배경음악과 별개로 겹쳐 1회 재생되는 플레이어
+    private var sfxPlayer: MediaPlayer? = null
+    private var windResId = 0
+
     /** Compose 에서 관찰 가능한 on/off 상태. */
     var enabled by mutableStateOf(true)
         private set
@@ -37,6 +41,29 @@ object MusicManager {
         enabled = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY, true) // 기본 켜짐
         resId = ctx.resources.getIdentifier("ambient_music", "raw", ctx.packageName)
         available = resId != 0
+        windResId = ctx.resources.getIdentifier("wind", "raw", ctx.packageName)
+    }
+
+    /**
+     * 바람 효과음(`res/raw/wind.mp3`) 1회 재생 — 내 다이어리 정렬 애니메이션 시작 시 호출.
+     * 배경음악과 별개로 겹쳐 재생되며, 음소거(enabled=false) 상태에선 출력하지 않는다.
+     */
+    fun playWind() {
+        if (!enabled) return
+        val ctx = appContext ?: return
+        if (windResId == 0) {
+            windResId = ctx.resources.getIdentifier("wind", "raw", ctx.packageName)
+            if (windResId == 0) return
+        }
+        // 직전 효과음이 남아 있으면 정리(연속 호출 시 중복/누수 방지)
+        sfxPlayer?.release()
+        sfxPlayer = MediaPlayer.create(ctx, windResId)?.apply {
+            setOnCompletionListener { mp ->
+                mp.release()
+                if (sfxPlayer === mp) sfxPlayer = null
+            }
+            start()
+        }
     }
 
     /** 토글(FAB) — on/off 저장 후 즉시 반영. */
@@ -76,5 +103,7 @@ object MusicManager {
             it.release()
         }
         player = null
+        sfxPlayer?.release()
+        sfxPlayer = null
     }
 }
