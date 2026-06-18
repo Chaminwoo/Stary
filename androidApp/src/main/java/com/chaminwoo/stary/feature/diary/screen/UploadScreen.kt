@@ -76,6 +76,9 @@ import com.chaminwoo.stary.core.util.ImageUploadHelper
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
+import com.chaminwoo.stary.feature.profile.Achievements
+import com.chaminwoo.stary.feature.profile.StarUnlocks
+import com.chaminwoo.stary.feature.profile.rememberUserStats
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
@@ -119,6 +122,11 @@ fun UploadScreen(
     )
     val starType = shapePagerState.currentPage % StarStyle.TYPE_COUNT
     val starColor = colorPagerState.currentPage % StarStyle.COLOR_COUNT
+
+    // 업적 해금 상태 — 잠긴 별 모양/색 판정에 사용 (비로그인 시 기본 항목만)
+    val unlockedIds: Set<String> =
+        if (isLoggedIn) Achievements.unlockedIds(rememberUserStats(GoogleAuthHelper.currentUserId!!))
+        else emptySet()
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor   = MaterialTheme.colorScheme.onBackground,
@@ -248,6 +256,8 @@ fun UploadScreen(
                 val scale = lerp(0.70f, 1f, 1f - absOffset.coerceIn(0f, 1f))
                 val alpha = lerp(0.35f, 1f, 1f - absOffset.coerceIn(0f, 1f))
                 val isSelected = type == starType
+                val lockAch = StarUnlocks.lockedShapeAch(type, unlockedIds)
+                val locked = lockAch != null
 
                 Box(
                     modifier = Modifier
@@ -259,15 +269,44 @@ fun UploadScreen(
                         modifier = Modifier
                             .size(76.dp)
                             .clip(RoundedCornerShape(18.dp))
-                            .background(if (isSelected) Color.White.copy(alpha = 0.12f) else Color(0xFF1A1A2E))
+                            .background(if (isSelected && !locked) Color.White.copy(alpha = 0.12f) else Color(0xFF14141F))
                             .border(
-                                width = if (isSelected) 2.dp else 1.dp,
-                                color = if (isSelected) StarStyle.colorOf(starColor) else Color.White.copy(0.12f),
+                                width = if (isSelected && !locked) 2.dp else 1.dp,
+                                color = when {
+                                    locked -> Color.White.copy(0.10f)
+                                    isSelected -> StarStyle.colorOf(starColor)
+                                    else -> Color.White.copy(0.12f)
+                                },
                                 shape = RoundedCornerShape(18.dp)
-                            ),
+                            )
+                            .clickable {
+                                if (locked) {
+                                    com.chaminwoo.stary.core.ui.StaryToast.show("‘${lockAch!!.name}’ 업적을 달성하여 해금하세요!")
+                                } else {
+                                    coroutineScope.launch { shapePagerState.animateScrollToPage(page) }
+                                }
+                            },
                         contentAlignment = Alignment.Center
                     ) {
-                        StarShapeIcon(type = type, color = StarStyle.colorOf(starColor), modifier = Modifier.size(44.dp))
+                        if (locked) {
+                            StarShapeIcon(type = type, color = Color.White.copy(0.20f), modifier = Modifier.size(44.dp))
+                        } else {
+                            StarShapeIcon(type = type, colorIndex = starColor, modifier = Modifier.size(44.dp))
+                        }
+                        if (locked) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(6.dp)
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.6f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Filled.Lock, contentDescription = "잠김",
+                                    tint = Color.White.copy(0.85f), modifier = Modifier.size(11.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -292,7 +331,11 @@ fun UploadScreen(
                 val scale = lerp(0.65f, 1f, 1f - absOffset.coerceIn(0f, 1f))
                 val alpha = lerp(0.3f, 1f, 1f - absOffset.coerceIn(0f, 1f))
                 val isSelected = colorIdx == starColor
-                val color = StarStyle.colorOf(colorIdx)
+                val colorList = StarStyle.colorsOf(colorIdx)
+                val colorBrush = if (colorList.size > 1) androidx.compose.ui.graphics.Brush.linearGradient(colorList)
+                                 else androidx.compose.ui.graphics.SolidColor(colorList[0])
+                val lockAch = StarUnlocks.lockedColorAch(colorIdx, unlockedIds)
+                val locked = lockAch != null
 
                 Box(
                     modifier = Modifier
@@ -304,13 +347,31 @@ fun UploadScreen(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
-                            .background(color)
+                            .background(colorBrush)
                             .border(
-                                width = if (isSelected) 3.dp else 1.5.dp,
-                                color = if (isSelected) Color.White else Color.White.copy(0.2f),
+                                width = if (isSelected && !locked) 3.dp else 1.5.dp,
+                                color = when {
+                                    locked -> Color.White.copy(0.15f)
+                                    isSelected -> Color.White
+                                    else -> Color.White.copy(0.2f)
+                                },
                                 shape = CircleShape
                             )
-                    )
+                            .clickable {
+                                if (locked) {
+                                    com.chaminwoo.stary.core.ui.StaryToast.show("‘${lockAch!!.name}’ 업적을 달성하여 해금하세요!")
+                                } else {
+                                    coroutineScope.launch { colorPagerState.animateScrollToPage(page) }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (locked) {
+                            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.5f)))
+                            Icon(Icons.Filled.Lock, contentDescription = "잠김",
+                                tint = Color.White.copy(0.9f), modifier = Modifier.size(20.dp))
+                        }
+                    }
                 }
             }
 
@@ -359,6 +420,12 @@ fun UploadScreen(
             Button(
                 onClick = {
                     if (title.isBlank()) { com.chaminwoo.stary.core.ui.StaryToast.show("제목을 입력해주세요"); return@Button }
+                    StarUnlocks.lockedShapeAch(starType, unlockedIds)?.let {
+                        com.chaminwoo.stary.core.ui.StaryToast.show("‘${it.name}’ 업적을 달성하여 해금하세요!"); return@Button
+                    }
+                    StarUnlocks.lockedColorAch(starColor, unlockedIds)?.let {
+                        com.chaminwoo.stary.core.ui.StaryToast.show("‘${it.name}’ 업적을 달성하여 해금하세요!"); return@Button
+                    }
                     coroutineScope.launch {
                         isUploading = true
                         val curLatLng = LocationHelper.getCurrentLatLng()

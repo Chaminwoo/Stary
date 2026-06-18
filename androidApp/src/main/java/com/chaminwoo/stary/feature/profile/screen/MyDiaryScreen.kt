@@ -2,6 +2,10 @@ package com.chaminwoo.stary.feature.profile.screen
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -26,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,12 +57,21 @@ import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-private val Green = Color(0xFF6EE7B7)
 private val TextMuted = Color(0xFF8A8A8A)
+
+// 정렬별 테마색 — 최신순=푸른색, 인기순=분홍색, 거리순=보라색 (별자리·다이얼 공용)
+private val LatestBlue = Color(0xFF7FB7FF)
+private val PopularPink = Color(0xFFFF9CC6)
+private val DistancePurple = Color(0xFFB89BFF)
+
+private fun sortColor(s: DiarySort): Color = when (s) {
+    DiarySort.LATEST -> LatestBlue
+    DiarySort.POPULAR -> PopularPink
+    DiarySort.DISTANCE -> DistancePurple
+}
 
 @Composable
 fun MyDiaryScreen(
@@ -75,6 +89,8 @@ fun MyDiaryScreen(
 
     val myDiaries by diaryViewModel.getMyDiaries(userId).collectAsState()
     var sortMode by remember { mutableStateOf(DiarySort.LATEST) }
+    // 같은 정렬(특히 기본값 최신순)을 다시 골라도 재정렬이 보이도록 하는 토큰
+    var sortNonce by remember { mutableIntStateOf(0) }
 
     Box(modifier = modifier.fillMaxSize()) {
         // 업로드 화면과 동일한 밝기의 배경
@@ -97,18 +113,18 @@ fun MyDiaryScreen(
                 .height(260.dp),
             contentAlignment = Alignment.Center
         ) {
-            ConstellationBackground(sortMode, Modifier.matchParentSize())
+            ConstellationBackground(sortMode, sortNonce, Modifier.matchParentSize())
             BananaDial(
                 selected = sortMode,
-                onSelect = { sortMode = it; MusicManager.playWind() }, // 정렬 변경(애니메이션 시작) 시 바람 효과음
-                modifier = Modifier.fillMaxWidth().height(220.dp)
+                onSelect = { sortMode = it; sortNonce++; MusicManager.playWind() }, // 정렬 반영 + 효과음
+                modifier = Modifier.matchParentSize() // 터치 영역 = 별자리 박스 전체(아래쪽 클릭도 인식)
             )
         }
 
         Text(
             text = "${sortMode.label} · ${myDiaries.size}개",
-            color = Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            color = sortColor(sortMode), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 4.dp), // 텍스트를 조금 더 아래로
             textAlign = TextAlign.Center
         )
 
@@ -120,6 +136,7 @@ fun MyDiaryScreen(
             DiaryStarBox(
                 diaries = myDiaries,
                 sortMode = sortMode,
+                sortNonce = sortNonce,
                 onDiaryClick = onDiaryClick,
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
@@ -129,12 +146,23 @@ fun MyDiaryScreen(
 }
 
 // ─── 바나나(호) 다이얼 ─────────────────────────────────────────────────────────
-// 3개 버튼이 아래로 휜 호(바나나/스마일)에 놓이고, 맨 아래에 온 버튼이 선택된다.
+// 3개 버튼이 아래로 휜 곡선(바나나/스마일)에 놓이고, 맨 아래에 온 버튼이 선택된다.
 // 좌우로 드래그하거나 버튼을 탭하면 그 버튼이 아래로 굴러와 선택된다. (선택용 바늘 없음)
+//
+// 곡선을 (원호가 아닌) 포물선으로 잡아 수평 퍼짐을 일정하게 묶는다.
+// 기존 원호(반지름 150)는 끝 항목이 화면 밖으로 밀려 탭이 안 되던 버그가 있었음 →
+// 수평 간격을 고정해 끝(마지막) 항목도 항상 화면 안에 들어와 선택된다.
+private const val DIAL_H_SPACING_DP = 90f  // 항목 사이 수평 간격(px 변환해 드래그 감도로도 사용)
+private const val DIAL_CURVE_DP = 30f      // 바나나 곡률(가장자리로 갈수록 위로 들림: k²)
+// 선택(바닥) 항목 깊이 — 박스(260) 중앙 기준. 별이 박스 안에 들어오도록(터치 영역과 일치) 100 으로.
+private const val DIAL_BOTTOM_DP = 100f
 
-private const val DIAL_SPACING_DEG = 42f   // 버튼 사이 호 간격
-private const val DIAL_RADIUS_DP = 150f    // 호 반지름
-private const val DIAL_BOTTOM_DP = 92f     // 박스 중앙 기준 맨 아래 지점 깊이(아래로 내림)
+// 다이얼 세 버튼은 서로 다른 별 모양으로 구분 (StarStyle 타입 0..4)
+private fun dialStarType(s: DiarySort): Int = when (s) {
+    DiarySort.LATEST -> 1   // 5꼭지 클래식 별
+    DiarySort.POPULAR -> 2  // 6꼭지 별
+    DiarySort.DISTANCE -> 4 // 4꼭지 다이아 스파클
+}
 
 @Composable
 private fun BananaDial(
@@ -164,46 +192,46 @@ private fun BananaDial(
 
     BoxWithConstraints(
         modifier = modifier.pointerInput(n) {
-            val pxPerIndex = 110.dp.toPx()
+            val pxPerIndex = DIAL_H_SPACING_DP.dp.toPx()
             detectDragGestures(
                 onDragStart = { dragging = true },
                 onDrag = { change, drag ->
                     change.consume()
                     // 드래그 중엔 시각 회전만 갱신 — 선택 이벤트는 놓을 때만(onDragEnd)
-                    rot = (rot + drag.x / pxPerIndex).coerceIn(0f, (n - 1).toFloat())
+                    // 방향 반대로: 미는 방향으로 별들이 따라오도록 부호 반전
+                    rot = (rot - drag.x / pxPerIndex).coerceIn(0f, (n - 1).toFloat())
                 },
                 onDragEnd = {
                     dragging = false
                     val idx = rot.roundToInt().coerceIn(0, n - 1)
                     animateRotTo(idx.toFloat())
-                    // 놓은 위치가 이전 선택과 다를 때만 이벤트 실행
-                    if (items[idx] != selected) onSelect(items[idx])
+                    // 놓은 자리는 항상 선택을 반영(재정렬·효과음). 기본값(최신순)에 그대로 놓아도 동작.
+                    onSelect(items[idx])
                 },
                 onDragCancel = {
                     dragging = false
                     val idx = rot.roundToInt().coerceIn(0, n - 1)
                     animateRotTo(idx.toFloat())
-                    if (items[idx] != selected) onSelect(items[idx])
+                    onSelect(items[idx])
                 }
             )
         }
     ) {
-        // 바나나 호 가이드 — 세 별과 같은 원호 위에 있으며 함께 이동
+        // 바나나 곡선 가이드 — 세 별이 놓인 포물선을 따라 함께 이동
         Canvas(modifier = Modifier.matchParentSize()) {
             val cx = size.width / 2f
             val cy = size.height / 2f
-            val r = DIAL_RADIUS_DP.dp.toPx()
-            val center = Offset(cx, cy + DIAL_BOTTOM_DP.dp.toPx() - r)
-            val a0 = 90f + (0 - rot) * DIAL_SPACING_DEG
-            val aN = 90f + (n - 1 - rot) * DIAL_SPACING_DEG
-            val startDeg = minOf(a0, aN) - 12f
-            val endDeg = maxOf(a0, aN) + 12f
+            val sx = DIAL_H_SPACING_DP.dp.toPx()
+            val bottom = DIAL_BOTTOM_DP.dp.toPx()
+            val curve = DIAL_CURVE_DP.dp.toPx()
+            fun pt(k: Float) = Offset(cx + sx * k, cy + bottom - curve * k * k)
+            val kL = (0 - rot) - 0.25f
+            val kR = (n - 1 - rot) + 0.25f
             val steps = 48
             var prev: Offset? = null
             for (s in 0..steps) {
-                val deg = startDeg + (endDeg - startDeg) * s / steps
-                val a = Math.toRadians(deg.toDouble())
-                val p = Offset(center.x + r * cos(a).toFloat(), center.y + r * sin(a).toFloat())
+                val k = kL + (kR - kL) * s / steps
+                val p = pt(k)
                 if (prev != null) drawLine(Color.White.copy(alpha = 0.10f), prev!!, p, strokeWidth = 1.5.dp.toPx())
                 prev = p
             }
@@ -211,39 +239,37 @@ private fun BananaDial(
 
         items.forEachIndexed { i, sort ->
             val k = i - rot
-            val ang = Math.toRadians((90f + k * DIAL_SPACING_DEG).toDouble())
-            val x = (DIAL_RADIUS_DP * cos(ang)).toFloat().dp
-            val y = (DIAL_BOTTOM_DP - DIAL_RADIUS_DP + DIAL_RADIUS_DP * sin(ang)).toFloat().dp
+            val x = (DIAL_H_SPACING_DP * k).dp
+            val y = (DIAL_BOTTOM_DP - DIAL_CURVE_DP * k * k).dp
             // 바닥에 가까울수록 1 → 별이 점점 커지고 후광이 강해짐
             val closeness = 1f - abs(k).coerceAtMost(1f)
-            val starSize = (14f + 14f * closeness).dp
+            val col = sortColor(sort)
+            val starSize = (15f + 13f * closeness).dp
             val interaction = remember { MutableInteractionSource() }
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(x = x, y = y)
-                    .size(48.dp)
+                    .size(54.dp)
                     .clickable(interactionSource = interaction, indication = null) {
                         animateRotTo(i.toFloat())
-                        if (sort != selected) onSelect(sort)
+                        onSelect(sort) // 같은 항목(기본 최신순 포함)이라도 항상 반영
                     },
                 contentAlignment = Alignment.Center
             ) {
-                // 후광 (원이 아닌 부드러운 radial glow)
-                if (closeness > 0.05f) {
-                    Box(
-                        Modifier
-                            .size((26f + 20f * closeness).dp)
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(Green.copy(alpha = 0.5f * closeness), Color.Transparent)
-                                )
+                // 후광 (부드러운 radial glow) — 항목 고유색으로
+                Box(
+                    Modifier
+                        .size((22f + 24f * closeness).dp)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(col.copy(alpha = 0.16f + 0.46f * closeness), Color.Transparent)
                             )
-                    )
-                }
+                        )
+                )
                 StarShapeIcon(
-                    type = 1,
-                    color = androidx.compose.ui.graphics.lerp(Color.White.copy(alpha = 0.3f), Green, closeness),
+                    type = dialStarType(sort), // 항목마다 다른 모양
+                    color = androidx.compose.ui.graphics.lerp(col.copy(alpha = 0.45f), col, closeness),
                     modifier = Modifier.size(starSize)
                 )
             }
@@ -253,115 +279,131 @@ private fun BananaDial(
 
 // ─── 별자리 배경 ──────────────────────────────────────────────────────────────
 
-private class Constel(val pts: List<Offset>, val edges: List<Pair<Int, Int>>)
+// 별 한 개: 위치(0..1 비율) + 크기/밝기 가중치(mag). mag 가 클수록 더 크고 밝다.
+private class CStar(val x: Float, val y: Float, val mag: Float)
+private class Constel(val stars: List<CStar>, val edges: List<Pair<Int, Int>>)
 
 /**
- * 정렬별 실제 별자리 문양(asterism, 좌표 0..1 비율 — x 오른쪽, y 아래쪽).
- * 실제 항성 배치(별자리 선그림)를 보고 주요 별과 연결선을 그대로 옮긴 것.
+ * 정렬별 별자리 문양 — drawable/reference{1,2,3}.png 를 픽셀 분석해 별 위치·크기·연결선을
+ * 그대로 옮긴 것(좌표 0..1 비율, x 오른쪽 / y 아래쪽). mag 는 레퍼런스 별 크기에서 산출.
+ * 순서: 최신순(reference1)·인기순(reference2)·거리순(reference3).
  */
 private val CONSTELLATIONS: Map<DiarySort, Constel> = mapOf(
-    // ── 최신순 — 사수자리(Sagittarius) '찻주전자(Teapot)' ──
-    // λ(뚜껑) / δ,φ,ζ,ε(몸통) / γ(주둥이) / σ,τ(손잡이)
     DiarySort.LATEST to Constel(
         listOf(
-            Offset(0.44f, 0.16f), // 0 λ Kaus Borealis (뚜껑 꼭지)
-            Offset(0.30f, 0.42f), // 1 δ Kaus Media
-            Offset(0.30f, 0.66f), // 2 ε Kaus Australis
-            Offset(0.10f, 0.52f), // 3 γ Alnasl (주둥이 끝)
-            Offset(0.56f, 0.40f), // 4 φ Sgr
-            Offset(0.56f, 0.66f), // 5 ζ Ascella
-            Offset(0.72f, 0.38f), // 6 σ Nunki (손잡이 위)
-            Offset(0.74f, 0.62f), // 7 τ Sgr (손잡이 아래)
+            CStar(0.496f, 0.187f, 1.49f), // S0
+            CStar(0.622f, 0.319f, 1.10f), // S1
+            CStar(0.572f, 0.344f, 1.14f), // S2
+            CStar(0.373f, 0.364f, 1.52f), // S3
+            CStar(0.214f, 0.407f, 2.20f), // S4 (가장 큰 별)
+            CStar(0.853f, 0.406f, 1.12f), // S5
+            CStar(0.520f, 0.455f, 1.10f), // S6
+            CStar(0.587f, 0.456f, 1.10f), // S7
+            CStar(0.734f, 0.480f, 1.10f), // S8
+            CStar(0.633f, 0.493f, 1.14f), // S9
+            CStar(0.531f, 0.535f, 1.16f), // S10
+            CStar(0.734f, 0.609f, 1.53f), // S11
+            CStar(0.910f, 0.644f, 1.12f), // S12
+            CStar(0.799f, 0.660f, 1.14f), // S13
+            CStar(0.677f, 0.713f, 1.16f), // S14
+            CStar(0.362f, 0.786f, 1.08f), // S15
+            CStar(0.211f, 0.791f, 1.10f), // S16
+            CStar(0.684f, 0.794f, 1.03f), // S17
+            CStar(0.342f, 0.885f, 1.14f), // S18
         ),
         listOf(
-            0 to 1, 0 to 4,         // 뚜껑
-            1 to 2, 2 to 5, 5 to 4, // 몸통(사각)
-            1 to 3,                 // 주둥이
-            4 to 6, 6 to 7, 7 to 5  // 손잡이
+            0 to 2, 1 to 2, 2 to 7, 3 to 4, 3 to 6, 3 to 9, 4 to 16, 5 to 8, 6 to 7,
+            6 to 9, 6 to 10, 7 to 9, 8 to 9, 8 to 10, 8 to 11, 8 to 17, 9 to 10,
+            11 to 13, 11 to 14, 12 to 13, 14 to 17, 15 to 16, 16 to 18
         )
     ),
-    // ── 인기순 — 처녀자리(Virgo) ──
-    // Spica(α) 아래 끝, γ Porrima 중심에서 ε(위)·η→β(오른쪽)로 뻗는 Y자
     DiarySort.POPULAR to Constel(
         listOf(
-            Offset(0.40f, 0.86f), // 0 α Spica
-            Offset(0.50f, 0.66f), // 1 ζ Vir
-            Offset(0.46f, 0.52f), // 2 γ Porrima (중심)
-            Offset(0.40f, 0.38f), // 3 δ Vir
-            Offset(0.34f, 0.22f), // 4 ε Vindemiatrix
-            Offset(0.66f, 0.50f), // 5 η Zaniah
-            Offset(0.84f, 0.44f), // 6 β Zavijava
+            CStar(0.808f, 0.111f, 1.76f), // S0
+            CStar(0.261f, 0.413f, 2.20f), // S1 (가장 큰 별)
+            CStar(0.694f, 0.472f, 1.41f), // S2
+            CStar(0.229f, 0.521f, 1.15f), // S3
+            CStar(0.168f, 0.544f, 1.18f), // S4
+            CStar(0.152f, 0.590f, 1.41f), // S5
+            CStar(0.416f, 0.701f, 1.39f), // S6
+            CStar(0.590f, 0.699f, 1.15f), // S7
+            CStar(0.770f, 0.796f, 1.28f), // S8
+            CStar(0.370f, 0.826f, 2.16f), // S9 (큰 별)
         ),
-        listOf(
-            0 to 1, 1 to 2,        // Spica→ζ→γ
-            2 to 3, 3 to 4,        // γ→δ→ε (위로)
-            2 to 5, 5 to 6         // γ→η→β (오른쪽)
-        )
+        listOf(0 to 1, 1 to 3, 1 to 5, 3 to 4, 3 to 5, 4 to 5, 5 to 9, 6 to 7, 6 to 9, 7 to 8)
     ),
-    // ── 거리순 — 전갈자리(Scorpius) 'J자 낚싯바늘' ──
-    // 머리(β,δ,π) → Antares(α) → 몸통/꼬리 곡선 → 독침(λ Shaula, υ Lesath)
     DiarySort.DISTANCE to Constel(
         listOf(
-            Offset(0.30f, 0.12f), // 0 β Graffias (머리 위)
-            Offset(0.42f, 0.16f), // 1 δ Dschubba (머리 중앙)
-            Offset(0.52f, 0.13f), // 2 π Sco (머리 아래쪽 집게)
-            Offset(0.44f, 0.34f), // 3 α Antares (심장)
-            Offset(0.46f, 0.46f), // 4 τ Sco
-            Offset(0.42f, 0.58f), // 5 ε Sco
-            Offset(0.37f, 0.69f), // 6 μ Sco
-            Offset(0.34f, 0.78f), // 7 ζ Sco
-            Offset(0.38f, 0.87f), // 8 η Sco
-            Offset(0.48f, 0.90f), // 9 θ Sargas
-            Offset(0.58f, 0.86f), // 10 ι Sco
-            Offset(0.64f, 0.78f), // 11 κ Sco
-            Offset(0.70f, 0.70f), // 12 λ Shaula (독침)
-            Offset(0.74f, 0.64f), // 13 υ Lesath
+            CStar(0.840f, 0.122f, 1.64f), // S0
+            CStar(0.859f, 0.232f, 1.61f), // S1
+            CStar(0.661f, 0.333f, 1.66f), // S2
+            CStar(0.874f, 0.359f, 1.64f), // S3
+            CStar(0.622f, 0.387f, 1.59f), // S4
+            CStar(0.515f, 0.605f, 2.02f), // S5 (큰 별)
+            CStar(0.269f, 0.706f, 1.39f), // S6
+            CStar(0.220f, 0.770f, 1.36f), // S7
+            CStar(0.195f, 0.815f, 1.70f), // S8
+            CStar(0.504f, 0.866f, 2.20f), // S9 (가장 큰 별)
+            CStar(0.419f, 0.907f, 1.99f), // S10
+            CStar(0.254f, 0.909f, 1.66f), // S11
         ),
-        listOf(
-            0 to 1, 1 to 2,                         // 머리(집게)
-            1 to 3,                                 // 머리→Antares
-            3 to 4, 4 to 5, 5 to 6, 6 to 7, 7 to 8, // 몸통 아래로
-            8 to 9, 9 to 10, 10 to 11, 11 to 12,    // 꼬리 곡선(위로 휨)
-            12 to 13                                // 독침
-        )
+        listOf(0 to 2, 0 to 4, 1 to 2, 2 to 3, 2 to 4, 2 to 5, 4 to 5, 5 to 9, 6 to 7, 6 to 8, 7 to 8, 8 to 11, 9 to 10, 10 to 11)
     ),
 )
 
 @Composable
-private fun ConstellationBackground(sort: DiarySort, modifier: Modifier = Modifier) {
-    val glow = remember { Animatable(0.28f) }
-    LaunchedEffect(sort) {
-        glow.snapTo(0f)
-        glow.animateTo(1f, tween(420, easing = FastOutSlowInEasing))
-        glow.animateTo(0.30f, tween(900, easing = FastOutSlowInEasing))
-    }
+private fun ConstellationBackground(sort: DiarySort, flashKey: Int, modifier: Modifier = Modifier) {
     val constel = CONSTELLATIONS[sort] ?: return
-    val g = glow.value
+    val color = sortColor(sort)
+
+    // 선택할 때마다(같은 정렬 재선택 포함) 모든 별이 번쩍 → 이후 은은하게 가라앉음
+    val flash = remember { Animatable(0.78f) }
+    LaunchedEffect(sort, flashKey) {
+        flash.snapTo(1.7f)                                          // 번쩍
+        flash.animateTo(0.78f, tween(900, easing = FastOutSlowInEasing)) // 살짝 은은하게
+    }
+    // 끊임없는 반짝임(펄스) — 별마다 위상이 달라 제각기 생동감 있게 깜빡인다
+    val twinkle = rememberInfiniteTransition(label = "twinkle")
+    val t by twinkle.animateFloat(
+        initialValue = 0f, targetValue = (2.0 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(3400, easing = LinearEasing)),
+        label = "t"
+    )
+    val f = flash.value   // 밝기 배수: 번쩍(1.7) → 은은(0.78)
 
     Canvas(modifier = modifier) {
-        val padX = size.width * 0.16f
-        val padY = size.height * 0.14f
+        val padX = size.width * 0.13f
+        val padY = size.height * 0.10f
         val w = size.width - padX * 2
         val h = size.height - padY * 2
-        fun pos(o: Offset) = Offset(padX + o.x * w, padY + o.y * h)
+        fun pos(s: CStar) = Offset(padX + s.x * w, padY + s.y * h)
 
-        val lineAlpha = 0.08f + 0.40f * g
+        // 연결선
         constel.edges.forEach { (a, b) ->
             drawLine(
-                Green.copy(alpha = lineAlpha),
-                start = pos(constel.pts[a]), end = pos(constel.pts[b]),
-                strokeWidth = (1f + 1.5f * g).dp.toPx()
+                color.copy(alpha = (0.20f * f).coerceIn(0f, 1f)),
+                start = pos(constel.stars[a]), end = pos(constel.stars[b]),
+                strokeWidth = 1.4.dp.toPx()
             )
         }
-        constel.pts.forEach { p ->
-            val c = pos(p)
+        // 별 + 후광(펄스) — mag 클수록 더 크고 더 밝게
+        constel.stars.forEach { s ->
+            val c = pos(s)
+            val phase = s.x * 11f + s.y * 7f                 // 위치 기반 고정 위상
+            val pulse = 0.5f + 0.5f * sin(t + phase)         // 0..1 깜빡임
+            val magN = ((s.mag - 1.0f) / 1.2f).coerceIn(0f, 1f) // 0(작음)..1(큼)
+
+            val haloR = (7f + 16f * s.mag) * (0.8f + 0.35f * pulse) * (0.85f + 0.25f * f)
+            val haloA = (0.08f + 0.34f * pulse) * (0.45f + 0.55f * magN) * f
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(Green.copy(alpha = 0.5f * g), Color.Transparent), center = c, radius = 18.dp.toPx()
+                    listOf(color.copy(alpha = haloA.coerceIn(0f, 1f)), Color.Transparent),
+                    center = c, radius = haloR.dp.toPx()
                 ),
-                radius = 18.dp.toPx(), center = c
+                radius = haloR.dp.toPx(), center = c
             )
-            drawCircle(Color.White.copy(alpha = 0.4f + 0.6f * g), radius = (2f + 1.5f * g).dp.toPx(), center = c)
+            val coreR = (1.0f + 1.8f * s.mag) * (0.88f + 0.2f * pulse)
+            drawCircle(Color.White.copy(alpha = ((0.45f + 0.40f * pulse) * f).coerceIn(0f, 1f)), coreR.dp.toPx(), c)
         }
     }
 }

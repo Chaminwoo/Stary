@@ -1,7 +1,9 @@
 package com.chaminwoo.stary.core.util
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.media.SoundPool
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -25,9 +27,11 @@ object MusicManager {
     private var initialized = false
     private var appContext: Context? = null
 
-    // 효과음(SFX) — 배경음악과 별개로 겹쳐 1회 재생되는 플레이어
-    private var sfxPlayer: MediaPlayer? = null
+    // 효과음(SFX) — 짧은 UI 효과음은 SoundPool 로 미리 로드해 즉시·중복 재생(지연/묵음 방지)
+    private var soundPool: SoundPool? = null
     private var windResId = 0
+    private var windSoundId = 0
+    private var windLoaded = false
 
     /** Compose 에서 관찰 가능한 on/off 상태. */
     var enabled by mutableStateOf(true)
@@ -41,7 +45,20 @@ object MusicManager {
         enabled = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY, true) // 기본 켜짐
         resId = ctx.resources.getIdentifier("ambient_music", "raw", ctx.packageName)
         available = resId != 0
+
+        // 바람 효과음을 SoundPool 에 미리 로드 (탭 시 지연 없이 재생)
         windResId = ctx.resources.getIdentifier("wind", "raw", ctx.packageName)
+        // 미디어 스트림으로 재생 → BGM 과 같은(들리는) 음량으로 확실히 출력
+        val attrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+        soundPool = SoundPool.Builder().setMaxStreams(4).setAudioAttributes(attrs).build().apply {
+            setOnLoadCompleteListener { _, sampleId, status ->
+                if (status == 0 && sampleId == windSoundId) windLoaded = true
+            }
+        }
+        if (windResId != 0) windSoundId = soundPool?.load(ctx, windResId, 1) ?: 0
     }
 
     /**
@@ -50,19 +67,17 @@ object MusicManager {
      */
     fun playWind() {
         if (!enabled) return
-        val ctx = appContext ?: return
-        if (windResId == 0) {
-            windResId = ctx.resources.getIdentifier("wind", "raw", ctx.packageName)
+        val sp = soundPool ?: return
+        if (windLoaded && windSoundId != 0) {
+            sp.play(windSoundId, 1f, 1f, 1, 0, 1f) // 좌우 최대 음량, 1회
+        } else {
+            // 아직 로드 전이면 1회 비동기 폴백(MediaPlayer)으로라도 소리 보장
+            val ctx = appContext ?: return
             if (windResId == 0) return
-        }
-        // 직전 효과음이 남아 있으면 정리(연속 호출 시 중복/누수 방지)
-        sfxPlayer?.release()
-        sfxPlayer = MediaPlayer.create(ctx, windResId)?.apply {
-            setOnCompletionListener { mp ->
-                mp.release()
-                if (sfxPlayer === mp) sfxPlayer = null
+            MediaPlayer.create(ctx, windResId)?.apply {
+                setOnCompletionListener { it.release() }
+                start()
             }
-            start()
         }
     }
 
@@ -103,7 +118,8 @@ object MusicManager {
             it.release()
         }
         player = null
-        sfxPlayer?.release()
-        sfxPlayer = null
+        soundPool?.release()
+        soundPool = null
+        windLoaded = false
     }
 }

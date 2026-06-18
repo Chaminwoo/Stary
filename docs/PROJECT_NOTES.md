@@ -188,6 +188,24 @@
   - `private FilterOpt` data class로 옵션 정의(ImageVector 사용).
 - **MapLibre 워터마크 제거**: `map.uiSettings { isLogoEnabled=false; isAttributionEnabled=false }`.
 
+## 8.7 기능 배치 4 — 다이얼/별자리/업적 해금 (BUILD SUCCESSFUL)
+- **내 다이어리 별자리**: `MyDiaryScreen.CONSTELLATIONS` 를 `drawable/reference{1,2,3}.png`(미사용 참고 이미지, 미커밋) 픽셀
+  분석으로 옮긴 `CStar(x,y,mag)`+edges 로 교체. 정렬별 색 = 최신순 파랑/인기순 분홍/거리순 보라(`sortColor`).
+  별마다 후광 pulse(무한 twinkle) + `onSelect` 시 전체 번쩍(flash 1.7→0.78) `sortNonce` 연동.
+- **바나나 다이얼**: 원호→포물선(`DIAL_H_SPACING/CURVE/BOTTOM`). 드래그 방향 반전, 세 버튼 모양 구분(`dialStarType`).
+  - **터치 영역 = 별자리 박스 전체**(`matchParentSize`), `DIAL_BOTTOM_DP=100` 으로 별이 박스 안에 들어와 아래쪽 탭도 인식.
+  - 선택은 `!=selected` 가드 제거(기본 최신순 재선택도 동작) + `sortNonce` 로 같은 정렬 재선택도 재정렬.
+- **wind SFX**: `MusicManager` 효과음을 `MediaPlayer`→`SoundPool`(미리 로드, USAGE_MEDIA) 로 교체(지연/묵음 해결).
+- **친구 화면**: `FriendScreen` 카드형 리팩토링(아바타 링, pill 버튼, 배경).
+- **별 모양/색 업적 해금**: `Achievement.reward` = `Reward.Title|Shape|StarColor` 로 칭호 업적과 별·색 업적 **분리**.
+  `StarUnlocks` 는 보상 정의에서 자동 도출. 업로드 피커의 잠긴 항목은 흐릿+자물쇠, 탭/저장 시 해금 토스트.
+  - 새 통계: `UserStats.maxSpanMeters/maxLikesOnOne/distinctDays/nightPosts`(`rememberUserStats` 가 좌표·시각으로 계산).
+  - 창의적 업적: 친구 N명/기록 거리(50km·1000km)/심야 기록/서로 다른 N일 등.
+- **창의적 별 모양**(`StarStyle` TYPE_COUNT=8): 5=꽃 / 6=보석 / 7=초승달(반시계 22° 회전). 0~4 별/스파클 유지.
+- **그라데이션 색**(COLOR_COUNT=20): 16~19 2색 그라데이션(`fillShader` LinearGradient) — 지도·내다이어리·카드·피커 일관 적용.
+  가장 어려운 업적(좋아요 300/친구 20/100개 작성/조회 1000)에 배치.
+- **업적 화면**: `AchievementsScreen` 「칭호」/「별 모양·색」 2섹션, 보상 미리보기. 배경 = `mydiary_bg`(0.7 darken).
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] iOS 앱(Xcode 프로젝트) 추가 + iOS용 Repository 구현(Firebase iOS SDK) — 현재 `shared` 스캐폴딩만(iosX64/Arm64/Sim 타깃만, iosApp/.xcodeproj 없음). **iOS 빌드·실행은 macOS+Xcode 필요(Windows 불가).**
 - [x] 실제 `secrets.properties` / `google-services.json`(f26c8) 채워 런타임 확인 — 지도·Google 로그인 동작 확인됨.

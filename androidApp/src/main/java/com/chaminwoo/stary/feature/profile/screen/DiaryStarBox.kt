@@ -47,6 +47,7 @@ private class StarBody(
     val diary: Diary,
     val r: Float,
     val color: Color,
+    val colorIndex: Int,
     val type: Int,
     // 떠다니는 위상/진폭
     val phase: Float,
@@ -74,6 +75,7 @@ private const val CELL_H_DP = 92
 fun DiaryStarBox(
     diaries: List<Diary>,
     sortMode: DiarySort,
+    sortNonce: Int = 0,
     onDiaryClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -108,6 +110,7 @@ fun DiaryStarBox(
                     diary = d,
                     r = r,
                     color = StarStyle.colorOf(d.starColor),
+                    colorIndex = d.starColor,
                     type = d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1),
                     phase = rnd.nextFloat() * 6.2832f,
                     floatAmp = with(density) { (3f + rnd.nextFloat() * 4f).dp.toPx() },
@@ -134,8 +137,8 @@ fun DiaryStarBox(
         var tick by remember { mutableIntStateOf(0) }
         var floatT by remember { mutableFloatStateOf(0f) }
 
-        // 정렬/배치 + 떠다님을 단일 프레임 루프로. sortMode 바뀌면 재시작(현재 위치에서 새 슬롯으로).
-        LaunchedEffect(bodies, sortMode, wPx, hPx, here) {
+        // 정렬/배치 + 떠다님을 단일 프레임 루프로. sortMode(또는 같은 정렬 재선택 토큰)가 바뀌면 재시작.
+        LaunchedEffect(bodies, sortMode, sortNonce, wPx, hPx, here) {
             if (bodies.isEmpty()) return@LaunchedEffect
 
             val origin = here
@@ -227,18 +230,19 @@ private fun DrawScope.drawStar(b: StarBody, cx: Float, cy: Float) {
     val path = android.graphics.Path(StarStyle.starPath(b.type, sizePx)).apply {
         offset(cx - b.r, cy - b.r)
     }
+    val gradShader = StarStyle.fillShader(b.colorIndex, cx - b.r, cy - b.r, b.r * 2f)
     drawIntoCanvas { canvas ->
         canvas.nativeCanvas.drawPath(
             path,
             android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                this.color = b.color.toArgb()
+                if (gradShader != null) this.shader = gradShader else this.color = b.color.toArgb()
                 maskFilter = android.graphics.BlurMaskFilter(b.r * 0.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
             }
         )
         canvas.nativeCanvas.drawPath(
             path,
             android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                this.color = b.color.toArgb()
+                if (gradShader != null) this.shader = gradShader else this.color = b.color.toArgb()
             }
         )
     }

@@ -95,7 +95,7 @@ fun ProfileScreen(
     }
 
     val stats = rememberUserStats(userId)
-    val equippedStigma = Achievements.byId(StigmaStore.equipped(context, userId))?.stigma
+    val equippedStigma = Achievements.byId(StigmaStore.equipped(context, userId))?.titleName
 
     Box(modifier = modifier.fillMaxSize()) {
         Image(

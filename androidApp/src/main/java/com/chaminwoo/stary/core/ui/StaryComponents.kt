@@ -67,6 +67,21 @@ fun StarShapeIcon(type: Int, color: Color, modifier: Modifier = Modifier) {
     }
 }
 
+/** 색 인덱스 기반 별 아이콘 — 그라데이션 색(16~)이면 2색 그라데이션으로 채운다. */
+@Composable
+fun StarShapeIcon(type: Int, colorIndex: Int, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val s = size.minDimension
+        val path = StarStyle.starPath(type, s)
+        drawIntoCanvas { canvas ->
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            val shader = StarStyle.fillShader(colorIndex, 0f, 0f, s)
+            if (shader != null) paint.shader = shader else paint.color = StarStyle.colorOf(colorIndex).toArgb()
+            canvas.nativeCanvas.drawPath(path, paint)
+        }
+    }
+}
+
 @Composable
 fun StarDiaryButton(
     text: String = "별 다이어리 남기기",
@@ -187,7 +202,7 @@ fun DiaryCard(
         if (showStar) {
             StarShapeIcon(
                 type = diary.starType,
-                color = StarStyle.colorOf(diary.starColor),
+                colorIndex = diary.starColor,
                 modifier = Modifier
                     .size(64.dp)
                     .align(Alignment.Center)

@@ -152,8 +152,11 @@ private fun starBitmap(type: Int, colorIdx: Int): Bitmap {
     canvas.drawPath(path, glowPaint)
     canvas.drawPath(path, glowPaint)
 
-    // 2) 본체
-    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+    // 2) 본체 (그라데이션 색이면 셰이더로 채움)
+    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val shader = StarStyle.fillShader(colorIdx, offset, offset, starSize)
+        if (shader != null) this.shader = shader else this.color = color
+    })
 
     // 3) 중심 코어: 원색보다 살짝 어두운 톤(35% 어둡게) + 65% 크기 —
     //    흰색/작은 코어는 본체와 분리돼 보였음. 어두운 코어가 글로우와 한 덩어리로 빛나는 인상.
