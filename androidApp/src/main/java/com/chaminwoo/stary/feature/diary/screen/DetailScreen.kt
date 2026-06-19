@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.chaminwoo.stary.core.model.Comment
+import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.data.local.DiaryCache
@@ -344,6 +345,8 @@ fun DetailScreen(
         }
 
         // 굴절 파장 오버레이 — 별(다이어리) 위치에서 퍼지는 링(밝은 굴절 가장자리 + 안쪽 그림자 + 넓은 띠)
+        // 파장 색 = 해당 다이어리의 별 색(그라데이션이면 대표색). 흰색 → 별 색으로.
+        val rippleColor = StarStyle.colorOf(currentDiary.starColor)
         if (p < 1f) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val center = Offset(size.width * rippleOriginX, size.height * rippleOriginY)
@@ -359,19 +362,19 @@ fun DetailScreen(
                     if (rp <= 0f || rp >= 1f) continue
                     val radius = rp * maxR
                     val fade = (1f - rp)
-                    // 넓고 흐린 굴절 띠 (빛이 휘는 듯한 두꺼운 그라데이션 스트로크)
+                    // 넓고 흐린 굴절 띠 (빛이 휘는 듯한 두꺼운 그라데이션 스트로크) — 별 색
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.Transparent, Color.White.copy(alpha = fade * 0.18f), Color.Transparent),
+                            colors = listOf(Color.Transparent, rippleColor.copy(alpha = fade * 0.22f), Color.Transparent),
                             center = center, radius = radius.coerceAtLeast(1f)
                         ),
                         radius = radius,
                         center = center,
                         style = Stroke(width = (26f * fade).coerceAtLeast(1f).dp.toPx())
                     )
-                    // 밝은 굴절 가장자리
+                    // 밝은 굴절 가장자리 — 별 색
                     drawCircle(
-                        color = Color.White.copy(alpha = fade * 0.55f),
+                        color = rippleColor.copy(alpha = fade * 0.6f),
                         radius = radius, center = center,
                         style = Stroke(width = (3f * fade).coerceAtLeast(0.6f).dp.toPx())
                     )

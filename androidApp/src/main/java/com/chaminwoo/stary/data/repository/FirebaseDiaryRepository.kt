@@ -6,7 +6,9 @@ import com.chaminwoo.stary.data.local.DiaryCache
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.chaminwoo.stary.shared.data.repository.DiaryRepository
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.ktx.firestore
@@ -29,20 +31,39 @@ class FirebaseDiaryRepository : DiaryRepository {
 
     // 전체 다이어리 실시간 조회
     override fun observeAllDiaries(): Flow<List<Diary>> = callbackFlow {
-        val listener = diaries
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshot: QuerySnapshot?, error: Exception? ->
-                if (error != null) return@addSnapshotListener
-                val currentUid = GoogleAuthHelper.currentUserId
-                val list = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Diary::class.java)?.copy(id = doc.id)
-                }?.filter { diary ->
-                    // private 다이어리는 본인만 볼 수 있음
-                    diary.visibilityType != "private" || diary.userId == currentUid
-                } ?: emptyList()
-                trySend(list)
-            }
-        awaitClose { listener.remove() }
+        // 앱 시작 시 지도는 로그인 전(auth==null)에 미리 렌더된다. 그때 첫 구독이 시작되면
+        // 보안 규칙(request.auth!=null)에 막혀 PERMISSION_DENIED 로 Firestore 리스너가 죽고,
+        // 로그인 후에도 스스로 복구되지 않아 지도에 다이어리가 안 뜬다.
+        // → auth 상태가 바뀔 때마다(로그인/익명 완료) 리스너를 다시 건다.
+        var registration: ListenerRegistration? = null
+
+        fun subscribe() {
+            registration?.remove()
+            registration = diaries
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .addSnapshotListener { snapshot: QuerySnapshot?, error: Exception? ->
+                    if (error != null) return@addSnapshotListener
+                    val currentUid = GoogleAuthHelper.currentUserId
+                    val list = snapshot?.documents?.mapNotNull { doc ->
+                        doc.toObject(Diary::class.java)?.copy(id = doc.id)
+                    }?.filter { diary ->
+                        // private 다이어리는 본인만 볼 수 있음
+                        diary.visibilityType != "private" || diary.userId == currentUid
+                    } ?: emptyList()
+                    trySend(list)
+                }
+        }
+
+        subscribe()
+        val auth = FirebaseAuth.getInstance()
+        // addAuthStateListener 는 등록 즉시 1회 + 이후 상태 변경마다 호출된다.
+        val authListener = FirebaseAuth.AuthStateListener { subscribe() }
+        auth.addAuthStateListener(authListener)
+
+        awaitClose {
+            registration?.remove()
+            auth.removeAuthStateListener(authListener)
+        }
     }
 
     // 다이어리 저장
@@ -103,14 +124,15 @@ class FirebaseDiaryRepository : DiaryRepository {
     }
 
     override fun observeMyDiaries(userId: String): Flow<List<Diary>> = callbackFlow {
+        // userId 동등 필터만 서버에서 수행하고 정렬은 클라이언트에서 처리한다.
+        // (userId + createdAt 복합 인덱스를 새 DB 에 따로 만들 필요 없게 — 내 글은 소량이라 부담 없음)
         val listener = diaries
             .whereEqualTo("userId", userId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
                 val list = snapshot?.documents?.mapNotNull { doc ->
                     doc.toObject(Diary::class.java)?.copy(id = doc.id)
-                } ?: emptyList()
+                }?.sortedByDescending { it.createdAt } ?: emptyList()
                 trySend(list)
             }
         awaitClose { listener.remove() }

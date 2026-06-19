@@ -141,6 +141,22 @@
 - 산출물: `androidApp/build/outputs/bundle/release/androidApp-release.aab`(Play 업로드용), `.../apk/release/androidApp-release.apk`(사이드로드 테스트용).
 - 다음: **Play Console($25) 등록 → AAB 업로드 → 데이터 보안/개인정보처리방침/스크린샷 → 내부테스트 → 프로덕션**.
 
+## 8.9 첫 실행 코치마크 + 위치/권한 + 다이어리 로딩 안정화 (2026-06-19)
+- **첫 실행 코치마크** `feature/home/screen/MainOnboardingOverlay.kt` (MainScreen 최상위 오버레이, prefs `stary_onboarding/main_coach_seen` 로 1회):
+  스포트라이트(어두운 스크림 + 타깃만 원형으로 뚫기, `BlendMode.Clear`+`CompositingStrategy.Offscreen`) 7단계 —
+  메뉴(좌상단)/위치필터(좌하단)/내위치·별자리·음악·업로드(우측 FAB)/마무리(중앙 메시지). 단계 탭 이동, Crossfade·fade in/out.
+  - ⚠️ 마지막 단계는 반지름 0 → `Brush.radialGradient(radius<=0)` 는 `IllegalArgumentException("ending radius must be > 0")` 크래시.
+    반드시 `if (r > 0f)` 가드 후 그릴 것. 우측 FAB 는 컬럼 CenterHorizontally(업로드 56dp 기준) 라 48dp 버튼도 중심 end 44dp.
+- **다이어리 열람 파장 색** `DetailScreen`: 흰색 → `StarStyle.colorOf(diary.starColor)` (별 색).
+- **위치 권한**: `MainActivity.onCreate` 에서 앱 시작 즉시 위치(FINE/COARSE)+알림 요청.
+  `MainListScreen` 은 권한 허용 시 위치 추적 시작+현재위치 반영을 **ON_RESUME 생명주기 + 최초 1회**로 처리
+  (이전엔 허용 후 시작 코드가 없어 기본 좌표에 멈췄음 → 지도가 엉뚱한 곳).
+- **다이어리 로딩 버그 2건**:
+  - `observeAllDiaries` 가 **로그인 전(지도 미리 렌더)에 시작→PERMISSION_DENIED 로 리스너 사망→복구 안 됨**.
+    → `FirebaseAuth.AuthStateListener` 로 **auth 변경 시 재구독**(`ListenerRegistration` 교체). 메인 지도 마커가 안 뜨던 핵심 원인.
+  - `observeMyDiaries` 복합 인덱스(userId+createdAt) 의존 제거 → 서버는 `whereEqualTo(userId)` 만, **정렬은 클라이언트**(`sortedByDescending`).
+- 참고: Firestore 경고 `No setter/field for anonymous`(Diary.isAnonymous ↔ "anonymous" 매핑) 는 무해(기본 false).
+
 ## 8.5 기능 배치 1 (이번 라운드 추가 — 테스트는 콘솔 규칙 해제 후)
 - **친구**: `shared` `FriendRepository`/`Friend`/`FriendRequest`/`UserProfile` + `FirebaseFriendRepository`
   (users/{uid}/friends 양방향, friendRequests 컬렉션, userName prefix 검색) + `feature/friend/` FriendScreen/ViewModel

@@ -37,8 +37,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import android.content.Context
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,6 +124,12 @@ fun MainScreen(
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
+
+    // 첫 실행 코치마크(주요 컨트롤 안내) — SharedPreferences 로 1회만 노출.
+    val onboardPrefs = remember { context.getSharedPreferences("stary_onboarding", Context.MODE_PRIVATE) }
+    var showOnboarding by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf(!onboardPrefs.getBoolean("main_coach_seen", false))
+    }
 
     val userId = GoogleAuthHelper.currentUserId
     val notifVm: NotificationViewModel? = if (userId != null) {
@@ -310,6 +318,14 @@ fun MainScreen(
     // 로그인 오버레이 — 보이는 동안 뒤에서 지도(MainListScreen)가 미리 렌더링된다.
     if (showLogin) {
         LoginScreen(onLoginClick = { showLogin = false })
+    }
+
+    // 첫 실행 코치마크 — 로그인 끝난 뒤 지도(Main) 화면에서 1회만.
+    if (showOnboarding && !showLogin && currentRoute is NavRoute.Main) {
+        MainOnboardingOverlay(onDismiss = {
+            onboardPrefs.edit().putBoolean("main_coach_seen", true).apply()
+            showOnboarding = false
+        })
     }
 
     // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시

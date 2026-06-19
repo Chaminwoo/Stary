@@ -27,6 +27,8 @@ secrets.defaults.properties
 keystore.properties
 *.jks
 *.keystore
+# 디버그용 임시 스크린샷
+.tmp_screen.png
 
 # Kotlin/Native, KMP
 .kotlin

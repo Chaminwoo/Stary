@@ -3,8 +3,6 @@ package com.chaminwoo.stary.feature.home.screen
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -48,6 +46,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,6 +77,7 @@ import com.chaminwoo.stary.shared.config.StaryConfig
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 
 private data class FilterOpt(
     val label: String,
@@ -195,8 +195,30 @@ fun MainListScreen(
         )
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-        if (!isGranted) com.chaminwoo.stary.core.ui.StaryToast.show("위치 권한이 필요해요")
+    val scope = rememberCoroutineScope()
+
+    // 권한 요청은 MainActivity 가 앱 시작 즉시 수행. 여기서는 "허용되어 있으면" 위치 추적을 시작하고
+    // 현재 위치로 카메라를 맞춘다. 권한 다이얼로그가 닫히며 액티비티가 ON_RESUME 될 때도 재시도해
+    // 허용 직후 곧바로 위치가 반영되도록 한다(예전엔 허용해도 시작 코드가 없어 기본 좌표에 멈춰 있었음).
+    val startLocationIfGranted: () -> Unit = start@{
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) return@start
+        LocationHelper.startContinuousUpdates(context)
+        scope.launch {
+            val latLng = LocationHelper.getCurrentLatLng()
+                ?: LocationHelper.getCurrentLocation(context)?.let { LatLng(it.latitude, it.longitude) }
+            latLng?.let { currentLatLng = it }
+        }
+    }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) startLocationIfGranted()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LaunchedEffect(currentLatLng) {
@@ -205,16 +227,8 @@ fun MainListScreen(
     }
 
     LaunchedEffect(Unit) {
-        val permission = Manifest.permission.ACCESS_FINE_LOCATION
-        if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
-            permissionLauncher.launch(permission)
-            return@LaunchedEffect
-        }
-        LocationHelper.startContinuousUpdates(context)
-        val latLng = LocationHelper.getCurrentLatLng()
-            ?: LocationHelper.getCurrentLocation(context)?.let { LatLng(it.latitude, it.longitude) }
-        latLng?.let { currentLatLng = it }
-        focusRequester.requestFocus()
+        startLocationIfGranted()
+        runCatching { focusRequester.requestFocus() }
     }
 
     fun moveLocation(latDelta: Double, lngDelta: Double) {
