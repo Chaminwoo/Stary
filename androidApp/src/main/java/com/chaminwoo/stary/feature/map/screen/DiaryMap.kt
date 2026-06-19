@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -668,6 +669,34 @@ fun DiaryMap(
                     styleRef = style
                     mapRef = map
                 }
+            }
+        }
+
+        // 좌상단 줌 버튼 (+/-) — 버튼 1탭당 한 단계, 부드럽게 애니메이션 줌.
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 16.dp, start = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            FloatingActionButton(
+                onClick = { mapRef?.animateCamera(CameraUpdateFactory.zoomBy(1.0), 220) },
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                containerColor = Color(0xFF1A1A1A),
+                modifier = Modifier.size(44.dp)
+            ) {
+                Icon(Icons.Filled.Add, "확대", tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            FloatingActionButton(
+                onClick = { mapRef?.animateCamera(CameraUpdateFactory.zoomBy(-1.0), 220) },
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                containerColor = Color(0xFF1A1A1A),
+                modifier = Modifier.size(44.dp)
+            ) {
+                Icon(Icons.Filled.Remove, "축소", tint = Color.White, modifier = Modifier.size(20.dp))
             }
         }
 
