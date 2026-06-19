@@ -26,6 +26,15 @@ val googleWebClientId: String = secretsProps.getProperty("GOOGLE_WEB_CLIENT_ID")
 val maptilerKey: String = secretsProps.getProperty("MAPTILER_KEY")
     ?: "TODO_ADD_MAPTILER_KEY"
 
+// --- 릴리즈 서명 키 로딩 (절대 하드코딩/커밋 금지) ---------------------------
+// keystore.properties(gitignore 대상, 프로젝트 루트)에서 서명 정보를 읽는다.
+// 파일이 없으면 release 빌드는 서명 없이 생성된다(로컬 디버그용). 템플릿: keystore.properties.example
+val keystoreProps = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }
+        ?.inputStream()?.use { load(it) }
+}
+val hasReleaseKeystore: Boolean = rootProject.file("keystore.properties").exists()
+
 android {
     namespace = "com.chaminwoo.stary"
     compileSdk {
@@ -49,13 +58,29 @@ android {
         buildConfigField("String", "MAPTILER_KEY", "\"$maptilerKey\"")
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseKeystore) {
+                storeFile = rootProject.file(keystoreProps.getProperty("STORE_FILE"))
+                storePassword = keystoreProps.getProperty("STORE_PASSWORD")
+                keyAlias = keystoreProps.getProperty("KEY_ALIAS")
+                keyPassword = keystoreProps.getProperty("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // ProGuard/R8 코드 축소·난독화 활성 (Firestore 리플렉션 대상은 proguard-rules.pro 에서 keep)
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // keystore.properties 가 있을 때만 릴리즈 서명 적용
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {

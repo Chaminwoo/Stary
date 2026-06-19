@@ -127,6 +127,20 @@
   (themes.xml 이 `Theme.AppCompat.Light.NoActionBar` 상속 — 과거 네이버 의존성이 transitive 로 제공하던 것).
 - `gradle.properties`: `kotlin.native.ignoreDisabledTargets=true`, `android.useAndroidX=true`.
 
+## 8.8 안드로이드 릴리즈 서명 + R8 (실기기 릴리즈 테스트 완료, 2026-06-19)
+- **릴리즈 서명**: 루트 `keystore.properties`(gitignore)에서 `STORE_FILE/STORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD`
+  읽어 `signingConfigs.release` 구성. keystore 없으면 unsigned 로 폴백(빌드는 됨). 템플릿 `keystore.properties.example`(커밋됨).
+  - 실제 keystore: `stary-release.jks`(루트, gitignore), **별칭 `mykey`**. SHA-1 은 Firebase `momentdiary-f26c8` Android 앱에 등록 완료.
+  - ⚠️ `*.jks`/`keystore.properties` 분실 시 Play 업데이트 영구 불가 — 별도 백업 필수.
+- **R8 활성**: `release { isMinifyEnabled = true }`. ProGuard 룰(`androidApp/proguard-rules.pro`)에 keep 추가:
+  - Firestore POJO(`doc.toObject(Diary::class.java)`): `com.chaminwoo.stary.core.model.**` / `core.geo.**` 전체 keep(+`<init>()`,`<fields>`).
+  - **auth0 jwtdecode + Gson**: `GoogleAuthHelper.getUserIdFromToken()` 가 `com.auth0.android.jwt.JWT` 로 idToken 의 `sub`(=앱의 userId)를
+    파싱하는데 Gson 리플렉션 의존 → R8 가 지우면 **null 반환 → currentUserId null → 릴리즈에서만 "로그인 안 됨 + 다이어리 필터 깨짐"**.
+    `com.auth0.android.jwt.**` + `com.google.gson.**` keep 으로 해결(릴리즈 실기기 검증 완료). ※디버그는 R8 미적용이라 증상 없음.
+  - 그 외: kotlinx.serialization, MapLibre(`org.maplibre.android.**`), Coil/gif keep.
+- 산출물: `androidApp/build/outputs/bundle/release/androidApp-release.aab`(Play 업로드용), `.../apk/release/androidApp-release.apk`(사이드로드 테스트용).
+- 다음: **Play Console($25) 등록 → AAB 업로드 → 데이터 보안/개인정보처리방침/스크린샷 → 내부테스트 → 프로덕션**.
+
 ## 8.5 기능 배치 1 (이번 라운드 추가 — 테스트는 콘솔 규칙 해제 후)
 - **친구**: `shared` `FriendRepository`/`Friend`/`FriendRequest`/`UserProfile` + `FirebaseFriendRepository`
   (users/{uid}/friends 양방향, friendRequests 컬렉션, userName prefix 검색) + `feature/friend/` FriendScreen/ViewModel

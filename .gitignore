@@ -23,6 +23,10 @@ secrets.properties.example
 secrets.defaults.properties
 # 실제 Firebase 설정 (템플릿 google-services.json.example 만 커밋)
 /androidApp/google-services.json
+# 릴리즈 서명 (절대 커밋 금지 — 분실 시 앱 업데이트 영구 불가)
+keystore.properties
+*.jks
+*.keystore
 
 # Kotlin/Native, KMP
 .kotlin
