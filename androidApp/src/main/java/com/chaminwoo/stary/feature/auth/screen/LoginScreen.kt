@@ -128,7 +128,7 @@ fun LoginScreen(onLoginClick: () -> Unit) {
                             coroutineScope.launch {
                                 val idToken = GoogleAuthHelper.signInWithGoogle(context)
                                 if (idToken != null) onLoginClick()
-                                else com.chaminwoo.stary.core.ui.StaryToast.show("로그인에 실패했습니다")
+                                else com.chaminwoo.stary.core.ui.StaryToast.show("잠시만 기다려주세요")
                             }
                         }
                     )

@@ -57,6 +57,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.chaminwoo.stary.core.util.MapUiState
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.auth.screen.LoginScreen
 import com.chaminwoo.stary.feature.diary.NotificationViewModel
@@ -228,7 +229,7 @@ fun MainScreen(
         Scaffold(
             containerColor = Color(0xFF0D0D0D),
             topBar = {
-                if (currentRoute.showTopBar) {
+                if (currentRoute.showTopBar && !MapUiState.mapOnly) {
                     CenterAlignedTopAppBar(
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                             containerColor = Color(0xFF0D0D0D),
@@ -281,7 +282,7 @@ fun MainScreen(
                 }
             },
             floatingActionButton = {
-                if (currentRoute.showFab) {
+                if (currentRoute.showFab && !MapUiState.mapOnly) {
                     FloatingActionButton(
                         onClick = { navController.navigate(NavRoute.Upload) },
                         shape = CircleShape,
@@ -326,6 +327,20 @@ fun MainScreen(
             onboardPrefs.edit().putBoolean("main_coach_seen", true).apply()
             showOnboarding = false
         })
+    }
+
+    // 지도만 보기(몰입) — 하단 중앙 X 로 복귀. 지도 위에 떠 있어 지도 조작은 그대로.
+    if (MapUiState.mapOnly && !showLogin) {
+        MapOnlyOverlay(onExit = { MapUiState.exitMapOnly() })
+    }
+
+    // 업적 해금 팝업 감시 — 로그인 상태에서 통계 변화 시 새 업적 달성을 팝업으로 알림.
+    // 코치마크가 떠 있는 동안엔 큐에 쌓아두고, 코치마크가 모두 닫힌 뒤에 팝업을 띄운다.
+    if (userId != null && !showLogin) {
+        com.chaminwoo.stary.feature.profile.AchievementUnlockWatcher(
+            userId = userId,
+            suppressed = showOnboarding,
+        )
     }
 
     // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시

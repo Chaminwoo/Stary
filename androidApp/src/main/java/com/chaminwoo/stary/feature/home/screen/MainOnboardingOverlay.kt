@@ -93,13 +93,13 @@ fun MainOnboardingOverlay(onDismiss: () -> Unit) {
             // 필터: BottomStart start=16 + 24 = 40dp, bottom=20 + 24 = 44dp.
             val rightX = wPx - px(44f)
             val holes = listOf(
-                Triple(px(28f), statusTopPx + px(32f), px(28f)),          // 0 메뉴 (아이콘 24)
                 Triple(px(40f), contentBottom - px(44f), px(30f)),        // 1 필터
                 Triple(rightX, contentBottom - px(228f), px(30f)),        // 2 내위치
                 Triple(rightX, contentBottom - px(168f), px(30f)),        // 3 별자리
                 Triple(rightX, contentBottom - px(108f), px(30f)),        // 4 음악
                 Triple(rightX, contentBottom - px(44f), px(36f)),         // 5 업로드
-                Triple(wPx / 2f, hPx / 2f, 0f),                           // 6 마무리(스포트라이트 없음)
+                Triple(px(28f), statusTopPx + px(32f), px(28f)), //메뉴
+                Triple(wPx / 2f, hPx / 2f, 0f),                           // 마무리(스포트라이트 없음)
             )
             val target = holes[step.coerceIn(0, holes.lastIndex)]
             // 스포트라이트가 단계 사이를 부드럽게 이동
@@ -142,32 +142,33 @@ fun MainOnboardingOverlay(onDismiss: () -> Unit) {
                         .navigationBarsPadding()
                 ) {
                     when (s) {
+
                         0 -> CoachPill(
-                            "메뉴 — 내 다이어리 · 프로필 · 업적 · 친구를\n여기서 관리해요",
-                            Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 66.dp)
-                        )
-                        1 -> CoachPill(
-                            "위치 필터 — 보고 싶은 다이어리만\n골라서 볼 수 있어요",
+                            "보고 싶은 다이어리만 골라서 볼 수 있어요",
                             Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 88.dp)
                         )
-                        2 -> CoachPill(
-                            "내 위치로 — 지금 내 자리로 지도를 옮겨요",
+                        1 -> CoachPill(
+                            "시점을 현재 내 위치로 이동해요",
                             Modifier.align(Alignment.BottomEnd).padding(end = 72.dp, bottom = 196.dp)
                         )
-                        3 -> CoachPill(
-                            "별자리 — 가까운 별을 선으로 이어 보여줘요",
+                        2 -> CoachPill(
+                            "별들을 이어 별자리를 만들어요",
                             Modifier.align(Alignment.BottomEnd).padding(end = 72.dp, bottom = 136.dp)
                         )
-                        4 -> CoachPill(
-                            "배경음악 — 음악을 켜고 끌 수 있어요",
+                        3 -> CoachPill(
+                            "음악 및 효과음을 켜고 끌 수 있어요",
                             Modifier.align(Alignment.BottomEnd).padding(end = 72.dp, bottom = 78.dp)
                         )
-                        5 -> CoachPill(
-                            "업로드 — 푸른 버튼으로 다이어리를 올려요",
+                        4 -> CoachPill(
+                            "이 버튼을 눌러 다이어리를 올려요",
                             Modifier.align(Alignment.BottomEnd).padding(end = 72.dp, bottom = 18.dp)
                         )
+                        5 -> CoachPill(
+                            "내 다이어리 · 프로필 · 업적 · 친구를 여기서 관리해요",
+                            Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 66.dp)
+                        )
                         6 -> CoachPill(
-                            "지금부터 우주를 탐험하고\n이야기를 별들에 남겨보세요!",
+                            "지금부터 우주를 탐험하고, 별들에 이야기를 남겨보세요!",
                             Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
                             big = true
                         )

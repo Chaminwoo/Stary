@@ -82,6 +82,14 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
+        debug {
+            // 디버그(Android Studio Run)도 릴리즈 키로 서명 → CLI 릴리즈 설치본과 서명이 같아
+            // "서명이 다른 앱이 이미 있습니다(제거하시겠습니까?)" 충돌이 안 난다.
+            // (keystore.properties 없으면 기본 디버그 키로 폴백)
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

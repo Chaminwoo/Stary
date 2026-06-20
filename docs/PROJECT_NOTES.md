@@ -157,6 +157,24 @@
   - `observeMyDiaries` 복합 인덱스(userId+createdAt) 의존 제거 → 서버는 `whereEqualTo(userId)` 만, **정렬은 클라이언트**(`sortedByDescending`).
 - 참고: Firestore 경고 `No setter/field for anonymous`(Diary.isAnonymous ↔ "anonymous" 매핑) 는 무해(기본 false).
 
+## 8.10 몰입/연출/업적 라운드 (2026-06-20)
+- **다이어리 진입 연출 이동**: 세부 화면(DetailScreen)의 파장/왜곡 **제거**(이제 멀쩡하게 진입).
+  대신 지도 마커 탭 시 `DiaryMap` 이 **현재 지도를 `map.snapshot()` 으로 캡처 → 1.3초간 별 위치에서 방사형 물결 굴절 → 그 뒤 세부 화면 이동**.
+  - 굴절은 `Canvas` + `nativeCanvas.drawBitmapMesh`(28×28 메시) 로 구현. ⚠️ AGSL `RuntimeShader`/`RenderEffect` 는
+    **에뮬레이터(SwiftShader 소프트웨어 GPU)에서 무시돼 안 보임** → mesh 방식으로 교체(에뮬·실기기 공통 동작). `DiaryOpenWarp` 참고.
+  - 연출은 **지도 마커를 100m 이내에서 탭할 때만** 트리거(스냅샷 대상이 지도).
+- **지도만 보기(몰입) 모드**: `core/util/MapUiState`(전역 mutableState) — 좌하단 필터 다이얼 맨 아래 "지도만 보기" →
+  탑바(MainScreen)·필터(MainListScreen)·FAB/줌(DiaryMap) 전부 숨김. `feature/home/screen/MapOnlyOverlay` 가 하단 중앙 원형 X
+  (3초 후 자동 숨김, 그 자리 탭/뒤로가기로 다시 표시, X 탭 시 복귀, BackHandler 로 이탈 방지). 다이어리 열람 시 자동 해제.
+- **업적 해금 팝업**: `feature/profile/AchievementUnlockWatcher` (MainScreen 최상위, 로그인 시). prefs `stary_prefs/ach_announced_<uid>`
+  로 기준선 저장 후 새로 달성한 업적만 팝업(트로피+이름+보상). **코치마크(showOnboarding) 동안은 suppressed 로 큐에만 쌓고 닫힌 뒤 표시**.
+- **지도 좌상단 +/- 줌 버튼**(`animateCamera(zoomBy ±1, 220ms)`), **별자리 페이드 인/아웃 + 후광 3겹**(halo/glow/line, `Animatable` 로 opacity 0↔target).
+- **첫 실행 코치마크**: 7단계(마지막 중앙 "지금부터 우주를…" 메시지) + 텍스트 가운데 정렬. ⚠️ 마지막 단계 스포트라이트 r=0 → radialGradient 크래시 가드(`if r>0`).
+- **내 다이어리 다이얼**: 컨테이너 박스 260→360dp(터치 감지·하단 텍스트 아래로 확장), 별자리 상단 260 고정(TopCenter),
+  `DIAL_BOTTOM_DP` 150→100 보정으로 다이얼 절대 위치 유지.
+- **빌드/서명**: 디버그도 릴리즈 keystore 로 서명(`build.gradle.kts` debug signingConfig) → Studio Run(debug) ↔ CLI 릴리즈 설치 시
+  "서명이 다른 앱" 충돌 제거. (keystore.properties 없으면 기본 디버그 키 폴백)
+
 ## 8.5 기능 배치 1 (이번 라운드 추가 — 테스트는 콘솔 규칙 해제 후)
 - **친구**: `shared` `FriendRepository`/`Friend`/`FriendRequest`/`UserProfile` + `FirebaseFriendRepository`
   (users/{uid}/friends 양방향, friendRequests 컬렉션, userName prefix 검색) + `feature/friend/` FriendScreen/ViewModel

@@ -70,17 +70,6 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.sin
 
-/**
- * 다이어리 열람 시 파장이 시작될 화면상 위치(0..1 비율).
- * 지도에서 별을 누르면 DiaryMap 이 그 별의 화면 위치를 넣어준다(별에서 파장이 퍼지도록).
- * 그 외 경로(마이페이지/딥링크)는 중앙(0.5,0.5) 기본값.
- */
-object DiaryOpenRipple {
-    var x: Float = 0.5f
-    var y: Float = 0.5f
-    fun reset() { x = 0.5f; y = 0.5f }
-}
-
 @Composable
 fun DetailScreen(
     diaryId: String,
@@ -97,23 +86,9 @@ fun DetailScreen(
     var editContent by remember { mutableStateOf("") }
     val repository = remember { FirebaseDiaryRepository() }
 
-    // reveal = 물결 파장(진입 즉시 1초 재생), contentReveal = 파장 후 콘텐츠 등장.
-    val reveal = remember(diaryId) { Animatable(0f) }
-    val contentReveal = remember(diaryId) { Animatable(0f) }
-    // 파장 시작 위치(별 위치) — 진입 시점 값 캡처 후 홀더는 기본값으로 리셋
-    val rippleOriginX = remember(diaryId) { DiaryOpenRipple.x }
-    val rippleOriginY = remember(diaryId) { DiaryOpenRipple.y }
-    LaunchedEffect(diaryId) { DiaryOpenRipple.reset() }
+    // 파장/왜곡 연출은 진입 직전 지도 화면(DiaryMap)에서 처리한다. 세부 화면은 멀쩡하게 표시.
 
-    // 진입 즉시 파장 1초 재생 → 끝나면 콘텐츠를 초점 복원하며 등장.
-    LaunchedEffect(diaryId) {
-        reveal.snapTo(0f)
-        contentReveal.snapTo(0f)
-        reveal.animateTo(1f, tween(1000, easing = FastOutSlowInEasing))
-        contentReveal.animateTo(1f, tween(500, easing = FastOutSlowInEasing))
-    }
-
-    // 데이터 로드는 파장 재생과 병렬로 진행 (보통 캐시에서 즉시 반환).
+    // 데이터 로드 (보통 캐시에서 즉시 반환).
     LaunchedEffect(diaryId) {
         diary = DiaryCache.get(diaryId) ?: repository.getDiaryById(diaryId)
         isLoading = false
@@ -227,30 +202,9 @@ fun DetailScreen(
         )
     }
 
-    // 파장 진행도(오버레이용)
-    val p = reveal.value
-    // 콘텐츠 등장 진행도 — 파장(1초) 끝난 뒤 0→1
-    val c = contentReveal.value
-    // 초점 복원 blur: 물 속에서 떠오르듯 흐림→선명 (API 31+ 에서만 실제 blur, 그 외 무시)
-    val blurRadius = (16f * (1f - (c / 0.55f).coerceIn(0f, 1f))).dp
-    // 렌즈 펀치: 살짝 확대→원래 크기로 수렴
-    val baseScale = 1f + 0.05f * (1f - FastOutSlowInEasing.transform(c.coerceIn(0f, 1f)))
-    // 젤리 워블: 등장하며 가로/세로가 어긋나게 출렁이다 감쇠
-    val wobble = sin(c * Math.PI.toFloat() * 3f) * 0.018f * (1f - c)
-
-    // 콘텐츠 + 파장 오버레이
+    // 세부 화면은 왜곡 없이 그대로 표시 (연출은 진입 직전 지도에서 끝남).
     Box(modifier = modifier.fillMaxSize()) {
-        // 다이어리 본문 — 표시는 항상 보장하고(왜곡만 애니메이션), 펀치/워블/초점 복원 적용
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .blur(blurRadius)
-                .graphicsLayer {
-                    scaleX = baseScale + wobble
-                    scaleY = baseScale - wobble
-                    alpha = (c / 0.3f).coerceIn(0f, 1f)
-                }
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 if (currentDiary.imageUrl.isNotEmpty()) {
                     AsyncImage(
@@ -340,50 +294,6 @@ fun DetailScreen(
                         }
                     }
                     Spacer(modifier = Modifier.height(40.dp))
-                }
-            }
-        }
-
-        // 굴절 파장 오버레이 — 별(다이어리) 위치에서 퍼지는 링(밝은 굴절 가장자리 + 안쪽 그림자 + 넓은 띠)
-        // 파장 색 = 해당 다이어리의 별 색(그라데이션이면 대표색). 흰색 → 별 색으로.
-        val rippleColor = StarStyle.colorOf(currentDiary.starColor)
-        if (p < 1f) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val center = Offset(size.width * rippleOriginX, size.height * rippleOriginY)
-                // 시작점에서 가장 먼 모서리까지 덮도록 반경 계산
-                val maxR = max(
-                    max(hypot(center.x, center.y), hypot(size.width - center.x, center.y)),
-                    max(hypot(center.x, size.height - center.y), hypot(size.width - center.x, size.height - center.y))
-                )
-                val ringCount = 1
-                for (i in 0 until ringCount) {
-                    val startF = i * 0.12f
-                    val rp = ((p - startF) / (1f - startF)).coerceIn(0f, 1f)
-                    if (rp <= 0f || rp >= 1f) continue
-                    val radius = rp * maxR
-                    val fade = (1f - rp)
-                    // 넓고 흐린 굴절 띠 (빛이 휘는 듯한 두꺼운 그라데이션 스트로크) — 별 색
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Color.Transparent, rippleColor.copy(alpha = fade * 0.22f), Color.Transparent),
-                            center = center, radius = radius.coerceAtLeast(1f)
-                        ),
-                        radius = radius,
-                        center = center,
-                        style = Stroke(width = (26f * fade).coerceAtLeast(1f).dp.toPx())
-                    )
-                    // 밝은 굴절 가장자리 — 별 색
-                    drawCircle(
-                        color = rippleColor.copy(alpha = fade * 0.6f),
-                        radius = radius, center = center,
-                        style = Stroke(width = (3f * fade).coerceAtLeast(0.6f).dp.toPx())
-                    )
-                    // 안쪽 그림자(굴절 음영) — 가장자리 바로 안쪽
-                    drawCircle(
-                        color = Color.Black.copy(alpha = fade * 0.22f),
-                        radius = (radius - 5.dp.toPx()).coerceAtLeast(0f), center = center,
-                        style = Stroke(width = 2f.dp.toPx())
-                    )
                 }
             }
         }

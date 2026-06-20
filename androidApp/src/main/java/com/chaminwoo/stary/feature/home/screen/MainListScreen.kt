@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Public
@@ -68,6 +69,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Friend
 import com.chaminwoo.stary.core.util.LocationHelper
+import com.chaminwoo.stary.core.util.MapUiState
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.data.repository.FirebaseViewedRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -261,8 +263,8 @@ fun MainListScreen(
             onCreateClick = onCreateClick,
         )
 
-        // 필터 스피드 다이얼 (로그인한 경우)
-        if (userId != null) {
+        // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)
+        if (userId != null && !MapUiState.mapOnly) {
             val anyActive = unviewedOnly || friendsOnly || myOnly || selectedFriendIds.isNotEmpty()
             val mint = Color(0xFF6EE7B7)
             val pillBg = Color(0xEE111120)
@@ -285,6 +287,11 @@ fun MainListScreen(
                     if (selectedFriendIds.isEmpty()) "친구 선택" else "친구 ${selectedFriendIds.size}명",
                     Icons.Filled.GroupAdd, selectedFriendIds.isNotEmpty()
                 ) { showFriendPicker = true },
+                // 지도만 보기 — 탑바/필터/FAB 를 모두 숨기고 몰입 모드 진입
+                FilterOpt("지도만 보기", Icons.Filled.Map, false) {
+                    speedDialExpanded = false
+                    MapUiState.enterMapOnly()
+                },
             )
 
             Column(

@@ -5,7 +5,10 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.view.View
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +41,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -51,6 +57,7 @@ import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.LocationHelper
+import com.chaminwoo.stary.core.util.MapUiState
 import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -72,6 +79,9 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import kotlin.math.exp
+import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.sin
 import android.graphics.Color as AndroidColor
 import org.maplibre.android.geometry.LatLng as MlLatLng
@@ -84,6 +94,11 @@ private const val PARTICLE_ICON_ID = "star-particle-dot"
 private const val CONSTELLATION_SOURCE = "constellation-lines"
 private const val CONSTELLATION_LAYER = "constellation-layer"
 private const val CONSTELLATION_GLOW_LAYER = "constellation-glow-layer"
+private const val CONSTELLATION_HALO_LAYER = "constellation-halo-layer"
+// 별자리 선 페이드용 최대 불투명도 (켜질 때 0→target 으로 부드럽게)
+private const val CONSTELLATION_HALO_OPACITY = 0.18f
+private const val CONSTELLATION_GLOW_OPACITY = 0.42f
+private const val CONSTELLATION_LINE_OPACITY = 0.95f
 /** 별자리: 각 별을 화면상 가장 가까운 별 몇 개와 연결. */
 private const val CONSTELLATION_NEIGHBORS = 2
 
@@ -495,6 +510,9 @@ fun DiaryMap(
     var constellationEnabled by remember { mutableStateOf(false) }
     // 배경음악은 앱 전역(MusicManager, MainScreen 에서 생명주기 관리)에서 처리. 여기선 FAB 토글만.
 
+    // 다이어리 진입 직전 "지도 왜곡" 연출 — 탭 시 지도 스냅샷을 떠서 1초간 파장+울렁 후 세부 화면 이동.
+    val warpState = remember { mutableStateOf<DiaryOpenWarpData?>(null) }
+
     val onDiaryClickRef = rememberUpdatedState(onDiaryClick)
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
     val diariesRef = rememberUpdatedState(diaries)
@@ -532,15 +550,18 @@ fun DiaryMap(
                                 cur.latitude, cur.longitude, diary.latitude, diary.longitude
                             )
                             if (distance <= StaryConfig.DIARY_OPEN_RADIUS_M) {
-                                // 파장이 이 별 위치에서 퍼지도록 화면상 위치(0..1) 전달
+                                // 파장이 이 별 위치에서 퍼지도록 화면상 위치(0..1) 계산
                                 val sp = map.projection.toScreenLocation(
                                     MlLatLng(diary.latitude, diary.longitude)
                                 )
                                 val w = mv.width.toFloat().coerceAtLeast(1f)
                                 val h = mv.height.toFloat().coerceAtLeast(1f)
-                                com.chaminwoo.stary.feature.diary.screen.DiaryOpenRipple.x = (sp.x / w).coerceIn(0f, 1f)
-                                com.chaminwoo.stary.feature.diary.screen.DiaryOpenRipple.y = (sp.y / h).coerceIn(0f, 1f)
-                                onDiaryClickRef.value(id)
+                                val ox = (sp.x / w).coerceIn(0f, 1f)
+                                val oy = (sp.y / h).coerceIn(0f, 1f)
+                                // 현재 지도를 스냅샷으로 떠서, 그 이미지를 1초간 왜곡(파장+울렁)한 뒤 세부 화면으로 이동
+                                map.snapshot { bmp ->
+                                    warpState.value = DiaryOpenWarpData(bmp, ox, oy, id, diary.starColor)
+                                }
                             } else {
                                 com.chaminwoo.stary.core.ui.StaryToast.show(
                                     "${StaryConfig.DIARY_OPEN_RADIUS_M.toInt()}m 이내에 있어야 열람할 수 있어요 (현재 ${distance.toInt()}m)"
@@ -574,16 +595,28 @@ fun DiaryMap(
                         style.addLayer(layer)
                     }
 
-                    // 별자리 라인 (파티클 위, 마커 아래) — 글로우(후광) 라인 + 밝은 라인 2겹
+                    // 별자리 라인 (파티클 위, 마커 아래) — 외곽 후광 + 글로우 + 밝은 선 3겹.
+                    // 초기 불투명도 0 → 토글 시 페이드 인/아웃(부드럽게 켜짐).
                     val cSrc = GeoJsonSource(CONSTELLATION_SOURCE, FeatureCollection.fromFeatures(emptyList()))
                     style.addSource(cSrc)
-                    // 1) 뒤에 깔리는 후광: 굵고 흐리게(blur), 낮은 불투명도
+                    // 0) 가장 뒤 외곽 후광: 아주 굵고 크게 번지는 빛무리
+                    style.addLayer(
+                        LineLayer(CONSTELLATION_HALO_LAYER, CONSTELLATION_SOURCE).withProperties(
+                            PropertyFactory.lineColor("#6EE7B7"),
+                            PropertyFactory.lineWidth(16f),
+                            PropertyFactory.lineBlur(16f),
+                            PropertyFactory.lineOpacity(0f),
+                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+                        )
+                    )
+                    // 1) 중간 후광: 굵고 흐리게(blur)
                     style.addLayer(
                         LineLayer(CONSTELLATION_GLOW_LAYER, CONSTELLATION_SOURCE).withProperties(
                             PropertyFactory.lineColor("#6EE7B7"),
-                            PropertyFactory.lineWidth(6.5f),
-                            PropertyFactory.lineBlur(7f),
-                            PropertyFactory.lineOpacity(0.28f),
+                            PropertyFactory.lineWidth(8f),
+                            PropertyFactory.lineBlur(8f),
+                            PropertyFactory.lineOpacity(0f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
                         )
@@ -592,9 +625,9 @@ fun DiaryMap(
                     style.addLayer(
                         LineLayer(CONSTELLATION_LAYER, CONSTELLATION_SOURCE).withProperties(
                             PropertyFactory.lineColor("#E6FFF4"),
-                            PropertyFactory.lineWidth(1.6f),
+                            PropertyFactory.lineWidth(1.7f),
                             PropertyFactory.lineBlur(0.6f),
-                            PropertyFactory.lineOpacity(0.9f),
+                            PropertyFactory.lineOpacity(0f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
                         )
@@ -672,6 +705,8 @@ fun DiaryMap(
             }
         }
 
+        // 지도만 보기 모드에선 모든 버튼(좌상단 줌 + 우하단 FAB)을 숨긴다.
+        if (!MapUiState.mapOnly) {
         // 좌상단 줌 버튼 (+/-) — 버튼 1탭당 한 단계, 부드럽게 애니메이션 줌.
         Column(
             modifier = Modifier
@@ -780,6 +815,16 @@ fun DiaryMap(
                 }
             }
         }
+        } // if (!MapUiState.mapOnly)
+
+        // 지도 왜곡 연출 — 스냅샷 이미지를 1초간 파장+울렁시킨 뒤 세부 화면으로 이동(세부는 멀쩡).
+        warpState.value?.let { wd ->
+            DiaryOpenWarp(wd) {
+                warpState.value = null
+                MapUiState.exitMapOnly()
+                onDiaryClickRef.value(wd.id)
+            }
+        }
     }
 
     // 다이어리/현재위치/카메라 변경 → 화면 클러스터링 후 마커 갱신.
@@ -878,15 +923,35 @@ fun DiaryMap(
         settle()
     }
 
-    // 별자리 라인 업데이트 — 토글/목록/카메라(뷰포트) 변경 시 "지금 화면에 보이는 별"로 다시 계산
+    // 별자리 라인 GeoJSON — 켜져 있을 때만 "지금 화면에 보이는 별"로 다시 계산해 채운다.
+    // (끌 때는 비우지 않고 아래 페이드 효과가 사라진 뒤 비워 — 부드럽게 사라지도록)
     LaunchedEffect(diaries, styleRef, constellationEnabled, cameraIdleTick) {
         val source = constellationSource ?: return@LaunchedEffect
-        val map = mapRef
-        source.setGeoJson(
-            if (constellationEnabled && map != null)
-                buildConstellationFeatures(map, diaries, clusterRadiusPx, constellationMaxLinkPx)
-            else FeatureCollection.fromFeatures(emptyList())
-        )
+        val map = mapRef ?: return@LaunchedEffect
+        if (constellationEnabled) {
+            source.setGeoJson(buildConstellationFeatures(map, diaries, clusterRadiusPx, constellationMaxLinkPx))
+        }
+    }
+
+    // 별자리 페이드 인/아웃 — 토글 시 후광·글로우·선 불투명도를 0↔target 으로 부드럽게.
+    val constellationFade = remember { Animatable(0f) }
+    LaunchedEffect(constellationEnabled, styleRef) {
+        val style = styleRef ?: return@LaunchedEffect
+        val halo = style.getLayer(CONSTELLATION_HALO_LAYER) as? LineLayer
+        val glow = style.getLayer(CONSTELLATION_GLOW_LAYER) as? LineLayer
+        val line = style.getLayer(CONSTELLATION_LAYER) as? LineLayer
+        constellationFade.animateTo(
+            targetValue = if (constellationEnabled) 1f else 0f,
+            animationSpec = tween(if (constellationEnabled) 550 else 380, easing = FastOutSlowInEasing),
+        ) {
+            halo?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_HALO_OPACITY * value))
+            glow?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_GLOW_OPACITY * value))
+            line?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_LINE_OPACITY * value))
+        }
+        // 완전히 꺼졌으면 GeoJSON 비우기
+        if (!constellationEnabled) {
+            constellationSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        }
     }
 
     // 마커 애니메이션: float(상하 부유) + 근접 별 pulse(맥동 확대).
@@ -932,5 +997,92 @@ fun DiaryMap(
     // 현재 위치 마커 갱신
     LaunchedEffect(currentLatLng, mapRef) {
         locationSource?.setGeoJson(Point.fromLngLat(currentLatLng.longitude, currentLatLng.latitude))
+    }
+}
+
+/** 지도 왜곡 연출 데이터 — 스냅샷 비트맵 + 파장 시작 위치(0..1) + 다이어리 id/별색. */
+private class DiaryOpenWarpData(
+    val bitmap: Bitmap,
+    val ox: Float,
+    val oy: Float,
+    val id: String,
+    val colorIndex: Int,
+)
+
+/**
+ * 다이어리 진입 직전 연출 — 캡처한 지도 스냅샷을 1.3초간 **별 위치에서 퍼지는 물결**로 굴절시킨 뒤 [onFinished].
+ * (위아래 흔들림이 아니라 방사형 파장.) `drawBitmapMesh` 로 그려 소프트웨어 렌더(에뮬레이터)에서도 동작.
+ * 세부 화면 자체는 왜곡 없이 멀쩡하게 들어간다.
+ */
+@Composable
+private fun DiaryOpenWarp(data: DiaryOpenWarpData, onFinished: () -> Unit) {
+    val progress = remember(data) { Animatable(0f) }
+    LaunchedEffect(data) {
+        progress.animateTo(1f, tween(1300, easing = FastOutSlowInEasing))
+        onFinished()
+    }
+    val p = progress.value
+    val rippleColor = StarStyle.colorOf(data.colorIndex)
+    val meshPaint = remember { Paint().apply { isFilterBitmap = true; isAntiAlias = true } }
+
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        val cx = w * data.ox
+        val cy = h * data.oy
+        val maxR = max(
+            max(hypot(cx, cy), hypot(w - cx, cy)),
+            max(hypot(cx, h - cy), hypot(w - cx, h - cy))
+        )
+        val front = p * maxR
+        val amp = 46f * (1f - p) // 파면이 퍼질수록 약해져 잔잔해짐
+
+        // 스냅샷을 메시 격자로 그려 별 위치에서 방사형으로 굴절
+        val mw = 28
+        val mh = 28
+        val verts = FloatArray((mw + 1) * (mh + 1) * 2)
+        var i = 0
+        for (row in 0..mh) {
+            for (col in 0..mw) {
+                val x = w * col / mw
+                val y = h * row / mh
+                val dx = x - cx
+                val dy = y - cy
+                val dist = hypot(dx, dy)
+                val delta = dist - front
+                val env = exp(-(delta * delta) / (220f * 220f)) // 넓은 밴드
+                val disp = sin(delta * 0.045f) * env * amp
+                if (dist > 0.001f) {
+                    verts[i++] = x + dx / dist * disp
+                    verts[i++] = y + dy / dist * disp
+                } else {
+                    verts[i++] = x
+                    verts[i++] = y
+                }
+            }
+        }
+        drawIntoCanvas { c ->
+            c.nativeCanvas.drawBitmapMesh(data.bitmap, mw, mh, verts, 0, null, 0, meshPaint)
+        }
+
+        // 파장 링 — 별 위치에서 퍼지는 빛 테두리
+        if (p < 1f) {
+            val center = Offset(cx, cy)
+            val radius = front
+            val fade = 1f - p
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.Transparent, rippleColor.copy(alpha = fade * 0.22f), Color.Transparent),
+                    center = center, radius = radius.coerceAtLeast(1f)
+                ),
+                radius = radius, center = center,
+                style = Stroke(width = (30f * fade).coerceAtLeast(1f).dp.toPx())
+            )
+            drawCircle(
+                color = rippleColor.copy(alpha = fade * 0.55f),
+                radius = radius, center = center,
+                style = Stroke(width = (3f * fade).coerceAtLeast(0.6f).dp.toPx())
+            )
+        }
     }
 }

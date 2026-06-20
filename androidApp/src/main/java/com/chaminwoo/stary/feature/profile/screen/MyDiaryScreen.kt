@@ -107,24 +107,30 @@ fun MyDiaryScreen(
                 .padding(bottom = 32.dp)
         ) {
         // 별자리 배경 + 바나나 다이얼
+        // 박스 높이를 360 으로 키워(터치 감지·아래 텍스트가 내려간 다이얼까지 닿게) +
+        // 별자리는 상단 고정(260) / 다이얼은 DIAL_BOTTOM_DP 보정으로 절대 위치 유지 → 시각상 그대로.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(260.dp),
+                .height(360.dp),
             contentAlignment = Alignment.Center
         ) {
-            ConstellationBackground(sortMode, sortNonce, Modifier.matchParentSize())
+            // 별자리는 원래 위치(상단 260)에 고정 — 박스가 커져도 안 움직이게 TopCenter + 고정 높이
+            ConstellationBackground(
+                sortMode, sortNonce,
+                Modifier.align(Alignment.TopCenter).fillMaxWidth().height(260.dp)
+            )
             BananaDial(
                 selected = sortMode,
                 onSelect = { sortMode = it; sortNonce++; MusicManager.playWind() }, // 정렬 반영 + 효과음
-                modifier = Modifier.matchParentSize() // 터치 영역 = 별자리 박스 전체(아래쪽 클릭도 인식)
+                modifier = Modifier.matchParentSize() // 터치 영역 = 박스 전체(내려간 다이얼까지 인식)
             )
         }
 
         Text(
             text = "${sortMode.label} · ${myDiaries.size}개",
             color = sortColor(sortMode), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 4.dp), // 텍스트를 조금 더 아래로
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), // 텍스트를 조금 더 아래로
             textAlign = TextAlign.Center
         )
 
@@ -154,12 +160,14 @@ fun MyDiaryScreen(
 // 수평 간격을 고정해 끝(마지막) 항목도 항상 화면 안에 들어와 선택된다.
 private const val DIAL_H_SPACING_DP = 90f  // 항목 사이 수평 간격(px 변환해 드래그 감도로도 사용)
 private const val DIAL_CURVE_DP = 30f      // 바나나 곡률(가장자리로 갈수록 위로 들림: k²)
-// 선택(바닥) 항목 깊이 — 박스(260) 중앙 기준. 별이 박스 안에 들어오도록(터치 영역과 일치) 100 으로.
+// 선택(바닥) 항목 깊이 — 박스 중앙 기준.
+// 박스 높이를 260→360 으로 키우며 중앙이 50dp 내려갔으므로, 다이얼 절대 위치를 유지하려고
+// 기존 150 에서 50 을 빼 100 으로 보정(시각상 다이얼은 그대로, 터치/텍스트만 아래로 확장).
 private const val DIAL_BOTTOM_DP = 100f
 
 // 다이얼 세 버튼은 서로 다른 별 모양으로 구분 (StarStyle 타입 0..4)
 private fun dialStarType(s: DiarySort): Int = when (s) {
-    DiarySort.LATEST -> 1   // 5꼭지 클래식 별
+    DiarySort.LATEST -> 0
     DiarySort.POPULAR -> 2  // 6꼭지 별
     DiarySort.DISTANCE -> 4 // 4꼭지 다이아 스파클
 }
