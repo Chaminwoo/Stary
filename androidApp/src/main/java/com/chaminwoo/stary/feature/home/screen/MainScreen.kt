@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -13,9 +15,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DrawerValue
@@ -47,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -167,60 +176,37 @@ fun MainScreen(
                 drawerContainerColor = Color(0xFF111111),
                 drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
             ) {
-                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 36.dp)) {
-                    Text(
-                        "목록",
-                        fontSize = 40.sp,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
-                        color = Color(0xFFF0F0F0),
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    androidx.compose.material3.HorizontalDivider(
-                        color = Color(0xFF2A2A2A),
-                        thickness = 1.dp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    val drawerColors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = Color(0xFF6EE7B7).copy(alpha = 0.10f),
-                        unselectedContainerColor = Color.Transparent
-                    )
-                    NavigationDrawerItem(
-                        label = { Text("내 다이어리", fontSize = 20.sp, color = if (currentRoute is NavRoute.MyDiary) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
-                        selected = currentRoute is NavRoute.MyDiary,
-                        onClick = { onNavigate(NavRoute.MyDiary) },
-                        colors = drawerColors
-                    )
-                    NavigationDrawerItem(
-                        label = { Text("프로필", fontSize = 20.sp, color = if (currentRoute is NavRoute.Profile) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
-                        selected = currentRoute is NavRoute.Profile,
-                        onClick = { onNavigate(NavRoute.Profile) },
-                        colors = drawerColors
-                    )
-                    NavigationDrawerItem(
-                        label = { Text("업적", fontSize = 20.sp, color = if (currentRoute is NavRoute.Achievements) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
-                        selected = currentRoute is NavRoute.Achievements,
-                        onClick = { onNavigate(NavRoute.Achievements) },
-                        colors = drawerColors
-                    )
-                    NavigationDrawerItem(
-                        label = { Text("친구", fontSize = 20.sp, color = if (currentRoute is NavRoute.Friends) Color(0xFF6EE7B7) else Color(0xFFF0F0F0)) },
-                        selected = currentRoute is NavRoute.Friends,
-                        onClick = { onNavigate(NavRoute.Friends) },
-                        colors = drawerColors
-                    )
-                    // 비로그인 시에만 로그인 항목 노출
-                    if (GoogleAuthHelper.currentUserId == null) {
-                        NavigationDrawerItem(
-                            label = { Text("로그인", fontSize = 20.sp, color = Color(0xFF6EE7B7)) },
-                            selected = false,
-                            onClick = {
-                                coroutineScope.launch { drawerState.close() }
-                                showLogin = true
-                            },
-                            colors = drawerColors
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 20.dp)) {
+                    // 상단: "목록"(회색 작은 글씨) + 우측 닫기(왼쪽 화살표)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, bottom = 3.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "목록",
+                            fontSize = 20.sp,
+                            color = Color(0xFF8A8A8A),
+                            modifier = Modifier.weight(1f)
                         )
+                        IconButton(onClick = { coroutineScope.launch { drawerState.close() } }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "닫기", tint = Color(0xFFF0F0F0))
+                        }
+                    }
+
+                    DrawerItem("내 다이어리", Icons.AutoMirrored.Filled.MenuBook, currentRoute is NavRoute.MyDiary) { onNavigate(NavRoute.MyDiary) }
+                    DrawerItem("프로필", Icons.Filled.Person, currentRoute is NavRoute.Profile) { onNavigate(NavRoute.Profile) }
+                    DrawerItem("업적", Icons.Filled.EmojiEvents, currentRoute is NavRoute.Achievements) { onNavigate(NavRoute.Achievements) }
+                    DrawerItem("친구", Icons.Filled.People, currentRoute is NavRoute.Friends) { onNavigate(NavRoute.Friends) }
+                    // 로그인 상태면 로그아웃, 아니면 로그인 항목 노출
+                    if (GoogleAuthHelper.currentUserId == null) {
+                        DrawerItem("로그인", Icons.AutoMirrored.Filled.Login, selected = false, alwaysAccent = true) {
+                            coroutineScope.launch { drawerState.close() }
+                            showLogin = true
+                        }
+                    } else {
+                        DrawerItem("로그아웃", Icons.AutoMirrored.Filled.Logout, selected = false, danger = true) {
+                            onLogout()
+                        }
                     }
                 }
             }
@@ -346,6 +332,33 @@ fun MainScreen(
     // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시
     com.chaminwoo.stary.core.ui.StaryToastHost()
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DrawerItem(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    alwaysAccent: Boolean = false,
+    danger: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val color = when {
+        danger -> Color(0xFFFF6B6B)
+        selected || alwaysAccent -> Color(0xFF6EE7B7)
+        else -> Color(0xFFF0F0F0)
+    }
+    NavigationDrawerItem(
+        icon = { Icon(icon, null, tint = color, modifier = Modifier.size(22.dp)) },
+        label = { Text(label, fontSize = 18.sp, color = color) },
+        selected = selected,
+        onClick = onClick,
+        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+            selectedContainerColor = Color(0xFF6EE7B7).copy(alpha = 0.10f),
+            unselectedContainerColor = Color.Transparent
+        )
+    )
 }
 
 @Preview

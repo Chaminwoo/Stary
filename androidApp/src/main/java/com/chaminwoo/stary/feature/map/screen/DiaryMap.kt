@@ -1038,8 +1038,8 @@ private fun DiaryOpenWarp(data: DiaryOpenWarpData, onFinished: () -> Unit) {
         val amp = 46f * (1f - p) // 파면이 퍼질수록 약해져 잔잔해짐
 
         // 스냅샷을 메시 격자로 그려 별 위치에서 방사형으로 굴절
-        val mw = 28
-        val mh = 28
+        val mw = 14
+        val mh = 14
         val verts = FloatArray((mw + 1) * (mh + 1) * 2)
         var i = 0
         for (row in 0..mh) {
@@ -1065,11 +1065,22 @@ private fun DiaryOpenWarp(data: DiaryOpenWarpData, onFinished: () -> Unit) {
             c.nativeCanvas.drawBitmapMesh(data.bitmap, mw, mh, verts, 0, null, 0, meshPaint)
         }
 
-        // 파장 링 — 별 위치에서 퍼지는 빛 테두리
-        if (p < 1f) {
+        // 파장 링 — 별 위치에서 퍼지는 빛 테두리 (+ 강한 후광)
+        if (p < 1f && front >= 1f) {
             val center = Offset(cx, cy)
             val radius = front
             val fade = 1f - p
+            // 0) 강한 후광 링 — 블러 처리한 굵은 스트로크. 링과 같은 반지름이라 함께 퍼진다.
+            drawIntoCanvas { c ->
+                val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeWidth = (22f * fade).coerceAtLeast(3f).dp.toPx()
+                    color = rippleColor.copy(alpha = (fade * 0.7f).coerceIn(0f, 1f)).toArgb()
+                    maskFilter = android.graphics.BlurMaskFilter(20.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                }
+                c.nativeCanvas.drawCircle(cx, cy, radius, glow)
+            }
+            // 1) 넓은 굴절 띠
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(Color.Transparent, rippleColor.copy(alpha = fade * 0.22f), Color.Transparent),
@@ -1078,8 +1089,9 @@ private fun DiaryOpenWarp(data: DiaryOpenWarpData, onFinished: () -> Unit) {
                 radius = radius, center = center,
                 style = Stroke(width = (30f * fade).coerceAtLeast(1f).dp.toPx())
             )
+            // 2) 밝은 가장자리 선
             drawCircle(
-                color = rippleColor.copy(alpha = fade * 0.55f),
+                color = rippleColor.copy(alpha = fade * 0.7f),
                 radius = radius, center = center,
                 style = Stroke(width = (3f * fade).coerceAtLeast(0.6f).dp.toPx())
             )

@@ -78,7 +78,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
         Image(
             painter = painterResource(R.drawable.mydiary_bg), contentDescription = null,
             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.7f), blendMode = BlendMode.Darken)
+            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
         )
 
         LazyColumn(
@@ -88,11 +88,10 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
     ) {
         item {
             Column {
-                Text("업적", color = TextMain, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
+
                 Text(
                     "업적을 달성하면 칭호와 새로운 별 모양·색을 얻어요.",
-                    color = TextMuted, fontSize = 13.sp
+                    color = TextMuted, fontSize = 15.sp
                 )
                 Spacer(Modifier.height(6.dp))
                 Text("달성 $unlockedCount / ${Achievements.all.size}", color = Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)

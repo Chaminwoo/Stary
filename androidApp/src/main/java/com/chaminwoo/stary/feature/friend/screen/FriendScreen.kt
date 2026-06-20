@@ -101,7 +101,7 @@ fun FriendScreen(modifier: Modifier = Modifier) {
 
     Box(modifier = modifier.fillMaxSize().background(PageBg)) {
         Image(
-            painter = painterResource(R.drawable.mypage_bg),
+            painter = painterResource(R.drawable.mydiary_bg),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
@@ -113,10 +113,6 @@ fun FriendScreen(modifier: Modifier = Modifier) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item {
-                Text("친구", color = TextMain, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            }
-
             // --- 검색 ---
             item {
                 SearchField(

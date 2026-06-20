@@ -194,7 +194,7 @@ fun UploadScreen(
         Image(
             painter = painterResource(R.drawable.upload_bg), contentDescription = null,
             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.8f), blendMode = BlendMode.Darken)
+            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
         )
 
         Column(

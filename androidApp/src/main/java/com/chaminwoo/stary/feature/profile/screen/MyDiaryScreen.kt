@@ -97,7 +97,7 @@ fun MyDiaryScreen(
         Image(
             painter = painterResource(R.drawable.mydiary_bg), contentDescription = null,
             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.7f), blendMode = BlendMode.Darken)
+            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
         )
 
         Column(

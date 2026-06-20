@@ -5,6 +5,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -219,23 +220,42 @@ fun DetailScreen(
                     ) { Text("사진 없음", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) }
                 }
 
-                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                Column(modifier = Modifier.background(Color(0xCC14181C), RoundedCornerShape(16.dp))
+                    .border(
+                        1.dp,
+                        Brush.linearGradient(listOf(Color(0xFF6EE7B7).copy(alpha = 0.4f), Color(0xFF3B82F6).copy(alpha = 0.3f))),
+                        RoundedCornerShape(16.dp)
+                    ).padding(18.dp)) {
                     Text(currentDiary.title, fontSize = 24.sp, fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground, lineHeight = 30.sp)
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // 본문 — 디테일 카드 박스
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xCC14181C), RoundedCornerShape(16.dp))
+                            .border(
+                                1.dp,
+                                Brush.linearGradient(listOf(Color(0xFF6EE7B7).copy(alpha = 0.4f), Color(0xFF3B82F6).copy(alpha = 0.3f))),
+                                RoundedCornerShape(16.dp)
+                            )
+                            .padding(18.dp)
+                    ) {
+                        Text(currentDiary.content, fontSize = 16.sp, lineHeight = 26.sp, color = MaterialTheme.colorScheme.onBackground)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             SimpleDateFormat("yyyy.MM.dd HH:mm", Locale.KOREA).format(java.util.Date(currentDiary.createdAt)),
-                            fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary
+                            fontSize = 20.sp, color = MaterialTheme.colorScheme.secondary
                         )
-                        Text("  ·  ${currentDiary.userName.ifEmpty { "익명" }}", fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
+                        Text("${currentDiary.userName.ifEmpty { "익명" }}", fontSize = 20.sp, color = MaterialTheme.colorScheme.secondary)
                     }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.outline)
-                    Text(currentDiary.content, fontSize = 16.sp, lineHeight = 26.sp, color = MaterialTheme.colorScheme.onBackground)
                     Spacer(modifier = Modifier.height(24.dp))
 
                     if (isNear) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = {
