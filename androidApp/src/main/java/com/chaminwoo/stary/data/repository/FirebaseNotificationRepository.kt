@@ -77,6 +77,14 @@ class FirebaseNotificationRepository : NotificationRepository {
         } catch (_: Exception) {}
     }
 
+    override suspend fun deleteNotification(notificationId: String) {
+        try {
+            db.collection(StaryConfig.Collections.NOTIFICATIONS)
+                .document(notificationId)
+                .delete().await()
+        } catch (_: Exception) {}
+    }
+
     override suspend fun markAllRead(ownerId: String) {
         // 저장 필드명은 `read`(위 observeUnreadCount 주석 참고). 쿼리/업데이트 모두 "read" 사용.
         val unread = db.collection(StaryConfig.Collections.NOTIFICATIONS)

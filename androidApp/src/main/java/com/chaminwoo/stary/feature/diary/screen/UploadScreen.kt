@@ -1,15 +1,18 @@
 package com.chaminwoo.stary.feature.diary.screen
 
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -48,6 +51,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -55,23 +59,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.rememberAsyncImagePainter
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
+import com.chaminwoo.stary.core.util.ImageCropHelper
 import com.chaminwoo.stary.core.util.ImageUploadHelper
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -79,8 +90,12 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.profile.Achievements
 import com.chaminwoo.stary.feature.profile.StarUnlocks
 import com.chaminwoo.stary.feature.profile.rememberUserStats
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.absoluteValue
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 private val VisibilityOptions = listOf(
     Triple("public",  "전체공개", Icons.Filled.Public),
@@ -110,6 +125,20 @@ fun UploadScreen(
     val cameraUri = remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
     val isLoggedIn = GoogleAuthHelper.currentUserId != null
+
+    // 사진 크롭(고정 비율 프레임 안에서 위치/확대 지정)
+    val cropController = remember { CropController() }
+    LaunchedEffect(selectedImageUri) {
+        val uri = selectedImageUri
+        if (uri == null) {
+            cropController.bitmap = null
+        } else {
+            cropController.reset()
+            cropController.bitmap = withContext(Dispatchers.IO) {
+                ImageCropHelper.loadDownsampled(context, uri)
+            }
+        }
+    }
 
     // 무한 캐러셀 — 초기 페이지를 중간값으로 설정
     val shapePagerState = rememberPagerState(
@@ -200,22 +229,32 @@ fun UploadScreen(
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)
         ) {
-            // 이미지 영역
+            // 이미지 영역 — 디테일 화면과 동일한 고정 비율 프레임.
+            // 사진 선택 시 이 프레임이 곧 '크롭될 영역'이며, 드래그/핀치로 위치·확대 지정.
             Box(
-                modifier = Modifier.fillMaxWidth().height(220.dp)
+                modifier = Modifier.fillMaxWidth().aspectRatio(ImageCropHelper.ASPECT)
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                    .clickable { showImageSourceDialog = true },
+                    .then(if (selectedImageUri == null) Modifier.clickable { showImageSourceDialog = true } else Modifier),
                 contentAlignment = Alignment.Center
             ) {
                 if (selectedImageUri != null) {
-                    Image(rememberAsyncImagePainter(selectedImageUri), null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    ImageCropFrame(controller = cropController, modifier = Modifier.matchParentSize())
                 } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Filled.CameraAlt, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(36.dp))
                         Spacer(Modifier.height(8.dp))
                         Text("사진 추가", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
+                    }
+                }
+            }
+
+            if (selectedImageUri != null) {
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { showImageSourceDialog = true }) {
+                        Text("다시 선택", color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp)
                     }
                 }
             }
@@ -432,7 +471,18 @@ fun UploadScreen(
                         val lat = curLatLng?.latitude ?: LocationHelper.getCurrentLocation(context)?.latitude ?: 0.0
                         val lng = curLatLng?.longitude ?: LocationHelper.getCurrentLocation(context)?.longitude ?: 0.0
                         val imageUrl = if (selectedImageUri != null) {
-                            val result = ImageUploadHelper.uploadImageResult(context, selectedImageUri!!)
+                            // 크롭 프레임 상태로 잘라낸 이미지를 업로드(실패 시 원본으로 폴백).
+                            val uploadUri = withContext(Dispatchers.IO) {
+                                val bmp = cropController.bitmap
+                                if (bmp != null && cropController.frame.width > 0) {
+                                    ImageCropHelper.cropToFile(
+                                        context, bmp,
+                                        cropController.frame.width.toFloat(), cropController.frame.height.toFloat(),
+                                        cropController.scale, cropController.offset.x, cropController.offset.y
+                                    )
+                                } else null
+                            } ?: selectedImageUri!!
+                            val result = ImageUploadHelper.uploadImageResult(context, uploadUri)
                             if (!result.isSuccess) {
                                 com.chaminwoo.stary.core.ui.StaryToast.show("이미지 업로드 실패: ${result.error}")
                                 isUploading = false; return@launch
@@ -463,6 +513,75 @@ fun UploadScreen(
             }
 
             Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
+/**
+ * 크롭 상태 보유자. 프레임을 항상 덮는 cover 배율 위에 사용자 핀치(scale)와 드래그(offset)를 얹고,
+ * 이미지가 프레임을 벗어나 빈 공간이 생기지 않도록 offset 을 클램프한다.
+ */
+private class CropController {
+    var bitmap by mutableStateOf<Bitmap?>(null)
+    var scale by mutableFloatStateOf(1f)
+    var offset by mutableStateOf(Offset.Zero)
+    var frame by mutableStateOf(IntSize.Zero)
+
+    fun reset() { scale = 1f; offset = Offset.Zero }
+
+    fun onTransform(zoomChange: Float, panChange: Offset) {
+        val bmp = bitmap ?: return
+        val fw = frame.width.toFloat(); val fh = frame.height.toFloat()
+        if (fw <= 0f || fh <= 0f) return
+        scale = (scale * zoomChange).coerceIn(1f, 4f)
+        val dispScale = max(fw / bmp.width, fh / bmp.height) * scale
+        val dispW = bmp.width * dispScale
+        val dispH = bmp.height * dispScale
+        val maxX = ((dispW - fw) / 2f).coerceAtLeast(0f)
+        val maxY = ((dispH - fh) / 2f).coerceAtLeast(0f)
+        val moved = offset + panChange
+        offset = Offset(moved.x.coerceIn(-maxX, maxX), moved.y.coerceIn(-maxY, maxY))
+    }
+}
+
+/** 고정 비율 프레임 안에서 이미지를 cover-fit 으로 그리고 드래그/핀치로 위치·확대를 받는다. */
+@Composable
+private fun ImageCropFrame(controller: CropController, modifier: Modifier) {
+    val bmp = controller.bitmap
+    Box(
+        modifier = modifier
+            .clipToBounds()
+            .onSizeChanged { controller.frame = it },
+        contentAlignment = Alignment.Center
+    ) {
+        if (bmp == null) {
+            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
+            return@Box
+        }
+        val image = remember(bmp) { bmp.asImageBitmap() }
+        Canvas(
+            modifier = Modifier.matchParentSize().pointerInput(bmp) {
+                detectTransformGestures { _, pan, zoom, _ -> controller.onTransform(zoom, pan) }
+            }
+        ) {
+            val fw = size.width; val fh = size.height
+            val dispScale = max(fw / bmp.width, fh / bmp.height) * controller.scale
+            val dispW = bmp.width * dispScale
+            val dispH = bmp.height * dispScale
+            val left = (fw - dispW) / 2f + controller.offset.x
+            val top = (fh - dispH) / 2f + controller.offset.y
+            drawImage(
+                image = image,
+                dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
+                dstSize = IntSize(dispW.roundToInt(), dispH.roundToInt())
+            )
+            // 3분할 크롭 가이드
+            val guide = Color.White.copy(alpha = 0.35f)
+            val sw = 1.dp.toPx()
+            drawLine(guide, Offset(fw / 3f, 0f), Offset(fw / 3f, fh), sw)
+            drawLine(guide, Offset(fw * 2f / 3f, 0f), Offset(fw * 2f / 3f, fh), sw)
+            drawLine(guide, Offset(0f, fh / 3f), Offset(fw, fh / 3f), sw)
+            drawLine(guide, Offset(0f, fh * 2f / 3f), Offset(fw, fh * 2f / 3f), sw)
         }
     }
 }

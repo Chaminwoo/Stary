@@ -66,6 +66,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.chaminwoo.stary.core.util.MapUiState
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.auth.screen.LoginScreen
@@ -116,6 +117,8 @@ fun MainScreen(
         currentDestination?.hasRoute<NavRoute.Achievements>() == true -> NavRoute.Achievements
         currentDestination?.hasRoute<NavRoute.Friends>() == true -> NavRoute.Friends
         currentDestination?.hasRoute<NavRoute.Notification>() == true -> NavRoute.Notification
+        currentDestination?.hasRoute<NavRoute.Chat>() == true ->
+            navBackStackEntry?.toRoute<NavRoute.Chat>() ?: NavRoute.Chat()
         currentDestination?.hasRoute<NavRoute.Detail>() == true -> NavRoute.Detail()
         else -> NavRoute.Main
     }

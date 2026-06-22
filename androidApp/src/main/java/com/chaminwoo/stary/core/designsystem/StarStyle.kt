@@ -17,7 +17,7 @@ import kotlin.math.sin
  * - 색상(starColor 0..19): 0~15 단색 / 16~19 2색 그라데이션(고난도 업적 보상).
  */
 object StarStyle {
-    const val TYPE_COUNT = 8
+    const val TYPE_COUNT = 9
     const val COLOR_COUNT = 20
 
     /**
@@ -81,13 +81,14 @@ object StarStyle {
      * 별/형태 Path 생성. (sizePx × sizePx 정사각 중앙 기준)
      *
      * 0: 4꼭지 스파클 / 1: 5꼭지 별 / 2: 6꼭지 별 / 3: 8꼭지 가는 스파클 / 4: 다이아 스파클 /
-     * 5: 꽃 / 6: 보석 / 7: 초승달  (5~7은 별 아닌 창의적 형태 — 수집 보상)
+     * 5: 꽃 / 6: 다이아몬드 / 7: 초승달 / 8: 행성  (5~8은 별 아닌 창의적 형태 — 수집 보상)
      */
     fun starPath(type: Int, sizePx: Float): Path {
         when (type.coerceIn(0, TYPE_COUNT - 1)) {
             5 -> return flowerPath(sizePx)
             6 -> return gemPath(sizePx)
             7 -> return crescentPath(sizePx)
+            8 -> return planetPath(sizePx)
         }
 
         data class Spec(val spikes: Int, val innerRatio: Float, val rotateDeg: Double, val curved: Boolean)
@@ -129,36 +130,102 @@ object StarStyle {
 
     // ── 창의적 형태 ──────────────────────────────────────────────
 
-    /** 꽃 — 둥근 꽃잎 6장 + 중심(겹친 원들의 합집합 실루엣). */
+    /** 꽃 — 둥근 꽃잎 6장(합집합) + 가운데 빈 원. 전체를 20% 작게. */
     private fun flowerPath(s: Float): Path {
         val cx = s / 2f; val cy = s / 2f
-        val ring = s * 0.255f   // 꽃잎 중심까지 거리
-        val petal = s * 0.225f  // 꽃잎 반지름
-        val path = Path()
+        val scale = 0.8f               // 기존 대비 20% 축소
+        val ring = s * 0.255f * scale  // 꽃잎 중심까지 거리
+        val petal = s * 0.225f * scale // 꽃잎 반지름
+        val body = Path()
         for (i in 0 until 6) {
             val a = Math.toRadians(i * 60.0 - 90.0)
-            path.addCircle(cx + (ring * cos(a)).toFloat(), cy + (ring * sin(a)).toFloat(), petal, Path.Direction.CW)
+            body.addCircle(cx + (ring * cos(a)).toFloat(), cy + (ring * sin(a)).toFloat(), petal, Path.Direction.CW)
         }
-        path.addCircle(cx, cy, s * 0.17f, Path.Direction.CW)
-        return path
+        // 가운데 원을 빼서 빈 공간(구멍)으로 만든다.
+        val hole = Path().apply { addCircle(cx, cy, s * 0.135f, Path.Direction.CW) }
+        return Path().apply { op(body, hole, Path.Op.DIFFERENCE) }
     }
 
-    /** 보석 — 윗면(테이블) + 아래로 뾰족한 컬릿의 컷팅된 보석 실루엣. */
+    /**
+     * 보석(다이아몬드) — 컷 다이아몬드 실루엣(테이블·거들·컬릿) 위에
+     * 패싯(컷) 라인을 빈 공간으로 뚫어 면이 갈라져 보이게 한다.
+     */
     private fun gemPath(s: Float): Path {
         fun p(fx: Float, fy: Float) = (fx * s) to (fy * s)
-        val path = Path()
-        val pts = listOf(
-            0.30f to 0.20f, 0.70f to 0.20f, // 윗면 좌우
-            0.95f to 0.42f,                 // 오른쪽 어깨
-            0.50f to 0.95f,                 // 아래 꼭지(컬릿)
-            0.05f to 0.42f                  // 왼쪽 어깨
-        )
-        pts.forEachIndexed { i, (fx, fy) ->
-            val (x, y) = p(fx, fy)
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+
+        // 외곽: 테이블(윗면) + 좌우 어깨 → 거들(최대폭) → 컬릿(아래 한 점)
+        val outline = Path().apply {
+            val pts = listOf(
+                0.31f to 0.11f, // 테이블 좌
+                0.69f to 0.11f, // 테이블 우
+                0.84f to 0.14f, // 오른 어깨
+                0.97f to 0.40f, // 오른 거들(최대폭)
+                0.50f to 0.95f, // 컬릿
+                0.03f to 0.40f, // 왼 거들(최대폭)
+                0.16f to 0.14f  // 왼 어깨
+            )
+            pts.forEachIndexed { i, (fx, fy) ->
+                val (x, y) = p(fx, fy)
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+            close()
         }
-        path.close()
-        return path
+
+        // 패싯(컷) 라인 — diamond.jpg 문양. 이 선들을 빈 공간으로 뚫는다.
+        // 핵심: 크라운 중앙이 X자(테이블 양끝→중앙점 A→거들)로 갈라진다.
+        val lines = Path().apply {
+            fun seg(a: Pair<Float, Float>, b: Pair<Float, Float>) {
+                val (ax, ay) = p(a.first, a.second); val (bx, by) = p(b.first, b.second)
+                moveTo(ax, ay); lineTo(bx, by)
+            }
+            val a = 0.50f to 0.22f      // 크라운 중앙 수렴점
+            // 거들(가로) — 크라운/파빌리온 경계
+            seg(0.03f to 0.40f, 0.97f to 0.40f)
+            // 크라운: 테이블 윗변
+            seg(0.31f to 0.11f, 0.69f to 0.11f)
+            // 크라운: 테이블 양끝 → 중앙점 A (역삼각 윗면)
+            seg(0.31f to 0.11f, a)
+            seg(0.69f to 0.11f, a)
+            // 크라운: 중앙점 A → 거들 중앙 두 점 (정삼각 — 중앙 패싯)
+            seg(a, 0.40f to 0.40f)
+            seg(a, 0.60f to 0.40f)
+            // 크라운: 테이블 모서리 → 중간 거들점
+            seg(0.31f to 0.11f, 0.29f to 0.40f)
+            seg(0.69f to 0.11f, 0.71f to 0.40f)
+            // 크라운: 어깨 → 중간 거들점
+            seg(0.16f to 0.14f, 0.29f to 0.40f)
+            seg(0.84f to 0.14f, 0.71f to 0.40f)
+            // 파빌리온: 중간 거들점 → 컬릿(중앙 큰 삼각 + 양옆 면)
+            seg(0.29f to 0.40f, 0.50f to 0.95f)
+            seg(0.71f to 0.40f, 0.50f to 0.95f)
+        }
+        // 선을 두께 있는 채움 경로로 변환 후 외곽에서 빼서 컷 라인을 만든다.
+        val lineFill = Path()
+        android.graphics.Paint().apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = s * 0.03f
+            strokeJoin = android.graphics.Paint.Join.MITER
+        }.getFillPath(lines, lineFill)
+
+        return Path().apply { op(outline, lineFill, Path.Op.DIFFERENCE) }
+    }
+
+    /** 행성 — 본체 원 + 기울어진 고리(타원 밴드)의 합집합 실루엣. (planet.jpeg 참고) */
+    private fun planetPath(s: Float): Path {
+        val cx = s / 2f; val cy = s * 0.52f
+        val body = Path().apply { addCircle(cx, cy, s * 0.26f, Path.Direction.CW) }
+        // 고리 = 바깥 타원 − 안쪽 타원 = 밴드 → 살짝 기울임("/").
+        val outer = Path().apply {
+            addOval(android.graphics.RectF(cx - s * 0.46f, cy - s * 0.15f, cx + s * 0.46f, cy + s * 0.15f), Path.Direction.CW)
+        }
+        val inner = Path().apply {
+            addOval(android.graphics.RectF(cx - s * 0.37f, cy - s * 0.105f, cx + s * 0.37f, cy + s * 0.105f), Path.Direction.CW)
+        }
+        val band = Path().apply {
+            op(outer, inner, Path.Op.DIFFERENCE)
+            transform(android.graphics.Matrix().apply { postRotate(-20f, cx, cy) })
+        }
+        return Path().apply { op(body, band, Path.Op.UNION) }
     }
 
     /** 초승달 — 큰 원에서 살짝 비낀 원을 빼서 만든 크레센트. 살짝 반시계로 눕힌다. */

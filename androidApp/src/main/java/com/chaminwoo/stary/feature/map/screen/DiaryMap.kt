@@ -966,10 +966,13 @@ fun DiaryMap(
                 continue
             }
             t += 0.05f
+            // 줌이 작을수록 float 진폭을 줄인다(별 크기 곡선과 동일한 결: 줌6 거의 정지 ~ 줌15 최대).
+            val zoom = (mapRef?.cameraPosition?.zoom ?: 13.0).toFloat()
+            val zoomAmp = ((zoom - 6f) / (15f - 6f)).coerceIn(0.1f, 1f)
             for (g in 0 until PHASE_GROUPS) {
                 val layer = style.getLayer(diaryLayerId(g)) as? SymbolLayer ?: continue
                 val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
-                val floatDy = (sin(t * 1.6f + phase) * 3f) // -3..3 dp 부유
+                val floatDy = (sin(t * 1.6f + phase) * 3f * zoomAmp) // 최대 -3..3 dp, 줌 작으면 축소
                 val pulse = 1f + 0.20f * ((sin(t * 3.2f + phase) + 1f) / 2f) // 1.0..1.2 맥동
                 layer.setProperties(
                     PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),

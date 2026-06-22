@@ -24,6 +24,10 @@ class NotificationViewModel(private val userId: String) : ViewModel() {
         viewModelScope.launch { repo.markAllRead(userId) }
     }
 
+    fun delete(notificationId: String) {
+        viewModelScope.launch { repo.deleteNotification(notificationId) }
+    }
+
     companion object {
         fun factory(userId: String): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

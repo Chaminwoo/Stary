@@ -35,7 +35,18 @@ object StaryConfig {
         const val FRIEND_REQUESTS = "friendRequests"
         /** users/{uid} 하위: 열람한 다이어리 기록 (미조회 필터용) */
         const val VIEWED_DIARIES = "viewedDiaries"
+        /** 최상위: 1:1 친구 채팅 방 */
+        const val CHATS = "chats"
+        /** chats/{chatId} 하위: 채팅 메시지 */
+        const val MESSAGES = "messages"
     }
+
+    /**
+     * 두 사용자 ID 로 결정적 채팅방 ID 를 만든다(정렬 후 결합).
+     * 양쪽 사용자가 인자 순서와 무관하게 같은 방(chatId)을 가리키도록 보장한다.
+     */
+    fun chatId(a: String, b: String): String =
+        if (a <= b) "${a}_$b" else "${b}_$a"
 
     /** 다이어리 열람 가능 반경(미터). */
     const val DIARY_OPEN_RADIUS_M: Float = 100f

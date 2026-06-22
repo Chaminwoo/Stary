@@ -1,4 +1,8 @@
 {
+  "firestore": {
+    "database": "stary-db",
+    "rules": "firestore.rules"
+  },
   "storage": {
     "rules": "storage.rules"
   },

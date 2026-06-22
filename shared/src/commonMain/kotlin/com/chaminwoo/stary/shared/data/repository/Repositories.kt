@@ -1,6 +1,7 @@
 package com.chaminwoo.stary.shared.data.repository
 
 import com.chaminwoo.stary.core.model.AppNotification
+import com.chaminwoo.stary.core.model.ChatMessage
 import com.chaminwoo.stary.core.model.Comment
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.model.Friend
@@ -58,6 +59,7 @@ interface NotificationRepository {
     fun observeNotifications(ownerId: String): Flow<List<AppNotification>>
     fun observeUnreadCount(ownerId: String): Flow<Int>
     suspend fun markAllRead(ownerId: String)
+    suspend fun deleteNotification(notificationId: String)
 }
 
 interface FriendRepository {
@@ -68,6 +70,17 @@ interface FriendRepository {
     suspend fun acceptRequest(request: FriendRequest): Boolean
     suspend fun declineRequest(requestId: String)
     suspend fun removeFriend(userId: String, friendId: String)
+}
+
+/** 1:1 친구 채팅. */
+interface ChatRepository {
+    fun observeMessages(chatId: String): Flow<List<ChatMessage>>
+    suspend fun sendMessage(
+        chatId: String,
+        senderId: String,
+        senderName: String,
+        text: String
+    ): Boolean
 }
 
 /** 미조회 다이어리 필터용 열람 기록. */

@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **기능 배치 3**(업로드 별모양/색상 무한 캐러셀, 지도 필터 스피드다이얼 FAB, 맵 워터마크 제거)
+> 최종 갱신: **8.11 채팅/크롭/전환/모양 라운드**(친구 채팅, 사진 4:3 크롭, 화면 전환 깊이감 줌, 다이아몬드 재현+행성 추가) — 아래 8.11 참고.
+> 이전: **기능 배치 3**(업로드 별모양/색상 무한 캐러셀, 지도 필터 스피드다이얼 FAB, 맵 워터마크 제거)
 > 이전: **기능 배치 2**(파장 애니메이션, 공개범위, 나만보기/친구선택 필터, 별자리, 배경음악, 마이페이지 별 모양)
 > 이전: **기능 배치 1**(별 마커 5종×12색 Path 렌더, 친구, 미조회/친구 필터, 별 선택 업로드, FRIEND_POST 인앱 알림)
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
@@ -156,6 +157,35 @@
     → `FirebaseAuth.AuthStateListener` 로 **auth 변경 시 재구독**(`ListenerRegistration` 교체). 메인 지도 마커가 안 뜨던 핵심 원인.
   - `observeMyDiaries` 복합 인덱스(userId+createdAt) 의존 제거 → 서버는 `whereEqualTo(userId)` 만, **정렬은 클라이언트**(`sortedByDescending`).
 - 참고: Firestore 경고 `No setter/field for anonymous`(Diary.isAnonymous ↔ "anonymous" 매핑) 는 무해(기본 false).
+
+## 8.11 채팅/크롭/전환/모양 라운드 (2026-06-22)
+- **친구 1:1 채팅**: commonMain `ChatMessage`(core/model) + `ChatRepository`(observeMessages/sendMessage) +
+  `StaryConfig.CHATS/MESSAGES` 상수 + `chatId(a,b)`(두 ID 정렬·결합 결정적 방 ID). Android `FirebaseChatRepository`
+  (`chats/{chatId}/messages/{id}` createdAt 오름차순 구독 + 방 메타 머지). `feature/chat/ChatViewModel` + `screen/ChatScreen`
+  (말풍선 좌/우, IME/내비바 패딩, 새 메시지 자동 스크롤). `NavRoute.Chat(friendId, friendName)`(title=친구명) + NavGraph 배선 +
+  FriendScreen 행에 "채팅" pill(`onOpenChat`) + MainScreen currentRoute 매핑(toRoute).
+- **Firestore 규칙 파일화**: 루트 `firestore.rules`(앱이 쓰는 전 컬렉션 + chats, `request.auth != null` 게이팅 — userId=Google sub라
+  auth.uid 강제 불가) + `firebase.json` 에 `firestore.database="stary-db"`. 배포: `firebase deploy --only firestore:rules`.
+  ⚠️ 콘솔 기존 규칙을 대체하므로 배포 전 대조 필요(아직 미배포 — 채팅 동작하려면 배포해야 함).
+- **알림 화면**: 빈 상태 "알림이 없습니다"(🔔). **왼쪽 스와이프 = 고정 폭(84dp) 삭제 버튼 드러내기**(Animatable offset +
+  draggable, `coerceIn(-revealPx,0)` 로 버튼 폭까지만, 절반 기준 스냅). 삭제 버튼 왼쪽 면 둥글게(RoundedCornerShape topStart/bottomStart),
+  소프트레드 `0xFFE57373`. `NotificationRepository.deleteNotification` + VM `delete()` 추가.
+- **사진 크롭(고정 4:3)**: `core/util/ImageCropHelper`(ASPECT=4/3, EXIF 보정+다운샘플 `loadDownsampled`, `cropToFile`) +
+  `androidx.exifinterface:1.3.7`. UploadScreen 이미지 영역을 `aspectRatio(ASPECT)` 프레임으로 — 드래그 위치+핀치 확대(cover-fit 클램프,
+  3분할 가이드), 저장 시 크롭본 업로드(실패 시 원본 폴백). `CropController`+`ImageCropFrame`(Canvas drawImage).
+  DetailScreen 헤더도 `aspectRatio(ASPECT)` 로 통일(추가 크롭 없음). 사진 없으면 `R.drawable.image_frame` 템플릿.
+- **DetailScreen UI 리팩토링**: 헤더 사진 위 스크림 + **작성자/날짜만 오버레이**(제목은 사진 밖 본문 상단으로 분리). 별 색을 강조색으로
+  통일(테두리/포커스/전송/댓글 점). **사진 탭 → 전체화면 뷰어**(핀치 줌 1~5, 드래그, 더블탭, 탭/뒤로 닫기, `FullScreenImageViewer`).
+- **화면 전환**: NavHost 기본 전환 = 깊이감 줌(scaleIn 0.93+fadeIn / scaleOut 1.06+fadeOut, pop 대칭, 320/300ms FastOutSlowIn).
+  Upload 만 모달 슬라이드업(slideInVertically{it}, pop slideOut). 별 줌인 물결 연출 → Detail 확대 등장과 연결.
+- **지도 float 진폭 줌 연동**: DiaryMap 별 부유 애니메이션 진폭에 `zoomAmp=((zoom-6)/9).coerceIn(0.1,1)` 곱(줌 작을수록 덜 흔들림).
+- **별 모양 추가/수정**(`StarStyle`, TYPE_COUNT 8→9):
+  - 꽃(5): 0.8배 축소 + 가운데 빈 원(반지름 0.135·s).
+  - 다이아몬드(6): `references/diamond.jpg` 재현 — 테이블·어깨·거들·컬릿 외곽 + 크라운 중앙 X자 패싯, 패싯선은 `getFillPath`로
+    두께 줘 DIFFERENCE 로 빈 공간(컷) 처리.
+  - **행성(8 신규)**: `references/planet.jpeg` — 본체 원 + 기울어진(−20°) 타원 고리 밴드 UNION. 업적 `shape_planet`("나만의 행성",
+    서로 다른 30일 기록 = distinctDays≥30) 추가 → `StarUnlocks` 자동 도출로 피커/업적화면 반영.
+  - ⚠️ 참조 이미지는 `res/drawable` 금지(리소스명 충돌로 빌드 실패). `references/`(빌드 제외)에 보관.
 
 ## 8.10 몰입/연출/업적 라운드 (2026-06-20)
 - **다이어리 진입 연출 이동**: 세부 화면(DetailScreen)의 파장/왜곡 **제거**(이제 멀쩡하게 진입).

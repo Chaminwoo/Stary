@@ -71,6 +71,7 @@ object Achievements {
         Achievement("shape_flower", "별꽃을 피운 자", "좋아요 80개 받기", Reward.Shape(5)) { it.likesReceived >= 80 },          // 꽃
         Achievement("shape_gem", "결정의 시간", "서로 다른 14일에 기록하기", Reward.Shape(6)) { it.distinctDays >= 14 },        // 보석
         Achievement("shape_moon", "달의 인도자", "총 조회수 500 달성하기", Reward.Shape(7)) { it.viewsReceived >= 500 },         // 초승달
+        Achievement("shape_planet", "나만의 행성", "서로 다른 30일에 기록하기", Reward.Shape(8)) { it.distinctDays >= 30 },      // 행성
         Achievement("shape_farjourney", "머나먼 여정", "기록 두 곳이 50km 이상 떨어지기", Reward.Shape(3)) { it.maxSpanMeters >= 50_000f },
         Achievement("shape_border", "국경을 넘어", "기록 두 곳이 1,000km 이상 떨어지기", Reward.Shape(4)) { it.maxSpanMeters >= 1_000_000f },
         // ── 별 색 보상 (단색) ──

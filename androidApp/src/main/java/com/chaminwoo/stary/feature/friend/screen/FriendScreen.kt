@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PersonAdd
@@ -68,7 +69,10 @@ private val Green = Color(0xFF6EE7B7)
 private val SoftRed = Color(0xFFFF6B6B)
 
 @Composable
-fun FriendScreen(modifier: Modifier = Modifier) {
+fun FriendScreen(
+    modifier: Modifier = Modifier,
+    onOpenChat: (friendId: String, friendName: String) -> Unit = { _, _ -> },
+) {
     val userId = GoogleAuthHelper.currentUserId
 
     if (userId == null) {
@@ -177,8 +181,13 @@ fun FriendScreen(modifier: Modifier = Modifier) {
             }
             items(friends, key = { "friend_${it.userId}" }) { friend ->
                 PersonCard(name = friend.userName, photoUrl = friend.photoUrl) {
-                    Pill("삭제", null, Color.White.copy(alpha = 0.05f), TextMuted) {
-                        vm.remove(friend.userId, friend.userName)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Pill("채팅", Icons.AutoMirrored.Filled.Chat, Green.copy(alpha = 0.16f), Green) {
+                            onOpenChat(friend.userId, friend.userName)
+                        }
+                        Pill("삭제", null, Color.White.copy(alpha = 0.05f), TextMuted) {
+                            vm.remove(friend.userId, friend.userName)
+                        }
                     }
                 }
             }

@@ -1,0 +1,72 @@
+rules_version = '2';
+
+// Stary Firestore 보안 규칙 (named DB: stary-db)
+//
+// 원칙(Storage 규칙과 동일):
+//  - 읽기/쓰기는 "로그인(익명 포함) 세션"이 있어야 한다 → request.auth != null.
+//  - ⚠️ 앱의 userId 는 Google sub(JWT subject)라 Firebase Auth uid 와 다르다.
+//    따라서 request.auth.uid == userId 로 소유자를 강제할 수 없다(항상 거부됨).
+//    소유권 검증은 클라이언트 + 함수 레벨에서 처리하고, 규칙은 "세션 보유"로 게이팅한다.
+//
+// ⚠️ 이 파일은 앱이 쓰는 "모든" 컬렉션을 포함한다. 배포하면 콘솔의 기존 규칙을
+//    전부 대체하므로, 콘솔에 별도 커스텀 규칙이 있었다면 먼저 대조할 것.
+//
+// 배포(named DB 지정 필수): firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // 다이어리 + 하위(댓글/좋아요)
+    match /diaries/{diaryId} {
+      allow read, write: if isSignedIn();
+
+      match /comments/{commentId} {
+        allow read, write: if isSignedIn();
+      }
+      match /likes/{userId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // 알림 (diaryOwnerId 로 조회, read 플래그 갱신)
+    match /notifications/{notificationId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // 사용자 공개 프로필 + 하위(친구 목록/열람 기록)
+    match /users/{userId} {
+      allow read, write: if isSignedIn();
+
+      match /friends/{friendId} {
+        allow read, write: if isSignedIn();
+      }
+      match /viewedDiaries/{diaryId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // 친구 요청(pending)
+    match /friendRequests/{requestId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // 1:1 친구 채팅: chats/{chatId}/messages/{messageId}
+    //  - chatId = 두 userId 정렬·결합(StaryConfig.chatId). 클라이언트가 결정.
+    //  - 방 메타 문서(chats/{chatId})와 메시지 모두 로그인 세션이면 허용.
+    match /chats/{chatId} {
+      allow read, write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // 그 외 경로는 모두 거부
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

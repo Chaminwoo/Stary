@@ -81,6 +81,14 @@ sealed class NavRoute {
     }
 
     @Serializable
+    data class Chat(val friendId: String = "", val friendName: String = "") : NavRoute() {
+        override val title get() = friendName.ifBlank { "채팅" }
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
+    @Serializable
     data object Notification : NavRoute() {
         override val title = "알림"
         override val isRoot = false

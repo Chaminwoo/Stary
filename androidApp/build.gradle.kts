@@ -107,6 +107,8 @@ dependencies {
     implementation(project(":shared"))
 
     implementation(libs.androidx.core.ktx)
+    // 사진 크롭 시 EXIF 회전 보정(InputStream 지원).
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
     // AppCompat: themes.xml 의 Theme.AppCompat.* 상속용.
     // (기존엔 네이버맵 의존성이 transitive 로 제공했으나 Google Maps 전환으로 명시 추가)
     implementation("androidx.appcompat:appcompat:1.7.0")
