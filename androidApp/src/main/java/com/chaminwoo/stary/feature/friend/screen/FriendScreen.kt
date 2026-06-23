@@ -65,7 +65,7 @@ import com.chaminwoo.stary.core.model.UserProfile
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.friend.FriendViewModel
 
-private val Green = Color(0xFF6EE7B7)
+private val Green = com.chaminwoo.stary.core.designsystem.Mint
 private val SoftRed = Color(0xFFFF6B6B)
 
 @Composable
@@ -98,9 +98,24 @@ fun FriendScreen(
     val results by vm.searchResults.collectAsState()
     val isSearching by vm.isSearching.collectAsState()
     var query by remember { mutableStateOf("") }
+    // 현재 query 로 검색이 실제 디스패치됐는지 추적 — '결과 없음' 표시를 디바운스 중 깜빡임 없이 띄우기 위함.
+    var lastSearched by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         vm.event.collect { com.chaminwoo.stary.core.ui.StaryToast.show(it) }
+    }
+
+    // 입력하면 타이핑 멈춘 뒤(350ms) 자동 검색 — 매번 엔터를 누르지 않아도 결과가 갱신된다.
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (q.isBlank()) {
+            vm.clearSearch()
+            lastSearched = null
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.delay(350)
+        vm.search(q)
+        lastSearched = q
     }
 
     Box(modifier = modifier.fillMaxSize().background(PageBg)) {
@@ -121,10 +136,7 @@ fun FriendScreen(
             item {
                 SearchField(
                     query = query,
-                    onValueChange = {
-                        query = it
-                        if (it.isBlank()) vm.clearSearch()
-                    },
+                    onValueChange = { query = it },
                     onSearch = { if (query.isNotBlank()) vm.search(query) }
                 )
             }
@@ -146,6 +158,16 @@ fun FriendScreen(
                                 vm.sendRequest(user)
                             }
                         }
+                    }
+                }
+            } else if (lastSearched != null && lastSearched == query.trim() && !isSearching) {
+                // 검색은 했는데 결과가 없을 때
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("'${query.trim()}' 검색 결과가 없어요", color = TextMuted, fontSize = 13.sp)
                     }
                 }
             }
@@ -279,7 +301,7 @@ private fun Avatar(name: String, photoUrl: String) {
         if (photoUrl.isNotBlank()) {
             AsyncImage(
                 model = photoUrl,
-                contentDescription = null,
+                contentDescription = "${name.ifBlank { "사용자" }} 프로필 사진",
                 modifier = Modifier.fillMaxSize().clip(CircleShape),
                 contentScale = ContentScale.Crop
             )

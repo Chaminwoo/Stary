@@ -29,6 +29,16 @@ class FirebaseDiaryRepository : DiaryRepository {
 
     private val diaries = staryFirestore.collection(StaryConfig.Collections.DIARIES)
 
+    companion object {
+        /**
+         * 전체 다이어리 실시간 구독 상한.
+         * 전 컬렉션을 무제한으로 받으면 다이어리가 늘수록 모든 기기가 전부 메모리에 들고
+         * 변경마다 재읽기해 Firestore 비용·메모리·렌더 부담이 선형 증가한다.
+         * 최신순 상한으로 잘라 가드(필요 시 추후 뷰포트/지오해시 쿼리로 대체).
+         */
+        private const val MAX_OBSERVED_DIARIES = 1000L
+    }
+
     // 전체 다이어리 실시간 조회
     override fun observeAllDiaries(): Flow<List<Diary>> = callbackFlow {
         // 앱 시작 시 지도는 로그인 전(auth==null)에 미리 렌더된다. 그때 첫 구독이 시작되면
@@ -41,6 +51,7 @@ class FirebaseDiaryRepository : DiaryRepository {
             registration?.remove()
             registration = diaries
                 .orderBy("createdAt", Query.Direction.DESCENDING)
+                .limit(MAX_OBSERVED_DIARIES)
                 .addSnapshotListener { snapshot: QuerySnapshot?, error: Exception? ->
                     if (error != null) return@addSnapshotListener
                     val currentUid = GoogleAuthHelper.currentUserId

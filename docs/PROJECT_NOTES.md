@@ -158,6 +158,69 @@
   - `observeMyDiaries` 복합 인덱스(userId+createdAt) 의존 제거 → 서버는 `whereEqualTo(userId)` 만, **정렬은 클라이언트**(`sortedByDescending`).
 - 참고: Firestore 경고 `No setter/field for anonymous`(Diary.isAnonymous ↔ "anonymous" 매핑) 는 무해(기본 false).
 
+## 8.16 타인 프로필 = 내 프로필급 정보 (BUILD SUCCESSFUL 2026-06-23, 실기기 테스트 대기)
+- **UserProfileScreen 전면 확장**: 아바타/이름/친구액션에 더해 **통계(좋아요·조회수·다이어리)·업적 진행도(unlocked/total 바)·장착 칭호**,
+  그리고 **그 사람의 다이어리 목록**(탭→Detail)을 표시. ProfileScreen 과 동일 레이아웃(GradientCard/StatCell).
+  - 통계/업적: `rememberUserStats(userId, diaryVm)` 가 임의 userId 로 동작(그 사람 diaries/viewed/friends 관찰) → `Achievements.unlockedIds`.
+  - 다이어리: `diaryVm.getMyDiaries(userId)`. **공개범위 필터**(private=본인만 / friends=본인·친구만 / 그 외 공개)로 타인 비공개 보호.
+  - `NavGraph`: UserProfile 에 `onOpenDiary`→Detail 배선.
+- **장착 칭호 공개화**(타인도 보이게): 칭호는 원래 로컬 `StigmaStore`(기기 prefs)에만 있어 타인이 못 봄 →
+  `UserProfile.equippedTitle`(commonMain) 필드 추가 + `FirebaseFriendRepository.setEquippedTitle(userId,achId)`(users/{uid} merge).
+  - 장착 시점(`AchievementsScreen` onToggleEquip)에서 Firestore 동기화(fire-and-forget) + **내 ProfileScreen 진입 시 백필**(LaunchedEffect 로 현재 장착값 push).
+  - `getProfile` 가 `equippedTitle` 까지 반환(toObject 자동 매핑). UserProfileScreen 이 `Achievements.byId(id)?.titleName` 로 표시.
+  - ⚠️ shared 모듈(UserProfile) 변경이라 :shared 재컴파일됨. expect/actual Beta 경고는 기존 무해.
+
+## 8.15 알림 지도포커스 + 타인 프로필/친구추가 (BUILD SUCCESSFUL 2026-06-23, 실기기 테스트 대기)
+- **새 다이어리 알림 → 지도 카메라 이동 + 파장 1회**:
+  - `core/util/MapUiState.kt` 에 `MapFocusState`(전역 `pendingDiaryId`, request/consume) 추가.
+  - `NotificationScreen`: 알림 타입이 `FRIEND_POST` 면 `onFocusDiaryOnMap(diaryId)`, 그 외(LIKE/COMMENT)는 기존대로 `onOpenDiary`(Detail).
+  - `NavGraph`: `onFocusDiaryOnMap` → `MapFocusState.request(id)` + `Main` 으로 popUpTo 이동.
+  - `MainListScreen`: `MapFocusState.pendingDiaryId` 를 **전체(diaries, 필터 무관)** 에서 좌표 조회 → `DiaryFocusTarget` 으로 `DiaryMap` 에 전달, `onFocusHandled={consume()}`.
+  - `DiaryMap`: `focusDiary`/`onFocusHandled` 파라미터 + `DiaryFocusTarget(lat,lng,colorIndex,diaryId)`. `LaunchedEffect(focusDiary,mapRef)` 가
+    `animateCamera(800ms)` → `CancelableCallback.onFinish` 에서 `map.snapshot` → 화면 중앙(0.5,0.5) `DiaryOpenWarp` 재생. `DiaryOpenWarpData.navigateAfter`
+    플래그 추가(별 탭=true→세부 이동 / 알림 포커스=false→파장만, consume). ⚠️ 필터로 가려진 별이면 카메라/파장은 동작하나 별 자체는 미표시.
+- **타인 다이어리 → 작성자 프로필 진입 + 친구추가**:
+  - `NavRoute.UserProfile(userId,userName)` 추가(title=userName). `feature/profile/screen/UserProfileScreen.kt` 신규 —
+    아바타(공개프로필 사진 `FirebaseFriendRepository.getProfile` 로드)/이름 + **친구 상태별 액션**(본인="내 프로필" / 이미친구="친구"칩+"채팅하기" / 그외="친구 추가"→`FriendViewModel.sendRequest`, 누르면 "요청됨"). `FriendViewModel` 재사용.
+  - `FirebaseFriendRepository.getProfile(userId)` 추가(users/{uid} 단건 조회).
+  - `DetailScreen(onOpenProfile)` — 헤더 작성자(별+이름) 영역을 탭하면 진입(익명/빈 userId 면 비활성, 탭 가능 시 ChevronRight 표시).
+  - `NavGraph`: Detail.onOpenProfile→`UserProfile` 내비, `composable<UserProfile>`(onOpenChat→Chat). `MainScreen` currentRoute 매핑에 `UserProfile` 추가(탑바 제목/뒤로가기).
+
+## 8.14 친구검색/색상수/접근성 라운드 (BUILD SUCCESSFUL 2026-06-23, 실기기 테스트 대기)
+- **중앙 브랜드 색**: `core/designsystem/Color.kt` 에 `Mint(0xFF6EE7B7)`, `MintBlue(0xFF3B82F6)` 추가(흩어진 리터럴의 단일 출처).
+  `FriendScreen.Green` 을 중앙 `Mint` 참조로 정리. ⚠️ 나머지 인라인 `Color(0xFF6EE7B7)`(DiaryMap/MainListScreen/MainScreen 등 20곳)은
+  미치환(후속 정리 대상) — 값은 동일하므로 동작 영향 없음.
+- **친구 검색 UX**(`FriendScreen`): 입력 디바운스 350ms **자동 검색**(엔터 불필요, `LaunchedEffect(query)`),
+  검색했는데 결과 0건이면 "'{query}' 검색 결과가 없어요" **빈 상태** 표시. `lastSearched` 로 디바운스 중 깜빡임 방지.
+- **접근성**: 친구 아바타 `AsyncImage` 에 `contentDescription="{이름} 프로필 사진"` 부여(스크린리더 대응).
+
+## 8.13 사용감 다듬기 라운드 (BUILD SUCCESSFUL 2026-06-23, 실기기 테스트 대기)
+- **알림 스와이프 삭제 강화**(`NotificationScreen.SwipeToDeleteNotification`): 놓는 순간 오프셋 3분기 —
+  `<= -revealPx*0.85`(최대까지 당김) → 화면 폭(`dismissPx`)만큼 밀어내고 `onDelete()` / `< -revealPx/2` → 버튼 노출 유지(탭 삭제) / 그 외 닫기.
+- **알림 탭 → 다이어리 열기**: `NotificationScreen(onOpenDiary)` 추가, `NavGraph` 의 `Notification` 라우트에서 `Detail(diaryId)` 로 내비.
+  `NotificationItem(onClick)` — `notif.diaryId` 가 있으면 행 클릭 가능(없으면 비활성).
+- **상대 시간 표기**: `core/util/RelativeTime`(방금 전/N분·시간·일 전, 1주↑은 yyyy.MM.dd 폴백). 알림·댓글에 적용
+  (`NotificationItem`, `DetailScreen.CommentItem`). ⚠️ 상세화면 헤더 작성일은 절대 날짜 유지.
+- **댓글 IME 전송**(`DetailScreen`): 입력창 `ImeAction.Send` + `KeyboardActions(onSend)`, 전송 버튼과 동일 경로(`submitComment`)로 단일화,
+  전송 후 `LocalSoftwareKeyboardController.hide()`.
+- 참고(미진행): 좋아요/댓글 실패 토스트는 Firestore 오프라인 영속성(쓰기 로컬 큐 보존+리스너 낙관 반영)으로 데이터 유실이 아니라 보류.
+
+## 8.12 사용감/최적화 정리 라운드 (BUILD SUCCESSFUL 2026-06-22, 실기기 테스트 대기)
+- **다이어리 구독 상한**: `FirebaseDiaryRepository.observeAllDiaries` 에 `.limit(MAX_OBSERVED_DIARIES=1000)` 추가.
+  전 컬렉션 무제한 실시간 구독(비용/메모리/렌더 선형 증가) 가드. ⚠️ 최신순 상한이라 1000개 초과 시 오래된 글은 지도에서 제외됨 →
+  추후 뷰포트/지오해시 쿼리로 대체 예정(TODO).
+- **조회수 합리화**(`DetailScreen`): `incrementViewCount` 를 **본인 글 제외 + 앱 세션당 1회**(`ViewCountSession` in-memory set)로 변경.
+  자가 열람/재진입 부풀림 + 매 열람 Firestore 쓰기 제거.
+- **WASD 위치 치트 디버그 한정**(`MainListScreen`): 위치 이동 키 입력/`focusRequester` 포커스 탈취를 `BuildConfig.DEBUG` 에서만.
+  릴리즈에선 `devKeyModifier = Modifier`(no-op).
+- **지도 애니메이션 루프 절전**(`DiaryMap`): 별 0개 + 파티클 숨김(zoom<9)일 때 50ms 루프를 `delay(250)` 으로 쉼.
+- **위치 확인중 상태**(`DetailScreen`): 위치 null 일 때 "범위 밖" 오안내 대신 "위치를 확인하는 중이에요…" 표시 +
+  최대 6초 폴링(`locationTick`)으로 위치 잡히면 갱신.
+- **클러스터링/별자리 디바운스**(`DiaryMap`): cameraIdle 재계산 LaunchedEffect 앞에 `delay(90)` — 연속 팬/줌 시 O(n²) 재계산 빈도 완화.
+- **날짜 포맷 remember**(`DetailScreen`): 헤더/댓글의 `SimpleDateFormat().format()` 을 `remember(createdAt)` 로 캐시(리컴포지션 할당 제거).
+- ⚠️ 미적용(후속): 비공개/친구공개 글이 `firestore.rules` 가 `auth!=null` 만 게이팅해 raw Firestore 에선 노출됨(클라 필터만).
+  userId=Google sub 라 규칙 레벨 소유자 강제 불가 → 별도 인증 구조 재설계 필요(미착수).
+
 ## 8.11 채팅/크롭/전환/모양 라운드 (2026-06-22)
 - **친구 1:1 채팅**: commonMain `ChatMessage`(core/model) + `ChatRepository`(observeMessages/sendMessage) +
   `StaryConfig.CHATS/MESSAGES` 상수 + `chatId(a,b)`(두 ID 정렬·결합 결정적 방 ID). Android `FirebaseChatRepository`

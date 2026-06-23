@@ -66,14 +66,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.chaminwoo.stary.BuildConfig
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Friend
 import com.chaminwoo.stary.core.util.LocationHelper
+import com.chaminwoo.stary.core.util.MapFocusState
 import com.chaminwoo.stary.core.util.MapUiState
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.data.repository.FirebaseViewedRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
+import com.chaminwoo.stary.feature.map.screen.DiaryFocusTarget
 import com.chaminwoo.stary.feature.map.screen.DiaryMap
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.google.firebase.auth.FirebaseAuth
@@ -230,7 +233,8 @@ fun MainListScreen(
 
     LaunchedEffect(Unit) {
         startLocationIfGranted()
-        runCatching { focusRequester.requestFocus() }
+        // WASD 위치 이동은 디버그 전용(실기기에선 포커스를 가로채지 않도록 요청도 디버그에서만).
+        if (BuildConfig.DEBUG) runCatching { focusRequester.requestFocus() }
     }
 
     fun moveLocation(latDelta: Double, lngDelta: Double) {
@@ -239,9 +243,9 @@ fun MainListScreen(
         LocationHelper.setCurrentLocation(newLatLng)
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
+    // WASD 로 현재 위치를 옮기는 건 개발/에뮬 테스트용 치트. 릴리즈에선 키 입력/포커스 탈취를 비활성화한다.
+    val devKeyModifier = if (BuildConfig.DEBUG) {
+        Modifier
             .focusRequester(focusRequester)
             .focusable()
             .onKeyEvent { keyEvent ->
@@ -255,12 +259,28 @@ fun MainListScreen(
                     }
                 } else false
             }
+    } else Modifier
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .then(devKeyModifier)
     ) {
+        // 알림에서 요청된 다이어리로 카메라 이동 + 파장 — 좌표는 필터와 무관하게 전체 목록에서 찾는다.
+        val focusTarget = remember(MapFocusState.pendingDiaryId, diaries) {
+            val id = MapFocusState.pendingDiaryId ?: return@remember null
+            diaries.firstOrNull { it.id == id }?.let {
+                DiaryFocusTarget(it.latitude, it.longitude, it.starColor, it.id)
+            }
+        }
+
         DiaryMap(
             diaries = filteredDiaries,
             currentLatLng = currentLatLng,
             onDiaryClick = onItemClick,
             onCreateClick = onCreateClick,
+            focusDiary = focusTarget,
+            onFocusHandled = { MapFocusState.consume() },
         )
 
         // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)

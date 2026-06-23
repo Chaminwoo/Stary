@@ -119,6 +119,8 @@ fun MainScreen(
         currentDestination?.hasRoute<NavRoute.Notification>() == true -> NavRoute.Notification
         currentDestination?.hasRoute<NavRoute.Chat>() == true ->
             navBackStackEntry?.toRoute<NavRoute.Chat>() ?: NavRoute.Chat()
+        currentDestination?.hasRoute<NavRoute.UserProfile>() == true ->
+            navBackStackEntry?.toRoute<NavRoute.UserProfile>() ?: NavRoute.UserProfile()
         currentDestination?.hasRoute<NavRoute.Detail>() == true -> NavRoute.Detail()
         else -> NavRoute.Main
     }

@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -79,11 +80,19 @@ import com.chaminwoo.stary.feature.diary.InteractionViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+/** 앱 세션 동안 이미 조회수를 올린 다이어리 id 집합 — 같은 글 재진입 시 중복 카운트를 막는다. */
+private object ViewCountSession {
+    private val counted = mutableSetOf<String>()
+    /** 처음 본 id면 true(이번에 카운트), 이미 본 id면 false. */
+    fun markFirstOpen(diaryId: String): Boolean = synchronized(counted) { counted.add(diaryId) }
+}
+
 @Composable
 fun DetailScreen(
     diaryId: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    onOpenProfile: (userId: String, userName: String) -> Unit = { _, _ -> },
     diaryViewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())
 ) {
     // diaryId 키로 묶어 재진입 시 상태가 항상 초기화되도록 한다.
@@ -100,12 +109,16 @@ fun DetailScreen(
 
     // 데이터 로드 (보통 캐시에서 즉시 반환).
     LaunchedEffect(diaryId) {
-        diary = DiaryCache.get(diaryId) ?: repository.getDiaryById(diaryId)
+        val loaded = DiaryCache.get(diaryId) ?: repository.getDiaryById(diaryId)
+        diary = loaded
         isLoading = false
-        repository.incrementViewCount(diaryId)
-        GoogleAuthHelper.currentUserId?.let { uid ->
-            FirebaseViewedRepository().markViewed(uid, diaryId)
+        val uid = GoogleAuthHelper.currentUserId
+        // 조회수는 (1) 본인 글이 아니고 (2) 이번 앱 세션에서 처음 열 때만 1회 증가.
+        //   - 본인 글 자가 열람·재진입으로 조회수가 부풀던 문제 + 매 열람 Firestore 쓰기 비용 제거.
+        if (loaded != null && loaded.userId != uid && ViewCountSession.markFirstOpen(diaryId)) {
+            repository.incrementViewCount(diaryId)
         }
+        uid?.let { FirebaseViewedRepository().markViewed(it, diaryId) }
     }
 
     LaunchedEffect(Unit) {
@@ -130,7 +143,18 @@ fun DetailScreen(
         return
     }
 
-    val currentLatLng = LocationHelper.getCurrentLatLng()
+    // 위치가 아직 안 잡혔으면(앱 진입 직후 등) 잠깐 폴링해 채워지면 화면을 갱신한다.
+    // (이전엔 위치 null 일 때 거리=MAX 라 "범위 밖"으로 오안내됐다.)
+    var locationTick by remember(diaryId) { mutableStateOf(0) }
+    LaunchedEffect(diaryId) {
+        repeat(12) {
+            if (LocationHelper.getCurrentLatLng() != null) return@LaunchedEffect
+            kotlinx.coroutines.delay(500)
+            locationTick++
+        }
+    }
+    val currentLatLng = remember(locationTick) { LocationHelper.getCurrentLatLng() }
+    val locationKnown = currentLatLng != null
     val distance = currentLatLng?.let {
         LocationHelper.distanceBetween(it.latitude, it.longitude, currentDiary.latitude, currentDiary.longitude)
     } ?: Float.MAX_VALUE
@@ -156,6 +180,16 @@ fun DetailScreen(
     val likeCount by interactionVm.likeCount.collectAsState()
     val comments by interactionVm.comments.collectAsState()
     var commentInput by remember { mutableStateOf("") }
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    // 전송 동작 단일화 — 전송 버튼과 키보드 '보내기' 액션이 같은 경로를 쓴다.
+    val submitComment: () -> Unit = {
+        if (commentInput.isNotBlank()) {
+            interactionVm.addComment(commentInput)
+            commentInput = ""
+            com.chaminwoo.stary.core.ui.StaryToast.show("댓글을 남겼어요")
+            keyboardController?.hide()
+        }
+    }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor   = accent.copy(alpha = 0.7f),
@@ -250,19 +284,41 @@ fun DetailScreen(
                 // 오버레이 내용
                 Column(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        StarShapeIcon(
-                            type = currentDiary.starType, colorIndex = currentDiary.starColor,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            currentDiary.userName.ifEmpty { "익명" },
-                            fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f)
-                        )
+                        // 익명이 아니고 작성자 id 가 있으면 작성자 영역을 탭해 프로필로 진입할 수 있다.
+                        val canOpenProfile = !currentDiary.isAnonymous && currentDiary.userId.isNotBlank()
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = if (canOpenProfile) {
+                                Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable { onOpenProfile(currentDiary.userId, currentDiary.userName) }
+                                    .padding(end = 2.dp)
+                            } else Modifier
+                        ) {
+                            StarShapeIcon(
+                                type = currentDiary.starType, colorIndex = currentDiary.starColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                currentDiary.userName.ifEmpty { "익명" },
+                                fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f)
+                            )
+                            if (canOpenProfile) {
+                                Icon(
+                                    Icons.Filled.ChevronRight, contentDescription = "프로필 보기",
+                                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
                         Text("  ·  ", fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
+                        val createdStr = remember(currentDiary.createdAt) {
+                            SimpleDateFormat("yyyy.MM.dd HH:mm", Locale.KOREA).format(java.util.Date(currentDiary.createdAt))
+                        }
                         Text(
-                            SimpleDateFormat("yyyy.MM.dd HH:mm", Locale.KOREA).format(java.util.Date(currentDiary.createdAt)),
+                            createdStr,
                             fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary
                         )
                     }
@@ -346,13 +402,14 @@ fun DetailScreen(
                             placeholder = { Text("댓글을 입력하세요", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
                             modifier = Modifier.weight(1f), singleLine = true,
                             shape = RoundedCornerShape(12.dp), colors = fieldColors,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Send
+                            ),
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { submitComment() }),
                             textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(onClick = {
-                            interactionVm.addComment(commentInput); commentInput = ""
-                            com.chaminwoo.stary.core.ui.StaryToast.show("댓글을 남겼어요")
-                        }, enabled = commentInput.isNotBlank()) {
+                        IconButton(onClick = { submitComment() }, enabled = commentInput.isNotBlank()) {
                             Icon(
                                 Icons.AutoMirrored.Filled.Send, contentDescription = "전송",
                                 tint = if (commentInput.isNotBlank()) accent else MaterialTheme.colorScheme.secondary
@@ -384,7 +441,8 @@ fun DetailScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "100m 이내에서 좋아요와 댓글을 남길 수 있어요",
+                            if (!locationKnown) "위치를 확인하는 중이에요…"
+                            else "100m 이내에서 좋아요와 댓글을 남길 수 있어요",
                             fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary
                         )
                     }
@@ -459,7 +517,7 @@ private fun FullScreenImageViewer(imageUrl: String, onClose: () -> Unit) {
 
 @Composable
 private fun CommentItem(comment: Comment, isMyComment: Boolean, accent: Color, onDelete: () -> Unit) {
-    val dateStr = SimpleDateFormat("MM.dd HH:mm", Locale.KOREA).format(java.util.Date(comment.createdAt))
+    val dateStr = remember(comment.createdAt) { com.chaminwoo.stary.core.util.RelativeTime.format(comment.createdAt) }
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         // 작성자 색 점 아바타
         Box(

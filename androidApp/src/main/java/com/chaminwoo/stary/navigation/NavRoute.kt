@@ -96,4 +96,13 @@ sealed class NavRoute {
         override val showFab = false
     }
 
+    /** 타인(또는 본인) 공개 프로필. 다이어리 작성자 탭 시 진입. */
+    @Serializable
+    data class UserProfile(val userId: String = "", val userName: String = "") : NavRoute() {
+        override val title get() = userName.ifBlank { "프로필" }
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
 }

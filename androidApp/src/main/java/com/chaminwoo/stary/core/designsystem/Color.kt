@@ -12,6 +12,11 @@ val TextSub     = Color(0xFF8A8A8A)
 val Accent      = Color(0xFFFFFFFF)
 val AccentRed   = Color(0xFFFF4F4F)
 
+// Brand — 앱 전반의 민트 강조색(지도 FAB/별자리/필터/친구 등에서 반복 사용).
+// 여기저기 흩어진 Color(0xFF6EE7B7) 리터럴의 단일 출처.
+val Mint        = Color(0xFF6EE7B7)
+val MintBlue    = Color(0xFF3B82F6) // 민트→블루 그라데이션 짝(업로드/생성 FAB 등)
+
 // legacy — keep for Material theme slots
 val Purple80    = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)

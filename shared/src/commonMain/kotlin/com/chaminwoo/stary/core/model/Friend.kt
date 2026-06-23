@@ -23,5 +23,7 @@ data class FriendRequest(
 data class UserProfile(
     val userId: String = "",
     val userName: String = "",
-    val profileImageUrl: String = ""
+    val profileImageUrl: String = "",
+    /** 장착한 칭호(업적 id). 타인 프로필에서도 칭호를 보여주기 위해 공개 프로필에 함께 보관. */
+    val equippedTitle: String = ""
 )

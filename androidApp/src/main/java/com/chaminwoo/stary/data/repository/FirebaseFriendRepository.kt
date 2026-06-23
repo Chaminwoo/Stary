@@ -28,6 +28,28 @@ class FirebaseFriendRepository : FriendRepository {
     private val users = db.collection(StaryConfig.Collections.USERS)
     private val requests = db.collection(StaryConfig.Collections.FRIEND_REQUESTS)
 
+    /** 단일 사용자의 공개 프로필(users/{uid}) 조회 — 타인 프로필 화면 등에서 사진/이름 표시용. */
+    suspend fun getProfile(userId: String): UserProfile? {
+        if (userId.isBlank()) return null
+        return try {
+            val doc = users.document(userId).get().await()
+            doc.toObject(UserProfile::class.java)?.copy(userId = doc.id)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** 장착 칭호(업적 id)를 공개 프로필에 기록 — 타인 프로필에서도 칭호를 볼 수 있게. (null=해제) */
+    suspend fun setEquippedTitle(userId: String, achievementId: String?) {
+        if (userId.isBlank()) return
+        try {
+            users.document(userId).set(
+                mapOf("equippedTitle" to (achievementId ?: "")),
+                SetOptions.merge()
+            ).await()
+        } catch (_: Exception) {}
+    }
+
     /** 로그인 직후 호출 — 사용자 검색이 가능하도록 공개 프로필을 기록한다. */
     suspend fun upsertProfile(profile: UserProfile) {
         try {

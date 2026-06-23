@@ -476,6 +476,14 @@ private fun rememberMapViewWithLifecycle(): MapView {
  * - 별 클릭: 100m 이내 → 열람 / 밖 → 거리 안내 토스트. (길찾기 기능은 제거됨)
  * - "내 위치로" FAB 로 현재 위치 복귀.
  */
+/** 외부(알림 등)에서 "이 다이어리로 카메라 이동 + 파장" 을 요청할 때 전달하는 대상. */
+data class DiaryFocusTarget(
+    val lat: Double,
+    val lng: Double,
+    val colorIndex: Int,
+    val diaryId: String,
+)
+
 @Composable
 fun DiaryMap(
     diaries: List<Diary>,
@@ -483,6 +491,8 @@ fun DiaryMap(
     onDiaryClick: (String) -> Unit,
     onCreateClick: () -> Unit,
     modifier: Modifier = Modifier,
+    focusDiary: DiaryFocusTarget? = null,
+    onFocusHandled: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val mapView = rememberMapViewWithLifecycle()
@@ -514,6 +524,7 @@ fun DiaryMap(
     val warpState = remember { mutableStateOf<DiaryOpenWarpData?>(null) }
 
     val onDiaryClickRef = rememberUpdatedState(onDiaryClick)
+    val onFocusHandledRef = rememberUpdatedState(onFocusHandled)
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
     val diariesRef = rememberUpdatedState(diaries)
     val initialLatLngRef = rememberUpdatedState(currentLatLng)
@@ -560,7 +571,7 @@ fun DiaryMap(
                                 val oy = (sp.y / h).coerceIn(0f, 1f)
                                 // 현재 지도를 스냅샷으로 떠서, 그 이미지를 1초간 왜곡(파장+울렁)한 뒤 세부 화면으로 이동
                                 map.snapshot { bmp ->
-                                    warpState.value = DiaryOpenWarpData(bmp, ox, oy, id, diary.starColor)
+                                    warpState.value = DiaryOpenWarpData(bmp, ox, oy, id, diary.starColor, navigateAfter = true)
                                 }
                             } else {
                                 com.chaminwoo.stary.core.ui.StaryToast.show(
@@ -821,8 +832,14 @@ fun DiaryMap(
         warpState.value?.let { wd ->
             DiaryOpenWarp(wd) {
                 warpState.value = null
-                MapUiState.exitMapOnly()
-                onDiaryClickRef.value(wd.id)
+                if (wd.navigateAfter) {
+                    // 별 탭(100m 이내) → 파장 후 세부 화면으로
+                    MapUiState.exitMapOnly()
+                    onDiaryClickRef.value(wd.id)
+                } else {
+                    // 알림 포커스 → 파장만 내고 지도에 머문다
+                    onFocusHandledRef.value()
+                }
             }
         }
     }
@@ -836,6 +853,10 @@ fun DiaryMap(
         val style = styleRef ?: return@LaunchedEffect
         val source = diarySource ?: return@LaunchedEffect
         val map = mapRef ?: return@LaunchedEffect
+
+        // 디바운스: 연속 팬/줌으로 idle 이 잇따라 발생하면 O(n²) 클러스터링을 매번 돌리지 않게
+        // 잠깐 모아서 한 번만 계산한다(LaunchedEffect 가 재시작되며 직전 대기를 취소).
+        delay(90)
 
         val valid = diaries.filter { it.latitude != 0.0 && it.longitude != 0.0 }
         val byId = valid.associateBy { it.id }
@@ -929,6 +950,7 @@ fun DiaryMap(
         val source = constellationSource ?: return@LaunchedEffect
         val map = mapRef ?: return@LaunchedEffect
         if (constellationEnabled) {
+            delay(90) // 클러스터링과 동일하게 idle 디바운스(O(n²) 별자리 재계산 빈도 완화)
             source.setGeoJson(buildConstellationFeatures(map, diaries, clusterRadiusPx, constellationMaxLinkPx))
         }
     }
@@ -965,9 +987,15 @@ fun DiaryMap(
                 delay(100)
                 continue
             }
-            t += 0.05f
             // 줌이 작을수록 float 진폭을 줄인다(별 크기 곡선과 동일한 결: 줌6 거의 정지 ~ 줌15 최대).
             val zoom = (mapRef?.cameraPosition?.zoom ?: 13.0).toFloat()
+            // 화면에 움직일 게 없으면(별 없음 + 파티클 숨김 줌) 루프를 쉬어 유휴 배터리 소모를 줄인다.
+            val particlesVisible = zoom >= 9f
+            if (diariesRef.value.isEmpty() && !particlesVisible) {
+                delay(250)
+                continue
+            }
+            t += 0.05f
             val zoomAmp = ((zoom - 6f) / (15f - 6f)).coerceIn(0.1f, 1f)
             for (g in 0 until PHASE_GROUPS) {
                 val layer = style.getLayer(diaryLayerId(g)) as? SymbolLayer ?: continue
@@ -1001,15 +1029,44 @@ fun DiaryMap(
     LaunchedEffect(currentLatLng, mapRef) {
         locationSource?.setGeoJson(Point.fromLngLat(currentLatLng.longitude, currentLatLng.latitude))
     }
+
+    // 외부(알림) 요청: 특정 다이어리로 카메라 이동 후 열람 파장 1회 (세부 화면 이동 없음).
+    LaunchedEffect(focusDiary, mapRef) {
+        val target = focusDiary ?: return@LaunchedEffect
+        val map = mapRef ?: return@LaunchedEffect
+        map.animateCamera(
+            CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder().target(MlLatLng(target.lat, target.lng)).zoom(DEFAULT_ZOOM).build()
+            ),
+            800,
+            object : MapLibreMap.CancelableCallback {
+                override fun onFinish() {
+                    // 카메라가 다이어리를 화면 중앙에 둔 상태 → 파장 중심도 화면 중앙(0.5,0.5)
+                    map.snapshot { bmp ->
+                        warpState.value = DiaryOpenWarpData(
+                            bmp, 0.5f, 0.5f, target.diaryId, target.colorIndex, navigateAfter = false
+                        )
+                    }
+                }
+                override fun onCancel() {
+                    onFocusHandledRef.value()
+                }
+            }
+        )
+    }
 }
 
-/** 지도 왜곡 연출 데이터 — 스냅샷 비트맵 + 파장 시작 위치(0..1) + 다이어리 id/별색. */
+/**
+ * 지도 왜곡 연출 데이터 — 스냅샷 비트맵 + 파장 시작 위치(0..1) + 다이어리 id/별색.
+ * [navigateAfter] true 면 파장 후 세부 화면으로(별 탭), false 면 파장만 내고 지도에 머문다(알림 포커스).
+ */
 private class DiaryOpenWarpData(
     val bitmap: Bitmap,
     val ox: Float,
     val oy: Float,
     val id: String,
     val colorIndex: Int,
+    val navigateAfter: Boolean,
 )
 
 /**

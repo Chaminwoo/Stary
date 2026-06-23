@@ -15,3 +15,16 @@ object MapUiState {
     fun enterMapOnly() { mapOnly = true }
     fun exitMapOnly() { mapOnly = false }
 }
+
+/**
+ * 지도에 "특정 다이어리로 카메라 이동 + 열람 파장" 을 요청하는 전역 상태.
+ * 예: 새 다이어리(친구글) 알림을 탭하면 지도로 와서 그 위치로 날아가 파장을 1회 낸다.
+ * (알림 화면은 diaryId 만 알고 좌표는 모르므로, 지도 화면이 목록에서 좌표를 찾아 처리한다.)
+ */
+object MapFocusState {
+    var pendingDiaryId by mutableStateOf<String?>(null)
+        private set
+
+    fun request(diaryId: String) { pendingDiaryId = diaryId }
+    fun consume() { pendingDiaryId = null }
+}

@@ -23,6 +23,7 @@ import com.chaminwoo.stary.feature.home.screen.MainListScreen
 import com.chaminwoo.stary.feature.profile.screen.AchievementsScreen
 import com.chaminwoo.stary.feature.profile.screen.MyDiaryScreen
 import com.chaminwoo.stary.feature.profile.screen.ProfileScreen
+import com.chaminwoo.stary.feature.profile.screen.UserProfileScreen
 
 // 화면 전환 공통 파라미터 — 깊이감 줌(scale+fade). 별 줌인 연출과 이어지도록 짧고 부드럽게.
 private const val ENTER_MS = 320
@@ -120,7 +121,18 @@ fun NavGraph(
         }
 
         composable<NavRoute.Notification> {
-            NotificationScreen()
+            NotificationScreen(
+                onOpenDiary = { diaryId ->
+                    navController.navigate(NavRoute.Detail(diaryId = diaryId))
+                },
+                onFocusDiaryOnMap = { diaryId ->
+                    // 지도로 돌아가 해당 다이어리 위치로 카메라 이동 + 파장 연출
+                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId)
+                    navController.navigate(NavRoute.Main) {
+                        popUpTo<NavRoute.Main> { inclusive = true }
+                    }
+                }
+            )
         }
 
         composable<NavRoute.Detail> { backStackEntry ->
@@ -129,7 +141,28 @@ fun NavGraph(
                 diaryId = detailArgs.diaryId,
                 onBack = { navController.navigate(NavRoute.Main) {
                     popUpTo<NavRoute.Main> { inclusive = true }
-                }}
+                }},
+                onOpenProfile = { uid, uname ->
+                    navController.navigate(NavRoute.UserProfile(userId = uid, userName = uname))
+                }
+            )
+        }
+
+        composable<NavRoute.UserProfile> { backStackEntry ->
+            val args: NavRoute.UserProfile = backStackEntry.toRoute()
+            UserProfileScreen(
+                userId = args.userId,
+                userName = args.userName,
+                onOpenDiary = { diaryId ->
+                    // 상세로 바로 열지 않고, 지도로 가서 그 위치로 카메라 이동 + 파장 연출(알림 포커스와 동일).
+                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId)
+                    navController.navigate(NavRoute.Main) {
+                        popUpTo<NavRoute.Main> { inclusive = true }
+                    }
+                },
+                onOpenChat = { friendId, friendName ->
+                    navController.navigate(NavRoute.Chat(friendId = friendId, friendName = friendName))
+                }
             )
         }
 

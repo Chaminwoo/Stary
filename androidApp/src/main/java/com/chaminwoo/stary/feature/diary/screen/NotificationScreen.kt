@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -48,13 +49,16 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.core.model.NotificationType
+import com.chaminwoo.stary.core.util.RelativeTime
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.NotificationViewModel
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 @Composable
-fun NotificationScreen(modifier: Modifier = Modifier) {
+fun NotificationScreen(
+    modifier: Modifier = Modifier,
+    onOpenDiary: (String) -> Unit = {},
+    onFocusDiaryOnMap: (String) -> Unit = {},
+) {
     val userId = GoogleAuthHelper.currentUserId
 
     if (userId == null) {
@@ -86,7 +90,18 @@ fun NotificationScreen(modifier: Modifier = Modifier) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
         items(notifications!!, key = { it.id }) { notif ->
             SwipeToDeleteNotification(onDelete = { vm.delete(notif.id) }) {
-                NotificationItem(notif)
+                // 새 다이어리(친구 글) 알림은 상세 대신 지도에서 그 위치로 날아가 파장을 낸다.
+                val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
+                NotificationItem(
+                    notif,
+                    onClick = if (notif.diaryId.isNotBlank()) {
+                        if (isFriendPost) {
+                            { onFocusDiaryOnMap(notif.diaryId) }
+                        } else {
+                            { onOpenDiary(notif.diaryId) }
+                        }
+                    } else null
+                )
             }
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outline,
@@ -101,8 +116,10 @@ fun NotificationScreen(modifier: Modifier = Modifier) {
 private val SoftDeleteRed = Color(0xFFE57373)
 
 /**
- * 왼쪽으로 당기면 오른쪽에 고정 폭 삭제 버튼이 드러난다(버튼 보일 만큼만 당겨짐).
- * 삭제 버튼은 왼쪽 면이 둥글고, 탭하면 삭제된다.
+ * 왼쪽으로 당기면 오른쪽에 고정 폭 삭제 버튼이 드러난다.
+ * - **끝까지(최대로) 당겨 놓으면**: 행이 화면 밖으로 밀려나며 곧바로 삭제된다.
+ * - 중간쯤 당겨 놓으면: 삭제 버튼이 드러난 채 머무르고, 버튼을 탭하면 삭제된다.
+ * - 살짝 당기면: 원위치로 닫힌다.
  */
 @Composable
 private fun SwipeToDeleteNotification(
@@ -110,7 +127,10 @@ private fun SwipeToDeleteNotification(
     content: @Composable () -> Unit,
 ) {
     val revealDp = 84.dp
-    val revealPx = with(LocalDensity.current) { revealDp.toPx() }
+    val density = LocalDensity.current
+    val revealPx = with(density) { revealDp.toPx() }
+    // 삭제 확정 시 행을 완전히 밀어낼 화면 밖 목표 위치(화면 폭만큼).
+    val dismissPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
@@ -153,7 +173,17 @@ private fun SwipeToDeleteNotification(
                     },
                     onDragStopped = {
                         scope.launch {
-                            offsetX.animateTo(if (offsetX.value < -revealPx / 2f) -revealPx else 0f)
+                            when {
+                                // 최대(거의 끝)까지 당겨 놓음 → 밖으로 밀어내고 삭제
+                                offsetX.value <= -revealPx * 0.85f -> {
+                                    offsetX.animateTo(-dismissPx)
+                                    onDelete()
+                                }
+                                // 절반 이상 → 삭제 버튼 노출 상태로 유지(탭으로 삭제 가능)
+                                offsetX.value < -revealPx / 2f -> offsetX.animateTo(-revealPx)
+                                // 그 외 → 닫기
+                                else -> offsetX.animateTo(0f)
+                            }
                         }
                     }
                 )
@@ -164,15 +194,15 @@ private fun SwipeToDeleteNotification(
 }
 
 @Composable
-private fun NotificationItem(notif: AppNotification) {
-    val dateStr = SimpleDateFormat("MM.dd HH:mm", Locale.KOREA)
-        .format(java.util.Date(notif.createdAt))
+private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = null) {
+    val dateStr = remember(notif.createdAt) { RelativeTime.format(notif.createdAt) }
     val isLike = notif.type == NotificationType.LIKE.name
     val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(12.dp)

@@ -99,7 +99,13 @@ fun ProfileScreen(
     }
 
     val stats = rememberUserStats(userId)
-    val equippedStigma = Achievements.byId(StigmaStore.equipped(context, userId))?.titleName
+    val equippedStigmaId = StigmaStore.equipped(context, userId)
+    val equippedStigma = Achievements.byId(equippedStigmaId)?.titleName
+    // 내가 장착한 칭호를 공개 프로필에 백필 동기화(이전에 장착해 둔 값도 타인에게 보이도록).
+    LaunchedEffect(userId, equippedStigmaId) {
+        com.chaminwoo.stary.data.repository.FirebaseFriendRepository()
+            .setEquippedTitle(userId, equippedStigmaId)
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         Image(

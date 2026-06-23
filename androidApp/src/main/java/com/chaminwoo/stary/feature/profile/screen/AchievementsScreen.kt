@@ -50,6 +50,7 @@ import com.chaminwoo.stary.feature.profile.Achievements
 import com.chaminwoo.stary.feature.profile.Reward
 import com.chaminwoo.stary.feature.profile.StigmaStore
 import com.chaminwoo.stary.feature.profile.rememberUserStats
+import kotlinx.coroutines.launch
 
 private val Green = Color(0xFF6EE7B7)
 private val TextMain = Color(0xFFF0F0F0)
@@ -70,6 +71,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
 
     val stats = rememberUserStats(userId)
     var equipped by remember { mutableStateOf(StigmaStore.equipped(context, userId)) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     val unlockedCount = Achievements.all.count { it.unlocked(stats) }
 
@@ -111,6 +113,11 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
                         val next = if (equipped == ach.id) null else ach.id
                         StigmaStore.equip(context, userId, next)
                         equipped = next
+                        // 타인 프로필에서도 보이도록 공개 프로필에 동기화(fire-and-forget)
+                        scope.launch {
+                            com.chaminwoo.stary.data.repository.FirebaseFriendRepository()
+                                .setEquippedTitle(userId, next)
+                        }
                         com.chaminwoo.stary.core.ui.StaryToast.show(
                             if (next != null) "‘${ach.titleName ?: ach.name}’ 칭호를 장착했어요" else "칭호를 해제했어요"
                         )
