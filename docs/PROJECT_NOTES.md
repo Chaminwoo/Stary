@@ -167,7 +167,13 @@
 - **iOS 컴파일 함정 추가**: Firestore `data(as:)` 는 누락 비옵셔널 필드에서 throw → 부분 문서(UserProfile) 필드는 Optional.
   `addDocument(data:)` 는 async 컨텍스트에서 async throws 오버로드 선택(try await). cos/sin 은 CGFloat 캐스팅.
 - 쓰기는 batch+딕셔너리, 읽기는 data(as:) Codable. UI: TabView 5탭(지도/목록/올리기/친구/프로필) + 프로필 알림 벨.
-- **남은 iOS TODO**: 업적·별 해금(StarUnlocks/Achievements 포팅), 지도 별자리/배경음악, 프로필 사진 업로드, 사진 4:3 크롭, 앱아이콘/스플래시.
+- **업적·별 해금**(`Achievements.swift`): UserStats/Reward/Achievement + StarUnlocks 포팅. 업로드 피커 잠금(미해금 dim+자물쇠+토스트),
+  프로필 업적 진행도(unlocked/total, 보상 배지). 통계는 내 다이어리+친구 수 기반(열람 수=0, ViewedRepo 미구현).
+- **프로필 사진/칭호**: `ImageUploader.uploadProfile`(profile_images/{uid}.jpg + users.profileImageUrl), PhotosPicker 아바타 변경,
+  해금 칭호 장착/해제 → users.equippedTitle(업적 id), 이름 아래 칭호 칩.
+- **남은 iOS TODO**: 지도 별자리/배경음악, 사진 4:3 크롭, 미조회 필터(ViewedRepo), 타인 프로필 화면, 앱아이콘/스플래시, FCM 푸시.
+- **CI 검증 메모**: 레포 public → `Invoke-RestMethod`로 런 상태 조회. 로그는 토큰 필요(`git credential-manager get` 으로 추출).
+  폴 스크립트: `scratchpad/poll_ci.ps1 <sha>`(완료까지 폴링 후 error 줄 추출). 6개 기능 배치 모두 BUILD SUCCESS.
 
 ## 8.19 iOS CI 그린 달성 — macOS 컴파일 통과 (BUILD SUCCESS 2026-06-25)
 - `.github/workflows/ios.yml` build 잡(macos-15, 시뮬레이터, 서명 없음)이 **3bfa81c 에서 성공**. iOS 코어 슬라이스가 실제로 컴파일/링크됨.
