@@ -27,8 +27,8 @@ final class ChatViewModel: ObservableObject {
         let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
         let now = FirestoreService.nowMillis
-        // addDocument(data:) 는 즉시 반환(비동기 throwing 아님). 로컬 쓰기 후 백그라운드 동기화.
-        _ = FirestoreService.messages(of: chatId).addDocument(data: [
+        // async 컨텍스트에선 addDocument(data:) 의 async throws 오버로드가 선택됨.
+        _ = try? await FirestoreService.messages(of: chatId).addDocument(data: [
             "senderId": senderId, "senderName": senderName, "text": body, "createdAt": now,
         ])
         // 방 메타(목록/미리보기용). 실패해도 메시지는 전송됨.
