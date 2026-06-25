@@ -14,11 +14,11 @@ import kotlin.math.sin
  * 업로드 화면 피커와 지도 마커 렌더가 같은 정의를 공유한다.
  *
  * - 종류(starType 0..7): [starPath] — 0~4 별/스파클, 5~7 창의적 형태(꽃·보석·초승달).
- * - 색상(starColor 0..19): 0~15 단색 / 16~19 2색 그라데이션(고난도 업적 보상).
+ * - 색상(starColor 0..20): 0~15 단색 / 16~20 2색 그라데이션(고난도 업적 보상).
  */
 object StarStyle {
     const val TYPE_COUNT = 9
-    const val COLOR_COUNT = 20
+    const val COLOR_COUNT = 21
 
     /**
      * 16색 단색 팔레트. 어두운 배경 위에서 "빛나는" 인상을 위해 흰색을 30% 섞어 밝게 쓴다.
@@ -49,6 +49,7 @@ object StarStyle {
         Color(0xFF43E97B) to Color(0xFF38F9D7), // 17 에메랄드 오로라 (그린→민트)
         Color(0xFFFFD86F) to Color(0xFFFB6F6F), // 18 석양 (골드→코랄)
         Color(0xFF5EE7FF) to Color(0xFF5B7CFF), // 19 빙하 (시안→블루)
+        Color(0xFF101010) to Color(0xFFFFFFFF), // 20 흑백 (검정→하양, 밤→여명)
     )
 
     private const val GRAD_START = 16 // 이 인덱스부터 그라데이션

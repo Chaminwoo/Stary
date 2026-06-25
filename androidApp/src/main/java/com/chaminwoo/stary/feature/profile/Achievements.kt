@@ -89,6 +89,7 @@ object Achievements {
         Achievement("color_grad_emerald", "수많은 벗", "친구 20명 만들기", Reward.StarColor(17)) { it.friends >= 20 },
         Achievement("color_grad_sunset", "백 개의 별빛", "다이어리 100개 작성하기", Reward.StarColor(18)) { it.diariesCreated >= 100 },
         Achievement("color_grad_glacier", "은하의 정복자", "총 조회수 1,000 달성하기", Reward.StarColor(19)) { it.viewsReceived >= 1000 },
+        Achievement("color_grad_dawn", "여명을 기다린 자", "자정~새벽(0~4시)에 10번 기록하기", Reward.StarColor(20)) { it.nightPosts >= 10 },
     )
 
     val all: List<Achievement> = titleAchievements + rewardAchievements

@@ -158,6 +158,13 @@
   - `observeMyDiaries` 복합 인덱스(userId+createdAt) 의존 제거 → 서버는 `whereEqualTo(userId)` 만, **정렬은 클라이언트**(`sortedByDescending`).
 - 참고: Firestore 경고 `No setter/field for anonymous`(Diary.isAnonymous ↔ "anonymous" 매핑) 는 무해(기본 false).
 
+## 8.17 흑백 그라데이션 별 색 + 업적 (BUILD SUCCESSFUL 2026-06-23, 실기기 테스트 대기)
+- **검정→하양 그라데이션 색 추가**(`StarStyle`): `COLOR_COUNT 20→21`, `gradients` 에 인덱스 20 = `0xFF101010→0xFFFFFFFF`(흑백/밤→여명).
+  모든 사용처가 `StarStyle.COLOR_COUNT` 상수를 참조해 업로드 피커·지도·카드·내다이어리에 자동 반영(하드코딩 색 개수 없음).
+- **해금 업적 추가**(`Achievements.rewardAchievements`): `color_grad_dawn` "여명을 기다린 자" — 자정~새벽(0~4시) 10회 기록(`nightPosts>=10`)
+  → `Reward.StarColor(20)`. `StarUnlocks.color[20]` 자동 도출로 피커 잠금/해금 토스트 반영. ⚠️ 흑백은 glow=colorOf(20)=검정이라
+  어두운 쪽은 발광 약함(의도된 흑백 대비).
+
 ## 8.16 타인 프로필 = 내 프로필급 정보 (BUILD SUCCESSFUL 2026-06-23, 실기기 테스트 대기)
 - **UserProfileScreen 전면 확장**: 아바타/이름/친구액션에 더해 **통계(좋아요·조회수·다이어리)·업적 진행도(unlocked/total 바)·장착 칭호**,
   그리고 **그 사람의 다이어리 목록**(탭→Detail)을 표시. ProfileScreen 과 동일 레이아웃(GradientCard/StatCell).
