@@ -1,0 +1,23 @@
+# XcodeGen 이 생성(커밋 금지)
+*.xcodeproj
+*.xcworkspace
+
+# 빌드 산출물
+build/
+DerivedData/
+*.ipa
+*.xcarchive
+
+# CocoaPods / SPM
+Pods/
+.build/
+
+# 비밀 — 절대 커밋 금지
+GoogleService-Info.plist
+*.p8
+*.p12
+*.mobileprovision
+
+# fastlane 산출
+iosApp/fastlane/report.xml
+fastlane/README.md

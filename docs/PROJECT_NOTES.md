@@ -158,6 +158,22 @@
   - `observeMyDiaries` 복합 인덱스(userId+createdAt) 의존 제거 → 서버는 `whereEqualTo(userId)` 만, **정렬은 클라이언트**(`sortedByDescending`).
 - 참고: Firestore 경고 `No setter/field for anonymous`(Diary.isAnonymous ↔ "anonymous" 매핑) 는 무해(기본 false).
 
+## 8.18 iOS 앱 1차 구현 — SwiftUI 코어 슬라이스 (작성 완료, CI 컴파일 검증 대기 2026-06-25)
+- **마일스톤 0(스캐폴드)에서 코어 앱으로 확장.** Windows 라 로컬 컴파일 불가 → push 후 `.github/workflows/ios.yml`(macOS) 가 검증.
+- **project.yml(XcodeGen)**: SPM 의존성 추가 — Firebase(Auth/Firestore/Storage) 11.6+, GoogleSignIn 8+, MapLibre 6.7+.
+  deploymentTarget **16.0** 로 상향(NavigationStack/TextField(axis:) 등). Info.plist 권한 설명·URL 스킴(`$(GOOGLE_REVERSED_CLIENT_ID)`)·다크모드.
+- **새 Swift 소스(`iosApp/Sources/`)**:
+  - `Core/`: `AppConfig`(StaryConfig 미러), `Geo`(Haversine), `Theme`(밤하늘 톤+Color hex/blend),
+    `StarStyle`(팔레트 21색·그라데이션 포팅), `StarShape`(별 0~4 정밀 + 5~8 even-odd 근사 Path), `StarView`, `LocationManager`.
+  - `Data/`: `Models`(Diary 등 Firestore Codable, @DocumentID), `FirestoreService`(named DB stary-db), `AuthManager`(익명+구글),
+    `DiaryRepository`(observeAll/Mine·save·viewCount), `DiaryStore`(ObservableObject 구독).
+  - `Features/`: `RootView`(인증 게이트+4탭), `LoginView`, `Map/`(`MapLibreView` UIViewRepresentable+별 마커 `StarImageRenderer`, `MapScreen`),
+    `List/ListScreen`(+DiaryCard), `Upload/UploadScreen`(별 모양·색·공개범위 피커), `Detail/DetailScreen`(거리 게이팅·조회수), `Profile/ProfileScreen`.
+  - `ContentView.swift` → `AboutView`(KMP `PlatformKt.describePlatform()` 호출로 Shared 링크 유지).
+- **컴파일 리스크(CI 확인 예정)**: MapLibre/Firebase/GoogleSignIn SPM API 명칭, @DocumentID 합성(→ Diary 는 id 기반 수동 Hashable/Equatable).
+- **남은 iOS TODO**: 사진 첨부(Storage+PhotosPicker), 친구/채팅/알림/댓글·좋아요 화면, 별자리/배경음악, 업적·해금(StarUnlocks), 별 마커 그라데이션 채움, 앱아이콘/스플래시.
+- ⚠️ **패리티 규칙(CLAUDE.md §1.5)**: 이후 Android 변경은 iOS 에도 반영.
+
 ## 8.17 흑백 그라데이션 별 색 + 업적 (BUILD SUCCESSFUL 2026-06-23, 실기기 테스트 대기)
 - **검정→하양 그라데이션 색 추가**(`StarStyle`): `COLOR_COUNT 20→21`, `gradients` 에 인덱스 20 = `0xFF101010→0xFFFFFFFF`(흑백/밤→여명).
   모든 사용처가 `StarStyle.COLOR_COUNT` 상수를 참조해 업로드 피커·지도·카드·내다이어리에 자동 반영(하드코딩 색 개수 없음).

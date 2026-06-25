@@ -1,0 +1,86 @@
+# XcodeGen 프로젝트 정의 — .xcodeproj 는 커밋하지 않고 CI(macOS)에서 이 파일로 생성한다.
+#   생성:  cd iosApp && xcodegen generate
+# (Windows에서 텍스트로 iOS 프로젝트를 관리하기 위한 방식)
+name: Stary
+options:
+  bundleIdPrefix: com.chaminwoo
+  deploymentTarget:
+    iOS: "16.0"   # NavigationStack / TextField(axis:) / PhotosPicker 등 사용
+  createIntermediateGroups: true
+
+# Swift Package 의존성 (CI/Xcode 가 자동 resolve).
+#  - Firebase : Auth/Firestore/Storage (named DB stary-db 접근)
+#  - GoogleSignIn : 구글 로그인 → Firebase Auth credential
+#  - MapLibre : 안드로이드 DiaryMap 대응 지도(별 마커)
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    from: "11.6.0"
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS.git
+    from: "8.0.0"
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution.git
+    from: "6.7.0"
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}   # CI 환경변수로 주입(Apple Team ID)
+
+targets:
+  Stary:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Stary
+        UILaunchScreen: {}
+        # 앱 전역 다크(밤하늘) 톤
+        UIUserInterfaceStyle: Dark
+        # 수출 규정(표준 암호화만 사용) — 심사 프롬프트 회피
+        ITSAppUsesNonExemptEncryption: false
+        # 런타임 권한 사용 설명(심사 필수)
+        NSLocationWhenInUseUsageDescription: 주변의 별(다이어리)을 지도에 표시하기 위해 위치가 필요해요.
+        NSCameraUsageDescription: 다이어리에 넣을 사진을 촬영하기 위해 카메라가 필요해요.
+        NSPhotoLibraryUsageDescription: 다이어리에 넣을 사진을 선택하기 위해 사진 보관함 접근이 필요해요.
+        # 구글 로그인 콜백 URL 스킴(REVERSED_CLIENT_ID). CI 에서 빌드 설정으로 주입.
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - $(GOOGLE_REVERSED_CLIENT_ID)
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseStorage
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: MapLibre
+        product: MapLibre
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.chaminwoo.stary_ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # 구글 로그인 URL 스킴 placeholder(실제 값은 CI/xcconfig 로 주입; 빈 값이어도 컴파일 OK)
+        GOOGLE_REVERSED_CLIENT_ID: ""
+        # KMP 공유 정적 프레임워크(embedAndSignAppleFrameworkForXcode 산출 경로)
+        FRAMEWORK_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -framework
+          - Shared
+    preBuildScripts:
+      - name: "Build Kotlin Shared.framework"
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon

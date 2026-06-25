@@ -1,0 +1,99 @@
+name: iOS
+
+# 맥 없이 iOS 빌드: macOS 러너가 공유 KMP 프레임워크 + SwiftUI 앱을 컴파일한다.
+#  - build  : push/PR 마다 시뮬레이터 빌드(서명 불필요) → 컴파일 그린/레드 신호
+#  - deploy : 수동 실행(workflow_dispatch) + 시크릿 있을 때만 TestFlight 업로드
+on:
+  push:
+    paths:
+      - "iosApp/**"
+      - "shared/**"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "iosApp/**"
+      - "shared/**"
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "TestFlight 업로드까지 진행"
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build (simulator, no signing)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: (선택) GoogleService-Info.plist 주입
+        if: ${{ env.GOOGLE_SERVICE_INFO_PLIST != '' }}
+        env:
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > iosApp/Sources/GoogleService-Info.plist
+
+      - name: Generate Xcode project
+        run: cd iosApp && xcodegen generate
+
+      - name: Build for iOS Simulator
+        run: |
+          xcodebuild \
+            -project iosApp/Stary.xcodeproj \
+            -scheme Stary \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  deploy:
+    name: TestFlight 업로드
+    needs: build
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload }}
+    runs-on: macos-14
+    env:
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      ASC_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY }}   # base64(.p8)
+      DEVELOPMENT_TEAM: ${{ secrets.IOS_DEVELOPMENT_TEAM }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Ruby (fastlane)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: iosApp
+
+      - name: GoogleService-Info.plist 주입
+        env:
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > iosApp/Sources/GoogleService-Info.plist
+
+      - name: fastlane beta (TestFlight)
+        working-directory: iosApp
+        run: bundle exec fastlane beta

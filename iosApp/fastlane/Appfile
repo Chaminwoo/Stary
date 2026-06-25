@@ -1,0 +1,2 @@
+app_identifier("com.chaminwoo.stary_ios")
+# apple_id / itc_team_id 는 App Store Connect API Key 사용 시 불필요(자동 결정).

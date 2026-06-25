@@ -32,6 +32,13 @@
 5. **(빌드 성공 + 테스트 성공) 이후에는 항상 [`docs/PROJECT_NOTES.md`](docs/PROJECT_NOTES.md) 를 최신화한다.**
    - 무엇을 바꿨는지, 새 파일/삭제 파일, 새로 알게 된 제약/주의점, 남은 TODO 를 반영한다.
 
+## 1.5 Android ↔ iOS 패리티 (사용자 지시, 2026-06-25~)
+- **앞으로 Android 쪽 기능/로직을 고치면, 같은 변경을 iOS(`iosApp/` SwiftUI)에도 적용한다.**
+  - 공용 모델/상수는 `shared` 의 commonMain + iOS `AppConfig.swift`/`Models.swift` 양쪽을 함께 맞춘다(값 drift 금지).
+  - 별 모양/색은 `StarStyle.kt` ↔ `iosApp/.../Core/StarStyle.swift`+`StarShape.swift` 가 정의를 공유 — 한쪽 바꾸면 반대쪽도.
+  - iOS 는 Windows 에서 컴파일 불가 → 변경 후 push 하면 **GitHub Actions(macOS) `ios.yml` 가 컴파일 검증**(red/green). 빌드 로그로 오류 수정 반복.
+  - Android 변경분과 iOS 반영분은 (가능하면) 같은 작업 단위로 처리하고, 못 하면 iOS TODO 로 PROJECT_NOTES 에 남긴다.
+
 ## 2. 빌드 관련 메모
 - AGP 9 + KMP 조합:
   - `:shared` 는 `com.android.kotlin.multiplatform.library` 플러그인 사용 (`com.android.library` 와 비호환).
