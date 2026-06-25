@@ -26,6 +26,14 @@ struct ProfileScreen: View {
             }
             .navigationTitle("프로필")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink { NotificationsScreen() } label: {
+                        Image(systemName: "bell")
+                    }
+                    .tint(Theme.mint)
+                }
+            }
             .navigationDestination(for: Diary.self) { DetailScreen(diary: $0) }
         }
     }

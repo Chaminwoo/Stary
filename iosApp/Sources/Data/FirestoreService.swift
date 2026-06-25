@@ -11,12 +11,23 @@ enum FirestoreService {
     static var users: CollectionReference { db.collection(AppConfig.Collections.users) }
     static var notifications: CollectionReference { db.collection(AppConfig.Collections.notifications) }
 
+    static var friendRequests: CollectionReference { db.collection(AppConfig.Collections.friendRequests) }
+    static var chats: CollectionReference { db.collection(AppConfig.Collections.chats) }
+
     static func comments(of diaryId: String) -> CollectionReference {
         diaries.document(diaryId).collection(AppConfig.Collections.comments)
     }
 
     static func likes(of diaryId: String) -> CollectionReference {
         diaries.document(diaryId).collection(AppConfig.Collections.likes)
+    }
+
+    static func friends(of userId: String) -> CollectionReference {
+        users.document(userId).collection(AppConfig.Collections.friends)
+    }
+
+    static func messages(of chatId: String) -> CollectionReference {
+        chats.document(chatId).collection(AppConfig.Collections.messages)
     }
 
     static var nowMillis: Int64 { Int64(Date().timeIntervalSince1970 * 1000) }

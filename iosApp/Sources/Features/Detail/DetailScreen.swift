@@ -1,12 +1,19 @@
 import SwiftUI
 
-/// 별 상세 — 본문/작성자/조회수. 가까이 있으면 본문 열람, 멀면 흐리게(거리 게이팅).
+/// 별 상세 — 본문/작성자 + 좋아요·댓글. 가까이 있으면 본문 열람, 멀면 거리 게이팅.
 struct DetailScreen: View {
     let diary: Diary
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
+    @StateObject private var vm: DetailViewModel
     @State private var didCountView = false
+    @State private var commentText = ""
+
+    init(diary: Diary) {
+        self.diary = diary
+        _vm = StateObject(wrappedValue: DetailViewModel(diary: diary))
+    }
 
     private var distanceM: Double {
         let me = location.coordinateOrDefault
@@ -32,13 +39,16 @@ struct DetailScreen: View {
                         .foregroundStyle(Theme.textSecondary)
 
                     bodyCard
-                    stats
+                    likeBar
+                    if canOpen { commentsSection }
                 }
                 .padding(16)
             }
         }
         .navigationTitle("별")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { vm.start(uid: auth.uid) }
+        .onDisappear { vm.stop() }
         .task {
             guard !didCountView, !isOwner, let id = diary.id else { return }
             didCountView = true
@@ -69,20 +79,61 @@ struct DetailScreen: View {
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
-    private var stats: some View {
-        HStack(spacing: 24) {
-            stat("좋아요", diary.likeCount, "heart.fill")
-            stat("댓글", diary.commentCount, "bubble.right.fill")
-            stat("조회", diary.viewCount, "eye.fill")
+    private var likeBar: some View {
+        HStack(spacing: 20) {
+            Button {
+                Task { await vm.toggleLike(uid: auth.uid, userName: auth.displayName) }
+            } label: {
+                Label("\(vm.likeCount)", systemImage: vm.isLiked ? "heart.fill" : "heart")
+                    .foregroundStyle(vm.isLiked ? .pink : Theme.textSecondary)
+            }
+            Label("\(vm.comments.count)", systemImage: "bubble.right.fill")
+                .foregroundStyle(Theme.textSecondary)
+            Label("\(diary.viewCount)", systemImage: "eye.fill")
+                .foregroundStyle(Theme.textSecondary)
+            Spacer()
         }
-        .foregroundStyle(Theme.textSecondary)
+        .font(.headline)
     }
 
-    private func stat(_ label: String, _ value: Int, _ icon: String) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-            Text("\(value)").font(.headline).foregroundStyle(Theme.textPrimary)
-            Text(label).font(.caption2)
+    private var commentsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                TextField("댓글 달기…", text: $commentText, axis: .vertical)
+                    .lineLimit(1...4)
+                    .padding(10)
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(Theme.textPrimary)
+                Button {
+                    let t = commentText
+                    commentText = ""
+                    Task { await vm.addComment(uid: auth.uid, userName: auth.displayName, text: t) }
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .foregroundStyle(commentText.isEmpty ? Theme.textFaint : Theme.mint)
+                }
+                .disabled(commentText.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+
+            ForEach(vm.comments) { c in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(c.userName).font(.caption).bold().foregroundStyle(Theme.textSecondary)
+                        Spacer()
+                        if c.userId == auth.uid {
+                            Button {
+                                Task { await vm.deleteComment(c) }
+                            } label: {
+                                Image(systemName: "trash").font(.caption2).foregroundStyle(Theme.textFaint)
+                            }
+                        }
+                    }
+                    Text(c.content).font(.subheadline).foregroundStyle(Theme.textPrimary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+            }
         }
     }
 

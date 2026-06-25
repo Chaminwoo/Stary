@@ -30,6 +30,8 @@ struct MainTabView: View {
                 .tabItem { Label("목록", systemImage: "list.star") }
             UploadScreen()
                 .tabItem { Label("올리기", systemImage: "plus.circle.fill") }
+            FriendsScreen()
+                .tabItem { Label("친구", systemImage: "person.2.fill") }
             ProfileScreen()
                 .tabItem { Label("프로필", systemImage: "person.crop.circle") }
         }

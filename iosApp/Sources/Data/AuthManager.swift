@@ -78,9 +78,11 @@ final class AuthManager: ObservableObject {
     private func ensureProfile(_ user: User) async {
         let ref = FirestoreService.users.document(user.uid)
         let name = user.displayName ?? user.email ?? "익명의 별"
+        // Android upsertProfile 과 동일한 3필드(검색 가능하도록).
         let data: [String: Any] = [
             "userId": user.uid,
-            "userName": name
+            "userName": name,
+            "profileImageUrl": user.photoURL?.absoluteString ?? ""
         ]
         try? await ref.setData(data, merge: true)
     }
