@@ -1,11 +1,15 @@
+import PhotosUI
 import SwiftUI
 
-/// 프로필 탭 — 내 통계 + 내 별 목록 + 로그아웃.
+/// 프로필 탭 — 내 통계 + 업적(칭호 장착) + 프로필 사진 + 내 별 목록 + 로그아웃.
 struct ProfileScreen: View {
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
 
     @State private var friendsCount = 0
+    @State private var profileImageUrl: String?
+    @State private var equippedTitleId: String?
+    @State private var photoItem: PhotosPickerItem?
 
     private var mine: [Diary] { store.mine(uid: auth.uid).sorted { $0.createdAt > $1.createdAt } }
     private var totalViews: Int { mine.reduce(0) { $0 + $1.viewCount } }
@@ -43,9 +47,21 @@ struct ProfileScreen: View {
             }
             .navigationDestination(for: Diary.self) { DetailScreen(diary: $0) }
             .task {
-                if let uid = auth.uid {
-                    let snap = try? await FirestoreService.friends(of: uid).getDocuments()
-                    friendsCount = snap?.documents.count ?? 0
+                guard let uid = auth.uid else { return }
+                let snap = try? await FirestoreService.friends(of: uid).getDocuments()
+                friendsCount = snap?.documents.count ?? 0
+                if let doc = try? await FirestoreService.users.document(uid).getDocument() {
+                    profileImageUrl = doc.get("profileImageUrl") as? String
+                    equippedTitleId = doc.get("equippedTitle") as? String
+                }
+            }
+            .onChange(of: photoItem) { item in
+                Task {
+                    guard let uid = auth.uid, let item,
+                          let data = try? await item.loadTransferable(type: Data.self) else { return }
+                    if let url = try? await ImageUploader.uploadProfile(uid: uid, data: data) {
+                        profileImageUrl = url
+                    }
                 }
             }
         }
@@ -53,19 +69,47 @@ struct ProfileScreen: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            Circle()
-                .fill(Theme.surfaceAlt)
-                .frame(width: 84, height: 84)
-                .overlay(
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                ZStack(alignment: .bottomTrailing) {
+                    avatarImage
+                    Image(systemName: "camera.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(Theme.mint)
+                        .background(Circle().fill(Theme.background))
+                }
+            }
+            Text(auth.displayName)
+                .font(.title3).bold()
+                .foregroundStyle(Theme.textPrimary)
+            if let title = Achievements.byId(equippedTitleId)?.titleName {
+                Text(title)
+                    .font(.caption).bold()
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Theme.mint.opacity(0.2), in: Capsule())
+                    .foregroundStyle(Theme.mint)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private var avatarImage: some View {
+        Group {
+            if let url = profileImageUrl, !url.isEmpty {
+                AsyncImage(url: URL(string: url)) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Theme.surfaceAlt
+                }
+            } else {
+                Theme.surfaceAlt.overlay(
                     Text(String(auth.displayName.prefix(1)))
                         .font(.system(size: 34, weight: .bold))
                         .foregroundStyle(Theme.mint)
                 )
-            Text(auth.displayName)
-                .font(.title3).bold()
-                .foregroundStyle(Theme.textPrimary)
+            }
         }
-        .padding(.top, 8)
+        .frame(width: 84, height: 84)
+        .clipShape(Circle())
     }
 
     private var statRow: some View {
@@ -105,7 +149,14 @@ struct ProfileScreen: View {
                             .font(.caption2).foregroundStyle(Theme.textSecondary)
                     }
                     Spacer()
-                    rewardBadge(ach.reward)
+                    if case .title = ach.reward, done {
+                        Button(equippedTitleId == ach.id ? "장착됨" : "장착") {
+                            equipTitle(equippedTitleId == ach.id ? nil : ach.id)
+                        }
+                        .font(.caption2).tint(Theme.mint)
+                    } else {
+                        rewardBadge(ach.reward)
+                    }
                 }
                 .opacity(done ? 1 : 0.6)
                 .padding(10)
@@ -143,6 +194,16 @@ struct ProfileScreen: View {
                     .buttonStyle(.plain)
                 }
             }
+        }
+    }
+
+    /// 칭호 장착(업적 id 저장). users/{uid}.equippedTitle 에 기록(타인 프로필에서도 보이도록).
+    private func equipTitle(_ id: String?) {
+        equippedTitleId = id
+        guard let uid = auth.uid else { return }
+        Task {
+            try? await FirestoreService.users.document(uid)
+                .setData(["equippedTitle": id ?? ""], merge: true)
         }
     }
 
