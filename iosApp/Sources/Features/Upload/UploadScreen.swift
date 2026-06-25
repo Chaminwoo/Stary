@@ -17,6 +17,15 @@ struct UploadScreen: View {
     @State private var toast: String?
     @State private var photoItem: PhotosPickerItem?
     @State private var imageData: Data?
+    @State private var friendsCount = 0
+
+    /// 현재 해금된 업적 id 집합(내 다이어리 + 친구 수 기반).
+    private var unlocked: Set<String> {
+        Achievements.unlockedIds(
+            Achievements.computeStats(diaries: store.mine(uid: auth.uid),
+                                      friendsCount: friendsCount, viewedCount: 0)
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -50,6 +59,12 @@ struct UploadScreen: View {
             .onChange(of: photoItem) { item in
                 Task {
                     imageData = try? await item?.loadTransferable(type: Data.self)
+                }
+            }
+            .task {
+                if let uid = auth.uid {
+                    let snap = try? await FirestoreService.friends(of: uid).getDocuments()
+                    friendsCount = snap?.documents.count ?? 0
                 }
             }
         }
@@ -108,11 +123,20 @@ struct UploadScreen: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                     ForEach(0..<StarStyle.typeCount, id: \.self) { t in
-                        StarView(type: t, colorIndex: starColor, size: 34, glow: false)
-                            .padding(8)
-                            .background(starType == t ? Theme.mint.opacity(0.2) : Color.clear,
-                                        in: Circle())
-                            .onTapGesture { starType = t }
+                        let lockedAch = StarUnlocks.lockedShapeAch(t, unlocked)
+                        ZStack {
+                            StarView(type: t, colorIndex: starColor, size: 34, glow: false)
+                                .opacity(lockedAch == nil ? 1 : 0.25)
+                            if lockedAch != nil {
+                                Image(systemName: "lock.fill").font(.caption2).foregroundStyle(Theme.textSecondary)
+                            }
+                        }
+                        .padding(8)
+                        .background(starType == t ? Theme.mint.opacity(0.2) : Color.clear, in: Circle())
+                        .onTapGesture {
+                            if let a = lockedAch { showToast("‘\(a.name)’ 업적으로 해금돼요") }
+                            else { starType = t }
+                        }
                     }
                 }
             }
@@ -125,11 +149,21 @@ struct UploadScreen: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(0..<StarStyle.colorCount, id: \.self) { c in
-                        Circle()
-                            .fill(StarStyle.fill(c))
-                            .frame(width: 28, height: 28)
-                            .overlay(Circle().stroke(Theme.mint, lineWidth: starColor == c ? 3 : 0))
-                            .onTapGesture { starColor = c }
+                        let lockedAch = StarUnlocks.lockedColorAch(c, unlocked)
+                        ZStack {
+                            Circle()
+                                .fill(StarStyle.fill(c))
+                                .frame(width: 28, height: 28)
+                                .opacity(lockedAch == nil ? 1 : 0.25)
+                                .overlay(Circle().stroke(Theme.mint, lineWidth: starColor == c ? 3 : 0))
+                            if lockedAch != nil {
+                                Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(Theme.textPrimary)
+                            }
+                        }
+                        .onTapGesture {
+                            if let a = lockedAch { showToast("‘\(a.name)’ 업적으로 해금돼요") }
+                            else { starColor = c }
+                        }
                     }
                 }
             }

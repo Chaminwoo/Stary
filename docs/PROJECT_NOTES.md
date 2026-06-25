@@ -158,6 +158,27 @@
   - `observeMyDiaries` 복합 인덱스(userId+createdAt) 의존 제거 → 서버는 `whereEqualTo(userId)` 만, **정렬은 클라이언트**(`sortedByDescending`).
 - 참고: Firestore 경고 `No setter/field for anonymous`(Diary.isAnonymous ↔ "anonymous" 매핑) 는 무해(기본 false).
 
+## 8.20 iOS 기능 확장 — 소셜 + 미디어 (CI 그린 2026-06-25)
+- **좋아요/댓글/알림** (`DetailViewModel`, `NotificationsViewModel`/`Screen`): Android Like/Comment/Notification 리포지토리와 동일 스키마.
+  ⚠️ 알림 읽음 필드는 `read`(Kotlin isRead 직렬화), 수신자는 `diaryOwnerId`. 좋아요/댓글 시 상대에게 알림 생성.
+- **친구/채팅** (`FriendsViewModel`/`Screen`, `ChatViewModel`/`Screen`): 사용자 검색(userName 범위쿼리)·요청/수락/거절·친구목록·1:1 채팅(chats/{chatId}/messages). 친구 탭 신설.
+- **사진 첨부** (`ImageUploader`): Storage `diary_images/{uuid}.jpg`(JPEG 0.8), PhotosPicker(iOS16). 카드 썸네일+상세 AsyncImage.
+- **새 글 친구 알림**: `DiaryStore.notifyFriends` — 공개/친구 글 작성 시 friends 에 FRIEND_POST batch(private 제외). `save()` 가 문서 ID 반환.
+- **iOS 컴파일 함정 추가**: Firestore `data(as:)` 는 누락 비옵셔널 필드에서 throw → 부분 문서(UserProfile) 필드는 Optional.
+  `addDocument(data:)` 는 async 컨텍스트에서 async throws 오버로드 선택(try await). cos/sin 은 CGFloat 캐스팅.
+- 쓰기는 batch+딕셔너리, 읽기는 data(as:) Codable. UI: TabView 5탭(지도/목록/올리기/친구/프로필) + 프로필 알림 벨.
+- **남은 iOS TODO**: 업적·별 해금(StarUnlocks/Achievements 포팅), 지도 별자리/배경음악, 프로필 사진 업로드, 사진 4:3 크롭, 앱아이콘/스플래시.
+
+## 8.19 iOS CI 그린 달성 — macOS 컴파일 통과 (BUILD SUCCESS 2026-06-25)
+- `.github/workflows/ios.yml` build 잡(macos-15, 시뮬레이터, 서명 없음)이 **3bfa81c 에서 성공**. iOS 코어 슬라이스가 실제로 컴파일/링크됨.
+- **CI 통과까지 발견한 함정(다음에도 주의)**:
+  1. XcodeGen 2.45 산출물이 프로젝트 포맷 77(Xcode 16) → macos-14 기본 Xcode 15.4 로는 못 엶. **runner=macos-15 + setup-xcode latest-stable** 필요.
+  2. `gradlew` 가 Windows 에서 커밋되어 **exec 비트 없음** → 프리빌드 스크립트 `./gradlew Permission denied`. `git update-index --chmod=+x gradlew` 로 해결.
+  3. iOS 프레임워크(:shared) 빌드 시 Gradle 이 **:androidApp 까지 구성** → AGP 가 SDK 위치 못 찾음. CI 에서 `echo "sdk.dir=$ANDROID_HOME" > local.properties` 선행.
+  4. workflow `on.push.paths` 에 `gradlew`/`gradle/**` 없으면 wrapper 수정이 CI 트리거 안 됨 → paths 에 추가.
+  5. Swift: `FirebaseApp` 은 `import FirebaseCore` 필요. `cos/sin`(Double) 을 CGFloat 와 섞으면 'ambiguous' → `CGFloat(cos(a))` 캐스팅.
+- 로그 확인: 레포 public 이라 GitHub REST API(`/actions/runs`, `/actions/jobs/{id}/logs`)로 조회 가능(logs 는 토큰 필요 — git credential-manager).
+
 ## 8.18 iOS 앱 1차 구현 — SwiftUI 코어 슬라이스 (작성 완료, CI 컴파일 검증 대기 2026-06-25)
 - **마일스톤 0(스캐폴드)에서 코어 앱으로 확장.** Windows 라 로컬 컴파일 불가 → push 후 `.github/workflows/ios.yml`(macOS) 가 검증.
 - **project.yml(XcodeGen)**: SPM 의존성 추가 — Firebase(Auth/Firestore/Storage) 11.6+, GoogleSignIn 8+, MapLibre 6.7+.

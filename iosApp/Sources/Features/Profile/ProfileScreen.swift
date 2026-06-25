@@ -5,9 +5,15 @@ struct ProfileScreen: View {
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
 
+    @State private var friendsCount = 0
+
     private var mine: [Diary] { store.mine(uid: auth.uid).sorted { $0.createdAt > $1.createdAt } }
     private var totalViews: Int { mine.reduce(0) { $0 + $1.viewCount } }
     private var totalLikes: Int { mine.reduce(0) { $0 + $1.likeCount } }
+    private var stats: UserStats {
+        Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: 0)
+    }
+    private var unlocked: Set<String> { Achievements.unlockedIds(stats) }
 
     var body: some View {
         NavigationStack {
@@ -17,6 +23,7 @@ struct ProfileScreen: View {
                     VStack(spacing: 18) {
                         header
                         statRow
+                        achievementsSection
                         myDiaries
                         AboutView()
                         signOutButton
@@ -35,6 +42,12 @@ struct ProfileScreen: View {
                 }
             }
             .navigationDestination(for: Diary.self) { DetailScreen(diary: $0) }
+            .task {
+                if let uid = auth.uid {
+                    let snap = try? await FirestoreService.friends(of: uid).getDocuments()
+                    friendsCount = snap?.documents.count ?? 0
+                }
+            }
         }
     }
 
@@ -71,6 +84,46 @@ struct ProfileScreen: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var achievementsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("업적").font(.headline).foregroundStyle(Theme.textPrimary)
+                Spacer()
+                Text("\(unlocked.count) / \(Achievements.all.count)")
+                    .font(.caption).foregroundStyle(Theme.mint)
+            }
+            ForEach(Achievements.all) { ach in
+                let done = unlocked.contains(ach.id)
+                HStack(spacing: 10) {
+                    Image(systemName: done ? "checkmark.seal.fill" : "lock.fill")
+                        .foregroundStyle(done ? Theme.mint : Theme.textFaint)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ach.name).font(.subheadline).foregroundStyle(Theme.textPrimary)
+                        Text(ach.hidden && !done ? "???" : ach.condition)
+                            .font(.caption2).foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    rewardBadge(ach.reward)
+                }
+                .opacity(done ? 1 : 0.6)
+                .padding(10)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func rewardBadge(_ reward: Reward) -> some View {
+        switch reward {
+        case .title(let n):
+            Text(n).font(.caption2).foregroundStyle(Theme.textFaint)
+        case .shape(let t):
+            StarView(type: t, colorIndex: 0, size: 22, glow: false)
+        case .color(let c):
+            Circle().fill(StarStyle.fill(c)).frame(width: 18, height: 18)
+        }
     }
 
     private var myDiaries: some View {
