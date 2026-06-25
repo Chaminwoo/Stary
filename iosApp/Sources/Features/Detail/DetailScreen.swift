@@ -38,6 +38,15 @@ struct DetailScreen: View {
                         .font(.subheadline)
                         .foregroundStyle(Theme.textSecondary)
 
+                    if canOpen, !diary.imageUrl.isEmpty {
+                        AsyncImage(url: URL(string: diary.imageUrl)) { image in
+                            image.resizable().scaledToFit()
+                        } placeholder: {
+                            RoundedRectangle(cornerRadius: 14).fill(Theme.surfaceAlt).frame(height: 200)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
                     bodyCard
                     likeBar
                     if canOpen { commentsSection }

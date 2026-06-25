@@ -40,14 +40,18 @@ final class DiaryRepository {
         listeners.append(reg)
     }
 
-    func save(_ diary: Diary) async throws {
+    /// 저장 후 문서 ID 반환(친구 알림 등 후속 처리에 사용).
+    @discardableResult
+    func save(_ diary: Diary) async throws -> String {
         var d = diary
         if d.createdAt == 0 { d.createdAt = FirestoreService.nowMillis }
         if let id = d.id, !id.isEmpty {
             try col.document(id).setData(from: d, merge: true)
+            return id
         } else {
             d.id = nil
-            _ = try col.addDocument(from: d)
+            let ref = try col.addDocument(from: d)
+            return ref.documentID
         }
     }
 

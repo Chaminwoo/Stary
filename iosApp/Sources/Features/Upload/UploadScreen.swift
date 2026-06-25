@@ -1,7 +1,7 @@
+import PhotosUI
 import SwiftUI
 
-/// 올리기 탭 — 현재 위치에 별(다이어리)을 남긴다.
-/// (사진 첨부는 추후: Storage 업로드 + PhotosPicker(iOS16+) 가용성 처리 필요 — IOS_RELEASE 6절)
+/// 올리기 탭 — 현재 위치에 별(다이어리)을 남긴다(사진 첨부 포함).
 struct UploadScreen: View {
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
@@ -15,6 +15,8 @@ struct UploadScreen: View {
     @State private var starColor = 9
     @State private var saving = false
     @State private var toast: String?
+    @State private var photoItem: PhotosPickerItem?
+    @State private var imageData: Data?
 
     var body: some View {
         NavigationStack {
@@ -28,6 +30,7 @@ struct UploadScreen: View {
                             TextField("", text: $content, axis: .vertical)
                                 .lineLimit(4...8)
                         }
+                        photoSection
                         starPicker
                         colorPicker
                         visibilityPicker
@@ -44,6 +47,11 @@ struct UploadScreen: View {
             .overlay(alignment: .bottom) {
                 if let toast { ToastView(text: toast) }
             }
+            .onChange(of: photoItem) { item in
+                Task {
+                    imageData = try? await item?.loadTransferable(type: Data.self)
+                }
+            }
         }
     }
 
@@ -57,6 +65,41 @@ struct UploadScreen: View {
             Spacer()
         }
         .padding(.vertical, 8)
+    }
+
+    private var photoSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            label("사진 (선택)")
+            if let imageData, let ui = UIImage(data: imageData) {
+                ZStack(alignment: .topTrailing) {
+                    Image(uiImage: ui)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 180)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    Button {
+                        self.imageData = nil
+                        self.photoItem = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.white, .black.opacity(0.5))
+                            .padding(8)
+                    }
+                }
+            } else {
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    HStack {
+                        Image(systemName: "photo.on.rectangle.angled")
+                        Text("사진 추가")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(Theme.textSecondary)
+                }
+            }
+        }
     }
 
     private var starPicker: some View {
@@ -122,6 +165,14 @@ struct UploadScreen: View {
         guard let uid = auth.uid else { return }
         saving = true
         defer { saving = false }
+
+        // 사진이 있으면 먼저 Storage 업로드.
+        var imageUrl = ""
+        if let imageData {
+            do { imageUrl = try await ImageUploader.upload(imageData) }
+            catch { showToast("사진 업로드 실패: \(error.localizedDescription)"); return }
+        }
+
         let coord = location.coordinateOrDefault
         let diary = Diary(
             userId: uid,
@@ -129,6 +180,7 @@ struct UploadScreen: View {
             isAnonymous: isAnonymous,
             title: title,
             content: content,
+            imageUrl: imageUrl,
             latitude: coord.latitude,
             longitude: coord.longitude,
             createdAt: FirestoreService.nowMillis,
@@ -137,8 +189,12 @@ struct UploadScreen: View {
             visibilityType: visibility.rawValue
         )
         do {
-            try await store.save(diary)
-            title = ""; content = ""
+            let newId = try await store.save(diary)
+            // 전체/친구 공개 글이면 친구들에게 알림(나만보기는 제외).
+            if visibility != .privateOnly {
+                await store.notifyFriends(uid: uid, name: auth.displayName, diaryId: newId, title: title)
+            }
+            title = ""; content = ""; imageData = nil; photoItem = nil
             showToast("별을 남겼어요 ✨")
         } catch {
             showToast("저장 실패: \(error.localizedDescription)")

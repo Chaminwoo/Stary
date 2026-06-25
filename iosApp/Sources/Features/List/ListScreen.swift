@@ -73,6 +73,15 @@ struct DiaryCard: View {
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
+            if !diary.imageUrl.isEmpty {
+                AsyncImage(url: URL(string: diary.imageUrl)) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Theme.surfaceAlt
+                }
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
             if let distance {
                 Text(distanceLabel(distance))
                     .font(.caption2)

@@ -30,7 +30,27 @@ final class DiaryStore: ObservableObject {
         return diaries.filter { $0.userId == uid }
     }
 
-    func save(_ diary: Diary) async throws { try await repo.save(diary) }
+    @discardableResult
+    func save(_ diary: Diary) async throws -> String { try await repo.save(diary) }
     func delete(_ id: String) async throws { try await repo.delete(id) }
     func incrementView(_ id: String) async { await repo.incrementViewCount(id) }
+
+    /// 새 글 작성 시 친구들에게 FRIEND_POST 인앱 알림 생성(Android notifyFriendPost 대응).
+    /// (private 글은 호출하지 않음)
+    func notifyFriends(uid: String, name: String, diaryId: String, title: String) async {
+        do {
+            let friends = try await FirestoreService.friends(of: uid).getDocuments()
+            guard !friends.isEmpty else { return }
+            let now = FirestoreService.nowMillis
+            let batch = FirestoreService.db.batch()
+            for doc in friends.documents {
+                batch.setData([
+                    "type": "FRIEND_POST", "diaryId": diaryId, "diaryTitle": title,
+                    "diaryOwnerId": doc.documentID, "actorId": uid, "actorName": name,
+                    "content": "", "createdAt": now, "read": false,
+                ], forDocument: FirestoreService.notifications.document())
+            }
+            try await batch.commit()
+        } catch {}
+    }
 }
