@@ -48,6 +48,11 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # :shared(iOS 프레임워크) 빌드 시 Gradle 이 :androidApp 까지 구성 → AGP 가 SDK 위치(local.properties)를 요구.
+      # xcodebuild 스크립트 환경엔 ANDROID_HOME 이 안 넘어가므로 sdk.dir 을 파일로 명시.
+      - name: local.properties 작성 (Android SDK 위치)
+        run: echo "sdk.dir=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" > local.properties
+
       - name: (선택) GoogleService-Info.plist 주입
         if: ${{ env.GOOGLE_SERVICE_INFO_PLIST != '' }}
         env:
@@ -102,6 +107,9 @@ jobs:
           ruby-version: "3.2"
           bundler-cache: true
           working-directory: iosApp
+
+      - name: local.properties 작성 (Android SDK 위치)
+        run: echo "sdk.dir=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" > local.properties
 
       - name: GoogleService-Info.plist 주입
         env:
