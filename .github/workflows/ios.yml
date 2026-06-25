@@ -8,11 +8,15 @@ on:
     paths:
       - "iosApp/**"
       - "shared/**"
+      - "gradlew"
+      - "gradle/**"
       - ".github/workflows/ios.yml"
   pull_request:
     paths:
       - "iosApp/**"
       - "shared/**"
+      - "gradlew"
+      - "gradle/**"
   workflow_dispatch:
     inputs:
       upload:

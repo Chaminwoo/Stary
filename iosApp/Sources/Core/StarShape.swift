@@ -136,10 +136,12 @@ private extension Int {
 
 private extension CGAffineTransform {
     /// 특정 점을 중심으로 회전하도록 평행이동을 감싼다.
+    /// (행벡터 규약: p·M, concatenating 은 "먼저 self 그다음 인자" 순서로 결합 →
+    ///  중심 회전은 T(-c) → R → T(c) 순으로 적용해야 한다.)
     func rotated(around center: CGPoint) -> CGAffineTransform {
-        CGAffineTransform(translationX: center.x, y: center.y)
+        CGAffineTransform(translationX: -center.x, y: -center.y)
             .concatenating(self)
-            .concatenating(CGAffineTransform(translationX: -center.x, y: -center.y))
+            .concatenating(CGAffineTransform(translationX: center.x, y: center.y))
     }
 }
 
