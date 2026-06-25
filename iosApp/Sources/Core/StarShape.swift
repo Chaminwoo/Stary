@@ -46,7 +46,7 @@ struct StarShape: Shape {
         let total = spec.spikes * 2
         func point(_ i: Int, _ len: CGFloat) -> CGPoint {
             let a = (Double(i) * 360.0 / Double(total) + spec.rotate) * .pi / 180
-            return CGPoint(x: c.x + cos(a) * len, y: c.y + sin(a) * len)
+            return CGPoint(x: c.x + CGFloat(cos(a)) * len, y: c.y + CGFloat(sin(a)) * len)
         }
 
         var path = Path()
