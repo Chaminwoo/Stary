@@ -195,6 +195,17 @@
 - [x] 앱 아이콘 `@drawable/app_image`, 콜드스타트 스플래시 **완전 검정 배경**(values-v31, 아이콘 숨김).
 - [x] 내 다이어리 배경 `mydiary_bg`(업로드 화면과 동일 밝기), 정렬 시작 시 `wind.mp3` 효과음(MusicManager).
 
+### 17. 오류 수정 라운드 — 영상/알림삭제/배경음악 (✅ 수정, 테스트 대기 2026-06-26)
+- [x] **문제 1. 로그아웃 시 인트로 영상 미재생(검은 화면+버튼 즉시)**:
+      `MainScreen.onLogout` 이 `loginImmediate=true` 로 영상을 건너뛰던 것을 **`false`** 로 변경 → 첫 실행과 동일하게
+      `login_video.mp4` 재생 후 로그인 UI 노출(`LoginScreen(immediate=false)`).
+- [x] **문제 2. 알림 슬라이드 삭제 시 셀/삭제버튼 잔존**: 삭제가 Firestore 왕복 후에야 목록 반영되던 게 원인.
+      → **낙관적 제거**(`NotificationScreen.locallyRemoved` 로컬 제거 후 `vm.delete`) + 셀 `Modifier.animateItem()` 로
+      즉시 사라짐+아래 셀 collapse. 스와이프 임계값을 **절반 이상=즉시 삭제**로(버튼만 남는 중간 상태 제거).
+- [x] **문제 3. 배경음악 변경 시 처음부터 재생**: 미리듣기 위치 이어받기(`currentPositionMs`)를 **0** 으로 되돌림
+      (`MusicScreen.playTrack(id, 0)`). 단, 화면을 안 바꾸고 나가면 현재 재생은 그대로 유지(재시작 안 함).
+- [ ] 사용자 테스트: 로그아웃→영상, 알림 스와이프 즉시 삭제, 음악 변경 시 처음부터 재생 확인.
+
 ---
 
 ## 🍎 (추후) iOS 확장 — **macOS + Xcode 필요(Windows 불가)**

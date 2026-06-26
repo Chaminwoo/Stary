@@ -111,8 +111,8 @@ fun MusicScreen(modifier: Modifier = Modifier) {
         }
         if (isUnlocked(t)) {
             pendingId = t.id
-            // 처음부터가 아니라 지금 듣던 위치를 이어받아 전환(끊김 없이 연속).
-            MusicManager.playTrack(t.id, MusicManager.currentPositionMs())
+            // 다른 음악으로 바꾸면 그 곡의 처음부터 재생.
+            MusicManager.playTrack(t.id, 0)
         } else {
             val ach = Achievements.byId(t.unlockAchievementId)
             StaryToast.show("‘${ach?.name ?: "비밀"}’ 업적을 달성하여 해금하세요!")

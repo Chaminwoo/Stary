@@ -21,6 +21,7 @@ struct MainTabView: View {
     @EnvironmentObject var auth: AuthManager
     @StateObject private var store = DiaryStore()
     @StateObject private var location = LocationManager()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView {
@@ -42,9 +43,18 @@ struct MainTabView: View {
             location.requestPermission()
             location.start()
             store.startIfNeeded(uid: auth.uid)
+            MusicManager.shared.resume() // 로그인 후 메인 진입 시 배경음악 시작
         }
         .onChange(of: auth.uid) { newUid in
             store.startIfNeeded(uid: newUid)
+        }
+        .onChange(of: scenePhase) { phase in
+            // 앱 백그라운드/복귀에 맞춰 배경음악 정지/이어재생(위치 보존)
+            switch phase {
+            case .active: MusicManager.shared.resume()
+            case .background, .inactive: MusicManager.shared.pause()
+            @unknown default: break
+            }
         }
     }
 }

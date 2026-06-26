@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -76,7 +77,11 @@ fun NotificationScreen(
     // null = Firestore 응답 대기 중 — 빈 화면으로 간주하지 않음
     if (notifications == null) return
 
-    if (notifications!!.isEmpty()) {
+    // 낙관적 삭제: 스와이프 즉시 로컬에서 제거(서버 반영 왕복을 기다리지 않음).
+    val locallyRemoved = remember { mutableStateListOf<String>() }
+    val visibleNotifs = notifications!!.filter { it.id !in locallyRemoved }
+
+    if (visibleNotifs.isEmpty()) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("🔔", fontSize = 40.sp)
@@ -88,10 +93,13 @@ fun NotificationScreen(
     }
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
-        items(notifications!!, key = { it.id }) { notif ->
+        items(visibleNotifs, key = { it.id }) { notif ->
             // animateItem(): 삭제되면 그 셀이 사라지며 아래 셀들이 빈 공간을 부드럽게 채운다.
             Column(modifier = Modifier.animateItem()) {
-                SwipeToDeleteNotification(onDelete = { vm.delete(notif.id) }) {
+                SwipeToDeleteNotification(onDelete = {
+                    locallyRemoved.add(notif.id) // 즉시 셀 제거(애니메이션 collapse)
+                    vm.delete(notif.id)          // 서버 삭제
+                }) {
                     // 새 다이어리(친구 글) 알림은 상세 대신 지도에서 그 위치로 날아가 파장을 낸다.
                     val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
                     NotificationItem(
@@ -176,16 +184,12 @@ private fun SwipeToDeleteNotification(
                     },
                     onDragStopped = {
                         scope.launch {
-                            when {
-                                // 최대(거의 끝)까지 당겨 놓음 → 밖으로 밀어내고 삭제
-                                offsetX.value <= -revealPx * 0.85f -> {
-                                    offsetX.animateTo(-dismissPx)
-                                    onDelete()
-                                }
-                                // 절반 이상 → 삭제 버튼 노출 상태로 유지(탭으로 삭제 가능)
-                                offsetX.value < -revealPx / 2f -> offsetX.animateTo(-revealPx)
-                                // 그 외 → 닫기
-                                else -> offsetX.animateTo(0f)
+                            // 절반 이상 당기면 즉시 삭제 — 셀이 바로 사라지고(낙관적 제거) 아래가 채워진다.
+                            // 덜 당기면 원위치로 닫힌다(버튼만 남는 중간 상태 없음).
+                            if (offsetX.value <= -revealPx / 2f) {
+                                onDelete()
+                            } else {
+                                offsetX.animateTo(0f)
                             }
                         }
                     }

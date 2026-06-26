@@ -38,6 +38,12 @@ struct ProfileScreen: View {
             .navigationTitle("프로필")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    NavigationLink { MusicScreen() } label: {
+                        Image(systemName: "music.note")
+                    }
+                    .tint(Theme.mint)
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink { NotificationsScreen() } label: {
                         Image(systemName: "bell")

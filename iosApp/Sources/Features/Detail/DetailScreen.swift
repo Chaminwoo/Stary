@@ -56,7 +56,10 @@ struct DetailScreen: View {
         }
         .navigationTitle("별")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { vm.start(uid: auth.uid) }
+        .onAppear {
+            vm.start(uid: auth.uid)
+            MusicManager.shared.playOpenDiary() // 별(다이어리) 열람 효과음
+        }
         .onDisappear { vm.stop() }
         .task {
             guard !didCountView, !isOwner, let id = diary.id else { return }

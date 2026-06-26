@@ -174,10 +174,10 @@ fun MainScreen(
         }
     }
 
-    // 로그아웃 → 로그인 화면으로 즉시 이동(오버레이 표시).
-    // 드로어 닫힘 애니메이션을 기다리지 않고 바로 로그인 오버레이를 띄운다(인트로 영상 생략).
+    // 로그아웃 → 로그인 화면으로 이동(오버레이 표시).
+    // 첫 실행과 동일하게 인트로 영상을 재생한다(immediate=false). 영상 종료 후 로그인 UI 노출.
     val onLogout: () -> Unit = {
-        loginImmediate = true
+        loginImmediate = false
         showLogin = true
         navController.navigate(NavRoute.Main) { popUpTo(0) { inclusive = true } }
         coroutineScope.launch {
