@@ -281,6 +281,7 @@ fun MainListScreen(
             onCreateClick = onCreateClick,
             focusDiary = focusTarget,
             onFocusHandled = { MapFocusState.consume() },
+            showCreate = userId != null, // 비로그인 시 업로드 버튼 숨김
         )
 
         // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)

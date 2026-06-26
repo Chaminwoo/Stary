@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Badge
@@ -115,6 +116,7 @@ fun MainScreen(
         currentDestination?.hasRoute<NavRoute.MyDiary>() == true -> NavRoute.MyDiary
         currentDestination?.hasRoute<NavRoute.Profile>() == true -> NavRoute.Profile
         currentDestination?.hasRoute<NavRoute.Achievements>() == true -> NavRoute.Achievements
+        currentDestination?.hasRoute<NavRoute.Music>() == true -> NavRoute.Music
         currentDestination?.hasRoute<NavRoute.Friends>() == true -> NavRoute.Friends
         currentDestination?.hasRoute<NavRoute.Notification>() == true -> NavRoute.Notification
         currentDestination?.hasRoute<NavRoute.Chat>() == true ->
@@ -214,6 +216,7 @@ fun MainScreen(
                     DrawerItem("내 다이어리", Icons.AutoMirrored.Filled.MenuBook, currentRoute is NavRoute.MyDiary) { onNavigate(NavRoute.MyDiary) }
                     DrawerItem("프로필", Icons.Filled.Person, currentRoute is NavRoute.Profile) { onNavigate(NavRoute.Profile) }
                     DrawerItem("업적", Icons.Filled.EmojiEvents, currentRoute is NavRoute.Achievements) { onNavigate(NavRoute.Achievements) }
+                    DrawerItem("배경음악", Icons.Filled.MusicNote, currentRoute is NavRoute.Music) { onNavigate(NavRoute.Music) }
                     DrawerItem("친구", Icons.Filled.People, currentRoute is NavRoute.Friends) { onNavigate(NavRoute.Friends) }
                     // 로그인 상태면 로그아웃, 아니면 로그인 항목 노출
                     if (GoogleAuthHelper.currentUserId == null) {
@@ -332,8 +335,9 @@ fun MainScreen(
         )
     }
 
-    // 첫 실행 코치마크 — 로그인 끝난 뒤 지도(Main) 화면에서 1회만.
-    if (showOnboarding && !showLogin && currentRoute is NavRoute.Main) {
+    // 첫 로그인 코치마크 — 로그인한 상태에서 지도(Main) 화면에 처음 들어왔을 때 1회만.
+    // (비로그인 둘러보기에선 표시하지 않는다)
+    if (showOnboarding && !showLogin && userId != null && currentRoute is NavRoute.Main) {
         MainOnboardingOverlay(onDismiss = {
             onboardPrefs.edit().putBoolean("main_coach_seen", true).apply()
             showOnboarding = false

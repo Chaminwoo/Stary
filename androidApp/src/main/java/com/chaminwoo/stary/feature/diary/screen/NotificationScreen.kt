@@ -89,24 +89,27 @@ fun NotificationScreen(
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         items(notifications!!, key = { it.id }) { notif ->
-            SwipeToDeleteNotification(onDelete = { vm.delete(notif.id) }) {
-                // 새 다이어리(친구 글) 알림은 상세 대신 지도에서 그 위치로 날아가 파장을 낸다.
-                val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
-                NotificationItem(
-                    notif,
-                    onClick = if (notif.diaryId.isNotBlank()) {
-                        if (isFriendPost) {
-                            { onFocusDiaryOnMap(notif.diaryId) }
-                        } else {
-                            { onOpenDiary(notif.diaryId) }
-                        }
-                    } else null
+            // animateItem(): 삭제되면 그 셀이 사라지며 아래 셀들이 빈 공간을 부드럽게 채운다.
+            Column(modifier = Modifier.animateItem()) {
+                SwipeToDeleteNotification(onDelete = { vm.delete(notif.id) }) {
+                    // 새 다이어리(친구 글) 알림은 상세 대신 지도에서 그 위치로 날아가 파장을 낸다.
+                    val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
+                    NotificationItem(
+                        notif,
+                        onClick = if (notif.diaryId.isNotBlank()) {
+                            if (isFriendPost) {
+                                { onFocusDiaryOnMap(notif.diaryId) }
+                            } else {
+                                { onOpenDiary(notif.diaryId) }
+                            }
+                        } else null
+                    )
+                }
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
         }
         item { Spacer(modifier = Modifier.height(32.dp)) }
     }

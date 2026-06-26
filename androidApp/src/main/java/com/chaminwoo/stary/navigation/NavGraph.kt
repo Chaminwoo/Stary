@@ -21,6 +21,7 @@ import com.chaminwoo.stary.feature.chat.screen.ChatScreen
 import com.chaminwoo.stary.feature.friend.screen.FriendScreen
 import com.chaminwoo.stary.feature.home.screen.MainListScreen
 import com.chaminwoo.stary.feature.profile.screen.AchievementsScreen
+import com.chaminwoo.stary.feature.profile.screen.MusicScreen
 import com.chaminwoo.stary.feature.profile.screen.MyDiaryScreen
 import com.chaminwoo.stary.feature.profile.screen.ProfileScreen
 import com.chaminwoo.stary.feature.profile.screen.UserProfileScreen
@@ -118,6 +119,10 @@ fun NavGraph(
 
         composable<NavRoute.Achievements> {
             AchievementsScreen()
+        }
+
+        composable<NavRoute.Music> {
+            MusicScreen()
         }
 
         composable<NavRoute.Notification> {

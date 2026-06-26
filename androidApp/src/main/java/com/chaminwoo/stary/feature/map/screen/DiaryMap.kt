@@ -493,6 +493,7 @@ fun DiaryMap(
     modifier: Modifier = Modifier,
     focusDiary: DiaryFocusTarget? = null,
     onFocusHandled: () -> Unit = {},
+    showCreate: Boolean = true, // 비로그인 시 다이어리 생성(업로드) 버튼 숨김
 ) {
     val context = LocalContext.current
     val mapView = rememberMapViewWithLifecycle()
@@ -571,6 +572,8 @@ fun DiaryMap(
                                 val oy = (sp.y / h).coerceIn(0f, 1f)
                                 // 현재 지도를 스냅샷으로 떠서, 그 이미지를 1초간 왜곡(파장+울렁)한 뒤 세부 화면으로 이동
                                 map.snapshot { bmp ->
+                                    // 열람 애니메이션(파장) 시작과 동시에 열람 효과음 재생
+                                    com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
                                     warpState.value = DiaryOpenWarpData(bmp, ox, oy, id, diary.starColor, navigateAfter = true)
                                 }
                             } else {
@@ -803,26 +806,28 @@ fun DiaryMap(
                 )
             }
 
-            // 다이어리 생성
-            FloatingActionButton(
-                onClick = onCreateClick,
-                shape = CircleShape,
-                elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = Color.Transparent,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color(0xFF6EE7B7), Color(0xFF3B82F6)),
-                                start = Offset(0f, 0f), end = Offset(80f, 80f)
-                            ),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
+            // 다이어리 생성 (로그인 상태에서만 노출)
+            if (showCreate) {
+                FloatingActionButton(
+                    onClick = onCreateClick,
+                    shape = CircleShape,
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                    containerColor = Color.Transparent,
                 ) {
-                    Icon(Icons.Filled.Add, "다이어리 생성", tint = Color.White, modifier = Modifier.size(24.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF6EE7B7), Color(0xFF3B82F6)),
+                                    start = Offset(0f, 0f), end = Offset(80f, 80f)
+                                ),
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.Add, "다이어리 생성", tint = Color.White, modifier = Modifier.size(24.dp))
+                    }
                 }
             }
         }

@@ -7,7 +7,7 @@
 > 이전: **기능 배치 2**(파장 애니메이션, 공개범위, 나만보기/친구선택 필터, 별자리, 배경음악, 마이페이지 별 모양)
 > 이전: **기능 배치 1**(별 마커 5종×12색 Path 렌더, 친구, 미조회/친구 필터, 별 선택 업로드, FRIEND_POST 인앱 알림)
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
-> ⚠️ 배경음악: `androidApp/src/main/res/raw/ambient_music.mp3` 파일 추가 필요. 없으면 버튼만 보이고 토스트 안내.
+> ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
 
 ---
@@ -157,6 +157,23 @@
     → `FirebaseAuth.AuthStateListener` 로 **auth 변경 시 재구독**(`ListenerRegistration` 교체). 메인 지도 마커가 안 뜨던 핵심 원인.
   - `observeMyDiaries` 복합 인덱스(userId+createdAt) 의존 제거 → 서버는 `whereEqualTo(userId)` 만, **정렬은 클라이언트**(`sortedByDescending`).
 - 참고: Firestore 경고 `No setter/field for anonymous`(Diary.isAnonymous ↔ "anonymous" 매핑) 는 무해(기본 false).
+
+## 8.21 배경음악 멀티트랙 + 원형 다이얼 + 로그인 게이팅 (BUILD SUCCESSFUL 2026-06-26)
+- **배경음악 멀티트랙화**: `ambient_music.mp3` 삭제 → `core/util/MusicCatalog.kt`(6트랙: star_whisper/tiny_explorer/
+  celestial_drift/cosmic_funk/forgotten_galaxy/nebula_garden). 트랙별 색·별 모양(StarStyle type)·해금 업적
+  (first_step/storyteller/popular/star_traveler/companion). 기본 해금 = star_whisper.
+- **음악 선택 화면**(`feature/profile/screen/MusicScreen.kt`, `NavRoute.Music` + 드로어 "배경음악"):
+  **원형 로터리 다이얼**(별이 원 둘레, 드래그=회전(atan2), 위쪽에 온 트랙 선택, 탭=그 별 위로) +
+  원 안쪽 중앙에 트랙별 **별자리**(`MUSIC_CONSTELLATIONS` 6종). 잠긴 트랙 자물쇠+토스트, 미리듣기/확정 안 됨.
+- **이어듣기**: 트랙 전환 시 `playTrack(id, currentPositionMs())` 로 듣던 위치 이어받음(처음부터 X).
+  이탈 시 바꿨으면 확정(위치 유지), 안 바꿨으면 현재 재생 무간섭. `playTrack` 위치 클램프(트랙 길이 초과 보정).
+- **효과음**: 다이얼 회전음 `turning_dial.mp3`(`MusicManager.setDialTurning`, MediaPlayer+완료콜백 — 겹침 없이,
+  끝났을 때 아직 돌리는 중이면 재생). 다이어리 열람음 `open_diary.mp3` 는 **열람 애니메이션(DiaryMap 파장) 시작 시점**에 재생.
+- **로그인 게이팅**: 코치마크를 첫 실행 → **첫 로그인 시**(userId!=null) 1회. 비로그인 시 업로드 FAB 숨김
+  (`DiaryMap.showCreate` = MainListScreen userId!=null). 음악 탭도 비로그인 시 "로그인이 필요해요".
+- **알림 삭제 collapse**: 알림 셀 `Modifier.animateItem()` → 스와이프 삭제 시 셀 제거 + 아래 셀이 빈자리 부드럽게 채움.
+- raw 음원: `bgm_*.mp3` 6개 + `open_diary.mp3` + `turning_dial.mp3` 추가, `ambient_music.mp3` 삭제.
+- **남은 iOS TODO**: 위 배경음악 멀티트랙/원형 다이얼/회전·열람 효과음/로그인 게이팅/알림 collapse 를 iOS(SwiftUI)에 반영.
 
 ## 8.20 iOS 기능 확장 — 소셜 + 미디어 (CI 그린 2026-06-25)
 - **좋아요/댓글/알림** (`DetailViewModel`, `NotificationsViewModel`/`Screen`): Android Like/Comment/Notification 리포지토리와 동일 스키마.
