@@ -154,6 +154,10 @@ dependencies {
     implementation("pl.droidsonroids.gif:android-gif-drawable:1.2.29")
     implementation("androidx.compose.material:material-icons-extended")
 
+    // 로그인 인트로 영상(무음 mp4 + 동적 속도 제어) 재생용
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
+
     // 지도: MapLibre GL Native (Google Maps 대체) + 위치
     implementation(libs.maplibre.android)
     implementation(libs.play.services.location)

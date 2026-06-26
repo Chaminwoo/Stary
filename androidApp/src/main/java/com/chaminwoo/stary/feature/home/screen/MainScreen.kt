@@ -132,6 +132,12 @@ fun MainScreen(
         mutableStateOf(initialDiaryId == null)
     }
 
+    // 지도(NavGraph) 로드 시점 제어 — 로그인 영상이 먼저 시작된 뒤에 지도를 로드한다(영상 우선).
+    // 딥링크 진입(로그인 생략) 시엔 즉시 로드. 한 번 true 가 되면 유지.
+    var contentReady by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf(initialDiaryId != null)
+    }
+
     // 푸시 알림 탭 → 해당 다이어리 상세로 이동
     androidx.compose.runtime.LaunchedEffect(initialDiaryId) {
         initialDiaryId?.let { navController.navigate(NavRoute.Detail(diaryId = it)) }
@@ -299,17 +305,23 @@ fun MainScreen(
                 }
             }
         ) { paddingValues ->
-            NavGraph(
-                navController = navController,
-                onLogout = onLogout,
-                modifier = modifier.padding(paddingValues)
-            )
+            // 영상이 시작된 뒤(contentReady)부터 지도를 로드 — 영상 우선.
+            if (contentReady) {
+                NavGraph(
+                    navController = navController,
+                    onLogout = onLogout,
+                    modifier = modifier.padding(paddingValues)
+                )
+            }
         }
     }
 
-    // 로그인 오버레이 — 보이는 동안 뒤에서 지도(MainListScreen)가 미리 렌더링된다.
+    // 로그인 오버레이 — 영상을 먼저 끝까지 재생한 뒤(onVideoEnded) 또는 로그인 진행 시 지도를 로드한다.
     if (showLogin) {
-        LoginScreen(onLoginClick = { showLogin = false })
+        LoginScreen(
+            onLoginClick = { showLogin = false; contentReady = true },
+            onVideoEnded = { contentReady = true }
+        )
     }
 
     // 첫 실행 코치마크 — 로그인 끝난 뒤 지도(Main) 화면에서 1회만.

@@ -67,6 +67,7 @@ import coil.compose.AsyncImage
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Comment
+import com.chaminwoo.stary.data.repository.UserRepository
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.ImageCropHelper
@@ -518,11 +519,41 @@ private fun FullScreenImageViewer(imageUrl: String, onClose: () -> Unit) {
 @Composable
 private fun CommentItem(comment: Comment, isMyComment: Boolean, accent: Color, onDelete: () -> Unit) {
     val dateStr = remember(comment.createdAt) { com.chaminwoo.stary.core.util.RelativeTime.format(comment.createdAt) }
+
+    // 작성자 프로필 사진 로드(인스타 댓글처럼). 없으면 이니셜 폴백.
+    var photoUrl by remember(comment.userId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(comment.userId) {
+        if (comment.userId.isNotBlank()) {
+            photoUrl = runCatching { UserRepository().getProfileImageUrl(comment.userId) }.getOrNull()
+        }
+    }
+
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        // 작성자 색 점 아바타
+        // 작성자 프로필 아바타 (top 패딩으로 사용자 이름 top 과 맞춤)
         Box(
-            modifier = Modifier.padding(top = 4.dp).size(8.dp).clip(CircleShape).background(accent.copy(alpha = 0.8f))
-        )
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(1.dp, accent.copy(alpha = 0.30f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            val url = photoUrl
+            if (!url.isNullOrBlank()) {
+                AsyncImage(
+                    model = url,
+                    contentDescription = "${comment.userName.ifBlank { "사용자" }} 프로필 사진",
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    comment.userName.take(1).uppercase().ifBlank { "?" },
+                    color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
