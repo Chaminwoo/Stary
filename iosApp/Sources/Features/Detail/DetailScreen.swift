@@ -125,19 +125,24 @@ struct DetailScreen: View {
             }
 
             ForEach(vm.comments) { c in
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack {
-                        Text(c.userName).font(.caption).bold().foregroundStyle(Theme.textSecondary)
-                        Spacer()
-                        if c.userId == auth.uid {
-                            Button {
-                                Task { await vm.deleteComment(c) }
-                            } label: {
-                                Image(systemName: "trash").font(.caption2).foregroundStyle(Theme.textFaint)
+                HStack(alignment: .top, spacing: 10) {
+                    // 인스타식 프로필 아바타 (top 을 사용자 이름 top 에 맞춤)
+                    CommentAvatar(userId: c.userId, userName: c.userName)
+                        .padding(.top, 2)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(c.userName).font(.caption).bold().foregroundStyle(Theme.textSecondary)
+                            Spacer()
+                            if c.userId == auth.uid {
+                                Button {
+                                    Task { await vm.deleteComment(c) }
+                                } label: {
+                                    Image(systemName: "trash").font(.caption2).foregroundStyle(Theme.textFaint)
+                                }
                             }
                         }
+                        Text(c.content).font(.subheadline).foregroundStyle(Theme.textPrimary)
                     }
-                    Text(c.content).font(.subheadline).foregroundStyle(Theme.textPrimary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
@@ -148,5 +153,56 @@ struct DetailScreen: View {
 
     private func distanceLabel(_ m: Double) -> String {
         m < 1000 ? "\(Int(m))m" : String(format: "%.1fkm", m / 1000)
+    }
+}
+
+/// userId → 프로필 사진 URL 캐시 — 댓글마다 같은 작성자를 반복 조회하지 않게.
+@MainActor
+final class ProfileImageCache {
+    static let shared = ProfileImageCache()
+    private var cache: [String: String] = [:]   // userId → url ("" = 사진 없음)
+
+    /// 없으면 nil. 한 번 조회한 userId 는 캐시에서 즉시 반환.
+    func url(for userId: String) async -> String? {
+        guard !userId.isEmpty else { return nil }
+        if let cached = cache[userId] { return cached.isEmpty ? nil : cached }
+        let url = ((try? await FirestoreService.users.document(userId).getDocument())?
+            .get("profileImageUrl") as? String) ?? ""
+        cache[userId] = url
+        return url.isEmpty ? nil : url
+    }
+}
+
+/// 인스타식 댓글 프로필 아바타 — userId 로 사진 조회, 없으면 이니셜 폴백. (Android CommentItem 패리티)
+private struct CommentAvatar: View {
+    let userId: String
+    let userName: String
+    @State private var url: String?
+
+    private var initial: String {
+        let first = userName.trimmingCharacters(in: .whitespaces).prefix(1).uppercased()
+        return first.isEmpty ? "?" : first
+    }
+
+    var body: some View {
+        Group {
+            if let url, !url.isEmpty {
+                AsyncImage(url: URL(string: url)) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Theme.surfaceAlt
+                }
+            } else {
+                Theme.surfaceAlt.overlay(
+                    Text(initial)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.mint)
+                )
+            }
+        }
+        .frame(width: 32, height: 32)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Theme.mint.opacity(0.30), lineWidth: 1))
+        .task(id: userId) { url = await ProfileImageCache.shared.url(for: userId) }
     }
 }
