@@ -61,15 +61,21 @@ import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
 @Composable
-fun LoginScreen(onLoginClick: () -> Unit, onVideoEnded: () -> Unit = {}) {
+fun LoginScreen(
+    onLoginClick: () -> Unit,
+    onVideoEnded: () -> Unit = {},
+    // 로그아웃 등으로 재진입한 경우 true — 인트로 영상을 건너뛰고 로그인 UI 를 즉시 표시.
+    immediate: Boolean = false,
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var showUI by remember { mutableStateOf(false) }
+    var showUI by remember { mutableStateOf(immediate) }
 
     // 로그인 인트로 영상(무음 mp4). res/raw/login_video.mp4 를 1회 재생.
-    // prepare()/재생 시작은 PlayerView attach 이후(update 블록)에서 1회 — 첫 프레임 누락 방지.
+    // 로그아웃 재진입(immediate)인 경우엔 영상을 만들지 않는다(즉시 로그인 화면).
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
+        if (immediate) null
+        else ExoPlayer.Builder(context).build().apply {
             val uri = Uri.parse("android.resource://${context.packageName}/${R.raw.login_video}")
             setMediaItem(MediaItem.fromUri(uri))
             repeatMode = Player.REPEAT_MODE_OFF
@@ -79,21 +85,28 @@ fun LoginScreen(onLoginClick: () -> Unit, onVideoEnded: () -> Unit = {}) {
         }
     }
     DisposableEffect(Unit) {
-        val listener = object : Player.Listener {
-            // surface 준비+첫 프레임이 그려진 뒤 처음부터 재생 시작(빈 화면/조기 종료 방지).
-            override fun onRenderedFirstFrame() {
-                exoPlayer.playWhenReady = true
+        val player = exoPlayer
+        if (player == null) {
+            // 영상 없이 진입 — 지도 로드(contentReady)를 막지 않도록 바로 종료 콜백.
+            onVideoEnded()
+            onDispose { }
+        } else {
+            val listener = object : Player.Listener {
+                // surface 준비+첫 프레임이 그려진 뒤 처음부터 재생 시작(빈 화면/조기 종료 방지).
+                override fun onRenderedFirstFrame() {
+                    player.playWhenReady = true
+                }
+                // 영상이 다 끝난 뒤에 지도를 로드한다(영상 우선 — 재생 중 무거운 GL 초기화로 프리즈 방지).
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_ENDED) onVideoEnded()
+                }
             }
-            // 영상이 다 끝난 뒤에 지도를 로드한다(영상 우선 — 재생 중 무거운 GL 초기화로 프리즈 방지).
-            override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_ENDED) onVideoEnded()
+            player.addListener(listener)
+            player.prepare()   // 리스너 등록 후 prepare → 첫 프레임 콜백 누락 방지
+            onDispose {
+                player.removeListener(listener)
+                player.release()
             }
-        }
-        exoPlayer.addListener(listener)
-        exoPlayer.prepare()   // 리스너 등록 후 prepare → 첫 프레임 콜백 누락 방지
-        onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
         }
     }
 
@@ -102,31 +115,34 @@ fun LoginScreen(onLoginClick: () -> Unit, onVideoEnded: () -> Unit = {}) {
         if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
             LocationHelper.startContinuousUpdates(context)
         }
-        delay(1_500)
-        showUI = true
+        if (!immediate) {
+            delay(1_500)
+            showUI = true
+        }
     }
 
     // 재생 속도: 전체적으로 빠르게(2.5x 시작), 종반에만 살짝 감속(하한 0.5x) — 기존 GIF 속도 곡선과 동일.
     LaunchedEffect(exoPlayer) {
+        val player = exoPlayer ?: return@LaunchedEffect
         // 영상 길이가 확정될 때까지 대기(최대 ~2초).
         var waited = 0
-        while (exoPlayer.duration <= 0 && waited < 2_000) {
+        while (player.duration <= 0 && waited < 2_000) {
             delay(16); waited += 16
         }
-        val total = exoPlayer.duration.toFloat()
+        val total = player.duration.toFloat()
         if (total <= 0) return@LaunchedEffect
-        exoPlayer.playbackParameters = PlaybackParameters(2.5f)
+        player.playbackParameters = PlaybackParameters(2.5f)
 
-        while (exoPlayer.playbackState != Player.STATE_ENDED) {
-            val progress = exoPlayer.currentPosition.toFloat() / total
+        while (player.playbackState != Player.STATE_ENDED) {
+            val progress = player.currentPosition.toFloat() / total
             if (progress <= 0.5f) {
                 // 0% → 50%: 2.5x → 1.8x
                 val fastProgress = progress / 0.5f
-                exoPlayer.playbackParameters = PlaybackParameters(2.5f - fastProgress * 0.7f)
+                player.playbackParameters = PlaybackParameters(2.5f - fastProgress * 0.7f)
             } else if (progress >= 0.75f) {
                 // 75% → 100%: 1.8x → 0.5x 로 감속 (과도하게 느려지지 않게 하한 0.5x)
                 val slowProgress = (progress - 0.75f) / 0.25f
-                exoPlayer.playbackParameters =
+                player.playbackParameters =
                     PlaybackParameters((1.8f - slowProgress * 1.3f).coerceAtLeast(0.5f))
             }
             delay(50)
@@ -134,17 +150,19 @@ fun LoginScreen(onLoginClick: () -> Unit, onVideoEnded: () -> Unit = {}) {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(
-            factory = { ctx ->
-                // surface_type=texture_view 등은 XML(view_login_player)에서 설정.
-                LayoutInflater.from(ctx).inflate(R.layout.view_login_player, null) as PlayerView
-            },
-            // 첫 표시 때 첫 프레임이 안 보이는 문제 방지: 바인딩/재생 시작을 attach 이후인 update 에서.
-            update = { view -> view.player = exoPlayer },
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(scaleX = 1.12f, scaleY = 1.12f, clip = true)
-        )
+        if (exoPlayer != null) {
+            AndroidView(
+                factory = { ctx ->
+                    // surface_type=texture_view 등은 XML(view_login_player)에서 설정.
+                    LayoutInflater.from(ctx).inflate(R.layout.view_login_player, null) as PlayerView
+                },
+                // 첫 표시 때 첫 프레임이 안 보이는 문제 방지: 바인딩/재생 시작을 attach 이후인 update 에서.
+                update = { view -> view.player = exoPlayer },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(scaleX = 1.12f, scaleY = 1.12f, clip = true)
+            )
+        }
 
         AnimatedVisibility(
             visible = showUI,

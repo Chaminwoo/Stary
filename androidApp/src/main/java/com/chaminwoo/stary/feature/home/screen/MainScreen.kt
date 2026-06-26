@@ -138,6 +138,11 @@ fun MainScreen(
         mutableStateOf(initialDiaryId != null)
     }
 
+    // 로그아웃으로 로그인 화면에 진입했는지 — 이 경우 인트로 영상을 건너뛰고 로그인 UI 를 즉시 표시.
+    var loginImmediate by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf(false)
+    }
+
     // 푸시 알림 탭 → 해당 다이어리 상세로 이동
     androidx.compose.runtime.LaunchedEffect(initialDiaryId) {
         initialDiaryId?.let { navController.navigate(NavRoute.Detail(diaryId = it)) }
@@ -167,13 +172,15 @@ fun MainScreen(
         }
     }
 
-    // 로그아웃 → 로그인 화면으로 이동(오버레이 표시)
+    // 로그아웃 → 로그인 화면으로 즉시 이동(오버레이 표시).
+    // 드로어 닫힘 애니메이션을 기다리지 않고 바로 로그인 오버레이를 띄운다(인트로 영상 생략).
     val onLogout: () -> Unit = {
+        loginImmediate = true
+        showLogin = true
+        navController.navigate(NavRoute.Main) { popUpTo(0) { inclusive = true } }
         coroutineScope.launch {
             drawerState.close()
             GoogleAuthHelper.signOut(context)
-            navController.navigate(NavRoute.Main) { popUpTo(0) { inclusive = true } }
-            showLogin = true
         }
     }
 
@@ -319,7 +326,8 @@ fun MainScreen(
     // 로그인 오버레이 — 영상을 먼저 끝까지 재생한 뒤(onVideoEnded) 또는 로그인 진행 시 지도를 로드한다.
     if (showLogin) {
         LoginScreen(
-            onLoginClick = { showLogin = false; contentReady = true },
+            immediate = loginImmediate,
+            onLoginClick = { showLogin = false; loginImmediate = false; contentReady = true },
             onVideoEnded = { contentReady = true }
         )
     }
