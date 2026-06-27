@@ -4,12 +4,16 @@ import SwiftUI
 struct ListScreen: View {
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
+    @EnvironmentObject var viewed: ViewedStore
     @State private var nearbyFirst = false
+    @State private var unviewedOnly = false
 
     private var rows: [Diary] {
-        guard nearbyFirst else { return store.diaries }
+        var list = store.diaries
+        if unviewedOnly { list = list.filter { !viewed.viewedIds.contains($0.id ?? "") } }
+        guard nearbyFirst else { return list }
         let me = location.coordinateOrDefault
-        return store.diaries.sorted {
+        return list.sorted {
             Geo.distanceMeters(lat1: me.latitude, lng1: me.longitude, lat2: $0.latitude, lng2: $0.longitude)
                 < Geo.distanceMeters(lat1: me.latitude, lng1: me.longitude, lat2: $1.latitude, lng2: $1.longitude)
         }
@@ -22,7 +26,7 @@ struct ListScreen: View {
                 if store.loading {
                     ProgressView().tint(Theme.mint)
                 } else if rows.isEmpty {
-                    ContentUnavailableCompat(text: "아직 별이 없어요. 첫 별을 남겨보세요.")
+                    ContentUnavailableCompat(text: unviewedOnly ? "안 본 별이 없어요. 모두 둘러봤네요!" : "아직 별이 없어요. 첫 별을 남겨보세요.")
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
@@ -40,6 +44,14 @@ struct ListScreen: View {
             .navigationTitle("별 목록")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        unviewedOnly.toggle()
+                    } label: {
+                        Label("미조회만", systemImage: unviewedOnly ? "eye.slash.fill" : "eye")
+                    }
+                    .tint(unviewedOnly ? Theme.mint : Theme.textSecondary)
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(nearbyFirst ? "가까운순" : "최신순") { nearbyFirst.toggle() }
                         .tint(Theme.mint)

@@ -208,6 +208,14 @@
 - **남은 iOS TODO(이번 라운드 패리티)**: 로그인 유지·실시간 위치는 iOS 이미 동작(`AuthManager.addStateDidChangeListener` 영속 복원 + `LocationManager.startUpdatingLocation`).
   미반영: ① 최초 진입 내 위치 카메라(MapScreen/MapLibreView center 변경 시 재센터), ② 댓글 작성자 프로필 탭(iOS UserProfile 화면 부재 — 화면부터 필요), ③ 설정 화면(iOS MusicManager 볼륨 musicVolume/sfxVolume + AppSettings + SettingsScreen + 탭/프로필 진입), ④ 인앱 배너+채팅/알림 와처(observeMyChats 포함), ⑤ 언어 변경(iOS 는 Bundle.main.localizations + Localizable.strings, 또는 SwiftUI environment locale). CI(macOS)로 검증 예정.
 
+## 8.23-iOS 미조회 필터 + 조회 기록 (구현 완료, CI 검증 대기 2026-06-27)
+iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListScreen "미조회만" + FirebaseViewedRepository 패리티).
+- **`Data/ViewedStore.swift` 신설**: `ViewedRepository.markViewed(uid,diaryId)`(fire-and-forget, `users/{uid}/viewedDiaries/{diaryId}` 에 `viewedAt` 기록) +
+  `ViewedStore`(@MainActor ObservableObject — 그 컬렉션 실시간 구독해 `viewedIds: Set<String>` 노출). `FirestoreService.viewedDiaries(of:)` 헬퍼 추가.
+- **열람 기록**: `DetailScreen` 에 둘째 `.task` — 진입 시 `markViewed`(본인 글 포함 무조건, Android 와 동일).
+- **필터 UI**: `MapScreen` 우상단 "미조회만" 칩(토글 시 `viewedIds` 에 없는 별만 마커 표시), `ListScreen` 툴바 좌측 "미조회만" 토글(+빈 상태 문구 분기). `MainTabView` 가 `ViewedStore` 시작(uid)/주입.
+- shared 무변경. ⚠️ 별가루/별자리·사진 4:3 크롭·앱아이콘·FCM·언어 전체 이관은 여전히 iOS TODO.
+
 ## 8.22-iOS 8.22 라운드 iOS 패리티 (CI(macOS) BUILD SUCCESS 40424d0, 2026-06-27)
 위 5개 미반영 항목 전부 SwiftUI 로 구현. Windows 라 로컬 컴파일 불가 → push 후 `ios.yml`(macOS) 검증.
 - **① 최초 진입 내 위치 카메라**: `MapLibreView` 에 `userLocation: CLLocationCoordinate2D?`(실제 fix, 없으면 nil) 추가 +

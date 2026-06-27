@@ -35,6 +35,7 @@ struct MainTabView: View {
     @StateObject private var store = DiaryStore()
     @StateObject private var location = LocationManager()
     @StateObject private var watcher = InAppWatcher()
+    @StateObject private var viewed = ViewedStore()
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var chatTarget: ChatTarget?
@@ -60,6 +61,7 @@ struct MainTabView: View {
         }
         .environmentObject(store)
         .environmentObject(location)
+        .environmentObject(viewed)
         .sheet(item: $chatTarget) { t in
             NavigationStack { ChatScreen(friendId: t.friendId, friendName: t.friendName, myUid: auth.uid ?? "") }
                 .environmentObject(auth)
@@ -72,11 +74,13 @@ struct MainTabView: View {
             location.requestPermission()
             location.start()
             store.startIfNeeded(uid: auth.uid)
+            if let uid = auth.uid { viewed.start(uid: uid) }
             MusicManager.shared.resume() // 로그인 후 메인 진입 시 배경음악 시작
             startWatcher()
         }
         .onChange(of: auth.uid) { newUid in
             store.startIfNeeded(uid: newUid)
+            if let uid = newUid { viewed.start(uid: uid) } else { viewed.stop() }
             startWatcher()
         }
         .onChange(of: scenePhase) { phase in

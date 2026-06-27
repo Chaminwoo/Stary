@@ -26,6 +26,10 @@ enum FirestoreService {
         users.document(userId).collection(AppConfig.Collections.friends)
     }
 
+    static func viewedDiaries(of userId: String) -> CollectionReference {
+        users.document(userId).collection(AppConfig.Collections.viewedDiaries)
+    }
+
     static func messages(of chatId: String) -> CollectionReference {
         chats.document(chatId).collection(AppConfig.Collections.messages)
     }

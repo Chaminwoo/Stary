@@ -100,6 +100,11 @@ struct DetailScreen: View {
             didCountView = true
             await store.incrementView(id)
         }
+        .task {
+            // 미조회 필터용 열람 기록(본인 글 포함 무조건 — Android markViewed 패리티).
+            guard let uid = auth.uid, let id = diary.id else { return }
+            await ViewedRepository.markViewed(uid: uid, diaryId: id)
+        }
     }
 
     private var bodyCard: some View {
