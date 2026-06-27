@@ -1,0 +1,193 @@
+import FirebaseFirestore
+import SwiftUI
+
+/// 타인 프로필 — 아바타/이름/장착 칭호 + 친구 액션(추가/채팅) + 그 사람의 별 목록.
+/// (Android UserProfileScreen 패리티. 댓글/작성자 탭에서 진입.)
+struct UserProfileScreen: View {
+    let userId: String
+    let userName: String
+
+    @EnvironmentObject var auth: AuthManager
+    @EnvironmentObject var store: DiaryStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var profileImageUrl: String?
+    @State private var equippedTitleId: String?
+    @State private var isFriend = false
+    @State private var requested = false
+    @State private var openChat = false
+
+    private var isMe: Bool { userId == auth.uid }
+
+    /// 그 사람의 공개 별만(비공개 제외, 친구공개는 친구일 때만).
+    private var visibleDiaries: [Diary] {
+        store.diaries
+            .filter { $0.userId == userId }
+            .filter { d in
+                switch d.visibilityType {
+                case "private": return false
+                case "friends": return isFriend || isMe
+                default: return true
+                }
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var totalLikes: Int { visibleDiaries.reduce(0) { $0 + $1.likeCount } }
+    private var totalViews: Int { visibleDiaries.reduce(0) { $0 + $1.viewCount } }
+
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 18) {
+                    header
+                    actionRow
+                    statRow
+                    diariesSection
+                }
+                .padding(16)
+            }
+        }
+        .navigationTitle(userName.isEmpty ? "프로필" : userName)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $openChat) {
+            ChatScreen(friendId: userId, friendName: userName, myUid: auth.uid ?? "")
+        }
+        .navigationDestination(for: Diary.self) { DetailScreen(diary: $0) }
+        .task {
+            if let doc = try? await FirestoreService.users.document(userId).getDocument() {
+                profileImageUrl = doc.get("profileImageUrl") as? String
+                equippedTitleId = doc.get("equippedTitle") as? String
+            }
+            if let myUid = auth.uid, !isMe {
+                let f = try? await FirestoreService.friends(of: myUid).document(userId).getDocument()
+                isFriend = f?.exists ?? false
+            }
+        }
+    }
+
+    private var header: some View {
+        VStack(spacing: 10) {
+            avatar
+            Text(userName.isEmpty ? "알 수 없음" : userName)
+                .font(.title3).bold()
+                .foregroundStyle(Theme.textPrimary)
+            if let title = Achievements.byId(equippedTitleId)?.titleName {
+                Text(title)
+                    .font(.caption).bold()
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Theme.mint.opacity(0.2), in: Capsule())
+                    .foregroundStyle(Theme.mint)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private var avatar: some View {
+        Group {
+            if let url = profileImageUrl, !url.isEmpty {
+                AsyncImage(url: URL(string: url)) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: { Theme.surfaceAlt }
+            } else {
+                Theme.surfaceAlt.overlay(
+                    Text(String((userName.isEmpty ? "?" : userName).prefix(1)))
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(Theme.mint)
+                )
+            }
+        }
+        .frame(width: 84, height: 84)
+        .clipShape(Circle())
+    }
+
+    @ViewBuilder
+    private var actionRow: some View {
+        if isMe {
+            Text("내 프로필")
+                .font(.subheadline).foregroundStyle(Theme.textSecondary)
+        } else if isFriend {
+            HStack(spacing: 12) {
+                Label("친구", systemImage: "checkmark.seal.fill")
+                    .font(.subheadline).foregroundStyle(Theme.mint)
+                Button { openChat = true } label: {
+                    Label("채팅하기", systemImage: "bubble.left.fill")
+                        .font(.subheadline.bold())
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(Theme.mint.opacity(0.18), in: Capsule())
+                        .foregroundStyle(Theme.mint)
+                }
+            }
+        } else {
+            Button {
+                Task { await sendRequest() }
+            } label: {
+                Label(requested ? "요청됨" : "친구 추가",
+                      systemImage: requested ? "checkmark" : "person.badge.plus")
+                    .font(.subheadline.bold())
+                    .padding(.horizontal, 18).padding(.vertical, 9)
+                    .background((requested ? Theme.textFaint : Theme.mint).opacity(0.18), in: Capsule())
+                    .foregroundStyle(requested ? Theme.textSecondary : Theme.mint)
+            }
+            .disabled(requested)
+        }
+    }
+
+    private var statRow: some View {
+        HStack(spacing: 12) {
+            statCell("별", visibleDiaries.count)
+            statCell("조회", totalViews)
+            statCell("좋아요", totalLikes)
+        }
+    }
+
+    private func statCell(_ label: String, _ value: Int) -> some View {
+        VStack(spacing: 4) {
+            Text("\(value)").font(.title3).bold().foregroundStyle(Theme.textPrimary)
+            Text(label).font(.caption).foregroundStyle(Theme.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var diariesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("\(userName.isEmpty ? "이 사람" : userName)님의 별")
+                .font(.headline)
+                .foregroundStyle(Theme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if visibleDiaries.isEmpty {
+                Text("아직 볼 수 있는 별이 없어요.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textSecondary)
+            } else {
+                ForEach(visibleDiaries) { diary in
+                    NavigationLink(value: diary) {
+                        DiaryCard(diary: diary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// 친구 요청 전송(중복 방지) — FriendsViewModel.sendRequest 와 동일 스키마.
+    private func sendRequest() async {
+        guard let myUid = auth.uid, !isMe else { return }
+        requested = true
+        let dup = try? await FirestoreService.friendRequests
+            .whereField("fromId", isEqualTo: myUid)
+            .whereField("toId", isEqualTo: userId)
+            .getDocuments()
+        if let dup, !dup.documents.isEmpty { return } // 이미 요청됨
+        let ref = FirestoreService.friendRequests.document()
+        try? await ref.setData([
+            "fromId": myUid, "fromName": auth.displayName,
+            "fromPhotoUrl": "",
+            "toId": userId, "toName": userName,
+            "createdAt": FirestoreService.nowMillis,
+        ])
+    }
+}

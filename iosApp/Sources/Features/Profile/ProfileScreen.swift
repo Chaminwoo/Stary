@@ -44,7 +44,11 @@ struct ProfileScreen: View {
                     }
                     .tint(Theme.mint)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    NavigationLink { SettingsScreen() } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .tint(Theme.mint)
                     NavigationLink { NotificationsScreen() } label: {
                         Image(systemName: "bell")
                     }

@@ -12,25 +12,34 @@ final class MusicManager: ObservableObject {
 
     private let keyEnabled = "music_enabled"
     private let keyTrack = "music_track"
+    private let keyMusicVol = "music_volume"
+    private let keySfxVol = "sfx_volume"
 
     @Published private(set) var enabled: Bool
     @Published private(set) var selectedTrackId: String
+    /// 배경음악 볼륨(0..1). 설정 화면에서 조절. (Android MusicManager.musicVolume 패리티)
+    @Published private(set) var musicVolume: Float
+    /// 효과음(SFX) 볼륨(0..1). 열람/다이얼 효과음에 곱해진다.
+    @Published private(set) var sfxVolume: Float
 
     private var player: AVAudioPlayer?
     private var playingId: String?
 
     // 효과음
     private var openPlayer: AVAudioPlayer?
-    private let openVolume: Float = 0.35
+    private let openBaseVolume: Float = 0.35
     private var dialPlayer: AVAudioPlayer?
     private var dialDelegate: DialDelegate?
     private var dialTurning = false
-    private let dialVolume: Float = 0.6
+    private let dialBaseVolume: Float = 0.6
 
     private init() {
         let d = UserDefaults.standard
         enabled = (d.object(forKey: keyEnabled) as? Bool) ?? true
         selectedTrackId = d.string(forKey: keyTrack) ?? MusicCatalog.defaultId
+        // 저장값 없으면 1(최대). UserDefaults.float 은 부재 시 0 이라 존재 여부로 분기.
+        musicVolume = (d.object(forKey: keyMusicVol) != nil ? d.float(forKey: keyMusicVol) : 1).clampedUnit
+        sfxVolume = (d.object(forKey: keySfxVol) != nil ? d.float(forKey: keySfxVol) : 1).clampedUnit
         playingId = selectedTrackId
         configureSession()
     }
@@ -55,6 +64,7 @@ final class MusicManager: ObservableObject {
             let id = playingId ?? selectedTrackId
             guard let res = MusicCatalog.byId(id)?.resName, let p = makePlayer(res) else { return }
             p.numberOfLoops = -1
+            p.volume = musicVolume
             player = p
             playingId = id
         }
@@ -80,6 +90,7 @@ final class MusicManager: ObservableObject {
     func playTrack(_ id: String, at time: TimeInterval = 0) {
         guard let res = MusicCatalog.byId(id)?.resName, let p = makePlayer(res) else { return }
         p.numberOfLoops = -1
+        p.volume = musicVolume
         let dur = p.duration
         p.currentTime = (dur > 0) ? min(max(time, 0), max(dur - 0.2, 0)) : max(time, 0)
         if enabled { p.play() }
@@ -95,12 +106,29 @@ final class MusicManager: ObservableObject {
         UserDefaults.standard.set(id, forKey: keyTrack)
     }
 
+    /// 배경음악 볼륨 설정(0..1) — 저장 + 현재 재생 중인 player 에 즉시 반영.
+    func updateMusicVolume(_ value: Float) {
+        let v = value.clampedUnit
+        guard musicVolume != v else { return }
+        musicVolume = v
+        player?.volume = v
+        UserDefaults.standard.set(v, forKey: keyMusicVol)
+    }
+
+    /// 효과음 볼륨 설정(0..1) — 저장. 다음 효과음 재생부터 반영.
+    func updateSfxVolume(_ value: Float) {
+        let v = value.clampedUnit
+        guard sfxVolume != v else { return }
+        sfxVolume = v
+        UserDefaults.standard.set(v, forKey: keySfxVol)
+    }
+
     // MARK: - 효과음
 
     /// 다이어리 열람 효과음(배경음악보다 작게). 음소거면 무음.
     func playOpenDiary() {
         guard enabled, let p = makePlayer("open_diary") else { return }
-        p.volume = openVolume
+        p.volume = openBaseVolume * sfxVolume
         openPlayer = p
         p.play()
     }
@@ -115,7 +143,7 @@ final class MusicManager: ObservableObject {
     private func startDialIfNeeded() {
         if dialPlayer?.isPlaying == true { return } // 이미 재생 중이면 겹치지 않음
         guard let p = makePlayer("turning_dial") else { return }
-        p.volume = dialVolume
+        p.volume = dialBaseVolume * sfxVolume
         let del = DialDelegate { [weak self] in
             guard let self, self.dialTurning, self.enabled else { return }
             self.dialPlayer?.currentTime = 0
@@ -133,4 +161,9 @@ private final class DialDelegate: NSObject, AVAudioPlayerDelegate {
     private let onFinish: () -> Void
     init(_ onFinish: @escaping () -> Void) { self.onFinish = onFinish }
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) { onFinish() }
+}
+
+private extension Float {
+    /// 0...1 로 클램프.
+    var clampedUnit: Float { Swift.min(Swift.max(self, 0), 1) }
 }

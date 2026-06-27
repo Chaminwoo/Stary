@@ -2,14 +2,20 @@ import SwiftUI
 
 /// 1:1 친구 채팅 화면.
 struct ChatScreen: View {
-    let friend: Friend
+    let friendId: String
+    let friendName: String
     @EnvironmentObject var auth: AuthManager
     @StateObject private var vm: ChatViewModel
     @State private var text = ""
 
     init(friend: Friend, myUid: String) {
-        self.friend = friend
-        _vm = StateObject(wrappedValue: ChatViewModel(myUid: myUid, friendUid: friend.userId))
+        self.init(friendId: friend.userId, friendName: friend.userName, myUid: myUid)
+    }
+
+    init(friendId: String, friendName: String, myUid: String) {
+        self.friendId = friendId
+        self.friendName = friendName
+        _vm = StateObject(wrappedValue: ChatViewModel(myUid: myUid, friendUid: friendId))
     }
 
     var body: some View {
@@ -35,10 +41,18 @@ struct ChatScreen: View {
                 inputBar
             }
         }
-        .navigationTitle(friend.userName)
+        .navigationTitle(friendName)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { vm.start() }
-        .onDisappear { vm.stop() }
+        .onAppear {
+            vm.start()
+            ChatPresence.shared.activeFriendId = friendId // 이 방 메시지는 배너 억제
+        }
+        .onDisappear {
+            vm.stop()
+            if ChatPresence.shared.activeFriendId == friendId {
+                ChatPresence.shared.activeFriendId = nil
+            }
+        }
     }
 
     private func bubble(_ msg: ChatMessage) -> some View {

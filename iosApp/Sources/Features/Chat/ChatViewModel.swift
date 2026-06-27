@@ -36,6 +36,7 @@ final class ChatViewModel: ObservableObject {
             "participants": chatId.components(separatedBy: "_"),
             "lastMessage": body,
             "lastSenderId": senderId,
+            "lastSenderName": senderName, // 인앱 채팅 배너 발신자명
             "updatedAt": now,
         ], merge: true)
     }

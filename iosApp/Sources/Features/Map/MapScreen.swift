@@ -10,7 +10,7 @@ struct MapScreen: View {
         ZStack {
             MapLibreView(
                 diaries: store.diaries,
-                center: location.coordinateOrDefault,
+                userLocation: location.coordinate,
                 onTapDiary: { selected = $0 }
             )
             .ignoresSafeArea()

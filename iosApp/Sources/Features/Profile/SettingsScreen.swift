@@ -1,0 +1,165 @@
+import SwiftUI
+
+/// 설정 화면 — 배경음악/효과음 볼륨, 알림 팝업 on/off, 언어 변경. (Android SettingsScreen 패리티)
+/// 값은 [MusicManager]/[AppSettings]/[LocaleManager] 에 즉시 저장되어 전 화면에 반영된다.
+struct SettingsScreen: View {
+    @ObservedObject private var music = MusicManager.shared
+    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var locale = LocaleManager.shared
+    @State private var showLanguagePicker = false
+
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    // ── 사운드 ──
+                    sectionLabel(locale.t(.settingsSound), "music.note")
+                    glassCard {
+                        toggleRow(icon: "music.note",
+                                  label: locale.t(.settingsBgm),
+                                  description: locale.t(.settingsBgmDesc),
+                                  isOn: music.enabled) { music.setActive($0) }
+                        divider
+                        volumeRow(label: locale.t(.settingsBgmVolume),
+                                  value: music.musicVolume,
+                                  enabled: music.enabled) { music.updateMusicVolume($0) }
+                        divider
+                        volumeRow(label: locale.t(.settingsSfxVolume),
+                                  value: music.sfxVolume,
+                                  enabled: true,
+                                  iconOverride: "waveform") { music.updateSfxVolume($0) }
+                    }
+
+                    // ── 알림 ──
+                    sectionLabel(locale.t(.settingsNotification), "bell.fill")
+                    glassCard {
+                        toggleRow(icon: settings.notificationsEnabled ? "bell.fill" : "bell.slash.fill",
+                                  label: locale.t(.settingsNotifPopup),
+                                  description: locale.t(.settingsNotifPopupDesc),
+                                  isOn: settings.notificationsEnabled) { settings.updateNotificationsEnabled($0) }
+                    }
+
+                    // ── 언어 ──
+                    sectionLabel(locale.t(.settingsLanguage), "globe")
+                    glassCard {
+                        Button { showLanguagePicker = true } label: {
+                            HStack(spacing: 14) {
+                                iconBadge("globe", active: true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(locale.t(.settingsLanguage))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text(locale.t(.settingsLanguageDesc))
+                                        .font(.caption2).foregroundStyle(Theme.textSecondary)
+                                }
+                                Spacer()
+                                Text(languageLabel(locale.language))
+                                    .font(.subheadline).foregroundStyle(Theme.mint)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption).foregroundStyle(Theme.textFaint)
+                            }
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Text(locale.t(.settingsAutosave))
+                        .font(.caption2)
+                        .foregroundStyle(Theme.textFaint)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 4)
+                }
+                .padding(20)
+            }
+        }
+        .navigationTitle(locale.t(.navSettings))
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(locale.t(.languageDialogTitle), isPresented: $showLanguagePicker, titleVisibility: .visible) {
+            ForEach(LocaleManager.supported, id: \.self) { tag in
+                Button(languageLabel(tag)) { locale.setLanguage(tag) }
+            }
+        }
+    }
+
+    private func languageLabel(_ tag: String) -> String {
+        switch tag {
+        case "ko": return locale.t(.languageKo)
+        case "en": return locale.t(.languageEn)
+        case "ja": return locale.t(.languageJa)
+        default: return locale.t(.languageSystem)
+        }
+    }
+
+    // MARK: - Building blocks
+
+    private func sectionLabel(_ text: String, _ icon: String) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: icon).font(.system(size: 13)).foregroundStyle(Theme.mint)
+            Text(text).font(.subheadline).bold().foregroundStyle(Theme.mint)
+        }
+    }
+
+    private func glassCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(spacing: 0) { content() }
+            .padding(.horizontal, 16)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 20))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .strokeBorder(
+                        LinearGradient(colors: [Theme.mint.opacity(0.5), Color.blue.opacity(0.4)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing),
+                        lineWidth: 1)
+            )
+    }
+
+    private var divider: some View {
+        Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+    }
+
+    private func iconBadge(_ icon: String, active: Bool) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 18))
+            .foregroundStyle(active ? Theme.mint : Theme.textFaint)
+            .frame(width: 40, height: 40)
+            .background(active ? Theme.mint.opacity(0.14) : Color.white.opacity(0.05), in: Circle())
+            .overlay(Circle().strokeBorder(active ? Theme.mint.opacity(0.35) : Color.white.opacity(0.08), lineWidth: 1))
+    }
+
+    private func toggleRow(icon: String, label: String, description: String,
+                           isOn: Bool, onChange: @escaping (Bool) -> Void) -> some View {
+        HStack(spacing: 14) {
+            iconBadge(icon, active: isOn)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).foregroundStyle(Theme.textPrimary)
+                Text(description).font(.caption2).foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(get: { isOn }, set: { onChange($0) }))
+                .labelsHidden()
+                .tint(Theme.mint)
+        }
+        .padding(.vertical, 14)
+    }
+
+    private func volumeRow(label: String, value: Float, enabled: Bool,
+                           iconOverride: String? = nil,
+                           onChange: @escaping (Float) -> Void) -> some View {
+        let icon = iconOverride ?? (value <= 0.01 ? "speaker.slash.fill" : "speaker.wave.2.fill")
+        return VStack(spacing: 6) {
+            HStack(spacing: 14) {
+                iconBadge(icon, active: enabled)
+                Text(label).foregroundStyle(enabled ? Theme.textPrimary : Theme.textFaint)
+                Spacer()
+                Text("\(Int(value * 100))%")
+                    .font(.caption).bold()
+                    .foregroundStyle(enabled ? Theme.mint : Theme.textFaint)
+                    .padding(.horizontal, 12).padding(.vertical, 4)
+                    .background(enabled ? Theme.mint.opacity(0.14) : Color.white.opacity(0.05), in: Capsule())
+            }
+            Slider(value: Binding(get: { Double(value) }, set: { onChange(Float($0)) }), in: 0...1)
+                .tint(Theme.mint)
+                .disabled(!enabled)
+        }
+        .padding(.vertical, 12)
+    }
+}

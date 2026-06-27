@@ -9,10 +9,24 @@ struct DetailScreen: View {
     @StateObject private var vm: DetailViewModel
     @State private var didCountView = false
     @State private var commentText = ""
+    @State private var profileTarget: ProfileTarget?
 
     init(diary: Diary) {
         self.diary = diary
         _vm = StateObject(wrappedValue: DetailViewModel(diary: diary))
+    }
+
+    /// 타인 프로필 진입 대상.
+    struct ProfileTarget: Identifiable {
+        let userId: String
+        let userName: String
+        var id: String { userId }
+    }
+
+    /// 익명/빈 userId 가 아니면 그 작성자의 프로필을 띄운다.
+    private func openProfile(_ userId: String, _ userName: String) {
+        guard !userId.isEmpty else { return }
+        profileTarget = ProfileTarget(userId: userId, userName: userName)
     }
 
     private var distanceM: Double {
@@ -34,9 +48,21 @@ struct DetailScreen: View {
                     Text(diary.title.isEmpty ? "(제목 없음)" : diary.title)
                         .font(.title2).bold()
                         .foregroundStyle(Theme.textPrimary)
-                    Text(diary.isAnonymous ? "익명" : diary.userName)
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.textSecondary)
+                    if diary.isAnonymous || diary.userId.isEmpty {
+                        Text("익명")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.textSecondary)
+                    } else {
+                        Button { openProfile(diary.userId, diary.userName) } label: {
+                            HStack(spacing: 4) {
+                                Text(diary.userName)
+                                Image(systemName: "chevron.right").font(.caption2)
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     if canOpen, !diary.imageUrl.isEmpty {
                         AsyncImage(url: URL(string: diary.imageUrl)) { image in
@@ -56,6 +82,14 @@ struct DetailScreen: View {
         }
         .navigationTitle("별")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $profileTarget) { t in
+            NavigationStack {
+                UserProfileScreen(userId: t.userId, userName: t.userName)
+            }
+            .environmentObject(auth)
+            .environmentObject(store)
+            .environmentObject(location) // UserProfile → 별 상세 푸시 시 필요
+        }
         .onAppear {
             vm.start(uid: auth.uid)
             MusicManager.shared.playOpenDiary() // 별(다이어리) 열람 효과음
@@ -129,12 +163,18 @@ struct DetailScreen: View {
 
             ForEach(vm.comments) { c in
                 HStack(alignment: .top, spacing: 10) {
-                    // 인스타식 프로필 아바타 (top 을 사용자 이름 top 에 맞춤)
-                    CommentAvatar(userId: c.userId, userName: c.userName)
-                        .padding(.top, 2)
+                    // 인스타식 프로필 아바타 (top 을 사용자 이름 top 에 맞춤) — 탭 시 작성자 프로필
+                    Button { openProfile(c.userId, c.userName) } label: {
+                        CommentAvatar(userId: c.userId, userName: c.userName)
+                            .padding(.top, 2)
+                    }
+                    .buttonStyle(.plain)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text(c.userName).font(.caption).bold().foregroundStyle(Theme.textSecondary)
+                            Button { openProfile(c.userId, c.userName) } label: {
+                                Text(c.userName).font(.caption).bold().foregroundStyle(Theme.textSecondary)
+                            }
+                            .buttonStyle(.plain)
                             Spacer()
                             if c.userId == auth.uid {
                                 Button {

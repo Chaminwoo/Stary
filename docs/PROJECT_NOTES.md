@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.22 위치/로그인/팝업/설정 라운드**(실시간 위치+내 위치 카메라, 로그인 유지, 채팅·알림 인앱 배너, 댓글 프로필, 설정 탭) — 아래 8.22 참고.
+> 최종 갱신: **8.22-iOS 패리티**(위 5개 항목을 SwiftUI 로 구현, CI 검증 대기) — 아래 8.22-iOS 참고.
+> 이전: **8.22 위치/로그인/팝업/설정 라운드**(실시간 위치+내 위치 카메라, 로그인 유지, 채팅·알림 인앱 배너, 댓글 프로필, 설정 탭) — 아래 8.22 참고.
 > 이전: **8.11 채팅/크롭/전환/모양 라운드**(친구 채팅, 사진 4:3 크롭, 화면 전환 깊이감 줌, 다이아몬드 재현+행성 추가) — 아래 8.11 참고.
 > 이전: **기능 배치 3**(업로드 별모양/색상 무한 캐러셀, 지도 필터 스피드다이얼 FAB, 맵 워터마크 제거)
 > 이전: **기능 배치 2**(파장 애니메이션, 공개범위, 나만보기/친구선택 필터, 별자리, 배경음악, 마이페이지 별 모양)
@@ -206,6 +207,17 @@
   - ⚠️ **recreate 부작용 방지**: `MusicManager.release()` 가 `initialized=false`(+`openLoaded=false`) 로 풀어 dispose→release→init 사이클에서 SoundPool 재로드(효과음 안 깨지게).
 - **남은 iOS TODO(이번 라운드 패리티)**: 로그인 유지·실시간 위치는 iOS 이미 동작(`AuthManager.addStateDidChangeListener` 영속 복원 + `LocationManager.startUpdatingLocation`).
   미반영: ① 최초 진입 내 위치 카메라(MapScreen/MapLibreView center 변경 시 재센터), ② 댓글 작성자 프로필 탭(iOS UserProfile 화면 부재 — 화면부터 필요), ③ 설정 화면(iOS MusicManager 볼륨 musicVolume/sfxVolume + AppSettings + SettingsScreen + 탭/프로필 진입), ④ 인앱 배너+채팅/알림 와처(observeMyChats 포함), ⑤ 언어 변경(iOS 는 Bundle.main.localizations + Localizable.strings, 또는 SwiftUI environment locale). CI(macOS)로 검증 예정.
+
+## 8.22-iOS 8.22 라운드 iOS 패리티 (구현 완료, CI 검증 대기 2026-06-27)
+위 5개 미반영 항목 전부 SwiftUI 로 구현. Windows 라 로컬 컴파일 불가 → push 후 `ios.yml`(macOS) 검증.
+- **① 최초 진입 내 위치 카메라**: `MapLibreView` 에 `userLocation: CLLocationCoordinate2D?`(실제 fix, 없으면 nil) 추가 +
+  `Coordinator.didAutoCenter` 1회 가드. `makeUIView` 는 fix 없으면 기본 좌표(AppConfig.default)로 시작, fix 가 처음 들어오면 `updateUIView` 에서 그 위치로 `setCenter(zoom 14, animated)` 1회. `MapScreen` 이 `center:`→`userLocation: location.coordinate`(옵셔널)로 전달.
+- **② 댓글 작성자 프로필 + UserProfile 화면**: `Features/Profile/UserProfileScreen.swift` 신설 — 아바타/이름/장착 칭호(users/{uid} 조회) +
+  친구 상태별 액션(본인=내 프로필 / 친구=채팅하기 푸시 / 그 외=친구 추가, friendRequests 중복체크 후 setData) + **그 사람의 공개 별 목록**(store.diaries 에서 userId 필터 + 비공개 제외·친구공개는 친구일 때만, 탭→Detail 푸시). `DetailScreen` 작성자명/댓글 아바타·이름 탭 → `profileTarget` `.sheet` 로 진입(익명/빈 userId 비활성). 시트에 auth/store/location 주입(Detail 푸시 대비).
+- **③ 설정 화면**: `MusicManager` 에 `musicVolume`/`sfxVolume`(@Published, UserDefaults `music_volume`/`sfx_volume`) + `updateMusicVolume`/`updateSfxVolume`. resume/playTrack 에 musicVolume, open/dial 효과음에 sfxVolume 곱. `Core/AppSettings.swift`(notificationsEnabled, @MainActor ObservableObject). `Features/Profile/SettingsScreen.swift`(사운드 토글+BGM/효과음 볼륨 슬라이더, 알림 팝업 토글, 언어 선택) — ProfileScreen 툴바에 `gearshape` 진입.
+- **④ 인앱 배너 + 와처**: `Features/InAppBanner.swift`(`InAppBanner` 싱글톤 큐 + `InAppBannerHost` 상단 슬라이드 4초). `Features/InAppWatcher.swift`(`InAppWatcher` @MainActor — chats `arrayContains` + notifications `diaryOwnerId` 구독, 최초=기준선, dedup, `AppSettings.notificationsEnabled` 게이팅 / `ChatSummary` / `ChatPresence`(보고 있는 방 억제)). `ChatViewModel.send` 메타에 `lastSenderName` 추가. `ChatScreen` 이 `friendId/friendName` 기반(+`ChatPresence` set/clear). `MainTabView` 가 와처 시작 + `InAppBannerHost` 오버레이 + 배너 탭→채팅/상세 `.sheet`.
+- **⑤ 언어 변경**: `Core/LocaleManager.swift`(@MainActor, prefs `app_language`, system/ko/en/ja) + `L10n` 인코드 딕셔너리(설정/탭 문자열 ko/en/ja). `RootView` 가 `.environment(\.locale,)` + `.id(language)`(Android recreate 대응 = 전체 재구성). SettingsScreen 언어 picker(`confirmationDialog`). ⚠️ Android 처럼 **점진 이관** — 설정/탭만 우선 번역, 나머지 화면 문자열은 아직 한국어 하드코딩.
+- 변경 파일: 신설 `AppSettings/LocaleManager/SettingsScreen/UserProfileScreen/InAppBanner/InAppWatcher.swift`, 수정 `MusicManager/MapLibreView/MapScreen/RootView/ProfileScreen/DetailScreen/ChatScreen/ChatViewModel.swift`. shared(commonMain) 무변경 → Android 빌드 영향 없음.
 
 ## 8.21 배경음악 멀티트랙 + 원형 다이얼 + 로그인 게이팅 (BUILD SUCCESSFUL 2026-06-26)
 - **배경음악 멀티트랙화**: `ambient_music.mp3` 삭제 → `core/util/MusicCatalog.kt`(6트랙: star_whisper/tiny_explorer/
