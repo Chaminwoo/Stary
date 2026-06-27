@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.22-iOS 패리티**(위 5개 항목 SwiftUI 구현, CI(macOS) BUILD SUCCESS 40424d0) — 아래 8.22-iOS 참고.
+> 최종 갱신: **8.23-iOS 미조회 필터 + 조회 기록**(ViewedStore/markViewed + Map·List "미조회만", CI(macOS) BUILD SUCCESS e89904a) — 아래 8.23-iOS 참고.
+> 이전: **8.22-iOS 패리티**(위 5개 항목 SwiftUI 구현, CI(macOS) BUILD SUCCESS 40424d0) — 아래 8.22-iOS 참고.
 > 이전: **8.22 위치/로그인/팝업/설정 라운드**(실시간 위치+내 위치 카메라, 로그인 유지, 채팅·알림 인앱 배너, 댓글 프로필, 설정 탭) — 아래 8.22 참고.
 > 이전: **8.11 채팅/크롭/전환/모양 라운드**(친구 채팅, 사진 4:3 크롭, 화면 전환 깊이감 줌, 다이아몬드 재현+행성 추가) — 아래 8.11 참고.
 > 이전: **기능 배치 3**(업로드 별모양/색상 무한 캐러셀, 지도 필터 스피드다이얼 FAB, 맵 워터마크 제거)
@@ -208,7 +209,7 @@
 - **남은 iOS TODO(이번 라운드 패리티)**: 로그인 유지·실시간 위치는 iOS 이미 동작(`AuthManager.addStateDidChangeListener` 영속 복원 + `LocationManager.startUpdatingLocation`).
   미반영: ① 최초 진입 내 위치 카메라(MapScreen/MapLibreView center 변경 시 재센터), ② 댓글 작성자 프로필 탭(iOS UserProfile 화면 부재 — 화면부터 필요), ③ 설정 화면(iOS MusicManager 볼륨 musicVolume/sfxVolume + AppSettings + SettingsScreen + 탭/프로필 진입), ④ 인앱 배너+채팅/알림 와처(observeMyChats 포함), ⑤ 언어 변경(iOS 는 Bundle.main.localizations + Localizable.strings, 또는 SwiftUI environment locale). CI(macOS)로 검증 예정.
 
-## 8.23-iOS 미조회 필터 + 조회 기록 (구현 완료, CI 검증 대기 2026-06-27)
+## 8.23-iOS 미조회 필터 + 조회 기록 (CI(macOS) BUILD SUCCESS e89904a, 2026-06-28)
 iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListScreen "미조회만" + FirebaseViewedRepository 패리티).
 - **`Data/ViewedStore.swift` 신설**: `ViewedRepository.markViewed(uid,diaryId)`(fire-and-forget, `users/{uid}/viewedDiaries/{diaryId}` 에 `viewedAt` 기록) +
   `ViewedStore`(@MainActor ObservableObject — 그 컬렉션 실시간 구독해 `viewedIds: Set<String>` 노출). `FirestoreService.viewedDiaries(of:)` 헬퍼 추가.
