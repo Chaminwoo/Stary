@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -48,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.core.model.NotificationType
 import com.chaminwoo.stary.core.util.RelativeTime
@@ -64,7 +67,7 @@ fun NotificationScreen(
 
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("로그인이 필요해요", color = MaterialTheme.colorScheme.secondary)
+            Text(stringResource(R.string.common_login_required), color = MaterialTheme.colorScheme.secondary)
         }
         return
     }
@@ -74,8 +77,13 @@ fun NotificationScreen(
 
     LaunchedEffect(Unit) { vm.markAllRead() }
 
-    // null = Firestore 응답 대기 중 — 빈 화면으로 간주하지 않음
-    if (notifications == null) return
+    // null = Firestore 응답 대기 중 — 빈 화면으로 간주하지 않고 로딩 표시(검은 화면 방지).
+    if (notifications == null) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.onBackground)
+        }
+        return
+    }
 
     // 낙관적 삭제: 스와이프 즉시 로컬에서 제거(서버 반영 왕복을 기다리지 않음).
     val locallyRemoved = remember { mutableStateListOf<String>() }
@@ -86,7 +94,7 @@ fun NotificationScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("🔔", fontSize = 40.sp)
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("알림이 없습니다", color = MaterialTheme.colorScheme.secondary, fontSize = 15.sp)
+                Text(stringResource(R.string.notif_empty), color = MaterialTheme.colorScheme.secondary, fontSize = 15.sp)
             }
         }
         return
@@ -164,9 +172,9 @@ private fun SwipeToDeleteNotification(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.Delete, contentDescription = "삭제", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.common_delete), tint = Color.White, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.height(2.dp))
-                    Text("삭제", color = Color.White, fontSize = 12.sp)
+                    Text(stringResource(R.string.common_delete), color = Color.White, fontSize = 12.sp)
                 }
             }
         }
@@ -233,9 +241,9 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = when {
-                    isFriendPost -> "새 다이어리 \"${notif.diaryTitle}\"를 남겼어요"
-                    isLike -> "\"${notif.diaryTitle}\"를 좋아해요"
-                    else -> "\"${notif.diaryTitle}\"에 댓글을 남겼어요"
+                    isFriendPost -> stringResource(R.string.notif_friend_post, notif.diaryTitle)
+                    isLike -> stringResource(R.string.notif_like, notif.diaryTitle)
+                    else -> stringResource(R.string.notif_comment, notif.diaryTitle)
                 },
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.secondary

@@ -13,11 +13,13 @@ final class NotificationsViewModel: ObservableObject {
     func start(ownerId: String) {
         stop()
         regs.append(
+            // order(by:) 를 서버에 두면 (diaryOwnerId + createdAt) 복합 인덱스 필요 → 미생성 시 누락.
+            // 서버는 whereField 만, 정렬은 클라이언트(Android observeNotifications 와 동일 패턴).
             FirestoreService.notifications
                 .whereField("diaryOwnerId", isEqualTo: ownerId)
-                .order(by: "createdAt", descending: true)
                 .addSnapshotListener { [weak self] snap, _ in
-                    self?.items = snap?.documents.compactMap { try? $0.data(as: AppNotification.self) } ?? []
+                    let list = snap?.documents.compactMap { try? $0.data(as: AppNotification.self) } ?? []
+                    self?.items = list.sorted { $0.createdAt > $1.createdAt }
                 }
         )
         regs.append(

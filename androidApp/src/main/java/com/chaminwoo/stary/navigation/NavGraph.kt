@@ -24,6 +24,7 @@ import com.chaminwoo.stary.feature.profile.screen.AchievementsScreen
 import com.chaminwoo.stary.feature.profile.screen.MusicScreen
 import com.chaminwoo.stary.feature.profile.screen.MyDiaryScreen
 import com.chaminwoo.stary.feature.profile.screen.ProfileScreen
+import com.chaminwoo.stary.feature.profile.screen.SettingsScreen
 import com.chaminwoo.stary.feature.profile.screen.UserProfileScreen
 
 // 화면 전환 공통 파라미터 — 깊이감 줌(scale+fade). 별 줌인 연출과 이어지도록 짧고 부드럽게.
@@ -123,6 +124,10 @@ fun NavGraph(
 
         composable<NavRoute.Music> {
             MusicScreen()
+        }
+
+        composable<NavRoute.Settings> {
+            SettingsScreen()
         }
 
         composable<NavRoute.Notification> {

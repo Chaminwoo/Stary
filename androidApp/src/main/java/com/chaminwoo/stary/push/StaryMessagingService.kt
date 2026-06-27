@@ -37,13 +37,18 @@ class StaryMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // 앱이 전면이면 인앱 배너(InAppBanner)가 처리하므로 시스템 알림을 띄우지 않는다(이중 표시 방지).
+        // 후면/종료 상태에서만 상단 heads-up 시스템 알림을 띄운다.
+        if (com.chaminwoo.stary.core.util.AppForeground.isForeground) return
+
         val diaryId = message.data["diaryId"]
         val title = message.data["title"] ?: message.notification?.title ?: "Stary"
         val body = message.data["body"] ?: message.notification?.body ?: "새 소식이 있어요"
 
         val manager = getSystemService(NotificationManager::class.java)
+        // IMPORTANCE_HIGH = 상단 heads-up 배너로 표시.
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Stary 알림", NotificationManager.IMPORTANCE_DEFAULT)
+            NotificationChannel(CHANNEL_ID, "Stary 알림", NotificationManager.IMPORTANCE_HIGH)
         )
 
         val intent = Intent(this, MainActivity::class.java).apply {
@@ -57,14 +62,17 @@ class StaryMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        // 알림 id: 채팅은 방(chatId)별로 묶어 누적되지 않게, 그 외는 diaryId 기준.
+        val tag = message.data["chatId"] ?: diaryId
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_HIGH) // heads-up (구버전 호환)
             .setAutoCancel(true)
             .setContentIntent(pending)
             .build()
-        manager.notify(diaryId?.hashCode() ?: System.currentTimeMillis().toInt(), notification)
+        manager.notify(tag?.hashCode() ?: System.currentTimeMillis().toInt(), notification)
     }
 
     companion object {

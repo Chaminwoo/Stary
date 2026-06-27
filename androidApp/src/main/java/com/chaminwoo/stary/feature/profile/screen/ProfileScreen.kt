@@ -28,8 +28,8 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,7 +80,7 @@ fun ProfileScreen(
 
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("로그인이 필요해요", color = TextMuted, fontSize = 18.sp)
+            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 18.sp)
         }
         return
     }
@@ -93,7 +94,7 @@ fun ProfileScreen(
     val uploadError by profileVm.uploadError.collectAsState()
     LaunchedEffect(uploadError) {
         uploadError?.let {
-            com.chaminwoo.stary.core.ui.StaryToast.show("프로필 이미지 업로드 실패: $it")
+            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.profile_upload_failed, it))
             profileVm.clearError()
         }
     }
@@ -156,9 +157,9 @@ fun ProfileScreen(
                 ) {
                     when {
                         isUploading -> CircularProgressIndicator(color = Green, modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
-                        profileImageUrl != null -> AsyncImage(profileImageUrl, "프로필", Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
-                        GoogleAuthHelper.currentUserPhotoUrl != null -> AsyncImage(GoogleAuthHelper.currentUserPhotoUrl, "프로필", Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
-                        else -> Icon(Icons.Filled.AccountCircle, "기본 프로필", tint = Color(0xFF555555), modifier = Modifier.fillMaxSize())
+                        profileImageUrl != null -> AsyncImage(profileImageUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                        GoogleAuthHelper.currentUserPhotoUrl != null -> AsyncImage(GoogleAuthHelper.currentUserPhotoUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                        else -> Icon(Icons.Filled.AccountCircle, stringResource(R.string.cd_default_profile), tint = Color(0xFF555555), modifier = Modifier.fillMaxSize())
                     }
                 }
             }
@@ -184,7 +185,7 @@ fun ProfileScreen(
                 Icon(Icons.Filled.AutoAwesome, null, tint = Green, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = equippedStigma ?: "칭호 없음 · 업적 보기",
+                    text = equippedStigma ?: stringResource(R.string.profile_no_title),
                     color = if (equippedStigma != null) Green else TextMuted,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
@@ -199,11 +200,11 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    StatCell("좋아요", stats.likesReceived.toString(), Color(0xFFE7556B), Icons.Filled.Favorite, Modifier.weight(1f))
+                    StatCell(stringResource(R.string.profile_stat_likes), stats.likesReceived.toString(), Color(0xFFE7556B), Icons.Filled.Favorite, Modifier.weight(1f))
                     StatDivider()
-                    StatCell("조회수", stats.viewsReceived.toString(), TextMuted, Icons.Filled.Visibility, Modifier.weight(1f))
+                    StatCell(stringResource(R.string.nav_friends), stats.friends.toString(), Green, Icons.Filled.People, Modifier.weight(1f))
                     StatDivider()
-                    StatCell("다이어리", stats.diariesCreated.toString(), Color(0xFFF7E067), Icons.Filled.Star, Modifier.weight(1f))
+                    StatCell(stringResource(R.string.profile_stat_diaries), stats.diariesCreated.toString(), Color(0xFFF7E067), Icons.Filled.Star, Modifier.weight(1f))
                 }
             }
 
@@ -215,7 +216,7 @@ fun ProfileScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.AutoAwesome, null, tint = Green, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text("업적 · 칭호", color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.profile_achievements), color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         Text("$unlockedCount / $totalCount", color = Green, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.width(4.dp))
                         Icon(Icons.Filled.ChevronRight, null, tint = TextMuted, modifier = Modifier.size(18.dp))
@@ -259,7 +260,7 @@ fun ProfileScreen(
             ) {
                 Icon(Icons.AutoMirrored.Filled.Logout, null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("로그아웃", color = Color(0xFFFF6B6B), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.drawer_logout), color = Color(0xFFFF6B6B), fontSize = 15.sp, fontWeight = FontWeight.Medium)
             }
         }
     }

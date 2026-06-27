@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DrawerValue
@@ -58,8 +59,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import com.chaminwoo.stary.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -91,6 +94,7 @@ fun MainScreen(
     val musicLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(musicLifecycleOwner) {
         com.chaminwoo.stary.core.util.MusicManager.init(context)
+        com.chaminwoo.stary.core.util.AppSettings.init(context)
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
                 androidx.lifecycle.Lifecycle.Event.ON_START -> com.chaminwoo.stary.core.util.MusicManager.resume()
@@ -117,6 +121,7 @@ fun MainScreen(
         currentDestination?.hasRoute<NavRoute.Profile>() == true -> NavRoute.Profile
         currentDestination?.hasRoute<NavRoute.Achievements>() == true -> NavRoute.Achievements
         currentDestination?.hasRoute<NavRoute.Music>() == true -> NavRoute.Music
+        currentDestination?.hasRoute<NavRoute.Settings>() == true -> NavRoute.Settings
         currentDestination?.hasRoute<NavRoute.Friends>() == true -> NavRoute.Friends
         currentDestination?.hasRoute<NavRoute.Notification>() == true -> NavRoute.Notification
         currentDestination?.hasRoute<NavRoute.Chat>() == true ->
@@ -127,17 +132,21 @@ fun MainScreen(
         else -> NavRoute.Main
     }
 
+    // 이미 로그인된 세션이면(앱 재시작 후 GoogleAuthHelper.restoreSession 으로 복원됨) 로그인 화면을
+    // 건너뛰고 바로 지도로 진입한다("한 번 로그인하면 다음부터 바로 지도").
+    val alreadyLoggedIn = remember { GoogleAuthHelper.currentUserId != null }
+
     // 로그인은 라우트가 아니라 오버레이 — 뒤에서 지도가 미리 렌더링되어
     // 로그인 직후 바로 지도가 보인다. 로그아웃 시 다시 true.
-    // (푸시 딥링크로 진입한 경우엔 바로 다이어리를 보여주기 위해 오버레이 생략)
+    // (푸시 딥링크로 진입했거나 이미 로그인 상태면 오버레이 생략)
     var showLogin by androidx.compose.runtime.saveable.rememberSaveable {
-        mutableStateOf(initialDiaryId == null)
+        mutableStateOf(initialDiaryId == null && !alreadyLoggedIn)
     }
 
     // 지도(NavGraph) 로드 시점 제어 — 로그인 영상이 먼저 시작된 뒤에 지도를 로드한다(영상 우선).
-    // 딥링크 진입(로그인 생략) 시엔 즉시 로드. 한 번 true 가 되면 유지.
+    // 딥링크 진입/이미 로그인 상태면 즉시 로드. 한 번 true 가 되면 유지.
     var contentReady by androidx.compose.runtime.saveable.rememberSaveable {
-        mutableStateOf(initialDiaryId != null)
+        mutableStateOf(initialDiaryId != null || alreadyLoggedIn)
     }
 
     // 로그아웃으로 로그인 화면에 진입했는지 — 이 경우 인트로 영상을 건너뛰고 로그인 UI 를 즉시 표시.
@@ -164,6 +173,9 @@ fun MainScreen(
         viewModel(factory = NotificationViewModel.factory(userId))
     } else null
     val unreadCount by (notifVm?.unreadCount?.collectAsState() ?: androidx.compose.runtime.mutableStateOf(0))
+    // 인앱 알림 팝업용 — 알림 목록을 관찰(null=로딩 중). 비로그인 시 null.
+    val notifList by (notifVm?.notifications?.collectAsState()
+        ?: remember { mutableStateOf<List<com.chaminwoo.stary.core.model.AppNotification>?>(null) })
 
     val onNavigate: (NavRoute) -> Unit = { route ->
         coroutineScope.launch { drawerState.close() }
@@ -203,29 +215,30 @@ fun MainScreen(
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
                         Text(
-                            "목록",
+                            stringResource(R.string.drawer_list),
                             fontSize = 20.sp,
                             color = Color(0xFF8A8A8A),
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(onClick = { coroutineScope.launch { drawerState.close() } }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "닫기", tint = Color(0xFFF0F0F0))
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_close), tint = Color(0xFFF0F0F0))
                         }
                     }
 
-                    DrawerItem("내 다이어리", Icons.AutoMirrored.Filled.MenuBook, currentRoute is NavRoute.MyDiary) { onNavigate(NavRoute.MyDiary) }
-                    DrawerItem("프로필", Icons.Filled.Person, currentRoute is NavRoute.Profile) { onNavigate(NavRoute.Profile) }
-                    DrawerItem("업적", Icons.Filled.EmojiEvents, currentRoute is NavRoute.Achievements) { onNavigate(NavRoute.Achievements) }
-                    DrawerItem("배경음악", Icons.Filled.MusicNote, currentRoute is NavRoute.Music) { onNavigate(NavRoute.Music) }
-                    DrawerItem("친구", Icons.Filled.People, currentRoute is NavRoute.Friends) { onNavigate(NavRoute.Friends) }
+                    DrawerItem(stringResource(R.string.nav_my_diary), Icons.AutoMirrored.Filled.MenuBook, currentRoute is NavRoute.MyDiary) { onNavigate(NavRoute.MyDiary) }
+                    DrawerItem(stringResource(R.string.nav_profile), Icons.Filled.Person, currentRoute is NavRoute.Profile) { onNavigate(NavRoute.Profile) }
+                    DrawerItem(stringResource(R.string.nav_achievements), Icons.Filled.EmojiEvents, currentRoute is NavRoute.Achievements) { onNavigate(NavRoute.Achievements) }
+                    DrawerItem(stringResource(R.string.nav_music), Icons.Filled.MusicNote, currentRoute is NavRoute.Music) { onNavigate(NavRoute.Music) }
+                    DrawerItem(stringResource(R.string.nav_friends), Icons.Filled.People, currentRoute is NavRoute.Friends) { onNavigate(NavRoute.Friends) }
+                    DrawerItem(stringResource(R.string.nav_settings), Icons.Filled.Settings, currentRoute is NavRoute.Settings) { onNavigate(NavRoute.Settings) }
                     // 로그인 상태면 로그아웃, 아니면 로그인 항목 노출
                     if (GoogleAuthHelper.currentUserId == null) {
-                        DrawerItem("로그인", Icons.AutoMirrored.Filled.Login, selected = false, alwaysAccent = true) {
+                        DrawerItem(stringResource(R.string.drawer_login), Icons.AutoMirrored.Filled.Login, selected = false, alwaysAccent = true) {
                             coroutineScope.launch { drawerState.close() }
                             showLogin = true
                         }
                     } else {
-                        DrawerItem("로그아웃", Icons.AutoMirrored.Filled.Logout, selected = false, danger = true) {
+                        DrawerItem(stringResource(R.string.drawer_logout), Icons.AutoMirrored.Filled.Logout, selected = false, danger = true) {
                             onLogout()
                         }
                     }
@@ -246,7 +259,7 @@ fun MainScreen(
                         ),
                         title = {
                             Text(
-                                text = currentRoute.title,
+                                text = localizedTitle(currentRoute),
                                 fontSize = 20.sp,
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color(0xFFF0F0F0)
@@ -255,11 +268,11 @@ fun MainScreen(
                         navigationIcon = {
                             if (currentRoute.isRoot) {
                                 IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
-                                    Icon(Icons.Filled.Menu, contentDescription = "메뉴", tint = Color(0xFFF0F0F0))
+                                    Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.cd_menu), tint = Color(0xFFF0F0F0))
                                 }
                             } else {
                                 IconButton(onClick = { navController.navigateUp() }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기", tint = Color(0xFFF0F0F0))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back), tint = Color(0xFFF0F0F0))
                                 }
                             }
                         },
@@ -279,7 +292,7 @@ fun MainScreen(
                                             }
                                         }
                                     ) {
-                                        Icon(Icons.Filled.FavoriteBorder, contentDescription = "알림", tint = Color(0xFFF0F0F0))
+                                        Icon(Icons.Filled.FavoriteBorder, contentDescription = stringResource(R.string.cd_notifications), tint = Color(0xFFF0F0F0))
                                     }
                                 }
                             }
@@ -356,11 +369,54 @@ fun MainScreen(
             userId = userId,
             suppressed = showOnboarding,
         )
+
+        // 인앱 알림 팝업 — 새 다이어리 알림(좋아요/댓글/친구 글) 도착 시 상단 배너.
+        com.chaminwoo.stary.feature.diary.NotificationPopupWatcher(
+            notifications = notifList,
+            onOpen = { n ->
+                if (n.type == com.chaminwoo.stary.core.model.NotificationType.FRIEND_POST.name && n.diaryId.isNotBlank()) {
+                    com.chaminwoo.stary.core.util.MapFocusState.request(n.diaryId)
+                    navController.navigate(NavRoute.Main) { popUpTo<NavRoute.Main> { inclusive = true } }
+                } else if (n.diaryId.isNotBlank()) {
+                    navController.navigate(NavRoute.Detail(diaryId = n.diaryId))
+                } else {
+                    navController.navigate(NavRoute.Notification)
+                }
+            }
+        )
+
+        // 인앱 채팅 팝업 — 친구 새 메시지 도착 시 상단 배너. 그 채팅을 보고 있으면 생략.
+        val activeChatFriendId = (currentRoute as? NavRoute.Chat)?.friendId
+        com.chaminwoo.stary.feature.diary.ChatPopupWatcher(
+            userId = userId,
+            suppressChatWith = activeChatFriendId,
+            onOpenChat = { friendId, friendName ->
+                navController.navigate(NavRoute.Chat(friendId = friendId, friendName = friendName))
+            }
+        )
     }
 
+    // 인앱 알림 배너(상단) — 모든 콘텐츠 위에 표시. 토스트(하단)와 별개 채널.
+    com.chaminwoo.stary.core.ui.InAppBannerHost()
     // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시
     com.chaminwoo.stary.core.ui.StaryToastHost()
     }
+}
+
+/** 라우트 → 현재 언어로 번역된 탑바 제목. Detail/Chat/UserProfile 의 동적 제목(사용자명 등)은 그대로 사용. */
+@Composable
+private fun localizedTitle(route: NavRoute): String = when (route) {
+    is NavRoute.Main -> stringResource(R.string.nav_map)
+    is NavRoute.Settings -> stringResource(R.string.nav_settings)
+    is NavRoute.Friends -> stringResource(R.string.nav_friends)
+    is NavRoute.Profile -> stringResource(R.string.nav_profile)
+    is NavRoute.Achievements -> stringResource(R.string.nav_achievements)
+    is NavRoute.Music -> stringResource(R.string.nav_music)
+    is NavRoute.MyDiary -> stringResource(R.string.nav_my_diary)
+    is NavRoute.Notification -> stringResource(R.string.nav_notification)
+    is NavRoute.Upload -> stringResource(R.string.nav_upload)
+    is NavRoute.Detail -> stringResource(R.string.nav_detail)
+    else -> route.title // Chat(친구명)/UserProfile(사용자명) 등 동적 제목
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

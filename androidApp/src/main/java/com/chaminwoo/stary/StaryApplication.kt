@@ -1,7 +1,10 @@
 package com.chaminwoo.stary
 
+import android.app.Activity
 import android.app.Application
+import android.os.Bundle
 import android.util.Log
+import com.chaminwoo.stary.core.util.AppForeground
 import com.google.firebase.auth.FirebaseAuth
 
 /**
@@ -15,6 +18,18 @@ import com.google.firebase.auth.FirebaseAuth
 class StaryApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+
+        // 앱 전면/후면 추적 — FCM 시스템 알림 vs 인앱 배너 이중 표시 방지에 사용.
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: Activity) = AppForeground.onResumed()
+            override fun onActivityPaused(activity: Activity) = AppForeground.onPaused()
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
+
         val auth = FirebaseAuth.getInstance()
         if (auth.currentUser == null) {
             auth.signInAnonymously()

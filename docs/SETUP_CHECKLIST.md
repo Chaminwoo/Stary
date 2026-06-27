@@ -208,6 +208,20 @@
 
 ---
 
+## 📝 다음 작업 (TODO — 적어둠, 미구현 / 2026-06-27)
+
+> 사용자 지시로 기록만 해둠. 아직 구현하지 않음(테스트는 직전 라운드까지 완료).
+
+- [ ] **친구 메시지 토스트(인앱 배너)가 계속 반복되는 오류 수정** — 채팅 팝업은 한 번만 떠야 하는데
+      반복적으로 뜨는 현상. (8.22 에서 "방:updatedAt" 키 dedup 적용했으나 여전히 반복 보고 → 추가 원인 추적 필요.
+      후보: 스냅샷 다중 방출/`observeMyChats` 재구독/`shownKeys` 리셋 경로.)
+- [ ] **"미조회만" 필터 아이콘 변경** — `MainListScreen` 의 "미조회만" 칩 아이콘(현재 `Icons.Filled.Visibility` 눈)을
+      다른(구분되는) 아이콘으로 교체. ※원문 문구가 모호("미조회만 다른 및 미조회만 다른")해 라벨까지 바꾸는지 의도 재확인 필요.
+- [ ] **설정 화면 음량 슬라이더를 별 모양으로** — `SettingsScreen` 의 볼륨 조절 바(`Slider`)의 thumb(핸들)을
+      원형 대신 **별 모양**(`StarShapeIcon`/`StarStyle.starPath`)으로 커스텀.
+
+---
+
 ## 🍎 (추후) iOS 확장 — **macOS + Xcode 필요(Windows 불가)**
 - [ ] `iosApp/` Xcode(SwiftUI) 프로젝트 생성 + `:shared` 프레임워크 임포트(`linkDebugFrameworkIosSimulatorArm64`).
 - [ ] `Repositories.kt` 인터페이스를 Firebase iOS SDK로 구현, `GoogleService-Info.plist`(f26c8 iOS 앱) 추가.

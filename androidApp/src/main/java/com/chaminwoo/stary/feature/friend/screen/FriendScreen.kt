@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -80,7 +81,7 @@ fun FriendScreen(
             modifier = modifier.fillMaxSize().background(PageBg),
             contentAlignment = Alignment.Center
         ) {
-            Text("로그인이 필요해요", color = TextMuted, fontSize = 15.sp)
+            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 15.sp)
         }
         return
     }
@@ -142,19 +143,19 @@ fun FriendScreen(
             }
 
             if (isSearching) {
-                item { Text("검색 중...", color = TextMuted, fontSize = 13.sp) }
+                item { Text(stringResource(R.string.friend_searching), color = TextMuted, fontSize = 13.sp) }
             }
 
             // --- 검색 결과 ---
             if (results.isNotEmpty()) {
-                item { SectionHeader("검색 결과", results.size) }
+                item { SectionHeader(stringResource(R.string.friend_search_results), results.size) }
                 items(results, key = { "search_${it.userId}" }) { user ->
                     val alreadyFriend = friends.any { it.userId == user.userId }
                     PersonCard(name = user.userName, photoUrl = user.profileImageUrl) {
                         if (alreadyFriend) {
-                            StatusChip("친구")
+                            StatusChip(stringResource(R.string.friend_status_friend))
                         } else {
-                            Pill("추가", Icons.Filled.PersonAdd, Green.copy(alpha = 0.16f), Green) {
+                            Pill(stringResource(R.string.friend_add), Icons.Filled.PersonAdd, Green.copy(alpha = 0.16f), Green) {
                                 vm.sendRequest(user)
                             }
                         }
@@ -167,26 +168,26 @@ fun FriendScreen(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("'${query.trim()}' 검색 결과가 없어요", color = TextMuted, fontSize = 13.sp)
+                        Text(stringResource(R.string.friend_no_results, query.trim()), color = TextMuted, fontSize = 13.sp)
                     }
                 }
             }
 
             // --- 받은 요청 ---
             if (requests.isNotEmpty()) {
-                item { SectionHeader("받은 친구 요청", requests.size) }
+                item { SectionHeader(stringResource(R.string.friend_requests), requests.size) }
                 items(requests, key = { "req_${it.id}" }) { req ->
                     PersonCard(name = req.fromName, photoUrl = req.fromPhotoUrl) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Pill("수락", Icons.Filled.Check, Green.copy(alpha = 0.16f), Green) { vm.accept(req) }
-                            Pill("거절", Icons.Filled.Close, Color.White.copy(alpha = 0.06f), SoftRed) { vm.decline(req) }
+                            Pill(stringResource(R.string.friend_accept), Icons.Filled.Check, Green.copy(alpha = 0.16f), Green) { vm.accept(req) }
+                            Pill(stringResource(R.string.friend_decline), Icons.Filled.Close, Color.White.copy(alpha = 0.06f), SoftRed) { vm.decline(req) }
                         }
                     }
                 }
             }
 
             // --- 친구 목록 ---
-            item { SectionHeader("내 친구", friends.size) }
+            item { SectionHeader(stringResource(R.string.friend_my_friends), friends.size) }
             if (friends.isEmpty()) {
                 item {
                     Box(
@@ -194,7 +195,7 @@ fun FriendScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "아직 친구가 없어요.\n이름으로 검색해 친구를 추가해보세요!",
+                            stringResource(R.string.friend_empty),
                             color = TextMuted, fontSize = 13.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
@@ -204,10 +205,10 @@ fun FriendScreen(
             items(friends, key = { "friend_${it.userId}" }) { friend ->
                 PersonCard(name = friend.userName, photoUrl = friend.photoUrl) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Pill("채팅", Icons.AutoMirrored.Filled.Chat, Green.copy(alpha = 0.16f), Green) {
+                        Pill(stringResource(R.string.friend_chat), Icons.AutoMirrored.Filled.Chat, Green.copy(alpha = 0.16f), Green) {
                             onOpenChat(friend.userId, friend.userName)
                         }
-                        Pill("삭제", null, Color.White.copy(alpha = 0.05f), TextMuted) {
+                        Pill(stringResource(R.string.common_delete), null, Color.White.copy(alpha = 0.05f), TextMuted) {
                             vm.remove(friend.userId, friend.userName)
                         }
                     }
@@ -225,7 +226,7 @@ private fun SearchField(query: String, onValueChange: (String) -> Unit, onSearch
     OutlinedTextField(
         value = query,
         onValueChange = onValueChange,
-        placeholder = { Text("이름으로 친구 찾기", color = TextMuted) },
+        placeholder = { Text(stringResource(R.string.friend_search_placeholder), color = TextMuted) },
         singleLine = true,
         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TextMuted) },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -275,7 +276,7 @@ private fun PersonCard(name: String, photoUrl: String, trailing: @Composable () 
         Avatar(name, photoUrl)
         Spacer(Modifier.width(12.dp))
         Text(
-            name.ifBlank { "(이름 없음)" },
+            name.ifBlank { stringResource(R.string.friend_no_name) },
             color = TextMain,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
@@ -301,7 +302,7 @@ private fun Avatar(name: String, photoUrl: String) {
         if (photoUrl.isNotBlank()) {
             AsyncImage(
                 model = photoUrl,
-                contentDescription = "${name.ifBlank { "사용자" }} 프로필 사진",
+                contentDescription = stringResource(R.string.cd_profile_photo, name.ifBlank { stringResource(R.string.common_user) }),
                 modifier = Modifier.fillMaxSize().clip(CircleShape),
                 contentScale = ContentScale.Crop
             )

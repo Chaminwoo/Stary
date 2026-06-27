@@ -48,7 +48,9 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -81,10 +83,11 @@ private val MusicTextMuted = Color(0xFF8A8A8A)
  */
 @Composable
 fun MusicScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val userId = GoogleAuthHelper.currentUserId
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("로그인이 필요해요", color = MusicTextMuted, fontSize = 18.sp)
+            Text(stringResource(R.string.common_login_required), color = MusicTextMuted, fontSize = 18.sp)
         }
         return
     }
@@ -115,7 +118,7 @@ fun MusicScreen(modifier: Modifier = Modifier) {
             MusicManager.playTrack(t.id, 0)
         } else {
             val ach = Achievements.byId(t.unlockAchievementId)
-            StaryToast.show("‘${ach?.name ?: "비밀"}’ 업적을 달성하여 해금하세요!")
+            StaryToast.show(context.getString(R.string.toast_unlock_achievement, ach?.name ?: context.getString(R.string.common_secret)))
         }
     }
 
@@ -175,8 +178,8 @@ fun MusicScreen(modifier: Modifier = Modifier) {
                 textAlign = TextAlign.Center
             )
 
-            val sub = if (selectedUnlocked) "좌우로 드래그해 음악을 골라보세요"
-            else "🔒 ‘${Achievements.byId(selected.unlockAchievementId)?.name ?: "비밀"}’ 달성 시 해금"
+            val sub = if (selectedUnlocked) stringResource(R.string.music_drag_hint)
+            else stringResource(R.string.music_locked_hint, Achievements.byId(selected.unlockAchievementId)?.name ?: stringResource(R.string.common_secret))
             Text(
                 text = sub,
                 color = MusicTextMuted, fontSize = 13.sp,
@@ -305,7 +308,7 @@ private fun MusicDial(
                 )
                 if (!unlocked) {
                     Icon(
-                        Icons.Filled.Lock, contentDescription = "잠김",
+                        Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
                         tint = Color.White.copy(alpha = 0.85f),
                         modifier = Modifier.size((10f + 5f * closeness).dp)
                     )

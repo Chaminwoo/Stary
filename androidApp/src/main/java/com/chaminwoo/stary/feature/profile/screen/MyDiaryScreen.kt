@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -73,6 +74,14 @@ private fun sortColor(s: DiarySort): Color = when (s) {
     DiarySort.DISTANCE -> DistancePurple
 }
 
+/** 정렬 라벨 — 현재 언어로(enum 의 한국어 label 대신 리소스). */
+@Composable
+private fun sortLabel(s: DiarySort): String = when (s) {
+    DiarySort.LATEST -> stringResource(R.string.sort_latest)
+    DiarySort.POPULAR -> stringResource(R.string.sort_popular)
+    DiarySort.DISTANCE -> stringResource(R.string.sort_distance)
+}
+
 @Composable
 fun MyDiaryScreen(
     onDiaryClick: (String) -> Unit,
@@ -82,7 +91,7 @@ fun MyDiaryScreen(
     val userId = GoogleAuthHelper.currentUserId
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("로그인이 필요해요", color = TextMuted, fontSize = 18.sp)
+            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 18.sp)
         }
         return
     }
@@ -128,7 +137,7 @@ fun MyDiaryScreen(
         }
 
         Text(
-            text = "${sortMode.label} · ${myDiaries.size}개",
+            text = stringResource(R.string.mydiary_sort_count, sortLabel(sortMode), myDiaries.size),
             color = sortColor(sortMode), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), // 텍스트를 조금 더 아래로
             textAlign = TextAlign.Center
@@ -136,7 +145,7 @@ fun MyDiaryScreen(
 
         if (myDiaries.isEmpty()) {
             Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
-                Text("아직 기록한 다이어리가 없어요", color = TextMuted, fontSize = 14.sp)
+                Text(stringResource(R.string.mydiary_empty), color = TextMuted, fontSize = 14.sp)
             }
         } else {
             DiaryStarBox(

@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,7 +65,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
 
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("로그인이 필요해요", color = TextMuted, fontSize = 18.sp)
+            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 18.sp)
         }
         return
     }
@@ -92,16 +93,16 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
             Column {
 
                 Text(
-                    "업적을 달성하면 칭호와 새로운 별 모양·색을 얻어요.",
+                    stringResource(R.string.ach_intro),
                     color = TextMuted, fontSize = 15.sp
                 )
                 Spacer(Modifier.height(6.dp))
-                Text("달성 $unlockedCount / ${Achievements.all.size}", color = Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.ach_progress, unlockedCount, Achievements.all.size), color = Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 
         // ── 칭호 업적 ──
-        item { GroupHeader("칭호", "완료한 업적을 눌러 장착하세요") }
+        item { GroupHeader(stringResource(R.string.ach_group_titles), stringResource(R.string.ach_group_titles_sub)) }
         items(Achievements.titleAchievements, key = { it.id }) { ach ->
             val unlocked = ach.unlocked(stats)
             TitleAchievementRow(
@@ -119,7 +120,8 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
                                 .setEquippedTitle(userId, next)
                         }
                         com.chaminwoo.stary.core.ui.StaryToast.show(
-                            if (next != null) "‘${ach.titleName ?: ach.name}’ 칭호를 장착했어요" else "칭호를 해제했어요"
+                            if (next != null) context.getString(R.string.ach_title_equipped, ach.titleName ?: ach.name)
+                            else context.getString(R.string.ach_title_unequipped)
                         )
                     }
                 }
@@ -127,7 +129,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
         }
 
         // ── 별 모양/색 보상 업적 ──
-        item { GroupHeader("별 모양 · 색", "달성하면 업로드에서 해금돼요") }
+        item { GroupHeader(stringResource(R.string.ach_group_rewards), stringResource(R.string.ach_group_rewards_sub)) }
         items(Achievements.rewardAchievements, key = { it.id }) { ach ->
             RewardAchievementRow(ach = ach, unlocked = ach.unlocked(stats))
         }
@@ -175,13 +177,13 @@ private fun TitleAchievementRow(
             }
         },
         title = if (ach.hidden && locked) "???" else ach.name,
-        subtitle = if (ach.hidden && locked) "숨겨진 업적" else ach.condition,
+        subtitle = if (ach.hidden && locked) stringResource(R.string.ach_hidden) else ach.condition,
         unlocked = unlocked,
         trailing = {
             when {
-                equipped -> Text("장착됨", color = Green, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                unlocked -> Text("장착", color = TextMain, fontSize = 12.sp)
-                else -> Text("잠김", color = TextMuted, fontSize = 12.sp)
+                equipped -> Text(stringResource(R.string.ach_equipped), color = Green, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                unlocked -> Text(stringResource(R.string.ach_equip), color = TextMain, fontSize = 12.sp)
+                else -> Text(stringResource(R.string.cd_locked), color = TextMuted, fontSize = 12.sp)
             }
         }
     )
@@ -196,11 +198,11 @@ private fun RewardAchievementRow(ach: Achievement, unlocked: Boolean) {
         onClick = {},
         leading = { RewardPreview(ach.reward, unlocked) },
         title = if (ach.hidden && locked) "???" else ach.name,
-        subtitle = if (ach.hidden && locked) "숨겨진 업적" else ach.condition,
+        subtitle = if (ach.hidden && locked) stringResource(R.string.ach_hidden) else ach.condition,
         unlocked = unlocked,
         trailing = {
-            if (unlocked) Text("획득", color = Green, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            else Text("잠김", color = TextMuted, fontSize = 12.sp)
+            if (unlocked) Text(stringResource(R.string.ach_obtained), color = Green, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            else Text(stringResource(R.string.cd_locked), color = TextMuted, fontSize = 12.sp)
         }
     )
 }

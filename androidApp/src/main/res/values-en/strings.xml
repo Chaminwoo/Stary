@@ -1,0 +1,154 @@
+<resources>
+    <!-- Navigation / top bar titles -->
+    <string name="nav_map">Map</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_friends">Friends</string>
+    <string name="nav_profile">Profile</string>
+    <string name="nav_achievements">Achievements</string>
+    <string name="nav_music">Music</string>
+    <string name="nav_my_diary">My Diary</string>
+    <string name="nav_notification">Notifications</string>
+    <string name="nav_upload">New Diary</string>
+    <string name="nav_detail">Look into the Star</string>
+
+    <!-- Drawer / common -->
+    <string name="drawer_list">Menu</string>
+    <string name="drawer_login">Sign in</string>
+    <string name="drawer_logout">Sign out</string>
+    <string name="cd_close">Close</string>
+    <string name="cd_menu">Menu</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_notifications">Notifications</string>
+
+    <!-- Settings screen -->
+    <string name="settings_sound">Sound</string>
+    <string name="settings_notification">Notifications</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_bgm">Background music</string>
+    <string name="settings_bgm_desc">Cosmic sounds drifting among the stars</string>
+    <string name="settings_bgm_volume">Music volume</string>
+    <string name="settings_sfx_volume">Sound effects volume</string>
+    <string name="settings_notif_popup">Notification banners</string>
+    <string name="settings_notif_popup_desc">Show chat and diary alerts as a top banner</string>
+    <string name="settings_language_desc">Choose the language shown in the app</string>
+    <string name="settings_autosave">Settings are saved automatically</string>
+
+    <!-- Language picker -->
+    <string name="language_dialog_title">Select language</string>
+    <string name="language_system">System default</string>
+    <string name="language_ko">한국어</string>
+    <string name="language_en">English</string>
+    <string name="language_ja">日本語</string>
+
+    <!-- Common -->
+    <string name="common_cancel">Cancel</string>
+    <string name="common_save">Save</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_edit">Edit</string>
+    <string name="common_anonymous">Anonymous</string>
+    <string name="common_login_required">Sign in required</string>
+    <string name="common_user">User</string>
+    <string name="cd_profile_photo">%1$s\'s profile photo</string>
+
+    <!-- Detail screen -->
+    <string name="detail_delete_title">Delete diary</string>
+    <string name="detail_delete_confirm">Delete this for good? This can\'t be undone.</string>
+    <string name="detail_edit_title">Edit diary</string>
+    <string name="field_title">Title</string>
+    <string name="field_content">Content</string>
+    <string name="cd_view_photo">View photo</string>
+    <string name="cd_view_profile">View profile</string>
+    <string name="cd_like">Like</string>
+    <string name="toast_liked">Liked ♥</string>
+    <string name="toast_unliked">Like removed</string>
+    <string name="detail_comments_count">Comments %1$d</string>
+    <string name="comment_placeholder">Write a comment</string>
+    <string name="cd_send">Send</string>
+    <string name="toast_comment_added">Comment posted</string>
+    <string name="toast_comment_deleted">Comment deleted</string>
+    <string name="detail_interaction_locked">You can like and comment within 100m</string>
+    <string name="detail_locating">Checking your location…</string>
+    <string name="detail_load_failed">Couldn\'t load the diary</string>
+    <string name="cd_photo_original">Original photo</string>
+
+    <!-- Upload screen -->
+    <string name="upload_add_photo">Add photo</string>
+    <string name="upload_take_photo">Take a photo</string>
+    <string name="upload_pick_gallery">Choose from gallery</string>
+    <string name="upload_reselect">Reselect</string>
+    <string name="upload_content_label">Leave a memory of this place</string>
+    <string name="upload_star_shape">Star shape</string>
+    <string name="upload_star_color">Star color</string>
+    <string name="upload_visibility">Visibility</string>
+    <string name="upload_vis_public">Public</string>
+    <string name="upload_vis_friends">Friends only</string>
+    <string name="upload_vis_private">Only me</string>
+    <string name="upload_anonymous">Post anonymously</string>
+    <string name="cd_locked">Locked</string>
+    <string name="toast_camera_permission">Camera permission is required</string>
+    <string name="toast_title_required">Please enter a title</string>
+    <string name="toast_unlock_achievement">Unlock by earning the “%1$s” achievement!</string>
+    <string name="toast_image_upload_failed">Image upload failed: %1$s</string>
+
+    <!-- Friends screen -->
+    <string name="friend_searching">Searching...</string>
+    <string name="friend_search_results">Search results</string>
+    <string name="friend_status_friend">Friend</string>
+    <string name="friend_add">Add</string>
+    <string name="friend_no_results">No results for \'%1$s\'</string>
+    <string name="friend_requests">Friend requests</string>
+    <string name="friend_accept">Accept</string>
+    <string name="friend_decline">Decline</string>
+    <string name="friend_my_friends">My friends</string>
+    <string name="friend_empty">No friends yet.\nSearch by name to add some!</string>
+    <string name="friend_chat">Chat</string>
+    <string name="friend_search_placeholder">Find friends by name</string>
+    <string name="friend_no_name">(No name)</string>
+
+    <!-- Profile screen -->
+    <string name="profile_upload_failed">Profile image upload failed: %1$s</string>
+    <string name="profile_no_title">No title · View achievements</string>
+    <string name="profile_stat_likes">Likes</string>
+    <string name="profile_stat_views">Views</string>
+    <string name="profile_stat_diaries">Diaries</string>
+    <string name="profile_achievements">Achievements · Titles</string>
+    <string name="cd_default_profile">Default profile</string>
+
+    <!-- Chat screen -->
+    <string name="chat_cannot_open">Can\'t open chat</string>
+    <string name="chat_empty">Send your first message to %1$s ✦</string>
+    <string name="chat_input_placeholder">Message</string>
+    <string name="common_friend">Friend</string>
+
+    <!-- Notification screen -->
+    <string name="notif_empty">No notifications</string>
+    <string name="notif_friend_post">Posted a new diary \"%1$s\"</string>
+    <string name="notif_like">Liked \"%1$s\"</string>
+    <string name="notif_comment">Commented on \"%1$s\"</string>
+
+    <!-- My Diary screen -->
+    <string name="mydiary_empty">No diaries yet</string>
+    <string name="mydiary_sort_count">%1$s · %2$d</string>
+    <string name="sort_latest">Latest</string>
+    <string name="sort_popular">Popular</string>
+    <string name="sort_distance">Nearest</string>
+
+    <!-- Music screen -->
+    <string name="music_drag_hint">Drag left or right to pick music</string>
+    <string name="music_locked_hint">🔒 Unlocks at “%1$s”</string>
+    <string name="common_secret">Secret</string>
+
+    <!-- Achievements screen -->
+    <string name="ach_intro">Earn titles and new star shapes &amp; colors by unlocking achievements.</string>
+    <string name="ach_progress">Unlocked %1$d / %2$d</string>
+    <string name="ach_group_titles">Titles</string>
+    <string name="ach_group_titles_sub">Tap a completed achievement to equip</string>
+    <string name="ach_group_rewards">Star shapes &amp; colors</string>
+    <string name="ach_group_rewards_sub">Unlock them when posting</string>
+    <string name="ach_hidden">Hidden achievement</string>
+    <string name="ach_equipped">Equipped</string>
+    <string name="ach_equip">Equip</string>
+    <string name="ach_obtained">Earned</string>
+    <string name="ach_title_equipped">Equipped the “%1$s” title</string>
+    <string name="ach_title_unequipped">Title unequipped</string>
+</resources>

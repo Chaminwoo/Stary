@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
@@ -238,7 +239,7 @@ fun UserProfileScreen(
                     ) {
                         StatCell("좋아요", stats.likesReceived.toString(), Color(0xFFE7556B), Icons.Filled.Favorite, Modifier.weight(1f))
                         StatDivider()
-                        StatCell("조회수", stats.viewsReceived.toString(), TextMuted, Icons.Filled.Visibility, Modifier.weight(1f))
+                        StatCell("친구", stats.friends.toString(), Color(0xFF6EE7B7), Icons.Filled.People, Modifier.weight(1f))
                         StatDivider()
                         StatCell("다이어리", stats.diariesCreated.toString(), Color(0xFFF7E067), Icons.Filled.Star, Modifier.weight(1f))
                     }

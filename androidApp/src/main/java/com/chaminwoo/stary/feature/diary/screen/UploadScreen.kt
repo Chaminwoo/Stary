@@ -71,6 +71,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -97,10 +98,11 @@ import kotlin.math.absoluteValue
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+// 공개 범위 선택지: (key, 라벨 문자열 리소스, 아이콘). 라벨은 화면에서 stringResource 로 해석(언어 반영).
 private val VisibilityOptions = listOf(
-    Triple("public",  "전체공개", Icons.Filled.Public),
-    Triple("friends", "친구만",   Icons.Filled.People),
-    Triple("private", "나만보기", Icons.Filled.Lock),
+    Triple("public",  R.string.upload_vis_public,  Icons.Filled.Public),
+    Triple("friends", R.string.upload_vis_friends, Icons.Filled.People),
+    Triple("private", R.string.upload_vis_private, Icons.Filled.Lock),
 )
 
 private const val INFINITE_PAGES = 10_000
@@ -176,7 +178,7 @@ fun UploadScreen(
             val tmpFile = java.io.File.createTempFile("diary_img_", ".jpg", context.cacheDir)
             val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tmpFile)
             cameraUri.value = uri; cameraLauncher.launch(uri)
-        } else com.chaminwoo.stary.core.ui.StaryToast.show("카메라 권한이 필요해요")
+        } else com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_camera_permission))
     }
 
     fun launchCamera() {
@@ -192,23 +194,23 @@ fun UploadScreen(
         AlertDialog(
             onDismissRequest = { showImageSourceDialog = false },
             containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("사진 추가", color = MaterialTheme.colorScheme.onBackground) },
+            title = { Text(stringResource(R.string.upload_add_photo), color = MaterialTheme.colorScheme.onBackground) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { showImageSourceDialog = false; launchCamera() }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Filled.CameraAlt, null, tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text("카메라로 촬영", color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.upload_take_photo), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
                     }
                     TextButton(onClick = { showImageSourceDialog = false; galleryLauncher.launch("image/*") }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Filled.Photo, null, tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text("갤러리에서 선택", color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.upload_pick_gallery), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
                     }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { showImageSourceDialog = false }) { Text("취소", color = MaterialTheme.colorScheme.secondary) } }
+            dismissButton = { TextButton(onClick = { showImageSourceDialog = false }) { Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary) } }
         )
     }
 
@@ -245,7 +247,7 @@ fun UploadScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Filled.CameraAlt, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(36.dp))
                         Spacer(Modifier.height(8.dp))
-                        Text("사진 추가", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
+                        Text(stringResource(R.string.upload_add_photo), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
                     }
                 }
             }
@@ -254,7 +256,7 @@ fun UploadScreen(
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { showImageSourceDialog = true }) {
-                        Text("다시 선택", color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp)
+                        Text(stringResource(R.string.upload_reselect), color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp)
                     }
                 }
             }
@@ -262,14 +264,14 @@ fun UploadScreen(
             Spacer(Modifier.height(20.dp))
 
             OutlinedTextField(
-                value = title, onValueChange = { title = it }, label = { Text("제목") },
+                value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.field_title)) },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                 shape = RoundedCornerShape(12.dp), colors = fieldColors,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = content, onValueChange = { content = it }, label = { Text("이 장소의 기억을 남겨주세요") },
+                value = content, onValueChange = { content = it }, label = { Text(stringResource(R.string.upload_content_label)) },
                 modifier = Modifier.fillMaxWidth().height(160.dp),
                 shape = RoundedCornerShape(12.dp), colors = fieldColors,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
@@ -278,7 +280,7 @@ fun UploadScreen(
             Spacer(Modifier.height(24.dp))
 
             // ── 별 모양 캐러셀 ────────────────────────────────────────────
-            Text("별 모양", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
+            Text(stringResource(R.string.upload_star_shape), color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(10.dp))
 
@@ -320,7 +322,7 @@ fun UploadScreen(
                             )
                             .clickable {
                                 if (locked) {
-                                    com.chaminwoo.stary.core.ui.StaryToast.show("‘${lockAch!!.name}’ 업적을 달성하여 해금하세요!")
+                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, lockAch!!.name))
                                 } else {
                                     coroutineScope.launch { shapePagerState.animateScrollToPage(page) }
                                 }
@@ -342,7 +344,7 @@ fun UploadScreen(
                                     .background(Color.Black.copy(alpha = 0.6f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Filled.Lock, contentDescription = "잠김",
+                                Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
                                     tint = Color.White.copy(0.85f), modifier = Modifier.size(11.dp))
                             }
                         }
@@ -353,7 +355,7 @@ fun UploadScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── 별 색상 캐러셀 ────────────────────────────────────────────
-            Text("별 색상", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
+            Text(stringResource(R.string.upload_star_color), color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(10.dp))
 
@@ -398,7 +400,7 @@ fun UploadScreen(
                             )
                             .clickable {
                                 if (locked) {
-                                    com.chaminwoo.stary.core.ui.StaryToast.show("‘${lockAch!!.name}’ 업적을 달성하여 해금하세요!")
+                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, lockAch!!.name))
                                 } else {
                                     coroutineScope.launch { colorPagerState.animateScrollToPage(page) }
                                 }
@@ -407,7 +409,7 @@ fun UploadScreen(
                     ) {
                         if (locked) {
                             Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.5f)))
-                            Icon(Icons.Filled.Lock, contentDescription = "잠김",
+                            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
                                 tint = Color.White.copy(0.9f), modifier = Modifier.size(20.dp))
                         }
                     }
@@ -417,11 +419,11 @@ fun UploadScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── 공개 범위 ─────────────────────────────────────────────────
-            Text("공개 범위", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
+            Text(stringResource(R.string.upload_visibility), color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                VisibilityOptions.forEach { (key, label, icon) ->
+                VisibilityOptions.forEach { (key, labelRes, icon) ->
                     val selected = visibilityType == key
                     Box(
                         modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
@@ -437,7 +439,7 @@ fun UploadScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Icon(icon, null, tint = if (selected) Color(0xFF6EE7B7) else MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
-                            Text(label, fontSize = 12.sp, color = if (selected) Color(0xFF6EE7B7) else MaterialTheme.colorScheme.secondary)
+                            Text(stringResource(labelRes), fontSize = 12.sp, color = if (selected) Color(0xFF6EE7B7) else MaterialTheme.colorScheme.secondary)
                         }
                     }
                 }
@@ -450,7 +452,7 @@ fun UploadScreen(
                         checked = isAnonymous, onCheckedChange = { isAnonymous = it },
                         colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.onBackground, uncheckedColor = MaterialTheme.colorScheme.secondary)
                     )
-                    Text("익명으로 올리기", fontSize = 14.sp, color = MaterialTheme.colorScheme.secondary)
+                    Text(stringResource(R.string.upload_anonymous), fontSize = 14.sp, color = MaterialTheme.colorScheme.secondary)
                 }
             }
 
@@ -458,12 +460,12 @@ fun UploadScreen(
 
             Button(
                 onClick = {
-                    if (title.isBlank()) { com.chaminwoo.stary.core.ui.StaryToast.show("제목을 입력해주세요"); return@Button }
+                    if (title.isBlank()) { com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@Button }
                     StarUnlocks.lockedShapeAch(starType, unlockedIds)?.let {
-                        com.chaminwoo.stary.core.ui.StaryToast.show("‘${it.name}’ 업적을 달성하여 해금하세요!"); return@Button
+                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, it.name)); return@Button
                     }
                     StarUnlocks.lockedColorAch(starColor, unlockedIds)?.let {
-                        com.chaminwoo.stary.core.ui.StaryToast.show("‘${it.name}’ 업적을 달성하여 해금하세요!"); return@Button
+                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, it.name)); return@Button
                     }
                     coroutineScope.launch {
                         isUploading = true
@@ -484,7 +486,7 @@ fun UploadScreen(
                             } ?: selectedImageUri!!
                             val result = ImageUploadHelper.uploadImageResult(context, uploadUri)
                             if (!result.isSuccess) {
-                                com.chaminwoo.stary.core.ui.StaryToast.show("이미지 업로드 실패: ${result.error}")
+                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
                                 isUploading = false; return@launch
                             }
                             result.url!!
@@ -509,7 +511,7 @@ fun UploadScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onBackground, contentColor = MaterialTheme.colorScheme.background)
             ) {
                 if (isUploading) CircularProgressIndicator(color = MaterialTheme.colorScheme.background, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                else Text("저장", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                else Text(stringResource(R.string.common_save), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
 
             Spacer(Modifier.height(32.dp))

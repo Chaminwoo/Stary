@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.11 채팅/크롭/전환/모양 라운드**(친구 채팅, 사진 4:3 크롭, 화면 전환 깊이감 줌, 다이아몬드 재현+행성 추가) — 아래 8.11 참고.
+> 최종 갱신: **8.22 위치/로그인/팝업/설정 라운드**(실시간 위치+내 위치 카메라, 로그인 유지, 채팅·알림 인앱 배너, 댓글 프로필, 설정 탭) — 아래 8.22 참고.
+> 이전: **8.11 채팅/크롭/전환/모양 라운드**(친구 채팅, 사진 4:3 크롭, 화면 전환 깊이감 줌, 다이아몬드 재현+행성 추가) — 아래 8.11 참고.
 > 이전: **기능 배치 3**(업로드 별모양/색상 무한 캐러셀, 지도 필터 스피드다이얼 FAB, 맵 워터마크 제거)
 > 이전: **기능 배치 2**(파장 애니메이션, 공개범위, 나만보기/친구선택 필터, 별자리, 배경음악, 마이페이지 별 모양)
 > 이전: **기능 배치 1**(별 마커 5종×12색 Path 렌더, 친구, 미조회/친구 필터, 별 선택 업로드, FRIEND_POST 인앱 알림)
@@ -157,6 +158,54 @@
     → `FirebaseAuth.AuthStateListener` 로 **auth 변경 시 재구독**(`ListenerRegistration` 교체). 메인 지도 마커가 안 뜨던 핵심 원인.
   - `observeMyDiaries` 복합 인덱스(userId+createdAt) 의존 제거 → 서버는 `whereEqualTo(userId)` 만, **정렬은 클라이언트**(`sortedByDescending`).
 - 참고: Firestore 경고 `No setter/field for anonymous`(Diary.isAnonymous ↔ "anonymous" 매핑) 는 무해(기본 false).
+
+## 8.22 위치/로그인/팝업/설정 라운드 (BUILD SUCCESSFUL 2026-06-27, 실기기 테스트 대기)
+사용자 자율 진행 지시(확인 없이, 실패 시 잘게 쪼개 직접 해결). Android 5건 구현 + 빌드 성공.
+- **실시간 위치 렌더링**: `LocationHelper` 의 내부 `currentLocation` 을 **`MutableStateFlow<LatLng?>`**(`location`)로 전환.
+  연속 콜백/일회성 fix 모두 flow 에 반영. `MainListScreen` 이 `LocationHelper.location.collectAsState()` 로 관찰 →
+  `currentLatLng` 가 연속 업데이트마다 따라옴(예전엔 진입 시 1회만 채워 파란 점이 안 움직였음). `getCurrentLatLng()=location.value`.
+- **최초 진입 시 내 위치로 카메라**: `DiaryMap` 에 `didAutoCenter` 1회 가드 LaunchedEffect 추가 —
+  스타일 로드 시점엔 위치 fix 가 없어 기본 좌표로 뜨므로, **실제 fix(`getCurrentLatLng()!=null`)가 들어오면** 그 위치로
+  `animateCamera`(700ms) 1회. `focusDiary` 가 있으면(알림 포커스) 생략(그쪽이 카메라를 직접 다룸).
+- **로그인 유지("한 번 로그인하면 바로 지도")**: `GoogleAuthHelper.currentUserId`(=Google sub)는 **메모리 var 라 앱 재시작 시 null**
+  → FirebaseAuth 세션은 디스크 영속이어도 로그인 화면이 다시 떴음. `GoogleAuthHelper.restoreSession()` 추가 —
+  영속된 `FirebaseUser.providerData`(google.com, uid=Google sub)에서 식별자/이름/사진 복원. `MainActivity.onCreate` 에서 `setContent` 전에 호출.
+  `MainScreen` 의 `showLogin`/`contentReady` 초기값을 `currentUserId!=null`(=로그인 유지) 기준으로 → 로그인 상태면 영상·로그인 오버레이 건너뛰고 즉시 지도.
+- **인앱 팝업(채팅·다이어리 알림 배너)**: `core/ui/InAppBanner.kt`(전역 큐 `show`/`consume` + `InAppBannerHost` = **상단 슬라이드 배너**,
+  탭→이동, 4초 자동 사라짐, 하단 `StaryToast` 와 별개 채널). 감시기 `feature/diary/InAppPopupWatchers.kt`:
+  - `NotificationPopupWatcher(notifications, onOpen)` — 최초 구독은 기준선만, 이후 새 알림만 배너. `MainScreen` 의 `notifVm.notifications` 사용.
+  - `ChatPopupWatcher(userId, suppressChatWith, onOpenChat)` — `FirebaseChatRepository.observeMyChats(userId)` 신설
+    (`whereArrayContains("participants",uid)`, **orderBy 서버 금지**→클라 판단). 마지막 메시지가 내가 보낸 게 아니고 updatedAt 증가 시 배너.
+    지금 그 채팅을 보고 있으면(`suppressChatWith==friendId`) 생략. `sendMessage` 메타에 `lastSenderName` 추가(배너 발신자명). `ChatSummary` data class 신설.
+  - `MainScreen` 에 두 와처 + `InAppBannerHost()` 배선. `AppSettings.notificationsEnabled` 가 false 면 배너 미표시.
+- **댓글 작성자 프로필 조회**: `DetailScreen.CommentItem` 에 `onOpenProfile` 추가 — 아바타/이름 탭 시 `onOpenProfile(comment.userId, comment.userName)`
+  → 기존 `DetailScreen(onOpenProfile)`→`NavRoute.UserProfile` 배선 재사용(다이어리 작성자와 동일 경로). `comment.userId` 있을 때만.
+- **설정 탭**: `NavRoute.Settings`("설정") + `feature/profile/screen/SettingsScreen.kt`(드로어 "설정", Icons.Settings) —
+  배경음악 on/off, **배경음악 볼륨/효과음 볼륨 슬라이더**, **알림 팝업 on/off**.
+  - `MusicManager`: `musicVolume`/`sfxVolume`(0..1, prefs 영속) + `updateMusicVolume`/`updateSfxVolume`. player.setVolume + SFX(open/wind/dial)에 sfxVolume 곱.
+    ⚠️ property `var musicVolume by mutableStateOf`(private set) 가 합성 `setMusicVolume` 생성 → 함수명을 `update*` 로(JVM 시그니처 충돌 회피, enabled/setActive 와 동일 패턴).
+  - `core/util/AppSettings.kt`(신설): `notificationsEnabled`(prefs) + `updateNotificationsEnabled`. `MainScreen` 에서 `MusicManager.init` 옆 `AppSettings.init`.
+  - 설정 UI 는 우주 배경(`mydiary_bg`)+글래스 카드(민트→블루 테두리)+원형 아이콘 뱃지+그라데이션 볼륨 슬라이더(`Slider` `track` 슬롯 커스텀, `@OptIn(ExperimentalMaterial3Api)`)+동적 볼륨/알림 아이콘+커스텀 스위치.
+- **언어 변경(인앱 로케일)**: `core/util/LocaleManager.kt`(신설) — 선택 언어 태그를 prefs 저장 + `MainActivity.attachBaseContext` 에서 `wrap()`
+  (`createConfigurationContext` 로 로케일 덮어쓰기) → 모든 리소스가 그 언어로 해석. 변경 시 `activity.recreate()` 로 즉시 재적용. 지원: 시스템 기본/ko/en/ja.
+  - **문자열 리소스화**: `res/values/strings.xml`(ko 기본) + `values-en` + `values-ja`. 리소스화 범위 =
+    **설정 화면 + 드로어/탑바 제목/공통 contentDescription**(MainScreen `localizedTitle()`) +
+    **상세(DetailScreen)·업로드(UploadScreen)·친구(FriendScreen)·프로필(ProfileScreen) 화면 전체 UI 문자열**(2026-06-27 추가).
+    - 비-Composable 람다(클릭/콜백) 토스트는 `context.getString(R.string.x, args)`, Composable 은 `stringResource`. `UploadScreen.VisibilityOptions` 는 라벨을 string res id 로 보유→화면에서 해석.
+    - **2차 확장(같은 라운드)**: 채팅(ChatScreen)·알림(NotificationScreen)·내 다이어리(MyDiaryScreen, `DiarySort` 라벨→`sortLabel()` 리소스)·배경음악(MusicScreen)·업적(AchievementsScreen) 화면 UI 도 리소스화.
+    - 의도적으로 **번역 안 함(=content/data)**: 다이어리 제목/내용·작성자명(`익명`/`알 수 없음`)·채팅 메시지·**업적 이름/조건/칭호명**(`Achievements.kt`)·**음악 트랙명**(`MusicCatalog`)·`DiaryViewModel`/`FriendViewModel` event 토스트(`저장 완료!` 등)·`RelativeTime`/시간 포맷. (업적/트랙명은 공용 데이터 모델 + iOS 공유라 별도 작업 대상.)
+    ⚠️ `DiaryMap`(지도 FAB contentDescription)·`UserProfileScreen` 등 일부는 아직 하드코딩.
+- **지도 우하단 버튼 교체**: 배경음악 토글 FAB 제거 → **몰입(지도만 보기) FAB**(`Icons.Filled.Fullscreen` → `MapUiState.enterMapOnly()`). 좌하단 필터 스피드다이얼의 "지도만 보기" 항목도 삭제(중복 제거). 음악 on/off 는 이제 설정 화면에서.
+- **인앱 팝업 1회 보장 + 앱 종료 시 상단 알림(요청)**:
+  - `core/util/AppForeground.kt`(신설) — `StaryApplication` 이 ActivityLifecycleCallbacks 로 전면/후면 추적.
+  - **이중 표시 방지**: 전면이면 인앱 배너(InAppBanner)만, 후면/종료면 FCM 시스템 알림만. `StaryMessagingService` 가 `AppForeground.isForeground` 면 시스템 알림 skip + **IMPORTANCE_HIGH/PRIORITY_HIGH(heads-up 상단)**. 와처들도 `AppForeground.isForeground` 일 때만 `InAppBanner.show`(후면 알림도 seen 처리해 복귀 시 폭주 방지).
+  - **채팅 1회**: `ChatPopupWatcher` dedup 을 "방:updatedAt" 키 집합(`shownKeys`)으로 — 스냅샷 재방출/리컴포지션에도 같은 메시지 두 번 안 뜸.
+  - **FCM 발송 함수 추가(`functions/index.js`)**: `notifyOnChatMessage`(chats/{chatId}/messages onCreate → 상대방 토큰 푸시), `notifyOnNotificationCreate`(notifications onCreate → diaryOwnerId 푸시, LIKE/COMMENT만; FRIEND_POST 는 기존 diary 함수 담당=이중 방지). `sendToUser` 헬퍼(단건 send + 만료 토큰 정리). data 메시지 값은 전부 string.
+    ⚠️ **실제 "앱 꺼져도 알림"은 Cloud Functions 배포 필요**(Blaze + `cd functions && npm install` + `firebase deploy --only functions`, REGION=stary-db 리전 일치). 미배포 시 후면/종료 푸시는 안 옴(전면 인앱 배너는 동작). node `--check` 문법 통과.
+  - 설정에 "언어" 섹션 + `LanguageDialog`(현재 선택 체크) 추가. `Context.findActivity()` 로 recreate.
+  - ⚠️ **recreate 부작용 방지**: `MusicManager.release()` 가 `initialized=false`(+`openLoaded=false`) 로 풀어 dispose→release→init 사이클에서 SoundPool 재로드(효과음 안 깨지게).
+- **남은 iOS TODO(이번 라운드 패리티)**: 로그인 유지·실시간 위치는 iOS 이미 동작(`AuthManager.addStateDidChangeListener` 영속 복원 + `LocationManager.startUpdatingLocation`).
+  미반영: ① 최초 진입 내 위치 카메라(MapScreen/MapLibreView center 변경 시 재센터), ② 댓글 작성자 프로필 탭(iOS UserProfile 화면 부재 — 화면부터 필요), ③ 설정 화면(iOS MusicManager 볼륨 musicVolume/sfxVolume + AppSettings + SettingsScreen + 탭/프로필 진입), ④ 인앱 배너+채팅/알림 와처(observeMyChats 포함), ⑤ 언어 변경(iOS 는 Bundle.main.localizations + Localizable.strings, 또는 SwiftUI environment locale). CI(macOS)로 검증 예정.
 
 ## 8.21 배경음악 멀티트랙 + 원형 다이얼 + 로그인 게이팅 (BUILD SUCCESSFUL 2026-06-26)
 - **배경음악 멀티트랙화**: `ambient_music.mp3` 삭제 → `core/util/MusicCatalog.kt`(6트랙: star_whisper/tiny_explorer/

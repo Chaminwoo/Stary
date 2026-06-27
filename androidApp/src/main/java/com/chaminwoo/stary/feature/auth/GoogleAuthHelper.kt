@@ -96,6 +96,24 @@ object GoogleAuthHelper {
         }
     }
 
+    /**
+     * 앱 재시작 시 로그인 세션 복원.
+     * FirebaseAuth 세션은 디스크에 영속되지만 [currentUserId](=Google sub)/이름/사진은 메모리 var 라
+     * 프로세스가 재생성되면 null 이 된다 → 로그인 화면이 다시 떠 "로그인 유지가 안 되는" 것처럼 보였다.
+     * 영속된 FirebaseUser 의 google.com providerData(uid=Google sub) 에서 식별자를 복원한다.
+     * @return 복원 성공(=로그인 유지) 시 true.
+     */
+    fun restoreSession(): Boolean {
+        if (currentUserId != null) return true
+        val user = FirebaseAuth.getInstance().currentUser ?: return false
+        val google = user.providerData.firstOrNull { it.providerId == GoogleAuthProvider.PROVIDER_ID }
+        val uid = (google?.uid ?: user.uid).takeIf { it.isNotBlank() } ?: return false
+        currentUserId = uid
+        currentUserName = google?.displayName ?: user.displayName
+        currentUserPhotoUrl = (google?.photoUrl ?: user.photoUrl)?.toString()
+        return true
+    }
+
     suspend fun signOut(context: Context) = withContext(Dispatchers.IO) {
         try {
             currentUserId = null

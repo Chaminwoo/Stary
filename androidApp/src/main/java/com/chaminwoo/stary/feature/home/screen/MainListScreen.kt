@@ -27,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.GroupAdd
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Public
@@ -103,9 +102,13 @@ fun MainListScreen(
     val step = 0.0001
     val focusRequester = remember { FocusRequester() }
 
+    // 실시간 위치 — LocationHelper 의 StateFlow 를 관찰해 연속 업데이트가 들어올 때마다 따라온다.
+    // (예전엔 진입 시 1회만 currentLatLng 를 채워 내 위치 마커가 실시간으로 움직이지 않았다.)
+    val liveLocation by LocationHelper.location.collectAsState()
     var currentLatLng by remember {
-        mutableStateOf(LocationHelper.getCurrentLatLng() ?: LatLng(StaryConfig.DEFAULT_LAT, StaryConfig.DEFAULT_LNG))
+        mutableStateOf(liveLocation ?: LatLng(StaryConfig.DEFAULT_LAT, StaryConfig.DEFAULT_LNG))
     }
+    LaunchedEffect(liveLocation) { liveLocation?.let { currentLatLng = it } }
 
     // currentUserId 는 일반 var(관찰 불가)라, 로그인 화면 뒤에서 미리 렌더된 이 화면이
     // 로그인 완료 시 리컴포즈되지 않는다. FirebaseAuth 상태를 관찰해 reactive 하게 만든다.
@@ -210,10 +213,9 @@ fun MainListScreen(
             != PackageManager.PERMISSION_GRANTED
         ) return@start
         LocationHelper.startContinuousUpdates(context)
-        scope.launch {
-            val latLng = LocationHelper.getCurrentLatLng()
-                ?: LocationHelper.getCurrentLocation(context)?.let { LatLng(it.latitude, it.longitude) }
-            latLng?.let { currentLatLng = it }
+        // 일회성 fix 를 한 번 당겨 진입 직후 빠르게 위치를 잡는다(결과는 LocationHelper.location flow 로 반영).
+        if (LocationHelper.getCurrentLatLng() == null) {
+            scope.launch { LocationHelper.getCurrentLocation(context) }
         }
     }
 
@@ -308,11 +310,7 @@ fun MainListScreen(
                     if (selectedFriendIds.isEmpty()) "친구 선택" else "친구 ${selectedFriendIds.size}명",
                     Icons.Filled.GroupAdd, selectedFriendIds.isNotEmpty()
                 ) { showFriendPicker = true },
-                // 지도만 보기 — 탑바/필터/FAB 를 모두 숨기고 몰입 모드 진입
-                FilterOpt("지도만 보기", Icons.Filled.Map, false) {
-                    speedDialExpanded = false
-                    MapUiState.enterMapOnly()
-                },
+                // (지도만 보기 항목은 제거됨 — 지도 우하단 몰입 버튼으로 대체)
             )
 
             Column(

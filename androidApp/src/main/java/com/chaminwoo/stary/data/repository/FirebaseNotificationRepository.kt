@@ -4,7 +4,6 @@ import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.chaminwoo.stary.shared.data.repository.NotificationRepository
-import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.channels.awaitClose
@@ -18,14 +17,16 @@ class FirebaseNotificationRepository : NotificationRepository {
     private val db = staryFirestore
 
     override fun observeNotifications(ownerId: String): Flow<List<AppNotification>> = callbackFlow {
+        // ⚠️ orderBy 를 서버에 두면 (diaryOwnerId + createdAt) 복합 인덱스가 필요하고,
+        //    인덱스 미생성 시 리스너가 error 로 빠져 아무것도 emit 안 됨 → 화면이 null(검은 화면)로 멈춘다.
+        //    → 서버는 whereEqualTo 만, 정렬은 클라이언트에서(8.9 myDiaries 와 동일 패턴).
         val listener = db.collection(StaryConfig.Collections.NOTIFICATIONS)
             .whereEqualTo("diaryOwnerId", ownerId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, error ->
-                if (error != null) return@addSnapshotListener
-                val list = snap?.documents?.mapNotNull { doc ->
+                if (error != null) { trySend(emptyList()); return@addSnapshotListener } // 에러여도 빈 목록 emit(검은 화면 방지)
+                val list = (snap?.documents?.mapNotNull { doc ->
                     doc.toObject(AppNotification::class.java)?.copy(id = doc.id)
-                } ?: emptyList()
+                } ?: emptyList()).sortedByDescending { it.createdAt }
                 trySend(list)
             }
         awaitClose { listener.remove() }

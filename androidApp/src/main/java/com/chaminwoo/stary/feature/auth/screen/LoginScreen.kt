@@ -7,7 +7,8 @@ import android.view.LayoutInflater
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.Box
@@ -72,13 +73,16 @@ fun LoginScreen(
     val coroutineScope = rememberCoroutineScope()
     var showUI by remember { mutableStateOf(immediate) }
 
-    // 후광(빛나는) 로고는 선명한 로고보다 0.5초 늦게 서서히 등장.
-    var showHalo by remember { mutableStateOf(false) }
-    LaunchedEffect(showUI) { if (showUI) { delay(500); showHalo = true } }
-    val haloAlpha by animateFloatAsState(
-        targetValue = if (showHalo) 0.9f else 0f,
-        animationSpec = tween(800),
-        label = "haloAlpha"
+    // 빛나는 후광 로고: UI 등장 시 폭이 살짝 부풀었다 가라앉으며 빛이 번지는 연출(키프레임 1회).
+    val haloWidth by animateDpAsState(
+        targetValue = if (showUI) 230.dp else 100.dp,
+        animationSpec = keyframes {
+            durationMillis = 1400
+            100.dp at 0
+            240.dp at 700
+            230.dp at 1400
+        },
+        label = "haloWidth"
     )
 
     // 로그인 인트로 영상(무음 mp4). res/raw/login_video.mp4 를 1회 재생.
@@ -195,9 +199,9 @@ fun LoginScreen(
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
                         colorFilter = brighten,
-                        alpha = haloAlpha, // 로고보다 0.5초 늦게 페이드인
+                        alpha = 0.9f,
                         modifier = Modifier
-                            .width(225.dp)
+                            .width(haloWidth)
                             .blur(12.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
                     )
                     // 선명한 로고(앞).

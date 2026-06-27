@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,7 +75,7 @@ fun ChatScreen(
             modifier = modifier.fillMaxSize().background(PageBg),
             contentAlignment = Alignment.Center
         ) {
-            Text("채팅을 열 수 없어요", color = TextMuted, fontSize = 15.sp)
+            Text(stringResource(R.string.chat_cannot_open), color = TextMuted, fontSize = 15.sp)
         }
         return
     }
@@ -109,7 +110,7 @@ fun ChatScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "${friendName.ifBlank { "친구" }}님과의 첫 메시지를 남겨보세요 ✦",
+                        stringResource(R.string.chat_empty, friendName.ifBlank { stringResource(R.string.common_friend) }),
                         color = TextMuted, fontSize = 14.sp
                     )
                 }
@@ -139,7 +140,7 @@ fun ChatScreen(
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
-                    placeholder = { Text("메시지 입력", color = TextMuted, fontSize = 14.sp) },
+                    placeholder = { Text(stringResource(R.string.chat_input_placeholder), color = TextMuted, fontSize = 14.sp) },
                     modifier = Modifier.weight(1f),
                     maxLines = 4,
                     shape = RoundedCornerShape(20.dp),
@@ -168,7 +169,7 @@ fun ChatScreen(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "전송",
+                        contentDescription = stringResource(R.string.cd_send),
                         tint = if (canSend) Color(0xFF0E1018) else TextMuted,
                         modifier = Modifier.size(20.dp)
                     )
@@ -198,7 +199,7 @@ private fun MessageBubble(msg: ChatMessage, isMine: Boolean) {
         ) {
             if (!isMine) {
                 Text(
-                    msg.senderName.ifBlank { "친구" },
+                    msg.senderName.ifBlank { stringResource(R.string.common_friend) },
                     color = TextMuted, fontSize = 11.sp,
                     modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
                 )

@@ -21,7 +21,7 @@
       "source": "openmaptiles",
       "source-layer": "water",
       "paint": {
-        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#050411", 16, "#04030D"]
+        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#0C0A24", 16, "#0A0820"]
       }
     },
     {

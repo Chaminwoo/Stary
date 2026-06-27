@@ -24,6 +24,8 @@ object MusicManager {
     private const val PREFS = "stary_prefs"
     private const val KEY_ENABLED = "music_enabled"
     private const val KEY_TRACK = "music_track"
+    private const val KEY_MUSIC_VOL = "music_volume"
+    private const val KEY_SFX_VOL = "sfx_volume"
 
     private var player: MediaPlayer? = null
     private var positionMs = 0
@@ -57,6 +59,14 @@ object MusicManager {
     var selectedTrackId by mutableStateOf(MusicCatalog.DEFAULT_ID)
         private set
 
+    /** 배경음악 볼륨(0..1). 설정 탭에서 조절. */
+    var musicVolume by mutableStateOf(1f)
+        private set
+
+    /** 효과음(SFX) 볼륨(0..1). 설정 탭에서 조절. 열람/바람/다이얼 효과음에 곱해진다. */
+    var sfxVolume by mutableStateOf(1f)
+        private set
+
     fun init(context: Context) {
         if (initialized) return
         initialized = true
@@ -65,6 +75,8 @@ object MusicManager {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         enabled = prefs.getBoolean(KEY_ENABLED, true) // 기본 켜짐
         selectedTrackId = prefs.getString(KEY_TRACK, MusicCatalog.DEFAULT_ID) ?: MusicCatalog.DEFAULT_ID
+        musicVolume = prefs.getFloat(KEY_MUSIC_VOL, 1f).coerceIn(0f, 1f)
+        sfxVolume = prefs.getFloat(KEY_SFX_VOL, 1f).coerceIn(0f, 1f)
         playingId = selectedTrackId
 
         // 효과음을 SoundPool 에 미리 로드 (탭 시 지연 없이 재생)
@@ -101,11 +113,12 @@ object MusicManager {
         if (!enabled) return
         val sp = soundPool ?: return
         if (windLoaded && windSoundId != 0) {
-            sp.play(windSoundId, 1f, 1f, 1, 0, 1f) // 좌우 최대 음량, 1회
+            sp.play(windSoundId, sfxVolume, sfxVolume, 1, 0, 1f) // SFX 볼륨, 1회
         } else {
             val ctx = appContext ?: return
             if (windResId == 0) return
             MediaPlayer.create(ctx, windResId)?.apply {
+                setVolume(sfxVolume, sfxVolume)
                 setOnCompletionListener { it.release() }
                 start()
             }
@@ -119,13 +132,14 @@ object MusicManager {
     fun playOpenDiary() {
         if (!enabled) return
         val sp = soundPool ?: return
+        val vol = OPEN_VOLUME * sfxVolume
         if (openLoaded && openSoundId != 0) {
-            sp.play(openSoundId, OPEN_VOLUME, OPEN_VOLUME, 1, 0, 1f)
+            sp.play(openSoundId, vol, vol, 1, 0, 1f)
         } else {
             val ctx = appContext ?: return
             if (openResId == 0) return
             MediaPlayer.create(ctx, openResId)?.apply {
-                setVolume(OPEN_VOLUME, OPEN_VOLUME)
+                setVolume(vol, vol)
                 setOnCompletionListener { it.release() }
                 start()
             }
@@ -150,7 +164,7 @@ object MusicManager {
         if (dialPlayer?.isPlaying == true) return // 이미 재생 중이면 겹치지 않음
         dialPlayer?.release()
         dialPlayer = MediaPlayer.create(ctx, dialResId)?.apply {
-            setVolume(DIAL_VOLUME, DIAL_VOLUME)
+            setVolume(DIAL_VOLUME * sfxVolume, DIAL_VOLUME * sfxVolume)
             setOnCompletionListener {
                 if (dialTurning && enabled) { it.seekTo(0); it.start() } // 아직 돌리는 중이면 이어서
             }
@@ -167,6 +181,26 @@ object MusicManager {
         if (value) resume() else pause()
     }
 
+    /** 배경음악 볼륨 설정(0..1) — 저장 + 현재 재생 중인 player 에 즉시 반영.
+     *  (property setter([musicVolume]) 와 JVM 시그니처 충돌을 피해 함수명을 다르게 둔다 — enabled/setActive 와 동일 패턴) */
+    fun updateMusicVolume(value: Float) {
+        val v = value.coerceIn(0f, 1f)
+        if (musicVolume == v) return
+        musicVolume = v
+        player?.setVolume(v, v)
+        appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            ?.edit()?.putFloat(KEY_MUSIC_VOL, v)?.apply()
+    }
+
+    /** 효과음 볼륨 설정(0..1) — 저장. 다음 효과음 재생부터 반영. */
+    fun updateSfxVolume(value: Float) {
+        val v = value.coerceIn(0f, 1f)
+        if (sfxVolume == v) return
+        sfxVolume = v
+        appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            ?.edit()?.putFloat(KEY_SFX_VOL, v)?.apply()
+    }
+
     /** 앱 전면 복귀 or 켜짐 → 현재 트랙을 마지막 위치에서 재생. */
     fun resume() {
         if (!enabled) return
@@ -176,6 +210,7 @@ object MusicManager {
             val res = resIdFor(id)
             if (res == 0) return
             player = MediaPlayer.create(ctx, res)?.apply { isLooping = true }
+            player?.setVolume(musicVolume, musicVolume)
             player?.seekTo(positionMs)
             playingId = id
         }
@@ -208,6 +243,7 @@ object MusicManager {
         val mp = MediaPlayer.create(ctx, res)
         if (mp != null) {
             mp.isLooping = true
+            mp.setVolume(musicVolume, musicVolume)
             // 이어 듣기용으로 넘어온 위치가 새 트랙 길이를 넘으면 안으로 보정.
             val dur = mp.duration
             val pos = if (dur > 0) positionMs0.coerceIn(0, (dur - 200).coerceAtLeast(0))
@@ -228,7 +264,8 @@ object MusicManager {
             ?.edit()?.putString(KEY_TRACK, id)?.apply()
     }
 
-    /** 앱 종료 — 위치 보존 후 해제. */
+    /** 앱 종료/재생성 — 위치 보존 후 해제. 다음 [init] 이 SoundPool 등을 다시 로드하도록 [initialized] 도 리셋
+     *  (언어 변경 등으로 액티비티가 recreate 되면 dispose→release→init 사이클이 도므로, 안 풀면 효과음이 깨진다). */
     fun release() {
         player?.let {
             positionMs = it.currentPosition
@@ -238,8 +275,10 @@ object MusicManager {
         soundPool?.release()
         soundPool = null
         windLoaded = false
+        openLoaded = false
         dialTurning = false
         dialPlayer?.release()
         dialPlayer = null
+        initialized = false
     }
 }

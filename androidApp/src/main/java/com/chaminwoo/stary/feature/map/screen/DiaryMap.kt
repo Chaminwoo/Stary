@@ -20,10 +20,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.MusicOff
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -789,20 +789,19 @@ fun DiaryMap(
                 )
             }
 
-            // 배경음악 토글 (전역 MusicManager)
-            val musicOn = com.chaminwoo.stary.core.util.MusicManager.enabled
+            // 몰입(지도만 보기) — 탑바/필터/버튼을 모두 숨기고 지도에 집중
             FloatingActionButton(
-                onClick = { com.chaminwoo.stary.core.util.MusicManager.setActive(!musicOn) },
+                onClick = { MapUiState.enterMapOnly() },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
-                    if (musicOn) Icons.Filled.MusicNote else Icons.Filled.MusicOff,
-                    "배경음악",
-                    tint = if (musicOn) Color(0xFF6EE7B7) else Color.White,
-                    modifier = Modifier.size(20.dp)
+                    Icons.Filled.Visibility,
+                    "지도만 보기",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
@@ -1033,6 +1032,23 @@ fun DiaryMap(
     // 현재 위치 마커 갱신
     LaunchedEffect(currentLatLng, mapRef) {
         locationSource?.setGeoJson(Point.fromLngLat(currentLatLng.longitude, currentLatLng.latitude))
+    }
+
+    // 최초 진입 시 내 위치로 카메라 1회 이동 — 스타일 로드 시점엔 아직 위치 fix 가 없어 기본 좌표로
+    // 떠 있다. 실제 위치 fix 가 들어오면 그 위치로 카메라를 한 번 옮긴다(이후엔 사용자 조작 존중).
+    var didAutoCenter by remember { mutableStateOf(false) }
+    LaunchedEffect(currentLatLng, mapRef, focusDiary) {
+        if (didAutoCenter) return@LaunchedEffect
+        if (focusDiary != null) return@LaunchedEffect       // 포커스 요청이 카메라를 직접 다룬다
+        val map = mapRef ?: return@LaunchedEffect
+        if (LocationHelper.getCurrentLatLng() == null) return@LaunchedEffect // 실제 fix 대기(기본 좌표면 보류)
+        didAutoCenter = true
+        map.animateCamera(
+            CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder().target(currentLatLng.toMl()).zoom(DEFAULT_ZOOM).build()
+            ),
+            700
+        )
     }
 
     // 외부(알림) 요청: 특정 다이어리로 카메라 이동 후 열람 파장 1회 (세부 화면 이동 없음).

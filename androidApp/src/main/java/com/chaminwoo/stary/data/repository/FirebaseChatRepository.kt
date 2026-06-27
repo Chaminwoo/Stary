@@ -27,6 +27,33 @@ class FirebaseChatRepository : ChatRepository {
     private fun messagesRef(chatId: String) =
         chats.document(chatId).collection(StaryConfig.Collections.MESSAGES)
 
+    /**
+     * 내가 참여한 모든 채팅방의 메타(마지막 메시지) 실시간 관찰 — 인앱 채팅 팝업용.
+     * ⚠️ orderBy 를 서버에 두면 (participants arrayContains + updatedAt) 복합 인덱스가 필요해
+     *    미생성 시 누락된다 → 서버는 whereArrayContains 만, 정렬/판단은 클라이언트에서.
+     */
+    fun observeMyChats(userId: String): Flow<List<ChatSummary>> = callbackFlow {
+        val listener = chats
+            .whereArrayContains("participants", userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snapshot?.documents?.mapNotNull { doc ->
+                    @Suppress("UNCHECKED_CAST")
+                    val participants = (doc.get("participants") as? List<String>) ?: doc.id.split("_")
+                    ChatSummary(
+                        chatId = doc.id,
+                        participants = participants,
+                        lastMessage = doc.getString("lastMessage") ?: "",
+                        lastSenderId = doc.getString("lastSenderId") ?: "",
+                        lastSenderName = doc.getString("lastSenderName") ?: "",
+                        updatedAt = doc.getLong("updatedAt") ?: 0L,
+                    )
+                } ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
     override fun observeMessages(chatId: String): Flow<List<ChatMessage>> = callbackFlow {
         val listener = messagesRef(chatId)
             .orderBy("createdAt", Query.Direction.ASCENDING)
@@ -67,6 +94,7 @@ class FirebaseChatRepository : ChatRepository {
                         "participants" to chatId.split("_"),
                         "lastMessage" to body,
                         "lastSenderId" to senderId,
+                        "lastSenderName" to senderName, // 인앱 팝업에 보낸 사람 이름 표시용
                         "updatedAt" to now,
                     ),
                     com.google.firebase.firestore.SetOptions.merge()
@@ -78,3 +106,13 @@ class FirebaseChatRepository : ChatRepository {
         }
     }
 }
+
+/** 채팅방 메타 요약(인앱 팝업/목록용). */
+data class ChatSummary(
+    val chatId: String = "",
+    val participants: List<String> = emptyList(),
+    val lastMessage: String = "",
+    val lastSenderId: String = "",
+    val lastSenderName: String = "",
+    val updatedAt: Long = 0L,
+)

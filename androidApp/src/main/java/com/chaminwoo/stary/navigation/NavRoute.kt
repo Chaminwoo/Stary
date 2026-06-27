@@ -81,6 +81,14 @@ sealed class NavRoute {
     }
 
     @Serializable
+    data object Settings : NavRoute() {
+        override val title = "설정"
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
+    @Serializable
     data class Detail(val diaryId: String = "") : NavRoute() {
         override val title = "별 들여다보기"
         override val isRoot = false

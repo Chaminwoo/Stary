@@ -121,3 +121,112 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
     );
   }
 );
+
+const CHATS = "chats";
+const NOTIFICATIONS = "notifications";
+
+/**
+ * 단일 사용자에게 data 메시지 발송. 토큰 없으면 생략, 만료 토큰은 정리.
+ * (data 값은 모두 문자열이어야 함 — 호출부에서 보장)
+ */
+async function sendToUser(uid, data) {
+  if (!uid) return false;
+  const db = getFirestore(DATABASE_ID);
+  const userSnap = await db.collection(USERS).doc(uid).get();
+  const token = userSnap.get("fcmToken");
+  if (typeof token !== "string" || token.length === 0) return false;
+  try {
+    await getMessaging().send({
+      token,
+      data,
+      android: { priority: "high" },
+    });
+    return true;
+  } catch (e) {
+    const code = e && e.code;
+    if (
+      code === "messaging/registration-token-not-registered" ||
+      code === "messaging/invalid-registration-token"
+    ) {
+      await db.collection(USERS).doc(uid).update({ fcmToken: FieldValue.delete() });
+    } else {
+      logger.warn(`sendToUser ${uid} 발송 실패 (${code})`);
+    }
+    return false;
+  }
+}
+
+/**
+ * 채팅 새 메시지 → 상대방에게 푸시.
+ * chats/{chatId}/messages/{messageId} onCreate. chatId 는 두 사용자 id 를 정렬·결합한 값(StaryConfig.chatId).
+ */
+exports.notifyOnChatMessage = onDocumentCreated(
+  {
+    document: `${CHATS}/{chatId}/messages/{messageId}`,
+    database: DATABASE_ID,
+    region: REGION,
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const msg = snap.data();
+    const chatId = event.params.chatId;
+    const senderId = msg.senderId;
+    if (!senderId) return;
+    const recipientId = chatId.split("_").find((id) => id !== senderId);
+    if (!recipientId) {
+      logger.warn(`chat ${chatId}: 수신자 식별 실패 → 발송 생략`);
+      return;
+    }
+    const data = {
+      type: "chat",
+      chatId,
+      title: msg.senderName || "새 메시지",
+      body: msg.text || "새 메시지가 도착했어요",
+    };
+    const ok = await sendToUser(recipientId, data);
+    logger.info(`chat ${chatId}: ${recipientId} 푸시 ${ok ? "성공" : "생략/실패"}`);
+  }
+);
+
+/**
+ * 좋아요/댓글 알림 → 수신자(diaryOwnerId)에게 푸시.
+ * notifications/{notifId} onCreate. FRIEND_POST 는 notifyFriendsOnDiaryCreate 가 이미 발송하므로 제외(이중 방지).
+ */
+exports.notifyOnNotificationCreate = onDocumentCreated(
+  {
+    document: `${NOTIFICATIONS}/{notifId}`,
+    database: DATABASE_ID,
+    region: REGION,
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const n = snap.data();
+    const type = n.type || "";
+    if (type === "FRIEND_POST") return; // 다이어리 onCreate 함수가 담당
+    const recipientId = n.diaryOwnerId;
+    if (!recipientId) return;
+    const actor = n.actorName || "누군가";
+    const diaryTitle = n.diaryTitle || "";
+    let title;
+    let body;
+    if (type === "LIKE") {
+      title = `${actor}님이 좋아요를 눌렀어요`;
+      body = diaryTitle ? `"${diaryTitle}"` : "내 별에 좋아요가 달렸어요";
+    } else {
+      title = `${actor}님의 댓글`;
+      body = n.content || (diaryTitle ? `"${diaryTitle}"` : "새 댓글이 달렸어요");
+    }
+    const data = {
+      type: String(type),
+      diaryId: n.diaryId || "",
+      title,
+      body,
+    };
+    const ok = await sendToUser(recipientId, data);
+    logger.info(
+      `notif ${event.params.notifId}(${type}): ${recipientId} 푸시 ${ok ? "성공" : "생략/실패"}`
+    );
+  }
+);

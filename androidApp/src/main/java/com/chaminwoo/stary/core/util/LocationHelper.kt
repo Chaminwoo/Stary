@@ -14,22 +14,28 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.chaminwoo.stary.core.geo.GeoUtils
 import com.chaminwoo.stary.core.geo.LatLng
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 object LocationHelper {
-    private var currentLocation: LatLng? = null
+    // 실시간 위치 — 연속 업데이트마다 갱신된다. Compose 에서 collectAsState 로 관찰하면
+    // 내 위치 마커/카메라가 실시간으로 따라온다. null = 아직 위치 fix 없음(기본 좌표 사용).
+    private val _location = MutableStateFlow<LatLng?>(null)
+    val location: StateFlow<LatLng?> = _location.asStateFlow()
     private var manualOverride = false
     var cameraTarget: LatLng? = null
 
     private var continuousCallback: LocationCallback? = null
 
     fun setCurrentLocation(newLatLng: LatLng) {
-        currentLocation = newLatLng
+        _location.value = newLatLng
         manualOverride = true
     }
 
-    fun getCurrentLatLng(): LatLng? = currentLocation
+    fun getCurrentLatLng(): LatLng? = _location.value
 
     @SuppressLint("MissingPermission")
     fun startContinuousUpdates(context: Context) {
@@ -45,7 +51,7 @@ object LocationHelper {
         continuousCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 if (!manualOverride) {
-                    result.lastLocation?.let { currentLocation = LatLng(it.latitude, it.longitude) }
+                    result.lastLocation?.let { _location.value = LatLng(it.latitude, it.longitude) }
                 }
             }
         }
@@ -70,6 +76,10 @@ object LocationHelper {
                 val callback = object : LocationCallback() {
                     override fun onLocationResult(result: LocationResult) {
                         fusedClient.removeLocationUpdates(this)
+                        // 일회성 fix 도 실시간 flow 에 반영(진입 직후 빠르게 내 위치 잡히게).
+                        if (!manualOverride) {
+                            result.lastLocation?.let { _location.value = LatLng(it.latitude, it.longitude) }
+                        }
                         cont.resume(result.lastLocation)
                     }
                 }

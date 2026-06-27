@@ -1,0 +1,154 @@
+<resources>
+    <!-- ナビゲーション / タイトル -->
+    <string name="nav_map">マップ</string>
+    <string name="nav_settings">設定</string>
+    <string name="nav_friends">友達</string>
+    <string name="nav_profile">プロフィール</string>
+    <string name="nav_achievements">実績</string>
+    <string name="nav_music">BGM</string>
+    <string name="nav_my_diary">マイ日記</string>
+    <string name="nav_notification">通知</string>
+    <string name="nav_upload">新しい日記</string>
+    <string name="nav_detail">星をのぞく</string>
+
+    <!-- ドロワー / 共通 -->
+    <string name="drawer_list">メニュー</string>
+    <string name="drawer_login">ログイン</string>
+    <string name="drawer_logout">ログアウト</string>
+    <string name="cd_close">閉じる</string>
+    <string name="cd_menu">メニュー</string>
+    <string name="cd_back">戻る</string>
+    <string name="cd_notifications">通知</string>
+
+    <!-- 設定画面 -->
+    <string name="settings_sound">サウンド</string>
+    <string name="settings_notification">通知</string>
+    <string name="settings_language">言語</string>
+    <string name="settings_bgm">BGM</string>
+    <string name="settings_bgm_desc">星々の間を漂う宇宙の音</string>
+    <string name="settings_bgm_volume">BGMの音量</string>
+    <string name="settings_sfx_volume">効果音の音量</string>
+    <string name="settings_notif_popup">通知バナー</string>
+    <string name="settings_notif_popup_desc">チャットや日記の通知を上部バナーで表示します</string>
+    <string name="settings_language_desc">アプリに表示される言語を選択します</string>
+    <string name="settings_autosave">設定は自動的に保存されます</string>
+
+    <!-- 言語選択 -->
+    <string name="language_dialog_title">言語を選択</string>
+    <string name="language_system">システムのデフォルト</string>
+    <string name="language_ko">한국어</string>
+    <string name="language_en">English</string>
+    <string name="language_ja">日本語</string>
+
+    <!-- 共通 -->
+    <string name="common_cancel">キャンセル</string>
+    <string name="common_save">保存</string>
+    <string name="common_delete">削除</string>
+    <string name="common_edit">編集</string>
+    <string name="common_anonymous">匿名</string>
+    <string name="common_login_required">ログインが必要です</string>
+    <string name="common_user">ユーザー</string>
+    <string name="cd_profile_photo">%1$sのプロフィール写真</string>
+
+    <!-- 詳細画面 -->
+    <string name="detail_delete_title">日記を削除</string>
+    <string name="detail_delete_confirm">本当に削除しますか？元に戻せません。</string>
+    <string name="detail_edit_title">日記を編集</string>
+    <string name="field_title">タイトル</string>
+    <string name="field_content">内容</string>
+    <string name="cd_view_photo">写真を拡大</string>
+    <string name="cd_view_profile">プロフィールを見る</string>
+    <string name="cd_like">いいね</string>
+    <string name="toast_liked">いいねしました ♥</string>
+    <string name="toast_unliked">いいねを取り消しました</string>
+    <string name="detail_comments_count">コメント %1$d</string>
+    <string name="comment_placeholder">コメントを入力</string>
+    <string name="cd_send">送信</string>
+    <string name="toast_comment_added">コメントを投稿しました</string>
+    <string name="toast_comment_deleted">コメントを削除しました</string>
+    <string name="detail_interaction_locked">100m以内でいいねやコメントができます</string>
+    <string name="detail_locating">位置を確認しています…</string>
+    <string name="detail_load_failed">日記を読み込めませんでした</string>
+    <string name="cd_photo_original">元の写真</string>
+
+    <!-- アップロード画面 -->
+    <string name="upload_add_photo">写真を追加</string>
+    <string name="upload_take_photo">カメラで撮影</string>
+    <string name="upload_pick_gallery">ギャラリーから選択</string>
+    <string name="upload_reselect">選び直す</string>
+    <string name="upload_content_label">この場所の思い出を残してください</string>
+    <string name="upload_star_shape">星の形</string>
+    <string name="upload_star_color">星の色</string>
+    <string name="upload_visibility">公開範囲</string>
+    <string name="upload_vis_public">全体公開</string>
+    <string name="upload_vis_friends">友達のみ</string>
+    <string name="upload_vis_private">自分のみ</string>
+    <string name="upload_anonymous">匿名で投稿</string>
+    <string name="cd_locked">ロック中</string>
+    <string name="toast_camera_permission">カメラの権限が必要です</string>
+    <string name="toast_title_required">タイトルを入力してください</string>
+    <string name="toast_unlock_achievement">「%1$s」の実績を達成して解放しましょう！</string>
+    <string name="toast_image_upload_failed">画像のアップロードに失敗: %1$s</string>
+
+    <!-- 友達画面 -->
+    <string name="friend_searching">検索中...</string>
+    <string name="friend_search_results">検索結果</string>
+    <string name="friend_status_friend">友達</string>
+    <string name="friend_add">追加</string>
+    <string name="friend_no_results">「%1$s」の検索結果がありません</string>
+    <string name="friend_requests">受け取ったリクエスト</string>
+    <string name="friend_accept">承認</string>
+    <string name="friend_decline">拒否</string>
+    <string name="friend_my_friends">友達一覧</string>
+    <string name="friend_empty">まだ友達がいません。\n名前で検索して追加しましょう！</string>
+    <string name="friend_chat">チャット</string>
+    <string name="friend_search_placeholder">名前で友達を探す</string>
+    <string name="friend_no_name">(名前なし)</string>
+
+    <!-- プロフィール画面 -->
+    <string name="profile_upload_failed">プロフィール画像のアップロードに失敗: %1$s</string>
+    <string name="profile_no_title">称号なし・実績を見る</string>
+    <string name="profile_stat_likes">いいね</string>
+    <string name="profile_stat_views">閲覧数</string>
+    <string name="profile_stat_diaries">日記</string>
+    <string name="profile_achievements">実績・称号</string>
+    <string name="cd_default_profile">デフォルトのプロフィール</string>
+
+    <!-- チャット画面 -->
+    <string name="chat_cannot_open">チャットを開けません</string>
+    <string name="chat_empty">%1$sさんへ最初のメッセージを送りましょう ✦</string>
+    <string name="chat_input_placeholder">メッセージを入力</string>
+    <string name="common_friend">友達</string>
+
+    <!-- 通知画面 -->
+    <string name="notif_empty">通知はありません</string>
+    <string name="notif_friend_post">新しい日記「%1$s」を投稿しました</string>
+    <string name="notif_like">「%1$s」にいいねしました</string>
+    <string name="notif_comment">「%1$s」にコメントしました</string>
+
+    <!-- マイ日記画面 -->
+    <string name="mydiary_empty">まだ記録した日記がありません</string>
+    <string name="mydiary_sort_count">%1$s · %2$d件</string>
+    <string name="sort_latest">新着順</string>
+    <string name="sort_popular">人気順</string>
+    <string name="sort_distance">距離順</string>
+
+    <!-- BGM画面 -->
+    <string name="music_drag_hint">左右にドラッグして音楽を選びましょう</string>
+    <string name="music_locked_hint">🔒「%1$s」達成で解放</string>
+    <string name="common_secret">秘密</string>
+
+    <!-- 実績画面 -->
+    <string name="ach_intro">実績を達成すると称号や新しい星の形・色が手に入ります。</string>
+    <string name="ach_progress">達成 %1$d / %2$d</string>
+    <string name="ach_group_titles">称号</string>
+    <string name="ach_group_titles_sub">達成した実績をタップして装着</string>
+    <string name="ach_group_rewards">星の形・色</string>
+    <string name="ach_group_rewards_sub">達成すると投稿時に解放されます</string>
+    <string name="ach_hidden">隠し実績</string>
+    <string name="ach_equipped">装着中</string>
+    <string name="ach_equip">装着</string>
+    <string name="ach_obtained">獲得</string>
+    <string name="ach_title_equipped">「%1$s」の称号を装着しました</string>
+    <string name="ach_title_unequipped">称号を解除しました</string>
+</resources>

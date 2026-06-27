@@ -58,7 +58,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -105,6 +107,7 @@ fun DetailScreen(
     var editTitle by remember { mutableStateOf("") }
     var editContent by remember { mutableStateOf("") }
     val repository = remember { FirebaseDiaryRepository() }
+    val context = LocalContext.current
 
     // 파장/왜곡 연출은 진입 직전 지도 화면(DiaryMap)에서 처리한다. 세부 화면은 멀쩡하게 표시.
 
@@ -139,7 +142,7 @@ fun DetailScreen(
     val currentDiary = diary
     if (currentDiary == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("다이어리를 불러올 수 없어요", color = MaterialTheme.colorScheme.secondary, fontSize = 15.sp)
+            Text(stringResource(R.string.detail_load_failed), color = MaterialTheme.colorScheme.secondary, fontSize = 15.sp)
         }
         return
     }
@@ -187,7 +190,7 @@ fun DetailScreen(
         if (commentInput.isNotBlank()) {
             interactionVm.addComment(commentInput)
             commentInput = ""
-            com.chaminwoo.stary.core.ui.StaryToast.show("댓글을 남겼어요")
+            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_comment_added))
             keyboardController?.hide()
         }
     }
@@ -204,15 +207,15 @@ fun DetailScreen(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("다이어리 삭제", color = MaterialTheme.colorScheme.onBackground) },
-            text = { Text("정말 삭제할까요? 되돌릴 수 없어요.", color = MaterialTheme.colorScheme.secondary) },
+            title = { Text(stringResource(R.string.detail_delete_title), color = MaterialTheme.colorScheme.onBackground) },
+            text = { Text(stringResource(R.string.detail_delete_confirm), color = MaterialTheme.colorScheme.secondary) },
             confirmButton = {
                 TextButton(onClick = { showDeleteDialog = false; diaryViewModel.deleteDiary(currentDiary.id) { onBack?.invoke() } }) {
-                    Text("삭제", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("취소", color = MaterialTheme.colorScheme.secondary) }
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary) }
             }
         )
     }
@@ -221,19 +224,19 @@ fun DetailScreen(
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
             containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("다이어리 수정", color = MaterialTheme.colorScheme.onBackground) },
+            title = { Text(stringResource(R.string.detail_edit_title), color = MaterialTheme.colorScheme.onBackground) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = editTitle, onValueChange = { editTitle = it },
-                        label = { Text("제목") }, modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.field_title)) }, modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp), colors = fieldColors,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = editContent, onValueChange = { editContent = it },
-                        label = { Text("내용") }, modifier = Modifier.fillMaxWidth(), minLines = 3,
+                        label = { Text(stringResource(R.string.field_content)) }, modifier = Modifier.fillMaxWidth(), minLines = 3,
                         shape = RoundedCornerShape(10.dp), colors = fieldColors,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
                     )
@@ -241,11 +244,11 @@ fun DetailScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showEditDialog = false; diaryViewModel.updateDiary(currentDiary.copy(title = editTitle, content = editContent)) }) {
-                    Text("저장", color = MaterialTheme.colorScheme.onBackground)
+                    Text(stringResource(R.string.common_save), color = MaterialTheme.colorScheme.onBackground)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("취소", color = MaterialTheme.colorScheme.secondary) }
+                TextButton(onClick = { showEditDialog = false }) { Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary) }
             }
         )
     }
@@ -257,7 +260,7 @@ fun DetailScreen(
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(ImageCropHelper.ASPECT)) {
                 if (currentDiary.imageUrl.isNotEmpty()) {
                     AsyncImage(
-                        model = currentDiary.imageUrl, contentDescription = "사진 크게 보기",
+                        model = currentDiary.imageUrl, contentDescription = stringResource(R.string.cd_view_photo),
                         modifier = Modifier.fillMaxSize().clickable { showFullImage = true },
                         contentScale = ContentScale.Crop
                     )
@@ -302,13 +305,13 @@ fun DetailScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                currentDiary.userName.ifEmpty { "익명" },
+                                currentDiary.userName.ifEmpty { stringResource(R.string.common_anonymous) },
                                 fontSize = 13.sp, fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f)
                             )
                             if (canOpenProfile) {
                                 Icon(
-                                    Icons.Filled.ChevronRight, contentDescription = "프로필 보기",
+                                    Icons.Filled.ChevronRight, contentDescription = stringResource(R.string.cd_view_profile),
                                     tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                                     modifier = Modifier.size(15.dp)
                                 )
@@ -366,11 +369,11 @@ fun DetailScreen(
                         IconButton(onClick = {
                             val willLike = !isLiked
                             interactionVm.toggleLike()
-                            com.chaminwoo.stary.core.ui.StaryToast.show(if (willLike) "좋아요를 남겼어요 ♥" else "좋아요를 취소했어요")
+                            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(if (willLike) R.string.toast_liked else R.string.toast_unliked))
                         }) {
                             Icon(
                                 imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                contentDescription = "좋아요",
+                                contentDescription = stringResource(R.string.cd_like),
                                 tint = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
                             )
                         }
@@ -378,11 +381,11 @@ fun DetailScreen(
                         Spacer(modifier = Modifier.weight(1f))
                         if (isMyDiary) {
                             TextButton(onClick = { editTitle = currentDiary.title; editContent = currentDiary.content; showEditDialog = true }) {
-                                Text("수정", fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
+                                Text(stringResource(R.string.common_edit), fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
                             }
                             Spacer(modifier = Modifier.width(4.dp))
                             TextButton(onClick = { showDeleteDialog = true }) {
-                                Text("삭제", fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
+                                Text(stringResource(R.string.common_delete), fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -391,7 +394,7 @@ fun DetailScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        "댓글 ${comments.size}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        stringResource(R.string.detail_comments_count, comments.size), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -400,7 +403,7 @@ fun DetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
                             value = commentInput, onValueChange = { commentInput = it },
-                            placeholder = { Text("댓글을 입력하세요", color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
+                            placeholder = { Text(stringResource(R.string.comment_placeholder), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
                             modifier = Modifier.weight(1f), singleLine = true,
                             shape = RoundedCornerShape(12.dp), colors = fieldColors,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
@@ -412,7 +415,7 @@ fun DetailScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         IconButton(onClick = { submitComment() }, enabled = commentInput.isNotBlank()) {
                             Icon(
-                                Icons.AutoMirrored.Filled.Send, contentDescription = "전송",
+                                Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.cd_send),
                                 tint = if (commentInput.isNotBlank()) accent else MaterialTheme.colorScheme.secondary
                             )
                         }
@@ -420,10 +423,18 @@ fun DetailScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     comments.forEach { comment ->
-                        CommentItem(comment = comment, isMyComment = comment.userId == userId, accent = accent, onDelete = {
-                            interactionVm.deleteComment(comment.id)
-                            com.chaminwoo.stary.core.ui.StaryToast.show("댓글을 삭제했어요")
-                        })
+                        CommentItem(
+                            comment = comment,
+                            isMyComment = comment.userId == userId,
+                            accent = accent,
+                            onOpenProfile = {
+                                if (comment.userId.isNotBlank()) onOpenProfile(comment.userId, comment.userName)
+                            },
+                            onDelete = {
+                                interactionVm.deleteComment(comment.id)
+                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_comment_deleted))
+                            }
+                        )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     }
                 } else {
@@ -442,8 +453,8 @@ fun DetailScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            if (!locationKnown) "위치를 확인하는 중이에요…"
-                            else "100m 이내에서 좋아요와 댓글을 남길 수 있어요",
+                            if (!locationKnown) stringResource(R.string.detail_locating)
+                            else stringResource(R.string.detail_interaction_locked),
                             fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary
                         )
                     }
@@ -493,7 +504,7 @@ private fun FullScreenImageViewer(imageUrl: String, onClose: () -> Unit) {
     ) {
         AsyncImage(
             model = imageUrl,
-            contentDescription = "사진 원본",
+            contentDescription = stringResource(R.string.cd_photo_original),
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer(
@@ -511,13 +522,19 @@ private fun FullScreenImageViewer(imageUrl: String, onClose: () -> Unit) {
                 .statusBarsPadding()
                 .padding(12.dp)
         ) {
-            Icon(Icons.Filled.Close, contentDescription = "닫기", tint = Color.White)
+            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cd_close), tint = Color.White)
         }
     }
 }
 
 @Composable
-private fun CommentItem(comment: Comment, isMyComment: Boolean, accent: Color, onDelete: () -> Unit) {
+private fun CommentItem(
+    comment: Comment,
+    isMyComment: Boolean,
+    accent: Color,
+    onOpenProfile: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val dateStr = remember(comment.createdAt) { com.chaminwoo.stary.core.util.RelativeTime.format(comment.createdAt) }
 
     // 작성자 프로필 사진 로드(인스타 댓글처럼). 없으면 이니셜 폴백.
@@ -529,21 +546,22 @@ private fun CommentItem(comment: Comment, isMyComment: Boolean, accent: Color, o
     }
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        // 작성자 프로필 아바타 (top 패딩으로 사용자 이름 top 과 맞춤)
+        // 작성자 프로필 아바타 (탭 → 작성자 프로필). top 패딩으로 사용자 이름 top 과 맞춤
         Box(
             modifier = Modifier
                 .padding(top = 6.dp)
                 .size(32.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(1.dp, accent.copy(alpha = 0.30f), CircleShape),
+                .border(1.dp, accent.copy(alpha = 0.30f), CircleShape)
+                .clickable { onOpenProfile() },
             contentAlignment = Alignment.Center
         ) {
             val url = photoUrl
             if (!url.isNullOrBlank()) {
                 AsyncImage(
                     model = url,
-                    contentDescription = "${comment.userName.ifBlank { "사용자" }} 프로필 사진",
+                    contentDescription = stringResource(R.string.cd_profile_photo, comment.userName.ifBlank { stringResource(R.string.common_user) }),
                     modifier = Modifier.fillMaxSize().clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
@@ -557,7 +575,13 @@ private fun CommentItem(comment: Comment, isMyComment: Boolean, accent: Color, o
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(comment.userName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+                Text(
+                    comment.userName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onOpenProfile() }
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(dateStr, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
             }
@@ -565,7 +589,7 @@ private fun CommentItem(comment: Comment, isMyComment: Boolean, accent: Color, o
             Text(comment.content, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, lineHeight = 20.sp)
         }
         if (isMyComment) {
-            TextButton(onClick = onDelete) { Text("삭제", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary) }
+            TextButton(onClick = onDelete) { Text(stringResource(R.string.common_delete), fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary) }
         }
     }
 }
