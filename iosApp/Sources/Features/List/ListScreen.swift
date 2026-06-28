@@ -5,6 +5,7 @@ struct ListScreen: View {
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
     @EnvironmentObject var viewed: ViewedStore
+    @ObservedObject private var locale = LocaleManager.shared
     @State private var nearbyFirst = false
     @State private var unviewedOnly = false
 
@@ -48,7 +49,7 @@ struct ListScreen: View {
                     Button {
                         unviewedOnly.toggle()
                     } label: {
-                        Label("미조회만", systemImage: unviewedOnly ? "eye.slash.fill" : "eye")
+                        Label(locale.t(.filterUnviewed), systemImage: unviewedOnly ? "eye.slash.fill" : "eye")
                     }
                     .tint(unviewedOnly ? Theme.mint : Theme.textSecondary)
                 }

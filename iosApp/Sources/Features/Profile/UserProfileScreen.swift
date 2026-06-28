@@ -9,6 +9,7 @@ struct UserProfileScreen: View {
 
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
+    @ObservedObject private var locale = LocaleManager.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var profileImageUrl: String?
@@ -49,7 +50,7 @@ struct UserProfileScreen: View {
                 .padding(16)
             }
         }
-        .navigationTitle(userName.isEmpty ? "프로필" : userName)
+        .navigationTitle(userName.isEmpty ? locale.t(.profileTitle) : userName)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $openChat) {
             ChatScreen(friendId: userId, friendName: userName, myUid: auth.uid ?? "")
@@ -70,7 +71,7 @@ struct UserProfileScreen: View {
     private var header: some View {
         VStack(spacing: 10) {
             avatar
-            Text(userName.isEmpty ? "알 수 없음" : userName)
+            Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
                 .font(.title3).bold()
                 .foregroundStyle(Theme.textPrimary)
             if let title = Achievements.byId(equippedTitleId)?.titleName {
@@ -105,14 +106,14 @@ struct UserProfileScreen: View {
     @ViewBuilder
     private var actionRow: some View {
         if isMe {
-            Text("내 프로필")
+            Text(locale.t(.userProfileMe))
                 .font(.subheadline).foregroundStyle(Theme.textSecondary)
         } else if isFriend {
             HStack(spacing: 12) {
-                Label("친구", systemImage: "checkmark.seal.fill")
+                Label(locale.t(.userStatusFriend), systemImage: "checkmark.seal.fill")
                     .font(.subheadline).foregroundStyle(Theme.mint)
                 Button { openChat = true } label: {
-                    Label("채팅하기", systemImage: "bubble.left.fill")
+                    Label(locale.t(.userChatAction), systemImage: "bubble.left.fill")
                         .font(.subheadline.bold())
                         .padding(.horizontal, 16).padding(.vertical, 8)
                         .background(Theme.mint.opacity(0.18), in: Capsule())
@@ -123,7 +124,7 @@ struct UserProfileScreen: View {
             Button {
                 Task { await sendRequest() }
             } label: {
-                Label(requested ? "요청됨" : "친구 추가",
+                Label(requested ? locale.t(.userRequested) : locale.t(.userAddFriend),
                       systemImage: requested ? "checkmark" : "person.badge.plus")
                     .font(.subheadline.bold())
                     .padding(.horizontal, 18).padding(.vertical, 9)
@@ -136,9 +137,9 @@ struct UserProfileScreen: View {
 
     private var statRow: some View {
         HStack(spacing: 12) {
-            statCell("별", visibleDiaries.count)
-            statCell("조회", totalViews)
-            statCell("좋아요", totalLikes)
+            statCell(locale.t(.statStars), visibleDiaries.count)
+            statCell(locale.t(.statViews), totalViews)
+            statCell(locale.t(.statLikes), totalLikes)
         }
     }
 
@@ -154,12 +155,12 @@ struct UserProfileScreen: View {
 
     private var diariesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\(userName.isEmpty ? "이 사람" : userName)님의 별")
+            Text(locale.t(.userStarsHeader))
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if visibleDiaries.isEmpty {
-                Text("아직 볼 수 있는 별이 없어요.")
+                Text(locale.t(.userNoDiaries))
                     .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
             } else {

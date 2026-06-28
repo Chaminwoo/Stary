@@ -62,6 +62,11 @@ enum L10n: String {
     case settingsNotifPopup, settingsNotifPopupDesc, settingsLanguageDesc, settingsAutosave
     case languageDialogTitle, languageSystem, languageKo, languageEn, languageJa
     case tabMap, tabList, tabUpload, tabFriends, tabProfile
+    // 타인 프로필(UserProfileScreen) + 미조회 필터 — Android 8.24 리소스화 패리티.
+    case userProfileMe, userStatusFriend, userChatAction, userAddFriend, userRequested
+    case userNoTitle, userStarsHeader, userNoDiaries, unknownUser, profileTitle
+    case statStars, statViews, statLikes
+    case filterUnviewed
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -88,6 +93,20 @@ enum L10n: String {
         case .tabUpload:            return ("올리기", "Post", "投稿")
         case .tabFriends:           return ("친구", "Friends", "フレンド")
         case .tabProfile:           return ("프로필", "Profile", "プロフィール")
+        case .userProfileMe:        return ("내 프로필", "My profile", "マイプロフィール")
+        case .userStatusFriend:     return ("친구", "Friend", "フレンド")
+        case .userChatAction:       return ("채팅하기", "Chat", "チャットする")
+        case .userAddFriend:        return ("친구 추가", "Add friend", "フレンド追加")
+        case .userRequested:        return ("요청됨", "Requested", "リクエスト済み")
+        case .userNoTitle:          return ("칭호 없음", "No title", "称号なし")
+        case .userStarsHeader:      return ("별 목록", "Stars", "星のリスト")
+        case .userNoDiaries:        return ("아직 볼 수 있는 별이 없어요.", "No stars to show yet.", "表示できる星がまだありません。")
+        case .unknownUser:          return ("알 수 없음", "Unknown", "不明")
+        case .profileTitle:         return ("프로필", "Profile", "プロフィール")
+        case .statStars:            return ("별", "Stars", "星")
+        case .statViews:            return ("조회", "Views", "閲覧")
+        case .statLikes:            return ("좋아요", "Likes", "いいね")
+        case .filterUnviewed:       return ("미조회만", "Unviewed", "未読のみ")
         }
     }
 

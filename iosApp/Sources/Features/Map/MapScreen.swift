@@ -5,6 +5,7 @@ struct MapScreen: View {
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
     @EnvironmentObject var viewed: ViewedStore
+    @ObservedObject private var locale = LocaleManager.shared
     @State private var selected: Diary?
     @State private var unviewedOnly = false
 
@@ -32,7 +33,7 @@ struct MapScreen: View {
             Button {
                 unviewedOnly.toggle()
             } label: {
-                Label("미조회만", systemImage: unviewedOnly ? "eye.slash.fill" : "eye")
+                Label(locale.t(.filterUnviewed), systemImage: unviewedOnly ? "eye.slash.fill" : "eye")
                     .font(.caption.bold())
                     .padding(.horizontal, 14).padding(.vertical, 9)
                     .background(unviewedOnly ? Theme.mint.opacity(0.9) : Theme.surface.opacity(0.92), in: Capsule())

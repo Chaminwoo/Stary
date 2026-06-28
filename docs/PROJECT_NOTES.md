@@ -218,7 +218,9 @@
 - **UserProfileScreen.kt**: 아바타 contentDescription·이름/칭호 폴백·친구 액션(내 프로필/친구/채팅하기/요청됨/친구 추가)·통계 라벨(좋아요/친구/다이어리)·"업적·칭호"·"볼 수 있는 다이어리가 없어요"·"(제목 없음)" 전부 `stringResource`. import 추가.
 - **strings.xml(ko/en/ja) 신규 키**: `cd_zoom_in/cd_zoom_out/cd_my_location/map_constellation/map_only/cd_create_diary/map_open_range`(지도) +
   `user_profile_me/user_chat_action/user_add_friend/user_requested/user_no_title/user_ach_titles/user_no_diaries/common_untitled`(타인 프로필). 기존 키 재사용(`cd_profile_photo`,`cd_default_profile`,`common_user`,`friend_no_name`,`friend_status_friend`,`common_friend`,`profile_stat_likes`,`profile_stat_diaries`).
-- ⚠️ 남은 하드코딩(후속): `DiaryViewModel`/`FriendViewModel` 이벤트 토스트, 업적/트랙명(공용 데이터·의도적 비번역) 등은 8.22 방침대로 유지.
+- **iOS 패리티(§1.5)**: 같은 문자열을 iOS `L10n` 딕셔너리에 14키 추가(타인 프로필 + 미조회 칩) + `UserProfileScreen`/`MapScreen`/`ListScreen` 이
+  `locale.t(...)` 로 표시(`@ObservedObject LocaleManager.shared`). iOS 의 DiaryMap FAB 류는 부재(지도 단순)라 미러 대상 아님. CI(macOS)로 검증.
+- ⚠️ 남은 하드코딩(후속): `DiaryViewModel`/`FriendViewModel` 이벤트 토스트, 업적/트랙명(공용 데이터·의도적 비번역), iOS DetailScreen 등 나머지 화면은 8.22 방침대로 점진 이관.
 
 ## 8.23-iOS 미조회 필터 + 조회 기록 (CI(macOS) BUILD SUCCESS e89904a, 2026-06-28)
 iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListScreen "미조회만" + FirebaseViewedRepository 패리티).
