@@ -218,8 +218,10 @@
   → **`InAppBanner.show(key=...)` 에 프로세스 영속 dedup `HashSet`** 추가(원인 무관 1회 보장). 채팅 key=`방:updatedAt`, 알림 key=`notif:id`.
   와처 로컬 dedup/baseline 은 "앱 켤 때 과거 항목 억제" 용으로 유지. **iOS 동일 미러**(`InAppBanner.show(key:)` + `InAppWatcher`, CI(macOS) BUILD SUCCESS d5bfb45).
 - **② 미조회 필터 아이콘**: `MainListScreen` "미조회만" 칩 아이콘 `Icons.Filled.Visibility`(상세/카드 조회수 눈과 의미 충돌) → **`Icons.Filled.FiberNew`**(NEW 뱃지). 라벨 유지, `Visibility` import 제거.
-- **③ 설정 음량 슬라이더 별 thumb**: `SettingsScreen.VolumeRow` 의 M3 `Slider` 에 `thumb` 슬롯 추가 — `StarShapeIcon(type=1, color = enabled? Mint : 회색)` 22dp 5각 별(26dp Box 중앙). 기존 그라데이션 `track` 슬롯과 공존.
-  - ⚠️ iOS 는 SwiftUI `Slider` 가 커스텀 thumb 미지원 → 완전 커스텀 슬라이더 필요. iOS TODO 로 보류(나머지 ①은 미러 완료).
+- **③ 설정 음량 슬라이더 별 thumb**: `SettingsScreen.VolumeRow` 의 M3 `Slider` 에 `thumb` 슬롯 추가 — `StarThumb` 컴포저블(22dp 5각 별 + **후광**).
+  - **후광/반응형(추가 라운드)**: 별 뒤 `drawBehind` 민트 `radialGradient` 후광(평상시 alpha 0.4, 비활성 0). Slider 와 `thumb` 가 **같은 `MutableInteractionSource`** 공유 →
+    `collectIsDraggedAsState`/`collectIsPressedAsState` 로 누름·드래그 감지 시 `animateFloatAsState` 로 `graphicsLayer` scale 1.0→1.3 + 후광 alpha→0.9(발광). 기존 그라데이션 `track` 슬롯과 공존.
+  - ⚠️ iOS 는 SwiftUI `Slider` 가 커스텀 thumb 미지원 → 완전 커스텀 슬라이더 필요. iOS TODO 로 보류(①은 미러 완료).
 
 ## 8.24 안드로이드 언어 리소스화 마무리 — DiaryMap/UserProfile (BUILD SUCCESSFUL 2026-06-28)
 8.22 에서 언어 전환을 넣었지만 일부 화면이 한국어 하드코딩이라 번역이 안 됐던 것을 마저 리소스화.

@@ -3,10 +3,14 @@ package com.chaminwoo.stary.feature.profile.screen
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,10 +52,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -416,10 +422,13 @@ private fun VolumeRow(
             }
         }
         Spacer(Modifier.height(6.dp))
+        // 같은 interactionSource 를 Slider 와 thumb 가 공유 → 드래그/누름 시 thumb 가 반응(확대+후광).
+        val interaction = remember { MutableInteractionSource() }
         Slider(
             value = value,
             onValueChange = onValueChange,
             enabled = enabled,
+            interactionSource = interaction,
             colors = SliderDefaults.colors(
                 thumbColor = Mint,
                 activeTrackColor = Mint,
@@ -428,19 +437,8 @@ private fun VolumeRow(
                 disabledActiveTrackColor = Color(0xFF3A434F),
                 disabledInactiveTrackColor = Color(0xFF181D25),
             ),
-            // 핸들(thumb)을 원형 대신 별 모양으로 — 앱 테마(별)에 맞춤.
-            thumb = {
-                Box(
-                    modifier = Modifier.size(26.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    StarShapeIcon(
-                        type = 1, // 5각 별
-                        color = if (enabled) Mint else Color(0xFF555555),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            },
+            // 핸들(thumb)을 원형 대신 별 모양 + 후광으로 — 앱 테마(별)에 맞춤. 누르면 확대·발광.
+            thumb = { StarThumb(enabled = enabled, interactionSource = interaction) },
             // 그라데이션 활성 트랙 — 민트→블루로 채워져 더 예쁘게.
             track = { state: SliderState ->
                 val frac = state.value.coerceIn(0f, 1f)
@@ -462,6 +460,57 @@ private fun VolumeRow(
                     }
                 }
             }
+        )
+    }
+}
+
+/**
+ * 슬라이더 핸들 — 별 모양 + 후광(halo). 드래그/누름 시 [interactionSource] 를 통해 확대·발광해 반응형으로 보인다.
+ * 같은 interactionSource 를 Slider 에 넘겨야 상호작용이 전달된다.
+ */
+@Composable
+private fun StarThumb(enabled: Boolean, interactionSource: MutableInteractionSource) {
+    val dragged by interactionSource.collectIsDraggedAsState()
+    val pressed by interactionSource.collectIsPressedAsState()
+    val active = enabled && (dragged || pressed)
+
+    // 누르면 1.0 → 1.3 배 확대(살짝 튕기듯) + 후광 진해짐. 부드럽게 보간.
+    val scale by animateFloatAsState(targetValue = if (active) 1.3f else 1f, label = "thumbScale")
+    val glowAlpha by animateFloatAsState(
+        targetValue = when {
+            !enabled -> 0f          // 비활성: 후광 없음
+            active -> 0.9f          // 누름/드래그: 강하게 발광
+            else -> 0.4f            // 평상시: 은은한 후광
+        },
+        label = "thumbGlow"
+    )
+    val starColor = if (enabled) Mint else Color(0xFF555555)
+
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .drawBehind {
+                // 별 뒤 부드러운 민트 광채(후광)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Mint.copy(alpha = glowAlpha),
+                            Mint.copy(alpha = glowAlpha * 0.35f),
+                            Color.Transparent
+                        ),
+                        center = center,
+                        radius = size.minDimension / 2f
+                    ),
+                    radius = size.minDimension / 2f
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        StarShapeIcon(
+            type = 1, // 5각 별
+            color = starColor,
+            modifier = Modifier.size(22.dp)
         )
     }
 }
