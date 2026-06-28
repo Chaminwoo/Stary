@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.24 안드로이드 언어 리소스화 마무리**(DiaryMap FAB/토스트·UserProfileScreen 하드코딩 → strings.xml ko/en/ja, BUILD SUCCESSFUL) — 아래 8.24 참고.
+> 최종 갱신: **8.25 체크리스트 TODO 3건**(인앱 배너 반복 dedup, 미조회 아이콘 FiberNew, 설정 음량 슬라이더 별 thumb) BUILD SUCCESSFUL — 아래 8.25 참고.
+> 이전: **8.24 안드로이드 언어 리소스화 마무리**(DiaryMap FAB/토스트·UserProfileScreen 하드코딩 → strings.xml ko/en/ja, BUILD SUCCESSFUL) — 아래 8.24 참고.
 > 이전: **8.23-iOS 미조회 필터 + 조회 기록**(ViewedStore/markViewed + Map·List "미조회만", CI(macOS) BUILD SUCCESS e89904a) — 아래 8.23-iOS 참고.
 > 이전: **8.22-iOS 패리티**(위 5개 항목 SwiftUI 구현, CI(macOS) BUILD SUCCESS 40424d0) — 아래 8.22-iOS 참고.
 > 이전: **8.22 위치/로그인/팝업/설정 라운드**(실시간 위치+내 위치 카메라, 로그인 유지, 채팅·알림 인앱 배너, 댓글 프로필, 설정 탭) — 아래 8.22 참고.
@@ -209,6 +210,16 @@
   - ⚠️ **recreate 부작용 방지**: `MusicManager.release()` 가 `initialized=false`(+`openLoaded=false`) 로 풀어 dispose→release→init 사이클에서 SoundPool 재로드(효과음 안 깨지게).
 - **남은 iOS TODO(이번 라운드 패리티)**: 로그인 유지·실시간 위치는 iOS 이미 동작(`AuthManager.addStateDidChangeListener` 영속 복원 + `LocationManager.startUpdatingLocation`).
   미반영: ① 최초 진입 내 위치 카메라(MapScreen/MapLibreView center 변경 시 재센터), ② 댓글 작성자 프로필 탭(iOS UserProfile 화면 부재 — 화면부터 필요), ③ 설정 화면(iOS MusicManager 볼륨 musicVolume/sfxVolume + AppSettings + SettingsScreen + 탭/프로필 진입), ④ 인앱 배너+채팅/알림 와처(observeMyChats 포함), ⑤ 언어 변경(iOS 는 Bundle.main.localizations + Localizable.strings, 또는 SwiftUI environment locale). CI(macOS)로 검증 예정.
+
+## 8.25 체크리스트 TODO 3건 — 배너 dedup/미조회 아이콘/별 슬라이더 (BUILD SUCCESSFUL 2026-06-28)
+`SETUP_CHECKLIST.md` "📝 다음 작업(2026-06-27)" 3건 구현.
+- **① 인앱 배너 반복 버그**: 와처(`ChatPopupWatcher`/`NotificationPopupWatcher`)는 `if (userId!=null && !showLogin)` 안에 마운트돼
+  조건 토글/재마운트 시 로컬 `remember { shownKeys }`·`baselineDone` 이 리셋 → 같은 메시지가 큐에 중복 enqueue 되어 순차 표시(=반복)되던 게 원인.
+  → **`InAppBanner.show(key=...)` 에 프로세스 영속 dedup `HashSet`** 추가(원인 무관 1회 보장). 채팅 key=`방:updatedAt`, 알림 key=`notif:id`.
+  와처 로컬 dedup/baseline 은 "앱 켤 때 과거 항목 억제" 용으로 유지. **iOS 동일 미러**(`InAppBanner.show(key:)` + `InAppWatcher`).
+- **② 미조회 필터 아이콘**: `MainListScreen` "미조회만" 칩 아이콘 `Icons.Filled.Visibility`(상세/카드 조회수 눈과 의미 충돌) → **`Icons.Filled.FiberNew`**(NEW 뱃지). 라벨 유지, `Visibility` import 제거.
+- **③ 설정 음량 슬라이더 별 thumb**: `SettingsScreen.VolumeRow` 의 M3 `Slider` 에 `thumb` 슬롯 추가 — `StarShapeIcon(type=1, color = enabled? Mint : 회색)` 22dp 5각 별(26dp Box 중앙). 기존 그라데이션 `track` 슬롯과 공존.
+  - ⚠️ iOS 는 SwiftUI `Slider` 가 커스텀 thumb 미지원 → 완전 커스텀 슬라이더 필요. iOS TODO 로 보류(나머지 ①은 미러 완료).
 
 ## 8.24 안드로이드 언어 리소스화 마무리 — DiaryMap/UserProfile (BUILD SUCCESSFUL 2026-06-28)
 8.22 에서 언어 전환을 넣었지만 일부 화면이 한국어 하드코딩이라 번역이 안 됐던 것을 마저 리소스화.

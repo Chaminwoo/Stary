@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.PoorStory
+import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.AppSettings
 import com.chaminwoo.stary.core.util.LocaleManager
 import com.chaminwoo.stary.core.util.MusicManager
@@ -427,6 +428,19 @@ private fun VolumeRow(
                 disabledActiveTrackColor = Color(0xFF3A434F),
                 disabledInactiveTrackColor = Color(0xFF181D25),
             ),
+            // 핸들(thumb)을 원형 대신 별 모양으로 — 앱 테마(별)에 맞춤.
+            thumb = {
+                Box(
+                    modifier = Modifier.size(26.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    StarShapeIcon(
+                        type = 1, // 5각 별
+                        color = if (enabled) Mint else Color(0xFF555555),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            },
             // 그라데이션 활성 트랙 — 민트→블루로 채워져 더 예쁘게.
             track = { state: SliderState ->
                 val frac = state.value.coerceIn(0f, 1f)

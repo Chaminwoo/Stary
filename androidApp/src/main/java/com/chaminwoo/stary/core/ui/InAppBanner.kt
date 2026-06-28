@@ -66,8 +66,16 @@ object InAppBanner {
     private val _events = MutableStateFlow<List<Event>>(emptyList())
     val events: StateFlow<List<Event>> = _events
 
-    /** 배너 한 건 추가(큐). 여러 건이 빠르게 와도 순서대로 표시된다. */
-    fun show(title: String, body: String, kind: Kind, onClick: () -> Unit) {
+    // 프로세스 동안 이미 띄운 dedup 키(채팅 "방:updatedAt" / 알림 "notif:id").
+    // 와처가 재마운트되어 로컬 dedup 이 리셋되거나 스냅샷이 여러 번 방출돼도, 같은 메시지는 큐에 두 번 들어가지 않는다.
+    private val shownKeys = HashSet<String>()
+
+    /**
+     * 배너 한 건 추가(큐). 여러 건이 빠르게 와도 순서대로 표시된다.
+     * [key] 가 주어지면 프로세스 동안 그 키로 1회만 표시(중복 enqueue 방지).
+     */
+    fun show(title: String, body: String, kind: Kind, key: String? = null, onClick: () -> Unit) {
+        if (key != null && !shownKeys.add(key)) return // 이미 띄운 메시지 → 무시
         _events.value = _events.value + Event(System.nanoTime(), title, body, kind, onClick)
     }
 

@@ -95,7 +95,7 @@ final class InAppWatcher: ObservableObject {
             let viewingThisChat = ChatPresence.shared.activeFriendId == friendId
             guard !viewingThisChat, AppSettings.shared.notificationsEnabled else { continue }
             let name = c.lastSenderName.isEmpty ? "새 메시지" : c.lastSenderName
-            InAppBanner.shared.show(title: name, body: c.lastMessage, kind: .chat) { [weak self] in
+            InAppBanner.shared.show(title: name, body: c.lastMessage, kind: .chat, key: key) { [weak self] in
                 self?.onOpenChat?(friendId, name)
             }
         }
@@ -117,7 +117,8 @@ final class InAppWatcher: ObservableObject {
             InAppBanner.shared.show(
                 title: n.displayText,
                 body: n.content.isEmpty ? n.diaryTitle : n.content,
-                kind: .notification
+                kind: .notification,
+                key: "notif:\(n.id ?? "")"
             ) { [weak self] in self?.onOpenNotification?(n) }
         }
         notifBaseline = Swift.max(base, maxCreated)

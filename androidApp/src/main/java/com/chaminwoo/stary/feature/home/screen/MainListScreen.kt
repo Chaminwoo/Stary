@@ -26,11 +26,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.FiberNew
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -297,7 +297,7 @@ fun MainListScreen(
                     unviewedOnly = false; friendsOnly = false; myOnly = false
                     selectedFriendIds = emptySet(); speedDialExpanded = false
                 },
-                FilterOpt("미조회만", Icons.Filled.Visibility, unviewedOnly) {
+                FilterOpt("미조회만", Icons.Filled.FiberNew, unviewedOnly) {
                     unviewedOnly = !unviewedOnly; if (unviewedOnly) myOnly = false
                 },
                 FilterOpt("친구만", Icons.Filled.People, friendsOnly) {

@@ -20,8 +20,13 @@ final class InAppBanner: ObservableObject {
 
     @Published private(set) var events: [Event] = []
 
+    // 프로세스 동안 이미 띄운 dedup 키 — 같은 메시지가 큐에 두 번 들어가지 않게(Android InAppBanner.shownKeys 패리티).
+    private var shownKeys: Set<String> = []
+
     /// 배너 한 건 추가(큐). 여러 건이 빠르게 와도 순서대로 표시된다.
-    func show(title: String, body: String, kind: Kind, onTap: @escaping () -> Void) {
+    /// [key] 가 주어지면 프로세스 동안 그 키로 1회만 표시(중복 enqueue 방지).
+    func show(title: String, body: String, kind: Kind, key: String? = nil, onTap: @escaping () -> Void) {
+        if let key, !shownKeys.insert(key).inserted { return } // 이미 띄운 메시지 → 무시
         events.append(Event(title: title, body: body, kind: kind, onTap: onTap))
     }
 

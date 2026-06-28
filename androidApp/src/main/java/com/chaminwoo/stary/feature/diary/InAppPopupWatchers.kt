@@ -49,6 +49,7 @@ fun NotificationPopupWatcher(
                         title = notificationTitle(n),
                         body = n.content.ifBlank { n.diaryTitle },
                         kind = InAppBanner.Kind.NOTIFICATION,
+                        key = "notif:${n.id}",
                         onClick = { onOpen(n) },
                     )
                 }
@@ -108,6 +109,7 @@ fun ChatPopupWatcher(
                     title = c.lastSenderName.ifBlank { "새 메시지" },
                     body = c.lastMessage,
                     kind = InAppBanner.Kind.CHAT,
+                    key = key,
                     onClick = { onOpenChat(friendId, c.lastSenderName) },
                 )
             }
