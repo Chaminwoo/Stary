@@ -216,7 +216,7 @@
 - **① 인앱 배너 반복 버그**: 와처(`ChatPopupWatcher`/`NotificationPopupWatcher`)는 `if (userId!=null && !showLogin)` 안에 마운트돼
   조건 토글/재마운트 시 로컬 `remember { shownKeys }`·`baselineDone` 이 리셋 → 같은 메시지가 큐에 중복 enqueue 되어 순차 표시(=반복)되던 게 원인.
   → **`InAppBanner.show(key=...)` 에 프로세스 영속 dedup `HashSet`** 추가(원인 무관 1회 보장). 채팅 key=`방:updatedAt`, 알림 key=`notif:id`.
-  와처 로컬 dedup/baseline 은 "앱 켤 때 과거 항목 억제" 용으로 유지. **iOS 동일 미러**(`InAppBanner.show(key:)` + `InAppWatcher`).
+  와처 로컬 dedup/baseline 은 "앱 켤 때 과거 항목 억제" 용으로 유지. **iOS 동일 미러**(`InAppBanner.show(key:)` + `InAppWatcher`, CI(macOS) BUILD SUCCESS d5bfb45).
 - **② 미조회 필터 아이콘**: `MainListScreen` "미조회만" 칩 아이콘 `Icons.Filled.Visibility`(상세/카드 조회수 눈과 의미 충돌) → **`Icons.Filled.FiberNew`**(NEW 뱃지). 라벨 유지, `Visibility` import 제거.
 - **③ 설정 음량 슬라이더 별 thumb**: `SettingsScreen.VolumeRow` 의 M3 `Slider` 에 `thumb` 슬롯 추가 — `StarShapeIcon(type=1, color = enabled? Mint : 회색)` 22dp 5각 별(26dp Box 중앙). 기존 그라데이션 `track` 슬롯과 공존.
   - ⚠️ iOS 는 SwiftUI `Slider` 가 커스텀 thumb 미지원 → 완전 커스텀 슬라이더 필요. iOS TODO 로 보류(나머지 ①은 미러 완료).
