@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -578,7 +579,11 @@ fun DiaryMap(
                                 }
                             } else {
                                 com.chaminwoo.stary.core.ui.StaryToast.show(
-                                    "${StaryConfig.DIARY_OPEN_RADIUS_M.toInt()}m 이내에 있어야 열람할 수 있어요 (현재 ${distance.toInt()}m)"
+                                    context.getString(
+                                        R.string.map_open_range,
+                                        StaryConfig.DIARY_OPEN_RADIUS_M.toInt(),
+                                        distance.toInt()
+                                    )
                                 )
                             }
                         }
@@ -736,7 +741,7 @@ fun DiaryMap(
                 containerColor = Color(0xFF1A1A1A),
                 modifier = Modifier.size(44.dp)
             ) {
-                Icon(Icons.Filled.Add, "확대", tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Add, stringResource(R.string.cd_zoom_in), tint = Color.White, modifier = Modifier.size(20.dp))
             }
             FloatingActionButton(
                 onClick = { mapRef?.animateCamera(CameraUpdateFactory.zoomBy(-1.0), 220) },
@@ -745,7 +750,7 @@ fun DiaryMap(
                 containerColor = Color(0xFF1A1A1A),
                 modifier = Modifier.size(44.dp)
             ) {
-                Icon(Icons.Filled.Remove, "축소", tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Remove, stringResource(R.string.cd_zoom_out), tint = Color.White, modifier = Modifier.size(20.dp))
             }
         }
 
@@ -770,7 +775,7 @@ fun DiaryMap(
                 containerColor = Color(0xFF1A1A1A),
                 modifier = Modifier.size(48.dp)
             ) {
-                Icon(Icons.Filled.Navigation, "내 위치로", tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Navigation, stringResource(R.string.cd_my_location), tint = Color.White, modifier = Modifier.size(20.dp))
             }
 
             // 별자리 토글
@@ -783,7 +788,7 @@ fun DiaryMap(
             ) {
                 Icon(
                     Icons.Filled.AutoAwesome,
-                    "별자리",
+                    stringResource(R.string.map_constellation),
                     tint = if (constellationEnabled) Color(0xFF6EE7B7) else Color.White,
                     modifier = Modifier.size(20.dp)
                 )
@@ -799,7 +804,7 @@ fun DiaryMap(
             ) {
                 Icon(
                     Icons.Filled.Visibility,
-                    "지도만 보기",
+                    stringResource(R.string.map_only),
                     tint = Color.White,
                     modifier = Modifier.size(22.dp)
                 )
@@ -825,7 +830,7 @@ fun DiaryMap(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.Add, "다이어리 생성", tint = Color.White, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Filled.Add, stringResource(R.string.cd_create_diary), tint = Color.White, modifier = Modifier.size(24.dp))
                     }
                 }
             }

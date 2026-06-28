@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.23-iOS 미조회 필터 + 조회 기록**(ViewedStore/markViewed + Map·List "미조회만", CI(macOS) BUILD SUCCESS e89904a) — 아래 8.23-iOS 참고.
+> 최종 갱신: **8.24 안드로이드 언어 리소스화 마무리**(DiaryMap FAB/토스트·UserProfileScreen 하드코딩 → strings.xml ko/en/ja, BUILD SUCCESSFUL) — 아래 8.24 참고.
+> 이전: **8.23-iOS 미조회 필터 + 조회 기록**(ViewedStore/markViewed + Map·List "미조회만", CI(macOS) BUILD SUCCESS e89904a) — 아래 8.23-iOS 참고.
 > 이전: **8.22-iOS 패리티**(위 5개 항목 SwiftUI 구현, CI(macOS) BUILD SUCCESS 40424d0) — 아래 8.22-iOS 참고.
 > 이전: **8.22 위치/로그인/팝업/설정 라운드**(실시간 위치+내 위치 카메라, 로그인 유지, 채팅·알림 인앱 배너, 댓글 프로필, 설정 탭) — 아래 8.22 참고.
 > 이전: **8.11 채팅/크롭/전환/모양 라운드**(친구 채팅, 사진 4:3 크롭, 화면 전환 깊이감 줌, 다이아몬드 재현+행성 추가) — 아래 8.11 참고.
@@ -208,6 +209,16 @@
   - ⚠️ **recreate 부작용 방지**: `MusicManager.release()` 가 `initialized=false`(+`openLoaded=false`) 로 풀어 dispose→release→init 사이클에서 SoundPool 재로드(효과음 안 깨지게).
 - **남은 iOS TODO(이번 라운드 패리티)**: 로그인 유지·실시간 위치는 iOS 이미 동작(`AuthManager.addStateDidChangeListener` 영속 복원 + `LocationManager.startUpdatingLocation`).
   미반영: ① 최초 진입 내 위치 카메라(MapScreen/MapLibreView center 변경 시 재센터), ② 댓글 작성자 프로필 탭(iOS UserProfile 화면 부재 — 화면부터 필요), ③ 설정 화면(iOS MusicManager 볼륨 musicVolume/sfxVolume + AppSettings + SettingsScreen + 탭/프로필 진입), ④ 인앱 배너+채팅/알림 와처(observeMyChats 포함), ⑤ 언어 변경(iOS 는 Bundle.main.localizations + Localizable.strings, 또는 SwiftUI environment locale). CI(macOS)로 검증 예정.
+
+## 8.24 안드로이드 언어 리소스화 마무리 — DiaryMap/UserProfile (BUILD SUCCESSFUL 2026-06-28)
+8.22 에서 언어 전환을 넣었지만 일부 화면이 한국어 하드코딩이라 번역이 안 됐던 것을 마저 리소스화.
+- **DiaryMap.kt**: FAB contentDescription(확대/축소/내 위치로/별자리/지도만 보기/다이어리 생성) + 100m 밖 열람 토스트를
+  `stringResource`/`context.getString(R.string.map_open_range, 반경, 거리)` 로. `import androidx.compose.ui.res.stringResource` 추가.
+  - 토스트는 비-Composable 람다(`map.snapshot`/클릭 핸들러)라 `context`(이미 `LocalContext.current` 보유)로 `getString` 포맷.
+- **UserProfileScreen.kt**: 아바타 contentDescription·이름/칭호 폴백·친구 액션(내 프로필/친구/채팅하기/요청됨/친구 추가)·통계 라벨(좋아요/친구/다이어리)·"업적·칭호"·"볼 수 있는 다이어리가 없어요"·"(제목 없음)" 전부 `stringResource`. import 추가.
+- **strings.xml(ko/en/ja) 신규 키**: `cd_zoom_in/cd_zoom_out/cd_my_location/map_constellation/map_only/cd_create_diary/map_open_range`(지도) +
+  `user_profile_me/user_chat_action/user_add_friend/user_requested/user_no_title/user_ach_titles/user_no_diaries/common_untitled`(타인 프로필). 기존 키 재사용(`cd_profile_photo`,`cd_default_profile`,`common_user`,`friend_no_name`,`friend_status_friend`,`common_friend`,`profile_stat_likes`,`profile_stat_diaries`).
+- ⚠️ 남은 하드코딩(후속): `DiaryViewModel`/`FriendViewModel` 이벤트 토스트, 업적/트랙명(공용 데이터·의도적 비번역) 등은 8.22 방침대로 유지.
 
 ## 8.23-iOS 미조회 필터 + 조회 기록 (CI(macOS) BUILD SUCCESS e89904a, 2026-06-28)
 iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListScreen "미조회만" + FirebaseViewedRepository 패리티).

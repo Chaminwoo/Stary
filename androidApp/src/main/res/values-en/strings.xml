@@ -151,4 +151,23 @@
     <string name="ach_obtained">Earned</string>
     <string name="ach_title_equipped">Equipped the “%1$s” title</string>
     <string name="ach_title_unequipped">Title unequipped</string>
+
+    <!-- Map (DiaryMap) -->
+    <string name="cd_zoom_in">Zoom in</string>
+    <string name="cd_zoom_out">Zoom out</string>
+    <string name="cd_my_location">My location</string>
+    <string name="map_constellation">Constellations</string>
+    <string name="map_only">Map only</string>
+    <string name="cd_create_diary">New diary</string>
+    <string name="map_open_range">You need to be within %1$dm to open it (currently %2$dm)</string>
+
+    <!-- Other user profile (UserProfileScreen) -->
+    <string name="user_profile_me">My profile</string>
+    <string name="user_chat_action">Chat</string>
+    <string name="user_add_friend">Add friend</string>
+    <string name="user_requested">Requested</string>
+    <string name="user_no_title">No title</string>
+    <string name="user_ach_titles">Achievements · Titles</string>
+    <string name="user_no_diaries">No diaries to show</string>
+    <string name="common_untitled">(Untitled)</string>
 </resources>

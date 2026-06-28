@@ -151,4 +151,23 @@
     <string name="ach_obtained">獲得</string>
     <string name="ach_title_equipped">「%1$s」の称号を装着しました</string>
     <string name="ach_title_unequipped">称号を解除しました</string>
+
+    <!-- 地図(DiaryMap) -->
+    <string name="cd_zoom_in">拡大</string>
+    <string name="cd_zoom_out">縮小</string>
+    <string name="cd_my_location">現在地へ</string>
+    <string name="map_constellation">星座</string>
+    <string name="map_only">地図のみ表示</string>
+    <string name="cd_create_diary">日記を作成</string>
+    <string name="map_open_range">%1$dm以内で閲覧できます（現在%2$dm）</string>
+
+    <!-- 他のユーザーのプロフィール(UserProfileScreen) -->
+    <string name="user_profile_me">マイプロフィール</string>
+    <string name="user_chat_action">チャットする</string>
+    <string name="user_add_friend">フレンド追加</string>
+    <string name="user_requested">リクエスト済み</string>
+    <string name="user_no_title">称号なし</string>
+    <string name="user_ach_titles">実績・称号</string>
+    <string name="user_no_diaries">表示できる日記がありません</string>
+    <string name="common_untitled">(タイトルなし)</string>
 </resources>

@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -173,13 +174,13 @@ fun UserProfileScreen(
                             if (photoUrl.isNotBlank()) {
                                 AsyncImage(
                                     model = photoUrl,
-                                    contentDescription = "${resolvedName.ifBlank { "사용자" }} 프로필 사진",
+                                    contentDescription = stringResource(R.string.cd_profile_photo, resolvedName.ifBlank { stringResource(R.string.common_user) }),
                                     modifier = Modifier.fillMaxSize().clip(CircleShape),
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
                                 Icon(
-                                    Icons.Filled.AccountCircle, contentDescription = "기본 프로필",
+                                    Icons.Filled.AccountCircle, contentDescription = stringResource(R.string.cd_default_profile),
                                     tint = Color(0xFF555555), modifier = Modifier.fillMaxSize()
                                 )
                             }
@@ -188,7 +189,7 @@ fun UserProfileScreen(
 
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = resolvedName.ifBlank { "(이름 없음)" },
+                        text = resolvedName.ifBlank { stringResource(R.string.friend_no_name) },
                         fontSize = 23.sp, fontWeight = FontWeight.Bold, color = TextMain
                     )
 
@@ -205,7 +206,7 @@ fun UserProfileScreen(
                         Icon(Icons.Filled.AutoAwesome, null, tint = Mint, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text = equippedTitleName ?: "칭호 없음",
+                            text = equippedTitleName ?: stringResource(R.string.user_no_title),
                             color = if (equippedTitleName != null) Mint else TextMuted,
                             fontSize = 13.sp, fontWeight = FontWeight.Medium
                         )
@@ -214,13 +215,13 @@ fun UserProfileScreen(
                     // 친구 액션
                     Spacer(Modifier.height(18.dp))
                     when {
-                        isMe -> StatusChip("내 프로필")
+                        isMe -> StatusChip(stringResource(R.string.user_profile_me))
                         isFriend -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            StatusChip("친구", Icons.Filled.Check)
-                            ActionButton("채팅하기", Icons.AutoMirrored.Filled.Chat) { onOpenChat(userId, resolvedName) }
+                            StatusChip(stringResource(R.string.friend_status_friend), Icons.Filled.Check)
+                            ActionButton(stringResource(R.string.user_chat_action), Icons.AutoMirrored.Filled.Chat) { onOpenChat(userId, resolvedName) }
                         }
-                        requested -> StatusChip("요청됨", Icons.Filled.Check)
-                        else -> ActionButton("친구 추가", Icons.Filled.PersonAdd) {
+                        requested -> StatusChip(stringResource(R.string.user_requested), Icons.Filled.Check)
+                        else -> ActionButton(stringResource(R.string.user_add_friend), Icons.Filled.PersonAdd) {
                             vm.sendRequest(UserProfile(userId, resolvedName, photoUrl))
                             requested = true
                         }
@@ -237,11 +238,11 @@ fun UserProfileScreen(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        StatCell("좋아요", stats.likesReceived.toString(), Color(0xFFE7556B), Icons.Filled.Favorite, Modifier.weight(1f))
+                        StatCell(stringResource(R.string.profile_stat_likes), stats.likesReceived.toString(), Color(0xFFE7556B), Icons.Filled.Favorite, Modifier.weight(1f))
                         StatDivider()
-                        StatCell("친구", stats.friends.toString(), Color(0xFF6EE7B7), Icons.Filled.People, Modifier.weight(1f))
+                        StatCell(stringResource(R.string.common_friend), stats.friends.toString(), Color(0xFF6EE7B7), Icons.Filled.People, Modifier.weight(1f))
                         StatDivider()
-                        StatCell("다이어리", stats.diariesCreated.toString(), Color(0xFFF7E067), Icons.Filled.Star, Modifier.weight(1f))
+                        StatCell(stringResource(R.string.profile_stat_diaries), stats.diariesCreated.toString(), Color(0xFFF7E067), Icons.Filled.Star, Modifier.weight(1f))
                     }
                 }
                 Spacer(Modifier.height(14.dp))
@@ -254,7 +255,7 @@ fun UserProfileScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.AutoAwesome, null, tint = Mint, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(10.dp))
-                            Text("업적 · 칭호", color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text(stringResource(R.string.user_ach_titles), color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                             Text("$unlockedCount / $totalCount", color = Mint, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.height(12.dp))
@@ -281,7 +282,7 @@ fun UserProfileScreen(
                 ) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(Mint))
                     Spacer(Modifier.width(8.dp))
-                    Text("다이어리", color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.profile_stat_diaries), color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(8.dp))
                     Text("${visibleDiaries.size}", color = Mint, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
@@ -293,7 +294,7 @@ fun UserProfileScreen(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("볼 수 있는 다이어리가 없어요", color = TextMuted, fontSize = 13.sp)
+                        Text(stringResource(R.string.user_no_diaries), color = TextMuted, fontSize = 13.sp)
                     }
                 }
             } else {
@@ -324,7 +325,7 @@ private fun DiaryRow(d: Diary, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                d.title.ifBlank { "(제목 없음)" },
+                d.title.ifBlank { stringResource(R.string.common_untitled) },
                 color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
