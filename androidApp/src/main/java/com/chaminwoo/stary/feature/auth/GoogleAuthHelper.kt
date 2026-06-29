@@ -136,4 +136,91 @@ object GoogleAuthHelper {
             null
         }
     }
+
+    /**
+     * 계정·데이터 삭제(Play 정책: 데이터 삭제 경로 제공).
+     * Firestore 의 내 데이터(다이어리/친구/열람/차단/프로필)와 Storage 프로필 이미지를 베스트에포트로 지우고,
+     * FirebaseAuth 사용자를 삭제한 뒤 로그아웃한다. 최근 로그인 필요 시 구글 재인증 후 재시도.
+     */
+    suspend fun deleteAccount(context: Context): Boolean = withContext(Dispatchers.IO) {
+        val uid = currentUserId
+        try {
+            if (!uid.isNullOrBlank()) {
+                deleteUserData(uid)
+                try {
+                    com.google.firebase.storage.FirebaseStorage.getInstance()
+                        .reference.child("profile_images/$uid.jpg").delete().await()
+                } catch (_: Exception) {}
+            }
+            val auth = FirebaseAuth.getInstance()
+            auth.currentUser?.let { user ->
+                try {
+                    user.delete().await()
+                } catch (e: com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException) {
+                    val idToken = obtainGoogleIdToken(context)   // 재인증 후 재시도
+                    if (idToken != null) {
+                        user.reauthenticate(GoogleAuthProvider.getCredential(idToken, null)).await()
+                        user.delete().await()
+                    }
+                }
+            }
+            currentUserId = null
+            currentUserName = null
+            currentUserPhotoUrl = null
+            auth.signOut()
+            try { CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest()) } catch (_: Exception) {}
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "계정 삭제 실패: ${e.localizedMessage}")
+            false
+        }
+    }
+
+    /** 내 Firestore 데이터 정리(베스트에포트). 하위 컬렉션은 문서 삭제로 자동 정리되지 않아 직접 지운다. */
+    private suspend fun deleteUserData(uid: String) {
+        val db = staryFirestore
+        val users = db.collection(StaryConfig.Collections.USERS)
+        // 내가 쓴 다이어리
+        try {
+            db.collection(StaryConfig.Collections.DIARIES).whereEqualTo("userId", uid).get().await()
+                .documents.forEach { runCatching { it.reference.delete().await() } }
+        } catch (_: Exception) {}
+        // 친구 양방향 정리(상대 친구목록에서 나 제거 + 내 친구목록)
+        try {
+            users.document(uid).collection(StaryConfig.Collections.FRIENDS).get().await()
+                .documents.forEach { f ->
+                    runCatching { users.document(f.id).collection(StaryConfig.Collections.FRIENDS).document(uid).delete().await() }
+                    runCatching { f.reference.delete().await() }
+                }
+        } catch (_: Exception) {}
+        // 열람/차단 하위 컬렉션
+        for (sub in listOf(StaryConfig.Collections.VIEWED_DIARIES, StaryConfig.Collections.BLOCKED)) {
+            try {
+                users.document(uid).collection(sub).get().await()
+                    .documents.forEach { runCatching { it.reference.delete().await() } }
+            } catch (_: Exception) {}
+        }
+        // 프로필 문서
+        runCatching { users.document(uid).delete().await() }
+    }
+
+    /** 재인증용 구글 ID 토큰 획득(로그인과 동일 플로우, Firebase 로그인은 하지 않음). */
+    private suspend fun obtainGoogleIdToken(context: Context): String? {
+        return try {
+            val credentialManager = CredentialManager.create(context)
+            val googleIdOption = GetGoogleIdOption.Builder()
+                .setServerClientId(WEB_CLIENT_ID)
+                .setFilterByAuthorizedAccounts(true)
+                .setAutoSelectEnabled(true)
+                .build()
+            val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
+            val credential = credentialManager.getCredential(context = context, request = request).credential
+            if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                GoogleIdTokenCredential.createFrom(credential.data).idToken
+            } else null
+        } catch (e: Exception) {
+            Log.e(TAG, "재인증 토큰 획득 실패: ${e.localizedMessage}")
+            null
+        }
+    }
 }

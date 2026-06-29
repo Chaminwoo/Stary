@@ -140,7 +140,14 @@ fun MainListScreen(
 
     val friendIds = remember(friends) { friends.map { it.userId }.toSet() }
 
-    val filteredDiaries = remember(diaries, unviewedOnly, friendsOnly, myOnly, selectedFriendIds, viewedIds, friendIds, userId) {
+    // 내가 차단한 사용자 — 그 사람의 별은 지도/목록에서 숨긴다.
+    val blockedIds by remember(userId) {
+        val uid = userId
+        if (uid != null) com.chaminwoo.stary.data.repository.FirebaseModerationRepository().observeBlockedIds(uid)
+        else flowOf(emptySet())
+    }.collectAsState(initial = emptySet())
+
+    val filteredDiaries = remember(diaries, unviewedOnly, friendsOnly, myOnly, selectedFriendIds, viewedIds, friendIds, blockedIds, userId) {
         diaries.filter { diary ->
             val visibilityOk = diary.visibilityType != "friends" ||
                 diary.userId == userId || diary.userId in friendIds
@@ -148,7 +155,7 @@ fun MainListScreen(
                 (!friendsOnly || diary.userId in friendIds) &&
                 (!myOnly || diary.userId == userId) &&
                 (selectedFriendIds.isEmpty() || diary.userId in selectedFriendIds)
-            visibilityOk && filterOk
+            visibilityOk && filterOk && diary.userId !in blockedIds
         }
     }
 

@@ -73,6 +73,7 @@ private val SoftRed = Color(0xFFFF6B6B)
 fun FriendScreen(
     modifier: Modifier = Modifier,
     onOpenChat: (friendId: String, friendName: String) -> Unit = { _, _ -> },
+    onOpenProfile: (userId: String, userName: String) -> Unit = { _, _ -> },
 ) {
     val userId = GoogleAuthHelper.currentUserId
 
@@ -151,7 +152,11 @@ fun FriendScreen(
                 item { SectionHeader(stringResource(R.string.friend_search_results), results.size) }
                 items(results, key = { "search_${it.userId}" }) { user ->
                     val alreadyFriend = friends.any { it.userId == user.userId }
-                    PersonCard(name = user.userName, photoUrl = user.profileImageUrl) {
+                    PersonCard(
+                        name = user.userName,
+                        photoUrl = user.profileImageUrl,
+                        onClick = { onOpenProfile(user.userId, user.userName) }
+                    ) {
                         if (alreadyFriend) {
                             StatusChip(stringResource(R.string.friend_status_friend))
                         } else {
@@ -177,7 +182,11 @@ fun FriendScreen(
             if (requests.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.friend_requests), requests.size) }
                 items(requests, key = { "req_${it.id}" }) { req ->
-                    PersonCard(name = req.fromName, photoUrl = req.fromPhotoUrl) {
+                    PersonCard(
+                        name = req.fromName,
+                        photoUrl = req.fromPhotoUrl,
+                        onClick = { onOpenProfile(req.fromId, req.fromName) }
+                    ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Pill(stringResource(R.string.friend_accept), Icons.Filled.Check, Green.copy(alpha = 0.16f), Green) { vm.accept(req) }
                             Pill(stringResource(R.string.friend_decline), Icons.Filled.Close, Color.White.copy(alpha = 0.06f), SoftRed) { vm.decline(req) }
@@ -203,7 +212,11 @@ fun FriendScreen(
                 }
             }
             items(friends, key = { "friend_${it.userId}" }) { friend ->
-                PersonCard(name = friend.userName, photoUrl = friend.photoUrl) {
+                PersonCard(
+                    name = friend.userName,
+                    photoUrl = friend.photoUrl,
+                    onClick = { onOpenProfile(friend.userId, friend.userName) }
+                ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Pill(stringResource(R.string.friend_chat), Icons.AutoMirrored.Filled.Chat, Green.copy(alpha = 0.16f), Green) {
                             onOpenChat(friend.userId, friend.userName)
@@ -268,22 +281,36 @@ private fun SectionHeader(title: String, count: Int) {
 }
 
 @Composable
-private fun PersonCard(name: String, photoUrl: String, trailing: @Composable () -> Unit) {
+private fun PersonCard(
+    name: String,
+    photoUrl: String,
+    onClick: (() -> Unit)? = null,
+    trailing: @Composable () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().appCard(16.dp).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Avatar(name, photoUrl)
-        Spacer(Modifier.width(12.dp))
-        Text(
-            name.ifBlank { stringResource(R.string.friend_no_name) },
-            color = TextMain,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
+        // 아바타+이름 영역 탭 → 프로필 진입(trailing 버튼들과 별개로 동작).
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Avatar(name, photoUrl)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                name.ifBlank { stringResource(R.string.friend_no_name) },
+                color = TextMain,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
         Spacer(Modifier.width(8.dp))
         trailing()
     }

@@ -19,6 +19,7 @@
     <string name="cd_menu">Menu</string>
     <string name="cd_back">Back</string>
     <string name="cd_notifications">Notifications</string>
+    <string name="cd_more">More</string>
 
     <!-- Settings screen -->
     <string name="settings_sound">Sound</string>
@@ -32,6 +33,27 @@
     <string name="settings_notif_popup_desc">Show chat and diary alerts as a top banner</string>
     <string name="settings_language_desc">Choose the language shown in the app</string>
     <string name="settings_autosave">Settings are saved automatically</string>
+    <string name="settings_account">Account</string>
+    <string name="settings_delete_account">Delete account</string>
+    <string name="settings_delete_account_desc">Permanently delete your account and all data</string>
+    <string name="settings_delete_confirm_msg">Delete your account? Your diaries, friends, and profile will all be removed and this can\'t be undone.</string>
+    <string name="settings_delete_failed">Couldn\'t delete the account. Please sign in again and retry.</string>
+    <string name="toast_account_deleted">Your account was deleted</string>
+
+    <!-- Report / block -->
+    <string name="report_user">Report user</string>
+    <string name="report_diary">Report diary</string>
+    <string name="report_submit">Report</string>
+    <string name="report_reason_spam">Spam or ads</string>
+    <string name="report_reason_abuse">Abuse or hate</string>
+    <string name="report_reason_inappropriate">Inappropriate content</string>
+    <string name="report_reason_impersonation">Impersonation</string>
+    <string name="report_reason_other">Other</string>
+    <string name="toast_reported">Report submitted</string>
+    <string name="block">Block</string>
+    <string name="unblock">Unblock</string>
+    <string name="toast_blocked">Blocked</string>
+    <string name="toast_unblocked">Unblocked</string>
 
     <!-- Language picker -->
     <string name="language_dialog_title">Select language</string>
@@ -108,6 +130,8 @@
     <!-- Profile screen -->
     <string name="profile_upload_failed">Profile image upload failed: %1$s</string>
     <string name="profile_no_title">No title · View achievements</string>
+    <string name="profile_pin_diaries">Pick my stars</string>
+    <string name="profile_pin_picker_title">Pick stars for your profile (max 3)</string>
     <string name="profile_stat_likes">Likes</string>
     <string name="profile_stat_views">Views</string>
     <string name="profile_stat_diaries">Diaries</string>
@@ -118,6 +142,7 @@
     <string name="chat_cannot_open">Can\'t open chat</string>
     <string name="chat_empty">Send your first message to %1$s ✦</string>
     <string name="chat_input_placeholder">Message</string>
+    <string name="chat_need_friend">Become friends to chat</string>
     <string name="common_friend">Friend</string>
 
     <!-- Notification screen -->
@@ -170,4 +195,9 @@
     <string name="user_ach_titles">Achievements · Titles</string>
     <string name="user_no_diaries">No diaries to show</string>
     <string name="common_untitled">(Untitled)</string>
+    <string name="user_view_diary_stars">View as stars</string>
+    <string name="user_unfriend_title">Remove friend</string>
+    <string name="user_unfriend_confirm">Remove %1$s from your friends?</string>
+    <string name="user_unfriend_yes">Remove</string>
+    <string name="user_unfriend_no">Keep</string>
 </resources>

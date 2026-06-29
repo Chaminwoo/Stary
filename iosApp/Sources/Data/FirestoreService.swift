@@ -12,6 +12,7 @@ enum FirestoreService {
     static var notifications: CollectionReference { db.collection(AppConfig.Collections.notifications) }
 
     static var friendRequests: CollectionReference { db.collection(AppConfig.Collections.friendRequests) }
+    static var reports: CollectionReference { db.collection(AppConfig.Collections.reports) }
     static var chats: CollectionReference { db.collection(AppConfig.Collections.chats) }
 
     static func comments(of diaryId: String) -> CollectionReference {
@@ -28,6 +29,10 @@ enum FirestoreService {
 
     static func viewedDiaries(of userId: String) -> CollectionReference {
         users.document(userId).collection(AppConfig.Collections.viewedDiaries)
+    }
+
+    static func blocked(of userId: String) -> CollectionReference {
+        users.document(userId).collection(AppConfig.Collections.blocked)
     }
 
     static func messages(of chatId: String) -> CollectionReference {

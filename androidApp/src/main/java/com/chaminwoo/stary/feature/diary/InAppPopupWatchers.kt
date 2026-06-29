@@ -84,32 +84,27 @@ fun ChatPopupWatcher(
     val chats by remember(userId) { repo.observeMyChats(userId) }
         .collectAsState(initial = emptyList())
 
-    // 이미 배너로 띄운 "방:updatedAt" 키 집합 — 같은 메시지는 두 번 다시 뜨지 않는다(스냅샷 재방출/리컴포지션 무관).
-    val shownKeys = remember { mutableStateListOf<String>() }
-    var baselineDone by remember { mutableStateOf(false) }
+    // 와처가 뜬 시각 — 이 시각 이후로 "갱신된(updatedAt)" 메시지만 배너로 띄운다.
+    // ⚠️ 이전엔 "첫 방출 = 기준선" 방식이었는데, collectAsState 의 초기 emptyList 방출이 그 기준선을 먼저
+    //    소비해 버려서( baselineDone=true ) 직후 도착한 실제 스냅샷이 "새 메시지"로 잘못 떴다 →
+    //    앱 실행 때마다 기존 채팅이 한 번씩 뜨던 원인(에뮬레이터와 무관). 타임스탬프 기준으로 근본 해결.
+    val sinceTime = remember(userId) { System.currentTimeMillis() }
 
     LaunchedEffect(chats) {
-        if (!baselineDone) {
-            // 최초 구독: 기존 방들은 기준선으로만 기록(앱 켤 때 과거 메시지 폭주 방지).
-            chats.forEach { shownKeys.add("${it.chatId}:${it.updatedAt}") }
-            baselineDone = true
-            return@LaunchedEffect
-        }
         chats.forEach { c ->
-            val key = "${c.chatId}:${c.updatedAt}"
-            if (key in shownKeys) return@forEach
+            if (c.updatedAt <= sinceTime) return@forEach // 와처 시작 전 메시지(=기존) → 무시
             val friendId = c.participants.firstOrNull { it != userId } ?: ""
             val isIncoming = c.lastSenderId != userId && c.lastMessage.isNotBlank()
-            if (!isIncoming) { shownKeys.add(key); return@forEach }
-            shownKeys.add(key) // 한 번만 처리되도록 즉시 기록(이중 방지)
+            if (!isIncoming) return@forEach
             val viewingThisChat = suppressChatWith != null && suppressChatWith == friendId
             // 전면 + 그 채팅을 보고 있지 않을 때만 인앱 배너. 후면/종료는 FCM 시스템 알림이 담당.
+            // 중복 enqueue 는 InAppBanner.show(key) 의 프로세스 영속 dedup 이 막는다(스냅샷 재방출/리컴포지션 무관).
             if (!viewingThisChat && AppForeground.isForeground && AppSettings.notificationsEnabled) {
                 InAppBanner.show(
                     title = c.lastSenderName.ifBlank { "새 메시지" },
                     body = c.lastMessage,
                     kind = InAppBanner.Kind.CHAT,
-                    key = key,
+                    key = "${c.chatId}:${c.updatedAt}",
                     onClick = { onOpenChat(friendId, c.lastSenderName) },
                 )
             }

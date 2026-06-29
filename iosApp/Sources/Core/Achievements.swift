@@ -40,7 +40,7 @@ struct Achievement: Identifiable {
 enum Achievements {
     static let titleAchievements: [Achievement] = [
         Achievement(id: "first_step", name: "첫 발자국", condition: "다이어리 1개 작성하기", reward: .title("첫 발자국")) { $0.diariesCreated >= 1 },
-        Achievement(id: "star_traveler", name: "별의 여행자", condition: "다이어리 10개 열람하기", reward: .title("별의 여행자")) { $0.diariesViewed >= 10 },
+        Achievement(id: "star_traveler", name: "별의 여행자", condition: "다른 사람의 다이어리 10개 열람하기", reward: .title("별의 여행자")) { $0.diariesViewed >= 10 },
         Achievement(id: "storyteller", name: "이야기꾼", condition: "다이어리 10개 작성하기", reward: .title("이야기꾼")) { $0.diariesCreated >= 10 },
         Achievement(id: "popular", name: "인기쟁이", condition: "좋아요 50개 받기", reward: .title("인기쟁이")) { $0.likesReceived >= 50 },
         Achievement(id: "watched_star", name: "주목받는 별", condition: "총 조회수 100 달성하기", reward: .title("주목받는 별")) { $0.viewsReceived >= 100 },

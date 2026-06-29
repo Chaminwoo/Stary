@@ -5,12 +5,14 @@ struct ListScreen: View {
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
     @EnvironmentObject var viewed: ViewedStore
+    @EnvironmentObject var blocks: BlockStore
     @ObservedObject private var locale = LocaleManager.shared
     @State private var nearbyFirst = false
     @State private var unviewedOnly = false
 
     private var rows: [Diary] {
-        var list = store.diaries
+        // 차단한 사용자의 별은 숨긴다. (Android MainListScreen 패리티)
+        var list = store.diaries.filter { !blocks.blockedIds.contains($0.userId) }
         if unviewedOnly { list = list.filter { !viewed.viewedIds.contains($0.id ?? "") } }
         guard nearbyFirst else { return list }
         let me = location.coordinateOrDefault

@@ -29,13 +29,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
@@ -44,11 +48,14 @@ import androidx.compose.material3.SliderState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,6 +83,7 @@ import com.chaminwoo.stary.core.util.LocaleManager
 import com.chaminwoo.stary.core.util.MusicManager
 
 private val Mint = Color(0xFF6EE7B7)
+private val SoftRed = Color(0xFFFF6B6B)
 private val Blue = Color(0xFF3B82F6)
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
@@ -88,9 +96,15 @@ private val AccentBrush = Brush.linearGradient(listOf(Mint, Blue))
  * 값은 [MusicManager]/[AppSettings]/[LocaleManager] 에 즉시 저장되어 전 화면에 반영된다.
  */
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    modifier: Modifier = Modifier,
+    onAccountDeleted: () -> Unit = {},
+) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize()) {
         // 우주 배경(어둡게 틴트) — 프로필/내 다이어리와 동일 톤
@@ -161,6 +175,31 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 )
             }
 
+            // ── 계정 ──
+            SectionLabel(stringResource(R.string.settings_account), Icons.Filled.AccountCircle)
+            GlassCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !deleting) { showDeleteDialog = true }
+                        .padding(vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier.size(40.dp).clip(CircleShape)
+                            .background(SoftRed.copy(alpha = 0.14f))
+                            .border(1.dp, SoftRed.copy(alpha = 0.35f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) { Icon(Icons.Filled.DeleteForever, null, tint = SoftRed, modifier = Modifier.size(20.dp)) }
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_delete_account), color = SoftRed, fontFamily = PoorStory, fontSize = 17.sp)
+                        Text(stringResource(R.string.settings_delete_account_desc), color = TextMuted, fontFamily = PoorStory, fontSize = 12.sp, lineHeight = 16.sp)
+                    }
+                    if (deleting) CircularProgressIndicator(color = SoftRed, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
+            }
+
             // 하단 안내 문구
             Text(
                 stringResource(R.string.settings_autosave),
@@ -182,6 +221,41 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                         LocaleManager.setLanguageTag(context, tag)
                         // 액티비티를 다시 만들어 새 로케일로 전체 UI 를 다시 그린다.
                         context.findActivity()?.recreate()
+                    }
+                }
+            )
+        }
+
+        if (showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { if (!deleting) showDeleteDialog = false },
+                containerColor = Color(0xFF14181C),
+                titleContentColor = Color(0xFFF0F0F0),
+                textContentColor = TextMuted,
+                title = { Text(stringResource(R.string.settings_delete_account), fontFamily = PoorStory) },
+                text = { Text(stringResource(R.string.settings_delete_confirm_msg), fontFamily = PoorStory) },
+                confirmButton = {
+                    TextButton(
+                        enabled = !deleting,
+                        onClick = {
+                            deleting = true
+                            scope.launch {
+                                val ok = com.chaminwoo.stary.feature.auth.GoogleAuthHelper.deleteAccount(context)
+                                deleting = false
+                                showDeleteDialog = false
+                                if (ok) {
+                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_account_deleted))
+                                    onAccountDeleted()
+                                } else {
+                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.settings_delete_failed))
+                                }
+                            }
+                        }
+                    ) { Text(stringResource(R.string.common_delete), color = SoftRed, fontFamily = PoorStory) }
+                },
+                dismissButton = {
+                    TextButton(enabled = !deleting, onClick = { showDeleteDialog = false }) {
+                        Text(stringResource(R.string.common_cancel), color = Mint, fontFamily = PoorStory)
                     }
                 }
             )

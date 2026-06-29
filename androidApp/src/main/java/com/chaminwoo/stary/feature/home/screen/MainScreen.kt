@@ -19,12 +19,16 @@ import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -33,6 +37,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -61,6 +67,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import com.chaminwoo.stary.R
 import androidx.compose.ui.unit.dp
@@ -72,6 +79,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.chaminwoo.stary.core.util.MapUiState
+import com.chaminwoo.stary.core.util.ProfilePinState
+import com.chaminwoo.stary.core.util.UserProfileActionState
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.auth.screen.LoginScreen
 import com.chaminwoo.stary.feature.diary.NotificationViewModel
@@ -128,6 +137,8 @@ fun MainScreen(
             navBackStackEntry?.toRoute<NavRoute.Chat>() ?: NavRoute.Chat()
         currentDestination?.hasRoute<NavRoute.UserProfile>() == true ->
             navBackStackEntry?.toRoute<NavRoute.UserProfile>() ?: NavRoute.UserProfile()
+        currentDestination?.hasRoute<NavRoute.UserDiaryStars>() == true ->
+            navBackStackEntry?.toRoute<NavRoute.UserDiaryStars>() ?: NavRoute.UserDiaryStars()
         currentDestination?.hasRoute<NavRoute.Detail>() == true -> NavRoute.Detail()
         else -> NavRoute.Main
     }
@@ -296,6 +307,43 @@ fun MainScreen(
                                     }
                                 }
                             }
+                            // 내 프로필: 우측 + 버튼 — 프로필에 띄울 별(다이어리) 고르기
+                            if (currentRoute is NavRoute.Profile && ProfilePinState.visible) {
+                                IconButton(onClick = { ProfilePinState.onOpen() }) {
+                                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.profile_pin_diaries), tint = Color(0xFFF0F0F0))
+                                }
+                            }
+                            // 타인 프로필: 우측에 친구 액션 — 사람+(친구추가) / 사람✓(친구, 누르면 취소 확인)
+                            if (currentRoute is NavRoute.UserProfile && UserProfileActionState.visible) {
+                                val mint = Color(0xFF6EE7B7)
+                                IconButton(onClick = { UserProfileActionState.onClick() }) {
+                                    when {
+                                        UserProfileActionState.isFriend ->
+                                            Icon(Icons.Filled.HowToReg, contentDescription = stringResource(R.string.friend_status_friend), tint = mint)
+                                        UserProfileActionState.requested ->
+                                            Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.user_requested), tint = Color(0xFF8A8A8A))
+                                        else ->
+                                            Icon(Icons.Filled.PersonAdd, contentDescription = stringResource(R.string.user_add_friend), tint = mint)
+                                    }
+                                }
+                                // 더보기(⋮) — 신고 / 차단·차단해제
+                                var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                                Box {
+                                    IconButton(onClick = { menuOpen = true }) {
+                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.cd_more), tint = Color(0xFFF0F0F0))
+                                    }
+                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.report_user), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
+                                            onClick = { menuOpen = false; UserProfileActionState.onReport() }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(if (UserProfileActionState.isBlocked) stringResource(R.string.unblock) else stringResource(R.string.block), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
+                                            onClick = { menuOpen = false; UserProfileActionState.onToggleBlock() }
+                                        )
+                                    }
+                                }
+                            }
                             // (로그아웃은 프로필 화면 내 버튼으로 이동)
                         }
                     )
@@ -416,7 +464,8 @@ private fun localizedTitle(route: NavRoute): String = when (route) {
     is NavRoute.Notification -> stringResource(R.string.nav_notification)
     is NavRoute.Upload -> stringResource(R.string.nav_upload)
     is NavRoute.Detail -> stringResource(R.string.nav_detail)
-    else -> route.title // Chat(친구명)/UserProfile(사용자명) 등 동적 제목
+    is NavRoute.UserProfile -> stringResource(R.string.nav_profile) // 타인 프로필도 탑바엔 "프로필"
+    else -> route.title // Chat(친구명) 등 동적 제목
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

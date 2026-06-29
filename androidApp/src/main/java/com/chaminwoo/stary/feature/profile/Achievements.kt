@@ -52,7 +52,7 @@ object Achievements {
     // ── 칭호 업적 — 달성 시 프로필에 칭호를 장착할 수 있다 ──
     val titleAchievements: List<Achievement> = listOf(
         Achievement("first_step", "첫 발자국", "다이어리 1개 작성하기", Reward.Title("첫 발자국")) { it.diariesCreated >= 1 },
-        Achievement("star_traveler", "별의 여행자", "다이어리 10개 열람하기", Reward.Title("별의 여행자")) { it.diariesViewed >= 10 },
+        Achievement("star_traveler", "별의 여행자", "다른 사람의 다이어리 10개 열람하기", Reward.Title("별의 여행자")) { it.diariesViewed >= 10 },
         Achievement("storyteller", "이야기꾼", "다이어리 10개 작성하기", Reward.Title("이야기꾼")) { it.diariesCreated >= 10 },
         Achievement("popular", "인기쟁이", "좋아요 50개 받기", Reward.Title("인기쟁이")) { it.likesReceived >= 50 },
         Achievement("watched_star", "주목받는 별", "총 조회수 100 달성하기", Reward.Title("주목받는 별")) { it.viewsReceived >= 100 },
@@ -180,5 +180,8 @@ fun rememberUserStats(
         )
     }
 
-    return derived.copy(diariesViewed = viewedIds.size, friends = friends.size)
+    // 열람 업적은 "다른 사람의 다이어리" 기준 — 내가 쓴 글의 열람 기록은 제외한다.
+    val myDiaryIds = myDiaries.map { it.id }.toSet()
+    val othersViewed = viewedIds.count { it !in myDiaryIds }
+    return derived.copy(diariesViewed = othersViewed, friends = friends.size)
 }

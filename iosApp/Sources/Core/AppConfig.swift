@@ -17,6 +17,8 @@ enum AppConfig {
         static let friends = "friends"          // users/{uid} 하위
         static let friendRequests = "friendRequests"
         static let viewedDiaries = "viewedDiaries"
+        static let blocked = "blocked"           // users/{uid} 하위 (차단한 사용자)
+        static let reports = "reports"           // 최상위 (신고 접수)
         static let chats = "chats"
         static let messages = "messages"        // chats/{chatId} 하위
     }

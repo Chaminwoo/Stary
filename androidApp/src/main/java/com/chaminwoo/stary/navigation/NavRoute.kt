@@ -121,4 +121,13 @@ sealed class NavRoute {
         override val showFab = false
     }
 
+    /** 타인의 다이어리를 내 다이어리처럼 떠다니는 별로 보는 화면(드래그=이름, 클릭=지도 이동). */
+    @Serializable
+    data class UserDiaryStars(val userId: String = "", val userName: String = "") : NavRoute() {
+        override val title get() = if (userName.isBlank()) "별" else "${userName}님의 별"
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
 }

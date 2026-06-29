@@ -12,7 +12,7 @@
       "id": "background",
       "type": "background",
       "paint": {
-        "background-color": ["interpolate", ["linear"], ["zoom"], 6, "#000000", 16, "#0B0B0D"]
+          "background-color": ["interpolate", ["linear"], ["zoom"], 6, "#000000", 16, "#0B0B0D"]
       }
     },
     {
@@ -21,7 +21,7 @@
       "source": "openmaptiles",
       "source-layer": "water",
       "paint": {
-        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#0C0A24", 16, "#0A0820"]
+        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#080617", 16, "#142229"]
       }
     },
     {

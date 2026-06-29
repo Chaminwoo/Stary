@@ -39,6 +39,10 @@ object StaryConfig {
         const val CHATS = "chats"
         /** chats/{chatId} 하위: 채팅 메시지 */
         const val MESSAGES = "messages"
+        /** users/{uid} 하위: 내가 차단한 사용자 (문서 id = 상대 uid) */
+        const val BLOCKED = "blocked"
+        /** 최상위: 콘텐츠/사용자 신고 */
+        const val REPORTS = "reports"
     }
 
     /**

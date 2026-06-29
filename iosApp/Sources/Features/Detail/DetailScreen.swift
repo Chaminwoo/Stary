@@ -10,6 +10,9 @@ struct DetailScreen: View {
     @State private var didCountView = false
     @State private var commentText = ""
     @State private var profileTarget: ProfileTarget?
+    @State private var blockedIds: Set<String> = []
+    @State private var showReportDialog = false
+    @State private var showReportedConfirm = false
 
     init(diary: Diary) {
         self.diary = diary
@@ -37,6 +40,8 @@ struct DetailScreen: View {
 
     private var isOwner: Bool { diary.userId == auth.uid }
     private var canOpen: Bool { isOwner || distanceM <= AppConfig.diaryOpenRadiusM }
+    /// 차단한 사용자의 댓글은 숨긴다. (Android DetailScreen 패리티)
+    private var visibleComments: [Comment] { vm.comments.filter { !blockedIds.contains($0.userId) } }
 
     var body: some View {
         ZStack {
@@ -82,6 +87,37 @@ struct DetailScreen: View {
         }
         .navigationTitle("별")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !isOwner, !diary.userId.isEmpty, auth.uid != nil {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) { showReportDialog = true } label: {
+                            Label(LocaleManager.shared.t(.reportDiary), systemImage: "exclamationmark.bubble")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .tint(Theme.mint)
+                }
+            }
+        }
+        .reportDialog(title: LocaleManager.shared.t(.reportDiary), isPresented: $showReportDialog) { reason in
+            guard let myUid = auth.uid, let id = diary.id else { return }
+            Task {
+                await ModerationRepository.report(reporterId: myUid, type: "diary",
+                                                  targetId: id, targetOwnerId: diary.userId, reason: reason)
+                showReportedConfirm = true
+            }
+        }
+        .alert(LocaleManager.shared.t(.toastReported), isPresented: $showReportedConfirm) {
+            Button("OK", role: .cancel) {}
+        }
+        .task {
+            guard let uid = auth.uid else { return }
+            if let snap = try? await FirestoreService.blocked(of: uid).getDocuments() {
+                blockedIds = Set(snap.documents.map { $0.documentID })
+            }
+        }
         .sheet(item: $profileTarget) { t in
             NavigationStack {
                 UserProfileScreen(userId: t.userId, userName: t.userName)
@@ -138,7 +174,7 @@ struct DetailScreen: View {
                 Label("\(vm.likeCount)", systemImage: vm.isLiked ? "heart.fill" : "heart")
                     .foregroundStyle(vm.isLiked ? .pink : Theme.textSecondary)
             }
-            Label("\(vm.comments.count)", systemImage: "bubble.right.fill")
+            Label("\(visibleComments.count)", systemImage: "bubble.right.fill")
                 .foregroundStyle(Theme.textSecondary)
             Label("\(diary.viewCount)", systemImage: "eye.fill")
                 .foregroundStyle(Theme.textSecondary)
@@ -166,7 +202,7 @@ struct DetailScreen: View {
                 .disabled(commentText.trimmingCharacters(in: .whitespaces).isEmpty)
             }
 
-            ForEach(vm.comments) { c in
+            ForEach(visibleComments) { c in
                 HStack(alignment: .top, spacing: 10) {
                     // 인스타식 프로필 아바타 (top 을 사용자 이름 top 에 맞춤) — 탭 시 작성자 프로필
                     Button { openProfile(c.userId, c.userName) } label: {

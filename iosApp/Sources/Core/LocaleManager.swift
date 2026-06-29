@@ -67,6 +67,14 @@ enum L10n: String {
     case userNoTitle, userStarsHeader, userNoDiaries, unknownUser, profileTitle
     case statStars, statViews, statLikes
     case filterUnviewed
+    // 계정 삭제 + 신고/차단 — Android 차단·신고 라운드 패리티.
+    case commonCancel, commonDelete
+    case settingsAccount, settingsDeleteAccount, settingsDeleteAccountDesc
+    case settingsDeleteConfirmMsg, settingsDeleteFailed, toastAccountDeleted
+    case reportUser, reportDiary, reportSubmit
+    case reportReasonSpam, reportReasonAbuse, reportReasonInappropriate, reportReasonImpersonation, reportReasonOther
+    case toastReported
+    case blockAction, unblockAction, toastBlocked, toastUnblocked
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -107,6 +115,27 @@ enum L10n: String {
         case .statViews:            return ("조회", "Views", "閲覧")
         case .statLikes:            return ("좋아요", "Likes", "いいね")
         case .filterUnviewed:       return ("미조회만", "Unviewed", "未読のみ")
+        case .commonCancel:         return ("취소", "Cancel", "キャンセル")
+        case .commonDelete:         return ("삭제", "Delete", "削除")
+        case .settingsAccount:      return ("계정", "Account", "アカウント")
+        case .settingsDeleteAccount: return ("계정 삭제", "Delete account", "アカウント削除")
+        case .settingsDeleteAccountDesc: return ("계정과 모든 데이터를 영구 삭제해요", "Permanently delete your account and all data", "アカウントとすべてのデータを完全に削除します")
+        case .settingsDeleteConfirmMsg: return ("정말 계정을 삭제할까요? 다이어리·친구·프로필이 모두 사라지며 되돌릴 수 없어요.", "Delete your account? Your diaries, friends, and profile will all be removed and this can't be undone.", "本当にアカウントを削除しますか？日記・フレンド・プロフィールがすべて消え、元に戻せません。")
+        case .settingsDeleteFailed: return ("계정 삭제에 실패했어요. 다시 로그인 후 시도해 주세요.", "Couldn't delete the account. Please sign in again and retry.", "アカウントの削除に失敗しました。再ログイン後にもう一度お試しください。")
+        case .toastAccountDeleted:  return ("계정이 삭제되었어요", "Your account was deleted", "アカウントを削除しました")
+        case .reportUser:           return ("사용자 신고", "Report user", "ユーザーを報告")
+        case .reportDiary:          return ("다이어리 신고", "Report diary", "日記を報告")
+        case .reportSubmit:         return ("신고", "Report", "報告")
+        case .reportReasonSpam:     return ("스팸·광고", "Spam or ads", "スパム・広告")
+        case .reportReasonAbuse:    return ("욕설·혐오", "Abuse or hate", "暴言・ヘイト")
+        case .reportReasonInappropriate: return ("부적절한 콘텐츠", "Inappropriate content", "不適切なコンテンツ")
+        case .reportReasonImpersonation: return ("사칭", "Impersonation", "なりすまし")
+        case .reportReasonOther:    return ("기타", "Other", "その他")
+        case .toastReported:        return ("신고가 접수되었어요", "Report submitted", "報告を受け付けました")
+        case .blockAction:          return ("차단", "Block", "ブロック")
+        case .unblockAction:        return ("차단 해제", "Unblock", "ブロック解除")
+        case .toastBlocked:         return ("차단했어요", "Blocked", "ブロックしました")
+        case .toastUnblocked:       return ("차단을 해제했어요", "Unblocked", "ブロックを解除しました")
         }
     }
 

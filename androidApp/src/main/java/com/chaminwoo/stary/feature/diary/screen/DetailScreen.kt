@@ -48,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Comment
@@ -182,8 +184,17 @@ fun DetailScreen(
     )
     val isLiked by interactionVm.isLiked.collectAsState()
     val likeCount by interactionVm.likeCount.collectAsState()
-    val comments by interactionVm.comments.collectAsState()
+    val allComments by interactionVm.comments.collectAsState()
+    // 차단한 사용자의 댓글은 숨긴다.
+    val blockedIds by remember(userId) {
+        if (userId.isNotBlank()) com.chaminwoo.stary.data.repository.FirebaseModerationRepository().observeBlockedIds(userId)
+        else kotlinx.coroutines.flow.flowOf(emptySet())
+    }.collectAsState(initial = emptySet())
+    val comments = remember(allComments, blockedIds) { allComments.filter { it.userId !in blockedIds } }
     var commentInput by remember { mutableStateOf("") }
+    var showReportDialog by remember { mutableStateOf(false) }
+    val reportScope = rememberCoroutineScope()
+    val reportedMsg = stringResource(R.string.toast_reported)
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     // 전송 동작 단일화 — 전송 버튼과 키보드 '보내기' 액션이 같은 경로를 쓴다.
     val submitComment: () -> Unit = {
@@ -249,6 +260,21 @@ fun DetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showEditDialog = false }) { Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary) }
+            }
+        )
+    }
+
+    if (showReportDialog) {
+        com.chaminwoo.stary.core.ui.ReportDialog(
+            title = stringResource(R.string.report_diary),
+            onDismiss = { showReportDialog = false },
+            onSubmit = { reasonKey ->
+                showReportDialog = false
+                if (userId.isNotBlank()) reportScope.launch {
+                    com.chaminwoo.stary.data.repository.FirebaseModerationRepository()
+                        .report(userId, "diary", currentDiary.id, currentDiary.userId, reasonKey)
+                    com.chaminwoo.stary.core.ui.StaryToast.show(reportedMsg)
+                }
             }
         )
     }
@@ -386,6 +412,10 @@ fun DetailScreen(
                             Spacer(modifier = Modifier.width(4.dp))
                             TextButton(onClick = { showDeleteDialog = true }) {
                                 Text(stringResource(R.string.common_delete), fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
+                            }
+                        } else {
+                            TextButton(onClick = { showReportDialog = true }) {
+                                Text(stringResource(R.string.report_diary), fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
                             }
                         }
                     }

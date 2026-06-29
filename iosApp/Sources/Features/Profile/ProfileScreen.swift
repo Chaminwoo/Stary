@@ -5,6 +5,7 @@ import SwiftUI
 struct ProfileScreen: View {
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
+    @EnvironmentObject var viewed: ViewedStore
 
     @State private var friendsCount = 0
     @State private var profileImageUrl: String?
@@ -14,8 +15,13 @@ struct ProfileScreen: View {
     private var mine: [Diary] { store.mine(uid: auth.uid).sorted { $0.createdAt > $1.createdAt } }
     private var totalViews: Int { mine.reduce(0) { $0 + $1.viewCount } }
     private var totalLikes: Int { mine.reduce(0) { $0 + $1.likeCount } }
+    /// 열람 업적은 "다른 사람의 다이어리" 기준 — 내가 쓴 글의 열람 기록은 제외. (Android 패리티)
+    private var othersViewedCount: Int {
+        let myIds = Set(mine.compactMap { $0.id })
+        return viewed.viewedIds.subtracting(myIds).count
+    }
     private var stats: UserStats {
-        Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: 0)
+        Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: othersViewedCount)
     }
     private var unlocked: Set<String> { Achievements.unlockedIds(stats) }
 

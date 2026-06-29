@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaminwoo.stary.R
+import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.MusicManager
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -97,9 +98,6 @@ fun MyDiaryScreen(
     }
 
     val myDiaries by diaryViewModel.getMyDiaries(userId).collectAsState()
-    var sortMode by remember { mutableStateOf(DiarySort.LATEST) }
-    // 같은 정렬(특히 기본값 최신순)을 다시 골라도 재정렬이 보이도록 하는 토큰
-    var sortNonce by remember { mutableIntStateOf(0) }
 
     Box(modifier = modifier.fillMaxSize()) {
         // 업로드 화면과 동일한 밝기의 배경
@@ -108,23 +106,37 @@ fun MyDiaryScreen(
             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
             colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
         )
+        DiaryStarsBoard(diaries = myDiaries, onDiaryClick = onDiaryClick)
+    }
+}
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp)
-        ) {
-        // 별자리 배경 + 바나나 다이얼
-        // 박스 높이를 360 으로 키워(터치 감지·아래 텍스트가 내려간 다이얼까지 닿게) +
-        // 별자리는 상단 고정(260) / 다이얼은 DIAL_BOTTOM_DP 보정으로 절대 위치 유지 → 시각상 그대로.
+/**
+ * 별 정렬 보드 — 별자리 배경 + 바나나 다이얼(최신/인기/거리) + 떠다니는 별.
+ * 내 다이어리/타인 다이어리("별로 보기") 공용. [onDiaryClick] 으로 클릭 동작만 바뀐다.
+ */
+@Composable
+fun DiaryStarsBoard(
+    diaries: List<Diary>,
+    onDiaryClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var sortMode by remember { mutableStateOf(DiarySort.LATEST) }
+    // 같은 정렬(특히 기본값 최신순)을 다시 골라도 재정렬이 보이도록 하는 토큰
+    var sortNonce by remember { mutableIntStateOf(0) }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 32.dp)
+    ) {
+        // 별자리 배경 + 바나나 다이얼 (박스 360: 터치/텍스트가 내려간 다이얼까지 닿게, 별자리는 상단 260 고정)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(360.dp),
             contentAlignment = Alignment.Center
         ) {
-            // 별자리는 원래 위치(상단 260)에 고정 — 박스가 커져도 안 움직이게 TopCenter + 고정 높이
             ConstellationBackground(
                 sortMode, sortNonce,
                 Modifier.align(Alignment.TopCenter).fillMaxWidth().height(260.dp)
@@ -132,30 +144,29 @@ fun MyDiaryScreen(
             BananaDial(
                 selected = sortMode,
                 onSelect = { sortMode = it; sortNonce++; MusicManager.playWind() }, // 정렬 반영 + 효과음
-                modifier = Modifier.matchParentSize() // 터치 영역 = 박스 전체(내려간 다이얼까지 인식)
+                modifier = Modifier.matchParentSize()
             )
         }
 
         Text(
-            text = stringResource(R.string.mydiary_sort_count, sortLabel(sortMode), myDiaries.size),
+            text = stringResource(R.string.mydiary_sort_count, sortLabel(sortMode), diaries.size),
             color = sortColor(sortMode), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), // 텍스트를 조금 더 아래로
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
             textAlign = TextAlign.Center
         )
 
-        if (myDiaries.isEmpty()) {
+        if (diaries.isEmpty()) {
             Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.mydiary_empty), color = TextMuted, fontSize = 14.sp)
             }
         } else {
             DiaryStarBox(
-                diaries = myDiaries,
+                diaries = diaries,
                 sortMode = sortMode,
                 sortNonce = sortNonce,
                 onDiaryClick = onDiaryClick,
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
-        }
         }
     }
 }

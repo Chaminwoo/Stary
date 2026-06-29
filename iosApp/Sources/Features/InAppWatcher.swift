@@ -25,9 +25,9 @@ final class ChatPresence {
 final class InAppWatcher: ObservableObject {
     private var regs: [ListenerRegistration] = []
 
-    // 채팅 dedup — "방:updatedAt" 키 집합. 같은 메시지는 두 번 다시 뜨지 않는다.
-    private var shownChatKeys: Set<String> = []
-    private var chatBaselineDone = false
+    // 채팅 — 와처 시작 시각. 이 시각 이후 "갱신된(updatedAt)" 메시지만 배너로 띄운다
+    // (앱 켤 때 기존 메시지가 새 메시지로 잘못 떠 한 번씩 뜨던 문제 방지 — Android 와 동일 타임스탬프 기준).
+    private var sinceTime: Int64 = 0
 
     // 알림 dedup
     private var shownNotifIds: Set<String> = []
@@ -43,6 +43,7 @@ final class InAppWatcher: ObservableObject {
         guard self.uid != uid else { return }
         stop()
         self.uid = uid
+        self.sinceTime = FirestoreService.nowMillis
         self.onOpenChat = onOpenChat
         self.onOpenNotification = onOpenNotification
 
@@ -80,22 +81,15 @@ final class InAppWatcher: ObservableObject {
 
     private func handleChats(_ chats: [ChatSummary]) {
         guard let uid else { return }
-        if !chatBaselineDone {
-            chats.forEach { shownChatKeys.insert("\($0.chatId):\($0.updatedAt)") }
-            chatBaselineDone = true
-            return
-        }
         for c in chats {
-            let key = "\(c.chatId):\(c.updatedAt)"
-            if shownChatKeys.contains(key) { continue }
-            shownChatKeys.insert(key)
+            guard c.updatedAt > sinceTime else { continue } // 와처 시작 전 메시지(=기존) → 무시
             let friendId = c.participants.first { $0 != uid } ?? ""
             let isIncoming = c.lastSenderId != uid && !c.lastMessage.isEmpty
             guard isIncoming else { continue }
             let viewingThisChat = ChatPresence.shared.activeFriendId == friendId
             guard !viewingThisChat, AppSettings.shared.notificationsEnabled else { continue }
             let name = c.lastSenderName.isEmpty ? "새 메시지" : c.lastSenderName
-            InAppBanner.shared.show(title: name, body: c.lastMessage, kind: .chat, key: key) { [weak self] in
+            InAppBanner.shared.show(title: name, body: c.lastMessage, kind: .chat, key: "\(c.chatId):\(c.updatedAt)") { [weak self] in
                 self?.onOpenChat?(friendId, name)
             }
         }

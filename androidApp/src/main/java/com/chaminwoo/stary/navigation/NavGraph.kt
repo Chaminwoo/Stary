@@ -25,6 +25,7 @@ import com.chaminwoo.stary.feature.profile.screen.MusicScreen
 import com.chaminwoo.stary.feature.profile.screen.MyDiaryScreen
 import com.chaminwoo.stary.feature.profile.screen.ProfileScreen
 import com.chaminwoo.stary.feature.profile.screen.SettingsScreen
+import com.chaminwoo.stary.feature.profile.screen.UserDiaryStarsScreen
 import com.chaminwoo.stary.feature.profile.screen.UserProfileScreen
 
 // 화면 전환 공통 파라미터 — 깊이감 줌(scale+fade). 별 줌인 연출과 이어지도록 짧고 부드럽게.
@@ -94,6 +95,9 @@ fun NavGraph(
             FriendScreen(
                 onOpenChat = { friendId, friendName ->
                     navController.navigate(NavRoute.Chat(friendId = friendId, friendName = friendName))
+                },
+                onOpenProfile = { uid, uname ->
+                    navController.navigate(NavRoute.UserProfile(userId = uid, userName = uname))
                 }
             )
         }
@@ -114,7 +118,15 @@ fun NavGraph(
         composable<NavRoute.Profile> {
             ProfileScreen(
                 onOpenAchievements = { navController.navigate(NavRoute.Achievements) },
-                onLogout = onLogout
+                onLogout = onLogout,
+                onOpenMyDiary = { navController.navigate(NavRoute.MyDiary) },
+                onOpenFriends = { navController.navigate(NavRoute.Friends) },
+                onOpenDiary = { diaryId ->
+                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId)
+                    navController.navigate(NavRoute.Main) {
+                        popUpTo<NavRoute.Main> { inclusive = true }
+                    }
+                }
             )
         }
 
@@ -127,7 +139,7 @@ fun NavGraph(
         }
 
         composable<NavRoute.Settings> {
-            SettingsScreen()
+            SettingsScreen(onAccountDeleted = onLogout)
         }
 
         composable<NavRoute.Notification> {
@@ -170,8 +182,26 @@ fun NavGraph(
                         popUpTo<NavRoute.Main> { inclusive = true }
                     }
                 },
+                onOpenDiaryStars = { uid, uname ->
+                    navController.navigate(NavRoute.UserDiaryStars(userId = uid, userName = uname))
+                },
                 onOpenChat = { friendId, friendName ->
                     navController.navigate(NavRoute.Chat(friendId = friendId, friendName = friendName))
+                }
+            )
+        }
+
+        composable<NavRoute.UserDiaryStars> { backStackEntry ->
+            val args: NavRoute.UserDiaryStars = backStackEntry.toRoute()
+            UserDiaryStarsScreen(
+                userId = args.userId,
+                userName = args.userName,
+                onOpenMap = { diaryId ->
+                    // 별 탭 → 지도로 이동해 그 위치로 카메라 + 파장(이전 다이어리 클릭과 동일).
+                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId)
+                    navController.navigate(NavRoute.Main) {
+                        popUpTo<NavRoute.Main> { inclusive = true }
+                    }
                 }
             )
         }

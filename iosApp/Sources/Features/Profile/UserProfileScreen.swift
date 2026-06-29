@@ -17,6 +17,9 @@ struct UserProfileScreen: View {
     @State private var isFriend = false
     @State private var requested = false
     @State private var openChat = false
+    @State private var isBlocked = false
+    @State private var showReportDialog = false
+    @State private var showReportedConfirm = false
 
     private var isMe: Bool { userId == auth.uid }
 
@@ -50,12 +53,43 @@ struct UserProfileScreen: View {
                 .padding(16)
             }
         }
-        .navigationTitle(userName.isEmpty ? locale.t(.profileTitle) : userName)
+        .navigationTitle(locale.t(.profileTitle))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !isMe, auth.uid != nil {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button { showReportDialog = true } label: {
+                            Label(locale.t(.reportUser), systemImage: "exclamationmark.bubble")
+                        }
+                        Button(role: .destructive) {
+                            Task { await toggleBlock() }
+                        } label: {
+                            Label(locale.t(isBlocked ? .unblockAction : .blockAction),
+                                  systemImage: isBlocked ? "hand.raised.slash" : "hand.raised")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .tint(Theme.mint)
+                }
+            }
+        }
         .navigationDestination(isPresented: $openChat) {
             ChatScreen(friendId: userId, friendName: userName, myUid: auth.uid ?? "")
         }
         .navigationDestination(for: Diary.self) { DetailScreen(diary: $0) }
+        .reportDialog(title: locale.t(.reportUser), isPresented: $showReportDialog) { reason in
+            guard let myUid = auth.uid else { return }
+            Task {
+                await ModerationRepository.report(reporterId: myUid, type: "user",
+                                                  targetId: userId, targetOwnerId: userId, reason: reason)
+                showReportedConfirm = true
+            }
+        }
+        .alert(locale.t(.toastReported), isPresented: $showReportedConfirm) {
+            Button("OK", role: .cancel) {}
+        }
         .task {
             if let doc = try? await FirestoreService.users.document(userId).getDocument() {
                 profileImageUrl = doc.get("profileImageUrl") as? String
@@ -64,7 +98,23 @@ struct UserProfileScreen: View {
             if let myUid = auth.uid, !isMe {
                 let f = try? await FirestoreService.friends(of: myUid).document(userId).getDocument()
                 isFriend = f?.exists ?? false
+                isBlocked = await ModerationRepository.isBlocked(userId: myUid, targetId: userId)
             }
+        }
+    }
+
+    /// 차단/해제 토글. 차단 시 친구 양방향 해제(Android 패리티).
+    private func toggleBlock() async {
+        guard let myUid = auth.uid, !isMe else { return }
+        if isBlocked {
+            await ModerationRepository.unblock(userId: myUid, targetId: userId)
+            isBlocked = false
+        } else {
+            await ModerationRepository.block(userId: myUid, targetId: userId, targetName: userName)
+            isBlocked = true
+            try? await FirestoreService.friends(of: myUid).document(userId).delete()
+            try? await FirestoreService.friends(of: userId).document(myUid).delete()
+            isFriend = false
         }
     }
 

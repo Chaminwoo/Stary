@@ -22,23 +22,35 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +58,8 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -59,11 +73,14 @@ import coil.compose.AsyncImage
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.Mint
 import com.chaminwoo.stary.core.designsystem.MintBlue
+import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.model.UserProfile
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.RelativeTime
+import com.chaminwoo.stary.core.util.UserProfileActionState
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
+import com.chaminwoo.stary.data.repository.FirebaseModerationRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.friend.FriendViewModel
@@ -86,6 +103,7 @@ fun UserProfileScreen(
     userName: String,
     modifier: Modifier = Modifier,
     onOpenDiary: (String) -> Unit = {},
+    onOpenDiaryStars: (userId: String, userName: String) -> Unit = { _, _ -> },
     onOpenChat: (friendId: String, friendName: String) -> Unit = { _, _ -> },
 ) {
     val myId = GoogleAuthHelper.currentUserId
@@ -110,6 +128,13 @@ fun UserProfileScreen(
     val unlockedCount = remember(stats) { Achievements.unlockedIds(stats).size }
     val totalCount = Achievements.all.size
 
+    // 그 사람이 프로필에 띄운(핀) 다이어리 — 별로 떠 있고 탭하면 위치(지도)로.
+    var pinnedIds by remember(userId) { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(userId) { pinnedIds = FirebaseFriendRepository().getPinnedDiaries(userId) }
+    val pinnedDiaries = remember(theirDiaries, pinnedIds) {
+        pinnedIds.mapNotNull { id -> theirDiaries.find { it.id == id } }
+    }
+
     // 친구 상태/요청 — 기존 FriendViewModel 재사용.
     val me = remember {
         UserProfile(
@@ -127,6 +152,54 @@ fun UserProfileScreen(
     val isMe = myId != null && myId == userId
     val isFriend = friends.any { it.userId == userId }
     var requested by remember(userId) { mutableStateOf(false) }
+    var showCancelDialog by remember(userId) { mutableStateOf(false) }
+
+    // 차단/신고
+    val scope = rememberCoroutineScope()
+    val moderation = remember { FirebaseModerationRepository() }
+    val blockedIds by remember(myId) {
+        if (myId != null) moderation.observeBlockedIds(myId) else kotlinx.coroutines.flow.flowOf(emptySet())
+    }.collectAsState(initial = emptySet())
+    val isBlocked = blockedIds.contains(userId)
+    var showReportDialog by remember(userId) { mutableStateOf(false) }
+    val blockedMsg = stringResource(R.string.toast_blocked)
+    val unblockedMsg = stringResource(R.string.toast_unblocked)
+    val reportedMsg = stringResource(R.string.toast_reported)
+
+    // 친구/신고/차단 액션을 탑바(MainScreen) 우측 아이콘·메뉴로 그리도록 전역 브리지에 등록 — 본인 아닐 때만.
+    SideEffect {
+        UserProfileActionState.visible = !isMe
+        UserProfileActionState.isFriend = isFriend
+        UserProfileActionState.requested = requested
+        UserProfileActionState.isBlocked = isBlocked
+        UserProfileActionState.onClick = {
+            when {
+                isFriend -> showCancelDialog = true                 // 친구면 취소 확인창
+                requested -> {}                                      // 이미 요청함 → 무시
+                else -> {                                            // 친구 요청 전송(+토스트는 vm.event)
+                    vm.sendRequest(UserProfile(userId, resolvedName, photoUrl))
+                    requested = true
+                }
+            }
+        }
+        UserProfileActionState.onReport = { showReportDialog = true }
+        UserProfileActionState.onToggleBlock = {
+            val mine = myId
+            if (mine != null) scope.launch {
+                if (isBlocked) {
+                    moderation.unblock(mine, userId)
+                    com.chaminwoo.stary.core.ui.StaryToast.show(unblockedMsg)
+                } else {
+                    moderation.block(mine, userId, resolvedName)
+                    if (isFriend) vm.remove(userId, resolvedName) // 차단 시 친구도 해제
+                    com.chaminwoo.stary.core.ui.StaryToast.show(blockedMsg)
+                }
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { UserProfileActionState.reset() } // 화면 이탈 시 탑바 버튼 숨김
+    }
 
     // 공개 범위에 맞춰 노출할 다이어리만(타인의 비공개/친구공개 보호).
     val visibleDiaries = remember(theirDiaries, isMe, isFriend) {
@@ -193,116 +266,93 @@ fun UserProfileScreen(
                         fontSize = 23.sp, fontWeight = FontWeight.Bold, color = TextMain
                     )
 
-                    // 장착 칭호 칩
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Mint.copy(alpha = 0.12f))
-                            .border(1.dp, Mint.copy(alpha = 0.4f), RoundedCornerShape(50))
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.AutoAwesome, null, tint = Mint, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = equippedTitleName ?: stringResource(R.string.user_no_title),
-                            color = if (equippedTitleName != null) Mint else TextMuted,
-                            fontSize = 13.sp, fontWeight = FontWeight.Medium
+                    // 장착 칭호 — 글씨만 + 후광 (테두리/배경/아이콘 없음)
+                    Spacer(Modifier.height(12.dp))
+                    val titleColor = if (equippedTitleName != null) Mint else TextMuted
+                    Text(
+                        text = equippedTitleName ?: stringResource(R.string.user_no_title),
+                        color = titleColor,
+                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                        style = LocalTextStyle.current.merge(
+                            TextStyle(shadow = Shadow(titleColor.copy(alpha = 0.9f), blurRadius = 24f))
                         )
-                    }
+                    )
 
-                    // 친구 액션
-                    Spacer(Modifier.height(18.dp))
-                    when {
-                        isMe -> StatusChip(stringResource(R.string.user_profile_me))
-                        isFriend -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            StatusChip(stringResource(R.string.friend_status_friend), Icons.Filled.Check)
-                            ActionButton(stringResource(R.string.user_chat_action), Icons.AutoMirrored.Filled.Chat) { onOpenChat(userId, resolvedName) }
-                        }
-                        requested -> StatusChip(stringResource(R.string.user_requested), Icons.Filled.Check)
-                        else -> ActionButton(stringResource(R.string.user_add_friend), Icons.Filled.PersonAdd) {
-                            vm.sendRequest(UserProfile(userId, resolvedName, photoUrl))
-                            requested = true
-                        }
-                    }
-
+                    // (친구 추가/취소는 탑바 버튼, 채팅은 통계 옆 편지 아이콘 — 본문 액션 없음)
                     Spacer(Modifier.height(26.dp))
                 }
             }
 
-            // ── 통계 카드 ──
-            item {
-                GradientCard {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        StatCell(stringResource(R.string.profile_stat_likes), stats.likesReceived.toString(), Color(0xFFE7556B), Icons.Filled.Favorite, Modifier.weight(1f))
-                        StatDivider()
-                        StatCell(stringResource(R.string.common_friend), stats.friends.toString(), Color(0xFF6EE7B7), Icons.Filled.People, Modifier.weight(1f))
-                        StatDivider()
-                        StatCell(stringResource(R.string.profile_stat_diaries), stats.diariesCreated.toString(), Color(0xFFF7E067), Icons.Filled.Star, Modifier.weight(1f))
+            // 통계 떠다니는 아이콘은 전체화면 오버레이로(아래) — 여기선 자리만 비워둔다.
+            item { Spacer(Modifier.height(130.dp)) }
+
+            // (업적·칭호는 통계의 트로피 아이콘으로, 다이어리는 '다이어리' 아이콘 탭으로 — 카드 없음)
+        }
+
+        // ── 떠다니는 통계 오버레이 — 하트=버스트 / 친구 / 다이어리→별 / 편지=채팅 / 핀 별=위치 ──
+        val chatNeedFriendMsg = stringResource(R.string.chat_need_friend)
+        val untitled = stringResource(R.string.common_untitled)
+        FloatingStatBox(
+            items = listOf(
+                StatBubble(Icons.Filled.Favorite, stats.likesReceived, Color(0xFFE7556B), stringResource(R.string.profile_stat_likes), burstOnTap = true),
+                StatBubble(Icons.Filled.Person, stats.friends, Color(0xFF6EE7B7), stringResource(R.string.common_friend)),
+                StatBubble(Icons.AutoMirrored.Filled.MenuBook, stats.diariesCreated, Color(0xFFF7E067), stringResource(R.string.profile_stat_diaries)),
+                StatBubble(Icons.Filled.Email, 0, MintBlue, stringResource(R.string.user_chat_action), showCount = false), // 파란 편지=채팅
+                StatBubble(Icons.Filled.EmojiEvents, unlockedCount, Color(0xFFF2C94C), stringResource(R.string.nav_achievements), burstOnTap = true), // 업적(누르면 버스트)
+            ) + pinnedDiaries.map { d ->
+                StatBubble(
+                    Icons.Filled.Favorite, 0, StarStyle.colorOf(d.starColor), d.title.ifBlank { untitled },
+                    showCount = false, starType = d.starType, starColorIndex = d.starColor
+                )
+            },
+            onTap = { idx ->
+                when {
+                    idx == 2 -> onOpenDiaryStars(userId, resolvedName)
+                    idx == 3 -> if (isFriend) onOpenChat(userId, resolvedName)
+                                else com.chaminwoo.stary.core.ui.StaryToast.show(chatNeedFriendMsg)
+                    idx >= 5 -> pinnedDiaries.getOrNull(idx - 5)?.id?.let { onOpenDiary(it) }
+                }
+            },
+            avoidCenterYFraction = 0.25f // 상단의 프로필/이름 회피
+        )
+
+        // 친구 취소 확인 다이얼로그 — 탑바의 "친구(사람✓)" 버튼을 누르면 뜬다.
+        if (showCancelDialog) {
+            AlertDialog(
+                onDismissRequest = { showCancelDialog = false },
+                containerColor = Color(0xFF14181C),
+                titleContentColor = TextMain,
+                textContentColor = TextMuted,
+                title = { Text(stringResource(R.string.user_unfriend_title)) },
+                text = {
+                    Text(stringResource(R.string.user_unfriend_confirm, resolvedName.ifBlank { stringResource(R.string.common_user) }))
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showCancelDialog = false
+                        vm.remove(userId, resolvedName) // 토스트는 vm.event 가 처리
+                    }) { Text(stringResource(R.string.user_unfriend_yes), color = Color(0xFFFF6B6B)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCancelDialog = false }) {
+                        Text(stringResource(R.string.user_unfriend_no), color = Mint)
                     }
                 }
-                Spacer(Modifier.height(14.dp))
-            }
+            )
+        }
 
-            // ── 업적 진행 카드 (표시 전용) ──
-            item {
-                GradientCard {
-                    Column(modifier = Modifier.fillMaxWidth().padding(18.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.AutoAwesome, null, tint = Mint, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text(stringResource(R.string.user_ach_titles), color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Text("$unlockedCount / $totalCount", color = Mint, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Box(
-                            Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(50))
-                                .background(Color.White.copy(alpha = 0.08f))
-                        ) {
-                            val frac = if (totalCount == 0) 0f else unlockedCount.toFloat() / totalCount
-                            Box(
-                                Modifier.fillMaxWidth(frac.coerceIn(0f, 1f)).height(7.dp)
-                                    .clip(RoundedCornerShape(50)).background(AccentBrush)
-                            )
-                        }
+        if (showReportDialog) {
+            com.chaminwoo.stary.core.ui.ReportDialog(
+                title = stringResource(R.string.report_user),
+                onDismiss = { showReportDialog = false },
+                onSubmit = { reason ->
+                    showReportDialog = false
+                    scope.launch {
+                        moderation.report(myId ?: "", "user", userId, userId, reason)
+                        com.chaminwoo.stary.core.ui.StaryToast.show(reportedMsg)
                     }
                 }
-                Spacer(Modifier.height(20.dp))
-            }
-
-            // ── 다이어리 목록 ──
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(Modifier.size(6.dp).clip(CircleShape).background(Mint))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.profile_stat_diaries), color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.width(8.dp))
-                    Text("${visibleDiaries.size}", color = Mint, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            if (visibleDiaries.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(stringResource(R.string.user_no_diaries), color = TextMuted, fontSize = 13.sp)
-                    }
-                }
-            } else {
-                items(visibleDiaries, key = { it.id }) { d ->
-                    DiaryRow(d) { onOpenDiary(d.id) }
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
+            )
         }
     }
 }

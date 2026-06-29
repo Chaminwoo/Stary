@@ -3,10 +3,14 @@ import SwiftUI
 /// 설정 화면 — 배경음악/효과음 볼륨, 알림 팝업 on/off, 언어 변경. (Android SettingsScreen 패리티)
 /// 값은 [MusicManager]/[AppSettings]/[LocaleManager] 에 즉시 저장되어 전 화면에 반영된다.
 struct SettingsScreen: View {
+    @EnvironmentObject var auth: AuthManager
     @ObservedObject private var music = MusicManager.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var locale = LocaleManager.shared
     @State private var showLanguagePicker = false
+    @State private var showDeleteConfirm = false
+    @State private var showDeleteFailed = false
+    @State private var deleting = false
 
     var body: some View {
         ZStack {
@@ -63,11 +67,31 @@ struct SettingsScreen: View {
                         .buttonStyle(.plain)
                     }
 
-                    Text(locale.t(.settingsAutosave))
-                        .font(.caption2)
-                        .foregroundStyle(Theme.textFaint)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 4)
+                    // ── 계정 ──
+                    sectionLabel(locale.t(.settingsAccount), "person.crop.circle")
+                    glassCard {
+                        Button(role: .destructive) { showDeleteConfirm = true } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "trash.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(SoftRed)
+                                    .frame(width: 40, height: 40)
+                                    .background(SoftRed.opacity(0.14), in: Circle())
+                                    .overlay(Circle().strokeBorder(SoftRed.opacity(0.35), lineWidth: 1))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(locale.t(.settingsDeleteAccount))
+                                        .foregroundStyle(SoftRed)
+                                    Text(locale.t(.settingsDeleteAccountDesc))
+                                        .font(.caption2).foregroundStyle(Theme.textSecondary)
+                                }
+                                Spacer()
+                                if deleting { ProgressView().tint(SoftRed) }
+                            }
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(deleting)
+                    }
                 }
                 .padding(20)
             }
@@ -79,7 +103,28 @@ struct SettingsScreen: View {
                 Button(languageLabel(tag)) { locale.setLanguage(tag) }
             }
         }
+        .alert(locale.t(.settingsDeleteAccount), isPresented: $showDeleteConfirm) {
+            Button(locale.t(.commonCancel), role: .cancel) {}
+            Button(locale.t(.settingsDeleteAccount), role: .destructive) { performDelete() }
+        } message: {
+            Text(locale.t(.settingsDeleteConfirmMsg))
+        }
+        .alert(locale.t(.settingsDeleteFailed), isPresented: $showDeleteFailed) {
+            Button("OK", role: .cancel) {}
+        }
     }
+
+    private func performDelete() {
+        deleting = true
+        Task {
+            let ok = await auth.deleteAccount()
+            deleting = false
+            // 성공 시 auth.uid 가 nil 이 되어 RootView 가 로그인 화면으로 전환된다.
+            if !ok { showDeleteFailed = true }
+        }
+    }
+
+    private let SoftRed = Color(red: 1.0, green: 0.42, blue: 0.42) // 0xFFFF6B6B
 
     private func languageLabel(_ tag: String) -> String {
         switch tag {

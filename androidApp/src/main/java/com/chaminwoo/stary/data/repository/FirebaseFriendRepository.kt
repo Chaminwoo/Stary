@@ -50,6 +50,29 @@ class FirebaseFriendRepository : FriendRepository {
         } catch (_: Exception) {}
     }
 
+    /** 프로필에 띄울(핀) 다이어리 id 목록 조회(최대 3). 타인/본인 프로필 공용. */
+    suspend fun getPinnedDiaries(userId: String): List<String> {
+        if (userId.isBlank()) return emptyList()
+        return try {
+            val doc = users.document(userId).get().await()
+            @Suppress("UNCHECKED_CAST")
+            (doc.get("pinnedDiaries") as? List<String>) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 프로필에 띄울 다이어리 id 목록 저장(최대 3). */
+    suspend fun setPinnedDiaries(userId: String, diaryIds: List<String>) {
+        if (userId.isBlank()) return
+        try {
+            users.document(userId).set(
+                mapOf("pinnedDiaries" to diaryIds.take(3)),
+                SetOptions.merge()
+            ).await()
+        } catch (_: Exception) {}
+    }
+
     /** 로그인 직후 호출 — 사용자 검색이 가능하도록 공개 프로필을 기록한다. */
     suspend fun upsertProfile(profile: UserProfile) {
         try {

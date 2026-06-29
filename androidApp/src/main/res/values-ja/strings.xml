@@ -19,6 +19,7 @@
     <string name="cd_menu">メニュー</string>
     <string name="cd_back">戻る</string>
     <string name="cd_notifications">通知</string>
+    <string name="cd_more">もっと見る</string>
 
     <!-- 設定画面 -->
     <string name="settings_sound">サウンド</string>
@@ -32,6 +33,27 @@
     <string name="settings_notif_popup_desc">チャットや日記の通知を上部バナーで表示します</string>
     <string name="settings_language_desc">アプリに表示される言語を選択します</string>
     <string name="settings_autosave">設定は自動的に保存されます</string>
+    <string name="settings_account">アカウント</string>
+    <string name="settings_delete_account">アカウント削除</string>
+    <string name="settings_delete_account_desc">アカウントとすべてのデータを完全に削除します</string>
+    <string name="settings_delete_confirm_msg">本当にアカウントを削除しますか？日記・フレンド・プロフィールがすべて消え、元に戻せません。</string>
+    <string name="settings_delete_failed">アカウントの削除に失敗しました。再ログイン後にもう一度お試しください。</string>
+    <string name="toast_account_deleted">アカウントを削除しました</string>
+
+    <!-- 通報・ブロック -->
+    <string name="report_user">ユーザーを報告</string>
+    <string name="report_diary">日記を報告</string>
+    <string name="report_submit">報告</string>
+    <string name="report_reason_spam">スパム・広告</string>
+    <string name="report_reason_abuse">暴言・ヘイト</string>
+    <string name="report_reason_inappropriate">不適切なコンテンツ</string>
+    <string name="report_reason_impersonation">なりすまし</string>
+    <string name="report_reason_other">その他</string>
+    <string name="toast_reported">報告を受け付けました</string>
+    <string name="block">ブロック</string>
+    <string name="unblock">ブロック解除</string>
+    <string name="toast_blocked">ブロックしました</string>
+    <string name="toast_unblocked">ブロックを解除しました</string>
 
     <!-- 言語選択 -->
     <string name="language_dialog_title">言語を選択</string>
@@ -108,6 +130,8 @@
     <!-- プロフィール画面 -->
     <string name="profile_upload_failed">プロフィール画像のアップロードに失敗: %1$s</string>
     <string name="profile_no_title">称号なし・実績を見る</string>
+    <string name="profile_pin_diaries">星を選ぶ</string>
+    <string name="profile_pin_picker_title">プロフィールに表示する星を選ぶ（最大3）</string>
     <string name="profile_stat_likes">いいね</string>
     <string name="profile_stat_views">閲覧数</string>
     <string name="profile_stat_diaries">日記</string>
@@ -118,6 +142,7 @@
     <string name="chat_cannot_open">チャットを開けません</string>
     <string name="chat_empty">%1$sさんへ最初のメッセージを送りましょう ✦</string>
     <string name="chat_input_placeholder">メッセージを入力</string>
+    <string name="chat_need_friend">フレンドになってチャットしましょう</string>
     <string name="common_friend">友達</string>
 
     <!-- 通知画面 -->
@@ -170,4 +195,9 @@
     <string name="user_ach_titles">実績・称号</string>
     <string name="user_no_diaries">表示できる日記がありません</string>
     <string name="common_untitled">(タイトルなし)</string>
+    <string name="user_view_diary_stars">星で見る</string>
+    <string name="user_unfriend_title">フレンド解除</string>
+    <string name="user_unfriend_confirm">%1$sさんとのフレンドを解除しますか？</string>
+    <string name="user_unfriend_yes">解除</string>
+    <string name="user_unfriend_no">キープ</string>
 </resources>

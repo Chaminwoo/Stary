@@ -92,8 +92,7 @@ fun NotificationScreen(
     if (visibleNotifs.isEmpty()) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("🔔", fontSize = 40.sp)
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(stringResource(R.string.notif_empty), color = MaterialTheme.colorScheme.secondary, fontSize = 15.sp)
             }
         }

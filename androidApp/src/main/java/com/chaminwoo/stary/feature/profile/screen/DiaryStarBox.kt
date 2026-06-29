@@ -1,11 +1,18 @@
 package com.chaminwoo.stary.feature.profile.screen
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -13,24 +20,38 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.LocationHelper
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -53,6 +74,9 @@ private class StarBody(
     val phase: Float,
     val floatAmp: Float,
     val floatSpeed: Float,
+    // 자유 회전(우주에 떠 있는 느낌) — 시작 각도 + 초당 회전 속도(±, deg/s)
+    val rotPhase: Float,
+    val rotSpeed: Float,
     // 자연스러운 흩뿌림용 셀 내 지터(셀 크기 대비 비율)
     val jitterX: Float,
     val jitterY: Float,
@@ -115,6 +139,8 @@ fun DiaryStarBox(
                     phase = rnd.nextFloat() * 6.2832f,
                     floatAmp = with(density) { (3f + rnd.nextFloat() * 4f).dp.toPx() },
                     floatSpeed = 0.5f + rnd.nextFloat() * 0.6f,
+                    rotPhase = rnd.nextFloat() * 360f,
+                    rotSpeed = (rnd.nextFloat() - 0.5f) * 22f, // ±11 deg/s, 별마다 다른 방향·속도
                     jitterX = (rnd.nextFloat() - 0.5f) * 0.12f,
                     jitterY = (rnd.nextFloat() - 0.5f) * 0.10f,
                     baseX = sx, baseY = sy
@@ -136,6 +162,16 @@ fun DiaryStarBox(
 
         var tick by remember { mutableIntStateOf(0) }
         var floatT by remember { mutableFloatStateOf(0f) }
+
+        // ── 별 드래그/홀드 인터랙션 상태 ──
+        // 누르고 있으면(또는 끌면) 그 별이 손가락을 따라다니며 커지고, 위에 제목(별색·후광)이 뜬다.
+        // 놓으면 제자리로 부드럽게 복귀하고 제목은 페이드아웃. 빠른 탭은 다이어리 열기.
+        val scope = rememberCoroutineScope()
+        var activeBody by remember(bodies) { mutableStateOf<StarBody?>(null) }
+        var dragPos by remember { mutableStateOf(Offset.Zero) }
+        val grabScale = remember { Animatable(1f) }   // 잡았을 때 별 확대 배율
+        val titleAlpha = remember { Animatable(0f) }   // 제목 페이드
+        var returnJob by remember { mutableStateOf<Job?>(null) }
 
         // 정렬/배치 + 떠다님을 단일 프레임 루프로. sortMode(또는 같은 정렬 재선택 토큰)가 바뀌면 재시작.
         LaunchedEffect(bodies, sortMode, sortNonce, wPx, hPx, here) {
@@ -188,21 +224,95 @@ fun DiaryStarBox(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(bodies) {
-                    detectTapGestures { off ->
-                        val hit = bodies.minByOrNull { hypot(off.x - it.baseX, off.y - it.baseY) }
-                        if (hit != null && hypot(off.x - hit.baseX, off.y - hit.baseY) <= hit.r * 1.8f) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val hit = bodies.minByOrNull { hypot(down.position.x - it.baseX, down.position.y - it.baseY) }
+                            ?.takeIf { hypot(down.position.x - it.baseX, down.position.y - it.baseY) <= it.r * 2.4f }
+                            ?: return@awaitEachGesture
+                        returnJob?.cancel()
+                        activeBody = hit
+                        dragPos = Offset(hit.baseX, hit.baseY)
+
+                        var grabbed = false
+                        fun grab() {
+                            if (grabbed) return
+                            grabbed = true
+                            scope.launch { grabScale.animateTo(1.9f, tween(180, easing = FastOutSlowInEasing)) }
+                            scope.launch { titleAlpha.animateTo(1f, tween(180)) }
+                        }
+                        // 150ms 이상 누르면(움직이지 않아도) 잡힘 → 커지고 제목 표시
+                        val holdJob = scope.launch { delay(150); grab() }
+
+                        var moved = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.firstOrNull()
+                            if (change == null || !change.pressed) break
+                            if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                                moved = true
+                                grab()
+                            }
+                            if (grabbed) {
+                                dragPos = change.position
+                                change.consume() // 부모 세로 스크롤이 드래그를 가로채지 않게
+                            }
+                        }
+                        holdJob.cancel()
+
+                        if (!grabbed) {
+                            // 빠른 탭(잡기 전 떼면) → 다이어리 열기
+                            activeBody = null
                             onDiaryClick(hit.diary.id)
+                        } else {
+                            // 놓으면 제자리로 천천히 복귀 + 제목 페이드아웃
+                            returnJob = scope.launch {
+                                val from = dragPos
+                                launch { grabScale.animateTo(1f, tween(760, easing = FastOutSlowInEasing)) }
+                                launch { titleAlpha.animateTo(0f, tween(620, easing = FastOutSlowInEasing)) }
+                                animate(0f, 1f, animationSpec = tween(820, easing = FastOutSlowInEasing)) { t, _ ->
+                                    dragPos = lerp(from, Offset(hit.baseX, hit.baseY), t)
+                                }
+                                activeBody = null
+                            }
                         }
                     }
                 }
         ) {
             if (tick >= 0) {
+                val active = activeBody
                 for (b in bodies) {
+                    if (b === active) continue
                     val dx = sin(floatT * b.floatSpeed + b.phase) * b.floatAmp
                     val dy = cos(floatT * b.floatSpeed * 0.8f + b.phase) * b.floatAmp * 0.7f
-                    drawStar(b, b.baseX + dx, b.baseY + dy)
+                    drawStar(b, b.baseX + dx, b.baseY + dy, rotationDeg = b.rotPhase + floatT * b.rotSpeed)
                 }
+                // 잡은 별은 손가락 위치에서 확대해 맨 위에 그림 — 회전은 그대로 이어져 놓을 때도 자연스럽게 돈다
+                active?.let { drawStar(it, dragPos.x, dragPos.y, grabScale.value, it.rotPhase + floatT * it.rotSpeed) }
             }
+        }
+
+        // 잡은 별 위에 제목(별 색 + 후광) — 손가락을 따라 위쪽에 떠 있고, 놓으면 부드럽게 사라진다.
+        activeBody?.let { titled ->
+            val titleColor = titled.color
+            val titleText = titled.diary.title.ifBlank { stringResource(R.string.common_untitled) }
+            Text(
+                text = titleText,
+                color = titleColor,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = LocalTextStyle.current.merge(
+                    TextStyle(shadow = Shadow(color = titleColor.copy(alpha = 0.95f), blurRadius = 28f))
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .graphicsLayer {
+                        alpha = titleAlpha.value
+                        translationX = dragPos.x - size.width / 2f
+                        translationY = dragPos.y - titled.r * grabScale.value - 18.dp.toPx() - size.height
+                    }
+            )
         }
     }
 }
@@ -212,38 +322,44 @@ private fun easeOutCubic(t: Float): Float {
     return 1f - u * u * u
 }
 
-/** 별 한 개 그리기 — 후광(radial glow) + StarStyle 별 모양. */
-private fun DrawScope.drawStar(b: StarBody, cx: Float, cy: Float) {
+/** 별 한 개 그리기 — 후광(radial glow) + StarStyle 별 모양. [scale] 확대, [rotationDeg] 회전(자유 회전). */
+private fun DrawScope.drawStar(b: StarBody, cx: Float, cy: Float, scale: Float = 1f, rotationDeg: Float = 0f) {
+    val r = b.r * scale
     val center = Offset(cx, cy)
-    // 후광
+    // 후광 (잡았을 때 더 진하게) — 회전 무관(원형)
+    val glowAlpha = (0.42f * scale).coerceAtMost(0.7f)
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(b.color.copy(alpha = 0.42f), Color.Transparent),
+            colors = listOf(b.color.copy(alpha = glowAlpha), Color.Transparent),
             center = center,
-            radius = b.r * 2.4f
+            radius = r * 2.4f
         ),
-        radius = b.r * 2.4f,
+        radius = r * 2.4f,
         center = center
     )
-    // 별 모양 (StarStyle 경로 — 지도 마커와 동일)
-    val sizePx = b.r * 2f
+    // 별 모양 (StarStyle 경로 — 지도 마커와 동일). 중심 기준 회전.
+    val sizePx = r * 2f
     val path = android.graphics.Path(StarStyle.starPath(b.type, sizePx)).apply {
-        offset(cx - b.r, cy - b.r)
+        offset(cx - r, cy - r)
     }
-    val gradShader = StarStyle.fillShader(b.colorIndex, cx - b.r, cy - b.r, b.r * 2f)
+    val gradShader = StarStyle.fillShader(b.colorIndex, cx - r, cy - r, r * 2f)
     drawIntoCanvas { canvas ->
-        canvas.nativeCanvas.drawPath(
+        val nc = canvas.nativeCanvas
+        val save = nc.save()
+        nc.rotate(rotationDeg, cx, cy)
+        nc.drawPath(
             path,
             android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 if (gradShader != null) this.shader = gradShader else this.color = b.color.toArgb()
-                maskFilter = android.graphics.BlurMaskFilter(b.r * 0.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                maskFilter = android.graphics.BlurMaskFilter(r * 0.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
             }
         )
-        canvas.nativeCanvas.drawPath(
+        nc.drawPath(
             path,
             android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 if (gradShader != null) this.shader = gradShader else this.color = b.color.toArgb()
             }
         )
+        nc.restoreToCount(save)
     }
 }
