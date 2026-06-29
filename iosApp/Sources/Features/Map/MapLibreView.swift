@@ -1,6 +1,7 @@
 import CoreLocation
 import MapLibre
 import SwiftUI
+import UIKit
 
 /// 다이어리 좌표를 MapLibre 지도 위 별 마커로 표시한다.
 /// Android `DiaryMap` 대응의 iOS 구현 시작점.
@@ -9,6 +10,8 @@ struct MapLibreView: UIViewRepresentable {
     /// 실제 위치 fix(없으면 nil) — 처음 들어오면 그 위치로 1회 카메라 이동.
     let userLocation: CLLocationCoordinate2D?
     var onTapDiary: (Diary) -> Void
+    /// 도보 길찾기 경로(비었으면 표시 안 함). (Android DiaryMap ROUTE_LAYER 패리티)
+    var route: [CLLocationCoordinate2D] = []
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -32,11 +35,15 @@ struct MapLibreView: UIViewRepresentable {
             mapView.setCenter(me, zoomLevel: 14, animated: true)
         }
         if let existing = mapView.annotations { mapView.removeAnnotations(existing) }
-        let annotations = diaries.compactMap { diary -> DiaryAnnotation? in
+        var toAdd: [MLNAnnotation] = diaries.compactMap { diary -> DiaryAnnotation? in
             guard diary.latitude != 0 || diary.longitude != 0 else { return nil }
             return DiaryAnnotation(diary: diary)
         }
-        mapView.addAnnotations(annotations)
+        // 도보 경로 폴리라인(있으면) — 별 마커와 함께 한 번에 추가.
+        if route.count >= 2 {
+            toAdd.append(MLNPolyline(coordinates: route, count: UInt(route.count)))
+        }
+        mapView.addAnnotations(toAdd)
     }
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
@@ -56,6 +63,13 @@ struct MapLibreView: UIViewRepresentable {
             if let d = annotation as? DiaryAnnotation { parent.onTapDiary(d.diary) }
             mapView.deselectAnnotation(annotation, animated: false)
         }
+
+        // 경로 폴리라인 스타일 — 민트색 선.
+        func mapView(_ mapView: MLNMapView, strokeColorForShapeAnnotation annotation: MLNShape) -> UIColor {
+            UIColor(red: 0.43, green: 0.91, blue: 0.72, alpha: 1) // #6EE7B7
+        }
+        func mapView(_ mapView: MLNMapView, lineWidthForPolylineAnnotation annotation: MLNPolyline) -> CGFloat { 4 }
+        func mapView(_ mapView: MLNMapView, alphaForShapeAnnotation annotation: MLNShape) -> CGFloat { 0.95 }
     }
 }
 

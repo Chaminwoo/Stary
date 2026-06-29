@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -59,9 +60,11 @@ import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapUiState
+import com.chaminwoo.stary.feature.map.OrsRouting
 import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -82,6 +85,7 @@ import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import kotlin.math.exp
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 import kotlin.math.max
 import kotlin.math.sin
 import android.graphics.Color as AndroidColor
@@ -96,6 +100,10 @@ private const val CONSTELLATION_SOURCE = "constellation-lines"
 private const val CONSTELLATION_LAYER = "constellation-layer"
 private const val CONSTELLATION_GLOW_LAYER = "constellation-glow-layer"
 private const val CONSTELLATION_HALO_LAYER = "constellation-halo-layer"
+// 도보 길찾기 경로 (OpenRouteService)
+private const val ROUTE_SOURCE = "walking-route"
+private const val ROUTE_GLOW_LAYER = "walking-route-glow"
+private const val ROUTE_LAYER = "walking-route-layer"
 // 별자리 선 페이드용 최대 불투명도 (켜질 때 0→target 으로 부드럽게)
 private const val CONSTELLATION_HALO_OPACITY = 0.18f
 private const val CONSTELLATION_GLOW_OPACITY = 0.42f
@@ -510,6 +518,8 @@ fun DiaryMap(
     var locationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var diarySource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var constellationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
+    var routeSource by remember { mutableStateOf<GeoJsonSource?>(null) }
+    val routeScope = rememberCoroutineScope()
     val addedIcons = remember { mutableSetOf<String>() }
     val isCameraMoving = remember { mutableStateOf(false) }
     // 카메라가 멈출 때마다 증가 → 줌/이동에 따라 화면 클러스터링 재계산 트리거
@@ -530,6 +540,26 @@ fun DiaryMap(
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
     val diariesRef = rememberUpdatedState(diaries)
     val initialLatLngRef = rememberUpdatedState(currentLatLng)
+
+    // 도보 길찾기 — 별(100m 밖)을 누르면 현위치→별 도보 경로를 지도에 그린다(OpenRouteService).
+    // ORS 키 미설정/네트워크 실패 시 조용히 무시(별 클릭의 거리 안내 토스트는 그대로 뜬다).
+    val requestRoute: (Diary) -> Unit = { target ->
+        val cur = currentLatLngRef.value
+        routeScope.launch {
+            val route = OrsRouting.walkingRoute(
+                cur.latitude, cur.longitude, target.latitude, target.longitude
+            ) ?: return@launch
+            val pts = route.coordinates.map { Point.fromLngLat(it[0], it[1]) }
+            routeSource?.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(pts)))
+            val mins = (route.durationS / 60.0).roundToInt().coerceAtLeast(1)
+            com.chaminwoo.stary.core.ui.StaryToast.show(
+                context.getString(R.string.map_route_summary, mins, route.distanceM.roundToInt())
+            )
+        }
+    }
+    val clearRoute: () -> Unit = { routeSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList())) }
+    val requestRouteRef = rememberUpdatedState(requestRoute)
+    val clearRouteRef = rememberUpdatedState(clearRoute)
 
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
@@ -563,6 +593,7 @@ fun DiaryMap(
                                 cur.latitude, cur.longitude, diary.latitude, diary.longitude
                             )
                             if (distance <= StaryConfig.DIARY_OPEN_RADIUS_M) {
+                                clearRouteRef.value() // 열람 진입 시 경로 정리
                                 // 파장이 이 별 위치에서 퍼지도록 화면상 위치(0..1) 계산
                                 val sp = map.projection.toScreenLocation(
                                     MlLatLng(diary.latitude, diary.longitude)
@@ -585,10 +616,14 @@ fun DiaryMap(
                                         distance.toInt()
                                     )
                                 )
+                                requestRouteRef.value(diary) // 도보 길찾기 경로 표시
                             }
                         }
                         true
-                    } else false
+                    } else {
+                        clearRouteRef.value() // 빈 곳 탭 → 경로 지우기
+                        false
+                    }
                 }
                 map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
                     val start = initialLatLngRef.value
@@ -652,6 +687,31 @@ fun DiaryMap(
                         )
                     )
                     constellationSource = cSrc
+
+                    // 도보 길찾기 경로 (별자리와 같은 레벨, 마커 아래). 초기 빈 상태 → 별(밖) 탭 시 채워진다.
+                    val rSrc = GeoJsonSource(ROUTE_SOURCE, FeatureCollection.fromFeatures(emptyList()))
+                    style.addSource(rSrc)
+                    style.addLayer(
+                        LineLayer(ROUTE_GLOW_LAYER, ROUTE_SOURCE).withProperties(
+                            PropertyFactory.lineColor("#6EE7B7"),
+                            PropertyFactory.lineWidth(9f),
+                            PropertyFactory.lineBlur(8f),
+                            PropertyFactory.lineOpacity(0.45f),
+                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+                        )
+                    )
+                    style.addLayer(
+                        LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
+                            PropertyFactory.lineColor("#BFFFE8"),
+                            PropertyFactory.lineWidth(4f),
+                            PropertyFactory.lineOpacity(0.95f),
+                            PropertyFactory.lineDasharray(arrayOf(2f, 1.4f)),
+                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+                        )
+                    )
+                    routeSource = rSrc
 
                     // 다이어리 별 마커 source — 클러스터링은 클라이언트(화면 좌표)에서 처리.
                     val dSrc = GeoJsonSource(DIARY_SOURCE, FeatureCollection.fromFeatures(emptyList()))

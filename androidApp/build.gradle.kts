@@ -25,6 +25,9 @@ val googleWebClientId: String = secretsProps.getProperty("GOOGLE_WEB_CLIENT_ID")
     ?: "TODO_ADD_GOOGLE_WEB_CLIENT_ID"
 val maptilerKey: String = secretsProps.getProperty("MAPTILER_KEY")
     ?: "TODO_ADD_MAPTILER_KEY"
+// OpenRouteService 도보 길찾기 키(무료 발급). 없으면 placeholder → 빌드는 되나 경로 호출은 401.
+val orsApiKey: String = secretsProps.getProperty("ORS_API_KEY")
+    ?: "TODO_ADD_ORS_API_KEY"
 
 // --- 릴리즈 서명 키 로딩 (절대 하드코딩/커밋 금지) ---------------------------
 // keystore.properties(gitignore 대상, 프로젝트 루트)에서 서명 정보를 읽는다.
@@ -56,6 +59,8 @@ android {
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         // MapTiler 벡터 타일 키 -> MapLibre 스타일 JSON 의 __MAPTILER_KEY__ 치환에 사용
         buildConfigField("String", "MAPTILER_KEY", "\"$maptilerKey\"")
+        // OpenRouteService 도보 길찾기 키
+        buildConfigField("String", "ORS_API_KEY", "\"$orsApiKey\"")
     }
 
     signingConfigs {
