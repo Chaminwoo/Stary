@@ -46,11 +46,21 @@ service cloud.firestore {
       match /viewedDiaries/{diaryId} {
         allow read, write: if isSignedIn();
       }
+      // 내가 차단한 사용자(문서 id = 상대 userId)
+      match /blocked/{blockedId} {
+        allow read, write: if isSignedIn();
+      }
     }
 
     // 친구 요청(pending)
     match /friendRequests/{requestId} {
       allow read, write: if isSignedIn();
+    }
+
+    // 신고 — 작성(create)만 허용. 내용은 비공개(서버/관리자만 조회).
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if false;
     }
 
     // 1:1 친구 채팅: chats/{chatId}/messages/{messageId}

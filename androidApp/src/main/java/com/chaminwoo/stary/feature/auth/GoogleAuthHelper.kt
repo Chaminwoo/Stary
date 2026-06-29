@@ -76,12 +76,15 @@ object GoogleAuthHelper {
                                 profileImageUrl = currentUserPhotoUrl ?: ""
                             )
                         )
-                        // FCM 토큰 저장 — 친구 새 글 푸시(Cloud Functions) 발송 대상 조회용
+                        // 삭제 예약이 걸려 있으면 재로그인으로 취소(7일 유예 정책).
+                        cancelPendingDeletion(uid)
+                        // FCM 토큰 + authUid 저장 — 친구 새 글 푸시(Cloud Functions) 발송 대상 / 서버 계정삭제용
                         try {
                             val fcmToken = FirebaseMessaging.getInstance().token.await()
+                            val authUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
                             staryFirestore.collection(StaryConfig.Collections.USERS)
                                 .document(uid)
-                                .set(mapOf("fcmToken" to fcmToken), SetOptions.merge())
+                                .set(mapOf("fcmToken" to fcmToken, "authUid" to authUid), SetOptions.merge())
                                 .await()
                         } catch (e: Exception) {
                             Log.w(TAG, "FCM 토큰 저장 실패: ${e.localizedMessage}")
@@ -111,6 +114,8 @@ object GoogleAuthHelper {
         currentUserId = uid
         currentUserName = google?.displayName ?: user.displayName
         currentUserPhotoUrl = (google?.photoUrl ?: user.photoUrl)?.toString()
+        // 앱 재시작(세션 복원)도 "로그인"으로 보고 삭제 예약을 취소(7일 유예 정책).
+        CoroutineScope(Dispatchers.IO).launch { cancelPendingDeletion(uid) }
         return true
     }
 
@@ -138,89 +143,38 @@ object GoogleAuthHelper {
     }
 
     /**
-     * 계정·데이터 삭제(Play 정책: 데이터 삭제 경로 제공).
-     * Firestore 의 내 데이터(다이어리/친구/열람/차단/프로필)와 Storage 프로필 이미지를 베스트에포트로 지우고,
-     * FirebaseAuth 사용자를 삭제한 뒤 로그아웃한다. 최근 로그인 필요 시 구글 재인증 후 재시도.
+     * 계정 삭제 "예약"(soft) — Play 정책 + 7일 유예.
+     * 즉시 지우지 않고 users/{uid}.deletionRequestedAt 에 요청 시각을, authUid 에 FirebaseAuth uid 를 기록한 뒤 로그아웃한다.
+     * 유예(7일) 동안 다시 로그인하면 [cancelPendingDeletion] 으로 자동 취소되고,
+     * 끝까지 로그인하지 않으면 서버 자정 스케줄 함수(functions)가 데이터/Storage/Auth 를 완전 삭제한다.
+     * (Android 는 userId=Google sub ≠ FirebaseAuth uid 라, 서버가 Auth 계정을 지우려면 authUid 가 필요.)
      */
-    suspend fun deleteAccount(context: Context): Boolean = withContext(Dispatchers.IO) {
-        val uid = currentUserId
+    suspend fun requestDeletion(context: Context): Boolean = withContext(Dispatchers.IO) {
+        val uid = currentUserId ?: return@withContext false
+        val authUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
         try {
-            if (!uid.isNullOrBlank()) {
-                deleteUserData(uid)
-                try {
-                    com.google.firebase.storage.FirebaseStorage.getInstance()
-                        .reference.child("profile_images/$uid.jpg").delete().await()
-                } catch (_: Exception) {}
-            }
-            val auth = FirebaseAuth.getInstance()
-            auth.currentUser?.let { user ->
-                try {
-                    user.delete().await()
-                } catch (e: com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException) {
-                    val idToken = obtainGoogleIdToken(context)   // 재인증 후 재시도
-                    if (idToken != null) {
-                        user.reauthenticate(GoogleAuthProvider.getCredential(idToken, null)).await()
-                        user.delete().await()
-                    }
-                }
-            }
-            currentUserId = null
-            currentUserName = null
-            currentUserPhotoUrl = null
-            auth.signOut()
-            try { CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest()) } catch (_: Exception) {}
+            staryFirestore.collection(StaryConfig.Collections.USERS).document(uid).set(
+                mapOf(
+                    "deletionRequestedAt" to System.currentTimeMillis(),
+                    "authUid" to authUid,
+                ),
+                SetOptions.merge()
+            ).await()
+            signOut(context)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "계정 삭제 실패: ${e.localizedMessage}")
+            Log.e(TAG, "계정 삭제 예약 실패: ${e.localizedMessage}")
             false
         }
     }
 
-    /** 내 Firestore 데이터 정리(베스트에포트). 하위 컬렉션은 문서 삭제로 자동 정리되지 않아 직접 지운다. */
-    private suspend fun deleteUserData(uid: String) {
-        val db = staryFirestore
-        val users = db.collection(StaryConfig.Collections.USERS)
-        // 내가 쓴 다이어리
+    /** 삭제 예약 취소 — 유예 기간 내 재로그인/세션 복원 시 호출(fire-and-forget). */
+    suspend fun cancelPendingDeletion(uid: String) {
+        if (uid.isBlank()) return
         try {
-            db.collection(StaryConfig.Collections.DIARIES).whereEqualTo("userId", uid).get().await()
-                .documents.forEach { runCatching { it.reference.delete().await() } }
+            staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
+                .update("deletionRequestedAt", com.google.firebase.firestore.FieldValue.delete())
+                .await()
         } catch (_: Exception) {}
-        // 친구 양방향 정리(상대 친구목록에서 나 제거 + 내 친구목록)
-        try {
-            users.document(uid).collection(StaryConfig.Collections.FRIENDS).get().await()
-                .documents.forEach { f ->
-                    runCatching { users.document(f.id).collection(StaryConfig.Collections.FRIENDS).document(uid).delete().await() }
-                    runCatching { f.reference.delete().await() }
-                }
-        } catch (_: Exception) {}
-        // 열람/차단 하위 컬렉션
-        for (sub in listOf(StaryConfig.Collections.VIEWED_DIARIES, StaryConfig.Collections.BLOCKED)) {
-            try {
-                users.document(uid).collection(sub).get().await()
-                    .documents.forEach { runCatching { it.reference.delete().await() } }
-            } catch (_: Exception) {}
-        }
-        // 프로필 문서
-        runCatching { users.document(uid).delete().await() }
-    }
-
-    /** 재인증용 구글 ID 토큰 획득(로그인과 동일 플로우, Firebase 로그인은 하지 않음). */
-    private suspend fun obtainGoogleIdToken(context: Context): String? {
-        return try {
-            val credentialManager = CredentialManager.create(context)
-            val googleIdOption = GetGoogleIdOption.Builder()
-                .setServerClientId(WEB_CLIENT_ID)
-                .setFilterByAuthorizedAccounts(true)
-                .setAutoSelectEnabled(true)
-                .build()
-            val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
-            val credential = credentialManager.getCredential(context = context, request = request).credential
-            if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                GoogleIdTokenCredential.createFrom(credential.data).idToken
-            } else null
-        } catch (e: Exception) {
-            Log.e(TAG, "재인증 토큰 획득 실패: ${e.localizedMessage}")
-            null
-        }
     }
 }

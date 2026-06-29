@@ -120,7 +120,7 @@ enum L10n: String {
         case .settingsAccount:      return ("계정", "Account", "アカウント")
         case .settingsDeleteAccount: return ("계정 삭제", "Delete account", "アカウント削除")
         case .settingsDeleteAccountDesc: return ("계정과 모든 데이터를 영구 삭제해요", "Permanently delete your account and all data", "アカウントとすべてのデータを完全に削除します")
-        case .settingsDeleteConfirmMsg: return ("정말 계정을 삭제할까요? 다이어리·친구·프로필이 모두 사라지며 되돌릴 수 없어요.", "Delete your account? Your diaries, friends, and profile will all be removed and this can't be undone.", "本当にアカウントを削除しますか？日記・フレンド・プロフィールがすべて消え、元に戻せません。")
+        case .settingsDeleteConfirmMsg: return ("삭제를 요청하면 7일 뒤에 완전히 삭제돼요. 그 전에 다시 로그인하면 자동으로 취소됩니다.", "Request deletion and your account is permanently removed after 7 days. Sign in again before then to cancel.", "削除をリクエストすると7日後に完全に削除されます。それまでに再ログインすると自動的にキャンセルされます。")
         case .settingsDeleteFailed: return ("계정 삭제에 실패했어요. 다시 로그인 후 시도해 주세요.", "Couldn't delete the account. Please sign in again and retry.", "アカウントの削除に失敗しました。再ログイン後にもう一度お試しください。")
         case .toastAccountDeleted:  return ("계정이 삭제되었어요", "Your account was deleted", "アカウントを削除しました")
         case .reportUser:           return ("사용자 신고", "Report user", "ユーザーを報告")

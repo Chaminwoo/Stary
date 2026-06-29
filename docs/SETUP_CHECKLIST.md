@@ -217,6 +217,26 @@
 
 ---
 
+## 🛡️ 라운드 (2026-06-29) — 안전기능·길찾기·계정삭제 유예
+
+### 차단·신고 + 계정 삭제 유예 — ✅ 구현(테스트/배포 대기)
+- [x] 차단/신고: `ReportDialog`, `FirebaseModerationRepository`(block/unblock/report/observeBlockedIds), 프로필 ⋮ 메뉴(신고·차단, 텍스트 가운데 정렬), 댓글/목록 차단 필터, 다이어리 신고. iOS 패리티(`Moderation.swift`, `ReportDialog.swift`).
+- [x] **firestore.rules 보강**: `users/{uid}/blocked` 하위 + `reports`(create-only) 추가 — 누락 시 차단/신고 쓰기가 PERMISSION_DENIED.
+- [x] 계정 삭제 **7일 유예**: 즉시삭제 → `users/{uid}.deletionRequestedAt`+`authUid` soft 예약 후 로그아웃. 재로그인/세션복원 시 `cancelPendingDeletion` 자동 취소. 7일 안내 다이얼로그. 안드+iOS.
+- [x] 서버: `functions/index.js` `purgeExpiredDeletions` — 매일 자정(Asia/Seoul) `deletionRequestedAt ≤ now-7일` 계정의 데이터/Storage/Auth 완전 삭제(Android 는 `authUid` 로 Auth 계정 식별).
+- [ ] **배포(사용자)**: `firebase deploy --only functions,firestore:rules` (Blaze + Cloud Scheduler API 필요 — 자정 잡 자동 생성).
+
+### 지도 도보 길찾기(OpenRouteService) — ✅ 구현(키 주입 필요)
+- [x] ~~백로그 2번 "길찾기 전부 삭제"~~ 방침 재변경: **ORS foot-walking 부활**. 별(100m 밖) 탭 → 현위치→별 도보 경로 점선+글로우 라인, 빈 곳 탭 제거, 100m 이내 탭은 열람. 거리/시간 토스트. `OrsRouting`(안드 HttpURLConnection / iOS URLSession, 의존성 0). iOS `MLNPolyline`.
+- [ ] **키(사용자)**: openrouteservice.org 무료 키 발급 → 안드 `secrets.properties` 에 `ORS_API_KEY=...`, iOS 는 빌드설정/`project.yml` `ORS_API_KEY`. 미설정 시 길찾기 자동 비활성.
+
+### 🌐 줌아웃 글로브(레퍼런스 `references/min_zoom.png`) — ⏳ 백로그 (방안 A 확정, 미구현)
+- [ ] 줌 최소에서 평면지도 대신 **우주의 3D 지구(글로브)**: 야간 도시광 + 별 글로우 + 궤도선.
+- 결정: **A안 = MapLibre GL JS(웹) globe 를 WebView 로**. (MapLibre Native 11.x/iOS 6.x 는 Mercator 만, globe 미지원 — 로드맵 진행 중.)
+- 설계: 줌 임계 이하 오버뷰 구간만 WebView 글로브(globe projection + atmosphere + 야간 래스터), 별은 GeoJSON 주입+글로우. 줌인하면 네이티브 지도 복귀(하이브리드).
+
+---
+
 ## 🍎 (추후) iOS 확장 — **macOS + Xcode 필요(Windows 불가)**
 - [ ] `iosApp/` Xcode(SwiftUI) 프로젝트 생성 + `:shared` 프레임워크 임포트(`linkDebugFrameworkIosSimulatorArm64`).
 - [ ] `Repositories.kt` 인터페이스를 Firebase iOS SDK로 구현, `GoogleService-Info.plist`(f26c8 iOS 앱) 추가.

@@ -36,9 +36,10 @@
     <string name="settings_account">Account</string>
     <string name="settings_delete_account">Delete account</string>
     <string name="settings_delete_account_desc">Permanently delete your account and all data</string>
-    <string name="settings_delete_confirm_msg">Delete your account? Your diaries, friends, and profile will all be removed and this can\'t be undone.</string>
-    <string name="settings_delete_failed">Couldn\'t delete the account. Please sign in again and retry.</string>
+    <string name="settings_delete_confirm_msg">Request deletion and your account is permanently removed after 7 days. Sign in again before then to cancel.</string>
+    <string name="settings_delete_failed">Couldn\'t schedule the deletion. Please try again.</string>
     <string name="toast_account_deleted">Your account was deleted</string>
+    <string name="toast_deletion_scheduled">Deletion scheduled. Sign in within 7 days to cancel.</string>
 
     <!-- Report / block -->
     <string name="report_user">Report user</string>

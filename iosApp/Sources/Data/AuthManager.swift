@@ -1,7 +1,6 @@
 import FirebaseAuth
 import FirebaseCore
 import FirebaseFirestore
-import FirebaseStorage
 import GoogleSignIn
 import SwiftUI
 
@@ -65,73 +64,34 @@ final class AuthManager: ObservableObject {
         GIDSignIn.sharedInstance.signOut()
     }
 
-    /// 계정 영구 삭제 — Firestore 데이터 + Storage 프로필 + Auth 사용자 제거 후 로그아웃.
-    /// (Android `GoogleAuthHelper.deleteAccount` 패리티. iOS 는 uid = Auth uid = userId.)
-    /// 최근 로그인 만료 시 구글 재인증 후 재시도. 성공하면 true.
-    func deleteAccount() async -> Bool {
-        guard let user = Auth.auth().currentUser else { return false }
-        let uid = user.uid
+    /// 계정 삭제 "예약"(soft) — 7일 유예. (Android `GoogleAuthHelper.requestDeletion` 패리티)
+    /// 즉시 지우지 않고 users/{uid}.deletionRequestedAt 에 요청 시각을, authUid 에 uid 를 기록한 뒤 로그아웃한다.
+    /// 유예 동안 다시 로그인하면 [cancelPendingDeletion] 으로 취소되고,
+    /// 끝까지 로그인하지 않으면 서버 자정 스케줄 함수가 데이터/Storage/Auth 를 완전 삭제한다.
+    /// (iOS 는 uid = FirebaseAuth uid = userId 라 authUid 도 uid 와 같다.)
+    func requestDeletion() async -> Bool {
+        guard let uid = Auth.auth().currentUser?.uid else { return false }
         isBusy = true
         defer { isBusy = false }
-        await Self.deleteUserData(uid: uid)
-        // 프로필 이미지(베스트에포트)
-        try? await Storage.storage().reference()
-            .child("profile_images/\(uid).jpg").delete()
         do {
-            try await user.delete()
+            try await FirestoreService.users.document(uid).setData([
+                "deletionRequestedAt": FirestoreService.nowMillis,
+                "authUid": uid,
+            ], merge: true)
+            signOut()
+            return true
         } catch {
-            // 보통 최근 로그인 만료(requiresRecentLogin) — 구글 재인증 후 1회 재시도.
-            // (SDK 버전별 AuthErrorCode 차이를 피하려 에러코드 비교 대신 무조건 재인증을 시도한다.)
-            guard let credential = await reauthGoogleCredential() else {
-                errorMessage = error.localizedDescription
-                return false
-            }
-            do {
-                try await user.reauthenticate(with: credential)
-                try await user.delete()
-            } catch {
-                errorMessage = error.localizedDescription
-                return false
-            }
+            errorMessage = error.localizedDescription
+            return false
         }
-        signOut()
-        return true
     }
 
-    /// 재인증용 구글 credential 획득(Firebase 로그인은 하지 않음).
-    private func reauthGoogleCredential() async -> AuthCredential? {
-        guard let rootVC = Self.rootViewController() else { return nil }
-        if let clientID = FirebaseApp.app()?.options.clientID {
-            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
-        }
-        guard let result = try? await GIDSignIn.sharedInstance.signIn(withPresenting: rootVC),
-              let idToken = result.user.idToken?.tokenString else { return nil }
-        return GoogleAuthProvider.credential(withIDToken: idToken,
-                                             accessToken: result.user.accessToken.tokenString)
-    }
-
-    /// 내 Firestore 데이터 정리(베스트에포트). 하위 컬렉션은 문서 삭제로 자동 정리되지 않아 직접 지운다.
-    private static func deleteUserData(uid: String) async {
-        let users = FirestoreService.users
-        // 내가 쓴 다이어리
-        if let snap = try? await FirestoreService.diaries.whereField("userId", isEqualTo: uid).getDocuments() {
-            for d in snap.documents { try? await d.reference.delete() }
-        }
-        // 친구 양방향 정리(상대 친구목록에서 나 제거 + 내 친구목록)
-        if let snap = try? await FirestoreService.friends(of: uid).getDocuments() {
-            for f in snap.documents {
-                try? await users.document(f.documentID).collection(AppConfig.Collections.friends).document(uid).delete()
-                try? await f.reference.delete()
-            }
-        }
-        // 열람/차단 하위 컬렉션
-        for sub in [AppConfig.Collections.viewedDiaries, AppConfig.Collections.blocked] {
-            if let snap = try? await users.document(uid).collection(sub).getDocuments() {
-                for doc in snap.documents { try? await doc.reference.delete() }
-            }
-        }
-        // 프로필 문서
-        try? await users.document(uid).delete()
+    /// 삭제 예약 취소 — 유예 기간 내 재로그인 시 호출(fire-and-forget).
+    static func cancelPendingDeletion(uid: String) async {
+        guard !uid.isEmpty else { return }
+        try? await FirestoreService.users.document(uid).updateData([
+            "deletionRequestedAt": FieldValue.delete()
+        ])
     }
 
     // MARK: - Helpers
@@ -155,6 +115,8 @@ final class AuthManager: ObservableObject {
             "profileImageUrl": user.photoURL?.absoluteString ?? ""
         ]
         try? await ref.setData(data, merge: true)
+        // 로그인 → 삭제 예약이 있으면 취소(7일 유예 정책).
+        await Self.cancelPendingDeletion(uid: user.uid)
     }
 
     static func rootViewController() -> UIViewController? {

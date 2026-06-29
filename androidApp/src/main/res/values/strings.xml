@@ -38,9 +38,10 @@
     <string name="settings_account">계정</string>
     <string name="settings_delete_account">계정 삭제</string>
     <string name="settings_delete_account_desc">계정과 모든 데이터를 영구 삭제해요</string>
-    <string name="settings_delete_confirm_msg">정말 계정을 삭제할까요? 다이어리·친구·프로필이 모두 사라지며 되돌릴 수 없어요.</string>
-    <string name="settings_delete_failed">계정 삭제에 실패했어요. 다시 로그인 후 시도해 주세요.</string>
+    <string name="settings_delete_confirm_msg">삭제를 요청하면 7일 뒤에 완전히 삭제돼요. 그 전에 다시 로그인하면 자동으로 취소됩니다.</string>
+    <string name="settings_delete_failed">계정 삭제 예약에 실패했어요. 다시 시도해 주세요.</string>
     <string name="toast_account_deleted">계정이 삭제되었어요</string>
+    <string name="toast_deletion_scheduled">삭제를 예약했어요. 7일 안에 로그인하면 취소돼요</string>
 
     <!-- 신고/차단 -->
     <string name="report_user">사용자 신고</string>

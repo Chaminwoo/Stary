@@ -14,9 +14,12 @@
  *   (불일치 시 배포가 명확한 에러로 실패 — Firebase Console > Firestore > stary-db 위치 확인)
  */
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getAuth } = require("firebase-admin/auth");
+const { getStorage } = require("firebase-admin/storage");
 const { FieldValue } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
 
@@ -26,7 +29,11 @@ initializeApp();
 const DATABASE_ID = "stary-db";
 const USERS = "users";
 const FRIENDS = "friends";
+const DIARIES = "diaries";
+const VIEWED_DIARIES = "viewedDiaries";
+const BLOCKED = "blocked";
 const REGION = "asia-northeast3"; // stary-db 리전에 맞출 것
+const GRACE_MS = 7 * 24 * 60 * 60 * 1000; // 계정 삭제 유예 7일
 
 /** FCM multicast 1회 최대 토큰 수 */
 const FCM_BATCH = 500;
@@ -230,3 +237,78 @@ exports.notifyOnNotificationCreate = onDocumentCreated(
     );
   }
 );
+
+/**
+ * 계정 삭제 유예(7일) 만료 처리 — 매일 자정(KST) 실행.
+ * users/{uid}.deletionRequestedAt 가 7일 이상 지난(= 그 동안 재로그인하지 않은) 계정의
+ * Firestore 데이터 / Storage 프로필 이미지 / FirebaseAuth 계정을 완전 삭제한다.
+ * 재로그인하면 클라이언트가 deletionRequestedAt 를 지우므로 대상에서 자동 제외된다.
+ * (authUid = FirebaseAuth uid. Android 는 userId=Google sub ≠ authUid 라 Auth 삭제에 필요.)
+ */
+exports.purgeExpiredDeletions = onSchedule(
+  {
+    schedule: "0 0 * * *",
+    timeZone: "Asia/Seoul",
+    region: REGION,
+  },
+  async () => {
+    const db = getFirestore(DATABASE_ID);
+    const cutoff = Date.now() - GRACE_MS;
+    const snap = await db
+      .collection(USERS)
+      .where("deletionRequestedAt", "<=", cutoff)
+      .get();
+    if (snap.empty) {
+      logger.info("계정 삭제 대상 없음");
+      return;
+    }
+    for (const doc of snap.docs) {
+      const uid = doc.id;
+      const authUid = doc.get("authUid");
+      try {
+        await deleteUserData(db, uid);
+        // Storage 프로필 이미지(profile_images/{userId}.jpg) — 없으면 무시
+        try {
+          await getStorage().bucket().file(`profile_images/${uid}.jpg`).delete();
+        } catch (_) {
+          /* 파일 없음 등 무시 */
+        }
+        // FirebaseAuth 계정
+        if (authUid) {
+          try {
+            await getAuth().deleteUser(authUid);
+          } catch (e) {
+            logger.warn(`auth ${authUid} 삭제 실패: ${e.code || e.message}`);
+          }
+        }
+        logger.info(`계정 ${uid} 완전 삭제 완료`);
+      } catch (e) {
+        logger.error(`계정 ${uid} 삭제 실패: ${e.message}`);
+      }
+    }
+  }
+);
+
+/** 한 사용자의 Firestore 데이터 정리(다이어리 / 친구 양방향 / 열람·차단 하위 / 프로필 문서). */
+async function deleteUserData(db, uid) {
+  const diaries = await db.collection(DIARIES).where("userId", "==", uid).get();
+  for (const d of diaries.docs) {
+    await d.ref.delete();
+  }
+  const friends = await db.collection(USERS).doc(uid).collection(FRIENDS).get();
+  for (const f of friends.docs) {
+    try {
+      await db.collection(USERS).doc(f.id).collection(FRIENDS).doc(uid).delete();
+    } catch (_) {
+      /* 상대 목록 정리 실패 무시 */
+    }
+    await f.ref.delete();
+  }
+  for (const sub of [VIEWED_DIARIES, BLOCKED]) {
+    const s = await db.collection(USERS).doc(uid).collection(sub).get();
+    for (const x of s.docs) {
+      await x.ref.delete();
+    }
+  }
+  await db.collection(USERS).doc(uid).delete();
+}

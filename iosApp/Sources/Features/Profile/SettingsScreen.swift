@@ -117,9 +117,10 @@ struct SettingsScreen: View {
     private func performDelete() {
         deleting = true
         Task {
-            let ok = await auth.deleteAccount()
+            let ok = await auth.requestDeletion()
             deleting = false
-            // 성공 시 auth.uid 가 nil 이 되어 RootView 가 로그인 화면으로 전환된다.
+            // 성공 시 삭제 "예약" + 로그아웃 → auth.uid 가 nil 이 되어 RootView 가 로그인 화면으로 전환된다.
+            // 7일 유예 안에 다시 로그인하면 예약이 취소된다.
             if !ok { showDeleteFailed = true }
         }
     }

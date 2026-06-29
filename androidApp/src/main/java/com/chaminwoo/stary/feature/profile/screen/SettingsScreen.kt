@@ -240,11 +240,11 @@ fun SettingsScreen(
                         onClick = {
                             deleting = true
                             scope.launch {
-                                val ok = com.chaminwoo.stary.feature.auth.GoogleAuthHelper.deleteAccount(context)
+                                val ok = com.chaminwoo.stary.feature.auth.GoogleAuthHelper.requestDeletion(context)
                                 deleting = false
                                 showDeleteDialog = false
                                 if (ok) {
-                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_account_deleted))
+                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_deletion_scheduled))
                                     onAccountDeleted()
                                 } else {
                                     com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.settings_delete_failed))

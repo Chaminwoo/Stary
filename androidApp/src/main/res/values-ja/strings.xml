@@ -36,9 +36,10 @@
     <string name="settings_account">アカウント</string>
     <string name="settings_delete_account">アカウント削除</string>
     <string name="settings_delete_account_desc">アカウントとすべてのデータを完全に削除します</string>
-    <string name="settings_delete_confirm_msg">本当にアカウントを削除しますか？日記・フレンド・プロフィールがすべて消え、元に戻せません。</string>
-    <string name="settings_delete_failed">アカウントの削除に失敗しました。再ログイン後にもう一度お試しください。</string>
+    <string name="settings_delete_confirm_msg">削除をリクエストすると7日後に完全に削除されます。それまでに再ログインすると自動的にキャンセルされます。</string>
+    <string name="settings_delete_failed">削除の予約に失敗しました。もう一度お試しください。</string>
     <string name="toast_account_deleted">アカウントを削除しました</string>
+    <string name="toast_deletion_scheduled">削除を予約しました。7日以内にログインするとキャンセルされます</string>
 
     <!-- 通報・ブロック -->
     <string name="report_user">ユーザーを報告</string>
