@@ -197,8 +197,8 @@ fun NavGraph(
                 userId = args.userId,
                 userName = args.userName,
                 onOpenMap = { diaryId ->
-                    // 별 탭 → 지도로 이동해 그 위치로 카메라 + 파장(이전 다이어리 클릭과 동일).
-                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId)
+                    // 친구 별 탭 → 지도로 이동해 그 위치로 카메라 + 파장 후 도보 길찾기 경로 표시.
+                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId, withRoute = true)
                     navController.navigate(NavRoute.Main) {
                         popUpTo<NavRoute.Main> { inclusive = true }
                     }

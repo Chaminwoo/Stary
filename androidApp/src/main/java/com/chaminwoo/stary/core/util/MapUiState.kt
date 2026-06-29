@@ -24,7 +24,16 @@ object MapUiState {
 object MapFocusState {
     var pendingDiaryId by mutableStateOf<String?>(null)
         private set
+    /** true 면 포커스(카메라+파장) 후 그 별까지 도보 길찾기 경로를 띄운다(친구 별 탭). */
+    var pendingRoute by mutableStateOf(false)
+        private set
 
-    fun request(diaryId: String) { pendingDiaryId = diaryId }
-    fun consume() { pendingDiaryId = null }
+    fun request(diaryId: String, withRoute: Boolean = false) {
+        pendingDiaryId = diaryId
+        pendingRoute = withRoute
+    }
+    fun consume() {
+        pendingDiaryId = null
+        pendingRoute = false
+    }
 }

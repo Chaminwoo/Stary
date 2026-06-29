@@ -227,8 +227,10 @@
 - [ ] **배포(사용자)**: `firebase deploy --only functions,firestore:rules` (Blaze + Cloud Scheduler API 필요 — 자정 잡 자동 생성).
 
 ### 지도 도보 길찾기(OpenRouteService) — ✅ 구현(키 주입 필요)
-- [x] ~~백로그 2번 "길찾기 전부 삭제"~~ 방침 재변경: **ORS foot-walking 부활**. 별(100m 밖) 탭 → 현위치→별 도보 경로 점선+글로우 라인, 빈 곳 탭 제거, 100m 이내 탭은 열람. 거리/시간 토스트. `OrsRouting`(안드 HttpURLConnection / iOS URLSession, 의존성 0). iOS `MLNPolyline`.
-- [ ] **키(사용자)**: openrouteservice.org 무료 키 발급 → 안드 `secrets.properties` 에 `ORS_API_KEY=...`, iOS 는 빌드설정/`project.yml` `ORS_API_KEY`. 미설정 시 길찾기 자동 비활성.
+- [x] ~~백로그 2번 "길찾기 전부 삭제"~~ → **ORS foot-walking 부활**. `OrsRouting`(안드 HttpURLConnection / iOS URLSession, 의존성 0).
+- [x] **진입 = "친구 별 탭"** (별 직접 클릭은 길찾기 안 함): 친구 별(`UserDiaryStarsScreen`) 탭 → 지도 카메라+파동 후 길찾기. 전체 경로를 저장하고 **실시간 위치 기준 "최근접점→목적지" 구간만** 렌더(지나온 길 숨김, 경로와 떨어지면 최근접점까지 직선 연결), 하단 **X 취소** 버튼, **연초록 후광 실선**(점선 제거). `MapFocusState.withRoute` + `DiaryMap.partialRouteFrom`.
+- [ ] **키(사용자)**: openrouteservice.org 무료 키 → 안드 `secrets.properties` `ORS_API_KEY=...`, iOS `project.yml`/빌드설정 `ORS_API_KEY`. 미설정 시 자동 비활성.
+- [ ] **iOS TODO**: iOS 는 친구 별-보드/파동/전역 포커스/탭전환 인프라가 안드와 달라 위 "친구 별 탭 진입·실시간 부분경로" 미반영. iOS 는 별 클릭 길찾기 제거(정책 일치)까지만 맞춤. route 인프라(`OrsRouting.swift`/`MapLibreView` polyline)는 보존 → 다음 iOS 라운드에 진입점+실시간 경로 추가.
 
 ### 🌐 줌아웃 글로브(레퍼런스 `references/min_zoom.png`) — ⏳ 백로그 (방안 A 확정, 미구현)
 - [ ] 줌 최소에서 평면지도 대신 **우주의 3D 지구(글로브)**: 야간 도시광 + 별 글로우 + 궤도선.

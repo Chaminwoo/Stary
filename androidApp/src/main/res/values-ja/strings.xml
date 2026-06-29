@@ -187,6 +187,7 @@
     <string name="cd_create_diary">日記を作成</string>
     <string name="map_open_range">%1$dm以内で閲覧できます（現在%2$dm）</string>
     <string name="map_route_summary">徒歩約%1$d分 · %2$dm</string>
+    <string name="map_route_cancel">経路を取り消す</string>
 
     <!-- 他のユーザーのプロフィール(UserProfileScreen) -->
     <string name="user_profile_me">マイプロフィール</string>

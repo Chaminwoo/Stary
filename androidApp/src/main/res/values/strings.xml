@@ -189,6 +189,7 @@
     <string name="cd_create_diary">다이어리 생성</string>
     <string name="map_open_range">%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)</string>
     <string name="map_route_summary">도보 약 %1$d분 · %2$dm</string>
+    <string name="map_route_cancel">길찾기 취소</string>
 
     <!-- 타인 프로필(UserProfileScreen) -->
     <string name="user_profile_me">내 프로필</string>

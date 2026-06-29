@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Remove
@@ -486,11 +487,43 @@ private fun rememberMapViewWithLifecycle(): MapView {
  * - "내 위치로" FAB 로 현재 위치 복귀.
  */
 /** 외부(알림 등)에서 "이 다이어리로 카메라 이동 + 파장" 을 요청할 때 전달하는 대상. */
+/**
+ * 저장된 전체 경로 [full] 에서 현재 위치 [me] 의 최근접 투영점을 찾아
+ * "[me] → 최근접점 → 그 이후 ~ 목적지" 좌표열을 만든다(지나온 구간은 제외).
+ * 위경도를 경도 cos(위도) 보정 평면으로 근사(도보 거리에선 충분히 정확).
+ */
+private fun partialRouteFrom(full: List<Point>, me: Point): List<Point> {
+    val kx = kotlin.math.cos(Math.toRadians(me.latitude()))
+    fun px(p: Point) = p.longitude() * kx
+    fun py(p: Point) = p.latitude()
+    val mx = px(me); val my = py(me)
+    var bestK = 0; var bestT = 0.0; var bestD = Double.MAX_VALUE
+    for (i in 0 until full.size - 1) {
+        val ax = px(full[i]); val ay = py(full[i])
+        val bx = px(full[i + 1]); val by = py(full[i + 1])
+        val dx = bx - ax; val dy = by - ay
+        val len2 = dx * dx + dy * dy
+        val t = if (len2 < 1e-12) 0.0 else (((mx - ax) * dx + (my - ay) * dy) / len2).coerceIn(0.0, 1.0)
+        val cx = ax + t * dx; val cy = ay + t * dy
+        val d = (mx - cx) * (mx - cx) + (my - cy) * (my - cy)
+        if (d < bestD) { bestD = d; bestK = i; bestT = t }
+    }
+    val a = full[bestK]; val b = full[bestK + 1]
+    val cLng = a.longitude() + bestT * (b.longitude() - a.longitude())
+    val cLat = a.latitude() + bestT * (b.latitude() - a.latitude())
+    val out = ArrayList<Point>(full.size - bestK + 2)
+    out.add(me)                                   // 내 실시간 위치
+    out.add(Point.fromLngLat(cLng, cLat))         // 경로 위 최근접점(떨어져 있으면 직선으로 연결)
+    for (j in bestK + 1 until full.size) out.add(full[j]) // 그 이후 ~ 목적지
+    return out
+}
+
 data class DiaryFocusTarget(
     val lat: Double,
     val lng: Double,
     val colorIndex: Int,
     val diaryId: String,
+    val withRoute: Boolean = false,
 )
 
 @Composable
@@ -520,6 +553,8 @@ fun DiaryMap(
     var constellationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var routeSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     val routeScope = rememberCoroutineScope()
+    // 도보 길찾기: 처음 받은 전체 경로(목적지까지)를 저장. null = 길찾기 비활성(X 취소 시).
+    var savedRoute by remember { mutableStateOf<List<Point>?>(null) }
     val addedIcons = remember { mutableSetOf<String>() }
     val isCameraMoving = remember { mutableStateOf(false) }
     // 카메라가 멈출 때마다 증가 → 줌/이동에 따라 화면 클러스터링 재계산 트리거
@@ -541,25 +576,21 @@ fun DiaryMap(
     val diariesRef = rememberUpdatedState(diaries)
     val initialLatLngRef = rememberUpdatedState(currentLatLng)
 
-    // 도보 길찾기 — 별(100m 밖)을 누르면 현위치→별 도보 경로를 지도에 그린다(OpenRouteService).
-    // ORS 키 미설정/네트워크 실패 시 조용히 무시(별 클릭의 거리 안내 토스트는 그대로 뜬다).
-    val requestRoute: (Diary) -> Unit = { target ->
+    // 도보 길찾기(친구 별 탭) — 현위치→목적지 전체 경로를 받아 savedRoute 에 저장(X 취소까지 유지).
+    // 실시간 위치에 맞춰 "내 위치→경로 최근접점→목적지"만 렌더하는 건 아래 LaunchedEffect 가 담당.
+    // ORS 키 미설정/네트워크 실패 시 조용히 무시.
+    val requestRoute: (Double, Double) -> Unit = { destLat, destLng ->
         val cur = currentLatLngRef.value
         routeScope.launch {
-            val route = OrsRouting.walkingRoute(
-                cur.latitude, cur.longitude, target.latitude, target.longitude
-            ) ?: return@launch
-            val pts = route.coordinates.map { Point.fromLngLat(it[0], it[1]) }
-            routeSource?.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(pts)))
+            val route = OrsRouting.walkingRoute(cur.latitude, cur.longitude, destLat, destLng) ?: return@launch
+            savedRoute = route.coordinates.map { Point.fromLngLat(it[0], it[1]) }
             val mins = (route.durationS / 60.0).roundToInt().coerceAtLeast(1)
             com.chaminwoo.stary.core.ui.StaryToast.show(
                 context.getString(R.string.map_route_summary, mins, route.distanceM.roundToInt())
             )
         }
     }
-    val clearRoute: () -> Unit = { routeSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList())) }
     val requestRouteRef = rememberUpdatedState(requestRoute)
-    val clearRouteRef = rememberUpdatedState(clearRoute)
 
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
@@ -593,7 +624,6 @@ fun DiaryMap(
                                 cur.latitude, cur.longitude, diary.latitude, diary.longitude
                             )
                             if (distance <= StaryConfig.DIARY_OPEN_RADIUS_M) {
-                                clearRouteRef.value() // 열람 진입 시 경로 정리
                                 // 파장이 이 별 위치에서 퍼지도록 화면상 위치(0..1) 계산
                                 val sp = map.projection.toScreenLocation(
                                     MlLatLng(diary.latitude, diary.longitude)
@@ -616,14 +646,10 @@ fun DiaryMap(
                                         distance.toInt()
                                     )
                                 )
-                                requestRouteRef.value(diary) // 도보 길찾기 경로 표시
                             }
                         }
                         true
-                    } else {
-                        clearRouteRef.value() // 빈 곳 탭 → 경로 지우기
-                        false
-                    }
+                    } else false
                 }
                 map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
                     val start = initialLatLngRef.value
@@ -693,9 +719,9 @@ fun DiaryMap(
                     style.addSource(rSrc)
                     style.addLayer(
                         LineLayer(ROUTE_GLOW_LAYER, ROUTE_SOURCE).withProperties(
-                            PropertyFactory.lineColor("#6EE7B7"),
-                            PropertyFactory.lineWidth(9f),
-                            PropertyFactory.lineBlur(8f),
+                            PropertyFactory.lineColor("#86EFAC"),   // 연한 초록 후광
+                            PropertyFactory.lineWidth(16f),
+                            PropertyFactory.lineBlur(16f),
                             PropertyFactory.lineOpacity(0.45f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
@@ -703,10 +729,10 @@ fun DiaryMap(
                     )
                     style.addLayer(
                         LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
-                            PropertyFactory.lineColor("#BFFFE8"),
-                            PropertyFactory.lineWidth(4f),
-                            PropertyFactory.lineOpacity(0.95f),
-                            PropertyFactory.lineDasharray(arrayOf(2f, 1.4f)),
+                            PropertyFactory.lineColor("#C6F9D6"),   // 밝은 연초록 실선(점선 아님)
+                            PropertyFactory.lineWidth(5f),
+                            PropertyFactory.lineBlur(1f),
+                            PropertyFactory.lineOpacity(0.96f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
                         )
@@ -896,6 +922,22 @@ fun DiaryMap(
             }
         }
         } // if (!MapUiState.mapOnly)
+
+        // 길찾기 취소 — 도보 경로 활성 시 하단 중앙 X 버튼(누르면 경로 제거).
+        if (savedRoute != null) {
+            FloatingActionButton(
+                onClick = { savedRoute = null },
+                containerColor = Color(0xFF0E1520),
+                contentColor = Color(0xFF86EFAC),
+                elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 30.dp)
+                    .size(52.dp)
+            ) {
+                Icon(Icons.Filled.Close, contentDescription = context.getString(R.string.map_route_cancel))
+            }
+        }
 
         // 지도 왜곡 연출 — 스냅샷 이미지를 1초간 파장+울렁시킨 뒤 세부 화면으로 이동(세부는 멀쩡).
         warpState.value?.let { wd ->
@@ -1133,12 +1175,27 @@ fun DiaryMap(
                             bmp, 0.5f, 0.5f, target.diaryId, target.colorIndex, navigateAfter = false
                         )
                     }
+                    // 친구 별 탭(withRoute) → 파장과 함께 그 별까지 도보 길찾기 시작.
+                    if (target.withRoute) requestRouteRef.value(target.lat, target.lng)
                 }
                 override fun onCancel() {
                     onFocusHandledRef.value()
                 }
             }
         )
+    }
+
+    // 도보 길찾기 실시간 렌더 — 저장된 전체 경로에서 내 위치의 최근접점부터 목적지까지만 그린다.
+    // 지나온 길(출발점~최근접점)은 숨기고, 내 위치가 경로에서 떨어져 있으면 최근접점까지 직선으로 잇는다.
+    LaunchedEffect(currentLatLng, savedRoute, routeSource) {
+        val src = routeSource ?: return@LaunchedEffect
+        val full = savedRoute
+        if (full == null || full.size < 2) {
+            src.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+            return@LaunchedEffect
+        }
+        val me = Point.fromLngLat(currentLatLng.longitude, currentLatLng.latitude)
+        src.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(partialRouteFrom(full, me))))
     }
 }
 
