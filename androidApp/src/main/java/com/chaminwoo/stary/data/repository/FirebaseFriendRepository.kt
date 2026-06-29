@@ -160,8 +160,12 @@ class FirebaseFriendRepository : FriendRepository {
                 .collection(StaryConfig.Collections.FRIENDS).document(request.fromId)
             val theirs = users.document(request.fromId)
                 .collection(StaryConfig.Collections.FRIENDS).document(request.toId)
+            // 상대 친구목록에 보일 "내(수락자)" 사진 — 비어 있지 않게 users/{toId} 에서 조회해 채운다.
+            val myPhoto = try {
+                users.document(request.toId).get().await().getString("profileImageUrl") ?: ""
+            } catch (_: Exception) { "" }
             batch.set(mine, Friend(request.fromId, request.fromName, request.fromPhotoUrl, now))
-            batch.set(theirs, Friend(request.toId, request.toName, "", now))
+            batch.set(theirs, Friend(request.toId, request.toName, myPhoto, now))
             batch.delete(requests.document(request.id))
             batch.commit().await()
             true

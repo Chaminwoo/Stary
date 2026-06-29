@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -211,8 +212,15 @@ fun UserProfileScreen(
             }
         }
     }
-
-    Box(modifier = modifier.fillMaxSize().background(Color(0xFF0D0D0D))) {
+    Column(
+        modifier = Modifier
+            .align(Alignment.Center)
+            .offset(y = (-44).dp)   // 화면 가운데보다 살짝 위
+            .fillMaxWidth()
+            .padding(horizontal = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+    Box() {
         Image(
             painter = painterResource(R.drawable.mydiary_bg),
             contentDescription = null,
@@ -232,7 +240,12 @@ fun UserProfileScreen(
                     Box(modifier = Modifier.size(150.dp), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier.size(150.dp).background(
-                                Brush.radialGradient(listOf(Mint.copy(alpha = 0.28f), Color.Transparent), radius = 210f),
+                                Brush.radialGradient(
+                                    listOf(
+                                        Mint.copy(alpha = 0.28f),
+                                        Color.Transparent
+                                    ), radius = 210f
+                                ),
                                 CircleShape
                             )
                         )
@@ -247,14 +260,18 @@ fun UserProfileScreen(
                             if (photoUrl.isNotBlank()) {
                                 AsyncImage(
                                     model = photoUrl,
-                                    contentDescription = stringResource(R.string.cd_profile_photo, resolvedName.ifBlank { stringResource(R.string.common_user) }),
+                                    contentDescription = stringResource(
+                                        R.string.cd_profile_photo,
+                                        resolvedName.ifBlank { stringResource(R.string.common_user) }),
                                     modifier = Modifier.fillMaxSize().clip(CircleShape),
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
                                 Icon(
-                                    Icons.Filled.AccountCircle, contentDescription = stringResource(R.string.cd_default_profile),
-                                    tint = Color(0xFF555555), modifier = Modifier.fillMaxSize()
+                                    Icons.Filled.AccountCircle,
+                                    contentDescription = stringResource(R.string.cd_default_profile),
+                                    tint = Color(0xFF555555),
+                                    modifier = Modifier.fillMaxSize()
                                 )
                             }
                         }
@@ -263,7 +280,7 @@ fun UserProfileScreen(
                     Spacer(Modifier.height(16.dp))
                     Text(
                         text = resolvedName.ifBlank { stringResource(R.string.friend_no_name) },
-                        fontSize = 23.sp, fontWeight = FontWeight.Bold, color = TextMain
+                        fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextMain
                     )
 
                     // 장착 칭호 — 글씨만 + 후광 (테두리/배경/아이콘 없음)
@@ -274,10 +291,15 @@ fun UserProfileScreen(
                         color = titleColor,
                         fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                         style = LocalTextStyle.current.merge(
-                            TextStyle(shadow = Shadow(titleColor.copy(alpha = 0.9f), blurRadius = 24f))
+                            TextStyle(
+                                shadow = Shadow(
+                                    titleColor.copy(alpha = 0.9f),
+                                    blurRadius = 24f
+                                )
+                            )
                         )
                     )
-
+                }
                     // (친구 추가/취소는 탑바 버튼, 채팅은 통계 옆 편지 아이콘 — 본문 액션 없음)
                     Spacer(Modifier.height(26.dp))
                 }

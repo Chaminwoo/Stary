@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.chaminwoo.stary.shared.config.StaryConfig
+import kotlinx.coroutines.tasks.await
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.ui.CardBgTop
 import com.chaminwoo.stary.core.ui.PageBg
@@ -155,6 +157,7 @@ fun FriendScreen(
                     PersonCard(
                         name = user.userName,
                         photoUrl = user.profileImageUrl,
+                        userId = user.userId,
                         onClick = { onOpenProfile(user.userId, user.userName) }
                     ) {
                         if (alreadyFriend) {
@@ -185,6 +188,7 @@ fun FriendScreen(
                     PersonCard(
                         name = req.fromName,
                         photoUrl = req.fromPhotoUrl,
+                        userId = req.fromId,
                         onClick = { onOpenProfile(req.fromId, req.fromName) }
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -215,6 +219,7 @@ fun FriendScreen(
                 PersonCard(
                     name = friend.userName,
                     photoUrl = friend.photoUrl,
+                    userId = friend.userId,
                     onClick = { onOpenProfile(friend.userId, friend.userName) }
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -284,6 +289,7 @@ private fun SectionHeader(title: String, count: Int) {
 private fun PersonCard(
     name: String,
     photoUrl: String,
+    userId: String = "",
     onClick: (() -> Unit)? = null,
     trailing: @Composable () -> Unit,
 ) {
@@ -299,7 +305,7 @@ private fun PersonCard(
                 .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Avatar(name, photoUrl)
+            Avatar(name, photoUrl, userId)
             Spacer(Modifier.width(12.dp))
             Text(
                 name.ifBlank { stringResource(R.string.friend_no_name) },
@@ -317,7 +323,19 @@ private fun PersonCard(
 }
 
 @Composable
-private fun Avatar(name: String, photoUrl: String) {
+private fun Avatar(name: String, photoUrl: String, userId: String = "") {
+    // photoUrl 이 비어 있으면(예전 친구 데이터) users/{userId}.profileImageUrl 을 조회해 채운다.
+    var resolved by remember(userId, photoUrl) { mutableStateOf(photoUrl) }
+    LaunchedEffect(userId, photoUrl) {
+        if (photoUrl.isBlank() && userId.isNotBlank()) {
+            val url = try {
+                com.chaminwoo.stary.data.staryFirestore
+                    .collection(StaryConfig.Collections.USERS).document(userId)
+                    .get().await().getString("profileImageUrl")
+            } catch (_: Exception) { null }
+            if (!url.isNullOrBlank()) resolved = url
+        }
+    }
     Box(
         modifier = Modifier
             .size(44.dp)
@@ -326,9 +344,9 @@ private fun Avatar(name: String, photoUrl: String) {
             .border(1.5.dp, Green.copy(alpha = 0.30f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        if (photoUrl.isNotBlank()) {
+        if (resolved.isNotBlank()) {
             AsyncImage(
-                model = photoUrl,
+                model = resolved,
                 contentDescription = stringResource(R.string.cd_profile_photo, name.ifBlank { stringResource(R.string.common_user) }),
                 modifier = Modifier.fillMaxSize().clip(CircleShape),
                 contentScale = ContentScale.Crop

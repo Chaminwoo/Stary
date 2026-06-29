@@ -52,10 +52,13 @@ final class FriendsViewModel: ObservableObject {
                 .whereField("toId", isEqualTo: to.userId)
                 .getDocuments()
             guard dup.documents.isEmpty else { return }
+            // 보낸 사람 사진을 채워 빈 값으로 저장하지 않는다(상대 친구목록 아바타에 보이도록).
+            let myPhoto = ((try? await FirestoreService.users.document(fromId).getDocument())?
+                .get("profileImageUrl") as? String) ?? ""
             let ref = FirestoreService.friendRequests.document()
             try await ref.setData([
                 "fromId": fromId, "fromName": fromName,
-                "fromPhotoUrl": "",
+                "fromPhotoUrl": myPhoto,
                 "toId": to.userId, "toName": to.userName,
                 "createdAt": FirestoreService.nowMillis,
             ])
@@ -69,8 +72,10 @@ final class FriendsViewModel: ObservableObject {
         // 내 친구 목록에 상대 추가
         batch.setData(["userId": r.fromId, "userName": r.fromName, "photoUrl": r.fromPhotoUrl, "createdAt": now],
                       forDocument: FirestoreService.friends(of: myUid).document(r.fromId))
-        // 상대 친구 목록에 나 추가
-        batch.setData(["userId": myUid, "userName": myName, "photoUrl": "", "createdAt": now],
+        // 상대 친구 목록에 나 추가 — 내 사진을 채워 빈 값으로 저장하지 않는다.
+        let myPhoto = ((try? await FirestoreService.users.document(myUid).getDocument())?
+            .get("profileImageUrl") as? String) ?? ""
+        batch.setData(["userId": myUid, "userName": myName, "photoUrl": myPhoto, "createdAt": now],
                       forDocument: FirestoreService.friends(of: r.fromId).document(myUid))
         batch.deleteDocument(FirestoreService.friendRequests.document(reqId))
         try? await batch.commit()

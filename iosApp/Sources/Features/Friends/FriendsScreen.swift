@@ -43,7 +43,7 @@ struct FriendsScreen: View {
             if vm.searching { ProgressView().tint(Theme.mint) }
             ForEach(vm.results) { user in
                 HStack {
-                    avatar(user.userName)
+                    avatar(user.userName, photoUrl: user.profileImageUrl ?? "", userId: user.userId)
                     Text(user.userName).foregroundStyle(Theme.textPrimary)
                     Spacer()
                     Button("추가") {
@@ -63,7 +63,7 @@ struct FriendsScreen: View {
             Text("받은 요청").font(.headline).foregroundStyle(Theme.textPrimary)
             ForEach(vm.requests) { req in
                 HStack {
-                    avatar(req.fromName)
+                    avatar(req.fromName, photoUrl: req.fromPhotoUrl, userId: req.fromId)
                     Text(req.fromName).foregroundStyle(Theme.textPrimary)
                     Spacer()
                     Button("수락") {
@@ -90,7 +90,7 @@ struct FriendsScreen: View {
                 ForEach(vm.friends) { friend in
                     NavigationLink(value: friend) {
                         HStack {
-                            avatar(friend.userName)
+                            avatar(friend.userName, photoUrl: friend.photoUrl, userId: friend.userId)
                             Text(friend.userName).foregroundStyle(Theme.textPrimary)
                             Spacer()
                             Image(systemName: "bubble.right").foregroundStyle(Theme.textFaint)
@@ -104,11 +104,8 @@ struct FriendsScreen: View {
         }
     }
 
-    private func avatar(_ name: String) -> some View {
-        Circle()
-            .fill(Theme.surfaceAlt)
-            .frame(width: 36, height: 36)
-            .overlay(Text(String(name.prefix(1))).foregroundStyle(Theme.mint).bold())
+    private func avatar(_ name: String, photoUrl: String = "", userId: String = "") -> some View {
+        FriendAvatar(name: name, photoUrl: photoUrl, userId: userId)
     }
 
     private func runSearch() {
@@ -120,4 +117,43 @@ struct FriendsScreen: View {
 extension Friend: Hashable {
     static func == (lhs: Friend, rhs: Friend) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+/// 친구/요청/검색 아바타 — photoUrl 이 있으면 사진, 비어 있으면 userId 로 users/{uid}.profileImageUrl 조회.
+/// (Android FriendScreen Avatar 패리티. 예전 친구 데이터의 빈 photoUrl 도 채워 보여준다.)
+private struct FriendAvatar: View {
+    let name: String
+    let photoUrl: String
+    let userId: String
+    @State private var resolved: String?
+
+    private var effectiveUrl: String? {
+        if !photoUrl.isEmpty { return photoUrl }
+        return resolved
+    }
+
+    var body: some View {
+        Group {
+            if let url = effectiveUrl, !url.isEmpty {
+                AsyncImage(url: URL(string: url)) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Theme.surfaceAlt
+                }
+            } else {
+                Theme.surfaceAlt.overlay(
+                    Text(String(name.prefix(1)).uppercased())
+                        .foregroundStyle(Theme.mint).bold()
+                )
+            }
+        }
+        .frame(width: 36, height: 36)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Theme.mint.opacity(0.30), lineWidth: 1))
+        .task(id: userId) {
+            if photoUrl.isEmpty, !userId.isEmpty {
+                resolved = await ProfileImageCache.shared.url(for: userId)
+            }
+        }
+    }
 }

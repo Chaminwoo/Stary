@@ -93,8 +93,10 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
       const batch = targets.slice(i, i + FCM_BATCH);
       const res = await messaging.sendEachForMulticast({
         tokens: batch.map((t) => t.token),
+        // notification 페이로드 → 백그라운드/종료 상태에서도 시스템 트레이 알림 표시.
+        notification: { title: data.title, body: data.body },
         data,
-        android: { priority: "high" },
+        android: { priority: "high", notification: { channelId: "stary_default" } },
       });
       success += res.successCount;
       res.responses.forEach((r, idx) => {
@@ -145,8 +147,10 @@ async function sendToUser(uid, data) {
   try {
     await getMessaging().send({
       token,
+      // notification 페이로드 → 앱이 백그라운드/종료 상태여도 시스템이 트레이 알림을 표시한다.
+      notification: { title: data.title, body: data.body },
       data,
-      android: { priority: "high" },
+      android: { priority: "high", notification: { channelId: "stary_default" } },
     });
     return true;
   } catch (e) {
