@@ -212,15 +212,7 @@ fun UserProfileScreen(
             }
         }
     }
-    Column(
-        modifier = Modifier
-            .align(Alignment.Center)
-            .offset(y = (-44).dp)   // 화면 가운데보다 살짝 위
-            .fillMaxWidth()
-            .padding(horizontal = 22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-    Box() {
+    Box(modifier = modifier.fillMaxSize().background(Color(0xFF0D0D0D))) {
         Image(
             painter = painterResource(R.drawable.mydiary_bg),
             contentDescription = null,
@@ -299,7 +291,7 @@ fun UserProfileScreen(
                             )
                         )
                     )
-                }
+
                     // (친구 추가/취소는 탑바 버튼, 채팅은 통계 옆 편지 아이콘 — 본문 액션 없음)
                     Spacer(Modifier.height(26.dp))
                 }

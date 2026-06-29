@@ -103,7 +103,6 @@ private const val CONSTELLATION_GLOW_LAYER = "constellation-glow-layer"
 private const val CONSTELLATION_HALO_LAYER = "constellation-halo-layer"
 // 도보 길찾기 경로 (OpenRouteService)
 private const val ROUTE_SOURCE = "walking-route"
-private const val ROUTE_GLOW_LAYER = "walking-route-glow"
 private const val ROUTE_LAYER = "walking-route-layer"
 // 별자리 선 페이드용 최대 불투명도 (켜질 때 0→target 으로 부드럽게)
 private const val CONSTELLATION_HALO_OPACITY = 0.18f
@@ -718,21 +717,10 @@ fun DiaryMap(
                     val rSrc = GeoJsonSource(ROUTE_SOURCE, FeatureCollection.fromFeatures(emptyList()))
                     style.addSource(rSrc)
                     style.addLayer(
-                        LineLayer(ROUTE_GLOW_LAYER, ROUTE_SOURCE).withProperties(
-                            PropertyFactory.lineColor("#86EFAC"),   // 연한 초록 후광
-                            PropertyFactory.lineWidth(16f),
-                            PropertyFactory.lineBlur(16f),
-                            PropertyFactory.lineOpacity(0.45f),
-                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
-                        )
-                    )
-                    style.addLayer(
                         LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
-                            PropertyFactory.lineColor("#C6F9D6"),   // 밝은 연초록 실선(점선 아님)
+                            PropertyFactory.lineColor("#86EFAC"),   // 연한 초록 실선(후광 없음)
                             PropertyFactory.lineWidth(5f),
-                            PropertyFactory.lineBlur(1f),
-                            PropertyFactory.lineOpacity(0.96f),
+                            PropertyFactory.lineOpacity(0.95f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
                         )
