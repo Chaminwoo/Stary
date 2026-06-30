@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.chaminwoo.stary.R
 
 private val Mint = Color(0xFF6EE7B7)
@@ -61,10 +62,12 @@ fun FirstVisitInfo(
         prefs.edit().putBoolean(seenKey, true).apply()
         show = false
     }
-    Dialog(onDismissRequest = dismiss) {
+    // 폭을 직접 제어(usePlatformDefaultWidth=false) — 한 줄 20글자가 한 줄에 들어가도록 넉넉히.
+    Dialog(onDismissRequest = dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 22.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF121821))
                 .border(
@@ -72,7 +75,7 @@ fun FirstVisitInfo(
                     Brush.linearGradient(listOf(Mint.copy(alpha = 0.6f), Blue.copy(alpha = 0.45f))),
                     RoundedCornerShape(24.dp)
                 )
-                .padding(24.dp),
+                .padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 아이콘 뱃지 (민트→블루 그라데이션 원)

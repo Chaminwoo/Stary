@@ -208,13 +208,13 @@
     <!-- 화면 첫 진입 설명창 (FirstVisitInfo) -->
     <string name="onb_button">시작하기</string>
     <string name="onb_mydiary_title">내 다이어리</string>
-    <string name="onb_mydiary_msg">다이얼을 돌려 최신·인기·거리순으로 내가 남긴 별을 둘러보세요. 별을 누르면 그 다이어리가 있는 곳으로 이동해요.</string>
+    <string name="onb_mydiary_msg">다이얼을 돌려 최신·인기·거리순으로\n내가 남긴 별을 둘러보세요.\n별을 누르면 그 다이어리가\n있는 곳으로 이동해요.</string>
     <string name="onb_profile_title">프로필</string>
-    <string name="onb_profile_msg">사진을 눌러 프로필을 바꾸고, 떠다니는 아이콘으로 좋아요·친구·다이어리·업적을 한눈에 볼 수 있어요. 오른쪽 위 +로 아끼는 별을 프로필에 띄워보세요.</string>
+    <string name="onb_profile_msg">사진을 눌러 프로필을 바꾸고,\n떠다니는 아이콘으로 좋아요·친구·\n다이어리·업적을 볼 수 있어요.\n오른쪽 위 +로 아끼는 별을\n프로필에 띄워보세요.</string>
     <string name="onb_achievements_title">업적</string>
-    <string name="onb_achievements_msg">다이어리를 쓰고 친구를 사귀고 별을 모으면 칭호와 새로운 별 모양·색이 해금돼요. 칭호를 눌러 장착할 수 있어요.</string>
+    <string name="onb_achievements_msg">다이어리를 쓰고 친구를 사귀고\n별을 모으면 칭호와 새로운\n별 모양·색이 해금돼요.\n칭호를 눌러 장착할 수 있어요.</string>
     <string name="onb_music_title">배경음악</string>
-    <string name="onb_music_msg">원형 다이얼을 돌려 우주의 음악을 골라보세요. 잠긴 트랙은 업적을 달성하면 열려요.</string>
+    <string name="onb_music_msg">원형 다이얼을 돌려 우주의\n음악을 골라보세요.\n잠긴 트랙은\n업적을 달성하면 열려요.</string>
     <string name="onb_friends_title">친구</string>
-    <string name="onb_friends_msg">이름으로 친구를 검색해 요청을 보내고, 받은 요청을 수락하면 서로의 별을 보고 채팅할 수 있어요.</string>
+    <string name="onb_friends_msg">이름으로 친구를 검색해\n요청을 보내고,\n받은 요청을 수락하면 서로의\n별을 보고 채팅할 수 있어요.</string>
 </resources>

@@ -59,10 +59,11 @@ private struct FirstVisitInfoCard: View {
                     .font(.title2.bold())
                     .foregroundStyle(Theme.textPrimary)
                 Text(message)
-                    .font(.subheadline)
+                    .font(.system(size: 14))
                     .foregroundStyle(Color(hex: 0xB8C0CC))
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 Button(action: onDismiss) {
                     Text(LocaleManager.shared.t(.onbButton))
                         .font(.subheadline.bold())
@@ -80,7 +81,7 @@ private struct FirstVisitInfoCard: View {
                     .strokeBorder(LinearGradient(colors: [Theme.mint.opacity(0.6), Color(hex: 0x3B82F6).opacity(0.45)],
                                                  startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
             )
-            .padding(32)
+            .padding(24)
         }
     }
 }
