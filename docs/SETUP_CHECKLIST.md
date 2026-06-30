@@ -235,7 +235,7 @@
 
 ### 프로필 떠다니는 통계 아이콘/별 드래그 — ✅ 안드+iOS (8.26-iOS 로 iOS 패리티 완료)
 - [x] 안드: `FloatingStatBox`(부유/잡기/던지기/충돌/버스트 Compose 물리) + 핀 다이어리(별 모양, 탭→지도) + 탑바 `+` 핀 picker. `ProfileScreen` 중앙 아바타/이름/칭호 + 하단 로그아웃.
-- [x] **iOS(8.26-iOS)**: `FloatingStatBox.swift`(TimelineView+Canvas+버블별 DragGesture 물리 포팅, 히트테스트 분리), `ProfileScreen` 재작성, `AchievementsScreen`/`MyStarsScreen` 분리, 핀 = `users.pinnedDiaries`. iOS 컴파일은 push 후 CI(macOS) 검증.
+- [x] **iOS(8.26-iOS)**: `FloatingStatBox.swift`(TimelineView+Canvas+버블별 DragGesture 물리 포팅, 히트테스트 분리), `ProfileScreen` 재작성, `AchievementsScreen`/`MyStarsScreen` 분리, 핀 = `users.pinnedDiaries`. **CI(macOS) BUILD SUCCESS `e787ce8`**.
 - [ ] **남은 점진 이관**: 친구 별-보드(`UserDiaryStarsScreen`)·내 다이어리 부유 보드(`DiaryStarBox` 드래그)는 iOS 미이관(MyStarsScreen 간이 리스트로 대체).
 
 ### 🌐 줌아웃 글로브(레퍼런스 `references/min_zoom.png`) — ⏳ 백로그 (방안 A 확정, 미구현)

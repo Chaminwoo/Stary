@@ -2,7 +2,7 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 + 핀별 파동·길찾기**(브랜치 `feat/moderation-profile-round` 의 안드 전용 잔여분을 iOS 로 이관 + 핀 별 탭=파동 후 길찾기 양쪽 통일) — 아래 8.26-iOS 참고. Android = NavGraph 핀별 1줄(`withRoute=true`) 변경 → `:androidApp:assembleDebug` **BUILD SUCCESSFUL**. iOS 컴파일은 push 후 CI(macOS) 검증 대기.
+> 최종 갱신: **8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 + 핀별 파동·길찾기**(브랜치 `feat/moderation-profile-round` 의 안드 전용 잔여분을 iOS 로 이관 + 핀 별 탭=파동 후 길찾기 양쪽 통일) — 아래 8.26-iOS 참고. Android = NavGraph 핀별 1줄(`withRoute=true`) 변경 → `:androidApp:assembleDebug` **BUILD SUCCESSFUL**. iOS 컴파일 = **CI(macOS) BUILD SUCCESS `e787ce8`**.
 > 이전: **8.25 체크리스트 TODO 3건**(인앱 배너 반복 dedup, 미조회 아이콘 FiberNew, 설정 음량 슬라이더 별 thumb) BUILD SUCCESSFUL — 아래 8.25 참고.
 > 이전: **8.24 안드로이드 언어 리소스화 마무리**(DiaryMap FAB/토스트·UserProfileScreen 하드코딩 → strings.xml ko/en/ja, BUILD SUCCESSFUL) — 아래 8.24 참고.
 > 이전: **8.23-iOS 미조회 필터 + 조회 기록**(ViewedStore/markViewed + Map·List "미조회만", CI(macOS) BUILD SUCCESS e89904a) — 아래 8.23-iOS 참고.
@@ -18,7 +18,7 @@
 
 ---
 
-## 8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 (Android 무변경, iOS 컴파일 CI 대기)
+## 8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 (CI(macOS) BUILD SUCCESS e787ce8)
 브랜치 `feat/moderation-profile-round` 의 **안드 전용 잔여분 2건**을 iOS(SwiftUI)로 이관(§1.5 패리티). Android/shared 파일은 한 줄도 안 바꿈 → `:androidApp:compileDebugKotlin` UP-TO-DATE(BUILD SUCCESSFUL). iOS 는 Windows 컴파일 불가 → push 후 `ios.yml`(macOS) 검증.
 
 ### ① 도보 길찾기 진입(친구 별) + 실시간 부분경로 — iOS
