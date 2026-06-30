@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.27 화면 첫 진입 설명창**(내 다이어리·프로필·업적·배경음악·친구 5개 화면에 1회 안내 다이얼로그, 안드+iOS) — 아래 8.27 참고. Android `:androidApp:assembleDebug` **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
+> 최종 갱신: **8.28 닉네임 변경 + 닉네임 친구 검색(공통친구 정렬)**(프로필 이름 탭→변경, 기본=구글 닉네임; 검색 결과 2명↑이면 나와 공통 친구 많은 순 정렬, 안드+iOS) — 아래 8.28 참고. Android `:androidApp:assembleDebug` **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
+> 이전: **8.27 화면 첫 진입 설명창**(내 다이어리·프로필·업적·배경음악·친구 5개 화면에 1회 안내 다이얼로그, 안드+iOS) — 아래 8.27 참고.
 > 이전: **8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 + 핀별 파동·길찾기** — 아래 8.26-iOS 참고. iOS 컴파일 = **CI(macOS) BUILD SUCCESS `e787ce8`**.
 > 이전: **8.25 체크리스트 TODO 3건**(인앱 배너 반복 dedup, 미조회 아이콘 FiberNew, 설정 음량 슬라이더 별 thumb) BUILD SUCCESSFUL — 아래 8.25 참고.
 > 이전: **8.24 안드로이드 언어 리소스화 마무리**(DiaryMap FAB/토스트·UserProfileScreen 하드코딩 → strings.xml ko/en/ja, BUILD SUCCESSFUL) — 아래 8.24 참고.
@@ -16,6 +17,15 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.28 닉네임 변경 + 닉네임 친구 검색(공통친구 정렬) (Android BUILD SUCCESSFUL, iOS 컴파일 CI 대기)
+기본 닉네임은 구글 닉네임. **내 프로필에서 이름을 누르면 변경**(UI 레이아웃은 그대로, 입력만 다이얼로그/alert). 변경값은 `users/{uid}.userName`(검색·친구목록 표시 소스) + 로컬 캐시에 저장 → 친구 검색은 그 닉네임으로 동작. **검색 결과가 2명 이상이면 "나와 겹치는 친구가 많은 순"으로 정렬**(동률은 이름순 유지).
+- **닉네임 저장 소스**: `users/{uid}.userName`(Firestore=진짜 소스, 검색 prefix 쿼리 필드) + 기기 캐시(즉시 복원). ⚠️ **로그인 시 구글 이름으로 덮어쓰지 않게** 보강 — 안드 `GoogleAuthHelper.signInWithGoogle` 가 upsert 전에 기존 `userName` 을 읽어 우선, iOS `AuthManager.ensureProfile` 도 기존 `userName` 우선(없을 때만 구글 이름). 다른 기기 재로그인에도 닉네임 유지.
+- **Android**: `core/util/NicknameStore.kt`(prefs `stary_nickname`, uid별) 신설. `GoogleAuthHelper.applyStoredNickname(context)`(앱 시작 시 캐시 반영, `MainActivity.onCreate` 에서 restoreSession 직후 호출) + `setNickname(context, name)`(메모리 `currentUserName`+prefs+Firestore 갱신). `ProfileScreen` 이름 `Text` 에 리플 없는 `clickable` + `NicknameEditDialog`(BasicTextField 최대 20자) — `currentUserName` 이 일반 var 라 화면 로컬 `displayName` state 로 즉시 반영. 문구 `strings.xml` `profile_edit_nickname/profile_nickname_hint`(ko/en/ja).
+- **iOS**: `AuthManager` 에 `setNickname(_:)`(@Published `displayName`+UserDefaults `nickname_<uid>`+Firestore) + 상태리스너에서 캐시 닉네임 즉시 반영. `ProfileScreen` 이름 `Text` 에 `.onTapGesture` → `.alert`(iOS16 TextField) 로 변경(시스템 alert 라 레이아웃 무영향). L10n `profileEditNickname/profileNicknameHint`.
+- **검색 정렬**: 안드 `FirebaseFriendRepository.searchUsers`(excludeUserId=myUid) — 결과 2명↑이면 `friendIds(myUid)` ∩ `friendIds(each)` 개수로 `sortedByDescending`(async 병렬 `coroutineScope`+`awaitAll`). iOS `FriendsViewModel.search` 동일(순차 await + 인덱스 타이브레이크로 안정 정렬). `friendIds(uid)` = `users/{uid}/friends` 문서 id 집합. 검색 자체는 기존 `userName` prefix(`query`..`query+`) 그대로.
 
 ---
 

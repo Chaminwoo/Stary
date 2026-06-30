@@ -26,6 +26,8 @@ class MainActivity : ComponentActivity() {
 
         // 영속된 로그인 세션 복원 — 있으면 로그인 화면을 건너뛰고 바로 지도로 진입한다.
         GoogleAuthHelper.restoreSession()
+        // 같은 기기에 저장해 둔 커스텀 닉네임이 있으면 표시명에 즉시 반영(기본=구글 닉네임).
+        GoogleAuthHelper.applyStoredNickname(this)
 
         // 앱 시작 즉시 필요한 권한 요청 — 위치(지도 초기 위치)·푸시 알림(API 33+).
         // 위치를 늦게 받으면 초기 지도가 기본 좌표로 떠서 주변 다이어리가 안 보이므로 켜자마자 요청한다.

@@ -215,4 +215,7 @@
     <string name="onb_music_msg">円形ダイヤルを回して宇宙の音楽を選びましょう。ロックされたトラックは実績を達成すると開きます。</string>
     <string name="onb_friends_title">フレンド</string>
     <string name="onb_friends_msg">名前でフレンドを検索してリクエストを送り、届いたリクエストを承認するとお互いの星を見たりチャットできます。</string>
+    <!-- ニックネーム変更 -->
+    <string name="profile_edit_nickname">ニックネーム変更</string>
+    <string name="profile_nickname_hint">ニックネームを入力</string>
 </resources>

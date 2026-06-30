@@ -38,11 +38,28 @@ final class FriendsViewModel: ObservableObject {
                 .whereField("userName", isLessThanOrEqualTo: q + "\u{f8ff}")
                 .limit(to: 20)
                 .getDocuments()
-            results = snap.documents.compactMap { try? $0.data(as: UserProfile.self) }
+            var list = snap.documents.compactMap { try? $0.data(as: UserProfile.self) }
                 .filter { $0.userId != uid && !$0.userName.isEmpty }
+            // 2명 이상이면 "나와 겹치는 친구가 많은 순"으로 정렬(동률은 이름 순 유지).
+            if list.count >= 2 && !uid.isEmpty {
+                let myFriends = await Self.friendIds(of: uid)
+                var scored: [(idx: Int, u: UserProfile, c: Int)] = []
+                for (i, u) in list.enumerated() {
+                    let theirs = await Self.friendIds(of: u.userId)
+                    scored.append((i, u, theirs.intersection(myFriends).count))
+                }
+                list = scored.sorted { $0.c != $1.c ? $0.c > $1.c : $0.idx < $1.idx }.map { $0.u }
+            }
+            results = list
         } catch {
             results = []
         }
+    }
+
+    /// 한 사용자의 친구 uid 집합(users/{uid}/friends 문서 id). 공통 친구 수 계산용. (Android friendIds 패리티)
+    static func friendIds(of uid: String) async -> Set<String> {
+        guard let snap = try? await FirestoreService.friends(of: uid).getDocuments() else { return [] }
+        return Set(snap.documents.map { $0.documentID })
     }
 
     func sendRequest(fromId: String, fromName: String, to: UserProfile) async {

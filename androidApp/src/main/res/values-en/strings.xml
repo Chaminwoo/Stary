@@ -215,4 +215,7 @@
     <string name="onb_music_msg">Turn the circular dial to pick a cosmic track. Locked tracks open as you earn achievements.</string>
     <string name="onb_friends_title">Friends</string>
     <string name="onb_friends_msg">Search friends by name to send requests; accept incoming ones to see each other\'s stars and chat.</string>
+    <!-- Edit nickname -->
+    <string name="profile_edit_nickname">Edit nickname</string>
+    <string name="profile_nickname_hint">Enter a nickname</string>
 </resources>

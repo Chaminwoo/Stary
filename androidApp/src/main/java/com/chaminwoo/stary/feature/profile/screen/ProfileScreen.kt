@@ -84,6 +84,9 @@ import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.ProfilePinState
 import com.chaminwoo.stary.core.ui.FirstVisitInfo
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import kotlinx.coroutines.launch
 
@@ -137,6 +140,10 @@ fun ProfileScreen(
     val myDiaries by diaryVm.getMyDiaries(userId).collectAsState()
     var pinnedIds by remember(userId) { mutableStateOf<List<String>>(emptyList()) }
     var showPinPicker by remember { mutableStateOf(false) }
+    // 표시 닉네임(기본=구글 닉네임). 이름을 누르면 변경 다이얼로그. currentUserName 은 일반 var 라
+    // 즉시 반영을 위해 화면 로컬 상태로 들고 변경 시 함께 갱신한다.
+    var displayName by remember(userId) { mutableStateOf(GoogleAuthHelper.currentUserName ?: userId.take(12)) }
+    var showNicknameDialog by remember { mutableStateOf(false) }
     LaunchedEffect(userId) {
         pinnedIds = com.chaminwoo.stary.data.repository.FirebaseFriendRepository().getPinnedDiaries(userId)
     }
@@ -221,9 +228,14 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(16.dp))
 
+            // 닉네임 — 누르면 변경(기본=구글 닉네임). 평상시 모양은 그대로(리플 없는 클릭).
             Text(
-                text = GoogleAuthHelper.currentUserName ?: userId.take(12),
-                fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextMain
+                text = displayName,
+                fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextMain,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { showNicknameDialog = true }
             )
 
             // 장착 칭호 — 글씨만 + 후광 (테두리/배경/아이콘 없음)
@@ -303,6 +315,71 @@ fun ProfileScreen(
                     }
                 }
             )
+        }
+
+        if (showNicknameDialog) {
+            NicknameEditDialog(
+                initial = displayName,
+                onDismiss = { showNicknameDialog = false },
+                onConfirm = { name ->
+                    showNicknameDialog = false
+                    val trimmed = name.trim()
+                    if (trimmed.isNotBlank() && trimmed != displayName) {
+                        displayName = trimmed
+                        scope.launch { GoogleAuthHelper.setNickname(context, trimmed) }
+                    }
+                }
+            )
+        }
+    }
+}
+
+/** 닉네임 변경 — 한 줄 입력(최대 20자) + 저장/취소. 프로필 레이아웃은 그대로, 변경만 다이얼로그로. */
+@Composable
+private fun NicknameEditDialog(
+    initial: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(initial) }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xFF121821))
+                .border(1.dp, Brush.linearGradient(listOf(Green.copy(alpha = 0.5f), Blue.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
+                .padding(20.dp)
+        ) {
+            Text(stringResource(R.string.profile_edit_nickname), color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .border(1.dp, Green.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (text.isEmpty()) {
+                    Text(stringResource(R.string.profile_nickname_hint), color = TextMuted, fontSize = 15.sp)
+                }
+                BasicTextField(
+                    value = text,
+                    onValueChange = { if (it.length <= 20) text = it.replace("\n", "") },
+                    singleLine = true,
+                    textStyle = TextStyle(color = TextMain, fontSize = 15.sp),
+                    cursorBrush = SolidColor(Green),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = TextMuted) }
+                Spacer(Modifier.width(4.dp))
+                TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.common_save), color = Green) }
+            }
         }
     }
 }

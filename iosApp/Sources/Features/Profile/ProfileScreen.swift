@@ -18,6 +18,8 @@ struct ProfileScreen: View {
     @State private var pinnedIds: [String] = []
     @State private var showPinPicker = false
     @State private var path = NavigationPath()
+    @State private var showNicknameEditor = false
+    @State private var nicknameDraft = ""
 
     private enum ProfileRoute: Hashable { case achievements, myStars }
 
@@ -67,9 +69,14 @@ struct ProfileScreen: View {
                 // 중앙: 아바타 + 이름 + 칭호 (화면 가운데보다 살짝 위)
                 VStack(spacing: 14) {
                     avatar
+                    // 닉네임 — 누르면 변경(기본=구글 닉네임). 레이아웃은 그대로.
                     Text(auth.displayName.isEmpty ? "Stargazer" : auth.displayName)
                         .font(.system(size: 26, weight: .bold))
                         .foregroundStyle(Theme.textPrimary)
+                        .onTapGesture {
+                            nicknameDraft = auth.displayName
+                            showNicknameEditor = true
+                        }
                     Button { path.append(ProfileRoute.achievements) } label: {
                         Text(equippedTitle ?? locale.t(.userNoTitle))
                             .font(.system(size: 15, weight: .semibold))
@@ -155,6 +162,14 @@ struct ProfileScreen: View {
             .firstVisitInfo(key: "profile", systemImage: "person.fill",
                             title: LocaleManager.shared.t(.onbProfileTitle),
                             message: LocaleManager.shared.t(.onbProfileMsg))
+            .alert(locale.t(.profileEditNickname), isPresented: $showNicknameEditor) {
+                TextField(locale.t(.profileNicknameHint), text: $nicknameDraft)
+                Button(locale.t(.commonSave)) {
+                    let n = nicknameDraft
+                    Task { await auth.setNickname(n) }
+                }
+                Button(locale.t(.commonCancel), role: .cancel) {}
+            }
         }
     }
 

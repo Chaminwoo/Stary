@@ -8,6 +8,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import com.chaminwoo.stary.core.model.UserProfile
+import com.chaminwoo.stary.core.util.NicknameStore
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.shared.config.StaryConfig
@@ -67,8 +68,16 @@ object GoogleAuthHelper {
                 }
                 // 친구 검색이 가능하도록 공개 프로필(users/{uid}) 기록.
                 // fire-and-forget: Firestore 쓰기가 지연/실패해도 로그인 흐름을 막지 않는다.
+                val appCtx = context.applicationContext
                 currentUserId?.let { uid ->
                     CoroutineScope(Dispatchers.IO).launch {
+                        // 이미 정해둔 닉네임(커스텀 포함)이 있으면 그걸 우선 — 구글 이름으로 덮어쓰지 않는다.
+                        // (다른 기기에서 재로그인해도 닉네임이 유지되도록.)
+                        val existing = FirebaseFriendRepository().getProfile(uid)?.userName?.takeIf { it.isNotBlank() }
+                        if (existing != null) {
+                            currentUserName = existing
+                            NicknameStore.set(appCtx, uid, existing)
+                        }
                         FirebaseFriendRepository().upsertProfile(
                             UserProfile(
                                 userId = uid,
@@ -130,6 +139,32 @@ object GoogleAuthHelper {
             Log.d(TAG, "로그아웃 성공")
         } catch (e: Exception) {
             Log.e(TAG, "로그아웃 실패: ${e.localizedMessage}")
+        }
+    }
+
+    /** 앱 시작/세션 복원 직후 — 같은 기기에 저장해 둔 커스텀 닉네임이 있으면 표시명에 반영. */
+    fun applyStoredNickname(context: Context) {
+        val uid = currentUserId ?: return
+        NicknameStore.get(context, uid)?.let { currentUserName = it }
+    }
+
+    /**
+     * 프로필에서 닉네임 변경 — 표시명(메모리)·검색용 `users/{uid}.userName`·로컬 캐시를 함께 갱신.
+     * 기본값은 구글 닉네임이고, 여기서 정한 값이 이후 우선한다. 빈 값은 무시.
+     */
+    suspend fun setNickname(context: Context, name: String): Boolean = withContext(Dispatchers.IO) {
+        val uid = currentUserId ?: return@withContext false
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return@withContext false
+        currentUserName = trimmed
+        NicknameStore.set(context, uid, trimmed)
+        try {
+            staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
+                .set(mapOf("userName" to trimmed), SetOptions.merge()).await()
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "닉네임 저장 실패: ${e.localizedMessage}")
+            false
         }
     }
 

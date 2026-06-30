@@ -20,8 +20,14 @@ final class AuthManager: ObservableObject {
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
                 self?.uid = user?.uid
-                self?.displayName = user?.displayName ?? user?.email ?? "익명의 별"
-                if let user { await self?.ensureProfile(user) }
+                if let user {
+                    // 캐시된 커스텀 닉네임이 있으면 즉시 반영(기본=구글 이름). Firestore 값으로 ensureProfile 에서 확정.
+                    let cached = UserDefaults.standard.string(forKey: "nickname_\(user.uid)")
+                    self?.displayName = cached ?? user.displayName ?? user.email ?? "익명의 별"
+                    await self?.ensureProfile(user)
+                } else {
+                    self?.displayName = ""
+                }
             }
         }
     }
@@ -107,7 +113,11 @@ final class AuthManager: ObservableObject {
     /// users/{uid} 프로필 문서를 생성/갱신(없으면 만든다).
     private func ensureProfile(_ user: User) async {
         let ref = FirestoreService.users.document(user.uid)
-        let name = user.displayName ?? user.email ?? "익명의 별"
+        // 이미 정해둔 닉네임(커스텀 포함)이 있으면 우선 — 구글 이름으로 덮어쓰지 않는다(재로그인 유지).
+        let existing = (try? await ref.getDocument())?.get("userName") as? String
+        let name = (existing?.isEmpty == false) ? existing! : (user.displayName ?? user.email ?? "익명의 별")
+        displayName = name
+        UserDefaults.standard.set(name, forKey: "nickname_\(user.uid)")
         // Android upsertProfile 과 동일한 3필드(검색 가능하도록).
         let data: [String: Any] = [
             "userId": user.uid,
@@ -117,6 +127,22 @@ final class AuthManager: ObservableObject {
         try? await ref.setData(data, merge: true)
         // 로그인 → 삭제 예약이 있으면 취소(7일 유예 정책).
         await Self.cancelPendingDeletion(uid: user.uid)
+    }
+
+    /// 닉네임 변경 — 표시명(@Published)·검색용 `users/{uid}.userName`·로컬 캐시를 함께 갱신.
+    /// 기본값은 구글 닉네임이고 여기서 정한 값이 이후 우선한다. 빈 값은 무시. (Android setNickname 패리티)
+    @discardableResult
+    func setNickname(_ name: String) async -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let uid = uid, !trimmed.isEmpty else { return false }
+        displayName = trimmed
+        UserDefaults.standard.set(trimmed, forKey: "nickname_\(uid)")
+        do {
+            try await FirestoreService.users.document(uid).setData(["userName": trimmed], merge: true)
+            return true
+        } catch {
+            return false
+        }
     }
 
     static func rootViewController() -> UIViewController? {

@@ -85,6 +85,8 @@ enum L10n: String {
     case onbMyDiaryTitle, onbMyDiaryMsg, onbProfileTitle, onbProfileMsg
     case onbAchievementsTitle, onbAchievementsMsg, onbMusicTitle, onbMusicMsg
     case onbFriendsTitle, onbFriendsMsg
+    // 닉네임 변경.
+    case profileEditNickname, profileNicknameHint
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -158,25 +160,27 @@ enum L10n: String {
         case .profileDiaries:       return ("다이어리", "Diaries", "日記")
         case .profileAchievements:  return ("업적", "Achievements", "実績")
         case .profileEmptyStars:    return ("아직 남긴 별이 없어요.", "No stars yet.", "まだ星がありません。")
+        case .profileEditNickname:  return ("닉네임 변경", "Edit nickname", "ニックネーム変更")
+        case .profileNicknameHint:  return ("닉네임을 입력하세요", "Enter a nickname", "ニックネームを入力")
         case .onbButton:            return ("시작하기", "Get started", "はじめる")
         case .onbMyDiaryTitle:      return ("내 별", "My Stars", "マイ星")
-        case .onbMyDiaryMsg:        return ("내가 남긴 별들을 모아봤어요.\n별을 누르면 그 다이어리를 열고,\n'길찾기'로 그곳까지\n걸어갈 수 있어요.",
+        case .onbMyDiaryMsg:        return ("내가 남긴 다이어리가 모여있어요.\n별을 잡아서 제목을 보거나, 클릭하여 열람하세요",
                                             "Here are the stars you've left. Tap one to open the diary, or use Directions to walk there.",
                                             "あなたが残した星を集めました。星をタップすると日記を開き、「道案内」でそこまで歩いて行けます。")
         case .onbProfileTitle:      return ("프로필", "Profile", "プロフィール")
-        case .onbProfileMsg:        return ("사진을 눌러 프로필을 바꾸고,\n떠다니는 아이콘으로 좋아요·친구·\n다이어리·업적을 볼 수 있어요.\n오른쪽 위 +로 아끼는 별을\n프로필에 띄워보세요.",
+        case .onbProfileMsg:        return ("사진을 눌러 프로필을 바꾸고,\n떠다니는 아이콘을 잡거나 클릭해 다양한 정보를 볼 수 있어요.\n오른쪽 위 + 버튼을 통해 아끼는 별을 프로필에 띄워보세요.",
                                             "Tap your photo to change it, and see your likes, friends, diaries, and achievements as floating icons. Use + at the top right to pin your favorite stars.",
                                             "写真をタップしてプロフィールを変更でき、浮かぶアイコンでいいね・フレンド・日記・実績をひと目で確認できます。右上の＋でお気に入りの星を飾れます。")
         case .onbAchievementsTitle: return ("업적", "Achievements", "実績")
-        case .onbAchievementsMsg:   return ("다이어리를 쓰고 친구를 사귀고\n별을 모으면 칭호와 새로운\n별 모양·색이 해금돼요.\n칭호를 눌러 장착할 수 있어요.",
+        case .onbAchievementsMsg:   return ("다이어리를 쓰고 친구를 만들어 업적을 달성하세요. \n 별을 모으면 칭호와 새로운 별 모양과 색이 해금돼요.",
                                             "Writing diaries, making friends, and collecting stars unlock titles and new star shapes and colors. Tap a title to equip it.",
                                             "日記を書き、フレンドを作り、星を集めると称号や新しい星の形・色が解放されます。称号はタップで装着できます。")
         case .onbMusicTitle:        return ("배경음악", "Background music", "BGM")
-        case .onbMusicMsg:          return ("원형 다이얼을 돌려 우주의\n음악을 골라보세요.\n잠긴 트랙은\n업적을 달성하면 열려요.",
+        case .onbMusicMsg:          return ("원형 다이얼을 돌려 배경음악을 골라보세요. \n 잠긴 음악들은 업적을 통해 해금하세요.",
                                             "Turn the circular dial to pick a cosmic track. Locked tracks open as you earn achievements.",
                                             "円形ダイヤルを回して宇宙の音楽を選びましょう。ロックされたトラックは実績を達成すると開きます。")
         case .onbFriendsTitle:      return ("친구", "Friends", "フレンド")
-        case .onbFriendsMsg:        return ("이름으로 친구를 검색해\n요청을 보내고,\n받은 요청을 수락하면 서로의\n별을 보고 채팅할 수 있어요.",
+        case .onbFriendsMsg:        return ("이름으로 친구를 검색해 요청을 보내세요.\n받은 요청을 수락하면 서로의 프로필을 보며, 채팅할 수 있어요.",
                                             "Search friends by name to send requests; accept incoming ones to see each other's stars and chat.",
                                             "名前でフレンドを検索してリクエストを送り、届いたリクエストを承認するとお互いの星を見たりチャットできます。")
         }

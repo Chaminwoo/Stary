@@ -9,7 +9,10 @@ import com.chaminwoo.stary.shared.data.repository.FriendRepository
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
@@ -114,16 +117,33 @@ class FirebaseFriendRepository : FriendRepository {
     override suspend fun searchUsers(query: String, excludeUserId: String): List<UserProfile> {
         if (query.isBlank()) return emptyList()
         return try {
-            users.whereGreaterThanOrEqualTo("userName", query)
+            val results = users.whereGreaterThanOrEqualTo("userName", query)
                 .whereLessThanOrEqualTo("userName", query + "")
                 .limit(20)
                 .get().await()
                 .documents
                 .mapNotNull { it.toObject(UserProfile::class.java)?.copy(userId = it.id) }
                 .filter { it.userId != excludeUserId && it.userName.isNotBlank() }
+            if (results.size < 2 || excludeUserId.isBlank()) return results
+            // 2명 이상이면 "나와 겹치는 친구가 많은 순"으로 정렬(동률은 이름 순 유지).
+            val myFriends = friendIds(excludeUserId)
+            val ranked = coroutineScope {
+                results.map { other ->
+                    async { other to friendIds(other.userId).count { it in myFriends } }
+                }.awaitAll()
+            }
+            ranked.sortedByDescending { it.second }.map { it.first }
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    /** 한 사용자의 친구 uid 집합(users/{uid}/friends 문서 id). 공통 친구 수 계산용. */
+    private suspend fun friendIds(uid: String): Set<String> = try {
+        users.document(uid).collection(StaryConfig.Collections.FRIENDS).get().await()
+            .documents.map { it.id }.toSet()
+    } catch (_: Exception) {
+        emptySet()
     }
 
     override suspend fun sendRequest(from: UserProfile, to: UserProfile): Boolean {
