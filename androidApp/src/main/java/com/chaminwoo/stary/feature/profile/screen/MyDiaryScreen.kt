@@ -46,6 +46,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import com.chaminwoo.stary.core.ui.FirstVisitInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -107,6 +110,13 @@ fun MyDiaryScreen(
             colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
         )
         DiaryStarsBoard(diaries = myDiaries, onDiaryClick = onDiaryClick)
+
+        FirstVisitInfo(
+            seenKey = "info_mydiary",
+            icon = Icons.AutoMirrored.Filled.MenuBook,
+            title = stringResource(R.string.onb_mydiary_title),
+            message = stringResource(R.string.onb_mydiary_msg),
+        )
     }
 }
 

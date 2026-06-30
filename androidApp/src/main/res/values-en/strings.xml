@@ -203,4 +203,16 @@
     <string name="user_unfriend_confirm">Remove %1$s from your friends?</string>
     <string name="user_unfriend_yes">Remove</string>
     <string name="user_unfriend_no">Keep</string>
+    <!-- First-visit info dialog (FirstVisitInfo) -->
+    <string name="onb_button">Get started</string>
+    <string name="onb_mydiary_title">My Diary</string>
+    <string name="onb_mydiary_msg">Spin the dial to browse your stars by latest, popular, or distance. Tap a star to jump to where that diary is.</string>
+    <string name="onb_profile_title">Profile</string>
+    <string name="onb_profile_msg">Tap your photo to change it, and see your likes, friends, diaries, and achievements as floating icons. Use + at the top right to pin your favorite stars to your profile.</string>
+    <string name="onb_achievements_title">Achievements</string>
+    <string name="onb_achievements_msg">Writing diaries, making friends, and collecting stars unlock titles and new star shapes and colors. Tap a title to equip it.</string>
+    <string name="onb_music_title">Background music</string>
+    <string name="onb_music_msg">Turn the circular dial to pick a cosmic track. Locked tracks open as you earn achievements.</string>
+    <string name="onb_friends_title">Friends</string>
+    <string name="onb_friends_msg">Search friends by name to send requests; accept incoming ones to see each other\'s stars and chat.</string>
 </resources>

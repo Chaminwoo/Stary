@@ -83,6 +83,7 @@ import androidx.compose.runtime.SideEffect
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.ProfilePinState
+import com.chaminwoo.stary.core.ui.FirstVisitInfo
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import kotlinx.coroutines.launch
 
@@ -161,6 +162,13 @@ fun ProfileScreen(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
             colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
+        )
+
+        FirstVisitInfo(
+            seenKey = "info_profile",
+            icon = Icons.Filled.Person,
+            title = stringResource(R.string.onb_profile_title),
+            message = stringResource(R.string.onb_profile_msg),
         )
 
         val unlockedCount = remember(stats) { Achievements.unlockedIds(stats).size }

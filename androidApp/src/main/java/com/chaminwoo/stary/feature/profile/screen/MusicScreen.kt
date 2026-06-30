@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
+import com.chaminwoo.stary.core.ui.FirstVisitInfo
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -139,6 +141,13 @@ fun MusicScreen(modifier: Modifier = Modifier) {
             painter = painterResource(R.drawable.mydiary_bg), contentDescription = null,
             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
             colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
+        )
+
+        FirstVisitInfo(
+            seenKey = "info_music",
+            icon = Icons.Filled.MusicNote,
+            title = stringResource(R.string.onb_music_title),
+            message = stringResource(R.string.onb_music_msg),
         )
 
         Column(

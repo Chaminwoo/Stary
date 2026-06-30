@@ -55,6 +55,9 @@ struct AchievementsScreen: View {
                 equippedTitleId = doc.get("equippedTitle") as? String
             }
         }
+        .firstVisitInfo(key: "achievements", systemImage: "trophy.fill",
+                        title: locale.t(.onbAchievementsTitle),
+                        message: locale.t(.onbAchievementsMsg))
     }
 
     private func achievementRow(_ ach: Achievement) -> some View {

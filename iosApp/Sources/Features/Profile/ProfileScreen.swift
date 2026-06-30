@@ -152,6 +152,9 @@ struct ProfileScreen: View {
                     }
                 }
             }
+            .firstVisitInfo(key: "profile", systemImage: "person.fill",
+                            title: LocaleManager.shared.t(.onbProfileTitle),
+                            message: LocaleManager.shared.t(.onbProfileMsg))
         }
     }
 
@@ -245,6 +248,9 @@ struct MyStarsScreen: View {
         }
         .navigationTitle(locale.t(.profileMyStars))
         .navigationBarTitleDisplayMode(.inline)
+        .firstVisitInfo(key: "mydiary", systemImage: "book.fill",
+                        title: locale.t(.onbMyDiaryTitle),
+                        message: locale.t(.onbMyDiaryMsg))
     }
 }
 

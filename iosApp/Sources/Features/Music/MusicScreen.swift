@@ -287,6 +287,9 @@ struct MusicScreen: View {
             // 바꿨으면 확정(미리듣기 위치 그대로 이어짐), 안 바꿨으면 현재 재생 무간섭.
             if pendingId != originalId { MusicManager.shared.commitSelectedTrack(pendingId) }
         }
+        .firstVisitInfo(key: "music", systemImage: "music.note",
+                        title: LocaleManager.shared.t(.onbMusicTitle),
+                        message: LocaleManager.shared.t(.onbMusicMsg))
     }
 
     private func previewSelected() {

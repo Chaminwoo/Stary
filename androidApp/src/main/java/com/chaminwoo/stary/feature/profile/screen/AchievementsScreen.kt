@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
+import com.chaminwoo.stary.core.ui.FirstVisitInfo
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -82,6 +84,13 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
             painter = painterResource(R.drawable.mydiary_bg), contentDescription = null,
             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
             colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
+        )
+
+        FirstVisitInfo(
+            seenKey = "info_achievements",
+            icon = Icons.Filled.EmojiEvents,
+            title = stringResource(R.string.onb_achievements_title),
+            message = stringResource(R.string.onb_achievements_msg),
         )
 
         LazyColumn(

@@ -203,4 +203,16 @@
     <string name="user_unfriend_confirm">%1$sさんとのフレンドを解除しますか？</string>
     <string name="user_unfriend_yes">解除</string>
     <string name="user_unfriend_no">キープ</string>
+    <!-- 画面初回の説明ダイアログ (FirstVisitInfo) -->
+    <string name="onb_button">はじめる</string>
+    <string name="onb_mydiary_title">マイ日記</string>
+    <string name="onb_mydiary_msg">ダイヤルを回して、最新・人気・距離順に自分の星を見てみましょう。星をタップするとその日記の場所へ移動します。</string>
+    <string name="onb_profile_title">プロフィール</string>
+    <string name="onb_profile_msg">写真をタップしてプロフィールを変更でき、浮かぶアイコンでいいね・フレンド・日記・実績をひと目で確認できます。右上の＋でお気に入りの星をプロフィールに飾れます。</string>
+    <string name="onb_achievements_title">実績</string>
+    <string name="onb_achievements_msg">日記を書き、フレンドを作り、星を集めると称号や新しい星の形・色が解放されます。称号はタップで装着できます。</string>
+    <string name="onb_music_title">BGM</string>
+    <string name="onb_music_msg">円形ダイヤルを回して宇宙の音楽を選びましょう。ロックされたトラックは実績を達成すると開きます。</string>
+    <string name="onb_friends_title">フレンド</string>
+    <string name="onb_friends_msg">名前でフレンドを検索してリクエストを送り、届いたリクエストを承認するとお互いの星を見たりチャットできます。</string>
 </resources>

@@ -26,6 +26,8 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Group
+import com.chaminwoo.stary.core.ui.FirstVisitInfo
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -129,6 +131,13 @@ fun FriendScreen(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
             colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
+        )
+
+        FirstVisitInfo(
+            seenKey = "info_friends",
+            icon = Icons.Filled.Group,
+            title = stringResource(R.string.onb_friends_title),
+            message = stringResource(R.string.onb_friends_msg),
         )
 
         LazyColumn(

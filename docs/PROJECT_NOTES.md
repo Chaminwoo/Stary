@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 + 핀별 파동·길찾기**(브랜치 `feat/moderation-profile-round` 의 안드 전용 잔여분을 iOS 로 이관 + 핀 별 탭=파동 후 길찾기 양쪽 통일) — 아래 8.26-iOS 참고. Android = NavGraph 핀별 1줄(`withRoute=true`) 변경 → `:androidApp:assembleDebug` **BUILD SUCCESSFUL**. iOS 컴파일 = **CI(macOS) BUILD SUCCESS `e787ce8`**.
+> 최종 갱신: **8.27 화면 첫 진입 설명창**(내 다이어리·프로필·업적·배경음악·친구 5개 화면에 1회 안내 다이얼로그, 안드+iOS) — 아래 8.27 참고. Android `:androidApp:assembleDebug` **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
+> 이전: **8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 + 핀별 파동·길찾기** — 아래 8.26-iOS 참고. iOS 컴파일 = **CI(macOS) BUILD SUCCESS `e787ce8`**.
 > 이전: **8.25 체크리스트 TODO 3건**(인앱 배너 반복 dedup, 미조회 아이콘 FiberNew, 설정 음량 슬라이더 별 thumb) BUILD SUCCESSFUL — 아래 8.25 참고.
 > 이전: **8.24 안드로이드 언어 리소스화 마무리**(DiaryMap FAB/토스트·UserProfileScreen 하드코딩 → strings.xml ko/en/ja, BUILD SUCCESSFUL) — 아래 8.24 참고.
 > 이전: **8.23-iOS 미조회 필터 + 조회 기록**(ViewedStore/markViewed + Map·List "미조회만", CI(macOS) BUILD SUCCESS e89904a) — 아래 8.23-iOS 참고.
@@ -15,6 +16,15 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.27 화면 첫 진입 설명창 (Android BUILD SUCCESSFUL, iOS 컴파일 CI 대기)
+**내 다이어리·프로필·업적·배경음악·친구** 화면에 처음 들어가면 그 화면을 설명하는 안내 다이얼로그를 1회 띄운다.
+- **Android `core/ui/FirstVisitInfo.kt`(신설)**: `FirstVisitInfo(seenKey, icon, title, message)` — 기존 코치마크와 같은 prefs(`stary_onboarding`)에 `seenKey` 로 1회 기록. 민트→블루 그라데이션 테두리 다크 카드 + 아이콘 뱃지 + "시작하기" 버튼(또는 바깥 탭) 닫기. Dialog 라 호출 위치(레이아웃) 무관 → 각 화면 루트 Box 안에서 호출.
+  - 적용: `MyDiaryScreen`(info_mydiary)·`ProfileScreen`(info_profile)·`AchievementsScreen`(info_achievements)·`MusicScreen`(info_music)·`FriendScreen`(info_friends). 문구는 `res/values(-en/-ja)/strings.xml` `onb_*` 키(ko/en/ja).
+- **iOS `Features/FirstVisitInfo.swift`(신설)**: `.firstVisitInfo(key:systemImage:title:message:)` ViewModifier — `UserDefaults` `onb_<key>` 1회 기록, `.onAppear` 게이팅 + 딤 오버레이 카드(시트 대신 오버레이라 탭 전환 안전). 적용: `MyStarsScreen`(mydiary)·`ProfileScreen`(profile)·`AchievementsScreen`(achievements)·`MusicScreen`(music)·`FriendsScreen`(friends). 문구는 `L10n` `onb*`(ko/en/ja).
+- 재노출하려면 prefs 삭제(앱 데이터 초기화) 또는 `stary_onboarding`/`onb_<key>` 제거.
 
 ---
 

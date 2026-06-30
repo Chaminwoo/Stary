@@ -80,6 +80,11 @@ enum L10n: String {
     // 프로필 떠다니는 아이콘/핀 별 라운드.
     case navAchievements, profileMyStars, profilePinTitle, profilePinHint, commonSave
     case profileFriends, profileDiaries, profileAchievements, profileEmptyStars
+    // 화면 첫 진입 설명창(FirstVisitInfo).
+    case onbButton
+    case onbMyDiaryTitle, onbMyDiaryMsg, onbProfileTitle, onbProfileMsg
+    case onbAchievementsTitle, onbAchievementsMsg, onbMusicTitle, onbMusicMsg
+    case onbFriendsTitle, onbFriendsMsg
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -153,6 +158,27 @@ enum L10n: String {
         case .profileDiaries:       return ("다이어리", "Diaries", "日記")
         case .profileAchievements:  return ("업적", "Achievements", "実績")
         case .profileEmptyStars:    return ("아직 남긴 별이 없어요.", "No stars yet.", "まだ星がありません。")
+        case .onbButton:            return ("시작하기", "Get started", "はじめる")
+        case .onbMyDiaryTitle:      return ("내 별", "My Stars", "マイ星")
+        case .onbMyDiaryMsg:        return ("내가 남긴 별들을 모아봤어요. 별을 누르면 그 다이어리를 열고, '길찾기'로 그곳까지 걸어갈 수 있어요.",
+                                            "Here are the stars you've left. Tap one to open the diary, or use Directions to walk there.",
+                                            "あなたが残した星を集めました。星をタップすると日記を開き、「道案内」でそこまで歩いて行けます。")
+        case .onbProfileTitle:      return ("프로필", "Profile", "プロフィール")
+        case .onbProfileMsg:        return ("사진을 눌러 프로필을 바꾸고, 떠다니는 아이콘으로 좋아요·친구·다이어리·업적을 한눈에 볼 수 있어요. 오른쪽 위 +로 아끼는 별을 프로필에 띄워보세요.",
+                                            "Tap your photo to change it, and see your likes, friends, diaries, and achievements as floating icons. Use + at the top right to pin your favorite stars.",
+                                            "写真をタップしてプロフィールを変更でき、浮かぶアイコンでいいね・フレンド・日記・実績をひと目で確認できます。右上の＋でお気に入りの星を飾れます。")
+        case .onbAchievementsTitle: return ("업적", "Achievements", "実績")
+        case .onbAchievementsMsg:   return ("다이어리를 쓰고 친구를 사귀고 별을 모으면 칭호와 새로운 별 모양·색이 해금돼요. 칭호를 눌러 장착할 수 있어요.",
+                                            "Writing diaries, making friends, and collecting stars unlock titles and new star shapes and colors. Tap a title to equip it.",
+                                            "日記を書き、フレンドを作り、星を集めると称号や新しい星の形・色が解放されます。称号はタップで装着できます。")
+        case .onbMusicTitle:        return ("배경음악", "Background music", "BGM")
+        case .onbMusicMsg:          return ("원형 다이얼을 돌려 우주의 음악을 골라보세요. 잠긴 트랙은 업적을 달성하면 열려요.",
+                                            "Turn the circular dial to pick a cosmic track. Locked tracks open as you earn achievements.",
+                                            "円形ダイヤルを回して宇宙の音楽を選びましょう。ロックされたトラックは実績を達成すると開きます。")
+        case .onbFriendsTitle:      return ("친구", "Friends", "フレンド")
+        case .onbFriendsMsg:        return ("이름으로 친구를 검색해 요청을 보내고, 받은 요청을 수락하면 서로의 별을 보고 채팅할 수 있어요.",
+                                            "Search friends by name to send requests; accept incoming ones to see each other's stars and chat.",
+                                            "名前でフレンドを検索してリクエストを送り、届いたリクエストを承認するとお互いの星を見たりチャットできます。")
         }
     }
 

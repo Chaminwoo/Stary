@@ -26,6 +26,9 @@ struct FriendsScreen: View {
             }
             .onAppear { if let uid = auth.uid { vm.start(uid: uid) } }
             .onDisappear { vm.stop() }
+            .firstVisitInfo(key: "friends", systemImage: "person.2.fill",
+                            title: LocaleManager.shared.t(.onbFriendsTitle),
+                            message: LocaleManager.shared.t(.onbFriendsMsg))
         }
     }
 
