@@ -75,6 +75,11 @@ enum L10n: String {
     case reportReasonSpam, reportReasonAbuse, reportReasonInappropriate, reportReasonImpersonation, reportReasonOther
     case toastReported
     case blockAction, unblockAction, toastBlocked, toastUnblocked
+    // 도보 길찾기 — 친구 별 탭 진입 라운드.
+    case routeDirections, routeCancel, routeMinSuffix
+    // 프로필 떠다니는 아이콘/핀 별 라운드.
+    case navAchievements, profileMyStars, profilePinTitle, profilePinHint, commonSave
+    case profileFriends, profileDiaries, profileAchievements, profileEmptyStars
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -136,6 +141,18 @@ enum L10n: String {
         case .unblockAction:        return ("차단 해제", "Unblock", "ブロック解除")
         case .toastBlocked:         return ("차단했어요", "Blocked", "ブロックしました")
         case .toastUnblocked:       return ("차단을 해제했어요", "Unblocked", "ブロックを解除しました")
+        case .routeDirections:      return ("길찾기", "Directions", "道案内")
+        case .routeCancel:          return ("길찾기 취소", "Cancel route", "案内をやめる")
+        case .routeMinSuffix:       return ("분", "min", "分")
+        case .navAchievements:      return ("업적", "Achievements", "実績")
+        case .profileMyStars:       return ("내 별", "My stars", "マイ星")
+        case .profilePinTitle:      return ("프로필에 띄울 별", "Pin stars to profile", "プロフィールに飾る星")
+        case .profilePinHint:       return ("최대 3개까지 고를 수 있어요", "Choose up to 3", "最大3つまで選べます")
+        case .commonSave:           return ("저장", "Save", "保存")
+        case .profileFriends:       return ("친구", "Friends", "フレンド")
+        case .profileDiaries:       return ("다이어리", "Diaries", "日記")
+        case .profileAchievements:  return ("업적", "Achievements", "実績")
+        case .profileEmptyStars:    return ("아직 남긴 별이 없어요.", "No stars yet.", "まだ星がありません。")
         }
     }
 

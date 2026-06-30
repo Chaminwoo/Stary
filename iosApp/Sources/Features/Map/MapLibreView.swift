@@ -12,6 +12,9 @@ struct MapLibreView: UIViewRepresentable {
     var onTapDiary: (Diary) -> Void
     /// 도보 길찾기 경로(비었으면 표시 안 함). (Android DiaryMap ROUTE_LAYER 패리티)
     var route: [CLLocationCoordinate2D] = []
+    /// 외부(알림/친구 별 탭)에서 "이 좌표로 카메라 이동" 요청. 값이 바뀔 때 1회 애니메이션 이동.
+    /// (Android MapFocusState → DiaryMap focusDiary 카메라 이동 패리티. iOS 는 파동 연출 없이 카메라만.)
+    var focusTarget: CLLocationCoordinate2D?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -34,6 +37,11 @@ struct MapLibreView: UIViewRepresentable {
             context.coordinator.didAutoCenter = true
             mapView.setCenter(me, zoomLevel: 14, animated: true)
         }
+        // 포커스 요청(친구 별/알림) — 대상 좌표가 바뀌면 그 위치로 1회 카메라 이동.
+        if let target = focusTarget, !context.coordinator.sameAsLastFocus(target) {
+            context.coordinator.lastFocus = target
+            mapView.setCenter(target, zoomLevel: 15, animated: true)
+        }
         if let existing = mapView.annotations { mapView.removeAnnotations(existing) }
         var toAdd: [MLNAnnotation] = diaries.compactMap { diary -> DiaryAnnotation? in
             guard diary.latitude != 0 || diary.longitude != 0 else { return nil }
@@ -49,7 +57,15 @@ struct MapLibreView: UIViewRepresentable {
     final class Coordinator: NSObject, MLNMapViewDelegate {
         var parent: MapLibreView
         var didAutoCenter = false
+        /// 마지막으로 카메라를 옮긴 포커스 좌표(중복 이동 방지).
+        var lastFocus: CLLocationCoordinate2D?
         init(_ parent: MapLibreView) { self.parent = parent }
+
+        /// 직전 포커스와 (거의) 같은 좌표인지 — 같은 별 재요청 시 카메라를 다시 옮기지 않게.
+        func sameAsLastFocus(_ c: CLLocationCoordinate2D) -> Bool {
+            guard let last = lastFocus else { return false }
+            return abs(last.latitude - c.latitude) < 1e-7 && abs(last.longitude - c.longitude) < 1e-7
+        }
 
         func mapView(_ mapView: MLNMapView, imageFor annotation: MLNAnnotation) -> MLNAnnotationImage? {
             guard let d = annotation as? DiaryAnnotation else { return nil }
@@ -64,11 +80,11 @@ struct MapLibreView: UIViewRepresentable {
             mapView.deselectAnnotation(annotation, animated: false)
         }
 
-        // 경로 폴리라인 스타일 — 민트색 선.
+        // 경로 폴리라인 스타일 — 연한 초록 실선(Android ROUTE_LAYER #86EFAC 와 동일).
         func mapView(_ mapView: MLNMapView, strokeColorForShapeAnnotation annotation: MLNShape) -> UIColor {
-            UIColor(red: 0.43, green: 0.91, blue: 0.72, alpha: 1) // #6EE7B7
+            UIColor(red: 0.525, green: 0.937, blue: 0.675, alpha: 1) // #86EFAC
         }
-        func mapView(_ mapView: MLNMapView, lineWidthForPolylineAnnotation annotation: MLNPolyline) -> CGFloat { 4 }
+        func mapView(_ mapView: MLNMapView, lineWidthForPolylineAnnotation annotation: MLNPolyline) -> CGFloat { 5 }
         func mapView(_ mapView: MLNMapView, alphaForShapeAnnotation annotation: MLNShape) -> CGFloat { 0.95 }
     }
 }

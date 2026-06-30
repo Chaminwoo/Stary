@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.25 체크리스트 TODO 3건**(인앱 배너 반복 dedup, 미조회 아이콘 FiberNew, 설정 음량 슬라이더 별 thumb) BUILD SUCCESSFUL — 아래 8.25 참고.
+> 최종 갱신: **8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 + 핀별 파동·길찾기**(브랜치 `feat/moderation-profile-round` 의 안드 전용 잔여분을 iOS 로 이관 + 핀 별 탭=파동 후 길찾기 양쪽 통일) — 아래 8.26-iOS 참고. Android = NavGraph 핀별 1줄(`withRoute=true`) 변경 → `:androidApp:assembleDebug` **BUILD SUCCESSFUL**. iOS 컴파일은 push 후 CI(macOS) 검증 대기.
+> 이전: **8.25 체크리스트 TODO 3건**(인앱 배너 반복 dedup, 미조회 아이콘 FiberNew, 설정 음량 슬라이더 별 thumb) BUILD SUCCESSFUL — 아래 8.25 참고.
 > 이전: **8.24 안드로이드 언어 리소스화 마무리**(DiaryMap FAB/토스트·UserProfileScreen 하드코딩 → strings.xml ko/en/ja, BUILD SUCCESSFUL) — 아래 8.24 참고.
 > 이전: **8.23-iOS 미조회 필터 + 조회 기록**(ViewedStore/markViewed + Map·List "미조회만", CI(macOS) BUILD SUCCESS e89904a) — 아래 8.23-iOS 참고.
 > 이전: **8.22-iOS 패리티**(위 5개 항목 SwiftUI 구현, CI(macOS) BUILD SUCCESS 40424d0) — 아래 8.22-iOS 참고.
@@ -14,6 +15,32 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 (Android 무변경, iOS 컴파일 CI 대기)
+브랜치 `feat/moderation-profile-round` 의 **안드 전용 잔여분 2건**을 iOS(SwiftUI)로 이관(§1.5 패리티). Android/shared 파일은 한 줄도 안 바꿈 → `:androidApp:compileDebugKotlin` UP-TO-DATE(BUILD SUCCESSFUL). iOS 는 Windows 컴파일 불가 → push 후 `ios.yml`(macOS) 검증.
+
+### ① 도보 길찾기 진입(친구 별) + 실시간 부분경로 — iOS
+- **`Features/Map/MapFocusStore.swift`(신설)**: `MapFocusStore`(전역 `pendingDiaryId`+`withRoute`, request/consume — Android `MapFocusState` 미러) + `TabRouter`(5탭 선택 전역 전환, map=0…profile=4). 둘 다 메인스레드 전용이라 `@MainActor` 미부여(비격리 콜백에서 호출 위해).
+- **진입 = "친구 별 길찾기 버튼"**: 안드는 친구 별-보드(`UserDiaryStarsScreen`) 탭이지만 iOS 엔 그 보드가 없음 → `UserProfileScreen` 의 그 사람 별 목록 각 행에 **`figure.walk` 버튼**(본인 글 제외) 추가. 누르면 `MapFocusStore.request(diaryId, withRoute:true)` + `dismiss()`.
+- **`MapScreen.swift`**: `@ObservedObject focus` 관찰 → `.onChange(pendingDiaryId)`(이미 지도 탭일 때) + `.onAppear`(다른 탭에서 전환돼 나타날 때 — 숨김 중 onChange 미수신 대비, handleFocus 는 idempotent)에서 `store.diaries` 로 좌표 찾아 `focusTarget` 설정. **파동 후 길찾기**: `MapWarpOverlay`(동심원 물결 1회, 별 색) 재생 + `withRoute` 면 ~0.65s 뒤 `OrsRouting.walkingRoute` 로 전체 경로(`fullRoute`) 받음(물결이 먼저 퍼진 뒤 경로). **실시간 부분경로**: `partialRoute`(computed) 가 `location.coordinate` 변할 때마다 `partialRouteFrom(full,me)`(최근접 투영점→목적지, 안드 동일 알고리즘 포팅)로 갱신 → `MapLibreView.route`. 하단 **요약 칩 + X 취소** 오버레이.
+- **`MapLibreView.swift`**: `focusTarget` 파라미터 추가 — 좌표 바뀌면 `setCenter(zoom15, animated)` 1회(Coordinator `lastFocus` 중복 가드). 경로 폴리라인 색 `#86EFAC`/width 5 로(안드 ROUTE_LAYER 일치).
+- **파동(warp) 연출**: `MapWarpOverlay`(MapScreen.swift) = 화면 중앙(카메라가 별을 중앙에 둠)에서 동심원 링 3겹 + 중앙 발광이 `easeOut 1.0s` 로 퍼짐. 매 포커스마다 `.id(warpId)` 로 재생. ⚠️ 안드 `DiaryOpenWarp`(지도 스냅샷 메시 왜곡)의 **간이판**(스냅샷 굴절 대신 링 파동) — 점진 정교화 대상.
+- **시트/탭 정리**: `MainTabView` 가 `TabView(selection:$router.selected)`+`.tag` + `.onChange(pendingDiaryId)` 에서 지도 탭 전환 & `chatTarget/diaryTarget` 닫기. `DetailScreen` 도 `.onChange` 로 `profileTarget` 닫음(작성자 프로필 시트 경유 진입 대비).
+- ⚠️ **키 필요**: `project.yml` `ORS_API_KEY`(이미 추가됨, 빌드설정 주입). 미설정 시 `OrsRouting.isConfigured==false` → 경로 안 뜸(조용히).
+
+### ② 프로필 떠다니는 통계 아이콘 + 핀 별 — iOS
+- **`Features/Profile/FloatingStatBox.swift`(신설)**: Android `FloatingStatBox`(Compose 물리)를 **TimelineView(.animation)+Canvas+버블별 DragGesture** 로 포팅. `StatBubble`(아이콘/별·수·색·라벨·burst·showCount). 물리 엔진 `FloatingEngine`(부유/잡기 확대1.7/똑바로정렬/던지기 감속/벽 튕김/아이콘 충돌/탭 버스트 — 상수·식 안드 동일). **히트테스트 분리**: Canvas 는 `.allowsHitTesting(false)`(렌더 전용), 버블 위치마다 투명 `Color.clear`+`contentShape(Circle())` 뷰가 제스처 수신 → 그래야 아래 아바타/로그아웃이 눌림. 별 모양은 `StarShape` 심볼 resolve, 후광/회전/확대는 Canvas 가 그림.
+- **`ProfileScreen.swift`(재작성)**: 스크롤 리스트 → **중앙 아바타(글로우+그라데이션 링, 탭=사진 변경) + 이름 + 칭호(탭→업적) + FloatingStatBox(좋아요/친구/다이어리/업적 + 핀 별) + 하단 로그아웃**. 우상단 툴바 `+`(핀 picker)/`gearshape`(설정)/`bell`(알림), 좌상단 `music.note`. 버블 탭: 친구→친구탭(`TabRouter`), 다이어리→`MyStarsScreen` push, 업적→`AchievementsScreen` push, **핀 별→`MapFocusStore.request(withRoute:true)`(지도 전환→파동→길찾기, 다이어리 클릭처럼)**. `NavigationStack(path:)`+`ProfileRoute` enum + `navigationDestination(for: Diary.self)`.
+  - **핀 별 = 길찾기(안드+iOS)**: 사용자 요청으로 프로필 핀 별 탭도 친구 별처럼 파동+길찾기. 안드는 `NavGraph` ProfileScreen `onOpenDiary` 를 `MapFocusState.request(diaryId, withRoute=true)` 로(BUILD SUCCESSFUL). ⚠️ 길찾기 실작동엔 ORS 키 필요(안드 `secrets.properties` 설정됨 / iOS 빌드설정 `ORS_API_KEY` 주입 필요).
+- **핀 다이어리**: `users/{uid}.pinnedDiaries`(최대 3, 안드 `FirebaseFriendRepository.get/setPinnedDiaries` 와 동일 필드) — ProfileScreen `.task` 로드 / `PinDiaryPicker`(별+제목 토글, 저장) `setData(merge:)`.
+- **`AchievementsScreen.swift`(신설)**: 기존 ProfileScreen 인라인 업적 목록+칭호 장착을 분리(스탯 재계산, `equippedTitleId` 바인딩으로 프로필 칭호 즉시 반영, `equippedTitle` Firestore 기록). `AboutView()` 도 여기로 옮겨 KMP Shared 링크 유지.
+- **`MyStarsScreen`**(ProfileScreen.swift 내): 내 별 카드 목록(탭→상세) — 안드 MyDiaryScreen 의 간이 iOS 버전(부유 보드/드래그는 미이관, 점진).
+- **L10n 신규키**(LocaleManager): `routeDirections/routeCancel/routeMinSuffix`, `navAchievements/profileMyStars/profilePinTitle/profilePinHint/commonSave/profileFriends/profileDiaries/profileAchievements/profileEmptyStars`(ko/en/ja).
+
+### 남은 iOS 점진 이관(후속)
+- 친구 별-보드(`UserDiaryStarsScreen`)·내 다이어리 부유 보드(`DiaryStarBox` 드래그)·별자리·배경음악 멀티트랙/원형 다이얼·사진 4:3 크롭·앱아이콘·길찾기 파동(warp) 연출.
 
 ---
 

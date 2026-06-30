@@ -1,21 +1,27 @@
+import FirebaseFirestore
 import PhotosUI
 import SwiftUI
 
-/// 프로필 탭 — 내 통계 + 업적(칭호 장착) + 프로필 사진 + 내 별 목록 + 로그아웃.
+/// 프로필 탭 — 중앙 아바타/이름/칭호 + **떠다니는 통계 아이콘**(좋아요·친구·다이어리·업적) +
+/// 핀한 내 별이 별 모양으로 함께 떠다니고, 하단 로그아웃. 우상단 +로 띄울 별을 고른다.
+/// (Android ProfileScreen + FloatingStatBox 패리티. 업적 목록은 AchievementsScreen 으로 분리.)
 struct ProfileScreen: View {
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var viewed: ViewedStore
+    @ObservedObject private var locale = LocaleManager.shared
 
     @State private var friendsCount = 0
     @State private var profileImageUrl: String?
     @State private var equippedTitleId: String?
     @State private var photoItem: PhotosPickerItem?
+    @State private var pinnedIds: [String] = []
+    @State private var showPinPicker = false
+    @State private var path = NavigationPath()
+
+    private enum ProfileRoute: Hashable { case achievements, myStars }
 
     private var mine: [Diary] { store.mine(uid: auth.uid).sorted { $0.createdAt > $1.createdAt } }
-    private var totalViews: Int { mine.reduce(0) { $0 + $1.viewCount } }
-    private var totalLikes: Int { mine.reduce(0) { $0 + $1.likeCount } }
-    /// 열람 업적은 "다른 사람의 다이어리" 기준 — 내가 쓴 글의 열람 기록은 제외. (Android 패리티)
     private var othersViewedCount: Int {
         let myIds = Set(mine.compactMap { $0.id })
         return viewed.viewedIds.subtracting(myIds).count
@@ -23,45 +29,110 @@ struct ProfileScreen: View {
     private var stats: UserStats {
         Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: othersViewedCount)
     }
-    private var unlocked: Set<String> { Achievements.unlockedIds(stats) }
+    private var unlockedCount: Int { Achievements.unlockedIds(stats).count }
+    private var equippedTitle: String? { Achievements.byId(equippedTitleId)?.titleName }
+
+    /// 핀한 다이어리(최대 3) — 저장된 id 순서대로.
+    private var pinnedDiaries: [Diary] {
+        pinnedIds.compactMap { id in mine.first { $0.id == id } }
+    }
+
+    /// 떠다니는 통계 + 핀 별.
+    private var bubbles: [StatBubble] {
+        var arr: [StatBubble] = [
+            StatBubble(systemImage: "heart.fill", count: stats.likesReceived,
+                       color: Color(hex: 0xE7556B), label: locale.t(.statLikes), burstOnTap: true),
+            StatBubble(systemImage: "person.fill", count: stats.friends,
+                       color: Theme.mint, label: locale.t(.profileFriends)),
+            StatBubble(systemImage: "book.fill", count: stats.diariesCreated,
+                       color: Color(hex: 0xF7E067), label: locale.t(.profileDiaries)),
+            StatBubble(systemImage: "trophy.fill", count: unlockedCount,
+                       color: Color(hex: 0xF2C94C), label: locale.t(.profileAchievements), burstOnTap: true),
+        ]
+        for d in pinnedDiaries {
+            arr.append(StatBubble(
+                systemImage: "star.fill", count: 0, color: StarStyle.color(d.starColor),
+                label: d.title.isEmpty ? locale.t(.profileMyStars) : d.title,
+                showCount: false, starType: d.starType, starColorIndex: d.starColor
+            ))
+        }
+        return arr
+    }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 Theme.background.ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: 18) {
-                        header
-                        statRow
-                        achievementsSection
-                        myDiaries
-                        AboutView()
-                        signOutButton
+
+                // 중앙: 아바타 + 이름 + 칭호 (화면 가운데보다 살짝 위)
+                VStack(spacing: 14) {
+                    avatar
+                    Text(auth.displayName.isEmpty ? "Stargazer" : auth.displayName)
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Button { path.append(ProfileRoute.achievements) } label: {
+                        Text(equippedTitle ?? locale.t(.userNoTitle))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(equippedTitle != nil ? Theme.mint : Theme.textSecondary)
+                            .shadow(color: (equippedTitle != nil ? Theme.mint : .clear).opacity(0.9), radius: 12)
+                            .padding(6)
                     }
-                    .padding(16)
+                    .buttonStyle(.plain)
+                }
+                .offset(y: -44)
+
+                // 떠다니는 통계 + 핀 별 (전체 화면 오버레이, 중앙/하단은 비켜서 배치)
+                FloatingStatBox(items: bubbles, onTap: handleBubbleTap, avoidCenterYFraction: 0.42)
+
+                // 하단 로그아웃
+                VStack {
+                    Spacer()
+                    Button(role: .destructive) { auth.signOut() } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                            Text("로그아웃")
+                        }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color(hex: 0xFF6B6B))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(hex: 0x14181C).opacity(0.8), in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18)
+                            .strokeBorder(Color(hex: 0xFF6B6B).opacity(0.4), lineWidth: 1))
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 10)
                 }
             }
-            .navigationTitle("프로필")
+            .navigationTitle(locale.t(.tabProfile))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    NavigationLink { MusicScreen() } label: {
-                        Image(systemName: "music.note")
-                    }
-                    .tint(Theme.mint)
+                    NavigationLink { MusicScreen() } label: { Image(systemName: "music.note") }
+                        .tint(Theme.mint)
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    NavigationLink { SettingsScreen() } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .tint(Theme.mint)
-                    NavigationLink { NotificationsScreen() } label: {
-                        Image(systemName: "bell")
-                    }
-                    .tint(Theme.mint)
+                    Button { showPinPicker = true } label: { Image(systemName: "plus") }
+                        .tint(Theme.mint)
+                    NavigationLink { SettingsScreen() } label: { Image(systemName: "gearshape") }
+                        .tint(Theme.mint)
+                    NavigationLink { NotificationsScreen() } label: { Image(systemName: "bell") }
+                        .tint(Theme.mint)
+                }
+            }
+            .navigationDestination(for: ProfileRoute.self) { route in
+                switch route {
+                case .achievements: AchievementsScreen(equippedTitleId: $equippedTitleId)
+                case .myStars: MyStarsScreen()
                 }
             }
             .navigationDestination(for: Diary.self) { DetailScreen(diary: $0) }
+            .sheet(isPresented: $showPinPicker) {
+                PinDiaryPicker(diaries: mine, initial: pinnedIds) { ids in
+                    pinnedIds = ids
+                    savePinned(ids)
+                }
+            }
             .task {
                 guard let uid = auth.uid else { return }
                 let snap = try? await FirestoreService.friends(of: uid).getDocuments()
@@ -69,6 +140,7 @@ struct ProfileScreen: View {
                 if let doc = try? await FirestoreService.users.document(uid).getDocument() {
                     profileImageUrl = doc.get("profileImageUrl") as? String
                     equippedTitleId = doc.get("equippedTitle") as? String
+                    pinnedIds = (doc.get("pinnedDiaries") as? [String]) ?? []
                 }
             }
             .onChange(of: photoItem) { item in
@@ -83,29 +155,48 @@ struct ProfileScreen: View {
         }
     }
 
-    private var header: some View {
-        VStack(spacing: 10) {
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                ZStack(alignment: .bottomTrailing) {
-                    avatarImage
-                    Image(systemName: "camera.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(Theme.mint)
-                        .background(Circle().fill(Theme.background))
-                }
-            }
-            Text(auth.displayName)
-                .font(.title3).bold()
-                .foregroundStyle(Theme.textPrimary)
-            if let title = Achievements.byId(equippedTitleId)?.titleName {
-                Text(title)
-                    .font(.caption).bold()
-                    .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Theme.mint.opacity(0.2), in: Capsule())
-                    .foregroundStyle(Theme.mint)
+    /// 떠다니는 아이콘 탭 동작 — 친구/내 별/업적/지도(핀 별).
+    private func handleBubbleTap(_ idx: Int) {
+        switch idx {
+        case 1: TabRouter.shared.go(TabRouter.friends)
+        case 2: path.append(ProfileRoute.myStars)
+        case 3: path.append(ProfileRoute.achievements)
+        default:
+            // 핀한 별 탭 → 지도로 가서 파동(물결) 후 그 별까지 도보 길찾기.
+            let p = pinnedDiaries
+            if idx >= 4, idx - 4 < p.count, let id = p[idx - 4].id {
+                MapFocusStore.shared.request(diaryId: id, withRoute: true)
             }
         }
-        .padding(.top, 8)
+    }
+
+    private func savePinned(_ ids: [String]) {
+        guard let uid = auth.uid else { return }
+        Task {
+            try? await FirestoreService.users.document(uid)
+                .setData(["pinnedDiaries": Array(ids.prefix(3))], merge: true)
+        }
+    }
+
+    private var avatar: some View {
+        PhotosPicker(selection: $photoItem, matching: .images) {
+            ZStack {
+                Circle()
+                    .fill(RadialGradient(colors: [Theme.mint.opacity(0.28), .clear],
+                                         center: .center, startRadius: 0, endRadius: 130))
+                    .frame(width: 200, height: 200)
+                avatarImage
+                    .frame(width: 150, height: 150)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle().strokeBorder(
+                            LinearGradient(colors: [Theme.mint, Color(hex: 0x3B82F6)],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing),
+                            lineWidth: 3)
+                    )
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var avatarImage: some View {
@@ -113,125 +204,119 @@ struct ProfileScreen: View {
             if let url = profileImageUrl, !url.isEmpty {
                 AsyncImage(url: URL(string: url)) { image in
                     image.resizable().scaledToFill()
-                } placeholder: {
-                    Theme.surfaceAlt
-                }
+                } placeholder: { Color(hex: 0x0D0D0D) }
             } else {
-                Theme.surfaceAlt.overlay(
-                    Text(String(auth.displayName.prefix(1)))
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(Theme.mint)
+                Color(hex: 0x0D0D0D).overlay(
+                    Image(systemName: "person.crop.circle.fill")
+                        .resizable().scaledToFit().padding(34)
+                        .foregroundStyle(Color(hex: 0x555555))
                 )
             }
         }
-        .frame(width: 84, height: 84)
-        .clipShape(Circle())
     }
+}
 
-    private var statRow: some View {
-        HStack(spacing: 12) {
-            statCell("별", mine.count)
-            statCell("조회", totalViews)
-            statCell("좋아요", totalLikes)
-        }
-    }
+/// 내 별 목록 — 프로필 "다이어리" 아이콘 탭으로 진입(탭→상세). (Android MyDiaryScreen 의 간이 iOS 버전)
+struct MyStarsScreen: View {
+    @EnvironmentObject var auth: AuthManager
+    @EnvironmentObject var store: DiaryStore
+    @ObservedObject private var locale = LocaleManager.shared
 
-    private func statCell(_ label: String, _ value: Int) -> some View {
-        VStack(spacing: 4) {
-            Text("\(value)").font(.title3).bold().foregroundStyle(Theme.textPrimary)
-            Text(label).font(.caption).foregroundStyle(Theme.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
-    }
+    private var mine: [Diary] { store.mine(uid: auth.uid).sorted { $0.createdAt > $1.createdAt } }
 
-    private var achievementsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("업적").font(.headline).foregroundStyle(Theme.textPrimary)
-                Spacer()
-                Text("\(unlocked.count) / \(Achievements.all.count)")
-                    .font(.caption).foregroundStyle(Theme.mint)
-            }
-            ForEach(Achievements.all) { ach in
-                let done = unlocked.contains(ach.id)
-                HStack(spacing: 10) {
-                    Image(systemName: done ? "checkmark.seal.fill" : "lock.fill")
-                        .foregroundStyle(done ? Theme.mint : Theme.textFaint)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(ach.name).font(.subheadline).foregroundStyle(Theme.textPrimary)
-                        Text(ach.hidden && !done ? "???" : ach.condition)
-                            .font(.caption2).foregroundStyle(Theme.textSecondary)
-                    }
-                    Spacer()
-                    if case .title = ach.reward, done {
-                        Button(equippedTitleId == ach.id ? "장착됨" : "장착") {
-                            equipTitle(equippedTitleId == ach.id ? nil : ach.id)
-                        }
-                        .font(.caption2).tint(Theme.mint)
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 12) {
+                    if mine.isEmpty {
+                        Text(locale.t(.profileEmptyStars))
+                            .font(.subheadline).foregroundStyle(Theme.textSecondary)
+                            .padding(.top, 40)
                     } else {
-                        rewardBadge(ach.reward)
+                        ForEach(mine) { d in
+                            NavigationLink(value: d) { DiaryCard(diary: d) }
+                                .buttonStyle(.plain)
+                        }
                     }
                 }
-                .opacity(done ? 1 : 0.6)
-                .padding(10)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                .padding(16)
+            }
+        }
+        .navigationTitle(locale.t(.profileMyStars))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 프로필에 띄울 별(다이어리) 고르기 — 최대 3개 토글. (Android PinDiaryPicker 패리티)
+private struct PinDiaryPicker: View {
+    let diaries: [Diary]
+    let initial: [String]
+    let onConfirm: ([String]) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var locale = LocaleManager.shared
+    @State private var selected: Set<String>
+
+    init(diaries: [Diary], initial: [String], onConfirm: @escaping ([String]) -> Void) {
+        self.diaries = diaries
+        self.initial = initial
+        self.onConfirm = onConfirm
+        _selected = State(initialValue: Set(initial))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(locale.t(.profilePinHint))
+                            .font(.caption).foregroundStyle(Theme.textSecondary)
+                            .padding(.bottom, 4)
+                        if diaries.isEmpty {
+                            Text(locale.t(.profileEmptyStars))
+                                .font(.subheadline).foregroundStyle(Theme.textSecondary)
+                                .padding(.vertical, 20)
+                        } else {
+                            ForEach(diaries) { d in row(d) }
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+            .navigationTitle(locale.t(.profilePinTitle))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(locale.t(.commonCancel)) { dismiss() }.tint(Theme.textSecondary)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(locale.t(.commonSave)) { onConfirm(Array(selected)); dismiss() }.tint(Theme.mint)
+                }
             }
         }
     }
 
-    @ViewBuilder
-    private func rewardBadge(_ reward: Reward) -> some View {
-        switch reward {
-        case .title(let n):
-            Text(n).font(.caption2).foregroundStyle(Theme.textFaint)
-        case .shape(let t):
-            StarView(type: t, colorIndex: 0, size: 22, glow: false)
-        case .color(let c):
-            Circle().fill(StarStyle.fill(c)).frame(width: 18, height: 18)
-        }
-    }
-
-    private var myDiaries: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("내 별")
-                .font(.headline)
-                .foregroundStyle(Theme.textPrimary)
-            if mine.isEmpty {
-                Text("아직 남긴 별이 없어요.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textSecondary)
-            } else {
-                ForEach(mine) { diary in
-                    NavigationLink(value: diary) {
-                        DiaryCard(diary: diary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    /// 칭호 장착(업적 id 저장). users/{uid}.equippedTitle 에 기록(타인 프로필에서도 보이도록).
-    private func equipTitle(_ id: String?) {
-        equippedTitleId = id
-        guard let uid = auth.uid else { return }
-        Task {
-            try? await FirestoreService.users.document(uid)
-                .setData(["equippedTitle": id ?? ""], merge: true)
-        }
-    }
-
-    private var signOutButton: some View {
-        Button(role: .destructive) {
-            auth.signOut()
+    private func row(_ d: Diary) -> some View {
+        let isSel = selected.contains(d.id ?? "")
+        return Button {
+            guard let id = d.id else { return }
+            if isSel { selected.remove(id) }
+            else if selected.count < 3 { selected.insert(id) }
         } label: {
-            Text("로그아웃")
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14))
+            HStack(spacing: 12) {
+                StarView(type: d.starType, colorIndex: d.starColor, size: 24)
+                Text(d.title.isEmpty ? locale.t(.profileMyStars) : d.title)
+                    .font(.subheadline).foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                Spacer()
+                if isSel { Image(systemName: "checkmark").foregroundStyle(Theme.mint) }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(isSel ? Theme.mint.opacity(0.14) : Color.white.opacity(0.04),
+                        in: RoundedRectangle(cornerRadius: 12))
         }
-        .tint(.red)
+        .buttonStyle(.plain)
     }
 }

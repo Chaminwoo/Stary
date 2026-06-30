@@ -37,6 +37,8 @@ struct MainTabView: View {
     @StateObject private var watcher = InAppWatcher()
     @StateObject private var viewed = ViewedStore()
     @StateObject private var blocks = BlockStore()
+    @ObservedObject private var router = TabRouter.shared
+    @ObservedObject private var focus = MapFocusStore.shared
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var chatTarget: ChatTarget?
@@ -44,21 +46,34 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            TabView {
+            TabView(selection: $router.selected) {
                 MapScreen()
                     .tabItem { Label(locale.t(.tabMap), systemImage: "map") }
+                    .tag(TabRouter.map)
                 ListScreen()
                     .tabItem { Label(locale.t(.tabList), systemImage: "list.star") }
+                    .tag(TabRouter.list)
                 UploadScreen()
                     .tabItem { Label(locale.t(.tabUpload), systemImage: "plus.circle.fill") }
+                    .tag(TabRouter.upload)
                 FriendsScreen()
                     .tabItem { Label(locale.t(.tabFriends), systemImage: "person.2.fill") }
+                    .tag(TabRouter.friends)
                 ProfileScreen()
                     .tabItem { Label(locale.t(.tabProfile), systemImage: "person.crop.circle") }
+                    .tag(TabRouter.profile)
             }
             .tint(Theme.mint)
 
             InAppBannerHost()
+        }
+        // 길찾기/포커스 요청이 들어오면 지도 탭으로 전환하고, 위에 떠 있던 시트(채팅/상세)는 닫는다.
+        .onChange(of: focus.pendingDiaryId) { id in
+            if id != nil {
+                router.selected = TabRouter.map
+                chatTarget = nil
+                diaryTarget = nil
+            }
         }
         .environmentObject(store)
         .environmentObject(location)

@@ -7,6 +7,7 @@ struct DetailScreen: View {
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
     @StateObject private var vm: DetailViewModel
+    @ObservedObject private var focus = MapFocusStore.shared
     @State private var didCountView = false
     @State private var commentText = ""
     @State private var profileTarget: ProfileTarget?
@@ -125,6 +126,10 @@ struct DetailScreen: View {
             .environmentObject(auth)
             .environmentObject(store)
             .environmentObject(location) // UserProfile → 별 상세 푸시 시 필요
+        }
+        // 친구 프로필에서 "길찾기"를 누르면 이 상세/프로필 시트를 닫고 지도로 보낸다.
+        .onChange(of: focus.pendingDiaryId) { id in
+            if id != nil { profileTarget = nil }
         }
         .onAppear {
             vm.start(uid: auth.uid)

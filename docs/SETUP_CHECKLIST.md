@@ -230,7 +230,13 @@
 - [x] ~~백로그 2번 "길찾기 전부 삭제"~~ → **ORS foot-walking 부활**. `OrsRouting`(안드 HttpURLConnection / iOS URLSession, 의존성 0).
 - [x] **진입 = "친구 별 탭"** (별 직접 클릭은 길찾기 안 함): 친구 별(`UserDiaryStarsScreen`) 탭 → 지도 카메라+파동 후 길찾기. 전체 경로를 저장하고 **실시간 위치 기준 "최근접점→목적지" 구간만** 렌더(지나온 길 숨김, 경로와 떨어지면 최근접점까지 직선 연결), 하단 **X 취소** 버튼, **연초록 후광 실선**(점선 제거). `MapFocusState.withRoute` + `DiaryMap.partialRouteFrom`.
 - [ ] **키(사용자)**: openrouteservice.org 무료 키 → 안드 `secrets.properties` `ORS_API_KEY=...`, iOS `project.yml`/빌드설정 `ORS_API_KEY`. 미설정 시 자동 비활성.
-- [ ] **iOS TODO**: iOS 는 친구 별-보드/파동/전역 포커스/탭전환 인프라가 안드와 달라 위 "친구 별 탭 진입·실시간 부분경로" 미반영. iOS 는 별 클릭 길찾기 제거(정책 일치)까지만 맞춤. route 인프라(`OrsRouting.swift`/`MapLibreView` polyline)는 보존 → 다음 iOS 라운드에 진입점+실시간 경로 추가.
+- [x] **iOS 진입점+실시간 부분경로+파동 구현(8.26-iOS)**: 전역 `MapFocusStore`+`TabRouter` 신설 → `UserProfileScreen` 친구 별 목록의 `figure.walk` 버튼 / **프로필 핀 별 탭** 이 지도 탭 전환 → **파동(`MapWarpOverlay` 동심원 물결) 후 ORS 길찾기**. `MapScreen` 이 `partialRouteFrom`(안드 동일)으로 실시간 "최근접점→목적지"만 렌더, 하단 요약+X 취소. `MapLibreView` `focusTarget` 1회 카메라 이동. ⚠️ 파동은 안드 스냅샷 메시 굴절의 **간이판**(링 파동). 자세히 = PROJECT_NOTES 8.26-iOS.
+- [x] **핀 별 = 파동+길찾기(안드 패리티)**: 사용자 요청 — 프로필 핀 별 탭도 다이어리 클릭처럼. 안드 `NavGraph` ProfileScreen `onOpenDiary` `withRoute=true`(BUILD SUCCESSFUL). 실작동엔 ORS 키 필요(안드 `secrets.properties` 설정됨 / iOS 빌드설정).
+
+### 프로필 떠다니는 통계 아이콘/별 드래그 — ✅ 안드+iOS (8.26-iOS 로 iOS 패리티 완료)
+- [x] 안드: `FloatingStatBox`(부유/잡기/던지기/충돌/버스트 Compose 물리) + 핀 다이어리(별 모양, 탭→지도) + 탑바 `+` 핀 picker. `ProfileScreen` 중앙 아바타/이름/칭호 + 하단 로그아웃.
+- [x] **iOS(8.26-iOS)**: `FloatingStatBox.swift`(TimelineView+Canvas+버블별 DragGesture 물리 포팅, 히트테스트 분리), `ProfileScreen` 재작성, `AchievementsScreen`/`MyStarsScreen` 분리, 핀 = `users.pinnedDiaries`. iOS 컴파일은 push 후 CI(macOS) 검증.
+- [ ] **남은 점진 이관**: 친구 별-보드(`UserDiaryStarsScreen`)·내 다이어리 부유 보드(`DiaryStarBox` 드래그)는 iOS 미이관(MyStarsScreen 간이 리스트로 대체).
 
 ### 🌐 줌아웃 글로브(레퍼런스 `references/min_zoom.png`) — ⏳ 백로그 (방안 A 확정, 미구현)
 - [ ] 줌 최소에서 평면지도 대신 **우주의 3D 지구(글로브)**: 야간 도시광 + 별 글로우 + 궤도선.

@@ -215,13 +215,33 @@ struct UserProfileScreen: View {
                     .foregroundStyle(Theme.textSecondary)
             } else {
                 ForEach(visibleDiaries) { diary in
-                    NavigationLink(value: diary) {
-                        DiaryCard(diary: diary)
+                    HStack(spacing: 8) {
+                        NavigationLink(value: diary) {
+                            DiaryCard(diary: diary)
+                        }
+                        .buttonStyle(.plain)
+                        // 친구 별로 도보 길찾기 — 지도 탭으로 전환해 현위치→그 별 경로를 띄운다.
+                        if !isMe {
+                            Button { startRoute(to: diary) } label: {
+                                Image(systemName: "figure.walk")
+                                    .font(.headline)
+                                    .frame(width: 44, height: 44)
+                                    .background(Theme.mint.opacity(0.16), in: Circle())
+                                    .foregroundStyle(Theme.mint)
+                            }
+                            .accessibilityLabel(locale.t(.routeDirections))
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
+    }
+
+    /// 친구 별로 도보 길찾기 시작 — 지도 탭으로 전환해 현위치→그 별 경로를 띄운다.
+    private func startRoute(to diary: Diary) {
+        guard let id = diary.id else { return }
+        MapFocusStore.shared.request(diaryId: id, withRoute: true)
+        dismiss()
     }
 
     /// 친구 요청 전송(중복 방지) — FriendsViewModel.sendRequest 와 동일 스키마.
