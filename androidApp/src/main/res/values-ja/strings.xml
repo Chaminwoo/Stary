@@ -177,6 +177,13 @@
     <string name="ach_obtained">獲得</string>
     <string name="ach_title_equipped">「%1$s」の称号を装着しました</string>
     <string name="ach_title_unequipped">称号を解除しました</string>
+    <!-- 隠し実績 -->
+    <string name="ach_tab_normal">一般</string>
+    <string name="ach_tab_hidden">隠し</string>
+    <string name="ach_hidden_intro">アプリでただ一人だけが手にできる実績。条件は秘密！</string>
+    <string name="ach_hidden_achiever">達成者: %1$s</string>
+    <string name="ach_hidden_unclaimed">まだ誰も達成していません</string>
+    <string name="ach_hidden_by_me">あなたが達成！</string>
 
     <!-- 地図(DiaryMap) -->
     <string name="cd_zoom_in">拡大</string>

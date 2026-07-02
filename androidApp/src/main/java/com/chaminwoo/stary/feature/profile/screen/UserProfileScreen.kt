@@ -120,7 +120,7 @@ fun UserProfileScreen(
             equippedTitleId = it.equippedTitle
         }
     }
-    val equippedTitleName = Achievements.byId(equippedTitleId.ifBlank { null })?.titleName
+    val equippedTitleName = com.chaminwoo.stary.feature.profile.equippedTitleName(equippedTitleId.ifBlank { null })
 
     // 통계/업적/다이어리 — 대상 userId 기준.
     val diaryVm: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())

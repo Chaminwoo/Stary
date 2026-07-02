@@ -21,6 +21,7 @@ enum AppConfig {
         static let reports = "reports"           // 최상위 (신고 접수)
         static let chats = "chats"
         static let messages = "messages"        // chats/{chatId} 하위
+        static let hiddenAchievements = "hiddenAchievements" // 최상위 (히든 업적 선점, 앱 전체 1명)
     }
 
     /// 두 사용자 ID 로 결정적 채팅방 ID 생성(정렬 후 결합).

@@ -418,6 +418,12 @@ fun MainScreen(
             suppressed = showOnboarding,
         )
 
+        // 히든 업적 감시 — 자동 조건 충족 시 앱 전체 선착순 선점(트랜잭션) + 첫 달성 팝업.
+        com.chaminwoo.stary.feature.profile.HiddenAchievementWatcher(
+            userId = userId,
+            suppressed = showOnboarding,
+        )
+
         // 인앱 알림 팝업 — 새 다이어리 알림(좋아요/댓글/친구 글) 도착 시 상단 배너.
         com.chaminwoo.stary.feature.diary.NotificationPopupWatcher(
             notifications = notifList,

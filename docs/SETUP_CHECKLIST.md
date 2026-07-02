@@ -245,6 +245,45 @@
 
 ---
 
+## 📝 다음 작업 (TODO / 2026-07-02 — 사용자 지정, 다음 토큰에 진행)
+
+### 18. 채팅 FCM 알림(백그라운드/종료 상태) + 딥링크
+> 사용자 목표(원문): 앱 **백그라운드**(홈으로 나감) 시 새 채팅 오면 상단 **Heads-up 알림**, 앱 **완전 종료**(Force Stop 제외) 상태에서도 알림, 알림 클릭 시 **해당 채팅방으로 바로 이동**, **Android 13+ `POST_NOTIFICATIONS` 권한**까지 고려.
+>
+> ⚠️ **이미 상당 부분 구현돼 있음 — 처음부터 만들지 말 것.** 아래 "기존 상태"를 먼저 확인하고 **빠진 것만** 채운다.
+
+**기존 상태(이미 됨):**
+- [x] 수신 서비스 `push/StaryMessagingService`(data 메시지 → 알림, 채널 `stary_default`). `AppForeground.isForeground` 면 시스템 알림 skip(인앱 배너로) — 8.22 참고.
+- [x] 서버 함수 `functions/index.js` `notifyOnChatMessage`(`chats/{chatId}/messages` onCreate → 상대 `fcmToken` 으로 푸시) + `sendToUser`(만료 토큰 정리). **단 미배포**.
+- [x] FCM 토큰 저장(로그인 + `onNewToken` → `users/{uid}.fcmToken`), `POST_NOTIFICATIONS` 권한 요청(API 33+).
+- [x] 채팅 자체는 실시간 동작(앱 실행 중). 인앱 배너(전면)도 동작.
+
+**남은 것(다음 세션이 할 일):**
+- [ ] **Heads-up 보장 확인**: 백그라운드/종료 시 채널 importance `IMPORTANCE_HIGH` + 알림 `PRIORITY_HIGH`(8.22 에서 반영됐다고 기록됨 — 실기기에서 상단 팝업으로 뜨는지 검증). 안 뜨면 채널 재생성(중요도는 채널 생성 후 코드로 못 낮/높임 → 채널 id 갱신 필요).
+- [ ] **종료 상태 수신 검증**: data-only 메시지는 앱 종료 시 `onMessageReceived` 가 안 불릴 수 있음 → **notification+data 혼합** 또는 종료 상태에서도 뜨도록 서버 페이로드 점검. (Force Stop 상태는 원래 OS가 막음 — 목표에서도 제외.)
+- [ ] **딥링크 = 채팅방으로**: 현재 앱은 **단일 Activity + Compose 네비게이션**(별도 `ChatActivity` 없음). 채팅 알림 tap → `MainActivity` extra(예: `chatFriendId`/`chatFriendName`) → `MainScreen` 에서 `NavRoute.Chat(friendId, friendName)` 로 라우팅(로그인 오버레이 생략). 현재 딥링크는 `diaryId`(Detail)만 배선돼 있으니 **채팅용 extra 경로 추가** 필요. 서버 `notifyOnChatMessage` data 에 `chatId/friendId/senderName` 넣기.
+- [ ] **배포(사용자)**: `firebase deploy --only functions` (Blaze + `REGION` = stary-db 리전 일치). 미배포면 종료/백그라운드 푸시 안 옴.
+- [ ] iOS 패리티(§1.5): APNs/FCM iOS 설정은 별도(GoogleService-Info + APNs 키). 안드 먼저, iOS 는 후속.
+
+### 19. 프로필 로그아웃 버튼 오류 수정
+- [ ] 프로필 화면 **로그아웃 버튼 오류** 수정(증상 재현 → 원인 파악). 안드 `ProfileScreen`(하단 GradientCard `onLogout`) / iOS `ProfileScreen`(`auth.signOut()`). ※히든 아이콘을 FloatingStatBox 전체화면 오버레이로 편입(8.29)하면서 **오버레이가 로그아웃 버튼 터치를 가로채는지** 우선 확인(FloatingStatBox 는 아이콘 근처만 히트해야 함 — 안드 pointerInput 히트 반경/ iOS 투명 히트뷰 확인).
+
+### 20. 히든 칭호를 일반 칭호와 다르게 표기
+- [ ] 히든 업적 칭호는 일반 칭호와 **시각적으로 구분** — 색/후광/`『 』`(또는 ✦ 등) 감싸기 중 택1(또는 조합). 적용 위치: 프로필 장착 칭호 텍스트(`ProfileScreen`), 타인 프로필(`UserProfileScreen`), 업적 화면. 판별 = `HiddenAchievements.byId(equippedId) != null`. 안드+iOS 동일. (칭호 이름 자체는 비번역 데이터 유지.)
+
+### 21. 하루 별 업로드 10개 제한
+- [ ] 한 사용자가 **하루 최대 10개**까지만 다이어리(별) 업로드 가능. 초과 시 업로드 막고 안내(토스트/다이얼로그, "오늘 올릴 수 있는 별을 다 썼어요" 류).
+- [ ] 카운트 기준 = **그날(로컬 자정~자정) 내가 올린 다이어리 수**. 클라(`UploadScreen`/`DiaryViewModel`)에서 내 다이어리 `createdAt` 이 오늘인 개수로 선(先)차단. 업로드 경로 = `FirebaseDiaryRepository.createDiary`(안드) / iOS 업로드.
+- [ ] ⚠️ 클라 체크만으론 우회 가능 → 가능하면 **firestore.rules 로 서버 강제**(그날 문서 수 제한은 규칙만으론 어려움 → `users/{uid}/dailyUploads/{yyyymmdd}` 카운터 문서 + 트랜잭션, 또는 Cloud Function 검증 고려). 우선 클라 차단부터, 서버 강제는 후속.
+- [ ] 안드+iOS 동일 상수(예: `StaryConfig.DAILY_UPLOAD_LIMIT = 10`).
+
+### 22. 어드민 계정은 히든 업적 선점에서 제외
+- [ ] **어드민 계정 = `chaalsdn0217@gmail.com`**. 이 계정이 히든 업적 조건을 만족해도 **서버(hiddenAchievements)에는 선점 기록을 남기지 않는다** → 해당 히든은 계속 "미달성(달성자 없음)" 상태로 유지되어 **실제 유저가 첫 달성자가 될 수 있게** 한다. (테스트/확인용 계정이므로 단 한 명 슬롯을 차지하면 안 됨.)
+- [ ] 구현: `HiddenAchievementRepository.claim`(안드) / `HiddenAchievementStore.claim`(iOS) 에서 **현재 계정 이메일 == 어드민이면 트랜잭션 쓰기 skip**(로컬 팝업/표시는 원하면 보여주되 Firestore 미기록). 이메일 취득 경로 확인 필요(안드 `GoogleAuthHelper` 에 email 노출 있는지 — 없으면 `FirebaseAuth.currentUser?.email` / iOS `AuthManager`).
+- [ ] 어드민 상수는 코드 한 곳에(예: `AdminConfig.ADMIN_EMAILS`) 두고 안드+iOS 공유 개념 유지. (이메일은 비밀 아님이나, 하드코딩 목록으로.)
+
+---
+
 ## 🍎 (추후) iOS 확장 — **macOS + Xcode 필요(Windows 불가)**
 - [ ] `iosApp/` Xcode(SwiftUI) 프로젝트 생성 + `:shared` 프레임워크 임포트(`linkDebugFrameworkIosSimulatorArm64`).
 - [ ] `Repositories.kt` 인터페이스를 Firebase iOS SDK로 구현, `GoogleService-Info.plist`(f26c8 iOS 앱) 추가.

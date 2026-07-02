@@ -124,7 +124,7 @@ struct UserProfileScreen: View {
             Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
                 .font(.title3).bold()
                 .foregroundStyle(Theme.textPrimary)
-            if let title = Achievements.byId(equippedTitleId)?.titleName {
+            if let title = equippedTitleName(equippedTitleId) {
                 Text(title)
                     .font(.caption).bold()
                     .padding(.horizontal, 12).padding(.vertical, 5)

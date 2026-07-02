@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import com.chaminwoo.stary.core.designsystem.StarStyle
+import com.chaminwoo.stary.feature.profile.ParticleEffect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.VectorPainter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -67,6 +69,8 @@ data class StatBubble(
     /** >=0 이면 벡터 아이콘 대신 StarStyle 별 모양으로 그린다(핀한 내 다이어리). */
     val starType: Int = -1,
     val starColorIndex: Int = -1,
+    /** null 이 아니면 히든 업적 아이콘 — 오라 파티클 + 클릭/드래그 시 화려한 버스트·잔상. */
+    val hiddenEffect: ParticleEffect? = null,
 )
 
 /** 탭 시 잠깐 퍼지는 파티클(작은 아이콘 + 후광). */
@@ -90,6 +94,8 @@ private class Body(
     var rot: Float,
     val rotIdleSpeed: Float, // deg/s
     var floatT0: Float = 0f,
+    /** 히든 아이콘 잔상(afterimage) 최근 위치들. */
+    val trail: ArrayDeque<Offset> = ArrayDeque(),
 )
 
 private const val FLING_DAMP = 1.7f        // 감속(초당 지수). 던지면 그 방향으로 부드럽게 미끄러지다 멈춤
@@ -177,6 +183,7 @@ fun FloatingStatBox(
 
         val scope = rememberCoroutineScope()
         var tick by remember { mutableIntStateOf(0) }
+        var animSec by remember { mutableFloatStateOf(0f) }   // 오라 파티클 애니메이션 시간(초)
         var physicsActive by remember { mutableStateOf(false) }
         var activeIdx by remember { mutableStateOf<Int?>(null) }  // 손가락을 따라가는(잡힌) 아이콘
         var scaledIdx by remember { mutableStateOf<Int?>(null) }  // 확대 표시 중인 아이콘(잡기~복귀)
@@ -187,18 +194,23 @@ fun FloatingStatBox(
 
         fun spawnBurst(i: Int) {
             val src = bodies[i].pos
+            val hidden = liveItems[i].hiddenEffect != null
             val rnd = kotlin.random.Random(System.nanoTime())
-            repeat(12) {
+            val cnt = if (hidden) 24 else 12
+            repeat(cnt) {
                 val ang = rnd.nextFloat() * 6.2832f
-                val spd = with(density) { (60f + rnd.nextFloat() * 120f).dp.toPx() }
+                val base = if (hidden) 90f else 60f
+                val span = if (hidden) 170f else 120f
+                val spd = with(density) { (base + rnd.nextFloat() * span).dp.toPx() }
                 particles.add(
                     Particle(
                         pos = src,
                         vel = Offset(kotlin.math.cos(ang) * spd, kotlin.math.sin(ang) * spd - spd * 0.3f),
                         life = 1f,
                         painterIdx = i,
-                        color = items[i].color,
-                        spin = (rnd.nextFloat() - 0.5f) * 360f,
+                        // 히든은 색+흰 스파클 섞어 더 화려하게.
+                        color = if (hidden && it % 3 == 0) Color.White else items[i].color,
+                        spin = (rnd.nextFloat() - 0.5f) * (if (hidden) 560f else 360f),
                     )
                 )
             }
@@ -279,6 +291,19 @@ fun FloatingStatBox(
                         if (p.life <= 0f) it.remove()
                     }
                 }
+                // 히든 아이콘 잔상(afterimage) — 잡았거나 빠르게 움직일 때 위치를 쌓고, 멈추면 서서히 지운다.
+                for (i in bodies.indices) {
+                    if (liveItems[i].hiddenEffect == null) continue
+                    val b = bodies[i]
+                    val moving = i == grabbed || b.vel.getDistance() > 45f
+                    if (moving) {
+                        b.trail.addLast(b.pos)
+                        while (b.trail.size > 12) b.trail.removeFirst()
+                    } else if (b.trail.isNotEmpty()) {
+                        b.trail.removeFirst()
+                    }
+                }
+                animSec = elapsed
                 tick++
             }
         }
@@ -336,6 +361,21 @@ fun FloatingStatBox(
                 }
         ) {
             if (tick >= 0) { // tick 을 읽어 매 프레임 재그리기
+                val t = animSec
+                // 히든 아이콘: 잔상(뒤) + 궤도 스파클 오라
+                for (i in 0 until n) {
+                    if (items[i].hiddenEffect == null) continue
+                    val b = bodies[i]
+                    val ic = iconPx * richness(items[i].count)
+                    val ts = b.trail.size
+                    if (ts > 0) {
+                        b.trail.forEachIndexed { k, tp ->
+                            val a = (k + 1f) / ts * 0.32f
+                            drawBubble(painters[i], items[i].color, tp, ic * 0.92f, b.rot, 1f, glow = 0f, alpha = a)
+                        }
+                    }
+                    drawHiddenAura(items[i].color, b.pos, ic * 0.5f, t, i)
+                }
                 // 파티클(후광 + 작은 아이콘) — 아이콘 아래에 먼저
                 for (p in particles) {
                     val a = p.life.coerceIn(0f, 1f)
@@ -488,5 +528,20 @@ private fun DrawScope.drawStarBubble(
             }
         )
         nc.restoreToCount(save)
+    }
+}
+
+/** 히든 아이콘 주변을 도는 스파클 오라(궤도 + 반짝임 + 흰 하이라이트). 떠 있을 때도 화려하게. */
+private fun DrawScope.drawHiddenAura(color: Color, pos: Offset, r: Float, t: Float, seed: Int) {
+    val count = 7
+    for (k in 0 until count) {
+        val ph = seed * 1.7f + k * (6.2832f / count)
+        val ang = t * 0.9f + ph
+        val rr = r * (1.4f + 0.25f * sin(t * 1.6f + ph))
+        val p = Offset(pos.x + cos(ang) * rr, pos.y + sin(ang) * rr)
+        val a = 0.22f + 0.34f * (0.5f + 0.5f * sin(t * 2.4f + ph))
+        val dot = (r * 0.14f * (0.7f + 0.5f * sin(t * 3f + ph))).coerceAtLeast(0.5f)
+        drawCircle(color = color.copy(alpha = a), radius = dot, center = p)
+        drawCircle(color = Color.White.copy(alpha = a * 0.5f), radius = (dot * 0.42f).coerceAtLeast(0.4f), center = p)
     }
 }

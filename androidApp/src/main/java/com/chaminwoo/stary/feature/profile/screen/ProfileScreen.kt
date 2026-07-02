@@ -63,9 +63,13 @@ import coil.compose.AsyncImage
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.profile.Achievements
+import com.chaminwoo.stary.feature.profile.HiddenAchievements
+import com.chaminwoo.stary.feature.profile.HiddenIconWithEffect
 import com.chaminwoo.stary.feature.profile.ProfileViewModel
 import com.chaminwoo.stary.feature.profile.StigmaStore
+import com.chaminwoo.stary.feature.profile.equippedTitleName
 import com.chaminwoo.stary.feature.profile.rememberUserStats
+import com.chaminwoo.stary.data.repository.HiddenAchievementRepository
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -133,7 +137,14 @@ fun ProfileScreen(
 
     val stats = rememberUserStats(userId)
     val equippedStigmaId = StigmaStore.equipped(context, userId)
-    val equippedStigma = Achievements.byId(equippedStigmaId)?.titleName
+    val equippedStigma = equippedTitleName(equippedStigmaId)
+
+    // 내가 달성한 히든 업적 — 프로필에 전용 아이콘 + 파티클로 표시.
+    val hiddenRepo = remember { HiddenAchievementRepository() }
+    val hiddenClaims by remember { hiddenRepo.observe() }.collectAsState(initial = emptyMap())
+    val myHiddenIds = remember(hiddenClaims) {
+        hiddenClaims.filterValues { it.achieverId == userId }.keys.toList()
+    }
 
     // 프로필에 띄울(핀) 다이어리 — 최대 3개. "+"로 선택, 별 모양으로 떠다니고 탭하면 위치(지도)로.
     val diaryVm: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())
@@ -277,6 +288,10 @@ fun ProfileScreen(
 
         // ── 떠다니는 통계 오버레이(전체 화면) — 하트=버스트 / 친구=친구창 / 다이어리=내 다이어리 / 핀 별=위치 ──
         val untitled = stringResource(R.string.common_untitled)
+        // 내가 달성한 히든 업적 — 프로필에 떠다니는 아이콘(오라/잔상/버스트)으로.
+        val myHiddenAch = remember(myHiddenIds) { myHiddenIds.mapNotNull { HiddenAchievements.byId(it) } }
+        val pinnedStart = 4
+        val hiddenStart = pinnedStart + pinnedDiaries.size
         FloatingStatBox(
             items = listOf(
                 StatBubble(Icons.Filled.Favorite, stats.likesReceived, Color(0xFFE7556B), stringResource(R.string.profile_stat_likes), burstOnTap = true),
@@ -288,13 +303,19 @@ fun ProfileScreen(
                     Icons.Filled.Star, 0, StarStyle.colorOf(d.starColor), d.title.ifBlank { untitled },
                     showCount = false, starType = d.starType, starColorIndex = d.starColor
                 )
+            } + myHiddenAch.map { ach ->
+                StatBubble(
+                    ach.icon.vector, 0, ach.icon.color, ach.title,
+                    burstOnTap = true, showCount = false, hiddenEffect = ach.effect
+                )
             },
             onTap = { idx ->
                 when {
                     idx == 1 -> onOpenFriends()
                     idx == 2 -> onOpenMyDiary()
                     idx == 3 -> onOpenAchievements()
-                    idx >= 4 -> pinnedDiaries.getOrNull(idx - 4)?.id?.let { onOpenDiary(it) }
+                    idx in pinnedStart until hiddenStart -> pinnedDiaries.getOrNull(idx - pinnedStart)?.id?.let { onOpenDiary(it) }
+                    idx >= hiddenStart -> onOpenAchievements()
                 }
             },
             avoidCenterYFraction = 0.5f // 화면 중앙의 프로필/이름 회피

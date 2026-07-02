@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.28 닉네임 변경 + 닉네임 친구 검색(공통친구 정렬)**(프로필 이름 탭→변경, 기본=구글 닉네임; 검색 결과 2명↑이면 나와 공통 친구 많은 순 정렬, 안드+iOS) — 아래 8.28 참고. Android `:androidApp:assembleDebug` **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
+> 최종 갱신: **8.29 히든 업적(앱 전체 1명 선착순) + 프로필 아이콘·파티클**(업적 화면 일반/히든 2탭, 조건 `???`→달성 시 공개+달성자, 트랜잭션 선점, 안드+iOS) — 아래 8.29 참고. Android `:androidApp:assembleDebug` **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
+> 이전: **8.28 닉네임 변경 + 닉네임 친구 검색(공통친구 정렬)**(프로필 이름 탭→변경, 기본=구글 닉네임; 검색 결과 2명↑이면 나와 공통 친구 많은 순 정렬, 안드+iOS) — 아래 8.28 참고.
 > 이전: **8.27 화면 첫 진입 설명창**(내 다이어리·프로필·업적·배경음악·친구 5개 화면에 1회 안내 다이얼로그, 안드+iOS) — 아래 8.27 참고.
 > 이전: **8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 + 핀별 파동·길찾기** — 아래 8.26-iOS 참고. iOS 컴파일 = **CI(macOS) BUILD SUCCESS `e787ce8`**.
 > 이전: **8.25 체크리스트 TODO 3건**(인앱 배너 반복 dedup, 미조회 아이콘 FiberNew, 설정 음량 슬라이더 별 thumb) BUILD SUCCESSFUL — 아래 8.25 참고.
@@ -17,6 +18,25 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.29 히든 업적(앱 전체 1명 선착순) + 프로필 아이콘·파티클 (Android BUILD SUCCESSFUL, iOS 컴파일 CI 대기)
+기존 '???' 칭호를 포함해 **히든 업적** 도입. 업적 화면을 **일반/히든 2탭**으로. 히든은 **앱 전체에서 단 한 명만** 달성(선착순), 달성 전엔 칭호·아이콘·이펙트만 노출하고 **조건은 `???`**, 달성되면 조건 공개 + `달성자: 이름`. 달성자 프로필엔 **전용 아이콘 + 파티클**이 뜨고 칭호가 자동 장착된다.
+- **단 한 명 보장**: Firestore `hiddenAchievements/{id}` 문서를 **트랜잭션**으로 선점(주인 없으면 기록, 있으면 그게 나면 유지). 동시 시도 시 재시도로 한쪽만 성공. ⚠️ 완전한 도용 방지는 보안 규칙 `create-only`(존재 시 update 금지) 권장 — **아직 미적용**.
+- **정의 11개**(Android `feature/profile/HiddenAchievements.kt` = iOS `Core/HiddenAchievements.swift` — 값/조건/제목 동일 유지 필수. 제목은 사용자 조정 반영: 빙하의 주인/사막의 신기루/심해의 지배자/죽음의 바다/우주의 완성/항성 탐험가 등):
+  - 자동판정 8종: `secret_word`(제목에 '우주먼지'), **장소 4종**(오지 반경 300km, region 별 분리) `remote_place`=빙하(에베레스트/남극)·`place_desert`=사하라·`place_trench`=마리아나 해구·`place_triangle`=버뮤다, `all_rounder`(히든 제외 전 업적), `cosmic_rascal`(타인 글 300 열람·이관), `lone_observer`(친구 0 + 글 50·이관).
+  - 이벤트형 3종(정의만, 화면 연동은 후속): `heart_frenzy`(프로필 하트 100), `melomaniac`(전곡 감상), `earth_pilgrim`(관광지 별+타인 열람=교차사용자).
+- **UserStats 확장**: `secretKeywordTitle`(Bool) + `remoteRegions: Set<String>`(도달 오지 region: glacier/desert/trench/triangle). 안드 `rememberUserStats` / iOS `Achievements.computeStats` 에서 `RemoteLandmark(region,…)` 반경 판정으로 파생.
+- **감시·선점**: 안드 `HiddenAchievementWatcher`(MainScreen 최상위 마운트 → 어느 화면에서든 동작). 자동조건 충족 & 미선점이면 트랜잭션 선점, 성공 시 특별 팝업 + 칭호 자동장착(StigmaStore+users.equippedTitle). iOS 는 전역 워처 부재 → ProfileScreen/AchievementsScreen `.task`+`onChange` 에서 `HiddenAchievementStore.attemptAutoClaims` 로 선점(프로필/업적 방문 시 판정 — **파리티 갭**), 성공 시 `.alert`.
+- **저장소**: 안드 `data/repository/HiddenAchievementRepository`(claim 트랜잭션 + observe Flow). iOS `Data/HiddenAchievementStore`(@MainActor: claims 실시간 구독 + claim(withCheckedContinuation+runTransaction) + attemptAutoClaims, `attempted` 세션 가드로 중복 방지).
+- **아이콘/파티클**: 안드 `HiddenParticles.kt`(Canvas + `withFrameNanos`, 효과별 orbit/rise/fall, `.layout` 로 넘쳐 그리기) + `HiddenIconWithEffect`(업적 목록·팝업용). iOS `HiddenIconBadge`/`HiddenParticlesView`(`TimelineView(.animation)`+`Canvas`). 효과: STARDUST/SNOW/AURORA/EMBER/SHADOW/HEART/MUSIC/ORBIT/BUBBLE.
+- **프로필 히든 아이콘 = 떠다니는 버블**(사용자 요청): 정적 배지 행을 없애고 **`FloatingStatBox` 에 편입** — 하트/다이어리처럼 부유·회전·클릭·드래그. `StatBubble.hiddenEffect` 추가 시 ⓐ 궤도 스파클 **오라**(`drawHiddenAura`/`drawAura`) ⓑ 잡거나 빠를 때 **잔상(trail, `Body.trail` 최근 12위치)** ⓒ 탭 시 **화려한 버스트**(파티클 24개 + 흰 스파클). 탭 → 업적 화면. 안드 `FloatingStatBox.kt` / iOS `FloatingStatBox.swift` 동일 구조. 프로필 items 순서 = 기본4 + 핀별 + 히든, `onTap` 은 pinnedStart/hiddenStart 로 분기.
+- **칭호 통합 조회**: `equippedTitleName(id)`(일반+히든 통합) → ProfileScreen/UserProfileScreen 칭호 표시가 히든 칭호도 해석. 히든 탭에선 내가 달성한 칭호를 장착/해제 가능.
+- **상수/컬렉션**: `StaryConfig.Collections.HIDDEN_ACHIEVEMENTS` / iOS `AppConfig.Collections.hiddenAchievements` + `FirestoreService.hiddenAchievements`.
+- **문자열**: 안드 `ach_tab_normal/ach_tab_hidden/ach_hidden_intro/ach_hidden_achiever/ach_hidden_unclaimed/ach_hidden_by_me`(ko/en/ja) / iOS `L10n` 동일 키. 업적명·조건·칭호는 기존 방침대로 비번역(데이터).
+- ⚠️ **iOS LocaleManager 버그 수정**: `.tabMap` 케이스가 `return ("지도"` 로 튜플이 안 닫혀 있어 **iOS 전체 컴파일 불가** 상태였음 → `("지도","Map","地図")` 로 수정. (HEAD=dbc6997 커밋 자체가 깨져 있었음. 이번 롤백에서 워킹트리에 있던 수정본이 함께 버려진 것으로 보임 — 다른 미커밋 수정이 있었다면 유실됐을 수 있으니 확인 필요.)
+- **남은 TODO**: 이벤트형 3종 화면 연동(하트100/전곡감상/관광지 교차사용자), 타인 프로필의 히든 배지 표시, iOS 전역 워처(항상 판정), 보안규칙 create-only, 파티클 모양 다양화(하트/음표 등).
 
 ---
 

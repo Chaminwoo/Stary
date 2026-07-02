@@ -43,6 +43,8 @@ object StaryConfig {
         const val BLOCKED = "blocked"
         /** 최상위: 콘텐츠/사용자 신고 */
         const val REPORTS = "reports"
+        /** 최상위: 히든 업적 선점 기록 (문서 id = 업적 id, 앱 전체 단 한 명만) */
+        const val HIDDEN_ACHIEVEMENTS = "hiddenAchievements"
     }
 
     /**

@@ -177,6 +177,13 @@
     <string name="ach_obtained">Earned</string>
     <string name="ach_title_equipped">Equipped the “%1$s” title</string>
     <string name="ach_title_unequipped">Title unequipped</string>
+    <!-- Hidden achievements -->
+    <string name="ach_tab_normal">General</string>
+    <string name="ach_tab_hidden">Hidden</string>
+    <string name="ach_hidden_intro">Achievements only ONE person in the whole app can claim. The conditions are a secret!</string>
+    <string name="ach_hidden_achiever">Achiever: %1$s</string>
+    <string name="ach_hidden_unclaimed">No one has claimed this yet</string>
+    <string name="ach_hidden_by_me">You claimed it!</string>
 
     <!-- Map (DiaryMap) -->
     <string name="cd_zoom_in">Zoom in</string>

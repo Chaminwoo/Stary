@@ -14,6 +14,7 @@ enum FirestoreService {
     static var friendRequests: CollectionReference { db.collection(AppConfig.Collections.friendRequests) }
     static var reports: CollectionReference { db.collection(AppConfig.Collections.reports) }
     static var chats: CollectionReference { db.collection(AppConfig.Collections.chats) }
+    static var hiddenAchievements: CollectionReference { db.collection(AppConfig.Collections.hiddenAchievements) }
 
     static func comments(of diaryId: String) -> CollectionReference {
         diaries.document(diaryId).collection(AppConfig.Collections.comments)

@@ -15,6 +15,8 @@ struct StatBubble: Identifiable {
     /// >=0 이면 SF Symbol 대신 StarStyle 별 모양으로 그린다(핀한 내 다이어리).
     var starType: Int = -1
     var starColorIndex: Int = -1
+    /// nil 이 아니면 히든 업적 아이콘 — 오라 파티클 + 클릭/드래그 시 화려한 버스트·잔상.
+    var hiddenEffect: ParticleEffect? = nil
 }
 
 /// 통계(좋아요/친구/다이어리/업적)와 핀한 별을 **떠다니는 아이콘**으로 보여주고 물리적으로 다룬다.
@@ -139,6 +141,8 @@ final class FloatingEngine: ObservableObject {
         var rot: CGFloat
         let rotIdleSpeed: CGFloat
         var floatT0: CGFloat = 0
+        /// 히든 아이콘 잔상(afterimage) 최근 위치들.
+        var trail: [CGPoint] = []
         init(pos: CGPoint, phase: CGFloat, floatAmp: CGFloat, floatSpeed: CGFloat, rot: CGFloat, rotIdleSpeed: CGFloat) {
             self.pos = pos; self.anchorBase = pos
             self.phase = phase; self.floatAmp = floatAmp; self.floatSpeed = floatSpeed
@@ -309,6 +313,17 @@ final class FloatingEngine: ObservableObject {
             }
         }
 
+        // 히든 아이콘 잔상(afterimage) — 잡았거나 빠르게 움직일 때 위치를 쌓고, 멈추면 서서히 지운다.
+        for (i, b) in bodies.enumerated() where i < items.count && items[i].hiddenEffect != nil {
+            let moving = i == grab || hypot(b.vel.x, b.vel.y) > 45
+            if moving {
+                b.trail.append(b.pos)
+                if b.trail.count > 12 { b.trail.removeFirst() }
+            } else if !b.trail.isEmpty {
+                b.trail.removeFirst()
+            }
+        }
+
         // 파티클.
         if !particles.isEmpty {
             for p in particles {
@@ -402,17 +417,22 @@ final class FloatingEngine: ObservableObject {
     private func spawnBurst(_ i: Int) {
         guard i < bodies.count else { return }
         let src = bodies[i].pos
+        let hidden = i < items.count && items[i].hiddenEffect != nil
         var rng = SeededGenerator(seed: UInt64(bitPattern: Int64(elapsed * 1000)) &+ UInt64(i))
-        for _ in 0..<12 {
+        let cnt = hidden ? 24 : 12
+        for k in 0..<cnt {
             let ang = CGFloat(rng.nextUnit()) * 6.2832
-            let spd = 60 + CGFloat(rng.nextUnit()) * 120
+            let base: CGFloat = hidden ? 90 : 60
+            let span: CGFloat = hidden ? 170 : 120
+            let spd = base + CGFloat(rng.nextUnit()) * span
             particles.append(Particle(
                 pos: src,
                 vel: CGPoint(x: cos(ang) * spd, y: sin(ang) * spd - spd * 0.3),
                 life: 1,
                 bubbleIdx: i,
-                color: items[i].color,
-                spin: (CGFloat(rng.nextUnit()) - 0.5) * 360
+                // 히든은 색 + 흰 스파클을 섞어 더 화려하게.
+                color: (hidden && k % 3 == 0) ? .white : items[i].color,
+                spin: (CGFloat(rng.nextUnit()) - 0.5) * (hidden ? 560 : 360)
             ))
         }
     }
@@ -420,6 +440,19 @@ final class FloatingEngine: ObservableObject {
     // MARK: 그리기
 
     func draw(into context: GraphicsContext) {
+        // 히든 아이콘: 잔상(맨 뒤) + 궤도 스파클 오라.
+        for (i, b) in bodies.enumerated() where i < items.count && items[i].hiddenEffect != nil {
+            let col = itemColor(i)
+            let sc = richness(count(i))
+            let ts = b.trail.count
+            if ts > 0 {
+                for (k, tp) in b.trail.enumerated() {
+                    let a = CGFloat(k + 1) / CGFloat(ts) * 0.32
+                    drawSymbol(context, idx: i, color: col, pos: tp, scale: sc * 0.92, rot: b.rot, glow: 0, alpha: a)
+                }
+            }
+            drawAura(context, color: col, pos: b.pos, r: rad * sc * 0.5, t: elapsed, seed: i)
+        }
         // 파티클(아이콘 아래).
         for p in particles {
             let a = max(0, min(1, p.life))
@@ -458,6 +491,24 @@ final class FloatingEngine: ObservableObject {
         ctx.scaleBy(x: scale, y: scale)
         ctx.opacity = Double(alpha)
         ctx.draw(sym, at: .zero, anchor: .center)
+    }
+
+    /// 히든 아이콘 주변을 도는 스파클 오라(궤도 + 반짝임 + 흰 하이라이트). 떠 있을 때도 화려하게.
+    private func drawAura(_ context: GraphicsContext, color: Color, pos: CGPoint, r: CGFloat, t: CGFloat, seed: Int) {
+        let count = 7
+        for k in 0..<count {
+            let ph = CGFloat(seed) * 1.7 + CGFloat(k) * (6.2832 / CGFloat(count))
+            let ang = t * 0.9 + ph
+            let rr = r * (1.4 + 0.25 * sin(t * 1.6 + ph))
+            let p = CGPoint(x: pos.x + cos(ang) * rr, y: pos.y + sin(ang) * rr)
+            let a = 0.22 + 0.34 * (0.5 + 0.5 * sin(t * 2.4 + ph))
+            let dot = max(0.5, r * 0.14 * (0.7 + 0.5 * sin(t * 3 + ph)))
+            context.fill(Path(ellipseIn: CGRect(x: p.x - dot, y: p.y - dot, width: dot * 2, height: dot * 2)),
+                         with: .color(color.opacity(Double(a))))
+            let hr = max(0.4, dot * 0.42)
+            context.fill(Path(ellipseIn: CGRect(x: p.x - hr, y: p.y - hr, width: hr * 2, height: hr * 2)),
+                         with: .color(Color.white.opacity(Double(a * 0.5))))
+        }
     }
 }
 

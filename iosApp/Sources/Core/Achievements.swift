@@ -14,6 +14,9 @@ struct UserStats {
     var maxLikesOnOne = 0
     var distinctDays = 0
     var nightPosts = 0              // 자정~새벽(0~4시 UTC)에 올린 기록 수
+    // ── 히든 업적용 통계 ──
+    var secretKeywordTitle = false // 제목에 히든 키워드를 넣은 다이어리가 있는가
+    var remoteRegions: Set<String> = [] // 도달한 오지 region 집합(glacier/desert/trench/triangle)
 }
 
 /// 업적 보상 — 칭호 / 별 모양 / 별 색.
@@ -47,8 +50,7 @@ enum Achievements {
         Achievement(id: "companion", name: "길동무", condition: "친구 3명 만들기", reward: .title("길동무")) { $0.friends >= 3 },
         Achievement(id: "pilgrim", name: "우주의 순례자", condition: "다이어리 30개 작성하기", reward: .title("우주의 순례자")) { $0.diariesCreated >= 30 },
         Achievement(id: "guide", name: "별빛의 인도자", condition: "좋아요 200개 받기", reward: .title("별빛의 인도자")) { $0.likesReceived >= 200 },
-        Achievement(id: "cosmic_rascal", name: "우주의 악동", condition: "???", reward: .title("우주의 악동"), hidden: true) { $0.diariesViewed >= 42 },
-        Achievement(id: "lone_observer", name: "고독한 관측자", condition: "???", reward: .title("고독한 관측자"), hidden: true) { $0.diariesCreated >= 20 && $0.friends == 0 },
+        // ※ 기존 '???' 칭호(우주의 악동/고독한 관측자)는 히든 업적(HiddenAchievements)으로 이관됨.
     ]
 
     static let rewardAchievements: [Achievement] = [
@@ -103,6 +105,15 @@ enum Achievements {
         }
         let days = Set(diaries.filter { $0.createdAt > 0 }.map { $0.createdAt / 86_400_000 }).count
         let night = diaries.filter { $0.createdAt > 0 && (0...4).contains(Int(($0.createdAt / 3_600_000) % 24)) }.count
+        // ── 히든 업적 판정용 파생 ──
+        let keywordHit = diaries.contains { $0.title.contains(HiddenAchievements.secretKeyword) }
+        var regions = Set<String>()
+        for d in coords {
+            for lm in HiddenAchievements.remoteLandmarks where
+                Geo.distanceMeters(lat1: d.latitude, lng1: d.longitude, lat2: lm.lat, lng2: lm.lng) <= HiddenAchievements.remoteRadiusM {
+                regions.insert(lm.region)
+            }
+        }
         return UserStats(
             diariesCreated: diaries.count,
             likesReceived: diaries.reduce(0) { $0 + $1.likeCount },
@@ -112,7 +123,9 @@ enum Achievements {
             maxSpanMeters: maxSpan,
             maxLikesOnOne: diaries.map { $0.likeCount }.max() ?? 0,
             distinctDays: days,
-            nightPosts: night
+            nightPosts: night,
+            secretKeywordTitle: keywordHit,
+            remoteRegions: regions
         )
     }
 }

@@ -23,6 +23,9 @@ data class UserStats(
     val maxLikesOnOne: Int = 0,    // 한 다이어리가 받은 최다 좋아요
     val distinctDays: Int = 0,     // 기록한 서로 다른 날짜 수
     val nightPosts: Int = 0,       // 자정~새벽(0~4시 UTC)에 올린 기록 수
+    // ── 히든 업적용 통계 ──
+    val secretKeywordTitle: Boolean = false, // 제목에 히든 키워드를 넣은 다이어리가 있는가
+    val remoteRegions: Set<String> = emptySet(), // 도달한 오지 region 집합(glacier/desert/trench/triangle)
 )
 
 /** 업적 보상 — 칭호 / 별 모양 / 별 색 중 하나. (칭호 업적과 별·색 업적을 분리) */
@@ -59,9 +62,7 @@ object Achievements {
         Achievement("companion", "길동무", "친구 3명 만들기", Reward.Title("길동무")) { it.friends >= 3 },
         Achievement("pilgrim", "우주의 순례자", "다이어리 30개 작성하기", Reward.Title("우주의 순례자")) { it.diariesCreated >= 30 },
         Achievement("guide", "별빛의 인도자", "좋아요 200개 받기", Reward.Title("별빛의 인도자")) { it.likesReceived >= 200 },
-        // 숨겨진 칭호 업적 — 조건 비공개
-        Achievement("cosmic_rascal", "우주의 악동", "???", Reward.Title("우주의 악동"), hidden = true) { it.diariesViewed >= 42 },
-        Achievement("lone_observer", "고독한 관측자", "???", Reward.Title("고독한 관측자"), hidden = true) { it.diariesCreated >= 20 && it.friends == 0 },
+        // ※ 기존 '???' 칭호(우주의 악동/고독한 관측자)는 히든 업적(HiddenAchievements)으로 이관됨.
     )
 
     // ── 별 모양/색 업적 — 달성 시 업로드 피커에서 해당 모양·색이 해금된다 ──
@@ -169,6 +170,13 @@ fun rememberUserStats(
         val night = myDiaries.count {
             it.createdAt > 0 && ((it.createdAt / 3_600_000L) % 24L).toInt() in 0..4
         }
+        // ── 히든 업적 판정용 파생 ──
+        val keywordHit = myDiaries.any { it.title.contains(HiddenAchievements.SECRET_KEYWORD) }
+        val regions = coords.flatMap { d ->
+            HiddenAchievements.remoteLandmarks
+                .filter { lm -> GeoUtils.distanceBetween(d.latitude, d.longitude, lm.lat, lm.lng) <= HiddenAchievements.REMOTE_RADIUS_M }
+                .map { it.region }
+        }.toSet()
         UserStats(
             diariesCreated = myDiaries.size,
             likesReceived = myDiaries.sumOf { it.likeCount },
@@ -177,6 +185,8 @@ fun rememberUserStats(
             maxLikesOnOne = myDiaries.maxOfOrNull { it.likeCount } ?: 0,
             distinctDays = days,
             nightPosts = night,
+            secretKeywordTitle = keywordHit,
+            remoteRegions = regions,
         )
     }
 

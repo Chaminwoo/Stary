@@ -20,6 +20,8 @@ struct ProfileScreen: View {
     @State private var path = NavigationPath()
     @State private var showNicknameEditor = false
     @State private var nicknameDraft = ""
+    @StateObject private var hidden = HiddenAchievementStore()
+    @State private var hiddenAlert: HiddenAchievement?
 
     private enum ProfileRoute: Hashable { case achievements, myStars }
 
@@ -32,7 +34,16 @@ struct ProfileScreen: View {
         Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: othersViewedCount)
     }
     private var unlockedCount: Int { Achievements.unlockedIds(stats).count }
-    private var equippedTitle: String? { Achievements.byId(equippedTitleId)?.titleName }
+    private var equippedTitle: String? { equippedTitleName(equippedTitleId) }
+
+    /// 내가 달성한 히든 업적 id.
+    private var myHiddenIds: [String] { hidden.myIds(uid: auth.uid) }
+    /// 내가 달성한 히든 업적(떠다니는 아이콘용).
+    private var myHiddenAch: [HiddenAchievement] { myHiddenIds.compactMap { HiddenAchievements.byId($0) } }
+    /// 히든을 제외한 모든 일반 업적을 달성했는가.
+    private var allNormalDone: Bool {
+        !Achievements.all.isEmpty && Achievements.unlockedIds(stats).count >= Achievements.all.count
+    }
 
     /// 핀한 다이어리(최대 3) — 저장된 id 순서대로.
     private var pinnedDiaries: [Diary] {
@@ -56,6 +67,13 @@ struct ProfileScreen: View {
                 systemImage: "star.fill", count: 0, color: StarStyle.color(d.starColor),
                 label: d.title.isEmpty ? locale.t(.profileMyStars) : d.title,
                 showCount: false, starType: d.starType, starColorIndex: d.starColor
+            ))
+        }
+        // 내가 달성한 히든 업적 — 떠다니는 아이콘(오라/잔상/버스트).
+        for ach in myHiddenAch {
+            arr.append(StatBubble(
+                systemImage: ach.icon.systemImage, count: 0, color: ach.icon.color,
+                label: ach.title, burstOnTap: true, showCount: false, hiddenEffect: ach.effect
             ))
         }
         return arr
@@ -141,6 +159,7 @@ struct ProfileScreen: View {
                 }
             }
             .task {
+                hidden.start()
                 guard let uid = auth.uid else { return }
                 let snap = try? await FirestoreService.friends(of: uid).getDocuments()
                 friendsCount = snap?.documents.count ?? 0
@@ -149,7 +168,10 @@ struct ProfileScreen: View {
                     equippedTitleId = doc.get("equippedTitle") as? String
                     pinnedIds = (doc.get("pinnedDiaries") as? [String]) ?? []
                 }
+                runHiddenClaims()
             }
+            .onChange(of: hidden.loaded) { _ in runHiddenClaims() }
+            .onChange(of: friendsCount) { _ in runHiddenClaims() }
             .onChange(of: photoItem) { item in
                 Task {
                     guard let uid = auth.uid, let item,
@@ -170,6 +192,27 @@ struct ProfileScreen: View {
                 }
                 Button(locale.t(.commonCancel), role: .cancel) {}
             }
+            .alert("히든 업적 달성!",
+                   isPresented: Binding(get: { hiddenAlert != nil },
+                                        set: { if !$0 { hiddenAlert = nil } })) {
+                Button("확인", role: .cancel) { hiddenAlert = nil }
+            } message: {
+                if let a = hiddenAlert {
+                    Text("\(a.title)\n\(a.condition)\n앱에서 단 한 명 — 당신이 처음입니다")
+                }
+            }
+        }
+    }
+
+    /// 자동 조건을 만족한 히든 업적을 선점 시도하고, 새로 달성했으면 알림을 띄운다.
+    private func runHiddenClaims() {
+        guard let uid = auth.uid else { return }
+        let s = stats
+        let done = allNormalDone
+        let name = auth.displayName
+        Task {
+            let won = await hidden.attemptAutoClaims(stats: s, allNormalDone: done, uid: uid, name: name)
+            if let first = won.first { hiddenAlert = first }
         }
     }
 
@@ -180,10 +223,13 @@ struct ProfileScreen: View {
         case 2: path.append(ProfileRoute.myStars)
         case 3: path.append(ProfileRoute.achievements)
         default:
-            // 핀한 별 탭 → 지도로 가서 파동(물결) 후 그 별까지 도보 길찾기.
+            // 핀한 별 탭 → 지도로 가서 파동(물결) 후 그 별까지 도보 길찾기. 그 뒤 인덱스는 히든 아이콘 → 업적 화면.
             let p = pinnedDiaries
-            if idx >= 4, idx - 4 < p.count, let id = p[idx - 4].id {
+            let hiddenStart = 4 + p.count
+            if idx >= 4, idx < hiddenStart, let id = p[idx - 4].id {
                 MapFocusStore.shared.request(diaryId: id, withRoute: true)
+            } else if idx >= hiddenStart {
+                path.append(ProfileRoute.achievements)
             }
         }
     }
