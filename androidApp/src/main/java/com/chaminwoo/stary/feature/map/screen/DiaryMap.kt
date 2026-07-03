@@ -137,9 +137,8 @@ private const val PARTICLE_SEED = 42
 /** 마커 비트맵 변(px). 4의 배수 유지(GL 행 정렬). */
 private const val MARKER_SIDE_PX = 160
 
-/** 3D 글로브 진입 줌(이하로 줌아웃하면 행성 뷰로 전환) / 재장전 줌 / 지도 최소 줌. */
-private const val GLOBE_TRIGGER_ZOOM = 3.0
-private const val GLOBE_REARM_ZOOM = 3.4
+/** 3D 글로브 "지구 보기" 버튼 노출 줌(이하로 줌아웃하면 버튼 표시 — 자동 전환 없음) / 지도 최소 줌. */
+private const val GLOBE_BUTTON_ZOOM = 3.0
 private const val MAP_MIN_ZOOM = 2.4
 
 /**
@@ -548,8 +547,11 @@ fun DiaryMap(
     focusDiary: DiaryFocusTarget? = null,
     onFocusHandled: () -> Unit = {},
     showCreate: Boolean = true, // 비로그인 시 다이어리 생성(업로드) 버튼 숨김
-    /** 줌아웃이 [GLOBE_TRIGGER_ZOOM] 이하로 내려가면 호출 — 3D 글로브 진입(중심 위경도 전달). */
-    onZoomedOutToGlobe: ((lat: Double, lng: Double) -> Unit)? = null,
+    /**
+     * 줌이 [GLOBE_BUTTON_ZOOM] 이하면 (중심 위경도, true), 위로 올라오면 (_, _, false) 로 보고.
+     * 호출부는 이 값으로 하단 "지구 보기" 버튼을 노출/숨김(자동 전환 없음 — 버튼으로만 진입).
+     */
+    onGlobeAvailability: ((lat: Double, lng: Double, available: Boolean) -> Unit)? = null,
     /** 글로브 → 지도 복귀 카메라 요청. */
     globeReturnCamera: GlobeReturnCamera? = null,
 ) {
@@ -591,9 +593,7 @@ fun DiaryMap(
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
     val diariesRef = rememberUpdatedState(diaries)
     val initialLatLngRef = rememberUpdatedState(currentLatLng)
-    val onZoomedOutToGlobeRef = rememberUpdatedState(onZoomedOutToGlobe)
-    // 글로브 트리거 1회 보장(재장전은 줌이 GLOBE_REARM_ZOOM 위로 올라올 때)
-    val globeArmed = remember { java.util.concurrent.atomic.AtomicBoolean(true) }
+    val onGlobeAvailabilityRef = rememberUpdatedState(onGlobeAvailability)
 
     // 글로브 → 지도 복귀 카메라(글로브가 가리던 동안 즉시 점프)
     LaunchedEffect(globeReturnCamera) {
@@ -641,17 +641,12 @@ fun DiaryMap(
                     isCameraMoving.value = false
                     cameraIdleTick++
                 }
-                // 줌아웃 → 3D 글로브 진입(1회 트리거, 줌이 다시 올라오면 재장전)
+                // 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음)
                 map.addOnCameraMoveListener {
+                    val cb = onGlobeAvailabilityRef.value ?: return@addOnCameraMoveListener
                     val z = map.cameraPosition.zoom
-                    if (z > GLOBE_REARM_ZOOM) {
-                        globeArmed.set(true)
-                    } else if (z <= GLOBE_TRIGGER_ZOOM && onZoomedOutToGlobeRef.value != null &&
-                        globeArmed.compareAndSet(true, false)
-                    ) {
-                        val c = map.cameraPosition.target
-                        onZoomedOutToGlobeRef.value?.invoke(c?.latitude ?: 0.0, c?.longitude ?: 0.0)
-                    }
+                    val c = map.cameraPosition.target
+                    cb(c?.latitude ?: 0.0, c?.longitude ?: 0.0, z <= GLOBE_BUTTON_ZOOM)
                 }
                 // 별 클릭 → 100m 게이팅 (길찾기 기능은 제거됨 — 밖이면 안내 토스트만)
                 map.addOnMapClickListener { point ->

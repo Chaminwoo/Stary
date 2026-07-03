@@ -2,11 +2,12 @@ import SceneKit
 import SwiftUI
 import UIKit
 
-/// 3D 행성(지구) 화면 — 지도에서 줌을 최소로 빼면 나타나는 전체화면 오버레이.
+/// 3D 행성(지구) 화면 — 지도 하단 "지구 보기" 버튼으로 진입하는 전체화면 오버레이.
 /// (Android `feature/globe/GlobeScreen+GlobeRenderer` 패리티 — iOS 는 SceneKit 구현.)
 ///
 /// - 드래그: 행성 회전(관성), 3초 무입력 시 느린 자동 회전.
-/// - 핀치: 카메라 줌. 최소 거리 밑으로 당기면 지금 정면 지점의 지도(줌인)로 복귀.
+/// - 핀치: 카메라 줌(최소/최대 클램프) — 화면 전환 없음.
+/// - 화면 아래쪽 탭: 닫기(X) 버튼 표시(4초 후 자동 숨김) → 누르면 지금 정면 지점의 지도로 복귀.
 ///
 /// 성능: 씬/텍스처는 이 뷰가 나타날 때만 생성 — 지도 화면 평상시 비용 0.
 /// 노란 도시 야경 점광은 노드가 아니라 발광(emission) 텍스처에 베이크해
@@ -19,12 +20,21 @@ struct GlobeScreen: View {
     let onRequestExit: (_ lat: Double, _ lng: Double) -> Void
 
     @State private var hintVisible = true
+    // 아래쪽 탭으로 나타나는 닫기(X) 버튼 — 4초 무입력 시 자동 숨김(token 으로 최신 탭만 유효).
+    @State private var closeVisible = false
+    @State private var closeToken = 0
+    @StateObject private var exitProxy = GlobeExitProxy()
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            GlobeSceneView(diaries: diaries, startLat: startLat, startLng: startLng, onRequestExit: onRequestExit)
-                .ignoresSafeArea()
-                .background(Color.black)
+            GlobeSceneView(
+                diaries: diaries, startLat: startLat, startLng: startLng,
+                onRequestExit: onRequestExit,
+                onBottomTap: { showClose() },
+                exitProxy: exitProxy
+            )
+            .ignoresSafeArea()
+            .background(Color.black)
 
             // 조작 힌트 — 잠깐 보였다 사라짐 (Android globe_hint 패리티)
             Text(locale.t(.globeHint))
@@ -32,15 +42,48 @@ struct GlobeScreen: View {
                 .foregroundStyle(.white.opacity(0.75))
                 .padding(.horizontal, 16).padding(.vertical, 8)
                 .background(Color.black.opacity(0.35), in: Capsule())
-                .padding(.bottom, 28)
+                .padding(.bottom, 96) // 닫기(X) 버튼 자리 위
                 .opacity(hintVisible ? 1 : 0)
                 .animation(.easeInOut(duration: 0.7), value: hintVisible)
+
+            // 닫기(X) 버튼 — 아래쪽 탭으로 표시, 누르면 지금 정면 지점의 지도로 복귀.
+            if closeVisible {
+                Button {
+                    exitProxy.requestExit?()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.title3.bold())
+                        .frame(width: 52, height: 52)
+                        .background(Color.white.opacity(0.14), in: Circle())
+                        .foregroundStyle(.white)
+                }
+                .accessibilityLabel(locale.t(.globeClose))
+                .padding(.bottom, 24)
+                .transition(.opacity)
+            }
         }
         .task {
             try? await Task.sleep(nanoseconds: 4_200_000_000)
             hintVisible = false
         }
     }
+
+    private func showClose() {
+        withAnimation(.easeInOut(duration: 0.25)) { closeVisible = true }
+        closeToken += 1
+        let token = closeToken
+        Task {
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            if token == closeToken {
+                withAnimation(.easeInOut(duration: 0.25)) { closeVisible = false }
+            }
+        }
+    }
+}
+
+/// SwiftUI(X 버튼) → SceneKit Coordinator 의 "정면 좌표로 지도 복귀"를 잇는 프록시.
+private final class GlobeExitProxy: ObservableObject {
+    var requestExit: (() -> Void)?
 }
 
 /// SceneKit 씬 래퍼. 카메라/관성/자동회전 시뮬레이션은 렌더 델리게이트에서 진행.
@@ -49,9 +92,13 @@ private struct GlobeSceneView: UIViewRepresentable {
     let startLat: Double
     let startLng: Double
     let onRequestExit: (_ lat: Double, _ lng: Double) -> Void
+    /// 화면 아래쪽(55% 이하 영역) 탭 — 닫기(X) 버튼 표시 요청.
+    let onBottomTap: () -> Void
+    let exitProxy: GlobeExitProxy
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(startLat: startLat, startLng: startLng, onRequestExit: onRequestExit)
+        Coordinator(startLat: startLat, startLng: startLng,
+                    onRequestExit: onRequestExit, onBottomTap: onBottomTap)
     }
 
     func makeUIView(context: Context) -> SCNView {
@@ -65,8 +112,14 @@ private struct GlobeSceneView: UIViewRepresentable {
 
         let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.onPan(_:)))
         let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.onPinch(_:)))
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.onTap(_:)))
         view.addGestureRecognizer(pan)
         view.addGestureRecognizer(pinch)
+        view.addGestureRecognizer(tap)
+        // SwiftUI 쪽 X 버튼이 Coordinator 의 "정면 좌표 복귀"를 호출할 수 있게 연결.
+        exitProxy.requestExit = { [weak coordinator = context.coordinator] in
+            coordinator?.requestExitToMap()
+        }
         return view
     }
 
@@ -78,12 +131,13 @@ private struct GlobeSceneView: UIViewRepresentable {
         // Android GlobeRenderer 상수 패리티
         static let enterDist: Float = 4.6    // 진입 시작 거리(돌리-인 출발점)
         static let idleDist: Float = 3.25    // 기본 관람 거리
-        static let minDist: Float = 2.10     // 이 밑으로 핀치-인 → 지도 복귀
+        static let minDist: Float = 2.10     // 카메라 최소 거리(핀치 줌 클램프 — 화면 전환 없음)
         static let maxDist: Float = 6.0
         static let flareMinLikes = 100       // 이 이상 좋아요 → 별 플레어(노드), 미만 → 베이크된 점광
         static let flareMax = 500
 
         let onRequestExit: (_ lat: Double, _ lng: Double) -> Void
+        let onBottomTap: () -> Void
 
         // 카메라/인터랙션 상태 (제스처: 메인 스레드 쓰기 / 렌더 스레드 읽기)
         var yawDeg: Float = 0            // 모델 Y 회전(= -경도)
@@ -101,12 +155,20 @@ private struct GlobeSceneView: UIViewRepresentable {
         /// 지구+별+트레일+배경 별밭을 담는 회전 컨테이너(Android uModel 대응).
         let containerNode = SCNNode()
 
-        init(startLat: Double, startLng: Double, onRequestExit: @escaping (_ lat: Double, _ lng: Double) -> Void) {
+        init(
+            startLat: Double, startLng: Double,
+            onRequestExit: @escaping (_ lat: Double, _ lng: Double) -> Void,
+            onBottomTap: @escaping () -> Void
+        ) {
             self.onRequestExit = onRequestExit
+            self.onBottomTap = onBottomTap
             self.pitchDeg = Float(min(max(startLat, -75), 75))
             self.yawDeg = Float(-startLng)
             super.init()
         }
+
+        /// X 버튼 → 지금 정면 지점의 지도로 복귀.
+        func requestExitToMap() { fireExit() }
 
         /// 지금 화면 정면에 보이는 지점 (위도, 경도) — 지도 복귀 좌표.
         func facingLatLng() -> (Double, Double) {
@@ -156,12 +218,19 @@ private struct GlobeSceneView: UIViewRepresentable {
             case .changed:
                 let factor = Float(g.scale / lastPinchScale)
                 lastPinchScale = g.scale
-                let next = min(max(camDist / factor, Coordinator.minDist - 0.05), Coordinator.maxDist)
+                // 핀치는 카메라 줌만 — 화면 전환(지도 복귀) 없음
+                let next = min(max(camDist / factor, Coordinator.minDist), Coordinator.maxDist)
                 camDist = next
                 dollyTarget = next
-                // 핀치-인으로 최소 거리 도달 → 그 지점 지도로 줌인 복귀
-                if next <= Coordinator.minDist && factor > 1 { fireExit() }
             default: break
+            }
+        }
+
+        /// 화면 아래쪽 탭 → 닫기(X) 버튼 표시 요청.
+        @objc func onTap(_ g: UITapGestureRecognizer) {
+            guard let v = g.view else { return }
+            if g.location(in: v).y >= v.bounds.height * 0.55 {
+                DispatchQueue.main.async { self.onBottomTap() }
             }
         }
 

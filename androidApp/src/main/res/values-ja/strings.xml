@@ -196,7 +196,9 @@
     <string name="map_open_range">%1$dm以内で閲覧できます（現在%2$dm）</string>
     <string name="map_route_summary">徒歩約%1$d分 · %2$dm</string>
     <string name="map_route_cancel">経路を取り消す</string>
-    <string name="globe_hint">ドラッグで回転 · ピンチで地図へ</string>
+    <string name="globe_hint">ドラッグで回転 · 下をタップで閉じる</string>
+    <string name="globe_open">地球を見る</string>
+    <string name="globe_close">地図に戻る</string>
 
     <!-- 他のユーザーのプロフィール(UserProfileScreen) -->
     <string name="user_profile_me">マイプロフィール</string>

@@ -6,12 +6,19 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -41,10 +48,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
- * 3D 행성(지구) 화면 — 지도에서 줌을 최소로 빼면 나타나는 전체화면 오버레이.
+ * 3D 행성(지구) 화면 — 지도 하단 "지구 보기" 버튼으로 진입하는 전체화면 오버레이.
  *
  * - 드래그: 행성 회전(관성), 3초 무입력 시 느린 자동 회전.
- * - 핀치: 카메라 줌. [GlobeRenderer.MIN_DIST] 밑으로 당기면 지금 정면 지점의 지도(줌인)로 복귀.
+ * - 핀치: 카메라 줌([GlobeRenderer.MIN_DIST]~[GlobeRenderer.MAX_DIST] 클램프) — 화면 전환 없음.
+ * - 화면 아래쪽 탭: 닫기(X) 버튼 표시 → 누르면 지금 정면 지점의 지도로 복귀.
  * - 뒤로가기: 동일하게 지도 복귀.
  *
  * 성능: GLSurfaceView/렌더러/텍스처는 이 컴포저블이 컴포지션에 들어올 때만 생성 —
@@ -79,6 +87,8 @@ fun GlobeScreen(
     BackHandler { fireExit() }
 
     var glView by remember { mutableStateOf<GLSurfaceView?>(null) }
+    // 화면 아래쪽을 탭하면 나타나는 닫기(X) 버튼 — 잠시 후 자동 숨김
+    var closeVisible by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
@@ -113,12 +123,16 @@ fun GlobeScreen(
                         renderer.pitchVelDeg = dPitch / dt * 0.55f
 
                         if (zoom != 1f) {
-                            val next = (renderer.camDist / zoom)
-                                .coerceIn(GlobeRenderer.MIN_DIST - 0.05f, GlobeRenderer.MAX_DIST)
-                            renderer.camDist = next
-                            // 핀치-인으로 최소 거리 도달 → 그 지점 지도로 줌인 복귀
-                            if (next <= GlobeRenderer.MIN_DIST && zoom > 1f) fireExit()
+                            // 핀치는 카메라 줌만 — 화면 전환(지도 복귀) 없음
+                            renderer.camDist = (renderer.camDist / zoom)
+                                .coerceIn(GlobeRenderer.MIN_DIST, GlobeRenderer.MAX_DIST)
                         }
+                    }
+                }
+                .pointerInput(Unit) {
+                    // 화면 아래쪽(55% 이하 영역) 탭 → 닫기(X) 버튼 표시
+                    detectTapGestures { offset ->
+                        if (offset.y >= size.height * 0.55f) closeVisible = true
                     }
                 }
         )
@@ -152,12 +166,44 @@ fun GlobeScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(bottom = 28.dp)
+                    .padding(bottom = 96.dp) // 닫기(X) 버튼 자리 위
                     .graphicsLayer { alpha = hintAlpha }
                     .clip(RoundedCornerShape(50))
                     .background(Color.Black.copy(alpha = 0.35f))
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
+        }
+
+        // 닫기(X) 버튼 — 아래쪽 탭으로 표시, 4초 무입력 시 자동 숨김. 누르면 지도 복귀.
+        LaunchedEffect(closeVisible) {
+            if (closeVisible) {
+                delay(4000)
+                closeVisible = false
+            }
+        }
+        val closeAlpha by animateFloatAsState(
+            targetValue = if (closeVisible) 1f else 0f,
+            animationSpec = tween(250), label = "globe-close"
+        )
+        if (closeAlpha > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp)
+                    .graphicsLayer { alpha = closeAlpha }
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.14f))
+                    .clickable(enabled = closeVisible) { fireExit() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = stringResource(R.string.globe_close),
+                    tint = Color.White
+                )
+            }
         }
     }
 }

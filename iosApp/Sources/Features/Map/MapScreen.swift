@@ -26,9 +26,11 @@ struct MapScreen: View {
     @State private var warpColor: Color = .white
     @State private var warpId = 0
 
-    // 3D 행성(글로브) 뷰 상태 — 지도 줌을 최소로 빼면 진입. nil 아니면 오버레이 표시.
+    // 3D 행성(글로브) 뷰 상태 — 줌을 충분히 빼면 하단 버튼이 뜨고, 눌러야 진입.
     @State private var globeCenter: GlobeCenter?
     @State private var globeReturn: GlobeReturnCamera?
+    // 줌이 낮을 때 지도에서 보고되는 "지구 보기" 후보 중심(nil = 버튼 숨김).
+    @State private var globeButtonCenter: GlobeCenter?
     // 지도 ↔ 글로브 교체를 가리는 검정 디졸브 스크림.
     @State private var globeScrim: Double = 0
 
@@ -58,7 +60,9 @@ struct MapScreen: View {
                 onTapDiary: { selected = $0 },
                 route: partialRoute,
                 focusTarget: focusTarget,
-                onZoomedOutToGlobe: { lat, lng in enterGlobe(lat: lat, lng: lng) },
+                onGlobeAvailability: { lat, lng, available in
+                    globeButtonCenter = available ? GlobeCenter(lat: lat, lng: lng) : nil
+                },
                 globeReturnCamera: globeReturn
             )
             .ignoresSafeArea()
@@ -97,7 +101,24 @@ struct MapScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
 
-            // ── 3D 행성(글로브) 오버레이 — 줌 최소 진입, 핀치인으로 그 지점 지도 복귀 ──
+            // ── 하단 "지구 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
+            if let entry = globeButtonCenter, globeCenter == nil {
+                Button {
+                    enterGlobe(lat: entry.lat, lng: entry.lng)
+                } label: {
+                    Label(locale.t(.globeOpen), systemImage: "globe.asia.australia.fill")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 18).padding(.vertical, 11)
+                        .background(Theme.surface.opacity(0.93), in: Capsule())
+                        .foregroundStyle(Theme.textPrimary)
+                        .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.5), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 30)
+            }
+
+            // ── 3D 행성(글로브) 오버레이 — 버튼으로 진입, 하단 탭 → X 버튼으로 그 지점 지도 복귀 ──
             if let center = globeCenter {
                 GlobeScreen(
                     diaries: shownDiaries,

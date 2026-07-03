@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -63,11 +64,13 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaminwoo.stary.BuildConfig
+import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Friend
 import com.chaminwoo.stary.core.util.LocationHelper
@@ -216,9 +219,11 @@ fun MainListScreen(
 
     val scope = rememberCoroutineScope()
 
-    // ── 3D 행성(글로브) 뷰 상태 — 지도 줌을 최소로 빼면 진입. null 아니면 오버레이 표시. ──
+    // ── 3D 행성(글로브) 뷰 상태 — 줌을 충분히 빼면 하단 버튼이 뜨고, 눌러야 진입. ──
     var globeCenter by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var globeReturn by remember { mutableStateOf<GlobeReturnCamera?>(null) }
+    // 줌이 낮을 때 지도에서 보고되는 "지구 보기" 후보 중심(null = 버튼 숨김)
+    var globeButtonCenter by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     // 지도(SurfaceView) ↔ 글로브(GLSurfaceView) 교체를 가리는 검정 디졸브 스크림
     val globeScrim = remember { Animatable(0f) }
 
@@ -301,15 +306,8 @@ fun MainListScreen(
             focusDiary = focusTarget,
             onFocusHandled = { MapFocusState.consume() },
             showCreate = userId != null, // 비로그인 시 업로드 버튼 숨김
-            onZoomedOutToGlobe = { lat, lng ->
-                if (globeCenter == null) {
-                    scope.launch {
-                        globeScrim.snapTo(0f)
-                        globeScrim.animateTo(1f, tween(170))
-                        globeCenter = lat to lng
-                        globeScrim.animateTo(0f, tween(520))
-                    }
-                }
+            onGlobeAvailability = { lat, lng, available ->
+                globeButtonCenter = if (available) lat to lng else null
             },
             globeReturnCamera = globeReturn,
         )
@@ -409,7 +407,51 @@ fun MainListScreen(
             }
         }
 
-        // ── 3D 행성(글로브) 오버레이 — 줌 최소 진입, 핀치인/뒤로가기로 그 지점 지도 복귀 ──
+        // ── 하단 "지구 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
+        AnimatedVisibility(
+            visible = globeButtonCenter != null && globeCenter == null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xEE111120))
+                    .border(1.dp, Color(0xFF6EE7B7).copy(alpha = 0.5f), RoundedCornerShape(50))
+                    .clickable {
+                        val (lat, lng) = globeButtonCenter ?: return@clickable
+                        if (globeCenter == null) {
+                            scope.launch {
+                                globeScrim.snapTo(0f)
+                                globeScrim.animateTo(1f, tween(170))
+                                globeCenter = lat to lng
+                                globeScrim.animateTo(0f, tween(520))
+                            }
+                        }
+                    }
+                    .padding(horizontal = 18.dp, vertical = 11.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Public,
+                    contentDescription = null,
+                    tint = Color(0xFF6EE7B7),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.globe_open),
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 13.sp
+                )
+            }
+        }
+
+        // ── 3D 행성(글로브) 오버레이 — 버튼으로 진입, X 버튼/뒤로가기로 그 지점 지도 복귀 ──
         globeCenter?.let { (lat, lng) ->
             GlobeScreen(
                 diaries = filteredDiaries,

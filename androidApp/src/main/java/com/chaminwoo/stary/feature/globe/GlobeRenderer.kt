@@ -661,7 +661,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     companion object {
         const val ENTER_DIST = 4.6f   // 진입 시작 거리(돌리-인 출발점)
         const val IDLE_DIST = 3.25f   // 기본 관람 거리
-        const val MIN_DIST = 2.10f    // 이 밑으로 핀치-인 → 지도 복귀
+        const val MIN_DIST = 2.10f    // 카메라 최소 거리(핀치 줌 클램프 — 화면 전환 없음)
         const val MAX_DIST = 6.0f
 
         private const val SPRITE_FLOATS = 12
@@ -672,7 +672,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val GLOW_ALPHA = 0.42f
         private const val GLOW_MAX = 5000
         private const val BG_STAR_COUNT = 1600
-        private const val EARTH_BRIGHTNESS = 0.75f // 원본 대비 지구 밝기(균일)
+        private const val EARTH_BRIGHTNESS = 0.45f // 원본 대비 지구 밝기(균일)
         private const val TRAIL_COUNT = 5
         /** 트레일 팔레트(레퍼런스풍) — 원호마다 A→B 두 색을 섞어 흐르게 한다. */
         private val TRAIL_COLORS = arrayOf(

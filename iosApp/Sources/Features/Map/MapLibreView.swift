@@ -15,15 +15,15 @@ struct MapLibreView: UIViewRepresentable {
     /// 외부(알림/친구 별 탭)에서 "이 좌표로 카메라 이동" 요청. 값이 바뀔 때 1회 애니메이션 이동.
     /// (Android MapFocusState → DiaryMap focusDiary 카메라 이동 패리티. iOS 는 파동 연출 없이 카메라만.)
     var focusTarget: CLLocationCoordinate2D?
-    /// 줌아웃이 [globeTriggerZoom] 이하로 내려가면 호출 — 3D 글로브 진입(중심 위경도 전달).
-    var onZoomedOutToGlobe: ((_ lat: Double, _ lng: Double) -> Void)? = nil
+    /// 줌이 [globeButtonZoom] 이하면 (중심 위경도, true), 위로 올라오면 (_, _, false) 로 보고.
+    /// 호출부는 이 값으로 하단 "지구 보기" 버튼을 노출/숨김(자동 전환 없음 — 버튼으로만 진입).
+    var onGlobeAvailability: ((_ lat: Double, _ lng: Double, _ available: Bool) -> Void)? = nil
     /// 글로브 → 지도 복귀 카메라 요청(nonce 로 같은 좌표 반복 요청도 트리거).
     var globeReturnCamera: GlobeReturnCamera? = nil
 
-    /// 3D 글로브 진입 줌(이하로 줌아웃하면 행성 뷰로 전환) / 재장전 줌 / 지도 최소 줌.
-    /// (Android DiaryMap GLOBE_TRIGGER_ZOOM/GLOBE_REARM_ZOOM/MAP_MIN_ZOOM 패리티)
-    static let globeTriggerZoom = 3.0
-    static let globeRearmZoom = 3.4
+    /// 3D 글로브 "지구 보기" 버튼 노출 줌 / 지도 최소 줌.
+    /// (Android DiaryMap GLOBE_BUTTON_ZOOM/MAP_MIN_ZOOM 패리티)
+    static let globeButtonZoom = 3.0
     static let mapMinZoom = 2.4
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -76,22 +76,23 @@ struct MapLibreView: UIViewRepresentable {
         var didAutoCenter = false
         /// 마지막으로 카메라를 옮긴 포커스 좌표(중복 이동 방지).
         var lastFocus: CLLocationCoordinate2D?
-        /// 글로브 트리거 1회 보장(재장전은 줌이 globeRearmZoom 위로 올라올 때).
-        var globeArmed = true
         /// 마지막으로 처리한 글로브 복귀 요청 nonce.
         var lastGlobeReturnNonce: Int = -1
         init(_ parent: MapLibreView) { self.parent = parent }
 
-        /// 줌아웃 → 3D 글로브 진입(1회 트리거, 줌이 다시 올라오면 재장전).
+        /// 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음).
+        private func reportGlobeAvailability(_ mapView: MLNMapView) {
+            guard let cb = parent.onGlobeAvailability else { return }
+            let c = mapView.centerCoordinate
+            cb(c.latitude, c.longitude, mapView.zoomLevel <= MapLibreView.globeButtonZoom)
+        }
+
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
-            let z = mapView.zoomLevel
-            if z > MapLibreView.globeRearmZoom {
-                globeArmed = true
-            } else if z <= MapLibreView.globeTriggerZoom, globeArmed, let cb = parent.onZoomedOutToGlobe {
-                globeArmed = false
-                let c = mapView.centerCoordinate
-                cb(c.latitude, c.longitude)
-            }
+            reportGlobeAvailability(mapView)
+        }
+
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            reportGlobeAvailability(mapView)
         }
 
         /// 직전 포커스와 (거의) 같은 좌표인지 — 같은 별 재요청 시 카메라를 다시 옮기지 않게.
