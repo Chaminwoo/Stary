@@ -545,23 +545,93 @@ private enum GlobeBuilder {
                         (0.030, 0.050, 0.100), (0.060, 0.040, 0.110), (0.050, 0.020, 0.090),
                     ]
                     let space = CGColorSpaceCreateDeviceRGB()
-                    for c in colors {
-                        let cx = rnd() * CGFloat(w)
-                        let cy = CGFloat(h) * (0.2 + rnd() * 0.6)
-                        let radius = 180 + rnd() * 180
-                        if let g = CGGradient(
+                    func haze(_ c: (CGFloat, CGFloat, CGFloat), _ center: CGPoint, _ radius: CGFloat) {
+                        guard let g = CGGradient(
                             colorsSpace: space,
                             colors: [UIColor(red: c.0, green: c.1, blue: c.2, alpha: 1).cgColor,
                                      UIColor.black.cgColor] as CFArray,
                             locations: [0, 1]
-                        ) {
-                            cg.saveGState()
-                            cg.setBlendMode(.plusLighter)
-                            cg.drawRadialGradient(g, startCenter: CGPoint(x: cx, y: cy), startRadius: 0,
-                                                  endCenter: CGPoint(x: cx, y: cy), endRadius: radius, options: [])
-                            cg.restoreGState()
+                        ) else { return }
+                        cg.saveGState()
+                        cg.setBlendMode(.plusLighter)
+                        cg.drawRadialGradient(g, startCenter: center, startRadius: 0,
+                                              endCenter: center, endRadius: radius, options: [])
+                        cg.restoreGState()
+                    }
+                    for c in colors {
+                        haze(c, CGPoint(x: rnd() * CGFloat(w), y: CGFloat(h) * (0.2 + rnd() * 0.6)),
+                             180 + rnd() * 180)
+                    }
+
+                    // 은하수 띠 — 등장방형에서 대원 = 사인 곡선. 잔별 + 어두운 헤이즈
+                    let bandPhase = rnd() * 2 * .pi
+                    func bandY(_ u: CGFloat) -> CGFloat {
+                        CGFloat(h) * 0.5 + sin(u * 2 * .pi + bandPhase) * CGFloat(h) * 0.16
+                    }
+                    for _ in 0..<10 {
+                        let u = rnd()
+                        haze((0.020, 0.024, 0.034), CGPoint(x: u * CGFloat(w), y: bandY(u)), 90 + rnd() * 80)
+                    }
+                    cg.setBlendMode(.plusLighter)
+                    for _ in 0..<560 {
+                        let u = rnd()
+                        let x = u * CGFloat(w)
+                        let y = bandY(u) + (rnd() + rnd() - 1) * 34 // 대략 가우시안 스프레드
+                        let br = 0.06 + rnd() * 0.22
+                        let warm = rnd()
+                        let r = 0.5 + rnd() * 1.0
+                        UIColor(red: br * (0.88 + 0.12 * warm), green: br * 0.90,
+                                blue: br * (1.00 - 0.10 * warm), alpha: 1).setFill()
+                        cg.fillEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+                    }
+
+                    // 별자리 — 밝은 별 + 희미한 연결선(북두칠성/카시오페이아/오리온/남십자)
+                    func constellation(center: CGPoint, scale: CGFloat, roll: CGFloat,
+                                       points: [(CGFloat, CGFloat)], segments: [(Int, Int)]) {
+                        let cosR = cos(roll), sinR = sin(roll)
+                        let pts = points.map { p in
+                            CGPoint(x: center.x + (p.0 * cosR - p.1 * sinR) * scale,
+                                    y: center.y - (p.0 * sinR + p.1 * cosR) * scale)
+                        }
+                        cg.setBlendMode(.plusLighter)
+                        cg.setStrokeColor(UIColor(red: 0.10, green: 0.13, blue: 0.20, alpha: 1).cgColor)
+                        cg.setLineWidth(1.5)
+                        for s in segments {
+                            cg.move(to: pts[s.0]); cg.addLine(to: pts[s.1]); cg.strokePath()
+                        }
+                        for p in pts {
+                            let br = 0.55 + rnd() * 0.25 // 배경보다 또렷한 청백색
+                            UIColor(red: br * 0.92, green: br * 0.95, blue: br, alpha: 1).setFill()
+                            cg.fillEllipse(in: CGRect(x: p.x - 2.6, y: p.y - 2.6, width: 5.2, height: 5.2))
                         }
                     }
+                    // 북두칠성
+                    constellation(center: CGPoint(x: 483, y: 239), scale: 26, roll: -0.21, points: [
+                        (0.0, 0.0), (1.0, 0.35), (1.9, 0.55), (2.8, 0.7), (3.0, -0.2), (4.0, 0.0), (3.9, 1.0),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 3)])
+                    // 카시오페이아
+                    constellation(center: CGPoint(x: 1251, y: 182), scale: 23, roll: 0.14, points: [
+                        (0.0, 0.0), (0.8, 0.7), (1.6, 0.15), (2.4, 0.85), (3.1, 0.35),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4)])
+                    // 오리온
+                    constellation(center: CGPoint(x: 1706, y: 483), scale: 28, roll: 0, points: [
+                        (0.4, 1.5), (1.7, 1.55), (0.85, 0.55), (1.1, 0.5), (1.35, 0.45), (0.55, -0.6), (1.75, -0.5),
+                    ], segments: [(0, 2), (1, 4), (2, 3), (3, 4), (2, 5), (4, 6)])
+                    // 남십자성
+                    constellation(center: CGPoint(x: 853, y: 808), scale: 34, roll: 0.17, points: [
+                        (0.0, 0.9), (0.15, -0.9), (-0.8, 0.0), (0.85, -0.1),
+                    ], segments: [(0, 1), (2, 3)])
+
+                    // 4방 광선 반짝별 — 은은한 포인트 몇 개
+                    let flare = makeFlareImage()
+                    for _ in 0..<9 {
+                        let s = 22 + rnd() * 14
+                        let x = rnd() * (CGFloat(w) - s * 2) + s
+                        let y = CGFloat(h) * (0.12 + rnd() * 0.76)
+                        flare.draw(in: CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s),
+                                   blendMode: .plusLighter, alpha: 0.30 + rnd() * 0.18)
+                    }
+                    cg.setBlendMode(.normal)
                 }
                 for _ in 0..<count {
                     let x = rnd() * CGFloat(w)

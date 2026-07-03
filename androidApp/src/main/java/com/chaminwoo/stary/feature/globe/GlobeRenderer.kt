@@ -30,8 +30,9 @@ import kotlin.math.sin
  * 3D 행성(지구) 렌더러 — 지도 줌 최소 진입 시 보이는 "밤의 지구" 뷰.
  *
  * 씬 구성(레퍼런스 `references/min_zoom.png` 재현):
- *  1. 배경 별밭: 반지름이 다른 3겹 구면 셸 + 원경 성운 글로우 — 카메라가 중심에서
- *     떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감. 미세 트윙클
+ *  1. 배경 별밭: 반지름이 다른 3겹 구면 셸 + 원경 성운 글로우 + 은하수 띠 +
+ *     별자리(북두칠성/카시오페이아/오리온/남십자, 희미한 연결선) + 4방 광선 반짝별 —
+ *     카메라가 중심에서 떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감
  *  2. 지구 구체: 원본의 3/4 밝기 균일(라이트맵/지형 밝힘 없음)
  *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 아주 옅은 글로우, 훨씬 반투명.
  *     양 끝은 점점 투명해지며 소멸, 백색 빛무리(가우시안 펄스)가 궤적을 따라
@@ -90,6 +91,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var glowVbo = 0
     private var starfieldVbo = 0
     private var starfieldVertexCount = 0
+    private var lineProgram = 0
+    private var constLineVbo = 0        // 별자리 연결선(GL_LINES)
+    private var constLineVertexCount = 0
+    private var bgFlareVbo = 0          // 배경 반짝별(4방 광선 텍스처)
+    private var bgFlareVertexCount = 0
 
     /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전).
      *  phase: 트레일별 파동 위상(불규칙성), intensity: 트레일별 투명도 차등(1=기준). */
@@ -120,6 +126,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         earthProgram = buildProgram(EARTH_VS, EARTH_FS)
         spriteProgram = buildProgram(SPRITE_VS, SPRITE_FS)
         ringProgram = buildProgram(RING_VS, RING_FS)
+        lineProgram = buildProgram(LINE_VS, LINE_FS)
 
         buildEarthMesh()
         earthTex = loadEarthTexture()
@@ -167,6 +174,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE)
         drawSprites(starfieldVbo, starfieldVertexCount, glowTex, camPos, t, depthTest = false)
+        // 1.5) 별자리 연결선 + 배경 반짝별(4방 광선) — 별밭과 같은 additive 층
+        drawConstellationLines()
+        if (bgFlareVertexCount > 0) {
+            drawSprites(bgFlareVbo, bgFlareVertexCount, flareTex, camPos, t, depthTest = false)
+        }
 
         // 2) 지구 본체 (불투명, 깊이 기록)
         GLES20.glDisable(GLES20.GL_BLEND)
@@ -429,10 +441,183 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 mode = 1f,
             )
         }
+
+        // ── 은하수 띠 — 기울어진 대원을 따라 잔별을 뿌리고 어두운 헤이즈로 감싼다 ──
+        run {
+            val m = FloatArray(16)
+            Matrix.setIdentityM(m, 0)
+            Matrix.rotateM(m, 0, 28f, 0f, 0f, 1f)
+            Matrix.rotateM(m, 0, 62f, 1f, 0f, 0f)
+            val pin = FloatArray(4)
+            val pout = FloatArray(4)
+            fun bandPoint(radius: Float, spreadRad: Float, ang: Float): FloatArray {
+                pin[0] = cos(ang) * cos(spreadRad); pin[1] = sin(spreadRad)
+                pin[2] = sin(ang) * cos(spreadRad); pin[3] = 0f
+                Matrix.multiplyMV(pout, 0, m, 0, pin, 0)
+                return floatArrayOf(pout[0] * radius, pout[1] * radius, pout[2] * radius)
+            }
+            repeat(560) {
+                val ang = rnd.nextFloat() * 6.2832f
+                val spread = (rnd.nextGaussian() * 0.055).toFloat() // 띠 두께 ±3° 남짓
+                val p = bandPoint(39f, spread, ang)
+                val br = 0.06f + rnd.nextFloat() * 0.22f
+                val warm = rnd.nextFloat()
+                addSprite(
+                    list, p,
+                    r = br * (0.88f + 0.12f * warm), g = br * 0.90f, b = br * (1.00f - 0.10f * warm),
+                    a = 1f,
+                    size = 0.030f + rnd.nextFloat() * 0.075f,
+                    phase = rnd.nextFloat(), mode = 1f,
+                )
+            }
+            repeat(10) { // 띠를 감싸는 아주 어두운 대형 헤이즈
+                val ang = rnd.nextFloat() * 6.2832f
+                val p = bandPoint(40f, (rnd.nextGaussian() * 0.03).toFloat(), ang)
+                addSprite(
+                    list, p,
+                    r = 0.020f, g = 0.024f, b = 0.034f, a = 1f,
+                    size = 2.6f + rnd.nextFloat() * 2.2f,
+                    phase = rnd.nextFloat(), mode = 1f,
+                )
+            }
+        }
+
+        // ── 별자리 — 밝은 별 + 희미한 연결선 (북두칠성/카시오페이아/오리온/남십자) ──
+        val constLines = ArrayList<Float>()
+        fun addConstellation(
+            centerLat: Double, centerLng: Double, scaleDeg: Float, rollDeg: Float,
+            points: Array<FloatArray>, segments: Array<IntArray>,
+        ) {
+            val radius = 36f
+            val c = latLngToXyz(centerLat, centerLng, 1f)
+            val east = norm3(cross3(floatArrayOf(0f, 1f, 0f), c)) // 접평면 기저
+            val north = norm3(cross3(c, east))
+            val s = Math.toRadians(scaleDeg.toDouble()).toFloat()
+            val roll = Math.toRadians(rollDeg.toDouble()).toFloat()
+            val cosR = cos(roll)
+            val sinR = sin(roll)
+            val pts = points.map { p ->
+                val x = (p[0] * cosR - p[1] * sinR) * s
+                val y = (p[0] * sinR + p[1] * cosR) * s
+                val d = norm3(floatArrayOf(
+                    c[0] + east[0] * x + north[0] * y,
+                    c[1] + east[1] * x + north[1] * y,
+                    c[2] + east[2] * x + north[2] * y,
+                ))
+                floatArrayOf(d[0] * radius, d[1] * radius, d[2] * radius)
+            }
+            for (p in pts) {
+                val br = 0.55f + rnd.nextFloat() * 0.25f // 별자리 별 — 배경보다 또렷한 청백색
+                addSprite(
+                    list, p,
+                    r = br * 0.92f, g = br * 0.95f, b = br * 1.00f, a = 1f,
+                    size = 0.20f + rnd.nextFloat() * 0.08f,
+                    phase = rnd.nextFloat(), mode = 1f,
+                )
+            }
+            for (seg in segments) {
+                constLines.addAll(pts[seg[0]].toList())
+                constLines.addAll(pts[seg[1]].toList())
+            }
+        }
+        // 북두칠성 — 손잡이(0~2) + 국자(3~6)
+        addConstellation(
+            48.0, -95.0, 4.5f, -12f,
+            arrayOf(
+                floatArrayOf(0.0f, 0.0f), floatArrayOf(1.0f, 0.35f), floatArrayOf(1.9f, 0.55f),
+                floatArrayOf(2.8f, 0.7f), floatArrayOf(3.0f, -0.2f), floatArrayOf(4.0f, 0.0f),
+                floatArrayOf(3.9f, 1.0f),
+            ),
+            arrayOf(
+                intArrayOf(0, 1), intArrayOf(1, 2), intArrayOf(2, 3), intArrayOf(3, 4),
+                intArrayOf(4, 5), intArrayOf(5, 6), intArrayOf(6, 3),
+            ),
+        )
+        // 카시오페이아 — W 자
+        addConstellation(
+            58.0, 40.0, 4.0f, 8f,
+            arrayOf(
+                floatArrayOf(0.0f, 0.0f), floatArrayOf(0.8f, 0.7f), floatArrayOf(1.6f, 0.15f),
+                floatArrayOf(2.4f, 0.85f), floatArrayOf(3.1f, 0.35f),
+            ),
+            arrayOf(intArrayOf(0, 1), intArrayOf(1, 2), intArrayOf(2, 3), intArrayOf(3, 4)),
+        )
+        // 오리온 — 어깨(0,1)·허리띠(2~4)·다리(5,6)
+        addConstellation(
+            5.0, 120.0, 5.0f, 0f,
+            arrayOf(
+                floatArrayOf(0.4f, 1.5f), floatArrayOf(1.7f, 1.55f), floatArrayOf(0.85f, 0.55f),
+                floatArrayOf(1.1f, 0.5f), floatArrayOf(1.35f, 0.45f), floatArrayOf(0.55f, -0.6f),
+                floatArrayOf(1.75f, -0.5f),
+            ),
+            arrayOf(
+                intArrayOf(0, 2), intArrayOf(1, 4), intArrayOf(2, 3),
+                intArrayOf(3, 4), intArrayOf(2, 5), intArrayOf(4, 6),
+            ),
+        )
+        // 남십자성
+        addConstellation(
+            -52.0, -30.0, 6.0f, 10f,
+            arrayOf(
+                floatArrayOf(0.0f, 0.9f), floatArrayOf(0.15f, -0.9f),
+                floatArrayOf(-0.8f, 0.0f), floatArrayOf(0.85f, -0.1f),
+            ),
+            arrayOf(intArrayOf(0, 1), intArrayOf(2, 3)),
+        )
+        constLineVbo = genBuffer()
+        uploadBuffer(constLineVbo, toFloatBuffer(constLines))
+        constLineVertexCount = constLines.size / 3
+
+        // ── 배경 반짝별 — 4방 광선 텍스처의 특별한 별 몇 개(은은한 포인트) ──
+        val bgFlares = ArrayList<Float>()
+        repeat(9) {
+            val p = randomOnSphere(36f)
+            val br = 0.16f + rnd.nextFloat() * 0.16f
+            val warm = rnd.nextFloat()
+            addSprite(
+                bgFlares, p,
+                r = br * (0.90f + 0.10f * warm), g = br * 0.93f, b = br * (1.05f - 0.15f * warm),
+                a = 1f,
+                size = 0.30f + rnd.nextFloat() * 0.28f,
+                phase = rnd.nextFloat(), mode = 1f,
+            )
+        }
+        bgFlareVbo = genBuffer()
+        uploadBuffer(bgFlareVbo, toFloatBuffer(bgFlares))
+        bgFlareVertexCount = bgFlares.size / SPRITE_FLOATS
+
         val buf = toFloatBuffer(list)
         starfieldVbo = genBuffer()
         uploadBuffer(starfieldVbo, buf)
         starfieldVertexCount = list.size / SPRITE_FLOATS
+    }
+
+    /** 별자리 연결선 — 아주 희미한 청회색 라인(additive, 별밭 층에서 호출). */
+    private fun drawConstellationLines() {
+        if (constLineVbo == 0 || constLineVertexCount == 0) return
+        GLES20.glUseProgram(lineProgram)
+        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(lineProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(lineProgram, "uFade"), fade)
+        GLES20.glLineWidth(2f)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, constLineVbo)
+        val aPos = GLES20.glGetAttribLocation(lineProgram, "aPos")
+        GLES20.glEnableVertexAttribArray(aPos)
+        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 12, 0)
+        GLES20.glDrawArrays(GLES20.GL_LINES, 0, constLineVertexCount)
+        GLES20.glDisableVertexAttribArray(aPos)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        GLES20.glLineWidth(1f)
+    }
+
+    private fun cross3(a: FloatArray, b: FloatArray) = floatArrayOf(
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+    private fun norm3(v: FloatArray): FloatArray {
+        val len = kotlin.math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).coerceAtLeast(1e-6f)
+        return floatArrayOf(v[0] / len, v[1] / len, v[2] / len)
     }
 
     /** 빌보드 사각형(삼각형 2개 = 6 정점)을 스프라이트 배열에 추가. */
@@ -782,6 +967,18 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             void main() {
                 gl_FragColor = texture2D(uTex, vUV) * vColor * uFade;
             }
+        """
+
+        private const val LINE_VS = """
+            uniform mat4 uMVP;
+            attribute vec3 aPos;
+            void main() { gl_Position = uMVP * vec4(aPos, 1.0); }
+        """
+
+        private const val LINE_FS = """
+            precision mediump float;
+            uniform float uFade;
+            void main() { gl_FragColor = vec4(vec3(0.10, 0.13, 0.20) * uFade, 1.0); }
         """
 
         private const val RING_VS = """
