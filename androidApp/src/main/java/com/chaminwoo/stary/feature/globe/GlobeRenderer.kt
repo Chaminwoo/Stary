@@ -14,8 +14,6 @@ import android.opengl.GLUtils
 import android.opengl.Matrix
 import android.os.SystemClock
 import android.util.Log
-import androidx.compose.ui.graphics.toArgb
-import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -34,9 +32,9 @@ import kotlin.math.sin
  * 씬 구성(레퍼런스 `references/min_zoom.png` 재현):
  *  1. 배경 별밭(모델과 함께 회전 → "내 시점이 움직이는" 느낌, 미세 트윙클)
  *  2. 지구 구체: 원본의 3/4 밝기 균일(라이트맵/지형 밝힘 없음)
- *  3. 궤적 트레일: 자유 원호 '오오라' — 반투명한 부드러운 발광 리본(얇은 코어 라인 없음),
- *     양 끝은 점점 투명해지며 소멸, 흐르는 밝기·백색 하이라이트는 주파수 다른 파동
- *     조합으로 불규칙하게. 지구 좌표계에 붙어 있어 구를 돌리면 같이 회전
+ *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 반투명 글로우(레퍼런스풍),
+ *     양 끝은 점점 투명해지며 소멸, 밝기·하이라이트는 주파수 다른 파동 조합으로
+ *     불규칙하게 천천히 흐름. 일부는 행성 근접 궤도. 지구 좌표계라 구와 함께 회전
  *  4. 노란 작은 불빛: 좋아요 [FLARE_MIN_LIKES] 미만 다이어리 1:1 — 인류의 도시 야경 점광
  *  5. 별 플레어: 좋아요 [FLARE_MIN_LIKES] 이상 다이어리만, 구 표면 바깥(FLARE_RADIUS),
  *     레퍼런스풍 팔레트로 별마다 색 다르게 + 트윙클
@@ -324,9 +322,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val flares = ArrayList<Float>(popular.size * 6 * SPRITE_FLOATS)
         for (d in popular) {
             val p = latLngToXyz(d.latitude, d.longitude, FLARE_RADIUS)
-            val argb = StarStyle.colorOf(d.starColor).toArgb()
+            // 레퍼런스풍 팔레트(빨강/파랑/분홍/노랑…) — 좌표 기반 결정적 선택으로 별마다 색이 갈린다
+            val argb = FLARE_COLORS[flareColorIndex(d)]
             val boost = min(d.likeCount, 1000).toFloat() / 1000f
-            val size = 0.046f + 0.038f * boost // 살짝 축소(이전 0.055+0.045)
+            val size = 0.040f + 0.032f * boost // 살짝 더 축소(이전 0.046+0.038)
             val bright = 0.60f + 0.15f * boost // 이전(0.75~1.0)보다 감광
             addSprite(
                 flares, p,
@@ -360,6 +359,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         glowVertexCount = glows.size / SPRITE_FLOATS
         starsDirty = true
     }
+
+    /** 좌표 기반 결정적 팔레트 인덱스 — 같은 다이어리는 항상 같은 색. */
+    private fun flareColorIndex(d: Diary): Int =
+        (d.latitude * 7919.0 + d.longitude * 104729.0).mod(FLARE_COLORS.size.toDouble()).toInt()
 
     /** GL 스레드에서 setDiaries 결과 업로드. */
     private fun uploadStars() {
@@ -471,13 +474,18 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
-    /** 트레일 세트 — 반지름/기울기/호 길이/색/위상을 랜덤하게 섞은 자유 원호 오오라 여러 개. */
+    /** 트레일 세트 — 반지름/기울기/호 길이/색/위상을 랜덤하게 섞은 자유 원호 여러 개.
+     *  앞의 [TRAIL_CLOSE_COUNT] 개는 행성에 바짝 붙고(레퍼런스), 나머지는 멀리 돈다. */
     private fun buildTrails() {
         trails.clear()
         val rnd = java.util.Random(11L)
         repeat(TRAIL_COUNT) { i ->
-            val radius = 1.28f + rnd.nextFloat() * 0.50f
-            val halfW = 0.050f + rnd.nextFloat() * 0.035f // 넓은 리본 — 선이 아닌 오오라 단면
+            val radius = if (i < TRAIL_CLOSE_COUNT) {
+                1.10f + rnd.nextFloat() * 0.12f // 행성 근접 궤도
+            } else {
+                1.30f + rnd.nextFloat() * 0.45f
+            }
+            val halfW = 0.030f + rnd.nextFloat() * 0.020f // 얇은 선 + 감싸는 글로우 폭
             val tiltX = -38f + rnd.nextFloat() * 76f
             val tiltZ = -45f + rnd.nextFloat() * 90f
             val start = rnd.nextFloat() * 360f
@@ -489,7 +497,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     vbo, count,
                     colorA = TRAIL_COLORS[i % TRAIL_COLORS.size],
                     colorB = TRAIL_COLORS[(i + 2) % TRAIL_COLORS.size],
-                    speed = dir * (0.05f + rnd.nextFloat() * 0.08f),
+                    speed = dir * (0.018f + rnd.nextFloat() * 0.030f), // 천천히 흐르게
                     phase = rnd.nextFloat() * 6.2832f,
                 )
             )
@@ -674,6 +682,19 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val BG_STAR_COUNT = 1600
         private const val EARTH_BRIGHTNESS = 0.45f // 원본 대비 지구 밝기(균일)
         private const val TRAIL_COUNT = 5
+        private const val TRAIL_CLOSE_COUNT = 2 // 행성 근접 궤도 트레일 수
+
+        /** 별 플레어 팔레트(레퍼런스풍) — 빨강/파랑/분홍/노랑/민트/보라/백색. */
+        private val FLARE_COLORS = intArrayOf(
+            0xFFFF6257.toInt(), // 빨강
+            0xFF6D9EFF.toInt(), // 파랑
+            0xFFFF8BD8.toInt(), // 분홍
+            0xFFFFD966.toInt(), // 노랑
+            0xFF8FF7E2.toInt(), // 민트
+            0xFFC49BFF.toInt(), // 보라
+            0xFFFFFFFF.toInt(), // 백색
+        )
+
         /** 트레일 팔레트(레퍼런스풍) — 원호마다 A→B 두 색을 섞어 흐르게 한다. */
         private val TRAIL_COLORS = arrayOf(
             floatArrayOf(0.55f, 0.75f, 1.00f), // 청백
@@ -747,20 +768,21 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             varying vec2 vUV;
             void main() {
                 float across = sin(vUV.y * 3.14159);           // 리본 폭 방향(0..1..0)
-                float aura = pow(across, 2.2);                 // 얇은 코어 없는 부드러운 발광 단면
+                float glow = pow(across, 2.0) * 0.22;          // 선을 감싸는 은은한 글로우(반투명)
+                float core = pow(across, 14.0);                // 레퍼런스풍 얇은 코어 라인
                 // 양 끝은 점점 투명해지며 소멸(확 끊기지 않게 긴 램프)
-                float ends = smoothstep(0.0, 0.22, vUV.x) * smoothstep(1.0, 0.78, vUV.x);
-                // 흐르는 밝기 — 주파수/속도/위상 다른 파동 3개 조합(정직한 단일 사인 제거)
+                float ends = smoothstep(0.0, 0.20, vUV.x) * smoothstep(1.0, 0.80, vUV.x);
+                // 천천히 흐르는 밝기 — 주파수/속도/위상 다른 파동 조합(불규칙, 저속)
                 float t = uTime * uSpeed;
                 float w1 = 0.5 + 0.5 * sin((vUV.x - t) * 6.2831 + uPhase);
-                float w2 = 0.5 + 0.5 * sin((vUV.x * 2.7 + t * 1.9) * 6.2831 + uPhase * 2.3);
-                float w3 = 0.5 + 0.5 * sin((vUV.x * 5.3 - t * 0.6) * 6.2831 + uPhase * 4.1);
-                float flow = 0.30 + 0.70 * (0.5 * w1 + 0.3 * w2 + 0.2 * w3);
-                // 백색 하이라이트는 세 파동이 겹치는 곳에서만 은은하게 배어나옴
-                float shine = pow(w1 * w2 * w3, 2.5) * 0.5;
-                vec3 col = mix(uColorA, uColorB, 0.5 + 0.5 * sin(vUV.x * 6.2831 + uTime * 0.3 + uPhase));
-                // 반투명 오오라 — additive 라 낮은 계수가 곧 투명도
-                vec3 c = col * aura * flow * 0.40 + vec3(1.0) * aura * shine * 0.35;
+                float w2 = 0.5 + 0.5 * sin((vUV.x * 2.7 + t * 0.7) * 6.2831 + uPhase * 2.3);
+                float w3 = 0.5 + 0.5 * sin((vUV.x * 5.3 - t * 0.35) * 6.2831 + uPhase * 4.1);
+                float flow = 0.35 + 0.65 * (0.5 * w1 + 0.3 * w2 + 0.2 * w3);
+                // 파동이 겹치는 곳에서만 은은히 빛나는 하이라이트 — 코어를 따라 천천히 이동
+                float shine = pow(w1 * w2, 3.0) * pow(w3, 1.5);
+                vec3 col = mix(uColorA, uColorB, 0.5 + 0.5 * sin(vUV.x * 6.2831 + uTime * 0.15 + uPhase));
+                vec3 c = col * (glow * flow + core * (0.45 + 0.45 * flow))
+                       + vec3(1.0) * core * shine * 0.55;
                 gl_FragColor = vec4(c * ends * uFade, 1.0);
             }
         """

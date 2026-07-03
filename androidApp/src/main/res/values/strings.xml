@@ -183,7 +183,7 @@
     <!-- 히든 업적 -->
     <string name="ach_tab_normal">일반</string>
     <string name="ach_tab_hidden">히든</string>
-    <string name="ach_hidden_intro">앱에서 단 한 명만 가질 수 있는 업적이에요. \n달성 시 칭호 및 프로필 아이콘이 제공됩니다.</string>
+    <string name="ach_hidden_intro">앱에서 단 한 명만 가질 수 있는 업적이에요. \n달성 시 특별한 칭호 및 프로필 아이콘이 제공됩니다.</string>
     <string name="ach_hidden_achiever">달성자: %1$s</string>
     <string name="ach_hidden_unclaimed">아직 아무도 달성하지 못했어요</string>
     <string name="ach_hidden_by_me">내가 달성!</string>

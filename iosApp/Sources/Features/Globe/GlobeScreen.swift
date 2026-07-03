@@ -407,6 +407,24 @@ private enum GlobeBuilder {
 
     // MARK: 별 플레어(좋아요 100+)
 
+    /// 별 플레어 팔레트(레퍼런스풍) — 빨강/파랑/분홍/노랑/민트/보라/백색. (Android FLARE_COLORS 패리티)
+    private static let flareColors: [UIColor] = [
+        UIColor(red: 1.00, green: 0.384, blue: 0.341, alpha: 1), // 빨강 #FF6257
+        UIColor(red: 0.427, green: 0.620, blue: 1.00, alpha: 1), // 파랑 #6D9EFF
+        UIColor(red: 1.00, green: 0.545, blue: 0.847, alpha: 1), // 분홍 #FF8BD8
+        UIColor(red: 1.00, green: 0.851, blue: 0.400, alpha: 1), // 노랑 #FFD966
+        UIColor(red: 0.561, green: 0.969, blue: 0.886, alpha: 1), // 민트 #8FF7E2
+        UIColor(red: 0.769, green: 0.608, blue: 1.00, alpha: 1), // 보라 #C49BFF
+        UIColor.white,
+    ]
+
+    /// 좌표 기반 결정적 팔레트 인덱스 — 같은 다이어리는 항상 같은 색. (Android flareColorIndex 패리티)
+    private static func flareColorIndex(_ d: Diary) -> Int {
+        let n = Double(flareColors.count)
+        let h = (d.latitude * 7919.0 + d.longitude * 104729.0).truncatingRemainder(dividingBy: n)
+        return Int((h + n).truncatingRemainder(dividingBy: n))
+    }
+
     /// 좋아요 100+ 다이어리 → 구 표면 살짝 바깥의 컬러 별 플레어 빌보드(+트윙클).
     static func flareNodes(diaries: [Diary]) -> [SCNNode] {
         let popular = diaries.filter { $0.likeCount >= GlobeSceneView.Coordinator.flareMinLikes }
@@ -417,16 +435,16 @@ private enum GlobeBuilder {
 
         return popular.map { d in
             let boost = Float(min(d.likeCount, 1000)) / 1000
-            let size = CGFloat(0.046 + 0.038 * boost) * 2.4 // 살짝 축소(이전 0.055+0.045) — 텍스처 여백 감안 배율
+            let size = CGFloat(0.040 + 0.032 * boost) * 2.4 // 살짝 더 축소(이전 0.046+0.038) — 텍스처 여백 감안 배율
             let plane = SCNPlane(width: size, height: size)
             let material = SCNMaterial()
             material.lightingModel = .constant
             material.diffuse.contents = flareImage
             material.blendMode = .add
             material.writesToDepthBuffer = false
-            // 정점색 tint 대응 — 별 색 × 감광 밝기
+            // 팔레트 tint × 감광 밝기 — 레퍼런스처럼 별마다 다른 색으로 빛남
             let bright = CGFloat(0.60 + 0.15 * boost)
-            material.multiply.contents = UIColor(StarStyle.color(d.starColor)).withBrightnessScaled(by: bright)
+            material.multiply.contents = flareColors[flareColorIndex(d)].withBrightnessScaled(by: bright)
             plane.materials = [material]
 
             let node = SCNNode(geometry: plane)
@@ -547,9 +565,10 @@ private enum GlobeBuilder {
 
     // MARK: 궤적 트레일
 
-    /// 자유 원호 '오오라' 트레일 — 반지름/기울기/호 길이/색/위상 랜덤(시드 고정), 컨테이너와 함께 회전.
-    /// (Android buildTrails/RING 셰이더의 정적 근사: 반투명 오오라 단면 + 양끝 점진 소멸 +
-    ///  주파수 다른 파동 조합의 불규칙한 흐름 밝기를 텍스처에 베이크.)
+    /// 자유 원호 트레일 — 얇은 코어 라인 + 감싸는 반투명 글로우(레퍼런스풍), 일부는 행성 근접 궤도.
+    /// 반지름/기울기/호 길이/색/위상 랜덤(시드 고정), 컨테이너와 함께 회전.
+    /// (Android buildTrails/RING 셰이더 근사: 단면·양끝 페이드·색은 텍스처에 베이크하고,
+    ///  천천히 흐르는 밝기는 SceneKit 셰이더 모디파이어로 애니메이트.)
     static func trailNodes() -> [SCNNode] {
         let palette: [(UIColor, UIColor)] = [
             (UIColor(red: 0.55, green: 0.75, blue: 1.00, alpha: 1), UIColor(red: 0.72, green: 0.55, blue: 1.00, alpha: 1)),
@@ -564,22 +583,25 @@ private enum GlobeBuilder {
             return Float(seed % 10_000) / 10_000
         }
         return (0..<5).map { i in
-            let radius = 1.28 + rnd() * 0.50
-            let halfW = 0.050 + rnd() * 0.035 // 넓은 리본 — 선이 아닌 오오라 단면
+            // 앞의 2개는 행성 근접 궤도(레퍼런스), 나머지는 멀리
+            let radius = i < 2 ? 1.10 + rnd() * 0.12 : 1.30 + rnd() * 0.45
+            let halfW = 0.030 + rnd() * 0.020 // 얇은 선 + 감싸는 글로우 폭
             let tiltX = (-38 + rnd() * 76) * Float.pi / 180
             let tiltZ = (-45 + rnd() * 90) * Float.pi / 180
             let start = rnd() * 360
             let sweep = 130 + rnd() * 150
             let phase = Double(rnd()) * 6.2832 // 트레일별 파동 위상(불규칙성)
+            let dir: Double = rnd() < 0.5 ? 1 : -1
+            let speed = dir * (0.018 + Double(rnd()) * 0.030) // 천천히 흐르게
             return trailNode(radius: radius, halfWidth: halfW, tiltX: tiltX, tiltZ: tiltZ,
                              startDeg: start, sweepDeg: sweep, colors: palette[i % palette.count],
-                             phase: phase)
+                             phase: phase, speed: speed)
         }
     }
 
     private static func trailNode(
         radius: Float, halfWidth: Float, tiltX: Float, tiltZ: Float,
-        startDeg: Float, sweepDeg: Float, colors: (UIColor, UIColor), phase: Double
+        startDeg: Float, sweepDeg: Float, colors: (UIColor, UIColor), phase: Double, speed: Double
     ) -> SCNNode {
         let segs = 96
         var vertices: [SCNVector3] = []
@@ -616,16 +638,29 @@ private enum GlobeBuilder {
         material.blendMode = .add
         material.isDoubleSided = true
         material.writesToDepthBuffer = false
+        // 천천히 흐르는 밝기 — Android RING_FS flow 항 패리티(주파수·위상 다른 파동 조합, 저속).
+        // 셰이더 모디파이어는 런타임 컴파일이라 실패해도 정적 트레일로 안전 폴백된다.
+        material.shaderModifiers = [
+            .surface: """
+            float u = _surface.diffuseTexcoord.x;
+            float t = u_time * \(speed);
+            float w1 = 0.5 + 0.5 * sin((u - t) * 6.2831 + \(phase));
+            float w2 = 0.5 + 0.5 * sin((u * 2.7 + t * 0.7) * 6.2831 + \(phase * 2.3));
+            float w3 = 0.5 + 0.5 * sin((u * 5.3 - t * 0.35) * 6.2831 + \(phase * 4.1));
+            float flow = 0.35 + 0.65 * (0.5 * w1 + 0.3 * w2 + 0.2 * w3);
+            _surface.diffuse.rgb *= flow;
+            """
+        ]
         geometry.materials = [material]
         return SCNNode(geometry: geometry)
     }
 
-    /// 트레일 텍스처 — 반투명 오오라(Android RING_FS 정적 근사):
-    /// 폭(v) 방향은 얇은 코어 없는 부드러운 발광 단면, 양끝(u)은 점점 투명해지며 소멸,
-    /// 흐름 밝기·백색 하이라이트는 주파수/위상 다른 파동 3개 조합으로 불규칙하게.
+    /// 트레일 텍스처 — 얇은 코어 라인 + 감싸는 반투명 글로우(Android RING_FS 정적 성분):
+    /// 폭(v) 방향은 core(=pow 14)·glow(=pow 2) 단면, 양끝(u)은 점점 투명해지며 소멸,
+    /// 길이 방향은 A↔B 색 그라데이션. 흐르는 밝기는 셰이더 모디파이어가 런타임에 곱한다.
     /// additive 블렌딩이므로 밝기를 RGB 에 직접 베이크(알파 불사용).
     private static func trailTexture(colorA: UIColor, colorB: UIColor, phase: Double) -> UIImage {
-        let w = 256, h = 16
+        let w = 256, h = 32
         var aR: CGFloat = 0, aG: CGFloat = 0, aB: CGFloat = 0, aA: CGFloat = 0
         var bR: CGFloat = 0, bG: CGFloat = 0, bB: CGFloat = 0, bA: CGFloat = 0
         colorA.getRed(&aR, green: &aG, blue: &aB, alpha: &aA)
@@ -637,20 +672,16 @@ private enum GlobeBuilder {
         var pixels = [UInt8](repeating: 0, count: w * h * 4)
         for y in 0..<h {
             let v = Double(y) / Double(h - 1)
-            let aura = pow(sin(v * .pi), 2.2) // 코어 라인 없는 오오라 단면
+            let across = sin(v * .pi)
+            let glow = pow(across, 2.0) * 0.22 // 선을 감싸는 은은한 글로우(반투명)
+            let core = pow(across, 14.0)       // 레퍼런스풍 얇은 코어 라인
             for x in 0..<w {
                 let u = Double(x) / Double(w - 1)
                 // 양 끝은 점점 투명해지며 소멸(확 끊기지 않게 긴 램프)
-                let ends = smoothstep(0.0, 0.22, u) * smoothstep(1.0, 0.78, u)
-                // 흐름 밝기 — 주파수/위상 다른 파동 3개 조합(정직한 단일 사인 제거)
-                let w1 = 0.5 + 0.5 * sin(u * 2 * .pi + phase)
-                let w2 = 0.5 + 0.5 * sin(u * 2.7 * 2 * .pi + phase * 2.3)
-                let w3 = 0.5 + 0.5 * sin(u * 5.3 * 2 * .pi + phase * 4.1)
-                let flow = 0.30 + 0.70 * (0.5 * w1 + 0.3 * w2 + 0.2 * w3)
-                let shine = pow(w1 * w2 * w3, 2.5) * 0.5 // 파동이 겹치는 곳만 은은한 백색
+                let ends = smoothstep(0.0, 0.20, u) * smoothstep(1.0, 0.80, u)
                 let mix = 0.5 + 0.5 * sin(u * 2 * .pi + phase)
-                let colored = aura * flow * 0.40
-                let white = aura * shine * 0.35
+                let colored = glow + core * 0.75
+                let white = core * 0.18 // 은은한 백색 심지(이동 하이라이트는 flow 가 담당)
                 let r = ((Double(aR) * (1 - mix) + Double(bR) * mix) * colored + white) * ends
                 let g = ((Double(aG) * (1 - mix) + Double(bG) * mix) * colored + white) * ends
                 let b = ((Double(aB) * (1 - mix) + Double(bB) * mix) * colored + white) * ends
