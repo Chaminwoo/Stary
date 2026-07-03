@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -127,12 +126,12 @@ fun ChatScreen(
                 }
             }
 
-            // 입력 바
+            // 입력 바 — 하단 시스템 바 여백은 상위 Scaffold(paddingValues)가 이미 처리하므로
+            // 여기서 navigationBarsPadding 을 다시 주면 이중 여백이 생긴다(제거). imePadding 만 유지.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(CardBgTop.copy(alpha = 0.92f))
-                    .navigationBarsPadding()
                     .imePadding()
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
