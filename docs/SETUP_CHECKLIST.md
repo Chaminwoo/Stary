@@ -238,10 +238,16 @@
 - [x] **iOS(8.26-iOS)**: `FloatingStatBox.swift`(TimelineView+Canvas+버블별 DragGesture 물리 포팅, 히트테스트 분리), `ProfileScreen` 재작성, `AchievementsScreen`/`MyStarsScreen` 분리, 핀 = `users.pinnedDiaries`. **CI(macOS) BUILD SUCCESS `e787ce8`**.
 - [ ] **남은 점진 이관**: 친구 별-보드(`UserDiaryStarsScreen`)·내 다이어리 부유 보드(`DiaryStarBox` 드래그)는 iOS 미이관(MyStarsScreen 간이 리스트로 대체).
 
-### 🌐 줌아웃 글로브(레퍼런스 `references/min_zoom.png`) — ⏳ 백로그 (방안 A 확정, 미구현)
-- [ ] 줌 최소에서 평면지도 대신 **우주의 3D 지구(글로브)**: 야간 도시광 + 별 글로우 + 궤도선.
-- 결정: **A안 = MapLibre GL JS(웹) globe 를 WebView 로**. (MapLibre Native 11.x/iOS 6.x 는 Mercator 만, globe 미지원 — 로드맵 진행 중.)
-- 설계: 줌 임계 이하 오버뷰 구간만 WebView 글로브(globe projection + atmosphere + 야간 래스터), 별은 GeoJSON 주입+글로우. 줌인하면 네이티브 지도 복귀(하이브리드).
+### 🌐 줌아웃 글로브(레퍼런스 `references/min_zoom.png`) — ✅ 완료 (2026-07-03, 테스트 대기)
+- [x] 방침 변경: WebView(MapLibre GL JS globe) 대신 **네이티브 3D 렌더러**로 구현 —
+      안드 `feature/globe/GlobeRenderer`(GLES2 커스텀) / iOS `Features/Globe/GlobeScreen.swift`(SceneKit).
+- [x] 지도 줌 3.0 이하 → 하단 "지구 보기" 버튼 노출(자동 전환 없음) → 눌러야 진입. 글로브 안에서
+      핀치는 카메라 줌만(화면 전환 없음, MIN 1.45~MAX 9.5), 아래쪽 탭 → X 버튼(4초 자동 숨김)/뒤로가기로 지도 복귀.
+- [x] 지구: 원본 텍스처 3/4 밝기 균일. 별 플레어(좋아요 100+, 레퍼런스풍 다색 팔레트)·노란 도시 야경 점광(그 외 다이어리).
+- [x] 궤적 5개: 얇은 코어+옅은 글로우, 반투명, 백색 빛무리가 궤적을 따라 흐름, 트레일별 투명도 차등.
+- [x] 배경: 3겹 구면 셸(시차로 깊이감) + 성운 글로우 + 은하수 띠 + 별자리 4종(북두칠성/카시오페이아/오리온/남십자)
+      + 4방 광선 반짝별.
+- [ ] 사용자 테스트 대기 중.
 
 ---
 
@@ -282,6 +288,38 @@
 ### 22. 어드민 계정은 히든 업적 선점에서 제외 — ✅ (Android BUILD SUCCESSFUL, iOS CI 대기)
 - [x] **어드민 = `chaalsdn0217@gmail.com`**(`StaryConfig.ADMIN_EMAILS`/`isAdminEmail` + iOS `AppConfig`). `claim` 최상단에서 어드민이면 **트랜잭션 쓰기 skip + false 반환** → hiddenAchievements 미기록, 히든은 계속 "달성자 없음" 유지(실제 유저가 첫 달성 가능), 어드민은 팝업/아이콘도 안 뜸.
 - [x] 이메일 취득: 안드 `GoogleAuthHelper.currentUserEmail`(로그인/세션복원 시 `FirebaseAuth.currentUser?.email` 저장, 로그아웃 시 null) / iOS `Auth.auth().currentUser?.email`.
+
+---
+
+## 📝 다음 작업 (TODO / 2026-07-03 — 사용자 지정)
+
+### 23. 채팅 화면 하단 여백 제거
+- [ ] 채팅 입력창 아래 불필요한 여백 제거(안드 `ChatScreen` / iOS `ChatScreen.swift`).
+
+### 24. 프로필 — 사용자 이름/프로필 사진/칭호 터치 불가 오류 수정
+- [ ] 본인 프로필(`ProfileScreen`) 또는 타인 프로필(`UserProfileScreen`)에서 이름·프로필 사진·칭호 탭이
+      반응하지 않는 문제 원인 파악 후 수정(안드+iOS). FloatingStatBox 오버레이의 히트테스트 가로챔 가능성
+      우선 확인(19번 로그아웃 버튼 사례와 유사 원인 의심).
+
+### 25. 채팅 완전 삭제(1분 이내), 본인 계정에서만 삭제
+- [ ] 채팅 메시지 전송 후 **1분 이내**에 한해 완전 삭제(상대방 쪽에서도 사라짐) 가능하게.
+- [ ] 삭제 버튼/메뉴는 **메시지를 보낸 본인 계정에서만** 노출(상대 메시지는 삭제 불가).
+- [ ] Firestore 규칙에도 "본인 메시지만, N분 이내만 삭제 가능" 반영 검토.
+
+### 26. 업로드 — 짧은 영상(3초 이내) 업로드/조회 기능
+- [ ] 셋로그(Setlog)류 앱처럼 **3초 이내 짧은 동영상**을 다이어리에 업로드할 수 있게 `UploadScreen` 확장
+      (사진과 별도 슬롯 또는 사진 대체). Storage 업로드 + Firestore 필드(`videoUrl` 등) 추가.
+- [ ] `DetailScreen`에서 짧은 영상 재생/조회 가능하도록(루프 재생 등 UX 결정 필요).
+- [ ] 안드+iOS 동일 반영, 용량/길이 제한(3초) 클라이언트 검증.
+
+### 27. 글로브 모드 → 지도 복귀 시 "내 위치" 버튼 로직 1회 재실행
+- [ ] 글로브에서 지도로 돌아올 때(X 버튼/뒤로가기) "내 위치로" 버튼과 동일한 카메라 이동 로직을
+      **1회 자동 실행**하도록 `DiaryMap`/`MainListScreen`(iOS `MapScreen`) 연결.
+
+### 28. 다이어리 신고 → Firebase 신고 게시물 등록 + 검토 후 조치
+- [ ] 다이어리 신고 시 Firestore에 **신고된 게시물로 등록**(기존 `reports` 컬렉션 활용/확장 — 대상 다이어리·신고자·사유·시각).
+- [ ] 관리자가 신고 목록을 검토해 **① 게시물 삭제 또는 ② 계정 제재(정지/삭제 등)** 조치할 수 있는 경로 마련
+      (Firebase Console 수동 검토 우선, 필요 시 관리자 화면/Cloud Functions 후속 검토).
 
 ---
 
