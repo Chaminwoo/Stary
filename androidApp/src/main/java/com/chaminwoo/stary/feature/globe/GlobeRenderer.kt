@@ -30,11 +30,12 @@ import kotlin.math.sin
  * 3D 행성(지구) 렌더러 — 지도 줌 최소 진입 시 보이는 "밤의 지구" 뷰.
  *
  * 씬 구성(레퍼런스 `references/min_zoom.png` 재현):
- *  1. 배경 별밭(모델과 함께 회전 → "내 시점이 움직이는" 느낌, 미세 트윙클)
+ *  1. 배경 별밭: 반지름이 다른 3겹 구면 셸 + 원경 성운 글로우 — 카메라가 중심에서
+ *     떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감. 미세 트윙클
  *  2. 지구 구체: 원본의 3/4 밝기 균일(라이트맵/지형 밝힘 없음)
- *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 반투명 글로우(레퍼런스풍),
- *     반투명·은은한 악센트 세기. 양 끝은 점점 투명해지며 소멸, 밝기·하이라이트는
- *     주파수 다른 파동 조합으로 불규칙하게 느긋이 흐름. 지구 좌표계라 구와 함께 회전
+ *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 아주 옅은 글로우, 훨씬 반투명.
+ *     양 끝은 점점 투명해지며 소멸, 백색 빛무리(가우시안 펄스)가 궤적을 따라
+ *     자연스럽게 흘러감. 지구 좌표계라 구와 함께 회전
  *  4. 노란 작은 불빛: 좋아요 [FLARE_MIN_LIKES] 미만 다이어리 1:1 — 인류의 도시 야경 점광
  *  5. 별 플레어: 좋아요 [FLARE_MIN_LIKES] 이상 다이어리만, 구 표면 바깥(FLARE_RADIUS),
  *     레퍼런스풍 팔레트로 별마다 색 다르게 + 트윙클
@@ -325,7 +326,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             // 레퍼런스풍 팔레트(빨강/파랑/분홍/노랑…) — 좌표 기반 결정적 선택으로 별마다 색이 갈린다
             val argb = FLARE_COLORS[flareColorIndex(d)]
             val boost = min(d.likeCount, 1000).toFloat() / 1000f
-            val size = 0.040f + 0.032f * boost // 살짝 더 축소(이전 0.046+0.038)
+            val size = 0.034f + 0.026f * boost // 한 단계 더 축소(이전 0.040+0.032)
             val bright = 0.60f + 0.15f * boost // 이전(0.75~1.0)보다 감광
             addSprite(
                 flares, p,
@@ -371,27 +372,57 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         glowData?.let { uploadBuffer(glowVbo, it) }
     }
 
-    /** 배경 별밭 — 반지름 28 구면 랜덤(모델과 함께 회전 → 지구를 돌리면 우주도 함께 돈다). */
+    /**
+     * 배경 별밭 — 반지름이 다른 3겹 구면 셸 + 원경 성운 글로우.
+     * 모델과 함께 회전하지만 카메라가 중심에서 떨어져 있어(줌 거리) 회전/줌 시
+     * 셸마다 화면 이동량(시차)이 달라 겹겹이 쌓인 "진짜 3D 공간"처럼 느껴진다.
+     * 가까운 셸일수록 밝고 또렷, 먼 셸일수록 잘고 어둡고 촘촘하게.
+     */
     private fun buildStarfield() {
         val rnd = java.util.Random(7L)
-        val list = ArrayList<Float>(BG_STAR_COUNT * 6 * SPRITE_FLOATS)
-        repeat(BG_STAR_COUNT) {
-            // 균일 구면 분포
+        val list = ArrayList<Float>()
+        fun randomOnSphere(radius: Float): FloatArray {
             val z = rnd.nextFloat() * 2f - 1f
             val ang = rnd.nextFloat() * 6.2832f
             val r = kotlin.math.sqrt(1f - z * z)
-            val p = floatArrayOf(r * cos(ang) * 28f, z * 28f, r * sin(ang) * 28f)
-            val warm = rnd.nextFloat()
-            // 은은한 밝기 상한 — 배경은 깊이감만 주고 지구/별 플레어가 주인공이 되게
-            val bright = 0.15f + rnd.nextFloat() * 0.68f
-            val big = rnd.nextFloat() // 제곱 분포 — 대부분 잔별, 소수만 크게
+            return floatArrayOf(r * cos(ang) * radius, z * radius, r * sin(ang) * radius)
+        }
+        fun addShell(radius: Float, count: Int, sizeBase: Float, sizeVar: Float, brightMul: Float) {
+            repeat(count) {
+                val p = randomOnSphere(radius)
+                val warm = rnd.nextFloat()
+                val bright = (0.15f + rnd.nextFloat() * 0.68f) * brightMul
+                val big = rnd.nextFloat() // 제곱 분포 — 대부분 잔별, 소수만 크게
+                addSprite(
+                    list, p,
+                    r = bright * (0.85f + 0.15f * warm),
+                    g = bright * (0.85f + 0.10f * warm),
+                    b = bright * (0.95f - 0.15f * warm),
+                    a = 1f,
+                    size = sizeBase + big * big * sizeVar,
+                    phase = rnd.nextFloat(),
+                    mode = 1f,
+                )
+            }
+        }
+        addShell(radius = 12f, count = 320, sizeBase = 0.018f, sizeVar = 0.062f, brightMul = 1.00f) // 근경
+        addShell(radius = 22f, count = 620, sizeBase = 0.028f, sizeVar = 0.100f, brightMul = 0.72f) // 중경
+        addShell(radius = 38f, count = 900, sizeBase = 0.042f, sizeVar = 0.140f, brightMul = 0.52f) // 원경
+        // 원경 너머 아주 어두운 성운 글로우 — 배경에 색 온도와 깊이(도형이 아니라 '공간'으로 읽히게)
+        val nebulaColors = arrayOf(
+            floatArrayOf(0.055f, 0.030f, 0.100f), // 보라
+            floatArrayOf(0.040f, 0.050f, 0.110f), // 청보라
+            floatArrayOf(0.070f, 0.030f, 0.080f), // 자주
+            floatArrayOf(0.030f, 0.050f, 0.100f), // 청록빛
+            floatArrayOf(0.060f, 0.040f, 0.110f), // 연보라
+            floatArrayOf(0.050f, 0.020f, 0.090f), // 짙은 보라
+        )
+        for (c in nebulaColors) {
+            val p = randomOnSphere(41f)
             addSprite(
                 list, p,
-                r = bright * (0.85f + 0.15f * warm),
-                g = bright * (0.85f + 0.10f * warm),
-                b = bright * (0.95f - 0.15f * warm),
-                a = 1f,
-                size = 0.035f + big * big * 0.16f,
+                r = c[0], g = c[1], b = c[2], a = 1f,
+                size = 6.5f + rnd.nextFloat() * 4.0f,
                 phase = rnd.nextFloat(),
                 mode = 1f,
             )
@@ -666,8 +697,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     companion object {
         const val ENTER_DIST = 4.6f   // 진입 시작 거리(돌리-인 출발점)
         const val IDLE_DIST = 3.25f   // 기본 관람 거리
-        const val MIN_DIST = 2.10f    // 카메라 최소 거리(핀치 줌 클램프 — 화면 전환 없음)
-        const val MAX_DIST = 6.0f
+        const val MIN_DIST = 1.45f    // 카메라 최소 거리(더 바짝 당겨보기 — 화면 전환 없음)
+        const val MAX_DIST = 9.5f     // 카메라 최대 거리(지구가 작아 보일 만큼 멀리)
 
         private const val SPRITE_FLOATS = 12
         private const val FLARE_MIN_LIKES = 100 // 이 이상 좋아요 → 별 플레어, 미만 → 노란 점광
@@ -676,7 +707,6 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val GLOW_RADIUS = 1.008f
         private const val GLOW_ALPHA = 0.42f
         private const val GLOW_MAX = 5000
-        private const val BG_STAR_COUNT = 1600
         private const val EARTH_BRIGHTNESS = 0.45f // 원본 대비 지구 밝기(균일)
         private const val TRAIL_COUNT = 5
 
@@ -764,22 +794,24 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             varying vec2 vUV;
             void main() {
                 float across = sin(vUV.y * 3.14159);           // 리본 폭 방향(0..1..0)
-                float glow = pow(across, 2.0) * 0.13;          // 선을 감싸는 아주 은은한 글로우
+                float glow = pow(across, 2.0) * 0.07;          // 선을 감싸는 아주 옅은 글로우
                 float core = pow(across, 14.0);                // 레퍼런스풍 얇은 코어 라인
                 // 양 끝은 점점 투명해지며 소멸(확 끊기지 않게 긴 램프)
                 float ends = smoothstep(0.0, 0.20, vUV.x) * smoothstep(1.0, 0.80, vUV.x);
-                // 흐르는 밝기 — 주파수/속도/위상 다른 파동 조합(불규칙, 느긋한 흐름)
+                // 바탕 밝기 — 저주파 파동 2개로 은근히 숨쉬는 정도만
                 float t = uTime * uSpeed;
                 float w1 = 0.5 + 0.5 * sin((vUV.x - t) * 6.2831 + uPhase);
                 float w2 = 0.5 + 0.5 * sin((vUV.x * 2.7 + t * 0.7) * 6.2831 + uPhase * 2.3);
-                float w3 = 0.5 + 0.5 * sin((vUV.x * 5.3 - t * 0.35) * 6.2831 + uPhase * 4.1);
-                float flow = 0.35 + 0.65 * (0.5 * w1 + 0.3 * w2 + 0.2 * w3);
-                // 파동이 겹치는 곳에서만 은은히 빛나는 하이라이트 — 코어를 따라 이동
-                float shine = pow(w1 * w2, 3.0) * pow(w3, 1.5);
+                float flow = 0.45 + 0.55 * (0.6 * w1 + 0.4 * w2);
+                // 백색 빛무리(가우시안 펄스)가 궤적을 따라 자연스럽게 흘러간다 — 주/부 2개
+                float head = fract(t * 2.2 + uPhase * 0.159);
+                float d1 = vUV.x - head;
+                float d2 = vUV.x - fract(head + 0.47);
+                float pulse = exp(-d1 * d1 * 220.0) + 0.45 * exp(-d2 * d2 * 300.0);
                 vec3 col = mix(uColorA, uColorB, 0.5 + 0.5 * sin(vUV.x * 6.2831 + uTime * 0.15 + uPhase));
-                // 반투명·은은한 세기 — 씬 위계상 트레일은 '악센트'(지구/별보다 조용히)
-                vec3 c = col * (glow * flow + core * (0.26 + 0.28 * flow))
-                       + vec3(1.0) * core * shine * 0.38;
+                // 훨씬 반투명 — 트레일은 배경에 스치는 빛줄기 정도로만
+                vec3 c = col * (glow * flow + core * (0.10 + 0.10 * flow))
+                       + vec3(1.0) * core * pulse * 0.30;
                 gl_FragColor = vec4(c * ends * uFade, 1.0);
             }
         """

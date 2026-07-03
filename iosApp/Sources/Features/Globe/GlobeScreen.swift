@@ -131,8 +131,8 @@ private struct GlobeSceneView: UIViewRepresentable {
         // Android GlobeRenderer 상수 패리티
         static let enterDist: Float = 4.6    // 진입 시작 거리(돌리-인 출발점)
         static let idleDist: Float = 3.25    // 기본 관람 거리
-        static let minDist: Float = 2.10     // 카메라 최소 거리(핀치 줌 클램프 — 화면 전환 없음)
-        static let maxDist: Float = 6.0
+        static let minDist: Float = 1.45     // 카메라 최소 거리(더 바짝 당겨보기 — 화면 전환 없음)
+        static let maxDist: Float = 9.5      // 카메라 최대 거리(지구가 작아 보일 만큼 멀리)
         static let flareMinLikes = 100       // 이 이상 좋아요 → 별 플레어(노드), 미만 → 베이크된 점광
         static let flareMax = 500
 
@@ -286,7 +286,7 @@ private struct GlobeSceneView: UIViewRepresentable {
             let valid = diaries.filter { $0.latitude != 0 && $0.longitude != 0 }
 
             containerNode.addChildNode(GlobeBuilder.earthNode(diaries: valid))
-            containerNode.addChildNode(GlobeBuilder.starfieldNode())
+            for node in GlobeBuilder.starfieldNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.trailNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.flareNodes(diaries: valid) { containerNode.addChildNode(node) }
 
@@ -435,7 +435,7 @@ private enum GlobeBuilder {
 
         return popular.map { d in
             let boost = Float(min(d.likeCount, 1000)) / 1000
-            let size = CGFloat(0.040 + 0.032 * boost) * 2.4 // 살짝 더 축소(이전 0.046+0.038) — 텍스처 여백 감안 배율
+            let size = CGFloat(0.034 + 0.026 * boost) * 2.4 // 한 단계 더 축소(이전 0.040+0.032) — 텍스처 여백 감안 배율
             let plane = SCNPlane(width: size, height: size)
             let material = SCNMaterial()
             material.lightingModel = .constant
@@ -520,9 +520,10 @@ private enum GlobeBuilder {
 
     // MARK: 배경 별밭
 
-    /// 배경 별밭 — 컨테이너와 함께 회전하는 내부-시점 구(반지름 28)에 별 텍스처.
-    /// (Android 는 스프라이트 1600개 — iOS 는 노드 수 절약을 위해 텍스처 베이크.)
-    static func starfieldNode() -> SCNNode {
+    /// 배경 별밭 — 반지름이 다른 3겹 구면 셸 + 원경 성운 글로우. (Android buildStarfield 패리티)
+    /// 카메라가 중심에서 떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감이 난다.
+    /// additive 블렌딩이라 텍스처의 검정 배경은 투명으로 합성돼 셸이 겹겹이 비친다.
+    static func starfieldNodes() -> [SCNNode] {
         let w = 2048, h = 1024
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
@@ -531,37 +532,76 @@ private enum GlobeBuilder {
             seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17
             return CGFloat(seed % 10_000) / 10_000
         }
-        let image = UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: format).image { ctx in
-            UIColor.black.setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
-            for _ in 0..<1600 {
-                let x = rnd() * CGFloat(w)
-                let y = rnd() * CGFloat(h)
-                let warm = rnd()
-                // 은은한 밝기 상한 — 배경은 깊이감만 주고 지구/별 플레어가 주인공이 되게
-                let bright = 0.15 + rnd() * 0.68
-                let big = rnd()
-                let r = 0.8 + big * big * 2.6 // 대부분 잔별, 소수만 크게
-                UIColor(
-                    red: bright * (0.85 + 0.15 * warm),
-                    green: bright * (0.85 + 0.10 * warm),
-                    blue: bright * (0.95 - 0.15 * warm),
-                    alpha: 0.9
-                ).setFill()
-                ctx.cgContext.fillEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+
+        func shellImage(count: Int, brightMul: CGFloat, nebula: Bool) -> UIImage {
+            UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: format).image { ctx in
+                UIColor.black.setFill()
+                ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+                let cg = ctx.cgContext
+                if nebula {
+                    // 아주 어두운 성운 글로우 — 배경에 색 온도와 깊이(도형이 아니라 '공간'으로 읽히게)
+                    let colors: [(CGFloat, CGFloat, CGFloat)] = [
+                        (0.055, 0.030, 0.100), (0.040, 0.050, 0.110), (0.070, 0.030, 0.080),
+                        (0.030, 0.050, 0.100), (0.060, 0.040, 0.110), (0.050, 0.020, 0.090),
+                    ]
+                    let space = CGColorSpaceCreateDeviceRGB()
+                    for c in colors {
+                        let cx = rnd() * CGFloat(w)
+                        let cy = CGFloat(h) * (0.2 + rnd() * 0.6)
+                        let radius = 180 + rnd() * 180
+                        if let g = CGGradient(
+                            colorsSpace: space,
+                            colors: [UIColor(red: c.0, green: c.1, blue: c.2, alpha: 1).cgColor,
+                                     UIColor.black.cgColor] as CFArray,
+                            locations: [0, 1]
+                        ) {
+                            cg.saveGState()
+                            cg.setBlendMode(.plusLighter)
+                            cg.drawRadialGradient(g, startCenter: CGPoint(x: cx, y: cy), startRadius: 0,
+                                                  endCenter: CGPoint(x: cx, y: cy), endRadius: radius, options: [])
+                            cg.restoreGState()
+                        }
+                    }
+                }
+                for _ in 0..<count {
+                    let x = rnd() * CGFloat(w)
+                    let y = rnd() * CGFloat(h)
+                    let warm = rnd()
+                    // 은은한 밝기 상한 — 배경은 깊이감만 주고 지구/별 플레어가 주인공이 되게
+                    let bright = (0.15 + rnd() * 0.68) * brightMul
+                    let big = rnd()
+                    let r = 0.8 + big * big * 2.6 // 대부분 잔별, 소수만 크게
+                    UIColor(
+                        red: bright * (0.85 + 0.15 * warm),
+                        green: bright * (0.85 + 0.10 * warm),
+                        blue: bright * (0.95 - 0.15 * warm),
+                        alpha: 1
+                    ).setFill()
+                    cg.fillEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+                }
             }
         }
-        let sphere = SCNSphere(radius: 28)
-        sphere.segmentCount = 32
-        let material = SCNMaterial()
-        material.lightingModel = .constant
-        material.diffuse.contents = image
-        material.cullMode = .front           // 구 안쪽 면을 렌더
-        material.writesToDepthBuffer = false
-        sphere.materials = [material]
-        let node = SCNNode(geometry: sphere)
-        node.renderingOrder = -10            // 지구보다 먼저(뒤에) 그리기
-        return node
+
+        func shell(radius: CGFloat, count: Int, brightMul: CGFloat, nebula: Bool, order: Int) -> SCNNode {
+            let sphere = SCNSphere(radius: radius)
+            sphere.segmentCount = 32
+            let material = SCNMaterial()
+            material.lightingModel = .constant
+            material.diffuse.contents = shellImage(count: count, brightMul: brightMul, nebula: nebula)
+            material.blendMode = .add          // 검정 배경 = 투명
+            material.cullMode = .front         // 구 안쪽 면을 렌더
+            material.writesToDepthBuffer = false
+            sphere.materials = [material]
+            let node = SCNNode(geometry: sphere)
+            node.renderingOrder = order        // 지구보다 먼저(뒤에) 그리기
+            return node
+        }
+
+        return [
+            shell(radius: 12, count: 320, brightMul: 1.00, nebula: false, order: -12), // 근경 — 시차 큼
+            shell(radius: 22, count: 620, brightMul: 0.72, nebula: false, order: -11), // 중경
+            shell(radius: 38, count: 900, brightMul: 0.52, nebula: true, order: -10),  // 원경 + 성운
+        ]
     }
 
     // MARK: 궤적 트레일
@@ -639,17 +679,25 @@ private enum GlobeBuilder {
         material.blendMode = .add
         material.isDoubleSided = true
         material.writesToDepthBuffer = false
-        // 천천히 흐르는 밝기 — Android RING_FS flow 항 패리티(주파수·위상 다른 파동 조합, 저속).
+        // 흐르는 밝기 + 백색 빛무리 펄스 — Android RING_FS 패리티(가우시안 펄스가 궤적을 따라 이동).
         // 셰이더 모디파이어는 런타임 컴파일이라 실패해도 정적 트레일로 안전 폴백된다.
         material.shaderModifiers = [
             .surface: """
             float u = _surface.diffuseTexcoord.x;
+            float v = _surface.diffuseTexcoord.y;
             float t = u_time * \(speed);
             float w1 = 0.5 + 0.5 * sin((u - t) * 6.2831 + \(phase));
             float w2 = 0.5 + 0.5 * sin((u * 2.7 + t * 0.7) * 6.2831 + \(phase * 2.3));
-            float w3 = 0.5 + 0.5 * sin((u * 5.3 - t * 0.35) * 6.2831 + \(phase * 4.1));
-            float flow = 0.35 + 0.65 * (0.5 * w1 + 0.3 * w2 + 0.2 * w3);
+            float flow = 0.45 + 0.55 * (0.6 * w1 + 0.4 * w2);
             _surface.diffuse.rgb *= flow;
+            float across = sin(v * 3.14159);
+            float core = pow(across, 14.0);
+            float ends = smoothstep(0.0, 0.20, u) * smoothstep(1.0, 0.80, u);
+            float head = fract(t * 2.2 + \(phase * 0.159));
+            float d1 = u - head;
+            float d2 = u - fract(head + 0.47);
+            float pulse = exp(-d1 * d1 * 220.0) + 0.45 * exp(-d2 * d2 * 300.0);
+            _surface.diffuse.rgb += float3(core * pulse * 0.30 * ends);
             """
         ]
         geometry.materials = [material]
@@ -674,16 +722,16 @@ private enum GlobeBuilder {
         for y in 0..<h {
             let v = Double(y) / Double(h - 1)
             let across = sin(v * .pi)
-            let glow = pow(across, 2.0) * 0.13 // 선을 감싸는 아주 은은한 글로우
+            let glow = pow(across, 2.0) * 0.07 // 선을 감싸는 아주 옅은 글로우
             let core = pow(across, 14.0)       // 레퍼런스풍 얇은 코어 라인
             for x in 0..<w {
                 let u = Double(x) / Double(w - 1)
                 // 양 끝은 점점 투명해지며 소멸(확 끊기지 않게 긴 램프)
                 let ends = smoothstep(0.0, 0.20, u) * smoothstep(1.0, 0.80, u)
                 let mix = 0.5 + 0.5 * sin(u * 2 * .pi + phase)
-                // 반투명·은은한 세기 — 씬 위계상 트레일은 '악센트'(지구/별보다 조용히)
-                let colored = glow + core * 0.54
-                let white = core * 0.12 // 은은한 백색 심지(이동 하이라이트는 flow 가 담당)
+                // 훨씬 반투명 — 트레일은 배경에 스치는 빛줄기 정도로만(이동 펄스는 모디파이어가 담당)
+                let colored = glow + core * 0.15
+                let white = core * 0.03
                 let r = ((Double(aR) * (1 - mix) + Double(bR) * mix) * colored + white) * ends
                 let g = ((Double(aG) * (1 - mix) + Double(bG) * mix) * colored + white) * ends
                 let b = ((Double(aB) * (1 - mix) + Double(bB) * mix) * colored + white) * ends
