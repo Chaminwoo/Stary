@@ -15,6 +15,8 @@ data class Diary(
     val title: String = "",
     val content: String = "",
     val imageUrl: String = "",
+    /** 3초 이내 짧은 영상 URL(Storage). 비어 있으면 영상 없음 — imageUrl 과 배타적으로 사용. */
+    val videoUrl: String = "",
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val createdAt: Long = 0L, // epoch millis (UTC)

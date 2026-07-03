@@ -16,6 +16,18 @@ enum ImageUploader {
         return url.absoluteString
     }
 
+    /// 3초 이내 짧은 영상 업로드(diary_videos/). 길이 검증은 호출부(UploadScreen)가 하고,
+    /// 여기서는 원본 파일 데이터를 그대로 올린다. Android ImageUploadHelper.uploadVideoResult 패리티.
+    static func uploadVideo(_ data: Data, contentType: String) async throws -> String {
+        let ext = contentType.contains("quicktime") || contentType.contains("mov") ? "mov" : "mp4"
+        let ref = Storage.storage().reference().child("diary_videos/\(UUID().uuidString).\(ext)")
+        let meta = StorageMetadata()
+        meta.contentType = contentType
+        _ = try await ref.putDataAsync(data, metadata: meta)
+        let url = try await ref.downloadURL()
+        return url.absoluteString
+    }
+
     /// 프로필 사진 업로드(항상 같은 경로 profile_images/{uid}.jpg) + users/{uid}.profileImageUrl 갱신.
     /// Android UserRepository.uploadProfileImage 와 동일.
     static func uploadProfile(uid: String, data: Data) async throws -> String {

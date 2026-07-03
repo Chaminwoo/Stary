@@ -284,20 +284,25 @@ fun DetailScreen(
 
             // ── 헤더: 사진(또는 placeholder) 위 스크림 + 별/작성자/날짜만 오버레이(제목은 본문으로) ──
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(ImageCropHelper.ASPECT)) {
-                if (currentDiary.imageUrl.isNotEmpty()) {
-                    AsyncImage(
+                when {
+                    // 짧은 영상(3초 이내)이 있으면 음소거 루프 재생.
+                    currentDiary.videoUrl.isNotEmpty() -> com.chaminwoo.stary.core.ui.LoopingVideoPlayer(
+                        uri = android.net.Uri.parse(currentDiary.videoUrl),
+                        modifier = Modifier.fillMaxSize(),
+                        muted = true
+                    )
+                    currentDiary.imageUrl.isNotEmpty() -> AsyncImage(
                         model = currentDiary.imageUrl, contentDescription = stringResource(R.string.cd_view_photo),
                         modifier = Modifier.fillMaxSize().clickable { showFullImage = true },
                         contentScale = ContentScale.Crop
                     )
-                } else {
-                    // 사진이 없으면 템플릿 이미지(image_frame)를 대신 띄운다.
-                    Image(
-                        painter = painterResource(R.drawable.image_frame),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                    else -> // 사진/영상이 없으면 템플릿 이미지(image_frame)를 대신 띄운다.
+                        Image(
+                            painter = painterResource(R.drawable.image_frame),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                 }
 
                 // 하단 가독성 스크림

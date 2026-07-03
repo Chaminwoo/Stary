@@ -39,6 +39,9 @@ enum AppConfig {
     /// (StaryConfig.CHAT_DELETE_WINDOW_MS 와 동기화)
     static let chatDeleteWindowMs: Int64 = 60_000
 
+    /// 다이어리 짧은 영상 최대 길이(ms). 이보다 길면 업로드 거부. (StaryConfig.VIDEO_MAX_DURATION_MS 와 동기화)
+    static let videoMaxDurationMs: Int64 = 3_000
+
     /// 어드민(테스트) 계정 — 히든 업적 선점을 서버에 기록하지 않음. (StaryConfig.ADMIN_EMAILS 와 동기화)
     static let adminEmails: Set<String> = ["chaalsdn0217@gmail.com"]
 

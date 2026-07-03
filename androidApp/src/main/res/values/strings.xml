@@ -100,6 +100,8 @@
     <string name="upload_add_photo">사진 추가</string>
     <string name="upload_take_photo">카메라로 촬영</string>
     <string name="upload_pick_gallery">갤러리에서 선택</string>
+    <string name="upload_pick_video">동영상 (3초 이내)</string>
+    <string name="upload_video_too_long">3초 이내의 짧은 영상만 올릴 수 있어요</string>
     <string name="upload_reselect">다시 선택</string>
     <string name="upload_content_label">이 장소의 기억을 남겨주세요</string>
     <string name="upload_star_shape">별 모양</string>

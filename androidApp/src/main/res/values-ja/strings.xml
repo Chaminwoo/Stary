@@ -98,6 +98,8 @@
     <string name="upload_add_photo">写真を追加</string>
     <string name="upload_take_photo">カメラで撮影</string>
     <string name="upload_pick_gallery">ギャラリーから選択</string>
+    <string name="upload_pick_video">動画（3秒以内）</string>
+    <string name="upload_video_too_long">3秒以内の短い動画のみアップロードできます</string>
     <string name="upload_reselect">選び直す</string>
     <string name="upload_content_label">この場所の思い出を残してください</string>
     <string name="upload_star_shape">星の形</string>

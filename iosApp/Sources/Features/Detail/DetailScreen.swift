@@ -70,7 +70,13 @@ struct DetailScreen: View {
                         .buttonStyle(.plain)
                     }
 
-                    if canOpen, !diary.imageUrl.isEmpty {
+                    if canOpen, !diary.videoUrl.isEmpty, let vurl = URL(string: diary.videoUrl) {
+                        // 짧은 영상(3초 이내) 음소거 루프 재생.
+                        LoopingVideoPlayer(url: vurl, muted: true)
+                            .frame(height: 220)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    } else if canOpen, !diary.imageUrl.isEmpty {
                         AsyncImage(url: URL(string: diary.imageUrl)) { image in
                             image.resizable().scaledToFit()
                         } placeholder: {

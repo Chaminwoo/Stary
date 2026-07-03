@@ -98,6 +98,8 @@
     <string name="upload_add_photo">Add photo</string>
     <string name="upload_take_photo">Take a photo</string>
     <string name="upload_pick_gallery">Choose from gallery</string>
+    <string name="upload_pick_video">Video (up to 3s)</string>
+    <string name="upload_video_too_long">Only short videos up to 3 seconds can be uploaded</string>
     <string name="upload_reselect">Reselect</string>
     <string name="upload_content_label">Leave a memory of this place</string>
     <string name="upload_star_shape">Star shape</string>

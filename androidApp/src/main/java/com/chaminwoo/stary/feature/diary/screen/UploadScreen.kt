@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -84,9 +85,11 @@ import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
+import com.chaminwoo.stary.core.ui.LoopingVideoPlayer
 import com.chaminwoo.stary.core.util.ImageCropHelper
 import com.chaminwoo.stary.core.util.ImageUploadHelper
 import com.chaminwoo.stary.core.util.LocationHelper
+import com.chaminwoo.stary.core.util.VideoHelper
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.profile.Achievements
@@ -122,6 +125,8 @@ fun UploadScreen(
     var content by remember { mutableStateOf("") }
     var visibilityType by remember { mutableStateOf("public") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    // 3초 이내 짧은 영상. 이미지와 배타(하나만 첨부) — 영상 선택 시 이미지는 비운다.
+    var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var isUploading by remember { mutableStateOf(false) }
     var isAnonymous by remember { mutableStateOf(false) }
     var showImageSourceDialog by remember { mutableStateOf(false) }
@@ -173,10 +178,21 @@ fun UploadScreen(
     )
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success) selectedImageUri = cameraUri.value
+        if (success) { selectedImageUri = cameraUri.value; selectedVideoUri = null }
     }
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { selectedImageUri = it }
+        uri?.let { selectedImageUri = it; selectedVideoUri = null }
+    }
+    // 동영상 선택 — 3초 이내만 허용(초과 시 안내 후 무시). 선택되면 이미지는 비운다.
+    val videoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            val dur = VideoHelper.durationMs(context, it)
+            if (dur != null && dur > StaryConfig.VIDEO_MAX_DURATION_MS) {
+                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.upload_video_too_long))
+            } else {
+                selectedVideoUri = it; selectedImageUri = null
+            }
+        }
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
@@ -212,6 +228,11 @@ fun UploadScreen(
                         Spacer(Modifier.width(10.dp))
                         Text(stringResource(R.string.upload_pick_gallery), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
                     }
+                    TextButton(onClick = { showImageSourceDialog = false; videoLauncher.launch("video/*") }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Filled.Videocam, null, tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(stringResource(R.string.upload_pick_video), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+                    }
                 }
             },
             confirmButton = {},
@@ -243,13 +264,15 @@ fun UploadScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                    .then(if (selectedImageUri == null) Modifier.clickable { showImageSourceDialog = true } else Modifier),
+                    .then(if (selectedImageUri == null && selectedVideoUri == null) Modifier.clickable { showImageSourceDialog = true } else Modifier),
                 contentAlignment = Alignment.Center
             ) {
-                if (selectedImageUri != null) {
-                    ImageCropFrame(controller = cropController, modifier = Modifier.matchParentSize())
-                } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                when {
+                    selectedVideoUri != null -> LoopingVideoPlayer(
+                        uri = selectedVideoUri!!, modifier = Modifier.matchParentSize(), muted = true
+                    )
+                    selectedImageUri != null -> ImageCropFrame(controller = cropController, modifier = Modifier.matchParentSize())
+                    else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Filled.CameraAlt, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(36.dp))
                         Spacer(Modifier.height(8.dp))
                         Text(stringResource(R.string.upload_add_photo), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
@@ -257,7 +280,7 @@ fun UploadScreen(
                 }
             }
 
-            if (selectedImageUri != null) {
+            if (selectedImageUri != null || selectedVideoUri != null) {
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { showImageSourceDialog = true }) {
@@ -491,29 +514,42 @@ fun UploadScreen(
                         val curLatLng = LocationHelper.getCurrentLatLng()
                         val lat = curLatLng?.latitude ?: LocationHelper.getCurrentLocation(context)?.latitude ?: 0.0
                         val lng = curLatLng?.longitude ?: LocationHelper.getCurrentLocation(context)?.longitude ?: 0.0
-                        val imageUrl = if (selectedImageUri != null) {
-                            // 크롭 프레임 상태로 잘라낸 이미지를 업로드(실패 시 원본으로 폴백).
-                            val uploadUri = withContext(Dispatchers.IO) {
-                                val bmp = cropController.bitmap
-                                if (bmp != null && cropController.frame.width > 0) {
-                                    ImageCropHelper.cropToFile(
-                                        context, bmp,
-                                        cropController.frame.width.toFloat(), cropController.frame.height.toFloat(),
-                                        cropController.scale, cropController.offset.x, cropController.offset.y
-                                    )
-                                } else null
-                            } ?: selectedImageUri!!
-                            val result = ImageUploadHelper.uploadImageResult(context, uploadUri)
-                            if (!result.isSuccess) {
-                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
-                                isUploading = false; return@launch
+                        // 첨부는 영상/이미지 중 하나(배타). 영상이 있으면 영상 우선.
+                        var imageUrl = ""
+                        var videoUrl = ""
+                        when {
+                            selectedVideoUri != null -> {
+                                val result = ImageUploadHelper.uploadVideoResult(context, selectedVideoUri!!)
+                                if (!result.isSuccess) {
+                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
+                                    isUploading = false; return@launch
+                                }
+                                videoUrl = result.url!!
                             }
-                            result.url!!
-                        } else ""
+                            selectedImageUri != null -> {
+                                // 크롭 프레임 상태로 잘라낸 이미지를 업로드(실패 시 원본으로 폴백).
+                                val uploadUri = withContext(Dispatchers.IO) {
+                                    val bmp = cropController.bitmap
+                                    if (bmp != null && cropController.frame.width > 0) {
+                                        ImageCropHelper.cropToFile(
+                                            context, bmp,
+                                            cropController.frame.width.toFloat(), cropController.frame.height.toFloat(),
+                                            cropController.scale, cropController.offset.x, cropController.offset.y
+                                        )
+                                    } else null
+                                } ?: selectedImageUri!!
+                                val result = ImageUploadHelper.uploadImageResult(context, uploadUri)
+                                if (!result.isSuccess) {
+                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
+                                    isUploading = false; return@launch
+                                }
+                                imageUrl = result.url!!
+                            }
+                        }
                         val uName = when { !isLoggedIn -> "익명"; isAnonymous -> "익명"; else -> GoogleAuthHelper.currentUserName ?: "알 수 없음" }
                         diaryViewModel.saveDiary(
                             Diary(
-                                title = title, content = content, imageUrl = imageUrl,
+                                title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
                                 userId = GoogleAuthHelper.currentUserId ?: "",
                                 userName = uName, isAnonymous = isAnonymous || !isLoggedIn,
                                 latitude = lat, longitude = lng,

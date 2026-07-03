@@ -20,6 +20,8 @@ struct Diary: Identifiable, Codable, Hashable {
     var title: String = ""
     var content: String = ""
     var imageUrl: String = ""
+    /// 3초 이내 짧은 영상 URL(Storage). 비어 있으면 영상 없음 — imageUrl 과 배타적. (Android Diary.videoUrl 패리티)
+    var videoUrl: String = ""
     var latitude: Double = 0
     var longitude: Double = 0
     var createdAt: Int64 = 0
@@ -31,7 +33,7 @@ struct Diary: Identifiable, Codable, Hashable {
     var visibilityType: String = "public"
 
     enum CodingKeys: String, CodingKey {
-        case id, userId, userName, isAnonymous, title, content, imageUrl
+        case id, userId, userName, isAnonymous, title, content, imageUrl, videoUrl
         case latitude, longitude, createdAt, likeCount, commentCount, viewCount
         case starType, starColor, visibilityType
     }

@@ -21,9 +21,20 @@ service firebase.storage {
           && request.resource.contentType.matches('image/.*');
     }
 
+    // 3초 이내 짧은 영상. 길이 검증은 클라이언트가, 여기서는 타입 + 용량(20MB)만.
+    function isValidVideo() {
+      return request.resource.size < 20 * 1024 * 1024
+          && request.resource.contentType.matches('video/.*');
+    }
+
     match /diary_images/{imageId} {
       allow read: if true;
       allow write: if isSignedIn() && isValidImage();
+    }
+
+    match /diary_videos/{videoId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidVideo();
     }
 
     match /profile_images/{imageId} {
