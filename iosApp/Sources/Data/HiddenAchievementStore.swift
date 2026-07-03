@@ -1,3 +1,4 @@
+import FirebaseAuth
 import FirebaseFirestore
 import Foundation
 
@@ -43,9 +44,23 @@ final class HiddenAchievementStore: ObservableObject {
         return claims.filter { $0.value.achieverId == uid }.map { $0.key }
     }
 
+    /// [uid] 가 주인으로 기록된 히든 업적 선점을 서버에서 모두 제거해 슬롯을 되돌린다.
+    /// 어드민(테스트) 계정이 과거에 실수로 선점한 히든 업적을 풀어 실제 유저가 첫 달성자가 되게 한다.
+    /// (어드민 로그인 시에만 호출 — 일반 유저의 정당한 선점을 지우지 않도록 호출부에서 가드한다.)
+    func releaseOwnedBy(uid: String) async {
+        guard !uid.isEmpty else { return }
+        let snap = try? await FirestoreService.hiddenAchievements
+            .whereField("achieverId", isEqualTo: uid).getDocuments()
+        for doc in snap?.documents ?? [] {
+            try? await doc.reference.delete()
+        }
+    }
+
     /// 원자적 선점. 아직 주인이 없으면 [uid] 로 기록하고 true(=내가 달성). 이미 주인이면 그게 나면 true.
     func claim(id: String, uid: String, name: String) async -> Bool {
         guard !id.isEmpty, !uid.isEmpty else { return false }
+        // 어드민(테스트) 계정은 선점을 서버에 기록하지 않는다(실제 유저가 첫 달성자가 될 수 있게).
+        if AppConfig.isAdminEmail(Auth.auth().currentUser?.email) { return false }
         let ref = FirestoreService.hiddenAchievements.document(id)
         return await withCheckedContinuation { cont in
             FirestoreService.db.runTransaction({ txn, errorPointer -> Any? in

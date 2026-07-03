@@ -112,6 +112,7 @@
     <string name="toast_title_required">タイトルを入力してください</string>
     <string name="toast_unlock_achievement">「%1$s」の実績を達成して解放しましょう！</string>
     <string name="toast_image_upload_failed">画像のアップロードに失敗: %1$s</string>
+    <string name="upload_daily_limit">本日投稿できる星 %1$d個をすべて使いました</string>
 
     <!-- 友達画面 -->
     <string name="friend_searching">検索中...</string>

@@ -50,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -91,6 +92,7 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.profile.Achievements
 import com.chaminwoo.stary.feature.profile.StarUnlocks
 import com.chaminwoo.stary.feature.profile.rememberUserStats
+import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -127,6 +129,9 @@ fun UploadScreen(
     val cameraUri = remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
     val isLoggedIn = GoogleAuthHelper.currentUserId != null
+
+    // 하루 업로드 제한 판정용 — 내 다이어리 실시간 구독(오늘 올린 개수 계산).
+    val myDiaries by diaryViewModel.getMyDiaries(GoogleAuthHelper.currentUserId ?: "").collectAsState()
 
     // 사진 크롭(고정 비율 프레임 안에서 위치/확대 지정)
     val cropController = remember { CropController() }
@@ -461,6 +466,20 @@ fun UploadScreen(
             Button(
                 onClick = {
                     if (title.isBlank()) { com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@Button }
+                    // 하루 업로드 제한(로그인 사용자 기준). 오늘 로컬 자정 이후 내가 올린 개수로 선차단.
+                    if (isLoggedIn) {
+                        val startOfDay = java.util.Calendar.getInstance().apply {
+                            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                        val todayCount = myDiaries.count { it.createdAt >= startOfDay }
+                        if (todayCount >= StaryConfig.DAILY_UPLOAD_LIMIT) {
+                            com.chaminwoo.stary.core.ui.StaryToast.show(
+                                context.getString(R.string.upload_daily_limit, StaryConfig.DAILY_UPLOAD_LIMIT)
+                            )
+                            return@Button
+                        }
+                    }
                     StarUnlocks.lockedShapeAch(starType, unlockedIds)?.let {
                         com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, it.name)); return@Button
                     }

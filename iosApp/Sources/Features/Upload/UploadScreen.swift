@@ -197,6 +197,13 @@ struct UploadScreen: View {
 
     private func save() async {
         guard let uid = auth.uid else { return }
+        // 하루 업로드 제한 — 오늘(로컬 자정 이후) 내가 올린 개수로 선차단.
+        let startOfDay = Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
+        let todayCount = store.mine(uid: uid).filter { $0.createdAt >= startOfDay }.count
+        if todayCount >= AppConfig.dailyUploadLimit {
+            showToast("오늘 올릴 수 있는 별 \(AppConfig.dailyUploadLimit)개를 모두 사용했어요")
+            return
+        }
         saving = true
         defer { saving = false }
 

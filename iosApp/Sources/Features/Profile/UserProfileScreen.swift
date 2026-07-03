@@ -20,8 +20,14 @@ struct UserProfileScreen: View {
     @State private var isBlocked = false
     @State private var showReportDialog = false
     @State private var showReportedConfirm = false
+    @StateObject private var hidden = HiddenAchievementStore()
 
     private var isMe: Bool { userId == auth.uid }
+
+    /// 그 사람이 달성한 히든 업적(전용 아이콘/파티클로 표시).
+    private var theirHiddenAch: [HiddenAchievement] {
+        hidden.myIds(uid: userId).compactMap { HiddenAchievements.byId($0) }
+    }
 
     /// 그 사람의 공개 별만(비공개 제외, 친구공개는 친구일 때만).
     private var visibleDiaries: [Diary] {
@@ -48,6 +54,7 @@ struct UserProfileScreen: View {
                     header
                     actionRow
                     statRow
+                    hiddenSection
                     diariesSection
                 }
                 .padding(16)
@@ -91,6 +98,7 @@ struct UserProfileScreen: View {
             Button("OK", role: .cancel) {}
         }
         .task {
+            hidden.start()
             if let doc = try? await FirestoreService.users.document(userId).getDocument() {
                 profileImageUrl = doc.get("profileImageUrl") as? String
                 equippedTitleId = doc.get("equippedTitle") as? String
@@ -125,11 +133,14 @@ struct UserProfileScreen: View {
                 .font(.title3).bold()
                 .foregroundStyle(Theme.textPrimary)
             if let title = equippedTitleName(equippedTitleId) {
-                Text(title)
+                // 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.
+                let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
+                let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.mint
+                Text(hiddenT ? "『\(title)』" : title)
                     .font(.caption).bold()
                     .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Theme.mint.opacity(0.2), in: Capsule())
-                    .foregroundStyle(Theme.mint)
+                    .background(titleColor.opacity(0.2), in: Capsule())
+                    .foregroundStyle(titleColor)
             }
         }
         .padding(.top, 8)
@@ -182,6 +193,26 @@ struct UserProfileScreen: View {
                     .foregroundStyle(requested ? Theme.textSecondary : Theme.mint)
             }
             .disabled(requested)
+        }
+    }
+
+    /// 그 사람이 달성한 히든 업적 — 전용 아이콘 + 파티클을 가로로 나열(달성한 게 있을 때만).
+    @ViewBuilder
+    private var hiddenSection: some View {
+        if !theirHiddenAch.isEmpty {
+            HStack(spacing: 16) {
+                ForEach(theirHiddenAch) { ach in
+                    VStack(spacing: 4) {
+                        HiddenIconBadge(ach: ach, size: 40)
+                        Text(ach.title)
+                            .font(.caption2).bold()
+                            .foregroundStyle(Color(hex: 0xFFD86F))
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
         }
     }
 

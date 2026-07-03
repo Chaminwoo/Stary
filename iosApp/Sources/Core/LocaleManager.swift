@@ -187,7 +187,7 @@ enum L10n: String {
                                             "名前でフレンドを検索してリクエストを送り、届いたリクエストを承認するとお互いの星を見たりチャットできます。")
         case .achTabNormal:         return ("일반", "General", "一般")
         case .achTabHidden:         return ("히든", "Hidden", "隠し")
-        case .achHiddenIntro:       return ("앱에서 단 한 명만 가질 수 있는 업적이에요. 조건은 비밀!",
+        case .achHiddenIntro:       return ("앱에서 단 한 명만 가질 수 있는 업적이에요. \n 달성 시 특별한 칭호 및 프로필 아이콘이 제공됩니다.",
                                             "Achievements only ONE person in the whole app can claim. The conditions are a secret!",
                                             "アプリでただ一人だけが手にできる実績。条件は秘密！")
         case .achHiddenAchiever:    return ("달성자: %@", "Achiever: %@", "達成者: %@")

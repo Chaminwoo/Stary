@@ -32,6 +32,17 @@ enum AppConfig {
     /// 다이어리 열람 가능 반경(미터).
     static let diaryOpenRadiusM: Double = 100
 
+    /// 하루(로컬 자정 기준) 최대 업로드 개수. (StaryConfig.DAILY_UPLOAD_LIMIT 와 동기화)
+    static let dailyUploadLimit = 10
+
+    /// 어드민(테스트) 계정 — 히든 업적 선점을 서버에 기록하지 않음. (StaryConfig.ADMIN_EMAILS 와 동기화)
+    static let adminEmails: Set<String> = ["chaalsdn0217@gmail.com"]
+
+    static func isAdminEmail(_ email: String?) -> Bool {
+        guard let email, !email.isEmpty else { return false }
+        return adminEmails.contains(email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
     /// 지도 초기 좌표 폴백(서울 시청 부근).
     static let defaultLat = 37.5409
     static let defaultLng = 127.0794

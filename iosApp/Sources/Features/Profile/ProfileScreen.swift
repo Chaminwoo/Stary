@@ -1,3 +1,4 @@
+import FirebaseAuth
 import FirebaseFirestore
 import PhotosUI
 import SwiftUI
@@ -35,6 +36,16 @@ struct ProfileScreen: View {
     }
     private var unlockedCount: Int { Achievements.unlockedIds(stats).count }
     private var equippedTitle: String? { equippedTitleName(equippedTitleId) }
+    /// 히든 칭호는 일반 칭호와 다르게(금색 + 『 』) 표시.
+    private var equippedTitleIsHidden: Bool { HiddenAchievements.byId(equippedTitleId) != nil }
+    private var titleDisplayText: String {
+        guard let t = equippedTitle else { return locale.t(.userNoTitle) }
+        return equippedTitleIsHidden ? "『\(t)』" : t
+    }
+    private var titleDisplayColor: Color {
+        if equippedTitle == nil { return Theme.textSecondary }
+        return equippedTitleIsHidden ? Color(hex: 0xFFD86F) : Theme.mint
+    }
 
     /// 내가 달성한 히든 업적 id.
     private var myHiddenIds: [String] { hidden.myIds(uid: auth.uid) }
@@ -96,10 +107,11 @@ struct ProfileScreen: View {
                             showNicknameEditor = true
                         }
                     Button { path.append(ProfileRoute.achievements) } label: {
-                        Text(equippedTitle ?? locale.t(.userNoTitle))
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(equippedTitle != nil ? Theme.mint : Theme.textSecondary)
-                            .shadow(color: (equippedTitle != nil ? Theme.mint : .clear).opacity(0.9), radius: 12)
+                        Text(titleDisplayText)
+                            .font(.system(size: 15, weight: equippedTitleIsHidden ? .bold : .semibold))
+                            .foregroundStyle(titleDisplayColor)
+                            .shadow(color: (equippedTitle == nil ? .clear : titleDisplayColor).opacity(0.9),
+                                    radius: equippedTitleIsHidden ? 16 : 12)
                             .padding(6)
                     }
                     .buttonStyle(.plain)
@@ -161,6 +173,8 @@ struct ProfileScreen: View {
             .task {
                 hidden.start()
                 guard let uid = auth.uid else { return }
+                // 어드민(테스트) 계정이 과거에 실수로 선점한 히든 업적은 슬롯을 되돌린다(실제 유저가 첫 달성자가 되게).
+                if AppConfig.isAdminEmail(Auth.auth().currentUser?.email) { await hidden.releaseOwnedBy(uid: uid) }
                 let snap = try? await FirestoreService.friends(of: uid).getDocuments()
                 friendsCount = snap?.documents.count ?? 0
                 if let doc = try? await FirestoreService.users.document(uid).getDocument() {

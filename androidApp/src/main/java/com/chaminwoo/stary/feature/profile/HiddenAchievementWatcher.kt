@@ -70,6 +70,13 @@ fun HiddenAchievementWatcher(userId: String, suppressed: Boolean = false) {
     val attempted = remember { mutableStateListOf<String>() }
     val queue = remember { mutableStateListOf<HiddenAchievement>() }
 
+    // 어드민(테스트) 계정이 과거에 실수로 선점한 히든 업적은 슬롯을 되돌린다(실제 유저가 첫 달성자가 되게).
+    LaunchedEffect(userId) {
+        if (com.chaminwoo.stary.shared.config.StaryConfig.isAdminEmail(GoogleAuthHelper.currentUserEmail)) {
+            repo.releaseOwnedBy(userId)
+        }
+    }
+
     LaunchedEffect(satisfied, claims) {
         val name = GoogleAuthHelper.currentUserName ?: userId.take(12)
         for (id in satisfied) {

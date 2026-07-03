@@ -112,6 +112,7 @@
     <string name="toast_title_required">Please enter a title</string>
     <string name="toast_unlock_achievement">Unlock by earning the “%1$s” achievement!</string>
     <string name="toast_image_upload_failed">Image upload failed: %1$s</string>
+    <string name="upload_daily_limit">You\'ve used all %1$d stars you can post today</string>
 
     <!-- Friends screen -->
     <string name="friend_searching">Searching...</string>

@@ -26,6 +26,8 @@ class HiddenAchievementRepository {
      */
     suspend fun claim(id: String, uid: String, name: String): Boolean {
         if (id.isBlank() || uid.isBlank()) return false
+        // 어드민(테스트) 계정은 선점을 서버에 기록하지 않는다 → 히든 슬롯을 차지하지 않아 실제 유저가 첫 달성자가 될 수 있게.
+        if (StaryConfig.isAdminEmail(com.chaminwoo.stary.feature.auth.GoogleAuthHelper.currentUserEmail)) return false
         return try {
             val ref = col.document(id)
             staryFirestore.runTransaction { tx ->
@@ -46,6 +48,21 @@ class HiddenAchievementRepository {
             }.await()
         } catch (_: Exception) {
             false
+        }
+    }
+
+    /**
+     * [uid] 가 주인으로 기록된 히든 업적 선점을 서버에서 모두 제거해 **슬롯을 되돌린다.**
+     * 어드민(테스트) 계정이 과거에 실수로 선점한 히든 업적을 풀어 실제 유저가 첫 달성자가 될 수 있게 한다.
+     * (어드민 로그인 시에만 호출 — 일반 유저의 정당한 선점을 지우지 않도록 호출부에서 가드한다.)
+     */
+    suspend fun releaseOwnedBy(uid: String) {
+        if (uid.isBlank()) return
+        try {
+            val snap = col.whereEqualTo("achieverId", uid).get().await()
+            for (doc in snap.documents) doc.reference.delete().await()
+        } catch (_: Exception) {
+            // 권한/네트워크 에러는 무시(다음 로그인에서 재시도).
         }
     }
 

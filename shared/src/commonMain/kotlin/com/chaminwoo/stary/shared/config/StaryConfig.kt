@@ -57,6 +57,18 @@ object StaryConfig {
     /** 다이어리 열람 가능 반경(미터). */
     const val DIARY_OPEN_RADIUS_M: Float = 100f
 
+    /** 하루(로컬 자정 기준) 최대 업로드 개수. */
+    const val DAILY_UPLOAD_LIMIT: Int = 10
+
+    /**
+     * 어드민(테스트) 계정 이메일. 이 계정은 히든 업적을 만족해도 **서버에 선점을 기록하지 않아**
+     * 히든 업적 슬롯을 차지하지 않는다(실제 유저가 첫 달성자가 될 수 있게). iOS `AppConfig.adminEmails` 와 동기화.
+     */
+    val ADMIN_EMAILS: Set<String> = setOf("chaalsdn0217@gmail.com")
+
+    fun isAdminEmail(email: String?): Boolean =
+        !email.isNullOrBlank() && email.trim().lowercase() in ADMIN_EMAILS
+
     /** 지도 초기 좌표 폴백 (서울 시청 부근 — 비밀 아님). */
     const val DEFAULT_LAT: Double = 37.5409
     const val DEFAULT_LNG: Double = 127.0794

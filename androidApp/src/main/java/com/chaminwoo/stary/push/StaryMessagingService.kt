@@ -1,6 +1,5 @@
 package com.chaminwoo.stary.push
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
@@ -42,29 +41,35 @@ class StaryMessagingService : FirebaseMessagingService() {
         if (com.chaminwoo.stary.core.util.AppForeground.isForeground) return
 
         val diaryId = message.data["diaryId"]
+        val chatFriendId = message.data["chatFriendId"]
+        val chatFriendName = message.data["chatFriendName"]
         val title = message.data["title"] ?: message.notification?.title ?: "Stary"
         val body = message.data["body"] ?: message.notification?.body ?: "새 소식이 있어요"
 
+        // heads-up 채널 보장(앱 시작 시 이미 만들지만 방어적으로).
+        ensureStaryNotificationChannel(this)
         val manager = getSystemService(NotificationManager::class.java)
-        // IMPORTANCE_HIGH = 상단 heads-up 배너로 표시.
-        manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Stary 알림", NotificationManager.IMPORTANCE_HIGH)
-        )
 
+        // 알림 탭 → 채팅이면 해당 채팅방, 아니면 다이어리 상세로 딥링크.
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            diaryId?.let { putExtra(MainActivity.EXTRA_DIARY_ID, it) }
+            if (chatFriendId != null) {
+                putExtra(MainActivity.EXTRA_CHAT_FRIEND_ID, chatFriendId)
+                putExtra(MainActivity.EXTRA_CHAT_FRIEND_NAME, chatFriendName ?: "")
+            } else {
+                diaryId?.let { putExtra(MainActivity.EXTRA_DIARY_ID, it) }
+            }
         }
         val pending = PendingIntent.getActivity(
             this,
-            diaryId?.hashCode() ?: 0,
+            (chatFriendId ?: diaryId)?.hashCode() ?: 0,
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         // 알림 id: 채팅은 방(chatId)별로 묶어 누적되지 않게, 그 외는 diaryId 기준.
         val tag = message.data["chatId"] ?: diaryId
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(this, STARY_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
@@ -77,6 +82,5 @@ class StaryMessagingService : FirebaseMessagingService() {
 
     companion object {
         private const val TAG = "StaryMessaging"
-        private const val CHANNEL_ID = "stary_default"
     }
 }

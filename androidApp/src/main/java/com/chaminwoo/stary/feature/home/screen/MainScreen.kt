@@ -93,6 +93,7 @@ import kotlinx.coroutines.launch
 fun MainScreen(
     modifier: Modifier = Modifier,
     initialDiaryId: String? = null, // 푸시 알림 탭 딥링크 (해당 다이어리 상세로 이동)
+    initialChatFriendId: String? = null, // 채팅 알림 탭 딥링크 (있으면 로그인 오버레이 생략; 실제 이동은 DeepLinkState)
 ) {
     val context = LocalContext.current
     val navController = rememberNavController()
@@ -150,14 +151,15 @@ fun MainScreen(
     // 로그인은 라우트가 아니라 오버레이 — 뒤에서 지도가 미리 렌더링되어
     // 로그인 직후 바로 지도가 보인다. 로그아웃 시 다시 true.
     // (푸시 딥링크로 진입했거나 이미 로그인 상태면 오버레이 생략)
+    val deepLinked = initialDiaryId != null || initialChatFriendId != null
     var showLogin by androidx.compose.runtime.saveable.rememberSaveable {
-        mutableStateOf(initialDiaryId == null && !alreadyLoggedIn)
+        mutableStateOf(!deepLinked && !alreadyLoggedIn)
     }
 
     // 지도(NavGraph) 로드 시점 제어 — 로그인 영상이 먼저 시작된 뒤에 지도를 로드한다(영상 우선).
     // 딥링크 진입/이미 로그인 상태면 즉시 로드. 한 번 true 가 되면 유지.
     var contentReady by androidx.compose.runtime.saveable.rememberSaveable {
-        mutableStateOf(initialDiaryId != null || alreadyLoggedIn)
+        mutableStateOf(deepLinked || alreadyLoggedIn)
     }
 
     // 로그아웃으로 로그인 화면에 진입했는지 — 이 경우 인트로 영상을 건너뛰고 로그인 UI 를 즉시 표시.
@@ -165,9 +167,17 @@ fun MainScreen(
         mutableStateOf(false)
     }
 
-    // 푸시 알림 탭 → 해당 다이어리 상세로 이동
-    androidx.compose.runtime.LaunchedEffect(initialDiaryId) {
-        initialDiaryId?.let { navController.navigate(NavRoute.Detail(diaryId = it)) }
+    // 푸시 알림 탭 딥링크 — DeepLinkState 관찰(콜드 스타트/앱 살아있을 때 모두). 소비 후 해당 화면으로 이동.
+    androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.diaryId) {
+        com.chaminwoo.stary.core.util.DeepLinkState.consumeDiary()?.let {
+            navController.navigate(NavRoute.Detail(diaryId = it))
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.chatFriendId) {
+        com.chaminwoo.stary.core.util.DeepLinkState.consumeChat()?.let { (fid, fname) ->
+            showLogin = false
+            navController.navigate(NavRoute.Chat(friendId = fid, friendName = fname))
+        }
     }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)

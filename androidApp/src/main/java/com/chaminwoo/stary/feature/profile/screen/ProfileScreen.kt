@@ -70,6 +70,7 @@ import com.chaminwoo.stary.feature.profile.StigmaStore
 import com.chaminwoo.stary.feature.profile.equippedTitleName
 import com.chaminwoo.stary.feature.profile.rememberUserStats
 import com.chaminwoo.stary.data.repository.HiddenAchievementRepository
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -96,6 +97,7 @@ import kotlinx.coroutines.launch
 
 private val Green = Color(0xFF6EE7B7)
 private val Blue = Color(0xFF3B82F6)
+private val Gold = Color(0xFFFFD86F) // 히든 칭호 색
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 private val CardBg = Color(0xCC14181C)
@@ -249,24 +251,34 @@ fun ProfileScreen(
                 ) { showNicknameDialog = true }
             )
 
-            // 장착 칭호 — 글씨만 + 후광 (테두리/배경/아이콘 없음)
+            // 장착 칭호 — 글씨만 + 후광. 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.
             Spacer(Modifier.height(12.dp))
-            val titleColor = if (equippedStigma != null) Green else TextMuted
+            val isHiddenTitle = HiddenAchievements.byId(equippedStigmaId) != null
+            val titleColor = when {
+                equippedStigma == null -> TextMuted
+                isHiddenTitle -> Gold
+                else -> Green
+            }
             Text(
-                text = equippedStigma ?: stringResource(R.string.profile_no_title),
+                text = when {
+                    equippedStigma == null -> stringResource(R.string.profile_no_title)
+                    isHiddenTitle -> "『$equippedStigma』"
+                    else -> equippedStigma
+                },
                 color = titleColor,
-                fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.Bold else FontWeight.SemiBold,
                 style = LocalTextStyle.current.merge(
-                    TextStyle(shadow = Shadow(titleColor.copy(alpha = 0.9f), blurRadius = 24f))
+                    TextStyle(shadow = Shadow(titleColor.copy(alpha = 0.95f), blurRadius = if (isHiddenTitle) 32f else 24f))
                 ),
                 modifier = Modifier.clickable { onOpenAchievements() }.padding(6.dp)
             )
         }
 
-        // ── 로그아웃 — 화면 맨 아래 ──
+        // ── 로그아웃 — 화면 맨 아래 (떠다니는 오버레이 위로 올려 항상 눌리게) ──
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .zIndex(1f)
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(start = 22.dp, end = 22.dp, bottom = 12.dp),

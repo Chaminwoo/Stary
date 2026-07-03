@@ -2,6 +2,7 @@ package com.chaminwoo.stary
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -49,18 +50,40 @@ class MainActivity : ComponentActivity() {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), 1001)
         }
 
-        // 푸시 알림 탭 → 해당 다이어리 상세로 딥링크
+        // 푸시 알림 탭 → 채팅방/다이어리 상세로 딥링크. (콜드 스타트: onCreate, 살아있을 때: onNewIntent)
+        handleDeepLinkIntent(intent)
         val initialDiaryId = intent?.getStringExtra(EXTRA_DIARY_ID)
+        val initialChatFriendId = intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID)
 
         enableEdgeToEdge()
         setContent {
             StaryTheme {
-                MainScreen(initialDiaryId = initialDiaryId)
+                MainScreen(
+                    initialDiaryId = initialDiaryId,
+                    initialChatFriendId = initialChatFriendId,
+                )
             }
         }
     }
 
+    // 앱이 살아있는(백그라운드) 상태에서 알림 탭 → 새 인텐트로 들어옴(launchMode=singleTop).
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleDeepLinkIntent(intent)
+    }
+
+    private fun handleDeepLinkIntent(intent: Intent?) {
+        com.chaminwoo.stary.core.util.DeepLinkState.request(
+            diaryId = intent?.getStringExtra(EXTRA_DIARY_ID),
+            chatFriendId = intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID),
+            chatFriendName = intent?.getStringExtra(EXTRA_CHAT_FRIEND_NAME),
+        )
+    }
+
     companion object {
         const val EXTRA_DIARY_ID = "diaryId"
+        const val EXTRA_CHAT_FRIEND_ID = "chatFriendId"
+        const val EXTRA_CHAT_FRIEND_NAME = "chatFriendName"
     }
 }

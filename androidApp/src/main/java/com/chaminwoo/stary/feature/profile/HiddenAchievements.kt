@@ -9,7 +9,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.RemoveRedEye
-import androidx.compose.material.icons.filled.Water
+import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.ui.graphics.Color
@@ -32,7 +32,7 @@ enum class HiddenIcon(val vector: ImageVector, val color: Color) {
     COMET(Icons.Filled.AutoAwesome, Color(0xFF9BE7FF)),
     GLACIER(Icons.Filled.AcUnit, Color(0xFFCFE8FF)),
     DESERT(Icons.Filled.WbSunny, Color(0xFFF2C46B)),
-    TRENCH(Icons.Filled.Water, Color(0xFF4FC3E0)),
+    TRENCH(Icons.Filled.Waves, Color(0xFF4FC3E0)),
     TRIANGLE(Icons.Filled.ChangeHistory, Color(0xFF9AE6C4)),
     CROWN(Icons.Filled.WorkspacePremium, Color(0xFFFFD86F)),
     TRICKSTER(Icons.Filled.Bolt, Color(0xFFB388FF)),

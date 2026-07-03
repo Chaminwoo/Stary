@@ -2,7 +2,10 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.29 히든 업적(앱 전체 1명 선착순) + 프로필 아이콘·파티클**(업적 화면 일반/히든 2탭, 조건 `???`→달성 시 공개+달성자, 트랜잭션 선점, 안드+iOS) — 아래 8.29 참고. Android `:androidApp:assembleDebug` **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
+> 최종 갱신: **8.32 히든 업적 후속 3건 — 심연의 별 아이콘 교체 + 어드민 선점 해제(자가치유) + 친구 프로필 히든 아이콘**(테스트 완료) — 아래 8.32 참고. Android **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
+> 이전: **8.31 로그아웃 버튼 zIndex + 히든 칭호 금색『』 + 하루 업로드 10개 제한 + 어드민 히든선점 제외**(체크리스트 19~22) — 아래 8.31 참고.
+> 이전: **8.30 채팅 FCM 알림(백그라운드/종료) + 딥링크**(heads-up 채널 사전생성, 알림 탭→해당 채팅방, singleTop+onNewIntent+DeepLinkState, 서버 data에 friendId/name) — 아래 8.30 참고. Android **BUILD SUCCESSFUL**, 실기기+Functions 배포 검증 대기. Android 전용(iOS APNs 후속).
+> 이전: **8.29 히든 업적(앱 전체 1명 선착순) + 프로필 아이콘·파티클**(업적 화면 일반/히든 2탭, 조건 `???`→달성 시 공개+달성자, 트랜잭션 선점, 안드+iOS) — 아래 8.29 참고.
 > 이전: **8.28 닉네임 변경 + 닉네임 친구 검색(공통친구 정렬)**(프로필 이름 탭→변경, 기본=구글 닉네임; 검색 결과 2명↑이면 나와 공통 친구 많은 순 정렬, 안드+iOS) — 아래 8.28 참고.
 > 이전: **8.27 화면 첫 진입 설명창**(내 다이어리·프로필·업적·배경음악·친구 5개 화면에 1회 안내 다이얼로그, 안드+iOS) — 아래 8.27 참고.
 > 이전: **8.26-iOS 길찾기 진입 + 프로필 부유아이콘 패리티 + 핀별 파동·길찾기** — 아래 8.26-iOS 참고. iOS 컴파일 = **CI(macOS) BUILD SUCCESS `e787ce8`**.
@@ -18,6 +21,33 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.32 히든 업적 후속 3건 — 아이콘·어드민 선점 해제·친구 프로필 (테스트 완료)
+- **심연의 별(place_trench) 아이콘 교체**: 물방울(`Water`/`drop.fill`) → **물결(`Waves`/`water.waves`)**. 안드 `HiddenIcon.TRENCH` / iOS `HiddenIcon.trench.systemImage`.
+- **어드민이 과거 선점한 히든 자동 해제(자가치유)**: 8.31의 어드민 제외 로직이 생기기 **전에** 어드민(chaalsdn0217@gmail.com)이 `lone_observer`(홀로 빛나는 별)를 서버에 선점해 전역 잠김 → `HiddenAchievementRepository.releaseOwnedBy(uid)`(안드) / `HiddenAchievementStore.releaseOwnedBy(uid:)`(iOS) 추가: `achieverId==uid` 인 `hiddenAchievements` 문서 전부 삭제. **어드민 로그인일 때만** 호출(안드 `HiddenAchievementWatcher` LaunchedEffect / iOS `ProfileScreen.task`) — 일반 유저의 정당한 선점은 안 건드림. 어드민이 앱(프로필 탭)을 열면 슬롯이 풀린다. ⚠️ Firestore 규칙이 delete 를 막으면 무시되므로 그 경우 규칙 확인.
+- **친구(타인) 프로필에 히든 아이콘 표시**: `UserProfileScreen` 이 히든 현황을 구독 안 해서 안 보였음 → 안드: `hiddenRepo.observe()` 구독 후 대상 uid 의 달성 히든을 `FloatingStatBox` 버블(오라/잔상/버스트)로 추가, 핀별/히든 인덱스 경계(`pinnedStart=5`) 정리(히든 탭은 버스트만, 화면 이동 없음). iOS: `UserProfileScreen` 에 `HiddenAchievementStore` 구독 + `hiddenSection`(HiddenIconBadge 가로줄, 달성 있을 때만) 추가.
+
+---
+
+## 8.31 로그아웃 버튼 + 히든 칭호 표기 + 하루 업로드 제한 + 어드민 선점 제외 (체크리스트 19~22, Android BUILD SUCCESSFUL)
+- **19. 로그아웃 버튼(안드)**: 8.29에서 히든 아이콘을 전체화면 `FloatingStatBox` 오버레이로 넣으며 하단 로그아웃 버튼 위를 덮어 터치가 막힐 수 있었음 → `ProfileScreen` 로그아웃 `Column` 에 `Modifier.zIndex(1f)`(오버레이 위, 하단 얇은 밴드만 차지). 중앙 아바타/이름 Column 은 넓어서 zIndex 미적용(버블 상호작용 보존). iOS 는 히트영역 분리 구조라 원래 정상.
+- **20. 히든 칭호 구분**: 히든 칭호는 **금색(0xFFD86F)+`『 』`+강한 후광+Bold**, 일반은 민트. 판별 `HiddenAchievements.byId(equippedId) != null`. 안드 `ProfileScreen`/`UserProfileScreen`, iOS `ProfileScreen`(titleDisplayText/Color/equippedTitleIsHidden)/`UserProfileScreen`.
+- **21. 하루 업로드 10개**: `StaryConfig.DAILY_UPLOAD_LIMIT=10` / iOS `AppConfig.dailyUploadLimit`. 로그인 사용자 기준 그날(로컬 자정 이후) 내 업로드 수로 선차단. 안드 `UploadScreen`(구독한 `getMyDiaries` 로 카운트, 저장 버튼에서 막고 `upload_daily_limit` ko/en/ja 토스트) / iOS `UploadScreen.save()`(`store.mine`+`Calendar.startOfDay`). ⚠️ 서버 강제는 후속(클라 차단만).
+- **22. 어드민 히든 선점 제외**: 어드민 이메일(`StaryConfig.ADMIN_EMAILS`={chaalsdn0217@gmail.com}, `isAdminEmail` / iOS `AppConfig`). `HiddenAchievementRepository.claim`(안드)·`HiddenAchievementStore.claim`(iOS) 최상단에서 어드민이면 **쓰기 skip + false** → 히든이 계속 "달성자 없음" 유지(실유저가 첫 달성). 이메일: 안드 `GoogleAuthHelper.currentUserEmail`(로그인/세션복원 시 `FirebaseAuth.currentUser?.email`, 로그아웃 null) / iOS `Auth.auth().currentUser?.email`.
+
+---
+
+## 8.30 채팅 FCM 알림(백그라운드/종료) + 채팅방 딥링크 (Android BUILD SUCCESSFUL, 실기기+배포 검증 대기)
+체크리스트 18. 앱 백그라운드/종료 시 새 채팅 → 상단 heads-up, 탭 시 해당 채팅방으로 이동. **대부분 인프라는 기존에 있었고(수신 서비스·서버 함수·토큰·권한)**, 빠진 딥링크/채널만 보강.
+- **핵심 동작**: 서버 `sendToUser` 가 **notification+data 혼합** + `android.priority:"high"` + `channelId:"stary_default"` 로 보냄 → 앱 후면/종료면 **시스템(Play services)이 직접 heads-up 표시**(onMessageReceived 안 불림), 전면이면 `onMessageReceived` 가 `AppForeground` 로 skip → 인앱 배너. 탭하면 data 가 런처 인텐트 extra 로 들어옴.
+- **heads-up 보장**: `push/NotificationChannels.kt`(`ensureStaryNotificationChannel`, `STARY_CHANNEL_ID`, `IMPORTANCE_HIGH`) 를 **`StaryApplication.onCreate` 에서 사전 생성**. 채널이 영속되어야 종료 상태 시스템 알림도 상단 배너로 뜬다(안 만들어두면 첫 종료-알림이 heads-up 안 됨). 서버 channelId 와 값 일치 필수.
+- **딥링크 = 채팅방**: 단일 Activity+Compose 구조(별도 ChatActivity 없음). `MainActivity` `EXTRA_CHAT_FRIEND_ID/EXTRA_CHAT_FRIEND_NAME` + `launchMode=singleTop` + `onNewIntent`(앱 살아있을 때 탭). `core/util/DeepLinkState`(mutableStateOf, 콜드=onCreate·웜=onNewIntent 공용) → `MainScreen` 이 `LaunchedEffect(DeepLinkState.diaryId/chatFriendId)` 로 관찰→`consume`→`NavRoute.Chat(friendId,friendName)`/`Detail` 이동(+로그인 오버레이 skip). 기존 diaryId 딥링크도 DeepLinkState 로 통일(param 은 오버레이 skip 판정에만).
+- **서버**: `functions/index.js` `notifyOnChatMessage` data 에 `chatFriendId(=senderId)`/`chatFriendName` 추가(수신자 입장에서 발신자와의 방을 염). `StaryMessagingService` 도 채팅이면 채팅 extra, 아니면 diaryId 로 인텐트 구성.
+- **권한**: `POST_NOTIFICATIONS`(API33+) 요청은 기존 `MainActivity` 에 이미 있음.
+- ⚠️ **배포 필요(사용자)**: `firebase deploy --only functions`(Blaze). 미배포면 백그라운드/종료 푸시 안 옴(전면 인앱 배너는 동작). node `--check` 통과.
+- **iOS**: APNs 인프라 별도 → 후속. 이번은 Android 전용(안드로이드 스튜디오/Kotlin 프로젝트 대상 요청).
 
 ---
 

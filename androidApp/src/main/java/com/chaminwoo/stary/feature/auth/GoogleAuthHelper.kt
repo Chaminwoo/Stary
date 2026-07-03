@@ -33,6 +33,7 @@ object GoogleAuthHelper {
     var currentUserId: String? = null
     var currentUserName: String? = null
     var currentUserPhotoUrl: String? = null
+    var currentUserEmail: String? = null  // 어드민 판정용(히든 업적 선점 제외)
 
     suspend fun signInWithGoogle(context: Context): String? {
         val credentialManager = CredentialManager.create(context)
@@ -63,6 +64,7 @@ object GoogleAuthHelper {
                     FirebaseAuth.getInstance()
                         .signInWithCredential(GoogleAuthProvider.getCredential(idToken, null))
                         .await()
+                    currentUserEmail = FirebaseAuth.getInstance().currentUser?.email
                 } catch (e: Exception) {
                     Log.e(TAG, "Firebase Auth 로그인 실패: ${e.localizedMessage}")
                 }
@@ -123,6 +125,7 @@ object GoogleAuthHelper {
         currentUserId = uid
         currentUserName = google?.displayName ?: user.displayName
         currentUserPhotoUrl = (google?.photoUrl ?: user.photoUrl)?.toString()
+        currentUserEmail = user.email
         // 앱 재시작(세션 복원)도 "로그인"으로 보고 삭제 예약을 취소(7일 유예 정책).
         CoroutineScope(Dispatchers.IO).launch { cancelPendingDeletion(uid) }
         return true
@@ -133,6 +136,7 @@ object GoogleAuthHelper {
             currentUserId = null
             currentUserName = null
             currentUserPhotoUrl = null
+            currentUserEmail = null
             FirebaseAuth.getInstance().signOut()
             val credentialManager = CredentialManager.create(context)
             credentialManager.clearCredentialState(ClearCredentialStateRequest())

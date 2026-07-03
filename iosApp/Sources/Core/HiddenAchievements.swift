@@ -16,7 +16,7 @@ enum HiddenIcon {
         case .comet: return "sparkles"
         case .glacier: return "snowflake"
         case .desert: return "sun.max.fill"
-        case .trench: return "drop.fill"
+        case .trench: return "water.waves"
         case .triangle: return "triangle.fill"
         case .crown: return "crown.fill"
         case .trickster: return "bolt.fill"

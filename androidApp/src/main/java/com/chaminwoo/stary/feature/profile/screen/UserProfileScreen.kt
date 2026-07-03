@@ -82,6 +82,7 @@ import com.chaminwoo.stary.core.util.RelativeTime
 import com.chaminwoo.stary.core.util.UserProfileActionState
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.data.repository.FirebaseModerationRepository
+import com.chaminwoo.stary.data.repository.HiddenAchievementRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.friend.FriendViewModel
@@ -134,6 +135,14 @@ fun UserProfileScreen(
     LaunchedEffect(userId) { pinnedIds = FirebaseFriendRepository().getPinnedDiaries(userId) }
     val pinnedDiaries = remember(theirDiaries, pinnedIds) {
         pinnedIds.mapNotNull { id -> theirDiaries.find { it.id == id } }
+    }
+
+    // 그 사람이 달성한 히든 업적 — 프로필에 떠다니는 전용 아이콘(오라/파티클)으로 표시.
+    val hiddenRepo = remember { HiddenAchievementRepository() }
+    val hiddenClaims by remember { hiddenRepo.observe() }.collectAsState(initial = emptyMap())
+    val theirHiddenAch = remember(hiddenClaims, userId) {
+        hiddenClaims.filterValues { it.achieverId == userId }.keys
+            .mapNotNull { com.chaminwoo.stary.feature.profile.HiddenAchievements.byId(it) }
     }
 
     // 친구 상태/요청 — 기존 FriendViewModel 재사용.
@@ -275,18 +284,27 @@ fun UserProfileScreen(
                         fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextMain
                     )
 
-                    // 장착 칭호 — 글씨만 + 후광 (테두리/배경/아이콘 없음)
+                    // 장착 칭호 — 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.
                     Spacer(Modifier.height(12.dp))
-                    val titleColor = if (equippedTitleName != null) Mint else TextMuted
+                    val isHiddenTitle = com.chaminwoo.stary.feature.profile.HiddenAchievements.byId(equippedTitleId.ifBlank { null }) != null
+                    val titleColor = when {
+                        equippedTitleName == null -> TextMuted
+                        isHiddenTitle -> Color(0xFFFFD86F)
+                        else -> Mint
+                    }
                     Text(
-                        text = equippedTitleName ?: stringResource(R.string.user_no_title),
+                        text = when {
+                            equippedTitleName == null -> stringResource(R.string.user_no_title)
+                            isHiddenTitle -> "『$equippedTitleName』"
+                            else -> equippedTitleName
+                        },
                         color = titleColor,
-                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.Bold else FontWeight.SemiBold,
                         style = LocalTextStyle.current.merge(
                             TextStyle(
                                 shadow = Shadow(
-                                    titleColor.copy(alpha = 0.9f),
-                                    blurRadius = 24f
+                                    titleColor.copy(alpha = 0.95f),
+                                    blurRadius = if (isHiddenTitle) 32f else 24f
                                 )
                             )
                         )
@@ -318,13 +336,21 @@ fun UserProfileScreen(
                     Icons.Filled.Favorite, 0, StarStyle.colorOf(d.starColor), d.title.ifBlank { untitled },
                     showCount = false, starType = d.starType, starColorIndex = d.starColor
                 )
+            } + theirHiddenAch.map { ach ->
+                StatBubble(
+                    ach.icon.vector, 0, ach.icon.color, ach.title,
+                    burstOnTap = true, showCount = false, hiddenEffect = ach.effect
+                )
             },
             onTap = { idx ->
+                val pinnedStart = 5
+                val hiddenStart = pinnedStart + pinnedDiaries.size
                 when {
                     idx == 2 -> onOpenDiaryStars(userId, resolvedName)
                     idx == 3 -> if (isFriend) onOpenChat(userId, resolvedName)
                                 else com.chaminwoo.stary.core.ui.StaryToast.show(chatNeedFriendMsg)
-                    idx >= 5 -> pinnedDiaries.getOrNull(idx - 5)?.id?.let { onOpenDiary(it) }
+                    idx in pinnedStart until hiddenStart -> pinnedDiaries.getOrNull(idx - pinnedStart)?.id?.let { onOpenDiary(it) }
+                    // 히든 아이콘(idx >= hiddenStart)은 탭 시 버스트만(타인 프로필이라 업적 화면 이동 없음).
                 }
             },
             avoidCenterYFraction = 0.25f // 상단의 프로필/이름 회피

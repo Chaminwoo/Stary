@@ -192,6 +192,9 @@ exports.notifyOnChatMessage = onDocumentCreated(
     const data = {
       type: "chat",
       chatId,
+      // 알림 탭 딥링크용 — 수신자 입장에서 "상대(=발신자)" 와의 채팅방을 연다.
+      chatFriendId: senderId,
+      chatFriendName: msg.senderName || "",
       title: msg.senderName || "새 메시지",
       body: msg.text || "새 메시지가 도착했어요",
     };
