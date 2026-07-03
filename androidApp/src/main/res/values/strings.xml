@@ -198,6 +198,7 @@
     <string name="map_open_range">%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)</string>
     <string name="map_route_summary">도보 약 %1$d분 · %2$dm</string>
     <string name="map_route_cancel">길찾기 취소</string>
+    <string name="globe_hint">드래그로 회전 · 핀치로 지도 복귀</string>
 
     <!-- 타인 프로필(UserProfileScreen) -->
     <string name="user_profile_me">내 프로필</string>

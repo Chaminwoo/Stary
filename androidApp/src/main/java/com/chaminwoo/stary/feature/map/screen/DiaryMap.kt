@@ -137,6 +137,11 @@ private const val PARTICLE_SEED = 42
 /** 마커 비트맵 변(px). 4의 배수 유지(GL 행 정렬). */
 private const val MARKER_SIDE_PX = 160
 
+/** 3D 글로브 진입 줌(이하로 줌아웃하면 행성 뷰로 전환) / 재장전 줌 / 지도 최소 줌. */
+private const val GLOBE_TRIGGER_ZOOM = 3.0
+private const val GLOBE_REARM_ZOOM = 3.4
+private const val MAP_MIN_ZOOM = 2.4
+
 /**
  * 별 기본/근접 크기 (iconSize 배율).
  * 주의: MapLibre 의 addImage(bitmap)는 기기 밀도(pixelRatio)로 나눠 표시하므로
@@ -525,6 +530,14 @@ data class DiaryFocusTarget(
     val withRoute: Boolean = false,
 )
 
+/** 글로브에서 지도로 복귀할 때의 카메라 요청(nonce 로 같은 좌표 반복 요청도 트리거). */
+data class GlobeReturnCamera(
+    val lat: Double,
+    val lng: Double,
+    val zoom: Double,
+    val nonce: Long,
+)
+
 @Composable
 fun DiaryMap(
     diaries: List<Diary>,
@@ -535,6 +548,10 @@ fun DiaryMap(
     focusDiary: DiaryFocusTarget? = null,
     onFocusHandled: () -> Unit = {},
     showCreate: Boolean = true, // 비로그인 시 다이어리 생성(업로드) 버튼 숨김
+    /** 줌아웃이 [GLOBE_TRIGGER_ZOOM] 이하로 내려가면 호출 — 3D 글로브 진입(중심 위경도 전달). */
+    onZoomedOutToGlobe: ((lat: Double, lng: Double) -> Unit)? = null,
+    /** 글로브 → 지도 복귀 카메라 요청. */
+    globeReturnCamera: GlobeReturnCamera? = null,
 ) {
     val context = LocalContext.current
     val mapView = rememberMapViewWithLifecycle()
@@ -574,6 +591,19 @@ fun DiaryMap(
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
     val diariesRef = rememberUpdatedState(diaries)
     val initialLatLngRef = rememberUpdatedState(currentLatLng)
+    val onZoomedOutToGlobeRef = rememberUpdatedState(onZoomedOutToGlobe)
+    // 글로브 트리거 1회 보장(재장전은 줌이 GLOBE_REARM_ZOOM 위로 올라올 때)
+    val globeArmed = remember { java.util.concurrent.atomic.AtomicBoolean(true) }
+
+    // 글로브 → 지도 복귀 카메라(글로브가 가리던 동안 즉시 점프)
+    LaunchedEffect(globeReturnCamera) {
+        val req = globeReturnCamera ?: return@LaunchedEffect
+        mapRef?.moveCamera(
+            CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder().target(MlLatLng(req.lat, req.lng)).zoom(req.zoom).build()
+            )
+        )
+    }
 
     // 도보 길찾기(친구 별 탭) — 현위치→목적지 전체 경로를 받아 savedRoute 에 저장(X 취소까지 유지).
     // 실시간 위치에 맞춰 "내 위치→경로 최근접점→목적지"만 렌더하는 건 아래 LaunchedEffect 가 담당.
@@ -605,10 +635,23 @@ fun DiaryMap(
                     isLogoEnabled = false
                     isAttributionEnabled = false
                 }
+                map.setMinZoomPreference(MAP_MIN_ZOOM) // 이 밑은 3D 글로브가 담당
                 map.addOnCameraMoveStartedListener { isCameraMoving.value = true }
                 map.addOnCameraIdleListener {
                     isCameraMoving.value = false
                     cameraIdleTick++
+                }
+                // 줌아웃 → 3D 글로브 진입(1회 트리거, 줌이 다시 올라오면 재장전)
+                map.addOnCameraMoveListener {
+                    val z = map.cameraPosition.zoom
+                    if (z > GLOBE_REARM_ZOOM) {
+                        globeArmed.set(true)
+                    } else if (z <= GLOBE_TRIGGER_ZOOM && onZoomedOutToGlobeRef.value != null &&
+                        globeArmed.compareAndSet(true, false)
+                    ) {
+                        val c = map.cameraPosition.target
+                        onZoomedOutToGlobeRef.value?.invoke(c?.latitude ?: 0.0, c?.longitude ?: 0.0)
+                    }
                 }
                 // 별 클릭 → 100m 게이팅 (길찾기 기능은 제거됨 — 밖이면 안내 토스트만)
                 map.addOnMapClickListener { point ->

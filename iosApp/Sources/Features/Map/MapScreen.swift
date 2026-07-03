@@ -26,6 +26,17 @@ struct MapScreen: View {
     @State private var warpColor: Color = .white
     @State private var warpId = 0
 
+    // 3D 행성(글로브) 뷰 상태 — 지도 줌을 최소로 빼면 진입. nil 아니면 오버레이 표시.
+    @State private var globeCenter: GlobeCenter?
+    @State private var globeReturn: GlobeReturnCamera?
+    // 지도 ↔ 글로브 교체를 가리는 검정 디졸브 스크림.
+    @State private var globeScrim: Double = 0
+
+    private struct GlobeCenter: Equatable {
+        let lat: Double
+        let lng: Double
+    }
+
     /// 미조회 필터 적용된 표시 대상.
     private var shownDiaries: [Diary] {
         guard unviewedOnly else { return store.diaries }
@@ -46,7 +57,9 @@ struct MapScreen: View {
                 userLocation: location.coordinate,
                 onTapDiary: { selected = $0 },
                 route: partialRoute,
-                focusTarget: focusTarget
+                focusTarget: focusTarget,
+                onZoomedOutToGlobe: { lat, lng in enterGlobe(lat: lat, lng: lng) },
+                globeReturnCamera: globeReturn
             )
             .ignoresSafeArea()
 
@@ -82,6 +95,24 @@ struct MapScreen: View {
             if !fullRoute.isEmpty {
                 routeControls
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            }
+
+            // ── 3D 행성(글로브) 오버레이 — 줌 최소 진입, 핀치인으로 그 지점 지도 복귀 ──
+            if let center = globeCenter {
+                GlobeScreen(
+                    diaries: shownDiaries,
+                    startLat: center.lat,
+                    startLng: center.lng,
+                    onRequestExit: { lat, lng in exitGlobe(lat: lat, lng: lng) }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+            }
+            // 전환 스크림(검정 디졸브) — 지도 ↔ 글로브(SceneKit) 교체를 가린다.
+            if globeScrim > 0.001 {
+                Color.black.opacity(globeScrim)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
             }
         }
         .sheet(item: $selected) { diary in
@@ -161,6 +192,32 @@ struct MapScreen: View {
     private func cancelRoute() {
         fullRoute = []
         routeSummary = nil
+    }
+
+    // MARK: 3D 글로브 전환 (Android MainListScreen 글로브 라운드 패리티)
+
+    /// 지도 줌아웃 → 글로브 진입. 검정 디졸브로 지도 ↔ SceneKit 교체를 가린다.
+    private func enterGlobe(lat: Double, lng: Double) {
+        guard globeCenter == nil else { return }
+        withAnimation(.easeInOut(duration: 0.17)) { globeScrim = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            globeCenter = GlobeCenter(lat: lat, lng: lng)
+            withAnimation(.easeInOut(duration: 0.52)) { globeScrim = 0 }
+        }
+    }
+
+    /// 글로브 핀치-인 → 지금 정면 지점의 지도(줌 4)로 복귀.
+    private func exitGlobe(lat: Double, lng: Double) {
+        withAnimation(.easeInOut(duration: 0.17)) { globeScrim = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            globeReturn = GlobeReturnCamera(lat: lat, lng: lng, zoom: 4.0,
+                                            nonce: (globeReturn?.nonce ?? 0) + 1)
+            globeCenter = nil
+            // 지도 카메라 점프가 프레임에 반영될 시간을 살짝 준 뒤 걷는다.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) {
+                withAnimation(.easeInOut(duration: 0.38)) { globeScrim = 0 }
+            }
+        }
     }
 
     /// 전체 경로 [full] 에서 현재 위치 [me] 의 최근접 투영점을 찾아

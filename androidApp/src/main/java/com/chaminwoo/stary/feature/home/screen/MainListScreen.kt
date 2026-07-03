@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -75,8 +77,10 @@ import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.data.repository.FirebaseViewedRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
+import com.chaminwoo.stary.feature.globe.GlobeScreen
 import com.chaminwoo.stary.feature.map.screen.DiaryFocusTarget
 import com.chaminwoo.stary.feature.map.screen.DiaryMap
+import com.chaminwoo.stary.feature.map.screen.GlobeReturnCamera
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
@@ -212,6 +216,12 @@ fun MainListScreen(
 
     val scope = rememberCoroutineScope()
 
+    // ── 3D 행성(글로브) 뷰 상태 — 지도 줌을 최소로 빼면 진입. null 아니면 오버레이 표시. ──
+    var globeCenter by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var globeReturn by remember { mutableStateOf<GlobeReturnCamera?>(null) }
+    // 지도(SurfaceView) ↔ 글로브(GLSurfaceView) 교체를 가리는 검정 디졸브 스크림
+    val globeScrim = remember { Animatable(0f) }
+
     // 권한 요청은 MainActivity 가 앱 시작 즉시 수행. 여기서는 "허용되어 있으면" 위치 추적을 시작하고
     // 현재 위치로 카메라를 맞춘다. 권한 다이얼로그가 닫히며 액티비티가 ON_RESUME 될 때도 재시도해
     // 허용 직후 곧바로 위치가 반영되도록 한다(예전엔 허용해도 시작 코드가 없어 기본 좌표에 멈춰 있었음).
@@ -291,6 +301,17 @@ fun MainListScreen(
             focusDiary = focusTarget,
             onFocusHandled = { MapFocusState.consume() },
             showCreate = userId != null, // 비로그인 시 업로드 버튼 숨김
+            onZoomedOutToGlobe = { lat, lng ->
+                if (globeCenter == null) {
+                    scope.launch {
+                        globeScrim.snapTo(0f)
+                        globeScrim.animateTo(1f, tween(170))
+                        globeCenter = lat to lng
+                        globeScrim.animateTo(0f, tween(520))
+                    }
+                }
+            },
+            globeReturnCamera = globeReturn,
         )
 
         // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)
@@ -386,6 +407,32 @@ fun MainListScreen(
                     )
                 }
             }
+        }
+
+        // ── 3D 행성(글로브) 오버레이 — 줌 최소 진입, 핀치인/뒤로가기로 그 지점 지도 복귀 ──
+        globeCenter?.let { (lat, lng) ->
+            GlobeScreen(
+                diaries = filteredDiaries,
+                startLat = lat,
+                startLng = lng,
+                onRequestExit = { exitLat, exitLng ->
+                    scope.launch {
+                        globeScrim.animateTo(1f, tween(170))
+                        globeReturn = GlobeReturnCamera(exitLat, exitLng, 4.0, System.nanoTime())
+                        globeCenter = null
+                        delay(70) // 지도 카메라 점프가 프레임에 반영될 시간
+                        globeScrim.animateTo(0f, tween(380))
+                    }
+                },
+            )
+        }
+        // 전환 스크림(검정 디졸브) — 지도 SurfaceView ↔ 글로브 GLSurfaceView 교체를 가린다.
+        if (globeScrim.value > 0.001f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = globeScrim.value))
+            )
         }
     }
 }

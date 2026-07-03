@@ -15,6 +15,16 @@ struct MapLibreView: UIViewRepresentable {
     /// 외부(알림/친구 별 탭)에서 "이 좌표로 카메라 이동" 요청. 값이 바뀔 때 1회 애니메이션 이동.
     /// (Android MapFocusState → DiaryMap focusDiary 카메라 이동 패리티. iOS 는 파동 연출 없이 카메라만.)
     var focusTarget: CLLocationCoordinate2D?
+    /// 줌아웃이 [globeTriggerZoom] 이하로 내려가면 호출 — 3D 글로브 진입(중심 위경도 전달).
+    var onZoomedOutToGlobe: ((_ lat: Double, _ lng: Double) -> Void)? = nil
+    /// 글로브 → 지도 복귀 카메라 요청(nonce 로 같은 좌표 반복 요청도 트리거).
+    var globeReturnCamera: GlobeReturnCamera? = nil
+
+    /// 3D 글로브 진입 줌(이하로 줌아웃하면 행성 뷰로 전환) / 재장전 줌 / 지도 최소 줌.
+    /// (Android DiaryMap GLOBE_TRIGGER_ZOOM/GLOBE_REARM_ZOOM/MAP_MIN_ZOOM 패리티)
+    static let globeTriggerZoom = 3.0
+    static let globeRearmZoom = 3.4
+    static let mapMinZoom = 2.4
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -27,6 +37,7 @@ struct MapLibreView: UIViewRepresentable {
         let fallback = CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
         mapView.setCenter(userLocation ?? fallback, zoomLevel: 13, animated: false)
         mapView.showsUserLocation = true
+        mapView.minimumZoomLevel = Self.mapMinZoom // 이 밑은 3D 글로브가 담당
         return mapView
     }
 
@@ -41,6 +52,12 @@ struct MapLibreView: UIViewRepresentable {
         if let target = focusTarget, !context.coordinator.sameAsLastFocus(target) {
             context.coordinator.lastFocus = target
             mapView.setCenter(target, zoomLevel: 15, animated: true)
+        }
+        // 글로브 → 지도 복귀 카메라(글로브가 가리던 동안 즉시 점프).
+        if let req = globeReturnCamera, req.nonce != context.coordinator.lastGlobeReturnNonce {
+            context.coordinator.lastGlobeReturnNonce = req.nonce
+            mapView.setCenter(CLLocationCoordinate2D(latitude: req.lat, longitude: req.lng),
+                              zoomLevel: req.zoom, animated: false)
         }
         if let existing = mapView.annotations { mapView.removeAnnotations(existing) }
         var toAdd: [MLNAnnotation] = diaries.compactMap { diary -> DiaryAnnotation? in
@@ -59,7 +76,23 @@ struct MapLibreView: UIViewRepresentable {
         var didAutoCenter = false
         /// 마지막으로 카메라를 옮긴 포커스 좌표(중복 이동 방지).
         var lastFocus: CLLocationCoordinate2D?
+        /// 글로브 트리거 1회 보장(재장전은 줌이 globeRearmZoom 위로 올라올 때).
+        var globeArmed = true
+        /// 마지막으로 처리한 글로브 복귀 요청 nonce.
+        var lastGlobeReturnNonce: Int = -1
         init(_ parent: MapLibreView) { self.parent = parent }
+
+        /// 줌아웃 → 3D 글로브 진입(1회 트리거, 줌이 다시 올라오면 재장전).
+        func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+            let z = mapView.zoomLevel
+            if z > MapLibreView.globeRearmZoom {
+                globeArmed = true
+            } else if z <= MapLibreView.globeTriggerZoom, globeArmed, let cb = parent.onZoomedOutToGlobe {
+                globeArmed = false
+                let c = mapView.centerCoordinate
+                cb(c.latitude, c.longitude)
+            }
+        }
 
         /// 직전 포커스와 (거의) 같은 좌표인지 — 같은 별 재요청 시 카메라를 다시 옮기지 않게.
         func sameAsLastFocus(_ c: CLLocationCoordinate2D) -> Bool {
@@ -87,6 +120,15 @@ struct MapLibreView: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, lineWidthForPolylineAnnotation annotation: MLNPolyline) -> CGFloat { 5 }
         func mapView(_ mapView: MLNMapView, alphaForShapeAnnotation annotation: MLNShape) -> CGFloat { 0.95 }
     }
+}
+
+/// 글로브에서 지도로 복귀할 때의 카메라 요청(nonce 로 같은 좌표 반복 요청도 트리거).
+/// (Android DiaryMap GlobeReturnCamera 패리티)
+struct GlobeReturnCamera: Equatable {
+    let lat: Double
+    let lng: Double
+    let zoom: Double
+    let nonce: Int
 }
 
 /// 다이어리를 담는 지도 어노테이션.

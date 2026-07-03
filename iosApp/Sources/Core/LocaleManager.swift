@@ -85,6 +85,8 @@ enum L10n: String {
     case onbMyDiaryTitle, onbMyDiaryMsg, onbProfileTitle, onbProfileMsg
     case onbAchievementsTitle, onbAchievementsMsg, onbMusicTitle, onbMusicMsg
     case onbFriendsTitle, onbFriendsMsg
+    // 3D 행성(글로브) — 지도 최소 줌 진입.
+    case globeHint
     // 닉네임 변경.
     case profileEditNickname, profileNicknameHint
     // 히든 업적.
@@ -185,6 +187,7 @@ enum L10n: String {
         case .onbFriendsMsg:        return ("이름으로 친구를 검색해 요청을 보내세요.\n받은 요청을 수락하면 서로의 프로필을 보며, 채팅할 수 있어요.",
                                             "Search friends by name to send requests; accept incoming ones to see each other's stars and chat.",
                                             "名前でフレンドを検索してリクエストを送り、届いたリクエストを承認するとお互いの星を見たりチャットできます。")
+        case .globeHint:            return ("드래그로 회전 · 핀치로 지도 복귀", "Drag to rotate · Pinch in for map", "ドラッグで回転 · ピンチで地図へ")
         case .achTabNormal:         return ("일반", "General", "一般")
         case .achTabHidden:         return ("히든", "Hidden", "隠し")
         case .achHiddenIntro:       return ("앱에서 단 한 명만 가질 수 있는 업적이에요. \n 달성 시 특별한 칭호 및 프로필 아이콘이 제공됩니다.",

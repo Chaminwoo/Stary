@@ -196,6 +196,7 @@
     <string name="map_open_range">You need to be within %1$dm to open it (currently %2$dm)</string>
     <string name="map_route_summary">~%1$d min walk · %2$dm</string>
     <string name="map_route_cancel">Cancel route</string>
+    <string name="globe_hint">Drag to rotate · Pinch in for map</string>
 
     <!-- Other user profile (UserProfileScreen) -->
     <string name="user_profile_me">My profile</string>
