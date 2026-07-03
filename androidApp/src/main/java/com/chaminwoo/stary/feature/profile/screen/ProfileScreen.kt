@@ -195,9 +195,12 @@ fun ProfileScreen(
         val totalCount = Achievements.all.size
 
         // ── 중앙: 아바타 + 이름 + 칭호 (위아래 빈 공간 비슷하게 수직 중앙) ──
+        // zIndex(1f): 전체화면 FloatingStatBox 오버레이보다 위로 올려 아바타/이름/칭호 탭이 가려지지 않게
+        // (Column 자체는 클릭을 소비하지 않으므로 빈 영역 탭은 아래 버블로 그대로 통과 — 19번 로그아웃과 동일 처리).
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
+                .zIndex(1f)
                 .offset(y = (-44).dp)   // 화면 가운데보다 살짝 위
                 .fillMaxWidth()
                 .padding(horizontal = 22.dp),
