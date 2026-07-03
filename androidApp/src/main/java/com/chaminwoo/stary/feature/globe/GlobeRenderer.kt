@@ -91,11 +91,12 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var starfieldVbo = 0
     private var starfieldVertexCount = 0
 
-    /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전). phase: 트레일별 파동 위상(불규칙성). */
+    /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전).
+     *  phase: 트레일별 파동 위상(불규칙성), intensity: 트레일별 투명도 차등(1=기준). */
     private class Trail(
         val vbo: Int, val count: Int,
         val colorA: FloatArray, val colorB: FloatArray,
-        val speed: Float, val phase: Float,
+        val speed: Float, val phase: Float, val intensity: Float,
     )
     private val trails = ArrayList<Trail>()
 
@@ -244,6 +245,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uTime"), t)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uSpeed"), tr.speed)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uPhase"), tr.phase)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uIntensity"), tr.intensity)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uFade"), fade)
         GLES20.glUniform3fv(GLES20.glGetUniformLocation(ringProgram, "uColorA"), 1, tr.colorA, 0)
         GLES20.glUniform3fv(GLES20.glGetUniformLocation(ringProgram, "uColorB"), 1, tr.colorB, 0)
@@ -527,6 +529,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     colorB = TRAIL_COLORS[(i + 2) % TRAIL_COLORS.size],
                     speed = dir * (0.030f + rnd.nextFloat() * 0.040f), // 느긋하지만 흐름이 느껴지는 속도
                     phase = rnd.nextFloat() * 6.2832f,
+                    // 앞 2개만 기준 세기, 나머지는 훨씬 옅게 — 궤적이 많아 보이지 않게 위계를 준다
+                    intensity = if (i < 2) 1f else 0.35f + rnd.nextFloat() * 0.25f,
                 )
             )
         }
@@ -790,6 +794,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val RING_FS = """
             precision mediump float;
             uniform float uTime; uniform float uSpeed; uniform float uFade; uniform float uPhase;
+            uniform float uIntensity;
             uniform vec3 uColorA; uniform vec3 uColorB;
             varying vec2 vUV;
             void main() {
@@ -812,7 +817,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 // 훨씬 반투명 — 트레일은 배경에 스치는 빛줄기 정도로만
                 vec3 c = col * (glow * flow + core * (0.10 + 0.10 * flow))
                        + vec3(1.0) * core * pulse * 0.30;
-                gl_FragColor = vec4(c * ends * uFade, 1.0);
+                gl_FragColor = vec4(c * ends * uFade * uIntensity, 1.0);
             }
         """
     }

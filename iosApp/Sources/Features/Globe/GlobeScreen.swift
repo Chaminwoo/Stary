@@ -634,15 +634,18 @@ private enum GlobeBuilder {
             let phase = Double(rnd()) * 6.2832 // 트레일별 파동 위상(불규칙성)
             let dir: Double = rnd() < 0.5 ? 1 : -1
             let speed = dir * (0.030 + Double(rnd()) * 0.040) // 느긋하지만 흐름이 느껴지는 속도
+            // 앞 2개만 기준 세기, 나머지는 훨씬 옅게 — 궤적이 많아 보이지 않게 위계를 준다
+            let intensity = i < 2 ? 1.0 : 0.35 + Double(rnd()) * 0.25
             return trailNode(radius: radius, halfWidth: halfW, tiltX: tiltX, tiltZ: tiltZ,
                              startDeg: start, sweepDeg: sweep, colors: palette[i % palette.count],
-                             phase: phase, speed: speed)
+                             phase: phase, speed: speed, intensity: intensity)
         }
     }
 
     private static func trailNode(
         radius: Float, halfWidth: Float, tiltX: Float, tiltZ: Float,
-        startDeg: Float, sweepDeg: Float, colors: (UIColor, UIColor), phase: Double, speed: Double
+        startDeg: Float, sweepDeg: Float, colors: (UIColor, UIColor), phase: Double, speed: Double,
+        intensity: Double
     ) -> SCNNode {
         let segs = 96
         var vertices: [SCNVector3] = []
@@ -675,7 +678,8 @@ private enum GlobeBuilder {
         )
         let material = SCNMaterial()
         material.lightingModel = .constant
-        material.diffuse.contents = trailTexture(colorA: colors.0, colorB: colors.1, phase: phase)
+        material.diffuse.contents = trailTexture(colorA: colors.0, colorB: colors.1, phase: phase,
+                                                 intensity: intensity)
         material.blendMode = .add
         material.isDoubleSided = true
         material.writesToDepthBuffer = false
@@ -697,7 +701,7 @@ private enum GlobeBuilder {
             float d1 = u - head;
             float d2 = u - fract(head + 0.47);
             float pulse = exp(-d1 * d1 * 220.0) + 0.45 * exp(-d2 * d2 * 300.0);
-            _surface.diffuse.rgb += float3(core * pulse * 0.30 * ends);
+            _surface.diffuse.rgb += float3(core * pulse * \(0.30 * intensity) * ends);
             """
         ]
         geometry.materials = [material]
@@ -708,7 +712,8 @@ private enum GlobeBuilder {
     /// 폭(v) 방향은 core(=pow 14)·glow(=pow 2) 단면, 양끝(u)은 점점 투명해지며 소멸,
     /// 길이 방향은 A↔B 색 그라데이션. 흐르는 밝기는 셰이더 모디파이어가 런타임에 곱한다.
     /// additive 블렌딩이므로 밝기를 RGB 에 직접 베이크(알파 불사용).
-    private static func trailTexture(colorA: UIColor, colorB: UIColor, phase: Double) -> UIImage {
+    private static func trailTexture(colorA: UIColor, colorB: UIColor, phase: Double,
+                                     intensity: Double) -> UIImage {
         let w = 256, h = 32
         var aR: CGFloat = 0, aG: CGFloat = 0, aB: CGFloat = 0, aA: CGFloat = 0
         var bR: CGFloat = 0, bG: CGFloat = 0, bB: CGFloat = 0, bA: CGFloat = 0
@@ -730,8 +735,9 @@ private enum GlobeBuilder {
                 let ends = smoothstep(0.0, 0.20, u) * smoothstep(1.0, 0.80, u)
                 let mix = 0.5 + 0.5 * sin(u * 2 * .pi + phase)
                 // 훨씬 반투명 — 트레일은 배경에 스치는 빛줄기 정도로만(이동 펄스는 모디파이어가 담당)
-                let colored = glow + core * 0.15
-                let white = core * 0.03
+                // intensity: 트레일별 투명도 차등(일부만 기준 세기, 나머지는 옅게)
+                let colored = (glow + core * 0.15) * intensity
+                let white = core * 0.03 * intensity
                 let r = ((Double(aR) * (1 - mix) + Double(bR) * mix) * colored + white) * ends
                 let g = ((Double(aG) * (1 - mix) + Double(bG) * mix) * colored + white) * ends
                 let b = ((Double(aB) * (1 - mix) + Double(bB) * mix) * colored + white) * ends
