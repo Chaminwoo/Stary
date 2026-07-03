@@ -7,7 +7,6 @@ import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RadialGradient
-import android.graphics.RectF
 import android.graphics.Shader
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
@@ -34,10 +33,11 @@ import kotlin.math.sin
  *
  * 씬 구성(레퍼런스 `references/min_zoom.png` 재현):
  *  1. 배경 별밭(모델과 함께 회전 → "내 시점이 움직이는" 느낌, 미세 트윙클)
- *  2. 지구 구체: 원본 1/2 밝기 — 다이어리 라이트맵으로 별 근처만 1/4 추가 밝힘(부드러운 경계)
- *  3. 궤적 트레일: 완전한 링이 아닌 자유 원호 '선' — 양 끝이 자연스럽게 투명해지고
- *     지구 좌표계에 붙어 있어 구를 돌리면 같이 회전
- *  4. 노란 작은 불빛: 좋아요 [FLARE_MIN_LIKES] 미만 다이어리 1:1 — 도시 야경 점광
+ *  2. 지구 구체: 원본의 3/4 밝기 균일(라이트맵/지형 밝힘 없음)
+ *  3. 궤적 트레일: 자유 원호 '오오라' — 반투명한 부드러운 발광 리본(얇은 코어 라인 없음),
+ *     양 끝은 점점 투명해지며 소멸, 흐르는 밝기·백색 하이라이트는 주파수 다른 파동
+ *     조합으로 불규칙하게. 지구 좌표계에 붙어 있어 구를 돌리면 같이 회전
+ *  4. 노란 작은 불빛: 좋아요 [FLARE_MIN_LIKES] 미만 다이어리 1:1 — 인류의 도시 야경 점광
  *  5. 별 플레어: 좋아요 [FLARE_MIN_LIKES] 이상 다이어리만, 구 표면 바깥(FLARE_RADIUS),
  *     레퍼런스풍 팔레트로 별마다 색 다르게 + 트윙클
  *
@@ -77,10 +77,6 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var glowVertexCount = 0
     @Volatile private var starsDirty = false
 
-    /** 별 근처 지형만 밝히는 등장방형 라이트맵(setDiaries 백그라운드 생성 → GL 업로드, recycle 금지). */
-    @Volatile private var lightMapBmp: Bitmap? = null
-    private var lightMapTex = 0
-
     // ── GL 핸들 ──
     private var earthProgram = 0
     private var spriteProgram = 0
@@ -96,8 +92,12 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var starfieldVbo = 0
     private var starfieldVertexCount = 0
 
-    /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전). */
-    private class Trail(val vbo: Int, val count: Int, val colorA: FloatArray, val colorB: FloatArray, val speed: Float)
+    /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전). phase: 트레일별 파동 위상(불규칙성). */
+    private class Trail(
+        val vbo: Int, val count: Int,
+        val colorA: FloatArray, val colorB: FloatArray,
+        val speed: Float, val phase: Float,
+    )
     private val trails = ArrayList<Trail>()
 
     // ── 행렬 ──
@@ -125,10 +125,6 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         earthTex = loadEarthTexture()
         flareTex = uploadTexture(makeFlareBitmap())
         glowTex = uploadTexture(makeGlowBitmap())
-        // 라이트맵 플레이스홀더(전부 어두움) — setDiaries 업로드 전까지 사용
-        lightMapTex = uploadTexture(
-            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).apply { eraseColor(0xFF000000.toInt()) }
-        )
         buildStarfield()
         buildTrails()
         flareVbo = genBuffer()
@@ -176,7 +172,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glDisable(GLES20.GL_BLEND)
         GLES20.glDepthMask(true)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
-        drawEarth(camPos)
+        drawEarth()
 
         // 이하 전부 additive, 깊이 테스트만(기록 X) — 행성 뒤로 가려짐
         GLES20.glEnable(GLES20.GL_BLEND)
@@ -218,19 +214,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     // ────────────────────────── 그리기 ──────────────────────────
 
-    private fun drawEarth(camPos: FloatArray) {
+    private fun drawEarth() {
         GLES20.glUseProgram(earthProgram)
         GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(earthProgram, "uMVP"), 1, false, mvp, 0)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(earthProgram, "uModel"), 1, false, model, 0)
-        GLES20.glUniform3fv(GLES20.glGetUniformLocation(earthProgram, "uCamPos"), 1, camPos, 0)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(earthProgram, "uFade"), fade)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, earthTex)
         GLES20.glUniform1i(GLES20.glGetUniformLocation(earthProgram, "uTex"), 0)
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE1)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, lightMapTex)
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(earthProgram, "uLight"), 1)
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
 
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, earthVbo)
         val aPos = GLES20.glGetAttribLocation(earthProgram, "aPos")
@@ -254,6 +244,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(ringProgram, "uMVP"), 1, false, mvp, 0)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uTime"), t)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uSpeed"), tr.speed)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uPhase"), tr.phase)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uFade"), fade)
         GLES20.glUniform3fv(GLES20.glGetUniformLocation(ringProgram, "uColorA"), 1, tr.colorA, 0)
         GLES20.glUniform3fv(GLES20.glGetUniformLocation(ringProgram, "uColorB"), 1, tr.colorB, 0)
@@ -322,7 +313,6 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     /**
      * 다이어리 → 구면 스프라이트 빌드(백그라운드 호출 OK — GL 미접근).
      * 좋아요 [FLARE_MIN_LIKES] 이상 → 별 플레어(구 표면 살짝 바깥), 미만 → 노란 작은 점광.
-     * 동시에 별 근처 지형만 밝히는 라이트맵도 빌드.
      */
     fun setDiaries(diaries: List<Diary>) {
         val valid = diaries.filter { it.latitude != 0.0 && it.longitude != 0.0 }
@@ -336,7 +326,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             val p = latLngToXyz(d.latitude, d.longitude, FLARE_RADIUS)
             val argb = StarStyle.colorOf(d.starColor).toArgb()
             val boost = min(d.likeCount, 1000).toFloat() / 1000f
-            val size = 0.055f + 0.045f * boost
+            val size = 0.046f + 0.038f * boost // 살짝 축소(이전 0.055+0.045)
             val bright = 0.60f + 0.15f * boost // 이전(0.75~1.0)보다 감광
             addSprite(
                 flares, p,
@@ -349,7 +339,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             )
         }
 
-        // 노란 작은 불빛 — 나머지 다이어리 1:1(도시 야경 점광, 상한 GLOW_MAX)
+        // 노란 작은 불빛 — 나머지 다이어리 1:1(인류의 도시 야경 점광, 상한 GLOW_MAX)
         val rest = valid.filter { it.likeCount < FLARE_MIN_LIKES }
         val glows = ArrayList<Float>(min(rest.size, GLOW_MAX) * 6 * SPRITE_FLOATS)
         for ((i, d) in rest.withIndex()) {
@@ -358,13 +348,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             addSprite(
                 glows, p,
                 r = 1.0f * GLOW_ALPHA, g = 0.76f * GLOW_ALPHA, b = 0.36f * GLOW_ALPHA, a = 1f,
-                size = 0.042f,
+                size = 0.030f, // 밝아진 지구 위 은은한 소형 점광
                 phase = ((d.latitude * 3 + d.longitude * 5).mod(1.0)).toFloat(),
                 mode = 0f,
             )
         }
-
-        lightMapBmp = buildLightMap(valid)
 
         flareData = toFloatBuffer(flares)
         flareVertexCount = flares.size / SPRITE_FLOATS
@@ -373,44 +361,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         starsDirty = true
     }
 
-    /**
-     * 등장방형 라이트맵: 다이어리 위치마다 소프트 스플랫(좋아요 100+ 는 더 크고 밝게).
-     * 지구 셰이더가 샘플해 "별 근처 지형만" 밝힌다. 날짜변경선(±180°) 이음매는 양쪽 중복 드로우.
-     */
-    private fun buildLightMap(diaries: List<Diary>): Bitmap {
-        val w = LIGHT_W
-        val h = LIGHT_H
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        bmp.eraseColor(0xFF000000.toInt())
-        val c = Canvas(bmp)
-        val splat = makeGlowBitmap()
-        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-        for ((i, d) in diaries.withIndex()) {
-            if (i >= LIGHT_MAX) break
-            val big = d.likeCount >= FLARE_MIN_LIKES
-            val r = if (big) 30f else 15f
-            paint.alpha = if (big) 210 else 120
-            val cx = ((d.longitude + 180.0) / 360.0 * w).toFloat()
-            val cy = ((90.0 - d.latitude) / 180.0 * h).toFloat()
-            fun drawAt(x: Float) = c.drawBitmap(splat, null, RectF(x - r, cy - r, x + r, cy + r), paint)
-            drawAt(cx)
-            if (cx < r) drawAt(cx + w)
-            if (cx > w - r) drawAt(cx - w)
-        }
-        splat.recycle()
-        return bmp
-    }
-
     /** GL 스레드에서 setDiaries 결과 업로드. */
     private fun uploadStars() {
         starsDirty = false
         flareData?.let { uploadBuffer(flareVbo, it) }
         glowData?.let { uploadBuffer(glowVbo, it) }
-        lightMapBmp?.let {
-            if (lightMapTex != 0) GLES20.glDeleteTextures(1, intArrayOf(lightMapTex), 0)
-            // 서피스 재생성 시 재업로드해야 하므로 비트맵은 recycle 하지 않고 유지
-            lightMapTex = uploadTexture(it, wrapS = GLES20.GL_REPEAT, recycle = false)
-        }
     }
 
     /** 배경 별밭 — 반지름 28 구면 랜덤(모델과 함께 회전 → 지구를 돌리면 우주도 함께 돈다). */
@@ -516,13 +471,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
-    /** 트레일 세트 — 반지름/기울기/호 길이/색을 랜덤하게 섞은 자유 원호 여러 개. */
+    /** 트레일 세트 — 반지름/기울기/호 길이/색/위상을 랜덤하게 섞은 자유 원호 오오라 여러 개. */
     private fun buildTrails() {
         trails.clear()
         val rnd = java.util.Random(11L)
         repeat(TRAIL_COUNT) { i ->
             val radius = 1.28f + rnd.nextFloat() * 0.50f
-            val halfW = 0.016f + rnd.nextFloat() * 0.014f
+            val halfW = 0.050f + rnd.nextFloat() * 0.035f // 넓은 리본 — 선이 아닌 오오라 단면
             val tiltX = -38f + rnd.nextFloat() * 76f
             val tiltZ = -45f + rnd.nextFloat() * 90f
             val start = rnd.nextFloat() * 360f
@@ -535,6 +490,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     colorA = TRAIL_COLORS[i % TRAIL_COLORS.size],
                     colorB = TRAIL_COLORS[(i + 2) % TRAIL_COLORS.size],
                     speed = dir * (0.05f + rnd.nextFloat() * 0.08f),
+                    phase = rnd.nextFloat() * 6.2832f,
                 )
             )
         }
@@ -716,6 +672,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val GLOW_ALPHA = 0.42f
         private const val GLOW_MAX = 5000
         private const val BG_STAR_COUNT = 1600
+        private const val EARTH_BRIGHTNESS = 0.75f // 원본 대비 지구 밝기(균일)
         private const val TRAIL_COUNT = 5
         /** 트레일 팔레트(레퍼런스풍) — 원호마다 A→B 두 색을 섞어 흐르게 한다. */
         private val TRAIL_COLORS = arrayOf(
@@ -725,36 +682,21 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             floatArrayOf(0.45f, 1.00f, 0.80f), // 민트
             floatArrayOf(1.00f, 0.80f, 0.45f), // 금색
         )
-        private const val LIGHT_W = 1024        // 라이트맵 해상도(등장방형, POT 필수 — REPEAT+밉맵)
-        private const val LIGHT_H = 512
-        private const val LIGHT_MAX = 4000      // 라이트맵 스플랫 상한
-
         // ── 셰이더 (ES 2.0) ──
         private const val EARTH_VS = """
-            uniform mat4 uMVP; uniform mat4 uModel;
+            uniform mat4 uMVP;
             attribute vec3 aPos; attribute vec2 aUV;
-            varying vec2 vUV; varying vec3 vN; varying vec3 vW;
-            void main() {
-                vUV = aUV;
-                vN = normalize((uModel * vec4(aPos, 0.0)).xyz);
-                vW = (uModel * vec4(aPos, 1.0)).xyz;
-                gl_Position = uMVP * vec4(aPos, 1.0);
-            }
+            varying vec2 vUV;
+            void main() { vUV = aUV; gl_Position = uMVP * vec4(aPos, 1.0); }
         """
 
         private const val EARTH_FS = """
             precision mediump float;
-            uniform sampler2D uTex; uniform sampler2D uLight; uniform vec3 uCamPos; uniform float uFade;
-            varying vec2 vUV; varying vec3 vN; varying vec3 vW;
+            uniform sampler2D uTex; uniform float uFade;
+            varying vec2 vUV;
             void main() {
-                vec3 V = normalize(uCamPos - vW);
-                float ndv = clamp(dot(vN, V), 0.0, 1.0);
-                vec3 tex = texture2D(uTex, vUV).rgb;
-                float lm = texture2D(uLight, vUV).r;
-                // 짙은 밤: 땅/바다는 훨씬 어둡게, 다이어리 별 근처만 라이트맵으로 밝힘(따뜻한 톤)
-                vec3 night = tex * (0.030 + 0.075 * pow(ndv, 1.2)) * vec3(0.70, 0.80, 1.05);
-                vec3 lit = tex * lm * 0.95 * vec3(1.10, 1.00, 0.82);
-                gl_FragColor = vec4((night + lit) * uFade, 1.0);
+                // 원본의 3/4 밝기 균일(별 근처 지형 밝힘 없음)
+                gl_FragColor = vec4(texture2D(uTex, vUV).rgb * $EARTH_BRIGHTNESS * uFade, 1.0);
             }
         """
 
@@ -800,20 +742,26 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         private const val RING_FS = """
             precision mediump float;
-            uniform float uTime; uniform float uSpeed; uniform float uFade;
+            uniform float uTime; uniform float uSpeed; uniform float uFade; uniform float uPhase;
             uniform vec3 uColorA; uniform vec3 uColorB;
             varying vec2 vUV;
             void main() {
-                float across = sin(vUV.y * 3.14159);          // 리본 폭 방향(0..1..0)
-                float glow = pow(across, 1.8) * 0.14;         // 넓은 소프트 글로우(빛번짐)
-                float core = pow(across, 9.0);                // 얇은 코어 라인
-                float head = pow(0.5 + 0.5 * sin((vUV.x - uTime * uSpeed) * 6.2831), 4.0);
-                // 링을 따라 빠르게 흐르는 좁은 백색 하이라이트 — 광택(글린트) 느낌
-                float shine = pow(0.5 + 0.5 * sin((vUV.x * 3.0 + uTime * uSpeed * 5.0) * 6.2831), 24.0);
-                vec3 col = mix(uColorA, uColorB, 0.5 + 0.5 * sin(vUV.x * 6.2831 + uTime * 0.3));
-                vec3 c = col * (glow + core * (0.30 + 0.80 * head))
-                       + vec3(1.0) * core * (shine * 0.85 + head * 0.30);
-                gl_FragColor = vec4(c * uFade, 1.0);
+                float across = sin(vUV.y * 3.14159);           // 리본 폭 방향(0..1..0)
+                float aura = pow(across, 2.2);                 // 얇은 코어 없는 부드러운 발광 단면
+                // 양 끝은 점점 투명해지며 소멸(확 끊기지 않게 긴 램프)
+                float ends = smoothstep(0.0, 0.22, vUV.x) * smoothstep(1.0, 0.78, vUV.x);
+                // 흐르는 밝기 — 주파수/속도/위상 다른 파동 3개 조합(정직한 단일 사인 제거)
+                float t = uTime * uSpeed;
+                float w1 = 0.5 + 0.5 * sin((vUV.x - t) * 6.2831 + uPhase);
+                float w2 = 0.5 + 0.5 * sin((vUV.x * 2.7 + t * 1.9) * 6.2831 + uPhase * 2.3);
+                float w3 = 0.5 + 0.5 * sin((vUV.x * 5.3 - t * 0.6) * 6.2831 + uPhase * 4.1);
+                float flow = 0.30 + 0.70 * (0.5 * w1 + 0.3 * w2 + 0.2 * w3);
+                // 백색 하이라이트는 세 파동이 겹치는 곳에서만 은은하게 배어나옴
+                float shine = pow(w1 * w2 * w3, 2.5) * 0.5;
+                vec3 col = mix(uColorA, uColorB, 0.5 + 0.5 * sin(vUV.x * 6.2831 + uTime * 0.3 + uPhase));
+                // 반투명 오오라 — additive 라 낮은 계수가 곧 투명도
+                vec3 c = col * aura * flow * 0.40 + vec3(1.0) * aura * shine * 0.35;
+                gl_FragColor = vec4(c * ends * uFade, 1.0);
             }
         """
     }

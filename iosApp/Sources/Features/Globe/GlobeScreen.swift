@@ -9,7 +9,7 @@ import UIKit
 /// - 핀치: 카메라 줌. 최소 거리 밑으로 당기면 지금 정면 지점의 지도(줌인)로 복귀.
 ///
 /// 성능: 씬/텍스처는 이 뷰가 나타날 때만 생성 — 지도 화면 평상시 비용 0.
-/// 시티 라이트(노란 점광)와 라이트맵은 노드가 아니라 발광(emission) 텍스처에 베이크해
+/// 노란 도시 야경 점광은 노드가 아니라 발광(emission) 텍스처에 베이크해
 /// 노드 수를 별 플레어(좋아요 100+)만으로 억제한다.
 struct GlobeScreen: View {
     @ObservedObject private var locale = LocaleManager.shared
@@ -237,7 +237,7 @@ private enum GlobeBuilder {
     // MARK: 지구
 
     /// 지구 노드: 수동 UV 구체 메쉬(경도 -180 → u=0, [latLngToXyz] 와 동일 규약)에
-    /// "밤 지구" 디퓨즈 + "다이어리 근처 발광" 이미션 텍스처.
+    /// "원본 3/4 밝기" 디퓨즈 + "노란 도시 야경 점광" 이미션 텍스처.
     static func earthNode(diaries: [Diary]) -> SCNNode {
         let geometry = sphereGeometry(radius: 1, stacks: 64, slices: 128)
         let material = SCNMaterial()
@@ -294,9 +294,8 @@ private enum GlobeBuilder {
         )
     }
 
-    /// 밤 지구 디퓨즈 + 다이어리 라이트 이미션 생성.
-    /// Android: 지구를 크게 감광하고, 다이어리 위치 소프트 스플랫(좋아요 100+ 크게)으로만 밝힘
-    /// + 노란 점광(도시 야경)은 여기 이미션에 함께 베이크.
+    /// 지구 디퓨즈(원본의 3/4 밝기 균일 — 별 근처 지형 밝힘 없음)
+    /// + 노란 작은 점광(인류의 도시 야경) 이미션 생성. Android EARTH_FS/글로 스프라이트 패리티.
     private static func earthTextures(diaries: [Diary]) -> (night: UIImage, lit: UIImage) {
         let base = loadEarthImage()
         let w = 2048, h = 1024
@@ -304,60 +303,22 @@ private enum GlobeBuilder {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
 
-        // 1) 밤 지구: 원본을 크게 감광 + 살짝 푸른 톤(EARTH_FS night 항 근사)
+        // 1) 지구: 원본 × 0.75
         let night = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
             base.draw(in: CGRect(origin: .zero, size: size))
-            UIColor(red: 0, green: 0.01, blue: 0.04, alpha: 0.92).setFill()
+            UIColor.black.withAlphaComponent(0.25).setFill()
             ctx.fill(CGRect(origin: .zero, size: size))
         }
 
-        // 2) 라이트맵(마스크): 투명 배경 + 다이어리 위치 알파 스플랫(destinationIn 용).
-        //    날짜변경선(±180°)은 양쪽 중복 드로우.
-        let mask = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
-            let cg = ctx.cgContext
-            let colors = [UIColor.white.cgColor, UIColor.white.withAlphaComponent(0).cgColor] as CFArray
-            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else { return }
-            for d in diaries.prefix(4000) {
-                let big = d.likeCount >= GlobeSceneView.Coordinator.flareMinLikes
-                let r = CGFloat(big ? 60 : 30) // 2048 폭 기준(Android 1024 폭의 30/15 스케일 일치)
-                let alpha = CGFloat(big ? 0.82 : 0.47)
-                let cx = CGFloat((d.longitude + 180) / 360) * CGFloat(w)
-                let cy = CGFloat((90 - d.latitude) / 180) * CGFloat(h)
-                func splat(_ x: CGFloat) {
-                    cg.saveGState()
-                    cg.setAlpha(alpha)
-                    cg.drawRadialGradient(
-                        gradient,
-                        startCenter: CGPoint(x: x, y: cy), startRadius: 0,
-                        endCenter: CGPoint(x: x, y: cy), endRadius: r,
-                        options: []
-                    )
-                    cg.restoreGState()
-                }
-                splat(cx)
-                if cx < r { splat(cx + CGFloat(w)) }
-                if cx > CGFloat(w) - r { splat(cx - CGFloat(w)) }
-            }
-        }
-
-        // 3) 이미션 = 지구 × 라이트맵(따뜻한 톤) + 노란 점광 코어
+        // 2) 이미션 = 노란 작은 점광(좋아요 100 미만 다이어리 1:1) — 도시 야경
         let lit = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
             let cg = ctx.cgContext
-            base.draw(in: CGRect(origin: .zero, size: size))
-            // 따뜻한 톤(EARTH_FS lit 항 1.10/1.00/0.82 근사) — multiply
-            UIColor(red: 1.0, green: 0.91, blue: 0.75, alpha: 1).setFill()
-            cg.setBlendMode(.multiply)
-            cg.fill(CGRect(origin: .zero, size: size))
-            // 라이트맵 마스크 적용(밝힌 곳만 남김)
-            cg.setBlendMode(.destinationIn)
-            mask.draw(in: CGRect(origin: .zero, size: size), blendMode: .destinationIn, alpha: 1)
-            // 노란 점광(좋아요 100 미만 다이어리 1:1) — 도시 야경 코어
             cg.setBlendMode(.plusLighter)
             for d in diaries.prefix(4000) where d.likeCount < GlobeSceneView.Coordinator.flareMinLikes {
                 let cx = CGFloat((d.longitude + 180) / 360) * CGFloat(w)
                 let cy = CGFloat((90 - d.latitude) / 180) * CGFloat(h)
-                UIColor(red: 1.0, green: 0.76, blue: 0.36, alpha: 0.55).setFill()
-                cg.fillEllipse(in: CGRect(x: cx - 3, y: cy - 3, width: 6, height: 6))
+                UIColor(red: 1.0, green: 0.76, blue: 0.36, alpha: 0.5).setFill()
+                cg.fillEllipse(in: CGRect(x: cx - 2.2, y: cy - 2.2, width: 4.4, height: 4.4))
             }
         }
         return (night, lit)
@@ -387,7 +348,7 @@ private enum GlobeBuilder {
 
         return popular.map { d in
             let boost = Float(min(d.likeCount, 1000)) / 1000
-            let size = CGFloat(0.055 + 0.045 * boost) * 2.4 // 텍스처 여백 감안한 플레인 배율
+            let size = CGFloat(0.046 + 0.038 * boost) * 2.4 // 살짝 축소(이전 0.055+0.045) — 텍스처 여백 감안 배율
             let plane = SCNPlane(width: size, height: size)
             let material = SCNMaterial()
             material.lightingModel = .constant
@@ -517,8 +478,9 @@ private enum GlobeBuilder {
 
     // MARK: 궤적 트레일
 
-    /// 자유 원호 리본 트레일 — 반지름/기울기/호 길이/색 랜덤(시드 고정), 컨테이너와 함께 회전.
-    /// (Android buildTrails/RING 셰이더의 정적 근사: A→B 그라데이션 + 양끝 페이드 베이크.)
+    /// 자유 원호 '오오라' 트레일 — 반지름/기울기/호 길이/색/위상 랜덤(시드 고정), 컨테이너와 함께 회전.
+    /// (Android buildTrails/RING 셰이더의 정적 근사: 반투명 오오라 단면 + 양끝 점진 소멸 +
+    ///  주파수 다른 파동 조합의 불규칙한 흐름 밝기를 텍스처에 베이크.)
     static func trailNodes() -> [SCNNode] {
         let palette: [(UIColor, UIColor)] = [
             (UIColor(red: 0.55, green: 0.75, blue: 1.00, alpha: 1), UIColor(red: 0.72, green: 0.55, blue: 1.00, alpha: 1)),
@@ -534,19 +496,21 @@ private enum GlobeBuilder {
         }
         return (0..<5).map { i in
             let radius = 1.28 + rnd() * 0.50
-            let halfW = 0.016 + rnd() * 0.014
+            let halfW = 0.050 + rnd() * 0.035 // 넓은 리본 — 선이 아닌 오오라 단면
             let tiltX = (-38 + rnd() * 76) * Float.pi / 180
             let tiltZ = (-45 + rnd() * 90) * Float.pi / 180
             let start = rnd() * 360
             let sweep = 130 + rnd() * 150
+            let phase = Double(rnd()) * 6.2832 // 트레일별 파동 위상(불규칙성)
             return trailNode(radius: radius, halfWidth: halfW, tiltX: tiltX, tiltZ: tiltZ,
-                             startDeg: start, sweepDeg: sweep, colors: palette[i % palette.count])
+                             startDeg: start, sweepDeg: sweep, colors: palette[i % palette.count],
+                             phase: phase)
         }
     }
 
     private static func trailNode(
         radius: Float, halfWidth: Float, tiltX: Float, tiltZ: Float,
-        startDeg: Float, sweepDeg: Float, colors: (UIColor, UIColor)
+        startDeg: Float, sweepDeg: Float, colors: (UIColor, UIColor), phase: Double
     ) -> SCNNode {
         let segs = 96
         var vertices: [SCNVector3] = []
@@ -579,7 +543,7 @@ private enum GlobeBuilder {
         )
         let material = SCNMaterial()
         material.lightingModel = .constant
-        material.diffuse.contents = trailTexture(colorA: colors.0, colorB: colors.1)
+        material.diffuse.contents = trailTexture(colorA: colors.0, colorB: colors.1, phase: phase)
         material.blendMode = .add
         material.isDoubleSided = true
         material.writesToDepthBuffer = false
@@ -587,28 +551,40 @@ private enum GlobeBuilder {
         return SCNNode(geometry: geometry)
     }
 
-    /// 트레일 텍스처: 길이(u) 방향 A↔B 색 + 양끝 페이드, 폭(v) 방향 소프트 글로우+얇은 코어.
+    /// 트레일 텍스처 — 반투명 오오라(Android RING_FS 정적 근사):
+    /// 폭(v) 방향은 얇은 코어 없는 부드러운 발광 단면, 양끝(u)은 점점 투명해지며 소멸,
+    /// 흐름 밝기·백색 하이라이트는 주파수/위상 다른 파동 3개 조합으로 불규칙하게.
     /// additive 블렌딩이므로 밝기를 RGB 에 직접 베이크(알파 불사용).
-    private static func trailTexture(colorA: UIColor, colorB: UIColor) -> UIImage {
+    private static func trailTexture(colorA: UIColor, colorB: UIColor, phase: Double) -> UIImage {
         let w = 256, h = 16
         var aR: CGFloat = 0, aG: CGFloat = 0, aB: CGFloat = 0, aA: CGFloat = 0
         var bR: CGFloat = 0, bG: CGFloat = 0, bB: CGFloat = 0, bA: CGFloat = 0
         colorA.getRed(&aR, green: &aG, blue: &aB, alpha: &aA)
         colorB.getRed(&bR, green: &bG, blue: &bB, alpha: &bA)
+        func smoothstep(_ e0: Double, _ e1: Double, _ x: Double) -> Double {
+            let t = min(max((x - e0) / (e1 - e0), 0), 1)
+            return t * t * (3 - 2 * t)
+        }
         var pixels = [UInt8](repeating: 0, count: w * h * 4)
         for y in 0..<h {
             let v = Double(y) / Double(h - 1)
-            let across = sin(v * .pi)
-            let glow = pow(across, 1.8) * 0.14
-            let core = pow(across, 9.0) * 0.55
-            let strength = glow + core
+            let aura = pow(sin(v * .pi), 2.2) // 코어 라인 없는 오오라 단면
             for x in 0..<w {
                 let u = Double(x) / Double(w - 1)
-                let mix = 0.5 + 0.5 * sin(u * 2 * .pi)
-                let endFade = pow(sin(u * .pi), 0.6) // 양끝 자연 페이드
-                let r = (Double(aR) * (1 - mix) + Double(bR) * mix) * strength * endFade
-                let g = (Double(aG) * (1 - mix) + Double(bG) * mix) * strength * endFade
-                let b = (Double(aB) * (1 - mix) + Double(bB) * mix) * strength * endFade
+                // 양 끝은 점점 투명해지며 소멸(확 끊기지 않게 긴 램프)
+                let ends = smoothstep(0.0, 0.22, u) * smoothstep(1.0, 0.78, u)
+                // 흐름 밝기 — 주파수/위상 다른 파동 3개 조합(정직한 단일 사인 제거)
+                let w1 = 0.5 + 0.5 * sin(u * 2 * .pi + phase)
+                let w2 = 0.5 + 0.5 * sin(u * 2.7 * 2 * .pi + phase * 2.3)
+                let w3 = 0.5 + 0.5 * sin(u * 5.3 * 2 * .pi + phase * 4.1)
+                let flow = 0.30 + 0.70 * (0.5 * w1 + 0.3 * w2 + 0.2 * w3)
+                let shine = pow(w1 * w2 * w3, 2.5) * 0.5 // 파동이 겹치는 곳만 은은한 백색
+                let mix = 0.5 + 0.5 * sin(u * 2 * .pi + phase)
+                let colored = aura * flow * 0.40
+                let white = aura * shine * 0.35
+                let r = ((Double(aR) * (1 - mix) + Double(bR) * mix) * colored + white) * ends
+                let g = ((Double(aG) * (1 - mix) + Double(bG) * mix) * colored + white) * ends
+                let b = ((Double(aB) * (1 - mix) + Double(bB) * mix) * colored + white) * ends
                 let o = (y * w + x) * 4
                 pixels[o] = UInt8(min(255, r * 255))
                 pixels[o + 1] = UInt8(min(255, g * 255))
