@@ -35,6 +35,10 @@ enum AppConfig {
     /// 하루(로컬 자정 기준) 최대 업로드 개수. (StaryConfig.DAILY_UPLOAD_LIMIT 와 동기화)
     static let dailyUploadLimit = 10
 
+    /// 채팅 메시지 완전 삭제 허용 시간(ms) — 전송 후 이 시간 이내에만 보낸 본인이 삭제 가능.
+    /// (StaryConfig.CHAT_DELETE_WINDOW_MS 와 동기화)
+    static let chatDeleteWindowMs: Int64 = 60_000
+
     /// 어드민(테스트) 계정 — 히든 업적 선점을 서버에 기록하지 않음. (StaryConfig.ADMIN_EMAILS 와 동기화)
     static let adminEmails: Set<String> = ["chaalsdn0217@gmail.com"]
 

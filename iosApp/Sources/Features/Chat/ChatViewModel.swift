@@ -41,6 +41,18 @@ final class ChatViewModel: ObservableObject {
         ], merge: true)
     }
 
+    /// 이 메시지를 지금 삭제할 수 있는가 — 내가 보냈고 전송 후 1분 이내일 때만. (삭제 UI 노출 판단)
+    func canDelete(_ message: ChatMessage, myUid: String?) -> Bool {
+        guard let myUid, message.senderId == myUid else { return false }
+        return FirestoreService.nowMillis - message.createdAt <= AppConfig.chatDeleteWindowMs
+    }
+
+    /// 내가 보낸 메시지를 전송 후 1분 이내에 한해 완전 삭제(상대방 쪽에서도 사라짐). 조건 미충족 시 무시.
+    func deleteMessage(_ message: ChatMessage, myUid: String?) async {
+        guard canDelete(message, myUid: myUid), let id = message.id else { return }
+        try? await FirestoreService.messages(of: chatId).document(id).delete()
+    }
+
     func stop() {
         reg?.remove()
         reg = nil

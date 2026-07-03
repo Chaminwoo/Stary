@@ -81,6 +81,9 @@ interface ChatRepository {
         senderName: String,
         text: String
     ): Boolean
+
+    /** 메시지 완전 삭제(문서 제거 → 상대방 쪽에서도 사라짐). 본인/시간창 검증은 호출부(ViewModel)가 한다. */
+    suspend fun deleteMessage(chatId: String, messageId: String): Boolean
 }
 
 /** 미조회 다이어리 필터용 열람 기록. */

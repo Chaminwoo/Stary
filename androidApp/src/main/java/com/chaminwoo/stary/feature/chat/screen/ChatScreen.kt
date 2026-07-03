@@ -3,6 +3,7 @@ package com.chaminwoo.stary.feature.chat.screen
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,10 +25,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -87,6 +91,8 @@ fun ChatScreen(
     val messages by vm.messages.collectAsState()
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    // 롱프레스한 내 메시지(1분 이내) — 완전 삭제 확인 대상. null 이면 다이얼로그 숨김.
+    var pendingDelete by remember { mutableStateOf<ChatMessage?>(null) }
 
     // 새 메시지가 오면 맨 아래로 스크롤.
     LaunchedEffect(messages.size) {
@@ -121,7 +127,15 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(messages, key = { it.id }) { msg ->
-                        MessageBubble(msg = msg, isMine = msg.senderId == myId)
+                        val mine = msg.senderId == myId
+                        // 내 메시지 + 전송 후 1분 이내면 롱프레스로 완전 삭제(그 외엔 롱프레스 비활성)
+                        MessageBubble(
+                            msg = msg,
+                            isMine = mine,
+                            onLongPress = if (mine && vm.canDelete(msg)) {
+                                { pendingDelete = msg }
+                            } else null
+                        )
                     }
                 }
             }
@@ -175,11 +189,31 @@ fun ChatScreen(
                 }
             }
         }
+
+        // 내 메시지 완전 삭제 확인(1분 이내) — 상대방 쪽에서도 사라진다.
+        pendingDelete?.let { target ->
+            AlertDialog(
+                onDismissRequest = { pendingDelete = null },
+                containerColor = CardBgTop,
+                title = { Text(stringResource(R.string.chat_delete_title), color = TextMain) },
+                text = { Text(stringResource(R.string.chat_delete_confirm), color = TextMuted) },
+                confirmButton = {
+                    TextButton(onClick = { vm.deleteMessage(target); pendingDelete = null }) {
+                        Text(stringResource(R.string.common_delete), color = Color(0xFFFF6B6B))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDelete = null }) {
+                        Text(stringResource(R.string.common_cancel), color = TextMuted)
+                    }
+                }
+            )
+        }
     }
 }
 
 @Composable
-private fun MessageBubble(msg: ChatMessage, isMine: Boolean) {
+private fun MessageBubble(msg: ChatMessage, isMine: Boolean, onLongPress: (() -> Unit)? = null) {
     val time = remember(msg.createdAt) {
         SimpleDateFormat("a h:mm", Locale.KOREA).format(java.util.Date(msg.createdAt))
     }
@@ -213,6 +247,11 @@ private fun MessageBubble(msg: ChatMessage, isMine: Boolean) {
                         )
                     )
                     .background(if (isMine) Green.copy(alpha = 0.92f) else CardBgTop)
+                    .then(
+                        if (onLongPress != null) Modifier.pointerInput(msg.id) {
+                            detectTapGestures(onLongPress = { onLongPress() })
+                        } else Modifier
+                    )
                     .padding(horizontal = 13.dp, vertical = 9.dp)
             ) {
                 Text(

@@ -5,8 +5,11 @@ struct ChatScreen: View {
     let friendId: String
     let friendName: String
     @EnvironmentObject var auth: AuthManager
+    @ObservedObject private var locale = LocaleManager.shared
     @StateObject private var vm: ChatViewModel
     @State private var text = ""
+    // 롱프레스한 내 메시지(1분 이내) — 완전 삭제 확인 대상. nil 이면 다이얼로그 숨김.
+    @State private var pendingDelete: ChatMessage?
 
     init(friend: Friend, myUid: String) {
         self.init(friendId: friend.userId, friendName: friend.userName, myUid: myUid)
@@ -43,6 +46,23 @@ struct ChatScreen: View {
         }
         .navigationTitle(friendName)
         .navigationBarTitleDisplayMode(.inline)
+        // 내 메시지 완전 삭제 확인(1분 이내) — 상대방 쪽에서도 사라진다.
+        .confirmationDialog(
+            locale.t(.chatDeleteTitle),
+            isPresented: Binding(get: { pendingDelete != nil },
+                                 set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(locale.t(.commonDelete), role: .destructive) {
+                if let target = pendingDelete {
+                    Task { await vm.deleteMessage(target, myUid: auth.uid) }
+                }
+                pendingDelete = nil
+            }
+            Button(locale.t(.commonCancel), role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text(locale.t(.chatDeleteConfirm))
+        }
         .onAppear {
             vm.start()
             ChatPresence.shared.activeFriendId = friendId // 이 방 메시지는 배너 억제
@@ -64,6 +84,10 @@ struct ChatScreen: View {
                 .background(mine ? Theme.mint.opacity(0.85) : Theme.surface,
                             in: RoundedRectangle(cornerRadius: 14))
                 .foregroundStyle(mine ? Color.black : Theme.textPrimary)
+                // 내 메시지 + 전송 후 1분 이내면 롱프레스로 완전 삭제(그 외엔 무반응)
+                .onLongPressGesture {
+                    if vm.canDelete(msg, myUid: auth.uid) { pendingDelete = msg }
+                }
             if !mine { Spacer(minLength: 40) }
         }
         .frame(maxWidth: .infinity, alignment: mine ? .trailing : .leading)

@@ -145,6 +145,8 @@
     <string name="chat_empty">Send your first message to %1$s ✦</string>
     <string name="chat_input_placeholder">Message</string>
     <string name="chat_need_friend">Become friends to chat</string>
+    <string name="chat_delete_title">Delete message</string>
+    <string name="chat_delete_confirm">Delete this message completely? It will disappear for the other person too.</string>
     <string name="common_friend">Friend</string>
 
     <!-- Notification screen -->

@@ -105,6 +105,20 @@ class FirebaseChatRepository : ChatRepository {
             false
         }
     }
+
+    /**
+     * 메시지 문서를 완전 삭제(양쪽 방에서 사라짐). "보낸 본인 + 전송 후 1분 이내"는 [ChatViewModel] 이 게이팅.
+     * 방 메타(lastMessage 미리보기)는 갱신하지 않는다 — 다음 메시지가 오면 자연히 덮이고,
+     * 규칙이 삭제 시간창(1분)만 강제하므로 과거 미리보기가 남아도 사소한 표시 문제일 뿐이다.
+     */
+    override suspend fun deleteMessage(chatId: String, messageId: String): Boolean {
+        return try {
+            messagesRef(chatId).document(messageId).delete().await()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 }
 
 /** 채팅방 메타 요약(인앱 팝업/목록용). */

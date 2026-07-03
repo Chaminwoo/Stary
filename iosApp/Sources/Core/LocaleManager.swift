@@ -87,6 +87,8 @@ enum L10n: String {
     case onbFriendsTitle, onbFriendsMsg
     // 3D 행성(글로브) — 지도 하단 버튼으로 진입.
     case globeHint, globeOpen, globeClose
+    // 채팅 메시지 완전 삭제(1분 이내, 본인만).
+    case chatDeleteTitle, chatDeleteConfirm
     // 닉네임 변경.
     case profileEditNickname, profileNicknameHint
     // 히든 업적.
@@ -190,6 +192,10 @@ enum L10n: String {
         case .globeHint:            return ("드래그로 회전 · 아래를 탭해 닫기", "Drag to rotate · Tap below to close", "ドラッグで回転 · 下をタップで閉じる")
         case .globeOpen:            return ("지구 보기", "View globe", "地球を見る")
         case .globeClose:           return ("지도로 돌아가기", "Back to map", "地図に戻る")
+        case .chatDeleteTitle:      return ("메시지 삭제", "Delete message", "メッセージを削除")
+        case .chatDeleteConfirm:    return ("이 메시지를 완전히 삭제할까요? 상대방에게도 사라져요.",
+                                            "Delete this message completely? It will disappear for the other person too.",
+                                            "このメッセージを完全に削除しますか？相手側からも消えます。")
         case .achTabNormal:         return ("일반", "General", "一般")
         case .achTabHidden:         return ("히든", "Hidden", "隠し")
         case .achHiddenIntro:       return ("앱에서 단 한 명만 가질 수 있는 업적이에요. \n 달성 시 특별한 칭호 및 프로필 아이콘이 제공됩니다.",

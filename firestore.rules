@@ -65,12 +65,17 @@ service cloud.firestore {
 
     // 1:1 친구 채팅: chats/{chatId}/messages/{messageId}
     //  - chatId = 두 userId 정렬·결합(StaryConfig.chatId). 클라이언트가 결정.
-    //  - 방 메타 문서(chats/{chatId})와 메시지 모두 로그인 세션이면 허용.
+    //  - 방 메타 문서(chats/{chatId})와 메시지 읽기/작성/수정은 로그인 세션이면 허용.
+    //  - 삭제는 "전송 후 1분 이내(createdAt 기준)"만 허용해 임의 시점 삭제를 막는다.
+    //    ⚠️ 앱 userId 는 Google sub 라 request.auth.uid 와 달라 senderId 소유권은 규칙에서 강제 불가 →
+    //    "보낸 본인만"은 클라이언트(ChatViewModel.canDelete)가 게이팅하고, 규칙은 시간창(1분)만 강제한다.
     match /chats/{chatId} {
       allow read, write: if isSignedIn();
 
       match /messages/{messageId} {
-        allow read, write: if isSignedIn();
+        allow read, create, update: if isSignedIn();
+        allow delete: if isSignedIn()
+          && request.time.toMillis() - resource.data.createdAt < 60000;
       }
     }
 

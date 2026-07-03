@@ -145,6 +145,8 @@
     <string name="chat_empty">%1$sさんへ最初のメッセージを送りましょう ✦</string>
     <string name="chat_input_placeholder">メッセージを入力</string>
     <string name="chat_need_friend">フレンドになってチャットしましょう</string>
+    <string name="chat_delete_title">メッセージを削除</string>
+    <string name="chat_delete_confirm">このメッセージを完全に削除しますか？相手側からも消えます。</string>
     <string name="common_friend">友達</string>
 
     <!-- 通知画面 -->

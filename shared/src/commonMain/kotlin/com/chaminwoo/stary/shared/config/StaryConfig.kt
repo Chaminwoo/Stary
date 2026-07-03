@@ -60,6 +60,9 @@ object StaryConfig {
     /** 하루(로컬 자정 기준) 최대 업로드 개수. */
     const val DAILY_UPLOAD_LIMIT: Int = 10
 
+    /** 채팅 메시지 완전 삭제 허용 시간(전송 후 이 시간 이내에만, 보낸 본인이 삭제 가능). iOS AppConfig 와 동기화. */
+    const val CHAT_DELETE_WINDOW_MS: Long = 60_000L
+
     /**
      * 어드민(테스트) 계정 이메일. 이 계정은 히든 업적을 만족해도 **서버에 선점을 기록하지 않아**
      * 히든 업적 슬롯을 차지하지 않는다(실제 유저가 첫 달성자가 될 수 있게). iOS `AppConfig.adminEmails` 와 동기화.
