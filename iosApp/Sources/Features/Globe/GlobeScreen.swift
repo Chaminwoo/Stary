@@ -538,7 +538,8 @@ private enum GlobeBuilder {
                 let x = rnd() * CGFloat(w)
                 let y = rnd() * CGFloat(h)
                 let warm = rnd()
-                let bright = 0.18 + rnd() * 0.82
+                // 은은한 밝기 상한 — 배경은 깊이감만 주고 지구/별 플레어가 주인공이 되게
+                let bright = 0.15 + rnd() * 0.68
                 let big = rnd()
                 let r = 0.8 + big * big * 2.6 // 대부분 잔별, 소수만 크게
                 UIColor(
@@ -565,7 +566,7 @@ private enum GlobeBuilder {
 
     // MARK: 궤적 트레일
 
-    /// 자유 원호 트레일 — 얇은 코어 라인 + 감싸는 반투명 글로우(레퍼런스풍), 일부는 행성 근접 궤도.
+    /// 자유 원호 트레일 — 얇은 코어 라인 + 감싸는 반투명 글로우(레퍼런스풍), 은은한 악센트 세기.
     /// 반지름/기울기/호 길이/색/위상 랜덤(시드 고정), 컨테이너와 함께 회전.
     /// (Android buildTrails/RING 셰이더 근사: 단면·양끝 페이드·색은 텍스처에 베이크하고,
     ///  천천히 흐르는 밝기는 SceneKit 셰이더 모디파이어로 애니메이트.)
@@ -583,8 +584,8 @@ private enum GlobeBuilder {
             return Float(seed % 10_000) / 10_000
         }
         return (0..<5).map { i in
-            // 앞의 2개는 행성 근접 궤도(레퍼런스), 나머지는 멀리
-            let radius = i < 2 ? 1.10 + rnd() * 0.12 : 1.30 + rnd() * 0.45
+            // 전부 행성에서 여유 있게 떨어진 궤도(근접 궤도는 시각적으로 난잡해 롤백)
+            let radius = 1.28 + rnd() * 0.50
             let halfW = 0.030 + rnd() * 0.020 // 얇은 선 + 감싸는 글로우 폭
             let tiltX = (-38 + rnd() * 76) * Float.pi / 180
             let tiltZ = (-45 + rnd() * 90) * Float.pi / 180
@@ -592,7 +593,7 @@ private enum GlobeBuilder {
             let sweep = 130 + rnd() * 150
             let phase = Double(rnd()) * 6.2832 // 트레일별 파동 위상(불규칙성)
             let dir: Double = rnd() < 0.5 ? 1 : -1
-            let speed = dir * (0.018 + Double(rnd()) * 0.030) // 천천히 흐르게
+            let speed = dir * (0.030 + Double(rnd()) * 0.040) // 느긋하지만 흐름이 느껴지는 속도
             return trailNode(radius: radius, halfWidth: halfW, tiltX: tiltX, tiltZ: tiltZ,
                              startDeg: start, sweepDeg: sweep, colors: palette[i % palette.count],
                              phase: phase, speed: speed)
@@ -673,15 +674,16 @@ private enum GlobeBuilder {
         for y in 0..<h {
             let v = Double(y) / Double(h - 1)
             let across = sin(v * .pi)
-            let glow = pow(across, 2.0) * 0.22 // 선을 감싸는 은은한 글로우(반투명)
+            let glow = pow(across, 2.0) * 0.13 // 선을 감싸는 아주 은은한 글로우
             let core = pow(across, 14.0)       // 레퍼런스풍 얇은 코어 라인
             for x in 0..<w {
                 let u = Double(x) / Double(w - 1)
                 // 양 끝은 점점 투명해지며 소멸(확 끊기지 않게 긴 램프)
                 let ends = smoothstep(0.0, 0.20, u) * smoothstep(1.0, 0.80, u)
                 let mix = 0.5 + 0.5 * sin(u * 2 * .pi + phase)
-                let colored = glow + core * 0.75
-                let white = core * 0.18 // 은은한 백색 심지(이동 하이라이트는 flow 가 담당)
+                // 반투명·은은한 세기 — 씬 위계상 트레일은 '악센트'(지구/별보다 조용히)
+                let colored = glow + core * 0.54
+                let white = core * 0.12 // 은은한 백색 심지(이동 하이라이트는 flow 가 담당)
                 let r = ((Double(aR) * (1 - mix) + Double(bR) * mix) * colored + white) * ends
                 let g = ((Double(aG) * (1 - mix) + Double(bG) * mix) * colored + white) * ends
                 let b = ((Double(aB) * (1 - mix) + Double(bB) * mix) * colored + white) * ends
