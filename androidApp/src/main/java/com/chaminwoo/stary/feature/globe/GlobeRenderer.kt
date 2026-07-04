@@ -98,8 +98,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var constLineVertexCount = 0
     private var bgFlareVbo = 0          // 배경 반짝별(4방 광선 텍스처)
     private var bgFlareVertexCount = 0
-    private var sunGlowVbo = 0          // 태양(코어+헤일로 글로우)
-    private var sunFlareVbo = 0         // 태양 4방 광선
+    private var sunTex = 0              // 태양 전용 텍스처(원반+코로나 합성 — 인위적 십자 광선 없음)
+    private var sunVbo = 0
     private var sunBuiltFrac = -1f      // 태양 스프라이트를 빌드한 시각(dayFrac) — 1분 넘게 지나면 재배치
 
     /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전).
@@ -153,8 +153,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         buildAuroras()
         flareVbo = genBuffer()
         glowVbo = genBuffer()
-        sunGlowVbo = genBuffer()
-        sunFlareVbo = genBuffer()
+        sunTex = uploadTexture(makeSunBitmap())
+        sunVbo = genBuffer()
         sunBuiltFrac = -1f
         starsDirty = true // 서피스 재생성 시(백그라운드 복귀) 재업로드
         fade = 0f
@@ -201,7 +201,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
         // 1.7) 오로라 커튼 — 우주 공간에 드리운 빛의 장막(배경층 — 지구가 위에 그려져 가려짐)
         for (au in auroras) drawAurora(au, t)
-        // 1.8) 태양 — 광원 방향 하늘의 해(코어+헤일로+4방 광선). 하루 주기로 광원과 함께 돈다
+        // 1.8) 태양 — 광원 방향 하늘의 해(원반+코로나, 십자 광선 없음). 하루 주기로 광원과 함께 돈다
         drawSun(camPos, t)
 
         // 2) 지구 본체 (불투명, 깊이 기록)
@@ -307,7 +307,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         return latLngToXyz(0.0, 180.0 - dayFrac * 360.0, 1f)
     }
 
-    /** 태양 — 광원 방향 하늘(SUN_DIST)에 떠 있는 해: 백열 코어 + 금빛 헤일로 + 원경 산광 + 4방 광선.
+    /** 태양 — 광원 방향 하늘(SUN_DIST)에 떠 있는 해: 전용 텍스처(원반+코로나 합성, 색은
+     *  텍스처에 베이크)를 단일 스프라이트로 그린다 — 인위적인 십자 광선 없이 부드러운 구체감.
      *  배경층(지구 앞에서 가려짐)에 additive 로 그린다. 하루 주기로 도는 위치는 1분 단위로만
      *  재빌드(그 사이 이동량은 시각적으로 0에 수렴 — 매 프레임 버퍼 재업로드 낭비 방지). */
     private fun drawSun(camPos: FloatArray, t: Float) {
@@ -316,17 +317,47 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             sunBuiltFrac = dayFrac
             val dir = sunDirection()
             val p = floatArrayOf(dir[0] * SUN_DIST, dir[1] * SUN_DIST, dir[2] * SUN_DIST)
-            val glows = ArrayList<Float>(3 * 6 * SPRITE_FLOATS)
-            addSprite(glows, p, r = 1.00f, g = 0.97f, b = 0.90f, a = 1f, size = 1.6f, phase = 0.13f, mode = 2f) // 백열 코어
-            addSprite(glows, p, r = 0.55f, g = 0.42f, b = 0.18f, a = 1f, size = 4.6f, phase = 0.47f, mode = 2f) // 금빛 헤일로
-            addSprite(glows, p, r = 0.16f, g = 0.10f, b = 0.04f, a = 1f, size = 11f, phase = 0.71f, mode = 2f)  // 원경 산광
-            uploadBuffer(sunGlowVbo, toFloatBuffer(glows))
-            val rays = ArrayList<Float>(6 * SPRITE_FLOATS)
-            addSprite(rays, p, r = 0.85f, g = 0.72f, b = 0.45f, a = 1f, size = 6.0f, phase = 0.29f, mode = 2f)  // 4방 광선
-            uploadBuffer(sunFlareVbo, toFloatBuffer(rays))
+            val list = ArrayList<Float>(6 * SPRITE_FLOATS)
+            addSprite(list, p, r = 1f, g = 1f, b = 1f, a = 1f, size = 5.5f, phase = 0.13f, mode = 2f)
+            uploadBuffer(sunVbo, toFloatBuffer(list))
         }
-        drawSprites(sunGlowVbo, 3 * 6, glowTex, camPos, t, depthTest = false)
-        drawSprites(sunFlareVbo, 6, flareTex, camPos, t, depthTest = false)
+        drawSprites(sunVbo, 6, sunTex, camPos, t, depthTest = false)
+    }
+
+    /** 태양 텍스처 — 원경 산광 → 금빛 코로나 → 백열 원반을 부드러운 다단 그라데이션으로 겹쳐
+     *  실제 우주에서 보이는 태양처럼(둥근 구체감, 인위적 십자 플레어 없이) 합성한다. */
+    private fun makeSunBitmap(): Bitmap {
+        val s = 256
+        val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val cx = s / 2f
+        fun glow(radiusFrac: Float, colors: IntArray, stops: FloatArray) {
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = RadialGradient(cx, cx, cx * radiusFrac, colors, stops, Shader.TileMode.CLAMP)
+            }
+            c.drawCircle(cx, cx, cx * radiusFrac, p)
+        }
+        // 원경 산광 — 아주 넓고 옅게 퍼져 우주 공간 속 광원임을 알려준다
+        glow(
+            1.00f,
+            intArrayOf(0x2A281808, 0x140A0604, 0x00000000),
+            floatArrayOf(0f, 0.5f, 1f),
+        )
+        // 금빛 코로나 — 중간 반경, 따뜻한 주황빛
+        glow(
+            0.46f,
+            intArrayOf(0xB08C6E2E.toInt(), 0x50755530, 0x00000000),
+            floatArrayOf(0f, 0.45f, 1f),
+        )
+        // 백열 원반 — 다단 그라데이션으로 가장자리를 부드럽게(림 다크닝풍) 마감
+        glow(
+            0.20f,
+            intArrayOf(
+                0xFFFFF8E8.toInt(), 0xFFFFEFC8.toInt(), 0xE8FFD9A0.toInt(), 0x60E8B060.toInt(), 0x00000000,
+            ),
+            floatArrayOf(0f, 0.55f, 0.80f, 0.94f, 1f),
+        )
+        return bmp
     }
 
     /** 오로라 커튼 — 트레일과 같은 리본 정점 포맷(pos3+uv2), 전용 셰이더로 주름을 흘린다. */

@@ -562,60 +562,63 @@ private enum GlobeBuilder {
 
     // MARK: 태양
 
-    /// 태양 — 광원 방향 하늘(반지름 45)에 떠 있는 해: 백열 코어 + 금빛 헤일로 + 원경 산광을
-    /// 한 장에 베이크한 글로우 빌보드 + 4방 광선 빌보드. additive, 배경층(지구가 가린다).
-    /// 위치는 Coordinator 가 매 프레임 광원 방향으로 갱신(Android drawSun 패리티).
+    /// 태양 — 광원 방향 하늘(반지름 45)에 떠 있는 해: 전용 텍스처(원반+코로나 합성, 색은
+    /// 텍스처에 베이크) 단일 빌보드 — 인위적인 십자 광선 없이 부드러운 구체감(Android 패리티).
+    /// 위치는 Coordinator 가 매 프레임 광원 방향으로 갱신.
     static func sunNode() -> SCNNode {
-        let node = SCNNode()
-        func plane(_ size: CGFloat, _ image: UIImage, tint: UIColor?) -> SCNNode {
-            let geom = SCNPlane(width: size, height: size)
-            let material = SCNMaterial()
-            material.lightingModel = .constant
-            material.diffuse.contents = image
-            if let tint { material.multiply.contents = tint }
-            material.blendMode = .add
-            material.writesToDepthBuffer = false
-            geom.materials = [material]
-            let child = SCNNode(geometry: geom)
-            child.renderingOrder = -8 // 별밭(-12..-10)·오로라(-9) 다음, 지구(0)보다 먼저 — 배경층
-            return child
-        }
-        node.addChildNode(plane(11, makeSunImage(), tint: nil))
-        node.addChildNode(plane(6, makeFlareImage(),
-                                tint: UIColor(red: 0.85, green: 0.72, blue: 0.45, alpha: 1)))
+        let geom = SCNPlane(width: 5.5, height: 5.5)
+        let material = SCNMaterial()
+        material.lightingModel = .constant
+        material.diffuse.contents = makeSunImage()
+        material.blendMode = .add
+        material.writesToDepthBuffer = false
+        geom.materials = [material]
+        let node = SCNNode(geometry: geom)
+        node.renderingOrder = -8 // 별밭(-12..-10)·오로라(-9) 다음, 지구(0)보다 먼저 — 배경층
         let billboard = SCNBillboardConstraint()
         billboard.freeAxes = .all
         node.constraints = [billboard]
         return node
     }
 
-    /// 태양 글로우 텍스처 — 원경 산광(전체) + 금빛 헤일로(42%) + 백열 코어(15%)를
-    /// plusLighter 로 겹쳐 베이크. additive 재질이라 검정 = 투명.
+    /// 태양 텍스처 — 원경 산광 → 금빛 코로나 → 백열 원반을 부드러운 다단 그라데이션으로 겹쳐
+    /// 실제 우주에서 보이는 태양처럼(둥근 구체감, 인위적 십자 플레어 없이) 합성한다.
+    /// (Android makeSunBitmap 패리티) additive 재질이라 검정 = 투명.
     private static func makeSunImage() -> UIImage {
         let s: CGFloat = 256
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         return UIGraphicsImageRenderer(size: CGSize(width: s, height: s), format: format).image { ctx in
             let cg = ctx.cgContext
-            UIColor.black.setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
-            cg.setBlendMode(.plusLighter)
             let c = CGPoint(x: s / 2, y: s / 2)
             let space = CGColorSpaceCreateDeviceRGB()
-            func glow(_ color: UIColor, _ radiusFrac: CGFloat) {
+            func glow(_ colors: [UIColor], _ locations: [CGFloat], _ radiusFrac: CGFloat) {
                 guard let g = CGGradient(
-                    colorsSpace: space,
-                    colors: [color.cgColor,
-                             color.withAlphaComponent(0.35).cgColor,
-                             UIColor.black.cgColor] as CFArray,
-                    locations: [0, 0.35, 1]
+                    colorsSpace: space, colors: colors.map(\.cgColor) as CFArray, locations: locations
                 ) else { return }
                 cg.drawRadialGradient(g, startCenter: c, startRadius: 0,
                                       endCenter: c, endRadius: s / 2 * radiusFrac, options: [])
             }
-            glow(UIColor(red: 0.16, green: 0.10, blue: 0.04, alpha: 1), 1.00) // 원경 산광
-            glow(UIColor(red: 0.55, green: 0.42, blue: 0.18, alpha: 1), 0.42) // 금빛 헤일로
-            glow(UIColor(red: 1.00, green: 0.97, blue: 0.90, alpha: 1), 0.15) // 백열 코어
+            // 원경 산광 — 아주 넓고 옅게 퍼져 우주 공간 속 광원임을 알려준다
+            glow([
+                UIColor(red: 0.16, green: 0.10, blue: 0.03, alpha: 0.16),
+                UIColor(red: 0.08, green: 0.04, blue: 0.02, alpha: 0.08),
+                UIColor.black.withAlphaComponent(0),
+            ], [0, 0.5, 1], 1.00)
+            // 금빛 코로나 — 중간 반경, 따뜻한 주황빛
+            glow([
+                UIColor(red: 0.55, green: 0.43, blue: 0.18, alpha: 0.69),
+                UIColor(red: 0.46, green: 0.33, blue: 0.19, alpha: 0.31),
+                UIColor.black.withAlphaComponent(0),
+            ], [0, 0.45, 1], 0.46)
+            // 백열 원반 — 다단 그라데이션으로 가장자리를 부드럽게(림 다크닝풍) 마감
+            glow([
+                UIColor(red: 1.00, green: 0.97, blue: 0.91, alpha: 1.0),
+                UIColor(red: 1.00, green: 0.94, blue: 0.78, alpha: 1.0),
+                UIColor(red: 1.00, green: 0.85, blue: 0.63, alpha: 0.91),
+                UIColor(red: 0.91, green: 0.69, blue: 0.38, alpha: 0.38),
+                UIColor.black.withAlphaComponent(0),
+            ], [0, 0.55, 0.80, 0.94, 1], 0.20)
         }
     }
 
