@@ -168,6 +168,11 @@ fun DetailScreen(
     val isMyDiary = currentDiary.userId == GoogleAuthHelper.currentUserId
     val userId = GoogleAuthHelper.currentUserId ?: ""
     val userName = GoogleAuthHelper.currentUserName ?: "익명"
+    // 비로그인(둘러보기) 상태 — 댓글/좋아요/신고 등 상호작용은 잠그고 안내만 띄운다.
+    val isLoggedIn = userId.isNotBlank()
+    val requireLogin: () -> Unit = {
+        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.common_login_required))
+    }
 
     // 별 색을 화면 강조색으로 사용해 지도 마커와 시각 일관성을 준다.
     val accent = StarStyle.colorOf(currentDiary.starColor)
@@ -198,7 +203,9 @@ fun DetailScreen(
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     // 전송 동작 단일화 — 전송 버튼과 키보드 '보내기' 액션이 같은 경로를 쓴다.
     val submitComment: () -> Unit = {
-        if (commentInput.isNotBlank()) {
+        if (!isLoggedIn) {
+            requireLogin()
+        } else if (commentInput.isNotBlank()) {
             interactionVm.addComment(commentInput)
             commentInput = ""
             com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_comment_added))
@@ -407,9 +414,13 @@ fun DetailScreen(
                     // 좋아요 + (내 글이면) 수정/삭제
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = {
-                            val willLike = !isLiked
-                            interactionVm.toggleLike()
-                            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(if (willLike) R.string.toast_liked else R.string.toast_unliked))
+                            if (!isLoggedIn) {
+                                requireLogin()
+                            } else {
+                                val willLike = !isLiked
+                                interactionVm.toggleLike()
+                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(if (willLike) R.string.toast_liked else R.string.toast_unliked))
+                            }
                         }) {
                             Icon(
                                 imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
@@ -428,7 +439,7 @@ fun DetailScreen(
                                 Text(stringResource(R.string.common_delete), fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
                             }
                         } else {
-                            TextButton(onClick = { showReportDialog = true }) {
+                            TextButton(onClick = { if (!isLoggedIn) requireLogin() else showReportDialog = true }) {
                                 Text(stringResource(R.string.report_diary), fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
                             }
                         }
@@ -443,24 +454,41 @@ fun DetailScreen(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 댓글 입력
+                    // 댓글 입력 — 비로그인 시 입력 비활성 + 탭하면 로그인 안내
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = commentInput, onValueChange = { commentInput = it },
-                            placeholder = { Text(stringResource(R.string.comment_placeholder), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
-                            modifier = Modifier.weight(1f), singleLine = true,
-                            shape = RoundedCornerShape(12.dp), colors = fieldColors,
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                imeAction = androidx.compose.ui.text.input.ImeAction.Send
-                            ),
-                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { submitComment() }),
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground)
-                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedTextField(
+                                value = commentInput, onValueChange = { commentInput = it },
+                                placeholder = { Text(stringResource(R.string.comment_placeholder), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                enabled = isLoggedIn,
+                                shape = RoundedCornerShape(12.dp), colors = fieldColors,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    imeAction = androidx.compose.ui.text.input.ImeAction.Send
+                                ),
+                                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { submitComment() }),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground)
+                            )
+                            if (!isLoggedIn) {
+                                // 비활성 필드는 터치를 안 받으므로 투명 오버레이로 안내 토스트를 띄운다.
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .clickable(
+                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                            indication = null
+                                        ) { requireLogin() }
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(onClick = { submitComment() }, enabled = commentInput.isNotBlank()) {
+                        IconButton(
+                            onClick = { submitComment() },
+                            enabled = isLoggedIn && commentInput.isNotBlank()
+                        ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.cd_send),
-                                tint = if (commentInput.isNotBlank()) accent else MaterialTheme.colorScheme.secondary
+                                tint = if (isLoggedIn && commentInput.isNotBlank()) accent else MaterialTheme.colorScheme.secondary
                             )
                         }
                     }

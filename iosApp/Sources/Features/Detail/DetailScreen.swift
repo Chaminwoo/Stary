@@ -14,6 +14,7 @@ struct DetailScreen: View {
     @State private var blockedIds: Set<String> = []
     @State private var showReportDialog = false
     @State private var showReportedConfirm = false
+    @State private var showLoginRequired = false
 
     init(diary: Diary) {
         self.diary = diary
@@ -127,6 +128,10 @@ struct DetailScreen: View {
         .alert(LocaleManager.shared.t(.toastReported), isPresented: $showReportedConfirm) {
             Button("OK", role: .cancel) {}
         }
+        // 비로그인 상호작용(좋아요/댓글) 시 로그인 안내. (Android requireLogin 토스트 패리티)
+        .alert(LocaleManager.shared.t(.commonLoginRequired), isPresented: $showLoginRequired) {
+            Button("OK", role: .cancel) {}
+        }
         .task {
             guard let uid = auth.uid else { return }
             if let snap = try? await FirestoreService.blocked(of: uid).getDocuments() {
@@ -188,6 +193,8 @@ struct DetailScreen: View {
     private var likeBar: some View {
         HStack(spacing: 20) {
             Button {
+                // 비로그인 시 좋아요 잠금 — 로그인 안내만.
+                guard auth.uid != nil else { showLoginRequired = true; return }
                 Task { await vm.toggleLike(uid: auth.uid, userName: auth.displayName) }
             } label: {
                 Label("\(vm.likeCount)", systemImage: vm.isLiked ? "heart.fill" : "heart")
@@ -210,7 +217,17 @@ struct DetailScreen: View {
                     .padding(10)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                     .foregroundStyle(Theme.textPrimary)
+                    .disabled(auth.uid == nil) // 비로그인 시 입력 잠금
+                    .overlay {
+                        if auth.uid == nil {
+                            // 비활성 필드는 터치를 안 받으므로 투명 오버레이로 로그인 안내.
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { showLoginRequired = true }
+                        }
+                    }
                 Button {
+                    guard auth.uid != nil else { showLoginRequired = true; return }
                     let t = commentText
                     commentText = ""
                     Task { await vm.addComment(uid: auth.uid, userName: auth.displayName, text: t) }
@@ -218,7 +235,7 @@ struct DetailScreen: View {
                     Image(systemName: "paperplane.fill")
                         .foregroundStyle(commentText.isEmpty ? Theme.textFaint : Theme.mint)
                 }
-                .disabled(commentText.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(auth.uid == nil || commentText.trimmingCharacters(in: .whitespaces).isEmpty)
             }
 
             ForEach(visibleComments) { c in

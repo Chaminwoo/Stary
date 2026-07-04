@@ -160,6 +160,8 @@
     <!-- マイ日記画面 -->
     <string name="mydiary_empty">まだ記録した日記がありません</string>
     <string name="mydiary_sort_count">%1$s · %2$d件</string>
+    <string name="mydiary_view_list">リストで表示</string>
+    <string name="mydiary_view_stars">星で表示</string>
     <string name="sort_latest">新着順</string>
     <string name="sort_popular">人気順</string>
     <string name="sort_distance">距離順</string>

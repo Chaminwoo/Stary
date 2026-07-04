@@ -295,26 +295,36 @@ struct ProfileScreen: View {
 }
 
 /// 내 별 목록 — 프로필 "다이어리" 아이콘 탭으로 진입(탭→상세). (Android MyDiaryScreen 의 간이 iOS 버전)
+/// 우상단 토글로 카드 ↔ 컴팩트 1열(별 아이콘+제목+날짜) 전환 — 특정 다이어리 빠르게 찾기.
 struct MyStarsScreen: View {
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
     @ObservedObject private var locale = LocaleManager.shared
+    @State private var compactList = false
 
     private var mine: [Diary] { store.mine(uid: auth.uid).sorted { $0.createdAt > $1.createdAt } }
+
+    private static let dateFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy.MM.dd"
+        return f
+    }()
 
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
             ScrollView {
-                VStack(spacing: 12) {
+                VStack(spacing: compactList ? 8 : 12) {
                     if mine.isEmpty {
                         Text(locale.t(.profileEmptyStars))
                             .font(.subheadline).foregroundStyle(Theme.textSecondary)
                             .padding(.top, 40)
                     } else {
                         ForEach(mine) { d in
-                            NavigationLink(value: d) { DiaryCard(diary: d) }
-                                .buttonStyle(.plain)
+                            NavigationLink(value: d) {
+                                if compactList { compactRow(d) } else { DiaryCard(diary: d) }
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -323,9 +333,34 @@ struct MyStarsScreen: View {
         }
         .navigationTitle(locale.t(.profileMyStars))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { compactList.toggle() } label: {
+                    Image(systemName: compactList ? "sparkles" : "list.bullet")
+                }
+                .tint(Theme.mint)
+            }
+        }
         .firstVisitInfo(key: "mydiary", systemImage: "book.fill",
                         title: locale.t(.onbMyDiaryTitle),
                         message: locale.t(.onbMyDiaryMsg))
+    }
+
+    /// 컴팩트 1열 행 — 별 아이콘(모양·색 그대로) + 제목 + 작성 날짜. (Android DiaryListColumn 패리티)
+    private func compactRow(_ d: Diary) -> some View {
+        HStack(spacing: 12) {
+            StarView(type: d.starType, colorIndex: d.starColor, size: 24)
+            Text(d.title.isEmpty ? locale.t(.profileMyStars) : d.title)
+                .font(.subheadline).fontWeight(.medium)
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(1)
+            Spacer()
+            Text(Self.dateFmt.string(from: d.createdDate))
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

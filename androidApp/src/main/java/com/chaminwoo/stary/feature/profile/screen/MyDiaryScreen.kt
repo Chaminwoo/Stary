@@ -16,12 +16,16 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -48,9 +52,17 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import com.chaminwoo.stary.core.ui.FirstVisitInfo
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import com.chaminwoo.stary.core.util.LocationHelper
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -133,6 +145,8 @@ fun DiaryStarsBoard(
     var sortMode by remember { mutableStateOf(DiarySort.LATEST) }
     // 같은 정렬(특히 기본값 최신순)을 다시 골라도 재정렬이 보이도록 하는 토큰
     var sortNonce by remember { mutableIntStateOf(0) }
+    // 보기 모드 — false: 떠다니는 별 보드(기본), true: 별 아이콘+제목+날짜 1열 리스트
+    var listMode by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -158,17 +172,40 @@ fun DiaryStarsBoard(
             )
         }
 
-        Text(
-            text = stringResource(R.string.mydiary_sort_count, sortLabel(sortMode), diaries.size),
-            color = sortColor(sortMode), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-            textAlign = TextAlign.Center
-        )
+        // 정렬·개수 라벨 + 보기 전환 토글(별 보드 ↔ 1열 리스트)
+        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+            Text(
+                text = stringResource(R.string.mydiary_sort_count, sortLabel(sortMode), diaries.size),
+                color = sortColor(sortMode), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.Center),
+                textAlign = TextAlign.Center
+            )
+            IconButton(
+                onClick = { listMode = !listMode },
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 10.dp).size(34.dp)
+            ) {
+                Icon(
+                    imageVector = if (listMode) Icons.Filled.AutoAwesome else Icons.AutoMirrored.Filled.ViewList,
+                    contentDescription = stringResource(
+                        if (listMode) R.string.mydiary_view_stars else R.string.mydiary_view_list
+                    ),
+                    tint = sortColor(sortMode).copy(alpha = 0.95f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
 
         if (diaries.isEmpty()) {
             Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.mydiary_empty), color = TextMuted, fontSize = 14.sp)
             }
+        } else if (listMode) {
+            DiaryListColumn(
+                diaries = diaries,
+                sortMode = sortMode,
+                onDiaryClick = onDiaryClick,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
         } else {
             DiaryStarBox(
                 diaries = diaries,
@@ -177,6 +214,77 @@ fun DiaryStarsBoard(
                 onDiaryClick = onDiaryClick,
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
+        }
+    }
+}
+
+/**
+ * 1열 리스트 보기 — 행마다 별 아이콘(모양·색 그대로) + 제목 + 작성 날짜.
+ * 다이얼 정렬(sortMode)을 그대로 따르며, 행 탭 → 다이어리 상세.
+ * 별 보드에서 찾기 어려운 특정 다이어리를 빠르게 찾는 용도.
+ */
+@Composable
+private fun DiaryListColumn(
+    diaries: List<Diary>,
+    sortMode: DiarySort,
+    onDiaryClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // 거리순용 현재 위치(캐시 우선, 없으면 1회 측정 — DiaryStarBox 와 동일 방식)
+    val context = LocalContext.current
+    var here by remember(diaries) { mutableStateOf(LocationHelper.getCurrentLatLng()) }
+    LaunchedEffect(diaries) {
+        if (here == null) {
+            LocationHelper.getCurrentLocation(context)?.let {
+                here = com.chaminwoo.stary.core.geo.LatLng(it.latitude, it.longitude)
+            }
+        }
+    }
+    val sorted = remember(diaries, sortMode, here) {
+        val origin = here
+        when (sortMode) {
+            DiarySort.LATEST -> diaries.sortedByDescending { it.createdAt }
+            DiarySort.POPULAR -> diaries.sortedByDescending { it.likeCount }
+            DiarySort.DISTANCE ->
+                if (origin != null) diaries.sortedBy {
+                    LocationHelper.distanceBetween(
+                        origin.latitude, origin.longitude, it.latitude, it.longitude
+                    )
+                } else diaries
+        }
+    }
+    val dateFmt = remember { java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.getDefault()) }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        sorted.forEach { d ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x66161B22))
+                    .clickable { onDiaryClick(d.id) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                StarShapeIcon(
+                    type = d.starType, colorIndex = d.starColor,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    d.title.ifBlank { stringResource(R.string.common_untitled) },
+                    color = Color.White.copy(alpha = 0.92f), fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    dateFmt.format(java.util.Date(d.createdAt)),
+                    color = TextMuted, fontSize = 12.sp
+                )
+            }
         }
     }
 }

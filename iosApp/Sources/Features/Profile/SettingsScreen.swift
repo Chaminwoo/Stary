@@ -21,8 +21,7 @@ struct SettingsScreen: View {
                     sectionLabel(locale.t(.settingsSound), "music.note")
                     glassCard {
                         toggleRow(icon: "music.note",
-                                  label: locale.t(.settingsBgm),
-                                  description: locale.t(.settingsBgmDesc),
+                                  label: locale.t(.settingsBgm1),
                                   isOn: music.enabled) { music.setActive($0) }
                         divider
                         volumeRow(label: locale.t(.settingsBgmVolume),

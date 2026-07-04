@@ -129,8 +129,8 @@ private struct GlobeSceneView: UIViewRepresentable {
 
     final class Coordinator: NSObject, SCNSceneRendererDelegate {
         // Android GlobeRenderer 상수 패리티
-        static let enterDist: Float = 4.6    // 진입 시작 거리(돌리-인 출발점)
-        static let idleDist: Float = 3.25    // 기본 관람 거리
+        static let enterDist: Float = 10.4   // 진입 시작 거리(돌리-인 출발점 — 최대 거리 살짝 바깥)
+        static let idleDist: Float = 9.5     // 진입 정착 거리 = 최소 줌(maxDist) — 지구가 가장 작게 보이는 상태
         static let minDist: Float = 1.45     // 카메라 최소 거리(더 바짝 당겨보기 — 화면 전환 없음)
         static let maxDist: Float = 9.5      // 카메라 최대 거리(지구가 작아 보일 만큼 멀리)
         static let flareMinLikes = 100       // 이 이상 좋아요 → 별 플레어(노드), 미만 → 베이크된 점광
@@ -158,6 +158,10 @@ private struct GlobeSceneView: UIViewRepresentable {
         private var earthMaterial: SCNMaterial?
         /// 태양 노드 — 광원 방향 하늘에 떠 있는 해(하루 주기로 이동), 매 프레임 위치 갱신.
         private var sunNode: SCNNode?
+        /// 구름 레이어 노드 — 확대(camDist 감소) 시 페이드아웃을 위해 보관.
+        private var cloudNode: SCNNode?
+        /// 구름 재질 — 낮/밤 uSunDir 매 프레임 갱신용.
+        private var cloudMaterial: SCNMaterial?
 
         init(
             startLat: Double, startLng: Double,
@@ -277,8 +281,14 @@ private struct GlobeSceneView: UIViewRepresentable {
             let wy = -rz * sin(b)                                // Rx(pitch), y'=0
             let wz = rz * cos(b)
             earthMaterial?.setValue(NSValue(scnVector3: SCNVector3(rx, wy, wz)), forKey: "uSunDir")
+            cloudMaterial?.setValue(NSValue(scnVector3: SCNVector3(rx, wy, wz)), forKey: "uSunDir")
             // 태양 노드 — 광원 방향 하늘(컨테이너 좌표계 = 모델 좌표계)에 위치.
             sunNode?.position = SCNVector3(mx * 45, 0, mz * 45)
+            // 구름 레이어 — 확대해서 다가가면 페이드아웃(camDist 2.4 이상 = 완전 표시, 1.7 이하 = 소멸)
+            if let clouds = cloudNode {
+                let f = min(max((camDist - 1.7) / (2.4 - 1.7), 0), 1)
+                clouds.opacity = CGFloat(f * f * (3 - 2 * f))
+            }
         }
 
         /// SceneKit euler 는 (roll→yaw→pitch) 순 적용 = Rx(pitch)·Ry(yaw) — Android uModel 과 동일.
@@ -309,6 +319,11 @@ private struct GlobeSceneView: UIViewRepresentable {
             let earth = GlobeBuilder.earthNode(diaries: valid)
             earthMaterial = earth.geometry?.firstMaterial
             containerNode.addChildNode(earth)
+            if let clouds = GlobeBuilder.cloudNode() {
+                cloudNode = clouds
+                cloudMaterial = clouds.geometry?.firstMaterial
+                containerNode.addChildNode(clouds)
+            }
             for node in GlobeBuilder.starfieldNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.trailNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.auroraNodes() { containerNode.addChildNode(node) }
@@ -558,6 +573,74 @@ private enum GlobeBuilder {
             ray(lenFrac: 0.52, thickFrac: 0.055, angleDeg: 45)
             ray(lenFrac: 0.52, thickFrac: 0.055, angleDeg: 135)
         }
+    }
+
+    // MARK: 구름 레이어
+
+    /// 구름 레이어 — 지구 위(반경 1.012) 대기 셸. NASA 구름맵(흑백, 퍼블릭 도메인)의 밝기를
+    /// 알파로 변환해 구름 외엔 완전 투명. 노드 자체를 천천히 Y축 회전시켜 대기가 흐르는 느낌.
+    /// 낮/밤 광원은 지구와 같은 셰이더 모디파이어, 확대 시 페이드아웃은 Coordinator 가 opacity 로.
+    /// 리소스 누락 시 nil 반환(레이어만 생략 — 크래시 없음). (Android drawClouds/CLOUD_FS 패리티)
+    static func cloudNode() -> SCNNode? {
+        guard let image = makeCloudImage() else { return nil }
+        let geometry = sphereGeometry(radius: 1.012, stacks: 48, slices: 96)
+        let material = SCNMaterial()
+        material.lightingModel = .constant
+        material.diffuse.contents = image
+        material.isDoubleSided = false
+        material.writesToDepthBuffer = false
+        material.shaderModifiers = [
+            .surface: """
+            #pragma arguments
+            float3 uSunDir;
+            #pragma body
+            float ndl = dot(normalize(_surface.normal), normalize(uSunDir));
+            float light = 0.70 + 0.45 * smoothstep(-0.18, 0.22, ndl);
+            _surface.diffuse.rgb *= light;
+            """
+        ]
+        material.setValue(NSValue(scnVector3: SCNVector3(0, 0, 1)), forKey: "uSunDir")
+        geometry.materials = [material]
+        let node = SCNNode(geometry: geometry)
+        // 경도 드리프트 — 한 바퀴 ≈ 4.8분(Android CLOUD_DRIFT 0.0035 rev/s 패리티)
+        node.runAction(.repeatForever(.rotateBy(x: 0, y: 2 * .pi, z: 0, duration: 286)))
+        return node
+    }
+
+    /// NASA 구름맵(흑백 JPG)을 RGBA 로 변환 — 밝기 = 구름 밀도 = 알파, 색은 은은한 청백.
+    /// "구름 이외 부분 투명" 요구를 알파 채널 베이크로 충족한다.
+    private static func makeCloudImage() -> UIImage? {
+        guard let path = Bundle.main.path(forResource: "earth_clouds", ofType: "jpg"),
+              let src = UIImage(contentsOfFile: path)?.cgImage else { return nil }
+        let w = 1024, h = 512 // 알파 변환용 다운스케일(밤 지구 위 은은한 레이어라 충분)
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(
+            data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.draw(src, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let data = ctx.data else { return nil }
+        let buf = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        for i in 0..<(w * h) {
+            let lum = Double(buf[i * 4]) / 255.0            // 흑백이라 R = 밝기
+            let a = lum * 0.55                               // 구름 최대 불투명도(은은하게)
+            // premultiplied alpha — 은은한 청백(0.62, 0.70, 0.82) 틴트
+            pixels[i * 4] = UInt8(min(255, 0.62 * a * 255))
+            pixels[i * 4 + 1] = UInt8(min(255, 0.70 * a * 255))
+            pixels[i * 4 + 2] = UInt8(min(255, 0.82 * a * 255))
+            pixels[i * 4 + 3] = UInt8(min(255, a * 255))
+        }
+        let out = Data(pixels)
+        guard let provider = CGDataProvider(data: out as CFData),
+              let cg = CGImage(
+                width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent
+              )
+        else { return nil }
+        return UIImage(cgImage: cg)
     }
 
     // MARK: 태양

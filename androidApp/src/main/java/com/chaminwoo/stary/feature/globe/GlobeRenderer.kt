@@ -83,6 +83,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var earthProgram = 0
     private var spriteProgram = 0
     private var ringProgram = 0
+    private var cloudProgram = 0
+    private var cloudTex = 0            // NASA 구름맵(흑백 — 밝기를 알파로 사용, 구름 외 투명)
     private var earthTex = 0
     private var flareTex = 0
     private var glowTex = 0
@@ -143,9 +145,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         ringProgram = buildProgram(RING_VS, RING_FS)
         lineProgram = buildProgram(LINE_VS, LINE_FS)
         auroraProgram = buildProgram(RING_VS, AURORA_FS)
+        cloudProgram = buildProgram(CLOUD_VS, CLOUD_FS)
 
         buildEarthMesh()
         earthTex = loadEarthTexture()
+        cloudTex = loadCloudTexture()
         flareTex = uploadTexture(makeFlareBitmap())
         glowTex = uploadTexture(makeGlowBitmap())
         buildStarfield()
@@ -209,6 +213,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glDepthMask(true)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         drawEarth()
+
+        // 2.5) 구름 레이어 — 지표 살짝 위에서 천천히 흘러가는 대기(확대해서 다가가면 페이드아웃)
+        drawClouds(t)
 
         // 이하 전부 additive, 깊이 테스트만(기록 X) — 행성 뒤로 가려짐
         GLES20.glEnable(GLES20.GL_BLEND)
@@ -299,6 +306,45 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glDisableVertexAttribArray(aPos)
         GLES20.glDisableVertexAttribArray(aUV)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+    }
+
+    /** 구름 레이어 — 지구 메쉬 재사용(셰이더에서 반경 1.012 로 확대), 경도 방향으로 천천히 드리프트.
+     *  NASA 구름맵은 흑백(밝기=구름 밀도)이라 셰이더에서 밝기를 알파로 써서 구름 외엔 투명.
+     *  카메라가 가까이 오면(확대) 부드럽게 사라져 지표를 가리지 않는다. */
+    private fun drawClouds(t: Float) {
+        if (cloudTex == 0) return
+        // 줌 페이드: camDist 2.4 이상 = 완전 표시, 1.7 이하 = 완전 소멸 (smoothstep)
+        val f = ((camDist - 1.7f) / (2.4f - 1.7f)).coerceIn(0f, 1f)
+        val zoomAlpha = f * f * (3f - 2f * f)
+        if (zoomAlpha < 0.01f) return
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        GLES20.glDepthMask(false)
+        GLES20.glUseProgram(cloudProgram)
+        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(cloudProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(cloudProgram, "uFade"), fade)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(cloudProgram, "uAlpha"), zoomAlpha)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(cloudProgram, "uShift"), t * CLOUD_DRIFT)
+        val sun = sunDirection()
+        GLES20.glUniform3f(GLES20.glGetUniformLocation(cloudProgram, "uSunDir"), sun[0], sun[1], sun[2])
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, cloudTex)
+        GLES20.glUniform1i(GLES20.glGetUniformLocation(cloudProgram, "uTex"), 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, earthVbo)
+        val aPos = GLES20.glGetAttribLocation(cloudProgram, "aPos")
+        val aUV = GLES20.glGetAttribLocation(cloudProgram, "aUV")
+        GLES20.glEnableVertexAttribArray(aPos)
+        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 20, 0)
+        GLES20.glEnableVertexAttribArray(aUV)
+        GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, 20, 12)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, earthIbo)
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, earthIndexCount, GLES20.GL_UNSIGNED_SHORT, 0)
+        GLES20.glDisableVertexAttribArray(aPos)
+        GLES20.glDisableVertexAttribArray(aUV)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        GLES20.glDepthMask(true)
+        GLES20.glDisable(GLES20.GL_BLEND)
     }
 
     /** 태양 방향(지구 좌표계 단위벡터) — UTC 기준 하루에 360도 회전(적도 상공, UTC 정오에 경도 0 상공). */
@@ -962,6 +1008,15 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         return tex
     }
 
+    /** NASA 구름맵 로드(assets/earth_clouds.jpg, 퍼블릭 도메인). 없어도 크래시 없이 레이어만 생략. */
+    private fun loadCloudTexture(): Int = try {
+        val bmp = context.assets.open("earth_clouds.jpg").use { BitmapFactory.decodeStream(it) }
+        uploadTexture(bmp, wrapS = GLES20.GL_REPEAT) // 경도 드리프트(u+shift)를 위해 REPEAT
+    } catch (e: Exception) {
+        Log.w("GlobeRenderer", "cloud texture missing: $e")
+        0
+    }
+
     private fun uploadTexture(bmp: Bitmap, wrapS: Int = GLES20.GL_CLAMP_TO_EDGE, recycle: Boolean = true): Int {
         val ids = IntArray(1)
         GLES20.glGenTextures(1, ids, 0)
@@ -1080,8 +1135,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     companion object {
-        const val ENTER_DIST = 4.6f   // 진입 시작 거리(돌리-인 출발점)
-        const val IDLE_DIST = 3.25f   // 기본 관람 거리
+        const val ENTER_DIST = 10.4f  // 진입 시작 거리(돌리-인 출발점 — 최대 거리 살짝 바깥)
+        const val IDLE_DIST = 9.5f    // 진입 정착 거리 = 최소 줌(MAX_DIST) — 지구가 가장 작게 보이는 상태
         const val MIN_DIST = 1.45f    // 카메라 최소 거리(더 바짝 당겨보기 — 화면 전환 없음)
         const val MAX_DIST = 9.5f     // 카메라 최대 거리(지구가 작아 보일 만큼 멀리)
 
@@ -1095,6 +1150,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val EARTH_BRIGHTNESS = 0.45f // 원본 대비 지구 밝기(균일)
         private const val TRAIL_COUNT = 5
         private const val SUN_DIST = 45f // 태양 위치 반지름(원경 별밭 너머, far plane 안)
+        private const val CLOUD_DRIFT = 0.0035f // 구름 경도 드리프트 속도(rev/s — 한 바퀴 ≈ 4.8분)
 
         /** 오로라 팔레트 — 아래(초록/청록)에서 위(보라/핑크/남보라)로 녹아드는 실제 오로라 색. */
         private val AURORA_GREEN = floatArrayOf(0.18f, 0.95f, 0.52f)
@@ -1141,6 +1197,30 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 float ndl = dot(normalize(vN), uSunDir);
                 float light = 0.70 + 0.45 * smoothstep(-0.18, 0.22, ndl);
                 gl_FragColor = vec4(texture2D(uTex, vUV).rgb * $EARTH_BRIGHTNESS * light * uFade, 1.0);
+            }
+        """
+
+        /** 구름 레이어 셰이더 — 지구 메쉬를 1.012배로 부풀려 대기 셸을 만든다.
+         *  흑백 구름맵의 밝기 = 구름 밀도 = 알파(구름 외 완전 투명). u 를 시간에 따라 밀어
+         *  대기가 지표 위를 천천히 흐르는 느낌. 낮/밤 광원(uSunDir)도 지구와 동일하게 적용. */
+        private const val CLOUD_VS = """
+            uniform mat4 uMVP;
+            attribute vec3 aPos; attribute vec2 aUV;
+            varying vec2 vUV; varying vec3 vN;
+            void main() { vUV = aUV; vN = aPos; gl_Position = uMVP * vec4(aPos * 1.012, 1.0); }
+        """
+
+        private const val CLOUD_FS = """
+            precision mediump float;
+            uniform sampler2D uTex; uniform float uFade; uniform float uAlpha; uniform float uShift;
+            uniform vec3 uSunDir;
+            varying vec2 vUV; varying vec3 vN;
+            void main() {
+                float cloud = texture2D(uTex, vec2(vUV.x + uShift, vUV.y)).r; // 밝기 = 구름 밀도
+                float ndl = dot(normalize(vN), uSunDir);
+                float light = 0.70 + 0.45 * smoothstep(-0.18, 0.22, ndl);
+                vec3 col = vec3(0.62, 0.70, 0.82) * light; // 밤 지구 톤에 맞춘 은은한 청백 구름
+                gl_FragColor = vec4(col * uFade, cloud * 0.55 * uAlpha * uFade);
             }
         """
 

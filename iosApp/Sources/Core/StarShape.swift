@@ -31,14 +31,15 @@ struct StarShape: Shape {
     // MARK: - 0~4 별/스파클
 
     private func polygonStar(type: Int, s: CGFloat) -> Path {
+        // 내부 반지름 비율을 낮춰 꼭지를 더 뾰족하고 깔끔하게(Android StarStyle 와 동기).
         struct Spec { let spikes: Int; let inner: CGFloat; let rotate: Double; let curved: Bool }
         let spec: Spec
         switch type.clamped(0, StarStyle.typeCount - 1) {
-        case 0: spec = Spec(spikes: 4, inner: 0.10, rotate: 0, curved: true)
-        case 1: spec = Spec(spikes: 5, inner: 0.40, rotate: -90, curved: false)
-        case 2: spec = Spec(spikes: 6, inner: 0.26, rotate: -90, curved: false)
-        case 3: spec = Spec(spikes: 8, inner: 0.13, rotate: 0, curved: true)
-        default: spec = Spec(spikes: 4, inner: 0.10, rotate: 45, curved: true) // 4
+        case 0: spec = Spec(spikes: 4, inner: 0.085, rotate: 0, curved: true)
+        case 1: spec = Spec(spikes: 5, inner: 0.34, rotate: -90, curved: false)
+        case 2: spec = Spec(spikes: 6, inner: 0.21, rotate: -90, curved: false)
+        case 3: spec = Spec(spikes: 8, inner: 0.10, rotate: 0, curved: true)
+        default: spec = Spec(spikes: 4, inner: 0.085, rotate: 45, curved: true) // 4
         }
         let c = CGPoint(x: s / 2, y: s / 2)
         let outer = s / 2 * 0.95

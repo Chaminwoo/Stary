@@ -92,13 +92,14 @@ object StarStyle {
             8 -> return planetPath(sizePx)
         }
 
+        // 내부 반지름 비율을 낮춰 꼭지를 더 뾰족하고 깔끔하게(2026-07 모양 다듬기, iOS StarShape 와 동기).
         data class Spec(val spikes: Int, val innerRatio: Float, val rotateDeg: Double, val curved: Boolean)
         val spec = when (type.coerceIn(0, TYPE_COUNT - 1)) {
-            0 -> Spec(4, 0.10f, 0.0, curved = true)
-            1 -> Spec(5, 0.40f, -90.0, curved = false)
-            2 -> Spec(6, 0.26f, -90.0, curved = false)
-            3 -> Spec(8, 0.13f, 0.0, curved = true)
-            else -> Spec(4, 0.10f, 45.0, curved = true) // 4
+            0 -> Spec(4, 0.085f, 0.0, curved = true)
+            1 -> Spec(5, 0.34f, -90.0, curved = false)
+            2 -> Spec(6, 0.21f, -90.0, curved = false)
+            3 -> Spec(8, 0.10f, 0.0, curved = true)
+            else -> Spec(4, 0.085f, 45.0, curved = true) // 4
         }
         val cx = sizePx / 2f
         val cy = sizePx / 2f

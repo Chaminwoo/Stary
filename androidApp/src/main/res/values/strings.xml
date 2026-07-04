@@ -84,7 +84,7 @@
     <string name="cd_view_photo">사진 크게 보기</string>
     <string name="cd_view_profile">프로필 보기</string>
     <string name="cd_like">좋아요</string>
-    <string name="toast_liked">좋아요를 남겼어요 ♥</string>
+    <string name="toast_liked">좋아요를 남겼어요</string>
     <string name="toast_unliked">좋아요를 취소했어요</string>
     <string name="detail_comments_count">댓글 %1$d</string>
     <string name="comment_placeholder">댓글을 입력하세요</string>
@@ -162,6 +162,8 @@
     <!-- 내 다이어리 화면 -->
     <string name="mydiary_empty">아직 기록한 다이어리가 없어요</string>
     <string name="mydiary_sort_count">%1$s · %2$d개</string>
+    <string name="mydiary_view_list">목록으로 보기</string>
+    <string name="mydiary_view_stars">별로 보기</string>
     <string name="sort_latest">최신순</string>
     <string name="sort_popular">인기순</string>
     <string name="sort_distance">거리순</string>

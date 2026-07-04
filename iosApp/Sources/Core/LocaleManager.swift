@@ -58,7 +58,7 @@ final class LocaleManager: ObservableObject {
 enum L10n: String {
     case navSettings
     case settingsSound, settingsNotification, settingsLanguage
-    case settingsBgm, settingsBgmDesc, settingsBgmVolume, settingsSfxVolume
+    case settingsBgm1, settingsBgmVolume, settingsSfxVolume
     case settingsNotifPopup, settingsNotifPopupDesc, settingsLanguageDesc, settingsAutosave
     case languageDialogTitle, languageSystem, languageKo, languageEn, languageJa
     case tabMap, tabList, tabUpload, tabFriends, tabProfile
@@ -69,6 +69,8 @@ enum L10n: String {
     case filterUnviewed
     // 계정 삭제 + 신고/차단 — Android 차단·신고 라운드 패리티.
     case commonCancel, commonDelete
+    // 비로그인 상호작용 잠금 — Android common_login_required 패리티.
+    case commonLoginRequired
     case settingsAccount, settingsDeleteAccount, settingsDeleteAccountDesc
     case settingsDeleteConfirmMsg, settingsDeleteFailed, toastAccountDeleted
     case reportUser, reportDiary, reportSubmit
@@ -101,8 +103,7 @@ enum L10n: String {
         case .settingsSound:        return ("사운드", "Sound", "サウンド")
         case .settingsNotification: return ("알림", "Notifications", "通知")
         case .settingsLanguage:     return ("언어", "Language", "言語")
-        case .settingsBgm:          return ("배경음악", "Background music", "BGM")
-        case .settingsBgmDesc:      return ("별들 사이를 떠다니는 우주의 소리", "Cosmic sounds drifting among the stars", "星々の間を漂う宇宙の音")
+        case .settingsBgm1:         return ("배경음악", "Background music", "BGM")
         case .settingsBgmVolume:    return ("배경음악 볼륨", "Music volume", "BGMの音量")
         case .settingsSfxVolume:    return ("효과음 볼륨", "Sound effects volume", "効果音の音量")
         case .settingsNotifPopup:   return ("알림 팝업", "Notification banners", "通知バナー")
@@ -135,6 +136,7 @@ enum L10n: String {
         case .filterUnviewed:       return ("미조회만", "Unviewed", "未読のみ")
         case .commonCancel:         return ("취소", "Cancel", "キャンセル")
         case .commonDelete:         return ("삭제", "Delete", "削除")
+        case .commonLoginRequired:  return ("로그인이 필요해요", "Sign in required", "ログインが必要です")
         case .settingsAccount:      return ("계정", "Account", "アカウント")
         case .settingsDeleteAccount: return ("계정 삭제", "Delete account", "アカウント削除")
         case .settingsDeleteAccountDesc: return ("계정과 모든 데이터를 영구 삭제해요", "Permanently delete your account and all data", "アカウントとすべてのデータを完全に削除します")
@@ -189,7 +191,7 @@ enum L10n: String {
         case .onbFriendsMsg:        return ("이름으로 친구를 검색해 요청을 보내세요.\n받은 요청을 수락하면 서로의 프로필을 보며, 채팅할 수 있어요.",
                                             "Search friends by name to send requests; accept incoming ones to see each other's stars and chat.",
                                             "名前でフレンドを検索してリクエストを送り、届いたリクエストを承認するとお互いの星を見たりチャットできます。")
-        case .globeHint:            return ("드래그로 회전 · 아래를 탭해 닫기", "Drag to rotate · Tap below to close", "ドラッグで回転 · 下をタップで閉じる")
+        case .globeHint:            return ("드래그로 회전 · 아래를 탭하여 닫기", "Drag to rotate · Tap below to close", "ドラッグで回転 · 下をタップで閉じる")
         case .globeOpen:            return ("지구 보기", "View globe", "地球を見る")
         case .globeClose:           return ("지도로 돌아가기", "Back to map", "地図に戻る")
         case .chatDeleteTitle:      return ("메시지 삭제", "Delete message", "メッセージを削除")
