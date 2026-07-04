@@ -28,10 +28,14 @@ enum ModerationRepository {
     }
 
     /// 신고 접수. [type] = "diary" | "comment" | "user".
+    /// [extra] 는 관리자가 Firebase Console 에서 바로 검토하도록 넣는 사람이 읽을 스냅샷
+    /// (targetTitle/targetContent/targetOwnerName/targetImageUrl 등). Android `report(extra=)` 패리티.
+    /// status 흐름: "open" → 관리자가 Console 에서 "action_delete"(다이어리 삭제)/"action_ban"(계정 제재)/"dismissed"(기각).
     static func report(reporterId: String, type: String, targetId: String,
-                       targetOwnerId: String, reason: String) async {
+                       targetOwnerId: String, reason: String,
+                       extra: [String: Any] = [:]) async {
         guard !reporterId.isEmpty, !targetId.isEmpty else { return }
-        try? await FirestoreService.reports.addDocument(data: [
+        var data: [String: Any] = [
             "reporterId": reporterId,
             "type": type,
             "targetId": targetId,
@@ -39,7 +43,9 @@ enum ModerationRepository {
             "reason": reason,
             "createdAt": FirestoreService.nowMillis,
             "status": "open",
-        ])
+        ]
+        for (k, v) in extra { data[k] = v }
+        try? await FirestoreService.reports.addDocument(data: data)
     }
 }
 

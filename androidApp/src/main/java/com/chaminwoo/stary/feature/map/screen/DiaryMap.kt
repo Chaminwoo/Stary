@@ -595,14 +595,20 @@ fun DiaryMap(
     val initialLatLngRef = rememberUpdatedState(currentLatLng)
     val onGlobeAvailabilityRef = rememberUpdatedState(onGlobeAvailability)
 
-    // 글로브 → 지도 복귀 카메라(글로브가 가리던 동안 즉시 점프)
-    LaunchedEffect(globeReturnCamera) {
-        val req = globeReturnCamera ?: return@LaunchedEffect
-        mapRef?.moveCamera(
+    // "내 위치로" 카메라 이동 — FAB 과 글로브 복귀에서 공용(동일 로직 1회 실행).
+    val recenterToMyLocation: () -> Unit = {
+        mapRef?.animateCamera(
             CameraUpdateFactory.newCameraPosition(
-                CameraPosition.Builder().target(MlLatLng(req.lat, req.lng)).zoom(req.zoom).build()
+                CameraPosition.Builder().target(currentLatLngRef.value.toMl()).zoom(DEFAULT_ZOOM).build()
             )
         )
+    }
+
+    // 글로브 → 지도 복귀 시 "내 위치로" 버튼과 동일한 카메라 이동을 1회 자동 실행(체크리스트 27).
+    // nonce 로 같은 복귀도 매번 트리거. 글로브가 가리던 동안 애니메이션이 시작돼 스크림이 걷히면 이미 내 위치.
+    LaunchedEffect(globeReturnCamera) {
+        globeReturnCamera ?: return@LaunchedEffect
+        recenterToMyLocation()
     }
 
     // 도보 길찾기(친구 별 탭) — 현위치→목적지 전체 경로를 받아 savedRoute 에 저장(X 취소까지 유지).
@@ -875,13 +881,7 @@ fun DiaryMap(
         ) {
             // 내 위치로 이동
             FloatingActionButton(
-                onClick = {
-                    mapRef?.animateCamera(
-                        CameraUpdateFactory.newCameraPosition(
-                            CameraPosition.Builder().target(currentLatLng.toMl()).zoom(DEFAULT_ZOOM).build()
-                        )
-                    )
-                },
+                onClick = { recenterToMyLocation() },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),

@@ -111,8 +111,16 @@ struct DetailScreen: View {
         .reportDialog(title: LocaleManager.shared.t(.reportDiary), isPresented: $showReportDialog) { reason in
             guard let myUid = auth.uid, let id = diary.id else { return }
             Task {
-                await ModerationRepository.report(reporterId: myUid, type: "diary",
-                                                  targetId: id, targetOwnerId: diary.userId, reason: reason)
+                // 관리자가 Console 에서 바로 검토하도록 다이어리 스냅샷을 함께 등록(체크리스트 28).
+                await ModerationRepository.report(
+                    reporterId: myUid, type: "diary",
+                    targetId: id, targetOwnerId: diary.userId, reason: reason,
+                    extra: [
+                        "targetTitle": diary.title,
+                        "targetContent": String(diary.content.prefix(280)),
+                        "targetOwnerName": diary.userName,
+                        "targetImageUrl": diary.imageUrl.isEmpty ? diary.videoUrl : diary.imageUrl,
+                    ])
                 showReportedConfirm = true
             }
         }

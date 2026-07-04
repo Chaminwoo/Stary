@@ -53,11 +53,12 @@ struct MapLibreView: UIViewRepresentable {
             context.coordinator.lastFocus = target
             mapView.setCenter(target, zoomLevel: 15, animated: true)
         }
-        // 글로브 → 지도 복귀 카메라(글로브가 가리던 동안 즉시 점프).
+        // 글로브 → 지도 복귀 시 "내 위치로" 이동을 1회 실행(체크리스트 27, Android recenterToMyLocation 패리티).
+        // 실제 위치 fix 가 없으면 글로브에서 보던 좌표로 폴백. 줌은 Android DEFAULT_ZOOM(15) 과 일치.
         if let req = globeReturnCamera, req.nonce != context.coordinator.lastGlobeReturnNonce {
             context.coordinator.lastGlobeReturnNonce = req.nonce
-            mapView.setCenter(CLLocationCoordinate2D(latitude: req.lat, longitude: req.lng),
-                              zoomLevel: req.zoom, animated: false)
+            let target = userLocation ?? CLLocationCoordinate2D(latitude: req.lat, longitude: req.lng)
+            mapView.setCenter(target, zoomLevel: 15, animated: true)
         }
         if let existing = mapView.annotations { mapView.removeAnnotations(existing) }
         var toAdd: [MLNAnnotation] = diaries.compactMap { diary -> DiaryAnnotation? in

@@ -59,27 +59,35 @@ class FirebaseModerationRepository {
         } catch (_: Exception) {}
     }
 
-    /** 신고 접수. [type] = "diary" | "comment" | "user". */
+    /**
+     * 신고 접수. [type] = "diary" | "comment" | "user".
+     * [extra] 는 관리자가 Firebase Console 에서 바로 검토할 수 있도록 넣는 사람이 읽을 스냅샷
+     * (예: targetTitle, targetContent, targetOwnerName, targetImageUrl, reporterName). null 값은 제외.
+     *
+     * status 흐름: "open"(신고됨) → 관리자가 Console 에서 아래로 변경하면 Function 이 조치:
+     *   "action_delete" = 대상 다이어리 삭제, "action_ban" = 대상 계정 7일 삭제 예약, "dismissed" = 기각.
+     */
     suspend fun report(
         reporterId: String,
         type: String,
         targetId: String,
         targetOwnerId: String,
         reason: String,
+        extra: Map<String, Any?> = emptyMap(),
     ) {
         if (reporterId.isBlank() || targetId.isBlank()) return
         try {
-            reports.add(
-                mapOf(
-                    "reporterId" to reporterId,
-                    "type" to type,
-                    "targetId" to targetId,
-                    "targetOwnerId" to targetOwnerId,
-                    "reason" to reason,
-                    "createdAt" to System.currentTimeMillis(),
-                    "status" to "open",
-                )
-            ).await()
+            val doc = mutableMapOf<String, Any>(
+                "reporterId" to reporterId,
+                "type" to type,
+                "targetId" to targetId,
+                "targetOwnerId" to targetOwnerId,
+                "reason" to reason,
+                "createdAt" to System.currentTimeMillis(),
+                "status" to "open",
+            )
+            for ((k, v) in extra) if (v != null) doc[k] = v
+            reports.add(doc).await()
         } catch (_: Exception) {}
     }
 }
