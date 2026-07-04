@@ -31,7 +31,7 @@ import kotlin.math.sin
  *
  * 씬 구성(레퍼런스 `references/min_zoom.png` 재현):
  *  1. 배경 별밭: 반지름이 다른 3겹 구면 셸 + 원경 성운 글로우 + 은하수 띠 +
- *     별자리(북두칠성/카시오페이아/오리온/남십자, 희미한 연결선) + 4방 광선 반짝별 —
+ *     황도 12궁 별자리(레퍼런스 references/zodiac.avif, 궁별 고유색 + 희미한 연결선) + 4방 광선 반짝별 —
  *     카메라가 중심에서 떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감
  *  2. 지구 구체: 원본의 3/4 밝기 균일(라이트맵/지형 밝힘 없음)
  *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 아주 옅은 글로우, 훨씬 반투명.
@@ -482,11 +482,12 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
         }
 
-        // ── 별자리 — 밝은 별 + 희미한 연결선 (북두칠성/카시오페이아/오리온/남십자) ──
+        // ── 별자리 — 황도 12궁(레퍼런스 references/zodiac.avif), 궁마다 고유색 ──
+        // 디자인(밝은 별 + 희미한 연결선)은 기존 그대로, 색만 궁별로 다르게. 라인 VBO = pos3+rgb3.
         val constLines = ArrayList<Float>()
         fun addConstellation(
             centerLat: Double, centerLng: Double, scaleDeg: Float, rollDeg: Float,
-            points: Array<FloatArray>, segments: Array<IntArray>,
+            tint: FloatArray, points: Array<FloatArray>, segments: Array<IntArray>,
         ) {
             val radius = 36f
             val c = latLngToXyz(centerLat, centerLng, 1f)
@@ -507,66 +508,83 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 floatArrayOf(d[0] * radius, d[1] * radius, d[2] * radius)
             }
             for (p in pts) {
-                val br = 0.55f + rnd.nextFloat() * 0.25f // 별자리 별 — 배경보다 또렷한 청백색
+                val br = 0.55f + rnd.nextFloat() * 0.25f // 배경보다 또렷한 밝기 + 궁별 틴트
                 addSprite(
                     list, p,
-                    r = br * 0.92f, g = br * 0.95f, b = br * 1.00f, a = 1f,
+                    r = br * (0.45f + 0.55f * tint[0]),
+                    g = br * (0.45f + 0.55f * tint[1]),
+                    b = br * (0.45f + 0.55f * tint[2]),
+                    a = 1f,
                     size = 0.20f + rnd.nextFloat() * 0.08f,
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
             for (seg in segments) {
-                constLines.addAll(pts[seg[0]].toList())
-                constLines.addAll(pts[seg[1]].toList())
+                for (i in intArrayOf(seg[0], seg[1])) {
+                    constLines.addAll(pts[i].toList())
+                    constLines.add(tint[0] * 0.30f); constLines.add(tint[1] * 0.30f); constLines.add(tint[2] * 0.30f)
+                }
             }
         }
-        // 북두칠성 — 손잡이(0~2) + 국자(3~6)
-        addConstellation(
-            48.0, -95.0, 4.5f, -12f,
-            arrayOf(
-                floatArrayOf(0.0f, 0.0f), floatArrayOf(1.0f, 0.35f), floatArrayOf(1.9f, 0.55f),
-                floatArrayOf(2.8f, 0.7f), floatArrayOf(3.0f, -0.2f), floatArrayOf(4.0f, 0.0f),
-                floatArrayOf(3.9f, 1.0f),
-            ),
-            arrayOf(
-                intArrayOf(0, 1), intArrayOf(1, 2), intArrayOf(2, 3), intArrayOf(3, 4),
-                intArrayOf(4, 5), intArrayOf(5, 6), intArrayOf(6, 3),
-            ),
-        )
-        // 카시오페이아 — W 자
-        addConstellation(
-            58.0, 40.0, 4.0f, 8f,
-            arrayOf(
-                floatArrayOf(0.0f, 0.0f), floatArrayOf(0.8f, 0.7f), floatArrayOf(1.6f, 0.15f),
-                floatArrayOf(2.4f, 0.85f), floatArrayOf(3.1f, 0.35f),
-            ),
-            arrayOf(intArrayOf(0, 1), intArrayOf(1, 2), intArrayOf(2, 3), intArrayOf(3, 4)),
-        )
-        // 오리온 — 어깨(0,1)·허리띠(2~4)·다리(5,6)
-        addConstellation(
-            5.0, 120.0, 5.0f, 0f,
-            arrayOf(
-                floatArrayOf(0.4f, 1.5f), floatArrayOf(1.7f, 1.55f), floatArrayOf(0.85f, 0.55f),
-                floatArrayOf(1.1f, 0.5f), floatArrayOf(1.35f, 0.45f), floatArrayOf(0.55f, -0.6f),
-                floatArrayOf(1.75f, -0.5f),
-            ),
-            arrayOf(
-                intArrayOf(0, 2), intArrayOf(1, 4), intArrayOf(2, 3),
-                intArrayOf(3, 4), intArrayOf(2, 5), intArrayOf(4, 6),
-            ),
-        )
-        // 남십자성
-        addConstellation(
-            -52.0, -30.0, 6.0f, 10f,
-            arrayOf(
-                floatArrayOf(0.0f, 0.9f), floatArrayOf(0.15f, -0.9f),
-                floatArrayOf(-0.8f, 0.0f), floatArrayOf(0.85f, -0.1f),
-            ),
-            arrayOf(intArrayOf(0, 1), intArrayOf(2, 3)),
-        )
+        fun pts(vararg p: Float): Array<FloatArray> =
+            Array(p.size / 2) { floatArrayOf(p[it * 2], p[it * 2 + 1]) }
+        fun segs(vararg s: Int): Array<IntArray> =
+            Array(s.size / 2) { intArrayOf(s[it * 2], s[it * 2 + 1]) }
+        // 12궁 — 경도 30°씩 + 위도 4단 사이클로 하늘 전체에 골고루 분산. 궁마다 고유색.
+        // 양자리 — 코랄 레드
+        addConstellation(52.0, -165.0, 4.5f, -8f, floatArrayOf(1.00f, 0.52f, 0.42f),
+            pts(0f, 0f, 0.9f, 0.3f, 1.6f, 0.35f, 1.9f, 0.05f),
+            segs(0, 1, 1, 2, 2, 3))
+        // 황소자리 — 연두 (V 자 히아데스 + 두 뿔)
+        addConstellation(18.0, -135.0, 4.8f, 10f, floatArrayOf(0.62f, 0.95f, 0.55f),
+            pts(0f, 0f, 0.6f, 0.5f, 1.6f, 0.9f, 0.55f, -0.35f, 1.5f, -0.75f),
+            segs(0, 1, 1, 2, 0, 3, 3, 4))
+        // 쌍둥이자리 — 옐로 (나란한 두 줄기 + 어깨 연결)
+        addConstellation(-18.0, -105.0, 4.6f, -14f, floatArrayOf(1.00f, 0.88f, 0.45f),
+            pts(0f, 1.0f, 0.55f, 0.95f, 0.05f, 0.4f, 0.6f, 0.35f, 0f, -0.35f, 0.65f, -0.4f),
+            segs(0, 2, 2, 4, 1, 3, 3, 5, 2, 3))
+        // 게자리 — 은청 (희미한 Y)
+        addConstellation(-52.0, -75.0, 4.2f, 6f, floatArrayOf(0.75f, 0.85f, 1.00f),
+            pts(0f, 0.65f, 0.35f, 0.15f, 0.05f, -0.55f, 0.85f, 0.3f),
+            segs(0, 1, 1, 2, 1, 3))
+        // 사자자리 — 골드 (낫 + 몸통)
+        addConstellation(52.0, -45.0, 4.6f, 0f, floatArrayOf(1.00f, 0.72f, 0.30f),
+            pts(0f, 0f, 0.15f, 0.55f, 0.5f, 0.9f, 1.0f, 0.9f, 1.25f, 0.55f,
+                -1.2f, 0.35f, -0.7f, 0.62f, -0.55f, 0.05f),
+            segs(0, 1, 1, 2, 2, 3, 3, 4, 0, 7, 7, 5, 5, 6, 6, 1))
+        // 처녀자리 — 민트 (스피카에서 뻗는 가지)
+        addConstellation(18.0, -15.0, 4.8f, 12f, floatArrayOf(0.55f, 1.00f, 0.80f),
+            pts(0f, -0.95f, 0.15f, -0.2f, -0.4f, 0.3f, 0.5f, 0.35f, -0.9f, 0.55f, 0.95f, 0.8f, 0.15f, 0.9f),
+            segs(0, 1, 1, 2, 1, 3, 2, 4, 3, 5, 2, 6))
+        // 천칭자리 — 핑크 (삼각 접시 + 두 다리)
+        addConstellation(-18.0, 15.0, 4.4f, -6f, floatArrayOf(1.00f, 0.62f, 0.82f),
+            pts(0f, 0.7f, -0.65f, 0.2f, 0.6f, 0.25f, -0.5f, -0.6f, 0.55f, -0.65f),
+            segs(0, 1, 0, 2, 1, 2, 1, 3, 2, 4))
+        // 전갈자리 — 크림슨 (집게 + 갈고리 꼬리)
+        addConstellation(-52.0, 45.0, 4.8f, 8f, floatArrayOf(1.00f, 0.42f, 0.48f),
+            pts(1.35f, 0.85f, 1.2f, 0.55f, 1.35f, 0.3f, 0.95f, 0.5f, 0.6f, 0.3f, 0.3f, 0f,
+                0.15f, -0.45f, 0.25f, -0.85f, 0.55f, -1.1f, 0.9f, -1.05f, 1.05f, -0.85f),
+            segs(0, 3, 1, 3, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10))
+        // 사수자리 — 퍼플 (주전자 Teapot)
+        addConstellation(52.0, 75.0, 4.4f, -10f, floatArrayOf(0.72f, 0.55f, 1.00f),
+            pts(0f, 0.05f, 0.3f, 0.3f, 0.65f, 0.55f, 1.0f, 0.3f, 1.3f, 0f, 1.0f, -0.35f, 0.3f, -0.35f),
+            segs(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 0, 1, 6, 3, 5))
+        // 염소자리 — 틸 (아래로 처진 보울)
+        addConstellation(18.0, 105.0, 4.6f, 4f, floatArrayOf(0.45f, 0.88f, 0.92f),
+            pts(-1.0f, 0.5f, -0.45f, 0.1f, 0.15f, -0.2f, 0.75f, -0.05f, 1.05f, 0.45f),
+            segs(0, 1, 1, 2, 2, 3, 3, 4, 4, 0))
+        // 물병자리 — 블루 (물항아리 Y + 흘러내리는 물줄기)
+        addConstellation(-18.0, 135.0, 4.6f, -4f, floatArrayOf(0.50f, 0.72f, 1.00f),
+            pts(0f, 0.8f, 0.35f, 0.95f, 0.65f, 0.75f, 0.95f, 0.92f, 0.3f, 0.3f,
+                -0.25f, 0.1f, 0.5f, -0.3f, 0.15f, -0.75f),
+            segs(0, 1, 1, 2, 2, 3, 1, 4, 4, 5, 4, 6, 6, 7))
+        // 물고기자리 — 라벤더 (두 끈이 만나는 V)
+        addConstellation(-52.0, 165.0, 4.8f, 14f, floatArrayOf(0.82f, 0.70f, 1.00f),
+            pts(1.35f, 0.95f, 0.95f, 0.6f, 0.5f, 0.3f, 0f, 0f, 0.5f, -0.18f, 1.05f, -0.28f, 1.55f, -0.2f),
+            segs(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6))
         constLineVbo = genBuffer()
         uploadBuffer(constLineVbo, toFloatBuffer(constLines))
-        constLineVertexCount = constLines.size / 3
+        constLineVertexCount = constLines.size / 6
 
         // ── 배경 반짝별 — 4방 광선 텍스처의 특별한 별 몇 개(은은한 포인트) ──
         val bgFlares = ArrayList<Float>()
@@ -592,7 +610,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         starfieldVertexCount = list.size / SPRITE_FLOATS
     }
 
-    /** 별자리 연결선 — 아주 희미한 청회색 라인(additive, 별밭 층에서 호출). */
+    /** 별자리 연결선 — 아주 희미한 궁별 색 라인(additive, 별밭 층에서 호출). 정점 = pos3+rgb3. */
     private fun drawConstellationLines() {
         if (constLineVbo == 0 || constLineVertexCount == 0) return
         GLES20.glUseProgram(lineProgram)
@@ -601,10 +619,14 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glLineWidth(2f)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, constLineVbo)
         val aPos = GLES20.glGetAttribLocation(lineProgram, "aPos")
+        val aColor = GLES20.glGetAttribLocation(lineProgram, "aColor")
         GLES20.glEnableVertexAttribArray(aPos)
-        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 12, 0)
+        GLES20.glEnableVertexAttribArray(aColor)
+        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 24, 0)
+        GLES20.glVertexAttribPointer(aColor, 3, GLES20.GL_FLOAT, false, 24, 12)
         GLES20.glDrawArrays(GLES20.GL_LINES, 0, constLineVertexCount)
         GLES20.glDisableVertexAttribArray(aPos)
+        GLES20.glDisableVertexAttribArray(aColor)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         GLES20.glLineWidth(1f)
     }
@@ -972,13 +994,16 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val LINE_VS = """
             uniform mat4 uMVP;
             attribute vec3 aPos;
-            void main() { gl_Position = uMVP * vec4(aPos, 1.0); }
+            attribute vec3 aColor;
+            varying vec3 vColor;
+            void main() { vColor = aColor; gl_Position = uMVP * vec4(aPos, 1.0); }
         """
 
         private const val LINE_FS = """
             precision mediump float;
             uniform float uFade;
-            void main() { gl_FragColor = vec4(vec3(0.10, 0.13, 0.20) * uFade, 1.0); }
+            varying vec3 vColor;
+            void main() { gl_FragColor = vec4(vColor * uFade, 1.0); }
         """
 
         private const val RING_VS = """

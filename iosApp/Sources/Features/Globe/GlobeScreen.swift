@@ -585,8 +585,10 @@ private enum GlobeBuilder {
                         cg.fillEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
                     }
 
-                    // 별자리 — 밝은 별 + 희미한 연결선(북두칠성/카시오페이아/오리온/남십자)
+                    // 별자리 — 황도 12궁(레퍼런스 references/zodiac.avif), 궁마다 고유색.
+                    // 디자인(밝은 별 + 희미한 연결선)은 기존 그대로, 색만 궁별로 다르게. (Android GlobeRenderer 패리티)
                     func constellation(center: CGPoint, scale: CGFloat, roll: CGFloat,
+                                       tint: (CGFloat, CGFloat, CGFloat),
                                        points: [(CGFloat, CGFloat)], segments: [(Int, Int)]) {
                         let cosR = cos(roll), sinR = sin(roll)
                         let pts = points.map { p in
@@ -594,33 +596,84 @@ private enum GlobeBuilder {
                                     y: center.y - (p.0 * sinR + p.1 * cosR) * scale)
                         }
                         cg.setBlendMode(.plusLighter)
-                        cg.setStrokeColor(UIColor(red: 0.10, green: 0.13, blue: 0.20, alpha: 1).cgColor)
+                        cg.setStrokeColor(UIColor(red: tint.0 * 0.30, green: tint.1 * 0.30,
+                                                  blue: tint.2 * 0.30, alpha: 1).cgColor)
                         cg.setLineWidth(1.5)
                         for s in segments {
                             cg.move(to: pts[s.0]); cg.addLine(to: pts[s.1]); cg.strokePath()
                         }
                         for p in pts {
-                            let br = 0.55 + rnd() * 0.25 // 배경보다 또렷한 청백색
-                            UIColor(red: br * 0.92, green: br * 0.95, blue: br, alpha: 1).setFill()
+                            let br = 0.55 + rnd() * 0.25 // 배경보다 또렷한 밝기 + 궁별 틴트
+                            UIColor(red: br * (0.45 + 0.55 * tint.0), green: br * (0.45 + 0.55 * tint.1),
+                                    blue: br * (0.45 + 0.55 * tint.2), alpha: 1).setFill()
                             cg.fillEllipse(in: CGRect(x: p.x - 2.6, y: p.y - 2.6, width: 5.2, height: 5.2))
                         }
                     }
-                    // 북두칠성
-                    constellation(center: CGPoint(x: 483, y: 239), scale: 26, roll: -0.21, points: [
-                        (0.0, 0.0), (1.0, 0.35), (1.9, 0.55), (2.8, 0.7), (3.0, -0.2), (4.0, 0.0), (3.9, 1.0),
-                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 3)])
-                    // 카시오페이아
-                    constellation(center: CGPoint(x: 1251, y: 182), scale: 23, roll: 0.14, points: [
-                        (0.0, 0.0), (0.8, 0.7), (1.6, 0.15), (2.4, 0.85), (3.1, 0.35),
-                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4)])
-                    // 오리온
-                    constellation(center: CGPoint(x: 1706, y: 483), scale: 28, roll: 0, points: [
-                        (0.4, 1.5), (1.7, 1.55), (0.85, 0.55), (1.1, 0.5), (1.35, 0.45), (0.55, -0.6), (1.75, -0.5),
-                    ], segments: [(0, 2), (1, 4), (2, 3), (3, 4), (2, 5), (4, 6)])
-                    // 남십자성
-                    constellation(center: CGPoint(x: 853, y: 808), scale: 34, roll: 0.17, points: [
-                        (0.0, 0.9), (0.15, -0.9), (-0.8, 0.0), (0.85, -0.1),
-                    ], segments: [(0, 1), (2, 3)])
+                    // 12궁 — equirect(2048×1024) 상 경도 30°씩 + 위도 4단 사이클로 골고루 분산
+                    // (x=(lng+180)/360·w, y=(90−lat)/180·h — Android 위경도 배치와 동일 지점)
+                    // 양자리 — 코랄 레드
+                    constellation(center: CGPoint(x: 85, y: 216), scale: 26, roll: -0.14,
+                                  tint: (1.00, 0.52, 0.42), points: [
+                        (0.0, 0.0), (0.9, 0.3), (1.6, 0.35), (1.9, 0.05),
+                    ], segments: [(0, 1), (1, 2), (2, 3)])
+                    // 황소자리 — 연두
+                    constellation(center: CGPoint(x: 256, y: 410), scale: 27, roll: 0.17,
+                                  tint: (0.62, 0.95, 0.55), points: [
+                        (0.0, 0.0), (0.6, 0.5), (1.6, 0.9), (0.55, -0.35), (1.5, -0.75),
+                    ], segments: [(0, 1), (1, 2), (0, 3), (3, 4)])
+                    // 쌍둥이자리 — 옐로
+                    constellation(center: CGPoint(x: 427, y: 614), scale: 26, roll: -0.24,
+                                  tint: (1.00, 0.88, 0.45), points: [
+                        (0.0, 1.0), (0.55, 0.95), (0.05, 0.4), (0.6, 0.35), (0.0, -0.35), (0.65, -0.4),
+                    ], segments: [(0, 2), (2, 4), (1, 3), (3, 5), (2, 3)])
+                    // 게자리 — 은청
+                    constellation(center: CGPoint(x: 597, y: 808), scale: 24, roll: 0.10,
+                                  tint: (0.75, 0.85, 1.00), points: [
+                        (0.0, 0.65), (0.35, 0.15), (0.05, -0.55), (0.85, 0.3),
+                    ], segments: [(0, 1), (1, 2), (1, 3)])
+                    // 사자자리 — 골드
+                    constellation(center: CGPoint(x: 768, y: 216), scale: 26, roll: 0,
+                                  tint: (1.00, 0.72, 0.30), points: [
+                        (0.0, 0.0), (0.15, 0.55), (0.5, 0.9), (1.0, 0.9), (1.25, 0.55),
+                        (-1.2, 0.35), (-0.7, 0.62), (-0.55, 0.05),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (0, 7), (7, 5), (5, 6), (6, 1)])
+                    // 처녀자리 — 민트
+                    constellation(center: CGPoint(x: 939, y: 410), scale: 27, roll: 0.21,
+                                  tint: (0.55, 1.00, 0.80), points: [
+                        (0.0, -0.95), (0.15, -0.2), (-0.4, 0.3), (0.5, 0.35), (-0.9, 0.55), (0.95, 0.8), (0.15, 0.9),
+                    ], segments: [(0, 1), (1, 2), (1, 3), (2, 4), (3, 5), (2, 6)])
+                    // 천칭자리 — 핑크
+                    constellation(center: CGPoint(x: 1109, y: 614), scale: 25, roll: -0.10,
+                                  tint: (1.00, 0.62, 0.82), points: [
+                        (0.0, 0.7), (-0.65, 0.2), (0.6, 0.25), (-0.5, -0.6), (0.55, -0.65),
+                    ], segments: [(0, 1), (0, 2), (1, 2), (1, 3), (2, 4)])
+                    // 전갈자리 — 크림슨
+                    constellation(center: CGPoint(x: 1280, y: 808), scale: 27, roll: 0.14,
+                                  tint: (1.00, 0.42, 0.48), points: [
+                        (1.35, 0.85), (1.2, 0.55), (1.35, 0.3), (0.95, 0.5), (0.6, 0.3), (0.3, 0.0),
+                        (0.15, -0.45), (0.25, -0.85), (0.55, -1.1), (0.9, -1.05), (1.05, -0.85),
+                    ], segments: [(0, 3), (1, 3), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10)])
+                    // 사수자리 — 퍼플 (주전자)
+                    constellation(center: CGPoint(x: 1451, y: 216), scale: 25, roll: -0.17,
+                                  tint: (0.72, 0.55, 1.00), points: [
+                        (0.0, 0.05), (0.3, 0.3), (0.65, 0.55), (1.0, 0.3), (1.3, 0.0), (1.0, -0.35), (0.3, -0.35),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 0), (1, 6), (3, 5)])
+                    // 염소자리 — 틸
+                    constellation(center: CGPoint(x: 1621, y: 410), scale: 26, roll: 0.07,
+                                  tint: (0.45, 0.88, 0.92), points: [
+                        (-1.0, 0.5), (-0.45, 0.1), (0.15, -0.2), (0.75, -0.05), (1.05, 0.45),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 0)])
+                    // 물병자리 — 블루
+                    constellation(center: CGPoint(x: 1792, y: 614), scale: 26, roll: -0.07,
+                                  tint: (0.50, 0.72, 1.00), points: [
+                        (0.0, 0.8), (0.35, 0.95), (0.65, 0.75), (0.95, 0.92), (0.3, 0.3),
+                        (-0.25, 0.1), (0.5, -0.3), (0.15, -0.75),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (1, 4), (4, 5), (4, 6), (6, 7)])
+                    // 물고기자리 — 라벤더
+                    constellation(center: CGPoint(x: 1940, y: 808), scale: 27, roll: 0.24,
+                                  tint: (0.82, 0.70, 1.00), points: [
+                        (1.35, 0.95), (0.95, 0.6), (0.5, 0.3), (0.0, 0.0), (0.5, -0.18), (1.05, -0.28), (1.55, -0.2),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6)])
 
                     // 4방 광선 반짝별 — 은은한 포인트 몇 개
                     let flare = makeFlareImage()
