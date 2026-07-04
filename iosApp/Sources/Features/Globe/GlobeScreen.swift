@@ -154,6 +154,8 @@ private struct GlobeSceneView: UIViewRepresentable {
         let cameraNode = SCNNode()
         /// 지구+별+트레일+배경 별밭을 담는 회전 컨테이너(Android uModel 대응).
         let containerNode = SCNNode()
+        /// 지구 재질 — 낮/밤 반구 셰이더의 uSunDir 를 매 프레임 갱신하기 위해 보관.
+        private var earthMaterial: SCNMaterial?
 
         init(
             startLat: Double, startLng: Double,
@@ -258,6 +260,21 @@ private struct GlobeSceneView: UIViewRepresentable {
 
             applyRotation()
             cameraNode.position = SCNVector3(0, 0, camDist)
+
+            // 태양 방향 — UTC 기준 하루에 360도 회전(적도 상공, UTC 정오에 경도 0 상공).
+            // 지구 좌표계 벡터를 컨테이너 회전(Rx(pitch)·Ry(yaw))으로 월드 공간에 옮긴다.
+            // 카메라는 회전하지 않으므로(위치만 이동) 월드 방향 == 뷰 공간 방향 — 셰이더의
+            // _surface.normal(뷰 공간)과 바로 내적 가능. (Android drawEarth uSunDir 패리티)
+            let dayFrac = Date().timeIntervalSince1970
+                .truncatingRemainder(dividingBy: 86_400) / 86_400
+            let sunLng = (180.0 - dayFrac * 360.0) * Double.pi / 180
+            let mx = Float(sin(sunLng)), mz = Float(cos(sunLng)) // 모델(지구) 좌표계, 적도(y=0)
+            let a = yawDeg * Float.pi / 180, b = pitchDeg * Float.pi / 180
+            let rx = mx * cos(a) + mz * sin(a)                   // Ry(yaw)
+            let rz = -mx * sin(a) + mz * cos(a)
+            let wy = -rz * sin(b)                                // Rx(pitch), y'=0
+            let wz = rz * cos(b)
+            earthMaterial?.setValue(NSValue(scnVector3: SCNVector3(rx, wy, wz)), forKey: "uSunDir")
         }
 
         /// SceneKit euler 는 (roll→yaw→pitch) 순 적용 = Rx(pitch)·Ry(yaw) — Android uModel 과 동일.
@@ -285,7 +302,9 @@ private struct GlobeSceneView: UIViewRepresentable {
 
             let valid = diaries.filter { $0.latitude != 0 && $0.longitude != 0 }
 
-            containerNode.addChildNode(GlobeBuilder.earthNode(diaries: valid))
+            let earth = GlobeBuilder.earthNode(diaries: valid)
+            earthMaterial = earth.geometry?.firstMaterial
+            containerNode.addChildNode(earth)
             for node in GlobeBuilder.starfieldNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.trailNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.auroraNodes() { containerNode.addChildNode(node) }
@@ -308,6 +327,9 @@ private enum GlobeBuilder {
 
     /// 지구 노드: 수동 UV 구체 메쉬(경도 -180 → u=0, [latLngToXyz] 와 동일 규약)에
     /// "원본 3/4 밝기" 디퓨즈 + "노란 도시 야경 점광" 이미션 텍스처.
+    /// 낮/밤 반구(Android EARTH_FS 패리티): uSunDir 쪽 반구는 기준 밝기 그대로,
+    /// 반대 반구는 30% 감광, 터미네이터는 smoothstep — uSunDir 는 Coordinator 가
+    /// 매 프레임 월드(=뷰) 공간으로 갱신한다. 모디파이어 컴파일 실패 시 균일 밝기 폴백.
     static func earthNode(diaries: [Diary]) -> SCNNode {
         let geometry = sphereGeometry(radius: 1, stacks: 64, slices: 128)
         let material = SCNMaterial()
@@ -315,6 +337,18 @@ private enum GlobeBuilder {
         let (night, lit) = earthTextures(diaries: diaries)
         material.diffuse.contents = night
         material.emission.contents = lit
+        material.shaderModifiers = [
+            .surface: """
+            #pragma arguments
+            float3 uSunDir;
+            #pragma body
+            float ndl = dot(normalize(_surface.normal), normalize(uSunDir));
+            float light = 0.70 + 0.30 * smoothstep(-0.18, 0.22, ndl);
+            _surface.diffuse.rgb *= light;
+            """
+        ]
+        // 첫 프레임 전 기본값(0 벡터 normalize 방지) — 카메라 정면 방향
+        material.setValue(NSValue(scnVector3: SCNVector3(0, 0, 1)), forKey: "uSunDir")
         geometry.materials = [material]
         return SCNNode(geometry: geometry)
     }

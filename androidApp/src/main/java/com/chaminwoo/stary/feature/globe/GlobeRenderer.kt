@@ -34,7 +34,8 @@ import kotlin.math.sin
  *     황도 12궁 별자리(레퍼런스 references/zodiac.avif, 궁별 고유색 + 희미한 연결선) + 4방 광선 반짝별 +
  *     우주 공간에 드리운 오로라 커튼(초록→보라 수직 그라데이션, 흐르는 주름) —
  *     카메라가 중심에서 떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감
- *  2. 지구 구체: 원본의 3/4 밝기 균일(라이트맵/지형 밝힘 없음)
+ *  2. 지구 구체: 원본의 3/4 밝기 기준 + 낮/밤 반구 — UTC 하루 기준 360도 도는 태양 방향의
+ *     반구는 기준 밝기 그대로, 반대 반구는 30% 감광, 터미네이터는 smoothstep 으로 부드럽게
  *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 아주 옅은 글로우, 훨씬 반투명.
  *     양 끝은 점점 투명해지며 소멸, 백색 빛무리(가우시안 펄스)가 궤적을 따라
  *     자연스럽게 흘러감. 지구 좌표계라 구와 함께 회전
@@ -245,6 +246,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glUseProgram(earthProgram)
         GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(earthProgram, "uMVP"), 1, false, mvp, 0)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(earthProgram, "uFade"), fade)
+        // 태양 방향 — UTC 기준 하루에 360도 회전(적도 상공, UTC 정오에 경도 0 상공).
+        // 지구 좌표계 벡터라 구를 드래그로 돌려도 "지금 실제로 낮인 지역"이 항상 밝다.
+        val dayFrac = (System.currentTimeMillis() % 86_400_000L) / 86_400_000f
+        val sun = latLngToXyz(0.0, 180.0 - dayFrac * 360.0, 1f)
+        GLES20.glUniform3f(GLES20.glGetUniformLocation(earthProgram, "uSunDir"), sun[0], sun[1], sun[2])
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, earthTex)
         GLES20.glUniform1i(GLES20.glGetUniformLocation(earthProgram, "uTex"), 0)
@@ -1054,17 +1060,21 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val EARTH_VS = """
             uniform mat4 uMVP;
             attribute vec3 aPos; attribute vec2 aUV;
-            varying vec2 vUV;
-            void main() { vUV = aUV; gl_Position = uMVP * vec4(aPos, 1.0); }
+            varying vec2 vUV; varying vec3 vN;
+            void main() { vUV = aUV; vN = aPos; gl_Position = uMVP * vec4(aPos, 1.0); }
         """
 
         private const val EARTH_FS = """
             precision mediump float;
             uniform sampler2D uTex; uniform float uFade;
-            varying vec2 vUV;
+            uniform vec3 uSunDir; // 태양 방향(지구 좌표계 단위벡터) — UTC 하루 기준 360도 회전
+            varying vec2 vUV; varying vec3 vN;
             void main() {
-                // 원본의 3/4 밝기 균일(별 근처 지형 밝힘 없음)
-                gl_FragColor = vec4(texture2D(uTex, vUV).rgb * $EARTH_BRIGHTNESS * uFade, 1.0);
+                // 낮/밤 반구 — 태양 쪽은 기준 밝기 그대로(1.0), 반대쪽은 30% 감광(0.7).
+                // 터미네이터(명암 경계)는 smoothstep 으로 자연스럽게 이어진다.
+                float ndl = dot(normalize(vN), uSunDir);
+                float light = 0.70 + 0.30 * smoothstep(-0.18, 0.22, ndl);
+                gl_FragColor = vec4(texture2D(uTex, vUV).rgb * $EARTH_BRIGHTNESS * light * uFade, 1.0);
             }
         """
 
