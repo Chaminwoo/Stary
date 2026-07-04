@@ -98,6 +98,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var constLineVertexCount = 0
     private var bgFlareVbo = 0          // 배경 반짝별(4방 광선 텍스처)
     private var bgFlareVertexCount = 0
+    private var sunGlowVbo = 0          // 태양(코어+헤일로 글로우)
+    private var sunFlareVbo = 0         // 태양 4방 광선
+    private var sunBuiltFrac = -1f      // 태양 스프라이트를 빌드한 시각(dayFrac) — 1분 넘게 지나면 재배치
 
     /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전).
      *  phase: 트레일별 파동 위상(불규칙성), intensity: 트레일별 투명도 차등(1=기준). */
@@ -150,6 +153,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         buildAuroras()
         flareVbo = genBuffer()
         glowVbo = genBuffer()
+        sunGlowVbo = genBuffer()
+        sunFlareVbo = genBuffer()
+        sunBuiltFrac = -1f
         starsDirty = true // 서피스 재생성 시(백그라운드 복귀) 재업로드
         fade = 0f
         lastFrameNs = 0L
@@ -195,6 +201,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
         // 1.7) 오로라 커튼 — 우주 공간에 드리운 빛의 장막(배경층 — 지구가 위에 그려져 가려짐)
         for (au in auroras) drawAurora(au, t)
+        // 1.8) 태양 — 광원 방향 하늘의 해(코어+헤일로+4방 광선). 하루 주기로 광원과 함께 돈다
+        drawSun(camPos, t)
 
         // 2) 지구 본체 (불투명, 깊이 기록)
         GLES20.glDisable(GLES20.GL_BLEND)
@@ -246,10 +254,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glUseProgram(earthProgram)
         GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(earthProgram, "uMVP"), 1, false, mvp, 0)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(earthProgram, "uFade"), fade)
-        // 태양 방향 — UTC 기준 하루에 360도 회전(적도 상공, UTC 정오에 경도 0 상공).
-        // 지구 좌표계 벡터라 구를 드래그로 돌려도 "지금 실제로 낮인 지역"이 항상 밝다.
-        val dayFrac = (System.currentTimeMillis() % 86_400_000L) / 86_400_000f
-        val sun = latLngToXyz(0.0, 180.0 - dayFrac * 360.0, 1f)
+        // 태양 방향 — 지구 좌표계 벡터라 구를 드래그로 돌려도 "지금 실제로 낮인 지역"이 항상 밝다.
+        val sun = sunDirection()
         GLES20.glUniform3f(GLES20.glGetUniformLocation(earthProgram, "uSunDir"), sun[0], sun[1], sun[2])
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, earthTex)
@@ -293,6 +299,34 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glDisableVertexAttribArray(aPos)
         GLES20.glDisableVertexAttribArray(aUV)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+    }
+
+    /** 태양 방향(지구 좌표계 단위벡터) — UTC 기준 하루에 360도 회전(적도 상공, UTC 정오에 경도 0 상공). */
+    private fun sunDirection(): FloatArray {
+        val dayFrac = (System.currentTimeMillis() % 86_400_000L) / 86_400_000f
+        return latLngToXyz(0.0, 180.0 - dayFrac * 360.0, 1f)
+    }
+
+    /** 태양 — 광원 방향 하늘(SUN_DIST)에 떠 있는 해: 백열 코어 + 금빛 헤일로 + 원경 산광 + 4방 광선.
+     *  배경층(지구 앞에서 가려짐)에 additive 로 그린다. 하루 주기로 도는 위치는 1분 단위로만
+     *  재빌드(그 사이 이동량은 시각적으로 0에 수렴 — 매 프레임 버퍼 재업로드 낭비 방지). */
+    private fun drawSun(camPos: FloatArray, t: Float) {
+        val dayFrac = (System.currentTimeMillis() % 86_400_000L) / 86_400_000f
+        if (sunBuiltFrac < 0f || kotlin.math.abs(dayFrac - sunBuiltFrac) > 1f / 1440f) {
+            sunBuiltFrac = dayFrac
+            val dir = sunDirection()
+            val p = floatArrayOf(dir[0] * SUN_DIST, dir[1] * SUN_DIST, dir[2] * SUN_DIST)
+            val glows = ArrayList<Float>(3 * 6 * SPRITE_FLOATS)
+            addSprite(glows, p, r = 1.00f, g = 0.97f, b = 0.90f, a = 1f, size = 1.6f, phase = 0.13f, mode = 2f) // 백열 코어
+            addSprite(glows, p, r = 0.55f, g = 0.42f, b = 0.18f, a = 1f, size = 4.6f, phase = 0.47f, mode = 2f) // 금빛 헤일로
+            addSprite(glows, p, r = 0.16f, g = 0.10f, b = 0.04f, a = 1f, size = 11f, phase = 0.71f, mode = 2f)  // 원경 산광
+            uploadBuffer(sunGlowVbo, toFloatBuffer(glows))
+            val rays = ArrayList<Float>(6 * SPRITE_FLOATS)
+            addSprite(rays, p, r = 0.85f, g = 0.72f, b = 0.45f, a = 1f, size = 6.0f, phase = 0.29f, mode = 2f)  // 4방 광선
+            uploadBuffer(sunFlareVbo, toFloatBuffer(rays))
+        }
+        drawSprites(sunGlowVbo, 3 * 6, glowTex, camPos, t, depthTest = false)
+        drawSprites(sunFlareVbo, 6, flareTex, camPos, t, depthTest = false)
     }
 
     /** 오로라 커튼 — 트레일과 같은 리본 정점 포맷(pos3+uv2), 전용 셰이더로 주름을 흘린다. */
@@ -1029,6 +1063,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val GLOW_MAX = 5000
         private const val EARTH_BRIGHTNESS = 0.45f // 원본 대비 지구 밝기(균일)
         private const val TRAIL_COUNT = 5
+        private const val SUN_DIST = 45f // 태양 위치 반지름(원경 별밭 너머, far plane 안)
 
         /** 오로라 팔레트 — 아래(초록/청록)에서 위(보라/핑크/남보라)로 녹아드는 실제 오로라 색. */
         private val AURORA_GREEN = floatArrayOf(0.18f, 0.95f, 0.52f)
@@ -1089,6 +1124,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 // 배경 별(mode=1)도 모델 회전 적용 — 지구를 돌리면 우주가 같이 돌아 시점 이동감
                 vec3 wc = (uModel * vec4(aCenter, 1.0)).xyz;
                 float tw = 0.82 + 0.28 * sin(uTime * (1.1 + aPhase * 2.3) + aPhase * 6.2831);
+                if (aMode > 1.5) tw = 1.0; // mode=2: 트윙클 없는 정광(태양)
                 float vis = 1.0;
                 if (aMode < 0.5) {
                     vec3 n = normalize(wc);

@@ -156,6 +156,8 @@ private struct GlobeSceneView: UIViewRepresentable {
         let containerNode = SCNNode()
         /// 지구 재질 — 낮/밤 반구 셰이더의 uSunDir 를 매 프레임 갱신하기 위해 보관.
         private var earthMaterial: SCNMaterial?
+        /// 태양 노드 — 광원 방향 하늘에 떠 있는 해(하루 주기로 이동), 매 프레임 위치 갱신.
+        private var sunNode: SCNNode?
 
         init(
             startLat: Double, startLng: Double,
@@ -275,6 +277,8 @@ private struct GlobeSceneView: UIViewRepresentable {
             let wy = -rz * sin(b)                                // Rx(pitch), y'=0
             let wz = rz * cos(b)
             earthMaterial?.setValue(NSValue(scnVector3: SCNVector3(rx, wy, wz)), forKey: "uSunDir")
+            // 태양 노드 — 광원 방향 하늘(컨테이너 좌표계 = 모델 좌표계)에 위치.
+            sunNode?.position = SCNVector3(mx * 45, 0, mz * 45)
         }
 
         /// SceneKit euler 는 (roll→yaw→pitch) 순 적용 = Rx(pitch)·Ry(yaw) — Android uModel 과 동일.
@@ -308,6 +312,9 @@ private struct GlobeSceneView: UIViewRepresentable {
             for node in GlobeBuilder.starfieldNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.trailNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.auroraNodes() { containerNode.addChildNode(node) }
+            let sun = GlobeBuilder.sunNode()
+            sunNode = sun
+            containerNode.addChildNode(sun)
             for node in GlobeBuilder.flareNodes(diaries: valid) { containerNode.addChildNode(node) }
 
             // 진입 페이드(장면 밝기 0→1, Android fade 패리티)
@@ -550,6 +557,65 @@ private enum GlobeBuilder {
             ray(lenFrac: 0.98, thickFrac: 0.09, angleDeg: 90)
             ray(lenFrac: 0.52, thickFrac: 0.055, angleDeg: 45)
             ray(lenFrac: 0.52, thickFrac: 0.055, angleDeg: 135)
+        }
+    }
+
+    // MARK: 태양
+
+    /// 태양 — 광원 방향 하늘(반지름 45)에 떠 있는 해: 백열 코어 + 금빛 헤일로 + 원경 산광을
+    /// 한 장에 베이크한 글로우 빌보드 + 4방 광선 빌보드. additive, 배경층(지구가 가린다).
+    /// 위치는 Coordinator 가 매 프레임 광원 방향으로 갱신(Android drawSun 패리티).
+    static func sunNode() -> SCNNode {
+        let node = SCNNode()
+        func plane(_ size: CGFloat, _ image: UIImage, tint: UIColor?) -> SCNNode {
+            let geom = SCNPlane(width: size, height: size)
+            let material = SCNMaterial()
+            material.lightingModel = .constant
+            material.diffuse.contents = image
+            if let tint { material.multiply.contents = tint }
+            material.blendMode = .add
+            material.writesToDepthBuffer = false
+            geom.materials = [material]
+            let child = SCNNode(geometry: geom)
+            child.renderingOrder = -8 // 별밭(-12..-10)·오로라(-9) 다음, 지구(0)보다 먼저 — 배경층
+            return child
+        }
+        node.addChildNode(plane(11, makeSunImage(), tint: nil))
+        node.addChildNode(plane(6, makeFlareImage(),
+                                tint: UIColor(red: 0.85, green: 0.72, blue: 0.45, alpha: 1)))
+        let billboard = SCNBillboardConstraint()
+        billboard.freeAxes = .all
+        node.constraints = [billboard]
+        return node
+    }
+
+    /// 태양 글로우 텍스처 — 원경 산광(전체) + 금빛 헤일로(42%) + 백열 코어(15%)를
+    /// plusLighter 로 겹쳐 베이크. additive 재질이라 검정 = 투명.
+    private static func makeSunImage() -> UIImage {
+        let s: CGFloat = 256
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: s, height: s), format: format).image { ctx in
+            let cg = ctx.cgContext
+            UIColor.black.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
+            cg.setBlendMode(.plusLighter)
+            let c = CGPoint(x: s / 2, y: s / 2)
+            let space = CGColorSpaceCreateDeviceRGB()
+            func glow(_ color: UIColor, _ radiusFrac: CGFloat) {
+                guard let g = CGGradient(
+                    colorsSpace: space,
+                    colors: [color.cgColor,
+                             color.withAlphaComponent(0.35).cgColor,
+                             UIColor.black.cgColor] as CFArray,
+                    locations: [0, 0.35, 1]
+                ) else { return }
+                cg.drawRadialGradient(g, startCenter: c, startRadius: 0,
+                                      endCenter: c, endRadius: s / 2 * radiusFrac, options: [])
+            }
+            glow(UIColor(red: 0.16, green: 0.10, blue: 0.04, alpha: 1), 1.00) // 원경 산광
+            glow(UIColor(red: 0.55, green: 0.42, blue: 0.18, alpha: 1), 0.42) // 금빛 헤일로
+            glow(UIColor(red: 1.00, green: 0.97, blue: 0.90, alpha: 1), 0.15) // 백열 코어
         }
     }
 
