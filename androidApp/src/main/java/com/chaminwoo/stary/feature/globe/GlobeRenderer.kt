@@ -846,10 +846,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             )
         }
         // 하늘 곳곳에 4폭 — 반지름(시차)/기울기/길이/색이 모두 달라 서로 다른 장막으로 읽힌다
-        addCurtain(38.0, -60.0, 26f, 1.9f, 0.42f, -16f, AURORA_GREEN, AURORA_VIOLET, 0.9f, 0.95f)
-        addCurtain(-24.0, 30.0, 34f, 2.4f, 0.55f, 12f, AURORA_TEAL, AURORA_INDIGO, -0.7f, 0.60f)
-        addCurtain(8.0, 150.0, 30f, 2.1f, 0.48f, -7f, AURORA_GREEN, AURORA_PINK, 0.75f, 0.80f)
-        addCurtain(-48.0, -150.0, 38f, 2.6f, 0.60f, 18f, AURORA_TEAL, AURORA_VIOLET, 0.5f, 0.45f)
+        addCurtain(38.0, -60.0, 26f, 1.9f, 0.42f, -16f, AURORA_GREEN, AURORA_VIOLET, 0.65f, 0.95f)
+        addCurtain(-24.0, 30.0, 34f, 2.4f, 0.55f, 12f, AURORA_TEAL, AURORA_INDIGO, -0.5f, 0.60f)
+        addCurtain(8.0, 150.0, 30f, 2.1f, 0.48f, -7f, AURORA_GREEN, AURORA_PINK, 0.55f, 0.80f)
+        addCurtain(-48.0, -150.0, 38f, 2.6f, 0.60f, 18f, AURORA_TEAL, AURORA_VIOLET, 0.35f, 0.45f)
     }
 
     /** 부분 원호 리본(TRIANGLE_STRIP), 지구 좌표계. 반환: (vbo, 정점수). */
@@ -1070,10 +1070,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             uniform vec3 uSunDir; // 태양 방향(지구 좌표계 단위벡터) — UTC 하루 기준 360도 회전
             varying vec2 vUV; varying vec3 vN;
             void main() {
-                // 낮/밤 반구 — 태양 쪽은 기준 밝기 그대로(1.0), 반대쪽은 30% 감광(0.7).
+                // 낮/밤 반구 — 태양 쪽은 기준보다 살짝 밝게(1.15), 반대쪽은 30% 감광(0.7).
                 // 터미네이터(명암 경계)는 smoothstep 으로 자연스럽게 이어진다.
                 float ndl = dot(normalize(vN), uSunDir);
-                float light = 0.70 + 0.30 * smoothstep(-0.18, 0.22, ndl);
+                float light = 0.70 + 0.45 * smoothstep(-0.18, 0.22, ndl);
                 gl_FragColor = vec4(texture2D(uTex, vUV).rgb * $EARTH_BRIGHTNESS * light * uFade, 1.0);
             }
         """

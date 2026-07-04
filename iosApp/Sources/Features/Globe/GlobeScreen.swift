@@ -343,7 +343,7 @@ private enum GlobeBuilder {
             float3 uSunDir;
             #pragma body
             float ndl = dot(normalize(_surface.normal), normalize(uSunDir));
-            float light = 0.70 + 0.30 * smoothstep(-0.18, 0.22, ndl);
+            float light = 0.70 + 0.45 * smoothstep(-0.18, 0.22, ndl);
             _surface.diffuse.rgb *= light;
             """
         ]
@@ -1017,13 +1017,13 @@ private enum GlobeBuilder {
         // 하늘 곳곳에 4폭 — 반지름(시차)/기울기/길이/색이 모두 달라 서로 다른 장막으로 읽힌다
         return [
             curtain(centerLat: 38, centerLng: -60, radius: 26, lengthRad: 1.9, heightRad: 0.42,
-                    rollDeg: -16, bot: green, top: violet, speed: 0.9, intensity: 0.95),
+                    rollDeg: -16, bot: green, top: violet, speed: 0.65, intensity: 0.95),
             curtain(centerLat: -24, centerLng: 30, radius: 34, lengthRad: 2.4, heightRad: 0.55,
-                    rollDeg: 12, bot: teal, top: indigo, speed: -0.7, intensity: 0.60),
+                    rollDeg: 12, bot: teal, top: indigo, speed: -0.5, intensity: 0.60),
             curtain(centerLat: 8, centerLng: 150, radius: 30, lengthRad: 2.1, heightRad: 0.48,
-                    rollDeg: -7, bot: green, top: pink, speed: 0.75, intensity: 0.80),
+                    rollDeg: -7, bot: green, top: pink, speed: 0.55, intensity: 0.80),
             curtain(centerLat: -48, centerLng: -150, radius: 38, lengthRad: 2.6, heightRad: 0.60,
-                    rollDeg: 18, bot: teal, top: violet, speed: 0.5, intensity: 0.45),
+                    rollDeg: 18, bot: teal, top: violet, speed: 0.35, intensity: 0.45),
         ]
     }
 
