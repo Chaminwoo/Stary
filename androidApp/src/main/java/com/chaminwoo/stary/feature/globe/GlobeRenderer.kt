@@ -106,6 +106,16 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     )
     private val trails = ArrayList<Trail>()
 
+    /** 오로라 커튼(지구 좌표계 극지 오벌 리본 — 구와 함께 회전).
+     *  botColor→topColor 수직 그라데이션, 주름(fold)은 셰이더가 uTime 으로 흘린다. */
+    private class Aurora(
+        val vbo: Int, val count: Int,
+        val botColor: FloatArray, val topColor: FloatArray,
+        val speed: Float, val phase: Float, val intensity: Float,
+    )
+    private val auroras = ArrayList<Aurora>()
+    private var auroraProgram = 0
+
     // ── 행렬 ──
     private val proj = FloatArray(16)
     private val view = FloatArray(16)
@@ -127,6 +137,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         spriteProgram = buildProgram(SPRITE_VS, SPRITE_FS)
         ringProgram = buildProgram(RING_VS, RING_FS)
         lineProgram = buildProgram(LINE_VS, LINE_FS)
+        auroraProgram = buildProgram(RING_VS, AURORA_FS)
 
         buildEarthMesh()
         earthTex = loadEarthTexture()
@@ -134,6 +145,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         glowTex = uploadTexture(makeGlowBitmap())
         buildStarfield()
         buildTrails()
+        buildAuroras()
         flareVbo = genBuffer()
         glowVbo = genBuffer()
         starsDirty = true // 서피스 재생성 시(백그라운드 복귀) 재업로드
@@ -193,6 +205,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         // 3) 궤적 트레일 — 지구 좌표계(uMVP)라 구를 돌리면 같이 회전
         for (tr in trails) drawTrail(tr, t)
+
+        // 3.5) 오로라 커튼 — 극지 상공 오벌, 깊이 테스트로 행성 뒤편은 가려지고
+        //      림(가장자리) 너머로 살짝 솟은 부분은 그대로 보여 "우주에서 본 오로라"가 된다
+        for (au in auroras) drawAurora(au, t)
 
         // 4) 다이어리 노란 불빛(도시 야경) → 5) 별 플레어
         if (glowVertexCount > 0) drawSprites(glowVbo, glowVertexCount, glowTex, camPos, t, depthTest = true)
@@ -269,6 +285,31 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glEnableVertexAttribArray(aUV)
         GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, 20, 12)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, tr.count)
+        GLES20.glDisableVertexAttribArray(aPos)
+        GLES20.glDisableVertexAttribArray(aUV)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+    }
+
+    /** 오로라 커튼 — 트레일과 같은 리본 정점 포맷(pos3+uv2), 전용 셰이더로 주름을 흘린다. */
+    private fun drawAurora(au: Aurora, t: Float) {
+        if (au.vbo == 0 || au.count == 0) return
+        GLES20.glUseProgram(auroraProgram)
+        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(auroraProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uTime"), t)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uSpeed"), au.speed)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uPhase"), au.phase)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uIntensity"), au.intensity)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uFade"), fade)
+        GLES20.glUniform3fv(GLES20.glGetUniformLocation(auroraProgram, "uBotColor"), 1, au.botColor, 0)
+        GLES20.glUniform3fv(GLES20.glGetUniformLocation(auroraProgram, "uTopColor"), 1, au.topColor, 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, au.vbo)
+        val aPos = GLES20.glGetAttribLocation(auroraProgram, "aPos")
+        val aUV = GLES20.glGetAttribLocation(auroraProgram, "aUV")
+        GLES20.glEnableVertexAttribArray(aPos)
+        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 20, 0)
+        GLES20.glEnableVertexAttribArray(aUV)
+        GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, 20, 12)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, au.count)
         GLES20.glDisableVertexAttribArray(aPos)
         GLES20.glDisableVertexAttribArray(aUV)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
@@ -743,6 +784,51 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
+    /** 오로라 커튼 세트 — 북/남극 상공에 각 2겹(주 커튼 + 옅은 보조 커튼).
+     *  물결치는 위도 오벌을 따라 구 표면 살짝 위(AURORA_BOT)에서 수직으로 솟는 닫힌 리본.
+     *  v=0(아래, 초록 또렷) → v=1(위, 보라/핑크로 소멸). 주름 애니메이션은 셰이더 담당. */
+    private fun buildAuroras() {
+        auroras.clear()
+        val rnd = java.util.Random(23L)
+        fun addCurtain(
+            baseLatDeg: Float, botColor: FloatArray, topColor: FloatArray,
+            speed: Float, intensity: Float,
+        ) {
+            val segs = 256
+            val p1 = rnd.nextFloat() * 6.2832f
+            val p2 = rnd.nextFloat() * 6.2832f
+            val p3 = rnd.nextFloat() * 6.2832f
+            val list = ArrayList<Float>((segs + 1) * 2 * 5)
+            for (s in 0..segs) {
+                val u = s.toFloat() / segs
+                val ang = u * 6.2832f
+                // 오벌 물결 — 저주파+중주파 겹침(닫힌 링이라 정수 주파수만 → 이음매 없음)
+                val latWave = 4.2f * sin(ang * 3f + p1) + 1.8f * sin(ang * 7f + p2)
+                val lat = (baseLatDeg + latWave * (if (baseLatDeg < 0) -1f else 1f)).toDouble()
+                val lng = (u * 360.0) - 180.0
+                val height = 0.15f + 0.05f * sin(ang * 2f + p3)
+                val bot = latLngToXyz(lat, lng, AURORA_BOT)
+                val top = latLngToXyz(lat, lng, AURORA_BOT + height)
+                list.add(bot[0]); list.add(bot[1]); list.add(bot[2]); list.add(u); list.add(0f)
+                list.add(top[0]); list.add(top[1]); list.add(top[2]); list.add(u); list.add(1f)
+            }
+            val vbo = genBuffer()
+            uploadBuffer(vbo, toFloatBuffer(list))
+            auroras.add(
+                Aurora(
+                    vbo, list.size / 5, botColor, topColor,
+                    speed = speed, phase = rnd.nextFloat() * 6.2832f, intensity = intensity,
+                )
+            )
+        }
+        // 북극 — 주 커튼(초록→보라) + 높은 보조 커튼(청록→남보라, 옅게)
+        addCurtain(66.5f, AURORA_GREEN, AURORA_VIOLET, speed = 0.9f, intensity = 0.85f)
+        addCurtain(72.0f, AURORA_TEAL, AURORA_INDIGO, speed = -0.6f, intensity = 0.42f)
+        // 남극 — 주 커튼(초록→핑크) + 보조 커튼
+        addCurtain(-66.5f, AURORA_GREEN, AURORA_PINK, speed = -0.8f, intensity = 0.75f)
+        addCurtain(-72.0f, AURORA_TEAL, AURORA_VIOLET, speed = 0.55f, intensity = 0.40f)
+    }
+
     /** 부분 원호 리본(TRIANGLE_STRIP), 지구 좌표계. 반환: (vbo, 정점수). */
     private fun buildArc(
         radius: Float, halfWidth: Float,
@@ -920,6 +1006,14 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val GLOW_MAX = 5000
         private const val EARTH_BRIGHTNESS = 0.45f // 원본 대비 지구 밝기(균일)
         private const val TRAIL_COUNT = 5
+        private const val AURORA_BOT = 1.022f // 오로라 커튼 하단(구 표면 살짝 위 — 박힘 방지)
+
+        /** 오로라 팔레트 — 아래(초록/청록)에서 위(보라/핑크/남보라)로 녹아드는 실제 오로라 색. */
+        private val AURORA_GREEN = floatArrayOf(0.18f, 0.95f, 0.52f)
+        private val AURORA_TEAL = floatArrayOf(0.20f, 0.80f, 0.78f)
+        private val AURORA_VIOLET = floatArrayOf(0.58f, 0.32f, 0.95f)
+        private val AURORA_PINK = floatArrayOf(0.90f, 0.38f, 0.78f)
+        private val AURORA_INDIGO = floatArrayOf(0.35f, 0.40f, 0.98f)
 
         /** 별 플레어 팔레트(레퍼런스풍) — 빨강/파랑/분홍/노랑/민트/보라/백색. */
         private val FLARE_COLORS = intArrayOf(
@@ -1040,6 +1134,35 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 vec3 c = col * (glow * flow + core * (0.10 + 0.10 * flow))
                        + vec3(1.0) * core * pulse * 0.30;
                 gl_FragColor = vec4(c * ends * uFade * uIntensity, 1.0);
+            }
+        """
+
+        /** 오로라 커튼 셰이더 — u: 오벌 한 바퀴(0..1), v: 높이(0=아래 가장자리, 1=꼭대기).
+         *  아래 가장자리는 또렷하고 위로 갈수록 소멸, 주름(fold) 파동 3개가 서로 다른
+         *  속도로 흐르며 간섭 + 오벌 전체를 도는 저주파 섹터 파동으로 살아있는 느낌. */
+        private const val AURORA_FS = """
+            precision mediump float;
+            uniform float uTime; uniform float uSpeed; uniform float uFade; uniform float uPhase;
+            uniform float uIntensity;
+            uniform vec3 uBotColor; uniform vec3 uTopColor;
+            varying vec2 vUV;
+            void main() {
+                float u = vUV.x;
+                float v = vUV.y;
+                float t = uTime * uSpeed;
+                // 커튼 주름 — 정수 주파수 파동 3개(닫힌 링 이음매 없음)가 흐르며 간섭
+                float f1 = 0.5 + 0.5 * sin(u * 6.2831 * 9.0 + t * 1.00 + uPhase);
+                float f2 = 0.5 + 0.5 * sin(u * 6.2831 * 23.0 - t * 1.70 + uPhase * 2.7);
+                float f3 = 0.5 + 0.5 * sin(u * 6.2831 * 4.0 + t * 0.45 + uPhase * 1.3);
+                float folds = 0.22 + 0.78 * (0.45 * f1 + 0.35 * f2 + 0.20 * f3);
+                // 오벌 전체 밝기 편차 — 균일한 링이 아니라 숨쉬는 오로라 오벌처럼
+                float sector = 0.45 + 0.55 * (0.5 + 0.5 * sin(u * 6.2831 + t * 0.12 + uPhase * 0.7));
+                // 수직 프로파일 — 아래 가장자리 또렷, 위로 갈수록 부드럽게 소멸
+                float base = smoothstep(0.0, 0.10, v);
+                float fadeUp = pow(1.0 - v, 1.6);
+                vec3 col = mix(uBotColor, uTopColor, smoothstep(0.05, 0.90, v));
+                float a = base * fadeUp * folds * sector * uIntensity;
+                gl_FragColor = vec4(col * a * uFade, 1.0);
             }
         """
     }

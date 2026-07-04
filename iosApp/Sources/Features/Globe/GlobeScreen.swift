@@ -288,6 +288,7 @@ private struct GlobeSceneView: UIViewRepresentable {
             containerNode.addChildNode(GlobeBuilder.earthNode(diaries: valid))
             for node in GlobeBuilder.starfieldNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.trailNodes() { containerNode.addChildNode(node) }
+            for node in GlobeBuilder.auroraNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.flareNodes(diaries: valid) { containerNode.addChildNode(node) }
 
             // 진입 페이드(장면 밝기 0→1, Android fade 패리티)
@@ -864,6 +865,128 @@ private enum GlobeBuilder {
                 let r = ((Double(aR) * (1 - mix) + Double(bR) * mix) * colored + white) * ends
                 let g = ((Double(aG) * (1 - mix) + Double(bG) * mix) * colored + white) * ends
                 let b = ((Double(aB) * (1 - mix) + Double(bB) * mix) * colored + white) * ends
+                let o = (y * w + x) * 4
+                pixels[o] = UInt8(min(255, r * 255))
+                pixels[o + 1] = UInt8(min(255, g * 255))
+                pixels[o + 2] = UInt8(min(255, b * 255))
+                pixels[o + 3] = 255
+            }
+        }
+        let data = Data(pixels)
+        guard let provider = CGDataProvider(data: data as CFData),
+              let cg = CGImage(
+                width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent
+              )
+        else { return UIImage() }
+        return UIImage(cgImage: cg)
+    }
+
+    // MARK: 오로라 커튼
+
+    /// 오로라 커튼 세트 — 북/남극 상공에 각 2겹(주 커튼 + 옅은 보조 커튼).
+    /// 물결치는 위도 오벌을 따라 구 표면 살짝 위에서 수직으로 솟는 닫힌 리본.
+    /// v=0(아래, 초록 또렷) → v=1(위, 보라/핑크로 소멸).
+    /// (Android GlobeRenderer buildAuroras/AURORA_FS 패리티 — 수직 그라데이션·소멸 프로파일은
+    ///  텍스처에 베이크, 주름(fold)·섹터 파동은 셰이더 모디파이어가 u_time 으로 흘린다.)
+    static func auroraNodes() -> [SCNNode] {
+        // 오로라 팔레트 — 아래(초록/청록)에서 위(보라/핑크/남보라)로 녹아드는 실제 오로라 색
+        let green: (CGFloat, CGFloat, CGFloat) = (0.18, 0.95, 0.52)
+        let teal: (CGFloat, CGFloat, CGFloat) = (0.20, 0.80, 0.78)
+        let violet: (CGFloat, CGFloat, CGFloat) = (0.58, 0.32, 0.95)
+        let pink: (CGFloat, CGFloat, CGFloat) = (0.90, 0.38, 0.78)
+        let indigo: (CGFloat, CGFloat, CGFloat) = (0.35, 0.40, 0.98)
+        var seed: UInt64 = 23
+        func rnd() -> Float { // xorshift — 결정적(진입마다 같은 오로라, Android seed 23 패리티)
+            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17
+            return Float(seed % 10_000) / 10_000
+        }
+        func curtain(
+            baseLatDeg: Float, bot: (CGFloat, CGFloat, CGFloat), top: (CGFloat, CGFloat, CGFloat),
+            speed: Double, intensity: Double
+        ) -> SCNNode {
+            let segs = 192
+            let botRadius: Float = 1.022 // 커튼 하단(구 표면 살짝 위 — 박힘 방지)
+            let p1 = rnd() * 6.2832, p2 = rnd() * 6.2832, p3 = rnd() * 6.2832
+            var vertices: [SCNVector3] = []
+            var uvs: [CGPoint] = []
+            for s in 0...segs {
+                let u = Float(s) / Float(segs)
+                let ang = u * 6.2832
+                // 오벌 물결 — 저주파+중주파 겹침(닫힌 링이라 정수 주파수만 → 이음매 없음)
+                let latWave = 4.2 * sin(ang * 3 + p1) + 1.8 * sin(ang * 7 + p2)
+                let lat = Double(baseLatDeg + latWave * (baseLatDeg < 0 ? -1 : 1))
+                let lng = Double(u) * 360.0 - 180.0
+                let height = 0.15 + 0.05 * sin(ang * 2 + p3)
+                vertices.append(latLngToXyz(lat: lat, lng: lng, radius: botRadius))
+                uvs.append(CGPoint(x: CGFloat(u), y: 0))
+                vertices.append(latLngToXyz(lat: lat, lng: lng, radius: botRadius + height))
+                uvs.append(CGPoint(x: CGFloat(u), y: 1))
+            }
+            let indices: [Int32] = Array(0..<Int32(vertices.count))
+            let geometry = SCNGeometry(
+                sources: [SCNGeometrySource(vertices: vertices), SCNGeometrySource(textureCoordinates: uvs)],
+                elements: [SCNGeometryElement(indices: indices, primitiveType: .triangleStrip)]
+            )
+            let material = SCNMaterial()
+            material.lightingModel = .constant
+            material.diffuse.contents = auroraTexture(bot: bot, top: top, intensity: intensity)
+            material.blendMode = .add
+            material.isDoubleSided = true
+            material.writesToDepthBuffer = false
+            let phase = Double(rnd()) * 6.2832
+            // 주름(fold) 3파동 간섭 + 오벌을 도는 섹터 파동 — Android AURORA_FS 패리티.
+            // 셰이더 모디파이어는 런타임 컴파일이라 실패해도 정적 커튼으로 안전 폴백된다.
+            material.shaderModifiers = [
+                .surface: """
+                float u = _surface.diffuseTexcoord.x;
+                float t = u_time * \(speed);
+                float f1 = 0.5 + 0.5 * sin(u * 6.2831 * 9.0 + t * 1.00 + \(phase));
+                float f2 = 0.5 + 0.5 * sin(u * 6.2831 * 23.0 - t * 1.70 + \(phase * 2.7));
+                float f3 = 0.5 + 0.5 * sin(u * 6.2831 * 4.0 + t * 0.45 + \(phase * 1.3));
+                float folds = 0.22 + 0.78 * (0.45 * f1 + 0.35 * f2 + 0.20 * f3);
+                float sector = 0.45 + 0.55 * (0.5 + 0.5 * sin(u * 6.2831 + t * 0.12 + \(phase * 0.7)));
+                _surface.diffuse.rgb *= folds * sector;
+                """
+            ]
+            geometry.materials = [material]
+            return SCNNode(geometry: geometry)
+        }
+        return [
+            // 북극 — 주 커튼(초록→보라) + 높은 보조 커튼(청록→남보라, 옅게)
+            curtain(baseLatDeg: 66.5, bot: green, top: violet, speed: 0.9, intensity: 0.85),
+            curtain(baseLatDeg: 72.0, bot: teal, top: indigo, speed: -0.6, intensity: 0.42),
+            // 남극 — 주 커튼(초록→핑크) + 보조 커튼
+            curtain(baseLatDeg: -66.5, bot: green, top: pink, speed: -0.8, intensity: 0.75),
+            curtain(baseLatDeg: -72.0, bot: teal, top: violet, speed: 0.55, intensity: 0.40),
+        ]
+    }
+
+    /// 오로라 커튼 텍스처 — 수직(v) 프로파일만 베이크: 아래 가장자리 또렷(smoothstep),
+    /// 위로 갈수록 소멸(pow 1.6), botColor→topColor 그라데이션. additive 라 밝기를 RGB 에 직접 베이크.
+    /// 주름·섹터 파동은 셰이더 모디파이어가 런타임에 곱한다(Android AURORA_FS 분해 동일).
+    private static func auroraTexture(
+        bot: (CGFloat, CGFloat, CGFloat), top: (CGFloat, CGFloat, CGFloat), intensity: Double
+    ) -> UIImage {
+        let w = 4, h = 128
+        func smoothstep(_ e0: Double, _ e1: Double, _ x: Double) -> Double {
+            let t = min(max((x - e0) / (e1 - e0), 0), 1)
+            return t * t * (3 - 2 * t)
+        }
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
+        for y in 0..<h {
+            // 텍스처 y=0(이미지 위) = texcoord v=0 = 커튼 아래 가장자리
+            let v = Double(y) / Double(h - 1)
+            let base = smoothstep(0.0, 0.10, v)
+            let fadeUp = pow(1.0 - v, 1.6)
+            let mix = smoothstep(0.05, 0.90, v)
+            let a = base * fadeUp * intensity
+            let r = (Double(bot.0) * (1 - mix) + Double(top.0) * mix) * a
+            let g = (Double(bot.1) * (1 - mix) + Double(top.1) * mix) * a
+            let b = (Double(bot.2) * (1 - mix) + Double(top.2) * mix) * a
+            for x in 0..<w {
                 let o = (y * w + x) * 4
                 pixels[o] = UInt8(min(255, r * 255))
                 pixels[o + 1] = UInt8(min(255, g * 255))
