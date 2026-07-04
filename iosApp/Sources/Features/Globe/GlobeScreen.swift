@@ -886,11 +886,13 @@ private enum GlobeBuilder {
 
     // MARK: 오로라 커튼
 
-    /// 오로라 커튼 세트 — 북/남극 상공에 각 2겹(주 커튼 + 옅은 보조 커튼).
-    /// 물결치는 위도 오벌을 따라 구 표면 살짝 위에서 수직으로 솟는 닫힌 리본.
-    /// v=0(아래, 초록 또렷) → v=1(위, 보라/핑크로 소멸).
-    /// (Android GlobeRenderer buildAuroras/AURORA_FS 패리티 — 수직 그라데이션·소멸 프로파일은
-    ///  텍스처에 베이크, 주름(fold)·섹터 파동은 셰이더 모디파이어가 u_time 으로 흘린다.)
+    /// 오로라 커튼 세트 — 우주 공간(배경 별밭 셸 사이)에 드리운 빛의 장막 4폭.
+    /// 극지 오벌이 아니라 하늘에 떠 있는 자유 커튼: 중심 방향의 접평면(east/north 기저)을 따라
+    /// 밑단이 완만한 S 라인으로 물결치고 위로 솟아 소멸한다. 반지름을 폭마다 달리해
+    /// 회전/줌 시 별밭 셸처럼 시차(깊이감)가 난다.
+    /// v=0(아래 가장자리, 초록 또렷) → v=1(위, 보라/핑크로 소멸).
+    /// (Android GlobeRenderer buildAuroras/AURORA_FS 패리티 — 수직 프로파일·양끝 소멸은
+    ///  텍스처에 베이크, 주름(fold)·스윕 파동은 셰이더 모디파이어가 u_time 으로 흘린다.)
     static func auroraNodes() -> [SCNNode] {
         // 오로라 팔레트 — 아래(초록/청록)에서 위(보라/핑크/남보라)로 녹아드는 실제 오로라 색
         let green: (CGFloat, CGFloat, CGFloat) = (0.18, 0.95, 0.52)
@@ -903,26 +905,48 @@ private enum GlobeBuilder {
             seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17
             return Float(seed % 10_000) / 10_000
         }
+        func cross(_ a: SCNVector3, _ b: SCNVector3) -> SCNVector3 {
+            SCNVector3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
+        }
+        func norm(_ v: SCNVector3) -> SCNVector3 {
+            let len = max(sqrt(v.x * v.x + v.y * v.y + v.z * v.z), 1e-6)
+            return SCNVector3(v.x / len, v.y / len, v.z / len)
+        }
         func curtain(
-            baseLatDeg: Float, bot: (CGFloat, CGFloat, CGFloat), top: (CGFloat, CGFloat, CGFloat),
+            centerLat: Double, centerLng: Double, radius: Float,
+            lengthRad: Float, heightRad: Float, rollDeg: Float,
+            bot: (CGFloat, CGFloat, CGFloat), top: (CGFloat, CGFloat, CGFloat),
             speed: Double, intensity: Double
         ) -> SCNNode {
-            let segs = 192
-            let botRadius: Float = 1.022 // 커튼 하단(구 표면 살짝 위 — 박힘 방지)
+            let segs = 160
             let p1 = rnd() * 6.2832, p2 = rnd() * 6.2832, p3 = rnd() * 6.2832
+            let c = latLngToXyz(lat: centerLat, lng: centerLng, radius: 1)
+            let east = norm(cross(SCNVector3(0, 1, 0), c))
+            let north = norm(cross(c, east))
+            let roll = rollDeg * Float.pi / 180
+            let cosR = cos(roll), sinR = sin(roll)
+            func dirAt(_ x0: Float, _ y0: Float) -> SCNVector3 {
+                let x = x0 * cosR - y0 * sinR
+                let y = x0 * sinR + y0 * cosR
+                return norm(SCNVector3(
+                    c.x + east.x * x + north.x * y,
+                    c.y + east.y * x + north.y * y,
+                    c.z + east.z * x + north.z * y
+                ))
+            }
             var vertices: [SCNVector3] = []
             var uvs: [CGPoint] = []
             for s in 0...segs {
                 let u = Float(s) / Float(segs)
-                let ang = u * 6.2832
-                // 오벌 물결 — 저주파+중주파 겹침(닫힌 링이라 정수 주파수만 → 이음매 없음)
-                let latWave = 4.2 * sin(ang * 3 + p1) + 1.8 * sin(ang * 7 + p2)
-                let lat = Double(baseLatDeg + latWave * (baseLatDeg < 0 ? -1 : 1))
-                let lng = Double(u) * 360.0 - 180.0
-                let height = 0.15 + 0.05 * sin(ang * 2 + p3)
-                vertices.append(latLngToXyz(lat: lat, lng: lng, radius: botRadius))
+                let x = (u - 0.5) * lengthRad
+                // 커튼 밑단의 완만한 물결(S 라인) — 자로 잰 듯한 직선이 되지 않게
+                let yWave = 0.10 * sin(u * 6.2832 * 1.5 + p1) + 0.045 * sin(u * 6.2832 * 3.7 + p2)
+                let h = heightRad * (0.82 + 0.18 * sin(u * 6.2832 * 2 + p3))
+                let botDir = dirAt(x, yWave)
+                let topDir = dirAt(x, yWave + h)
+                vertices.append(SCNVector3(botDir.x * radius, botDir.y * radius, botDir.z * radius))
                 uvs.append(CGPoint(x: CGFloat(u), y: 0))
-                vertices.append(latLngToXyz(lat: lat, lng: lng, radius: botRadius + height))
+                vertices.append(SCNVector3(topDir.x * radius, topDir.y * radius, topDir.z * radius))
                 uvs.append(CGPoint(x: CGFloat(u), y: 1))
             }
             let indices: [Int32] = Array(0..<Int32(vertices.count))
@@ -937,40 +961,45 @@ private enum GlobeBuilder {
             material.isDoubleSided = true
             material.writesToDepthBuffer = false
             let phase = Double(rnd()) * 6.2832
-            // 주름(fold) 3파동 간섭 + 오벌을 도는 섹터 파동 — Android AURORA_FS 패리티.
+            // 주름(fold) 3파동 간섭 + 커튼을 훑는 저주파 스윕 — Android AURORA_FS 패리티.
             // 셰이더 모디파이어는 런타임 컴파일이라 실패해도 정적 커튼으로 안전 폴백된다.
             material.shaderModifiers = [
                 .surface: """
                 float u = _surface.diffuseTexcoord.x;
                 float t = u_time * \(speed);
-                float f1 = 0.5 + 0.5 * sin(u * 6.2831 * 9.0 + t * 1.00 + \(phase));
-                float f2 = 0.5 + 0.5 * sin(u * 6.2831 * 23.0 - t * 1.70 + \(phase * 2.7));
-                float f3 = 0.5 + 0.5 * sin(u * 6.2831 * 4.0 + t * 0.45 + \(phase * 1.3));
+                float f1 = 0.5 + 0.5 * sin(u * 6.2831 * 5.0 + t * 1.00 + \(phase));
+                float f2 = 0.5 + 0.5 * sin(u * 6.2831 * 12.0 - t * 1.70 + \(phase * 2.7));
+                float f3 = 0.5 + 0.5 * sin(u * 6.2831 * 2.5 + t * 0.45 + \(phase * 1.3));
                 float folds = 0.22 + 0.78 * (0.45 * f1 + 0.35 * f2 + 0.20 * f3);
-                float sector = 0.45 + 0.55 * (0.5 + 0.5 * sin(u * 6.2831 + t * 0.12 + \(phase * 0.7)));
-                _surface.diffuse.rgb *= folds * sector;
+                float sweep = 0.45 + 0.55 * (0.5 + 0.5 * sin(u * 6.2831 * 0.8 + t * 0.12 + \(phase * 0.7)));
+                _surface.diffuse.rgb *= folds * sweep;
                 """
             ]
             geometry.materials = [material]
-            return SCNNode(geometry: geometry)
+            let node = SCNNode(geometry: geometry)
+            node.renderingOrder = -9 // 별밭 셸(-12..-10) 다음, 지구(0)보다 먼저 — 배경층
+            return node
         }
+        // 하늘 곳곳에 4폭 — 반지름(시차)/기울기/길이/색이 모두 달라 서로 다른 장막으로 읽힌다
         return [
-            // 북극 — 주 커튼(초록→보라) + 높은 보조 커튼(청록→남보라, 옅게)
-            curtain(baseLatDeg: 66.5, bot: green, top: violet, speed: 0.9, intensity: 0.85),
-            curtain(baseLatDeg: 72.0, bot: teal, top: indigo, speed: -0.6, intensity: 0.42),
-            // 남극 — 주 커튼(초록→핑크) + 보조 커튼
-            curtain(baseLatDeg: -66.5, bot: green, top: pink, speed: -0.8, intensity: 0.75),
-            curtain(baseLatDeg: -72.0, bot: teal, top: violet, speed: 0.55, intensity: 0.40),
+            curtain(centerLat: 38, centerLng: -60, radius: 26, lengthRad: 1.9, heightRad: 0.42,
+                    rollDeg: -16, bot: green, top: violet, speed: 0.9, intensity: 0.95),
+            curtain(centerLat: -24, centerLng: 30, radius: 34, lengthRad: 2.4, heightRad: 0.55,
+                    rollDeg: 12, bot: teal, top: indigo, speed: -0.7, intensity: 0.60),
+            curtain(centerLat: 8, centerLng: 150, radius: 30, lengthRad: 2.1, heightRad: 0.48,
+                    rollDeg: -7, bot: green, top: pink, speed: 0.75, intensity: 0.80),
+            curtain(centerLat: -48, centerLng: -150, radius: 38, lengthRad: 2.6, heightRad: 0.60,
+                    rollDeg: 18, bot: teal, top: violet, speed: 0.5, intensity: 0.45),
         ]
     }
 
-    /// 오로라 커튼 텍스처 — 수직(v) 프로파일만 베이크: 아래 가장자리 또렷(smoothstep),
-    /// 위로 갈수록 소멸(pow 1.6), botColor→topColor 그라데이션. additive 라 밝기를 RGB 에 직접 베이크.
-    /// 주름·섹터 파동은 셰이더 모디파이어가 런타임에 곱한다(Android AURORA_FS 분해 동일).
+    /// 오로라 커튼 텍스처 — 정적 성분 베이크: 수직(v)은 아래 가장자리 또렷(smoothstep)
+    /// → 위로 갈수록 소멸(pow 1.6) + botColor→topColor 그라데이션, 길이(u)는 양끝 소멸 램프.
+    /// additive 라 밝기를 RGB 에 직접 베이크. 주름·스윕 파동은 셰이더 모디파이어가 런타임에 곱한다.
     private static func auroraTexture(
         bot: (CGFloat, CGFloat, CGFloat), top: (CGFloat, CGFloat, CGFloat), intensity: Double
     ) -> UIImage {
-        let w = 4, h = 128
+        let w = 256, h = 128
         func smoothstep(_ e0: Double, _ e1: Double, _ x: Double) -> Double {
             let t = min(max((x - e0) / (e1 - e0), 0), 1)
             return t * t * (3 - 2 * t)
@@ -987,10 +1016,13 @@ private enum GlobeBuilder {
             let g = (Double(bot.1) * (1 - mix) + Double(top.1) * mix) * a
             let b = (Double(bot.2) * (1 - mix) + Double(top.2) * mix) * a
             for x in 0..<w {
+                let u = Double(x) / Double(w - 1)
+                // 양 끝은 점점 투명해지며 소멸(열린 커튼 — 확 끊기지 않게 긴 램프)
+                let ends = smoothstep(0.0, 0.14, u) * smoothstep(1.0, 0.86, u)
                 let o = (y * w + x) * 4
-                pixels[o] = UInt8(min(255, r * 255))
-                pixels[o + 1] = UInt8(min(255, g * 255))
-                pixels[o + 2] = UInt8(min(255, b * 255))
+                pixels[o] = UInt8(min(255, r * ends * 255))
+                pixels[o + 1] = UInt8(min(255, g * ends * 255))
+                pixels[o + 2] = UInt8(min(255, b * ends * 255))
                 pixels[o + 3] = 255
             }
         }
