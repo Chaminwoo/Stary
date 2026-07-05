@@ -34,8 +34,10 @@ import kotlin.math.sin
  *     뚜렷한 은하수(잔별 밀집 띠 + 끊김 없는 헤이즈 리본 + 은하핵 벌지) +
  *     황도 12궁 별자리(레퍼런스 references/zodiac.avif, 궁별 고유색 + 희미한 연결선) + 4방 광선 반짝별 —
  *     카메라가 중심에서 떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감
- *  1.5. 유성: 랜덤 간격(4~11초)으로 실제 3D 우주공간을 가로지르는 별똥별 —
- *     머리(백색)+꼬리(청백) 스프라이트 체인, 깊이 성분 포함 랜덤 3D 경로(원근 이동), 점화→소멸 봉투
+ *  1.5. 유성: 입장 후 30초마다 25% 확률 판정 → 성공 시 낙하, 끝나면 대기 없이 즉시 재판정
+ *     (운 좋으면 연속으로 여러 개, 실패하면 다시 30초 대기) — 실제 3D 우주공간을 가로지르는
+ *     별똥별. 머리(밝게)+꼬리(스트릭 순번별 색상) 스프라이트 체인, 깊이 성분 포함 랜덤 3D
+ *     경로(원근 이동), 점화→소멸 봉투
  *  2. 지구 구체: 원본의 3/4 밝기 기준 + 낮/밤 반구 — UTC 하루 기준 360도 도는 태양 방향의
  *     반구는 기준 밝기 그대로, 반대 반구는 30% 감광, 터미네이터는 smoothstep 으로 부드럽게
  *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 아주 옅은 글로우, 훨씬 반투명.
@@ -119,7 +121,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var meteorVbo = 0
     private var meteorStartT = -1f          // 진행 중 유성의 시작 시각(초). 음수 = 대기 중
     private var meteorDur = 1.1f            // 이번 유성 수명(초)
-    private var nextMeteorT = 0f            // 다음 유성 출현 예정 시각
+    private var nextRollT = 0f              // 다음 확률 판정 시각(초) — 실패 시 30초 뒤, 성공 시 낙하 종료 즉시
+    private var meteorStreak = 0            // 연속 성공 횟수(색 선택에 사용, 실패하면 0으로 리셋)
+    private var meteorTintIdx = 0           // 지금 낙하 중인 유성에 적용된 색상(스폰 시점에 고정)
     private val meteorP0 = FloatArray(3)    // 시작점(뷰 공간 — 모델 회전과 무관, 화면 기준 배치)
     private val meteorDir = FloatArray(3)   // 진행 방향(단위벡터, 화면 평면)
     private var meteorLen = 8f              // 총 이동 거리(월드 단위)
@@ -164,8 +168,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sunBuiltFrac = -1f
         meteorVbo = genBuffer()
         meteorStartT = -1f
-        nextMeteorT = (SystemClock.uptimeMillis() - startMs) / 1000f +
-            2.5f + meteorRnd.nextFloat() * 4f // 진입 후 첫 유성은 2.5~6.5초 사이
+        meteorStreak = 0
+        // 글로브 입장 이후 30초마다 확률 판정 시작(첫 판정도 입장 30초 뒤).
+        nextRollT = (SystemClock.uptimeMillis() - startMs) / 1000f + METEOR_ROLL_INTERVAL
         starsDirty = true // 서피스 재생성 시(백그라운드 복귀) 재업로드
         fade = 0f
         lastFrameNs = 0L
@@ -413,19 +418,30 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         return bmp
     }
 
-    /** 유성 — [METEOR_MIN_GAP]~[METEOR_MAX_GAP]초 랜덤 간격 출현. 머리(백색)+꼬리(청백)
+    /** 유성 — 글로브 입장 후 [METEOR_ROLL_INTERVAL]초마다 [METEOR_SPAWN_CHANCE] 확률 판정.
+     *  성공하면 유성이 떨어지고, 그 낙하가 끝나자마자(대기 없이) 곧바로 다시 확률을 돌린다 —
+     *  운이 좋으면 연속으로 계속 떨어질 수 있다. 실패하면 다시 [METEOR_ROLL_INTERVAL]초를 기다린다.
+     *  연속(스트릭)으로 떨어질 때는 매번 다른 색([METEOR_TINTS])으로 바뀐다.
      *  스프라이트 체인이 실제 3D 우주공간을 직선으로 가로지른다(깊이 성분 포함 → 원근으로
      *  다가오거나 멀어짐). 화면면 방향은 항상 아래쪽~사선(위로 올라가는 방향 없음).
      *  점화(12%)→유지→소멸(30%) 봉투로 자연스럽게 나타났다 사라진다. */
     private fun drawMeteor(camPos: FloatArray, t: Float) {
         if (meteorStartT < 0f) {
-            if (t < nextMeteorT) return
-            spawnMeteor(t)
+            if (t < nextRollT) return
+            if (meteorRnd.nextFloat() < METEOR_SPAWN_CHANCE) {
+                meteorTintIdx = meteorStreak % METEOR_TINTS.size
+                spawnMeteor(t)
+                meteorStreak++ // 다음 판정이 성공하면 그 다음 색으로
+            } else {
+                meteorStreak = 0 // 스트릭 종료 — 다음 성공은 다시 기본색부터
+                nextRollT = t + METEOR_ROLL_INTERVAL
+                return
+            }
         }
         val u = (t - meteorStartT) / meteorDur
         if (u >= 1f) {
             meteorStartT = -1f
-            nextMeteorT = t + METEOR_MIN_GAP + meteorRnd.nextFloat() * (METEOR_MAX_GAP - METEOR_MIN_GAP)
+            nextRollT = t // 낙하가 끝나면 대기 없이 즉시 재도전(연속 확률)
             return
         }
         val ignite = min(1f, u / 0.12f)
@@ -435,6 +451,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val hy = meteorP0[1] + meteorDir[1] * meteorLen * u
         val hz = meteorP0[2] + meteorDir[2] * meteorLen * u
         val tail = meteorLen * (0.14f + 0.12f * ignite) // 점화되며 꼬리가 자란다
+        val tint = METEOR_TINTS[meteorTintIdx]
         val list = ArrayList<Float>(METEOR_SPRITES * 6 * SPRITE_FLOATS)
         for (i in 0 until METEOR_SPRITES) {
             val back = i / (METEOR_SPRITES - 1f) // 0=머리 → 1=꼬리 끝
@@ -447,9 +464,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     hy - meteorDir[1] * tail * back,
                     hz - meteorDir[2] * tail * back,
                 ),
-                r = bright * (0.72f + 0.28f * fall), // 머리는 백색 → 꼬리로 갈수록 청백
-                g = bright * (0.80f + 0.20f * fall),
-                b = bright,
+                r = bright * (0.72f + 0.28f * fall) * tint[0], // 머리는 밝게 → 꼬리로 갈수록 tint 색
+                g = bright * (0.80f + 0.20f * fall) * tint[1],
+                b = bright * tint[2],
                 a = 1f,
                 size = 0.05f + 0.10f * fall, // 기존의 절반 크기
                 phase = 0f, mode = 2f, // 트윙클 없는 정광
@@ -1172,10 +1189,20 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val SUN_DIST = 45f // 태양 위치 반지름(원경 별밭 너머, far plane 안)
         private const val CLOUD_DRIFT = 0.0035f // 구름 경도 드리프트 속도(rev/s — 한 바퀴 ≈ 4.8분)
 
-        /** 유성 — 꼬리 스프라이트 수 / 출현 간격(초) 범위. */
+        /** 유성 — 꼬리 스프라이트 수 / 확률 판정 주기(초) / 판정 성공 확률. */
         private const val METEOR_SPRITES = 18
-        private const val METEOR_MIN_GAP = 4f
-        private const val METEOR_MAX_GAP = 11f
+        private const val METEOR_ROLL_INTERVAL = 30f
+        private const val METEOR_SPAWN_CHANCE = 0.25f
+
+        /** 유성 스트릭 색상 팔레트 — 연속으로 떨어질 때마다 순서대로 바뀐다(0=기본 청백). */
+        private val METEOR_TINTS = arrayOf(
+            floatArrayOf(1.00f, 1.00f, 1.00f), // 기본 청백
+            floatArrayOf(1.00f, 0.60f, 0.32f), // 주황
+            floatArrayOf(0.55f, 1.00f, 0.62f), // 초록
+            floatArrayOf(1.00f, 0.45f, 0.85f), // 핑크
+            floatArrayOf(1.00f, 0.86f, 0.32f), // 골드
+            floatArrayOf(0.62f, 0.58f, 1.00f), // 보라
+        )
 
         /** 별 플레어 팔레트(레퍼런스풍) — 빨강/파랑/분홍/노랑/민트/보라/백색. */
         private val FLARE_COLORS = intArrayOf(

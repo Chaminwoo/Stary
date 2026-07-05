@@ -162,9 +162,11 @@ private struct GlobeSceneView: UIViewRepresentable {
         private var cloudNode: SCNNode?
         /// 구름 재질 — 낮/밤 uSunDir 매 프레임 갱신용.
         private var cloudMaterial: SCNMaterial?
-        /// 유성 스포너 — rootNode(컨테이너 밖 = 회전 무관)에 랜덤 간격으로 유성을 떨어뜨린다.
+        /// 유성 스포너 — rootNode(컨테이너 밖 = 회전 무관)에 확률 판정으로 유성을 떨어뜨린다.
+        /// 30초마다 25% 판정, 성공하면 낙하가 끝나자마자 대기 없이 즉시 재판정(연속 스트릭 가능).
         private weak var sceneRootNode: SCNNode?
-        private var nextMeteorAt: TimeInterval = 0
+        private var nextMeteorRollAt: TimeInterval = 0
+        private var meteorStreak = 0
 
         init(
             startLat: Double, startLng: Double,
@@ -292,11 +294,20 @@ private struct GlobeSceneView: UIViewRepresentable {
                 let f = min(max((camDist - 1.7) / (2.4 - 1.7), 0), 1)
                 clouds.opacity = CGFloat(f * f * (3 - 2 * f))
             }
-            // 유성 — 랜덤 간격(4~11초)으로 별똥별 1개 생성(자기 소멸 애니메이션 내장,
-            // rootNode 소속이라 지구 드래그 회전과 무관하게 화면을 가로지른다)
-            if time >= nextMeteorAt, let root = sceneRootNode {
-                nextMeteorAt = time + .random(in: 4...11)
-                root.addChildNode(GlobeBuilder.meteorNode(camDist: camDist))
+            // 유성 — 30초마다 25% 확률 판정. 성공하면 낙하 종료 즉시 재판정(운 좋으면 연속),
+            // 실패하면 다시 30초 대기. 연속 스트릭은 매번 다른 색(meteorStreak 순번 → tint).
+            // (rootNode 소속이라 지구 드래그 회전과 무관하게 화면을 가로지른다)
+            if time >= nextMeteorRollAt, let root = sceneRootNode {
+                if Double.random(in: 0..<1) < GlobeBuilder.meteorSpawnChance {
+                    let tintIdx = meteorStreak % GlobeBuilder.meteorTints.count
+                    let (node, dur) = GlobeBuilder.meteorNode(camDist: camDist, tintIndex: tintIdx)
+                    root.addChildNode(node)
+                    meteorStreak += 1
+                    nextMeteorRollAt = time + dur
+                } else {
+                    meteorStreak = 0
+                    nextMeteorRollAt = time + GlobeBuilder.meteorRollInterval
+                }
             }
         }
 
@@ -335,9 +346,10 @@ private struct GlobeSceneView: UIViewRepresentable {
             }
             for node in GlobeBuilder.starfieldNodes() { containerNode.addChildNode(node) }
             for node in GlobeBuilder.trailNodes() { containerNode.addChildNode(node) }
-            // 유성 스포너 — 진입 후 첫 유성은 2.5~6.5초 사이(이후 4~11초 랜덤 간격, renderer 에서 생성)
+            // 유성 스포너 — 입장 30초 뒤 첫 확률 판정(이후 renderer 에서 30초마다/연속 스트릭 시 즉시 재판정)
             sceneRootNode = scene.rootNode
-            nextMeteorAt = CACurrentMediaTime() + .random(in: 2.5...6.5)
+            nextMeteorRollAt = CACurrentMediaTime() + GlobeBuilder.meteorRollInterval
+            meteorStreak = 0
             let sun = GlobeBuilder.sunNode()
             sunNode = sun
             containerNode.addChildNode(sun)
@@ -1103,9 +1115,26 @@ private enum GlobeBuilder {
 
     // MARK: 유성(별똥별)
 
-    /// 유성 스트릭 텍스처 — 왼쪽(꼬리)은 투명해지는 청백, 오른쪽(머리)은 백색 발광.
-    /// 부드러운 radial blob 체인으로 그려 가장자리가 자연스럽다. (1회 생성 캐시)
-    private static let meteorStreak: UIImage = {
+    /// 유성 확률 판정 주기(초) / 판정 성공 확률. 입장 후 이 주기마다 판정하고,
+    /// 성공하면 낙하가 끝나자마자(대기 없이) 곧바로 재판정한다(연속 스트릭).
+    /// (Android GlobeRenderer METEOR_ROLL_INTERVAL/METEOR_SPAWN_CHANCE 패리티)
+    static let meteorRollInterval: TimeInterval = 30
+    static let meteorSpawnChance: Double = 0.25
+
+    /// 유성 스트릭 색상 팔레트 — 연속으로 떨어질 때마다 순서대로 바뀐다(0=기본 청백).
+    /// (Android METEOR_TINTS 패리티)
+    static let meteorTints: [(CGFloat, CGFloat, CGFloat)] = [
+        (1.00, 1.00, 1.00), // 기본 청백
+        (1.00, 0.60, 0.32), // 주황
+        (0.55, 1.00, 0.62), // 초록
+        (1.00, 0.45, 0.85), // 핑크
+        (1.00, 0.86, 0.32), // 골드
+        (0.62, 0.58, 1.00), // 보라
+    ]
+
+    /// 유성 스트릭 텍스처(팔레트별 사전 생성 캐시) — 왼쪽(꼬리)은 투명해지는 색,
+    /// 오른쪽(머리)은 밝은 발광. 부드러운 radial blob 체인으로 그려 가장자리가 자연스럽다.
+    private static let meteorStreakTextures: [UIImage] = meteorTints.map { tint in
         let w = 256, h = 32
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
@@ -1128,19 +1157,21 @@ private enum GlobeBuilder {
                 let r = 2 + f * 9
                 let a = 0.05 + f * f * 0.55
                 blob(CGPoint(x: x, y: CGFloat(h) / 2), r,
-                     UIColor(red: 0.62 + 0.38 * f, green: 0.72 + 0.28 * f, blue: 1.0, alpha: a))
+                     UIColor(red: (0.62 + 0.38 * f) * tint.0, green: (0.72 + 0.28 * f) * tint.1,
+                             blue: 1.0 * tint.2, alpha: a))
             }
-            // 머리 코어 — 밝은 백색 글로우
+            // 머리 코어 — 밝은 발광(팔레트 색으로 tint)
             blob(CGPoint(x: CGFloat(w) - 20, y: CGFloat(h) / 2), 13,
-                 UIColor(red: 1, green: 1, blue: 1, alpha: 0.95))
+                 UIColor(red: tint.0, green: tint.1, blue: tint.2, alpha: 0.95))
         }
-    }()
+    }
 
     /// 유성 노드 — 실제 3D 우주공간(rootNode 좌표 — 컨테이너 회전 무관)을 직선으로 가로지른다.
     /// 깊이 성분을 포함한 완전 랜덤 3D 방향이라 원근으로 다가오거나 멀어진다.
-    /// 점화(12%)→유지→소멸(30%) 봉투 후 스스로 제거된다.
+    /// 점화(12%)→유지→소멸(30%) 봉투 후 스스로 제거된다. 반환값의 duration 은 호출부가
+    /// "낙하가 끝나는 즉시 재판정"하기 위한 스케줄링에 쓰인다.
     /// (Android GlobeRenderer drawMeteor/spawnMeteor 패리티)
-    static func meteorNode(camDist: Float) -> SCNNode {
+    static func meteorNode(camDist: Float, tintIndex: Int) -> (node: SCNNode, duration: Double) {
         let depth = Float.random(in: 20...36)  // 카메라~통과지점 거리(별밭 셸 사이)
         let kY = depth * 0.384                 // tan(FOV 42°/2) ≈ 그 깊이에서 화면 세로 반높이
         let bounds = UIScreen.main.bounds
@@ -1149,7 +1180,7 @@ private enum GlobeBuilder {
         let plane = SCNPlane(width: CGFloat(streak), height: CGFloat(streak) * 0.10)
         let material = SCNMaterial()
         material.lightingModel = .constant
-        material.diffuse.contents = meteorStreak
+        material.diffuse.contents = meteorStreakTextures[tintIndex % meteorStreakTextures.count]
         material.blendMode = .add
         material.isDoubleSided = true
         material.writesToDepthBuffer = false
@@ -1182,7 +1213,7 @@ private enum GlobeBuilder {
             .fadeOut(duration: dur * 0.30),
         ])
         node.runAction(.sequence([.group([move, fade]), .removeFromParentNode()]))
-        return node
+        return (node, dur)
     }
 }
 
