@@ -1159,8 +1159,10 @@ private enum GlobeBuilder {
         let sx = Float.random(in: -0.85...0.85) * kX
         let sy = Float.random(in: -0.85...0.85) * kY
         let midZ = camDist - depth              // 카메라(+z) 앞쪽(-z 방향)
-        // 완전 랜덤 3D 방향 — 화면면 성분(각도 랜덤) + 깊이 성분(다가옴/멀어짐)
-        let theta = Float.random(in: 0..<(2 * .pi))
+        // 화면면 방향 — 항상 아래쪽(수직 하강)~사선으로만, 위로 올라가는 방향은 배제.
+        // theta ∈ [π+margin, 2π-margin] → sin(theta) ≤ 0(수평 좌/우 ~ 수직 아래) + 깊이 성분(다가옴/멀어짐)
+        let margin: Float = 0.20
+        let theta = Float.random(in: (.pi + margin)...(2 * .pi - margin))
         let zc = Float.random(in: -0.55...0.55)
         let tc = sqrt(1 - zc * zc)
         let dir = SCNVector3(cos(theta) * tc, sin(theta) * tc, zc)

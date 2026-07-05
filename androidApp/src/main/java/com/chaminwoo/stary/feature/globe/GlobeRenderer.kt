@@ -415,7 +415,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     /** 유성 — [METEOR_MIN_GAP]~[METEOR_MAX_GAP]초 랜덤 간격 출현. 머리(백색)+꼬리(청백)
      *  스프라이트 체인이 실제 3D 우주공간을 직선으로 가로지른다(깊이 성분 포함 → 원근으로
-     *  다가오거나 멀어짐). 점화(12%)→유지→소멸(30%) 봉투로 자연스럽게 나타났다 사라진다. */
+     *  다가오거나 멀어짐). 화면면 방향은 항상 아래쪽~사선(위로 올라가는 방향 없음).
+     *  점화(12%)→유지→소멸(30%) 봉투로 자연스럽게 나타났다 사라진다. */
     private fun drawMeteor(camPos: FloatArray, t: Float) {
         if (meteorStartT < 0f) {
             if (t < nextMeteorT) return
@@ -470,8 +471,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val sx = (meteorRnd.nextFloat() * 1.7f - 0.85f) * kX
         val sy = (meteorRnd.nextFloat() * 1.7f - 0.85f) * kY
         val midZ = camDist - depth                         // 카메라(+z) 앞쪽(-z 방향)
-        // 완전 랜덤 3D 방향 — 화면면 성분(각도 랜덤) + 깊이 성분(다가옴/멀어짐)
-        val theta = meteorRnd.nextFloat() * 6.2832f
+        // 화면면 방향 — 항상 아래쪽(수직 하강)~사선으로만, 위로 올라가는 방향은 배제.
+        // theta ∈ [π+margin, 2π-margin] → sin(theta) ≤ 0(수평 좌/우 ~ 수직 아래) + 깊이 성분(다가옴/멀어짐)
+        val margin = 0.20f
+        val theta = Math.PI.toFloat() + margin + meteorRnd.nextFloat() * (Math.PI.toFloat() - 2f * margin)
         val zc = (meteorRnd.nextFloat() * 2f - 1f) * 0.55f
         val tc = kotlin.math.sqrt(1f - zc * zc)
         meteorDir[0] = cos(theta) * tc
