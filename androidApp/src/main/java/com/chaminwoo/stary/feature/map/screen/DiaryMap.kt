@@ -111,6 +111,9 @@ private const val ROAD_GLINT_DASH = 0.5f
 private const val ROAD_GLINT_GAP = 34f
 private const val ROAD_GLINT_SPEED = 8.5f // 초당 위상 이동(선 두께 배수)
 private const val ROAD_GLINT_STEPS = 40   // 위상 양자화 단계(대시 아틀라스 캐시 재사용 — 매 프레임 새 패턴 생성 방지)
+// 위상이 한 바퀴 돌아 처음으로 되돌아가는(= 알갱이가 다시 태어나는) 순간 전후로 부드럽게 페이드.
+private const val ROAD_GLINT_FADE_SEC = 0.2f
+private val ROAD_GLINT_PERIOD_SEC = ROAD_GLINT_GAP / ROAD_GLINT_SPEED // 한 바퀴(초)
 // 별자리 선 페이드용 최대 불투명도 (켜질 때 0→target 으로 부드럽게)
 private const val CONSTELLATION_HALO_OPACITY = 0.18f
 private const val CONSTELLATION_GLOW_OPACITY = 0.42f
@@ -406,6 +409,18 @@ private fun particleOpacityExpression(twinkle: Float): Expression =
         Expression.linear(), Expression.zoom(),
         Expression.stop(9f, 0f),
         Expression.stop(12f, twinkle),
+    )
+
+/**
+ * road-glint 레이어 iconOpacity — maplibre_style.json 의 zoom 스톱(11→0, 12→0.55, 16→0.7)을
+ * 그대로 유지하면서 [envelope](0..1, 위상 순환 페이드)를 곱해 애니메이션 루프에서 갱신한다.
+ */
+private fun roadGlintOpacityExpression(envelope: Float): Expression =
+    Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        Expression.stop(11f, 0f),
+        Expression.stop(12f, 0.55f * envelope),
+        Expression.stop(16f, 0.7f * envelope),
     )
 
 /**
@@ -1166,6 +1181,7 @@ fun DiaryMap(
         val style = styleRef ?: return@LaunchedEffect
         var t = 0f
         var lastDashOffset = -1f
+        var lastGlintEnvelope = -1f
         while (isActive) {
             if (isCameraMoving.value) {
                 delay(100)
@@ -1216,6 +1232,21 @@ fun DiaryMap(
                     PropertyFactory.lineDasharray(
                         arrayOf(0f, q, ROAD_GLINT_DASH, ROAD_GLINT_GAP - q)
                     )
+                )
+            }
+            // 위상이 한 바퀴 돌아 처음으로 되돌아가는(알갱이가 다시 태어나는) 순간 전후
+            // ROAD_GLINT_FADE_SEC 씩 부드럽게 사라졌다 나타나도록 불투명도에 삼각 envelope 를 곱한다.
+            val cyclePos = t % ROAD_GLINT_PERIOD_SEC
+            val envelope = when {
+                cyclePos < ROAD_GLINT_FADE_SEC -> cyclePos / ROAD_GLINT_FADE_SEC
+                cyclePos > ROAD_GLINT_PERIOD_SEC - ROAD_GLINT_FADE_SEC ->
+                    (ROAD_GLINT_PERIOD_SEC - cyclePos) / ROAD_GLINT_FADE_SEC
+                else -> 1f
+            }.coerceIn(0f, 1f)
+            if (envelope != lastGlintEnvelope) {
+                lastGlintEnvelope = envelope
+                (style.getLayer(ROAD_GLINT_LAYER) as? LineLayer)?.setProperties(
+                    PropertyFactory.lineOpacity(roadGlintOpacityExpression(envelope))
                 )
             }
             delay(50)
