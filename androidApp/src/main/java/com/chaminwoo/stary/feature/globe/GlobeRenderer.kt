@@ -30,10 +30,12 @@ import kotlin.math.sin
  * 3D 행성(지구) 렌더러 — 지도 줌 최소 진입 시 보이는 "밤의 지구" 뷰.
  *
  * 씬 구성(레퍼런스 `references/min_zoom.png` 재현):
- *  1. 배경 별밭: 반지름이 다른 3겹 구면 셸 + 원경 성운 글로우 + 은하수 띠 +
- *     황도 12궁 별자리(레퍼런스 references/zodiac.avif, 궁별 고유색 + 희미한 연결선) + 4방 광선 반짝별 +
- *     우주 공간에 드리운 오로라 커튼(초록→보라 수직 그라데이션, 흐르는 주름) —
+ *  1. 배경 별밭: 반지름이 다른 3겹 구면 셸 + 원경 성운 글로우 +
+ *     뚜렷한 은하수(잔별 밀집 띠 + 끊김 없는 헤이즈 리본 + 은하핵 벌지) +
+ *     황도 12궁 별자리(레퍼런스 references/zodiac.avif, 궁별 고유색 + 희미한 연결선) + 4방 광선 반짝별 —
  *     카메라가 중심에서 떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감
+ *  1.5. 유성: 랜덤 간격(4~11초)으로 화면을 사선으로 가로지르는 별똥별 —
+ *     머리(백색)+꼬리(청백) 스프라이트 체인, 점화→소멸 봉투. 뷰 공간 배치(모델 회전 무관)
  *  2. 지구 구체: 원본의 3/4 밝기 기준 + 낮/밤 반구 — UTC 하루 기준 360도 도는 태양 방향의
  *     반구는 기준 밝기 그대로, 반대 반구는 30% 감광, 터미네이터는 smoothstep 으로 부드럽게
  *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 아주 옅은 글로우, 훨씬 반투명.
@@ -113,15 +115,17 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     )
     private val trails = ArrayList<Trail>()
 
-    /** 오로라 커튼(우주 공간에 드리운 빛의 장막 — 배경 별밭처럼 모델과 함께 회전).
-     *  botColor→topColor 수직 그라데이션, 주름(fold)은 셰이더가 uTime 으로 흘린다. */
-    private class Aurora(
-        val vbo: Int, val count: Int,
-        val botColor: FloatArray, val topColor: FloatArray,
-        val speed: Float, val phase: Float, val intensity: Float,
-    )
-    private val auroras = ArrayList<Aurora>()
-    private var auroraProgram = 0
+    // ── 유성(별똥별) — 랜덤 간격으로 하늘을 사선으로 가로지르는 빛줄기 ──
+    private var meteorVbo = 0
+    private var meteorStartT = -1f          // 진행 중 유성의 시작 시각(초). 음수 = 대기 중
+    private var meteorDur = 1.1f            // 이번 유성 수명(초)
+    private var nextMeteorT = 0f            // 다음 유성 출현 예정 시각
+    private val meteorP0 = FloatArray(3)    // 시작점(뷰 공간 — 모델 회전과 무관, 화면 기준 배치)
+    private val meteorDir = FloatArray(3)   // 진행 방향(단위벡터, 화면 평면)
+    private var meteorLen = 8f              // 총 이동 거리(월드 단위)
+    private val meteorRnd = java.util.Random()
+    private var screenAspect = 0.55f        // onSurfaceChanged 에서 갱신(가로/세로)
+    private val identityM = FloatArray(16).also { Matrix.setIdentityM(it, 0) }
 
     // ── 행렬 ──
     private val proj = FloatArray(16)
@@ -144,7 +148,6 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         spriteProgram = buildProgram(SPRITE_VS, SPRITE_FS)
         ringProgram = buildProgram(RING_VS, RING_FS)
         lineProgram = buildProgram(LINE_VS, LINE_FS)
-        auroraProgram = buildProgram(RING_VS, AURORA_FS)
         cloudProgram = buildProgram(CLOUD_VS, CLOUD_FS)
 
         buildEarthMesh()
@@ -154,12 +157,15 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         glowTex = uploadTexture(makeGlowBitmap())
         buildStarfield()
         buildTrails()
-        buildAuroras()
         flareVbo = genBuffer()
         glowVbo = genBuffer()
         sunTex = uploadTexture(makeSunBitmap())
         sunVbo = genBuffer()
         sunBuiltFrac = -1f
+        meteorVbo = genBuffer()
+        meteorStartT = -1f
+        nextMeteorT = (SystemClock.uptimeMillis() - startMs) / 1000f +
+            2.5f + meteorRnd.nextFloat() * 4f // 진입 후 첫 유성은 2.5~6.5초 사이
         starsDirty = true // 서피스 재생성 시(백그라운드 복귀) 재업로드
         fade = 0f
         lastFrameNs = 0L
@@ -168,6 +174,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         GLES20.glViewport(0, 0, width, height)
         val aspect = width.toFloat() / height.coerceAtLeast(1)
+        screenAspect = aspect
         Matrix.perspectiveM(proj, 0, 42f, aspect, 0.1f, 100f)
     }
 
@@ -203,8 +210,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (bgFlareVertexCount > 0) {
             drawSprites(bgFlareVbo, bgFlareVertexCount, flareTex, camPos, t, depthTest = false)
         }
-        // 1.7) 오로라 커튼 — 우주 공간에 드리운 빛의 장막(배경층 — 지구가 위에 그려져 가려짐)
-        for (au in auroras) drawAurora(au, t)
+        // 1.7) 유성 — 랜덤 간격으로 하늘을 사선으로 가로지르는 별똥별(배경층 — 지구 뒤로 가려짐)
+        drawMeteor(camPos, t)
         // 1.8) 태양 — 광원 방향 하늘의 해(원반+코로나, 십자 광선 없음). 하루 주기로 광원과 함께 돈다
         drawSun(camPos, t)
 
@@ -364,7 +371,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             val dir = sunDirection()
             val p = floatArrayOf(dir[0] * SUN_DIST, dir[1] * SUN_DIST, dir[2] * SUN_DIST)
             val list = ArrayList<Float>(6 * SPRITE_FLOATS)
-            addSprite(list, p, r = 1f, g = 1f, b = 1f, a = 1f, size = 5.5f, phase = 0.13f, mode = 2f)
+            addSprite(list, p, r = 1f, g = 1f, b = 1f, a = 1f, size = 1.5f, phase = 0.13f, mode = 2f)
             uploadBuffer(sunVbo, toFloatBuffer(list))
         }
         drawSprites(sunVbo, 6, sunTex, camPos, t, depthTest = false)
@@ -406,37 +413,80 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         return bmp
     }
 
-    /** 오로라 커튼 — 트레일과 같은 리본 정점 포맷(pos3+uv2), 전용 셰이더로 주름을 흘린다. */
-    private fun drawAurora(au: Aurora, t: Float) {
-        if (au.vbo == 0 || au.count == 0) return
-        GLES20.glUseProgram(auroraProgram)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(auroraProgram, "uMVP"), 1, false, mvp, 0)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uTime"), t)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uSpeed"), au.speed)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uPhase"), au.phase)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uIntensity"), au.intensity)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(auroraProgram, "uFade"), fade)
-        GLES20.glUniform3fv(GLES20.glGetUniformLocation(auroraProgram, "uBotColor"), 1, au.botColor, 0)
-        GLES20.glUniform3fv(GLES20.glGetUniformLocation(auroraProgram, "uTopColor"), 1, au.topColor, 0)
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, au.vbo)
-        val aPos = GLES20.glGetAttribLocation(auroraProgram, "aPos")
-        val aUV = GLES20.glGetAttribLocation(auroraProgram, "aUV")
-        GLES20.glEnableVertexAttribArray(aPos)
-        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 20, 0)
-        GLES20.glEnableVertexAttribArray(aUV)
-        GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, 20, 12)
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, au.count)
-        GLES20.glDisableVertexAttribArray(aPos)
-        GLES20.glDisableVertexAttribArray(aUV)
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+    /** 유성 — [METEOR_MIN_GAP]~[METEOR_MAX_GAP]초 랜덤 간격 출현. 머리(백색)+꼬리(청백)
+     *  스프라이트 체인이 화면 기준(뷰 공간 — 모델 회전 무관) 사선으로 떨어지며
+     *  점화(12%)→유지→소멸(30%) 봉투로 자연스럽게 나타났다 사라진다. */
+    private fun drawMeteor(camPos: FloatArray, t: Float) {
+        if (meteorStartT < 0f) {
+            if (t < nextMeteorT) return
+            spawnMeteor(t)
+        }
+        val u = (t - meteorStartT) / meteorDur
+        if (u >= 1f) {
+            meteorStartT = -1f
+            nextMeteorT = t + METEOR_MIN_GAP + meteorRnd.nextFloat() * (METEOR_MAX_GAP - METEOR_MIN_GAP)
+            return
+        }
+        val ignite = min(1f, u / 0.12f)
+        val dieRaw = ((1f - u) / 0.30f).coerceIn(0f, 1f)
+        val env = ignite * dieRaw * (2f - dieRaw) // 소멸 구간은 easeOut
+        val hx = meteorP0[0] + meteorDir[0] * meteorLen * u
+        val hy = meteorP0[1] + meteorDir[1] * meteorLen * u
+        val hz = meteorP0[2] + meteorDir[2] * meteorLen * u
+        val tail = meteorLen * (0.14f + 0.12f * ignite) // 점화되며 꼬리가 자란다
+        val list = ArrayList<Float>(METEOR_SPRITES * 6 * SPRITE_FLOATS)
+        for (i in 0 until METEOR_SPRITES) {
+            val back = i / (METEOR_SPRITES - 1f) // 0=머리 → 1=꼬리 끝
+            val fall = 1f - back
+            val bright = env * (0.06f + 0.94f * fall * fall)
+            addSprite(
+                list,
+                floatArrayOf(
+                    hx - meteorDir[0] * tail * back,
+                    hy - meteorDir[1] * tail * back,
+                    hz - meteorDir[2] * tail * back,
+                ),
+                r = bright * (0.72f + 0.28f * fall), // 머리는 백색 → 꼬리로 갈수록 청백
+                g = bright * (0.80f + 0.20f * fall),
+                b = bright,
+                a = 1f,
+                size = 0.10f + 0.20f * fall,
+                phase = 0f, mode = 2f, // 트윙클 없는 정광
+            )
+        }
+        uploadBuffer(meteorVbo, toFloatBuffer(list))
+        drawSprites(meteorVbo, METEOR_SPRITES * 6, glowTex, camPos, t, depthTest = false, modelM = identityM)
     }
 
-    private fun drawSprites(vbo: Int, count: Int, tex: Int, camPos: FloatArray, t: Float, depthTest: Boolean) {
+    /** 유성 생성 — 화면 위쪽 임의 지점에서 반대편으로 향하는 사선 하강 경로를 뽑는다. */
+    private fun spawnMeteor(t: Float) {
+        meteorStartT = t
+        meteorDur = 0.9f + meteorRnd.nextFloat() * 0.7f
+        val r = 25f                 // 중경(22)~원경(38) 별밭 셸 사이 — 시차가 자연스러운 거리
+        val kY = r * 0.38f          // tan(FOV 42°/2) ≈ 0.38 → 그 거리에서의 화면 세로 반높이
+        val kX = kY * screenAspect
+        meteorP0[0] = (meteorRnd.nextFloat() * 1.8f - 0.9f) * kX
+        meteorP0[1] = (0.25f + meteorRnd.nextFloat() * 0.65f) * kY
+        meteorP0[2] = -r
+        // 사선 하강 — 수평 성분은 시작점 반대쪽으로(화면을 가로지르게)
+        val dx = (0.35f + meteorRnd.nextFloat() * 0.55f) * (if (meteorP0[0] > 0f) -1f else 1f)
+        val dy = -(0.65f + meteorRnd.nextFloat() * 0.35f)
+        val invLen = 1f / kotlin.math.sqrt(dx * dx + dy * dy)
+        meteorDir[0] = dx * invLen
+        meteorDir[1] = dy * invLen
+        meteorDir[2] = 0f
+        meteorLen = (0.9f + meteorRnd.nextFloat() * 0.5f) * kY
+    }
+
+    private fun drawSprites(
+        vbo: Int, count: Int, tex: Int, camPos: FloatArray, t: Float, depthTest: Boolean,
+        modelM: FloatArray = model, // 유성 등 "화면 기준" 스프라이트는 identityM(모델 회전 무시)
+    ) {
         if (vbo == 0 || count == 0) return
         if (depthTest) GLES20.glEnable(GLES20.GL_DEPTH_TEST) else GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glUseProgram(spriteProgram)
         GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(spriteProgram, "uVP"), 1, false, vp, 0)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(spriteProgram, "uModel"), 1, false, model, 0)
+        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(spriteProgram, "uModel"), 1, false, modelM, 0)
         GLES20.glUniform3fv(GLES20.glGetUniformLocation(spriteProgram, "uCamPos"), 1, camPos, 0)
         // 카메라 고정이므로 right/up 도 고정
         GLES20.glUniform3f(GLES20.glGetUniformLocation(spriteProgram, "uCamRight"), 1f, 0f, 0f)
@@ -599,7 +649,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             )
         }
 
-        // ── 은하수 띠 — 기울어진 대원을 따라 잔별을 뿌리고 어두운 헤이즈로 감싼다 ──
+        // ── 은하수 — 기울어진 대원을 따라 ①잔별 밀집 띠 ②끊김 없는 헤이즈 리본 ③은하핵 벌지 ──
+        // (구 버전은 잔별 560 + 헤이즈 10개로 거의 안 보였음 → 뚜렷한 "빛의 강"으로 격상)
         run {
             val m = FloatArray(16)
             Matrix.setIdentityM(m, 0)
@@ -613,27 +664,51 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 Matrix.multiplyMV(pout, 0, m, 0, pin, 0)
                 return floatArrayOf(pout[0] * radius, pout[1] * radius, pout[2] * radius)
             }
-            repeat(560) {
+            val coreAng = 1.2f // 은하핵(벌지) 방향 — 이 근처가 가장 밝고 두껍다
+            fun coreness(ang: Float): Float { // 핵에 가까울수록 1(대원 위 각距離 가우시안)
+                val d = kotlin.math.abs((ang - coreAng + Math.PI.toFloat()).mod(6.2832f) - Math.PI.toFloat())
+                return exp(-d * d / 1.4f)
+            }
+            // ① 잔별 밀집 띠 — 이중 가우시안 두께(얇은 심 + 넓은 외곽), 핵 근처는 더 밝고 따뜻하게
+            repeat(1500) {
                 val ang = rnd.nextFloat() * 6.2832f
-                val spread = (rnd.nextGaussian() * 0.055).toFloat() // 띠 두께 ±3° 남짓
+                val cn = coreness(ang)
+                val sigma = if (rnd.nextFloat() < 0.68f) 0.045f else 0.11f
+                val spread = (rnd.nextGaussian() * sigma).toFloat()
                 val p = bandPoint(39f, spread, ang)
-                val br = 0.06f + rnd.nextFloat() * 0.22f
-                val warm = rnd.nextFloat()
+                val br = (0.08f + rnd.nextFloat() * 0.26f) * (0.75f + 0.55f * cn)
+                val warm = rnd.nextFloat() * (0.5f + 0.5f * cn)
                 addSprite(
                     list, p,
-                    r = br * (0.88f + 0.12f * warm), g = br * 0.90f, b = br * (1.00f - 0.10f * warm),
+                    r = br * (0.86f + 0.16f * warm),
+                    g = br * (0.88f + 0.04f * warm),
+                    b = br * (1.00f - 0.14f * warm),
                     a = 1f,
-                    size = 0.030f + rnd.nextFloat() * 0.075f,
+                    size = 0.028f + rnd.nextFloat() * rnd.nextFloat() * 0.10f,
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
-            repeat(10) { // 띠를 감싸는 아주 어두운 대형 헤이즈
-                val ang = rnd.nextFloat() * 6.2832f
-                val p = bandPoint(40f, (rnd.nextGaussian() * 0.03).toFloat(), ang)
+            // ② 헤이즈 리본 — 띠를 따라 일정 간격으로 겹치는 청백 글로우(끊기지 않는 빛의 강)
+            repeat(64) { i ->
+                val ang = i / 64f * 6.2832f + (rnd.nextFloat() - 0.5f) * 0.06f
+                val cn = coreness(ang)
+                val base = 0.026f + 0.026f * cn
+                val p = bandPoint(40f, (rnd.nextGaussian() * 0.022).toFloat(), ang)
                 addSprite(
                     list, p,
-                    r = 0.020f, g = 0.024f, b = 0.034f, a = 1f,
-                    size = 2.6f + rnd.nextFloat() * 2.2f,
+                    r = base * (0.82f + 0.40f * cn), g = base * 0.90f, b = base * 1.12f, a = 1f,
+                    size = 2.3f + rnd.nextFloat() * 1.6f + 1.2f * cn,
+                    phase = rnd.nextFloat(), mode = 1f,
+                )
+            }
+            // ③ 은하핵 벌지 — 핵 주변의 따뜻한 대형 글로우 응집
+            repeat(12) {
+                val ang = coreAng + (rnd.nextGaussian() * 0.16).toFloat()
+                val p = bandPoint(40f, (rnd.nextGaussian() * 0.05).toFloat(), ang)
+                addSprite(
+                    list, p,
+                    r = 0.070f, g = 0.052f, b = 0.040f, a = 1f,
+                    size = 1.6f + rnd.nextFloat() * 1.8f,
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
@@ -900,69 +975,6 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
-    /** 오로라 커튼 세트 — 우주 공간(배경 별밭 셸 사이)에 드리운 빛의 장막 4폭.
-     *  극지 오벌이 아니라 하늘에 떠 있는 자유 커튼: 중심 방향의 접평면(별자리 배치와 같은
-     *  east/north 기저)을 따라 밑단이 완만한 S 라인으로 물결치고 위로 솟아 소멸한다.
-     *  v=0(아래 가장자리, 초록 또렷) → v=1(위, 보라/핑크로 소멸). 주름 애니메이션은 셰이더 담당.
-     *  반지름을 폭마다 달리해 회전/줌 시 별밭 셸처럼 시차(깊이감)가 난다. */
-    private fun buildAuroras() {
-        auroras.clear()
-        val rnd = java.util.Random(23L)
-        fun addCurtain(
-            centerLat: Double, centerLng: Double, radius: Float,
-            lengthRad: Float, heightRad: Float, rollDeg: Float,
-            botColor: FloatArray, topColor: FloatArray,
-            speed: Float, intensity: Float,
-        ) {
-            val segs = 160
-            val p1 = rnd.nextFloat() * 6.2832f
-            val p2 = rnd.nextFloat() * 6.2832f
-            val p3 = rnd.nextFloat() * 6.2832f
-            val c = latLngToXyz(centerLat, centerLng, 1f)
-            val east = norm3(cross3(floatArrayOf(0f, 1f, 0f), c))
-            val north = norm3(cross3(c, east))
-            val roll = Math.toRadians(rollDeg.toDouble()).toFloat()
-            val cosR = cos(roll)
-            val sinR = sin(roll)
-            fun dirAt(x0: Float, y0: Float): FloatArray {
-                val x = x0 * cosR - y0 * sinR
-                val y = x0 * sinR + y0 * cosR
-                return norm3(floatArrayOf(
-                    c[0] + east[0] * x + north[0] * y,
-                    c[1] + east[1] * x + north[1] * y,
-                    c[2] + east[2] * x + north[2] * y,
-                ))
-            }
-            val list = ArrayList<Float>((segs + 1) * 2 * 5)
-            for (s in 0..segs) {
-                val u = s.toFloat() / segs
-                val x = (u - 0.5f) * lengthRad
-                // 커튼 밑단의 완만한 물결(S 라인) — 자로 잰 듯한 직선이 되지 않게
-                val yWave = 0.10f * sin(u * 6.2832f * 1.5f + p1) + 0.045f * sin(u * 6.2832f * 3.7f + p2)
-                val h = heightRad * (0.82f + 0.18f * sin(u * 6.2832f * 2f + p3))
-                val bot = dirAt(x, yWave)
-                val top = dirAt(x, yWave + h)
-                list.add(bot[0] * radius); list.add(bot[1] * radius); list.add(bot[2] * radius)
-                list.add(u); list.add(0f)
-                list.add(top[0] * radius); list.add(top[1] * radius); list.add(top[2] * radius)
-                list.add(u); list.add(1f)
-            }
-            val vbo = genBuffer()
-            uploadBuffer(vbo, toFloatBuffer(list))
-            auroras.add(
-                Aurora(
-                    vbo, list.size / 5, botColor, topColor,
-                    speed = speed, phase = rnd.nextFloat() * 6.2832f, intensity = intensity,
-                )
-            )
-        }
-        // 하늘 곳곳에 4폭 — 반지름(시차)/기울기/길이/색이 모두 달라 서로 다른 장막으로 읽힌다
-        addCurtain(38.0, -60.0, 26f, 1.9f, 0.42f, -16f, AURORA_GREEN, AURORA_VIOLET, 0.65f, 0.95f)
-        addCurtain(-24.0, 30.0, 34f, 2.4f, 0.55f, 12f, AURORA_TEAL, AURORA_INDIGO, -0.5f, 0.60f)
-        addCurtain(8.0, 150.0, 30f, 2.1f, 0.48f, -7f, AURORA_GREEN, AURORA_PINK, 0.55f, 0.80f)
-        addCurtain(-48.0, -150.0, 38f, 2.6f, 0.60f, 18f, AURORA_TEAL, AURORA_VIOLET, 0.35f, 0.45f)
-    }
-
     /** 부분 원호 리본(TRIANGLE_STRIP), 지구 좌표계. 반환: (vbo, 정점수). */
     private fun buildArc(
         radius: Float, halfWidth: Float,
@@ -1152,12 +1164,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val SUN_DIST = 45f // 태양 위치 반지름(원경 별밭 너머, far plane 안)
         private const val CLOUD_DRIFT = 0.0035f // 구름 경도 드리프트 속도(rev/s — 한 바퀴 ≈ 4.8분)
 
-        /** 오로라 팔레트 — 아래(초록/청록)에서 위(보라/핑크/남보라)로 녹아드는 실제 오로라 색. */
-        private val AURORA_GREEN = floatArrayOf(0.18f, 0.95f, 0.52f)
-        private val AURORA_TEAL = floatArrayOf(0.20f, 0.80f, 0.78f)
-        private val AURORA_VIOLET = floatArrayOf(0.58f, 0.32f, 0.95f)
-        private val AURORA_PINK = floatArrayOf(0.90f, 0.38f, 0.78f)
-        private val AURORA_INDIGO = floatArrayOf(0.35f, 0.40f, 0.98f)
+        /** 유성 — 꼬리 스프라이트 수 / 출현 간격(초) 범위. */
+        private const val METEOR_SPRITES = 18
+        private const val METEOR_MIN_GAP = 4f
+        private const val METEOR_MAX_GAP = 11f
 
         /** 별 플레어 팔레트(레퍼런스풍) — 빨강/파랑/분홍/노랑/민트/보라/백색. */
         private val FLARE_COLORS = intArrayOf(
@@ -1310,36 +1320,5 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
         """
 
-        /** 오로라 커튼 셰이더 — u: 커튼 길이(0..1), v: 높이(0=아래 가장자리, 1=꼭대기).
-         *  아래 가장자리는 또렷하고 위로 갈수록 소멸, 양 끝은 점점 투명해지며 소멸.
-         *  주름(fold) 파동 3개가 서로 다른 속도로 흐르며 간섭 + 커튼 전체를 훑는
-         *  저주파 파동으로 밝기가 숨쉬듯 살아있는 느낌. */
-        private const val AURORA_FS = """
-            precision mediump float;
-            uniform float uTime; uniform float uSpeed; uniform float uFade; uniform float uPhase;
-            uniform float uIntensity;
-            uniform vec3 uBotColor; uniform vec3 uTopColor;
-            varying vec2 vUV;
-            void main() {
-                float u = vUV.x;
-                float v = vUV.y;
-                float t = uTime * uSpeed;
-                // 커튼 주름 — 주파수 다른 파동 3개가 흐르며 간섭
-                float f1 = 0.5 + 0.5 * sin(u * 6.2831 * 5.0 + t * 1.00 + uPhase);
-                float f2 = 0.5 + 0.5 * sin(u * 6.2831 * 12.0 - t * 1.70 + uPhase * 2.7);
-                float f3 = 0.5 + 0.5 * sin(u * 6.2831 * 2.5 + t * 0.45 + uPhase * 1.3);
-                float folds = 0.22 + 0.78 * (0.45 * f1 + 0.35 * f2 + 0.20 * f3);
-                // 커튼 전체를 훑는 저주파 밝기 파동 — 장막이 숨쉬듯
-                float sweep = 0.45 + 0.55 * (0.5 + 0.5 * sin(u * 6.2831 * 0.8 + t * 0.12 + uPhase * 0.7));
-                // 수직 프로파일 — 아래 가장자리 또렷, 위로 갈수록 부드럽게 소멸
-                float base = smoothstep(0.0, 0.10, v);
-                float fadeUp = pow(1.0 - v, 1.6);
-                // 양 끝은 점점 투명해지며 소멸(열린 커튼 — 확 끊기지 않게 긴 램프)
-                float ends = smoothstep(0.0, 0.14, u) * smoothstep(1.0, 0.86, u);
-                vec3 col = mix(uBotColor, uTopColor, smoothstep(0.05, 0.90, v));
-                float a = base * fadeUp * ends * folds * sweep * uIntensity;
-                gl_FragColor = vec4(col * a * uFade, 1.0);
-            }
-        """
     }
 }
