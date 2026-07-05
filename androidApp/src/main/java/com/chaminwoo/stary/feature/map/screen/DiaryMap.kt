@@ -153,6 +153,9 @@ private const val MAP_MIN_ZOOM = 2.4
 /** 대기 헤이즈 시작 줌 — 이 줌부터 [MAP_MIN_ZOOM] 까지 내려갈수록 파란 대기가 차올라 글로브 장면과 이어진다. */
 private const val HAZE_START_ZOOM = 4.4
 
+/** 기본 카메라 틸트(도) — 줌과 무관하게 항상 살짝 기울여 입체감을 낸다. */
+private const val BASE_TILT_DEG = 10.0
+
 /**
  * 별 기본/근접 크기 (iconSize 배율).
  * 주의: MapLibre 의 addImage(bitmap)는 기기 밀도(pixelRatio)로 나눠 표시하므로
@@ -625,7 +628,8 @@ fun DiaryMap(
     val recenterToMyLocation: () -> Unit = {
         mapRef?.animateCamera(
             CameraUpdateFactory.newCameraPosition(
-                CameraPosition.Builder().target(currentLatLngRef.value.toMl()).zoom(DEFAULT_ZOOM).build()
+                CameraPosition.Builder().target(currentLatLngRef.value.toMl()).zoom(DEFAULT_ZOOM)
+                    .tilt(BASE_TILT_DEG).build()
             )
         )
     }
@@ -857,6 +861,7 @@ fun DiaryMap(
                         map.cameraPosition = CameraPosition.Builder()
                             .target(start.toMl())
                             .zoom(DEFAULT_ZOOM)
+                            .tilt(BASE_TILT_DEG)
                             .build()
                     } else {
                         LocationHelper.cameraTarget = null
@@ -865,6 +870,8 @@ fun DiaryMap(
                             .include(MlLatLng(target.latitude, target.longitude))
                             .build()
                         map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 150))
+                        map.cameraPosition = CameraPosition.Builder(map.cameraPosition)
+                            .tilt(BASE_TILT_DEG).build()
                     }
                     styleRef = style
                     mapRef = map
@@ -1269,7 +1276,8 @@ fun DiaryMap(
         didAutoCenter = true
         map.animateCamera(
             CameraUpdateFactory.newCameraPosition(
-                CameraPosition.Builder().target(currentLatLng.toMl()).zoom(DEFAULT_ZOOM).build()
+                CameraPosition.Builder().target(currentLatLng.toMl()).zoom(DEFAULT_ZOOM)
+                    .tilt(BASE_TILT_DEG).build()
             ),
             700
         )
@@ -1281,7 +1289,8 @@ fun DiaryMap(
         val map = mapRef ?: return@LaunchedEffect
         map.animateCamera(
             CameraUpdateFactory.newCameraPosition(
-                CameraPosition.Builder().target(MlLatLng(target.lat, target.lng)).zoom(DEFAULT_ZOOM).build()
+                CameraPosition.Builder().target(MlLatLng(target.lat, target.lng)).zoom(DEFAULT_ZOOM)
+                    .tilt(BASE_TILT_DEG).build()
             ),
             800,
             object : MapLibreMap.CancelableCallback {
