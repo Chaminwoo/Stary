@@ -154,21 +154,6 @@ private const val MAP_MIN_ZOOM = 2.4
 private const val HAZE_START_ZOOM = 4.4
 
 /**
- * 고줌 카메라 틸트 — 이 줌부터 기울기 시작해 [TILT_FULL_ZOOM] 에서 최대 [TILT_MAX_DEG]° 로.
- * 줌아웃해 [TILT_START_ZOOM] 밑으로 내려가면 다시 수평(0°)으로 누워 글로브 진입과 자연스럽게 이어진다.
- * 건물을 세우는 게 아니라 "카메라 각도"만 바꿔 도로가 원근으로 수렴하는 입체감을 낸다.
- */
-private const val TILT_START_ZOOM = 14.0
-private const val TILT_FULL_ZOOM = 17.0
-private const val TILT_MAX_DEG = 42.0
-
-/** 줌 → 목표 카메라 틸트(도). 카메라 idle(정지) 시점마다 이 값으로 부드럽게 맞춘다. */
-private fun tiltForZoom(zoom: Double): Double {
-    val t = ((zoom - TILT_START_ZOOM) / (TILT_FULL_ZOOM - TILT_START_ZOOM)).coerceIn(0.0, 1.0)
-    return TILT_MAX_DEG * t
-}
-
-/**
  * 별 기본/근접 크기 (iconSize 배율).
  * 주의: MapLibre 의 addImage(bitmap)는 기기 밀도(pixelRatio)로 나눠 표시하므로
  * 화면 크기 ≈ 160/density × iconSize dp (density 2.6 기준 0.65 → 약 40dp).
@@ -687,17 +672,6 @@ fun DiaryMap(
                 map.addOnCameraIdleListener {
                     isCameraMoving.value = false
                     cameraIdleTick++
-                    // 고줌 카메라 틸트 — 사용자가 멈춘(핀치/팬/버튼 모두 공용) 시점의 줌에 맞춰
-                    // 살짝 기울인다. 제스처 도중이 아니라 idle 시에만 개입해 핀치 조작과 충돌하지 않는다.
-                    val desiredTilt = tiltForZoom(map.cameraPosition.zoom)
-                    if (kotlin.math.abs(map.cameraPosition.tilt - desiredTilt) > 0.5) {
-                        map.animateCamera(
-                            CameraUpdateFactory.newCameraPosition(
-                                CameraPosition.Builder(map.cameraPosition).tilt(desiredTilt).build()
-                            ),
-                            350
-                        )
-                    }
                 }
                 // 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음)
                 map.addOnCameraMoveListener {
