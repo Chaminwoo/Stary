@@ -205,7 +205,7 @@
     <string name="map_route_summary">도보 약 %1$d분 · %2$dm</string>
     <string name="map_route_cancel">길찾기 취소</string>
     <string name="globe_hint">드래그로 회전 · 아래를 탭해 닫기</string>
-    <string name="globe_open">지구 보기</string>
+    <string name="globe_open">우주에서 보기</string>
     <string name="globe_close">지도로 돌아가기</string>
 
     <!-- 타인 프로필(UserProfileScreen) -->
