@@ -104,15 +104,10 @@ private const val CONSTELLATION_HALO_LAYER = "constellation-halo-layer"
 // 도보 길찾기 경로 (OpenRouteService)
 private const val ROUTE_SOURCE = "walking-route"
 private const val ROUTE_LAYER = "walking-route-layer"
-// 바닥 유리가루 글린트 — 뷰포트 격자 해시 배치(같은 곳은 항상 같은 자리), 카메라 idle 마다 재생성
-private const val GLINT_SOURCE = "ground-glints"
-private const val GLINT_ICON_ID = "ground-glint-spark"
-private fun glintLayerId(g: Int) = "ground-glints-$g"
-private const val GLINT_MIN_ZOOM = 12.5
 // 도로 글린트(빛 알갱이) — road-glint 레이어의 대시 위상을 흘려 빛이 도로를 따라 흐르게 한다.
 // dash/gap 값(선 두께 배수)은 maplibre_style.json 의 line-dasharray 와 일치해야 한다.
 private const val ROAD_GLINT_LAYER = "road-glint"
-private const val ROAD_GLINT_DASH = 0.9f
+private const val ROAD_GLINT_DASH = 0.5f
 private const val ROAD_GLINT_GAP = 34f
 private const val ROAD_GLINT_SPEED = 8.5f // 초당 위상 이동(선 두께 배수)
 private const val ROAD_GLINT_STEPS = 40   // 위상 양자화 단계(대시 아틀라스 캐시 재사용 — 매 프레임 새 패턴 생성 방지)
@@ -413,74 +408,6 @@ private fun particleOpacityExpression(twinkle: Float): Expression =
         Expression.stop(12f, twinkle),
     )
 
-/** 유리가루 글린트 비트맵 — 흰색 4꼭지 마이크로 스파클(바닥에 박힌 유리 조각의 반짝임). */
-private fun glintBitmap(): Bitmap {
-    val side = 20 // 4의 배수(GL 행 정렬)
-    val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(out)
-    val path = android.graphics.Path(StarStyle.starPath(0, side * 0.9f)).apply {
-        offset(side * 0.05f, side * 0.05f)
-    }
-    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE
-        maskFilter = android.graphics.BlurMaskFilter(3f, android.graphics.BlurMaskFilter.Blur.NORMAL)
-    })
-    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
-    return out
-}
-
-/**
- * 바닥 유리가루 글린트 FeatureCollection — 뷰포트(+20% 여유)를 격자로 나누고
- * 셀 좌표 해시를 시드로 결정적 배치. 카메라 idle 마다 재생성해도 같은 곳은 항상
- * 같은 자리에서 반짝여 튀지 않는다. 셀 크기는 정수 줌 티어별 2배 → 화면상 밀도 대략 일정.
- */
-private fun buildGroundGlints(map: MapLibreMap): FeatureCollection {
-    val tier = kotlin.math.floor(map.cameraPosition.zoom).toInt().coerceIn(13, 16)
-    val cellDeg = 0.0003 * (1 shl (16 - tier)) // z16 셀 ≈ 33m
-    val b = map.projection.visibleRegion.latLngBounds
-    val latMargin = b.latitudeSpan * 0.2
-    val lngMargin = b.longitudeSpan * 0.2
-    val y0 = kotlin.math.floor((b.latitudeSouth - latMargin) / cellDeg).toLong()
-    val y1 = kotlin.math.floor((b.latitudeNorth + latMargin) / cellDeg).toLong()
-    val x0 = kotlin.math.floor((b.longitudeWest - lngMargin) / cellDeg).toLong()
-    val x1 = kotlin.math.floor((b.longitudeEast + lngMargin) / cellDeg).toLong()
-    val cells = (y1 - y0 + 1) * (x1 - x0 + 1)
-    if (cells <= 0 || cells > 9_000) return FeatureCollection.fromFeatures(emptyList())
-    val feats = ArrayList<Feature>()
-    for (y in y0..y1) for (x in x0..x1) {
-        val rnd = kotlin.random.Random(x * 73856093L xor y * 19349663L xor tier * 83492791L)
-        if (rnd.nextDouble() >= 0.38) continue // 셀당 스폰 확률
-        val lat = (y + rnd.nextDouble()) * cellDeg
-        val lng = (x + rnd.nextDouble()) * cellDeg
-        feats.add(Feature.fromGeometry(Point.fromLngLat(lng, lat)).apply {
-            addNumberProperty("phase", rnd.nextDouble() * 2.0 * Math.PI)
-            addNumberProperty("depth", 0.4 + rnd.nextDouble() * 0.6)
-            addNumberProperty("phaseGroup", rnd.nextInt(PHASE_GROUPS))
-        })
-    }
-    return FeatureCollection.fromFeatures(feats)
-}
-
-/** 글린트 iconSize: 줌 보간 × per-feature depth — 별가루보다 훨씬 작게(유리 가루). */
-private fun glintSizeExpression(): Expression {
-    fun sized(base: Float): Expression =
-        Expression.product(Expression.literal(base), Expression.get("depth"))
-    return Expression.interpolate(
-        Expression.linear(), Expression.zoom(),
-        Expression.stop(13f, sized(0.3f)),
-        Expression.stop(15f, sized(0.45f)),
-        Expression.stop(17f, sized(0.6f)),
-    )
-}
-
-/** 글린트 iconOpacity: 줌 12.8 이하 숨김 → 13.6 에서 [twinkle]. 루프가 위상 그룹별로 갱신. */
-private fun glintOpacityExpression(twinkle: Float): Expression =
-    Expression.interpolate(
-        Expression.linear(), Expression.zoom(),
-        Expression.stop(12.8f, 0f),
-        Expression.stop(13.6f, twinkle),
-    )
-
 /**
  * 별자리 라인 GeoJSON — **현재 화면(뷰포트)에 보이는 별(클러스터 대표)** 들을 잇는다.
  * 각 별을 화면 좌표상 가장 가까운 [CONSTELLATION_NEIGHBORS] 개 별과 연결([maxLinkPx] 이내).
@@ -652,7 +579,6 @@ fun DiaryMap(
     var diarySource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var constellationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var routeSource by remember { mutableStateOf<GeoJsonSource?>(null) }
-    var glintSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     val routeScope = rememberCoroutineScope()
     // 도보 길찾기: 처음 받은 전체 경로(목적지까지)를 저장. null = 길찾기 비활성(X 취소 시).
     var savedRoute by remember { mutableStateOf<List<Point>?>(null) }
@@ -806,27 +732,6 @@ fun DiaryMap(
                         )
                         style.addLayer(layer)
                     }
-
-                    // 바닥 유리가루 글린트 — 별가루와 같은 위상 그룹 구조. 내용물은 카메라 idle 마다
-                    // 뷰포트 격자로 재생성(아래 LaunchedEffect), 반짝임은 애니메이션 루프가 담당.
-                    style.addImage(GLINT_ICON_ID, glintBitmap())
-                    val gSrc = GeoJsonSource(GLINT_SOURCE, FeatureCollection.fromFeatures(emptyList()))
-                    style.addSource(gSrc)
-                    for (g in 0 until PHASE_GROUPS) {
-                        val layer = SymbolLayer(glintLayerId(g), GLINT_SOURCE)
-                            .withProperties(
-                                PropertyFactory.iconImage(GLINT_ICON_ID),
-                                PropertyFactory.iconSize(glintSizeExpression()),
-                                PropertyFactory.iconOpacity(glintOpacityExpression(0f)),
-                                PropertyFactory.iconAllowOverlap(true),
-                                PropertyFactory.iconIgnorePlacement(true),
-                            )
-                        layer.setFilter(
-                            Expression.eq(Expression.get("phaseGroup"), Expression.literal(g))
-                        )
-                        style.addLayer(layer)
-                    }
-                    glintSource = gSrc
 
                     // 별자리 라인 (파티클 위, 마커 아래) — 외곽 후광 + 글로우 + 밝은 선 3겹.
                     // 초기 불투명도 0 → 토글 시 페이드 인/아웃(부드럽게 켜짐).
@@ -1254,23 +1159,6 @@ fun DiaryMap(
         }
     }
 
-    // 바닥 유리가루 글린트 재생성 — 카메라 idle 시 현재 뷰포트 격자로 다시 깐다(줌 낮으면 비움).
-    var glintsPopulated by remember { mutableStateOf(false) }
-    LaunchedEffect(styleRef, cameraIdleTick) {
-        val map = mapRef ?: return@LaunchedEffect
-        val src = glintSource ?: return@LaunchedEffect
-        if (map.cameraPosition.zoom < GLINT_MIN_ZOOM) {
-            if (glintsPopulated) {
-                src.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-                glintsPopulated = false
-            }
-            return@LaunchedEffect
-        }
-        delay(120) // 연속 idle 디바운스(클러스터링과 동일한 결)
-        src.setGeoJson(buildGroundGlints(map))
-        glintsPopulated = true
-    }
-
     // 마커 애니메이션: float(상하 부유) + 근접 별 pulse(맥동 확대).
     // 위상 그룹 레이어마다 다른 위상을 적용해 별들이 따로따로 부유한다.
     // 카메라 이동 중엔 스타일 변경을 멈춰 팬/줌 끊김을 방지한다.
@@ -1315,17 +1203,6 @@ fun DiaryMap(
                 val twinkle = 0.25f + 0.75f * ((sin(t * speed + phase) + 1f) / 2f)
                 layer.setProperties(
                     PropertyFactory.iconOpacity(particleOpacityExpression(twinkle))
-                )
-            }
-            // 바닥 유리가루: 세제곱 피크 트윙클 — 평소엔 거의 안 보이다 "반짝" 하고 튄다(유리 질감)
-            for (g in 0 until PHASE_GROUPS) {
-                val layer = style.getLayer(glintLayerId(g)) as? SymbolLayer ?: continue
-                val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
-                val speed = 2.6f + g * 0.5f
-                val tw = (sin(t * speed + phase) + 1f) / 2f
-                val sparkle = 0.06f + 0.74f * tw * tw * tw
-                layer.setProperties(
-                    PropertyFactory.iconOpacity(glintOpacityExpression(sparkle))
                 )
             }
             // 도로 글린트: 대시 위상을 흘려 빛 알갱이가 도로를 따라 흐른다.
