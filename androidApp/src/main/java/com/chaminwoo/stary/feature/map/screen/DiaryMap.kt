@@ -435,15 +435,16 @@ private fun particleOpacityExpression(twinkle: Float): Expression =
     )
 
 /**
- * road-glint 레이어 iconOpacity — maplibre_style.json 의 zoom 스톱(11→0, 12→0.55, 16→0.7)을
+ * road-glint 레이어 iconOpacity — maplibre_style.json 의 zoom 스톱(13→0, 15→0.55, 17→0.7)을
  * 그대로 유지하면서 [envelope](0..1, 위상 순환 페이드)를 곱해 애니메이션 루프에서 갱신한다.
+ * (2026-07 튜닝: 최소줌·페이드 구간을 더 높은 줌으로 올려 줌아웃 시 더 빨리 사라지게)
  */
 private fun roadGlintOpacityExpression(envelope: Float): Expression =
     Expression.interpolate(
         Expression.linear(), Expression.zoom(),
-        Expression.stop(11f, 0f),
-        Expression.stop(12f, 0.55f * envelope),
-        Expression.stop(16f, 0.7f * envelope),
+        Expression.stop(13f, 0f),
+        Expression.stop(15f, 0.55f * envelope),
+        Expression.stop(17f, 0.7f * envelope),
     )
 
 /**

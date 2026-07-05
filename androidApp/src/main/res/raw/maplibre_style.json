@@ -100,7 +100,7 @@
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
-      "minzoom": 9,
+      "minzoom": 7,
       "filter": ["in", "class", "motorway", "trunk", "primary"],
       "layout": { "line-cap": "round", "line-join": "round" },
       "paint": {
@@ -115,7 +115,7 @@
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
-      "minzoom": 9,
+      "minzoom": 7,
       "filter": ["in", "class", "motorway", "trunk", "primary"],
       "layout": { "line-cap": "round", "line-join": "round" },
       "paint": {
@@ -143,14 +143,14 @@
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
-      "minzoom": 11,
+      "minzoom": 13,
       "filter": ["in", "class", "motorway", "trunk", "primary"],
       "layout": { "line-join": "round" },
       "paint": {
         "line-color": "#FFF6E0",
         "line-blur": 1,
         "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.6, 14, 2.6, 17, 4.2],
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 11, 0, 12, 0.55, 16, 0.7],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 13, 0, 15, 0.55, 17, 0.7],
         "line-dasharray": [0.9, 34]
       }
     }
