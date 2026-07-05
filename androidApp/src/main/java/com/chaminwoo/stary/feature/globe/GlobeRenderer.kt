@@ -1220,7 +1220,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 float ndl = dot(normalize(vN), uSunDir);
                 float light = 0.70 + 0.45 * smoothstep(-0.18, 0.22, ndl);
                 vec3 col = vec3(0.62, 0.70, 0.82) * light; // 밤 지구 톤에 맞춘 은은한 청백 구름
-                gl_FragColor = vec4(col * uFade, cloud * 0.55 * uAlpha * uFade);
+                gl_FragColor = vec4(col * uFade, cloud * 0.45 * uAlpha * uFade);
             }
         """
 

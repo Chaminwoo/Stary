@@ -624,7 +624,7 @@ private enum GlobeBuilder {
         let buf = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
         for i in 0..<(w * h) {
             let lum = Double(buf[i * 4]) / 255.0            // 흑백이라 R = 밝기
-            let a = lum * 0.55                               // 구름 최대 불투명도(은은하게)
+            let a = lum * 0.45                               // 구름 최대 불투명도(은은하게)
             // premultiplied alpha — 은은한 청백(0.62, 0.70, 0.82) 틴트
             pixels[i * 4] = UInt8(min(255, 0.62 * a * 255))
             pixels[i * 4 + 1] = UInt8(min(255, 0.70 * a * 255))
