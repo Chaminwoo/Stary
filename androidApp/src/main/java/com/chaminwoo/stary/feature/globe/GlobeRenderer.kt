@@ -34,8 +34,8 @@ import kotlin.math.sin
  *     뚜렷한 은하수(잔별 밀집 띠 + 끊김 없는 헤이즈 리본 + 은하핵 벌지) +
  *     황도 12궁 별자리(레퍼런스 references/zodiac.avif, 궁별 고유색 + 희미한 연결선) + 4방 광선 반짝별 —
  *     카메라가 중심에서 떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감
- *  1.5. 유성: 랜덤 간격(4~11초)으로 화면을 사선으로 가로지르는 별똥별 —
- *     머리(백색)+꼬리(청백) 스프라이트 체인, 점화→소멸 봉투. 뷰 공간 배치(모델 회전 무관)
+ *  1.5. 유성: 랜덤 간격(4~11초)으로 실제 3D 우주공간을 가로지르는 별똥별 —
+ *     머리(백색)+꼬리(청백) 스프라이트 체인, 깊이 성분 포함 랜덤 3D 경로(원근 이동), 점화→소멸 봉투
  *  2. 지구 구체: 원본의 3/4 밝기 기준 + 낮/밤 반구 — UTC 하루 기준 360도 도는 태양 방향의
  *     반구는 기준 밝기 그대로, 반대 반구는 30% 감광, 터미네이터는 smoothstep 으로 부드럽게
  *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 아주 옅은 글로우, 훨씬 반투명.
@@ -414,8 +414,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     /** 유성 — [METEOR_MIN_GAP]~[METEOR_MAX_GAP]초 랜덤 간격 출현. 머리(백색)+꼬리(청백)
-     *  스프라이트 체인이 화면 기준(뷰 공간 — 모델 회전 무관) 사선으로 떨어지며
-     *  점화(12%)→유지→소멸(30%) 봉투로 자연스럽게 나타났다 사라진다. */
+     *  스프라이트 체인이 실제 3D 우주공간을 직선으로 가로지른다(깊이 성분 포함 → 원근으로
+     *  다가오거나 멀어짐). 점화(12%)→유지→소멸(30%) 봉투로 자연스럽게 나타났다 사라진다. */
     private fun drawMeteor(camPos: FloatArray, t: Float) {
         if (meteorStartT < 0f) {
             if (t < nextMeteorT) return
@@ -450,7 +450,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 g = bright * (0.80f + 0.20f * fall),
                 b = bright,
                 a = 1f,
-                size = 0.10f + 0.20f * fall,
+                size = 0.05f + 0.10f * fall, // 기존의 절반 크기
                 phase = 0f, mode = 2f, // 트윙클 없는 정광
             )
         }
@@ -458,24 +458,29 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         drawSprites(meteorVbo, METEOR_SPRITES * 6, glowTex, camPos, t, depthTest = false, modelM = identityM)
     }
 
-    /** 유성 생성 — 화면 위쪽 임의 지점에서 반대편으로 향하는 사선 하강 경로를 뽑는다. */
+    /** 유성 생성 — 카메라 앞 임의 깊이의 통과 지점을 잡고, 완전 랜덤 3D 방향(깊이 성분 포함)의
+     *  직선 경로를 뽑는다. 통과 지점을 기준으로 앞뒤로 반씩 뻗어 실제 3D 공간을 가로질러 지난다. */
     private fun spawnMeteor(t: Float) {
         meteorStartT = t
         meteorDur = 0.9f + meteorRnd.nextFloat() * 0.7f
-        val r = 25f                 // 중경(22)~원경(38) 별밭 셸 사이 — 시차가 자연스러운 거리
-        val kY = r * 0.38f          // tan(FOV 42°/2) ≈ 0.38 → 그 거리에서의 화면 세로 반높이
+        val depth = 20f + meteorRnd.nextFloat() * 16f      // 카메라~통과지점 거리(별밭 셸 사이)
+        val kY = depth * 0.384f                            // 그 깊이에서 화면 세로 반높이(tan 21°)
         val kX = kY * screenAspect
-        meteorP0[0] = (meteorRnd.nextFloat() * 1.8f - 0.9f) * kX
-        meteorP0[1] = (0.25f + meteorRnd.nextFloat() * 0.65f) * kY
-        meteorP0[2] = -r
-        // 사선 하강 — 수평 성분은 시작점 반대쪽으로(화면을 가로지르게)
-        val dx = (0.35f + meteorRnd.nextFloat() * 0.55f) * (if (meteorP0[0] > 0f) -1f else 1f)
-        val dy = -(0.65f + meteorRnd.nextFloat() * 0.35f)
-        val invLen = 1f / kotlin.math.sqrt(dx * dx + dy * dy)
-        meteorDir[0] = dx * invLen
-        meteorDir[1] = dy * invLen
-        meteorDir[2] = 0f
-        meteorLen = (0.9f + meteorRnd.nextFloat() * 0.5f) * kY
+        // 화면 어디서든 나타나게 — 통과 지점을 화면 전역에 랜덤 배치
+        val sx = (meteorRnd.nextFloat() * 1.7f - 0.85f) * kX
+        val sy = (meteorRnd.nextFloat() * 1.7f - 0.85f) * kY
+        val midZ = camDist - depth                         // 카메라(+z) 앞쪽(-z 방향)
+        // 완전 랜덤 3D 방향 — 화면면 성분(각도 랜덤) + 깊이 성분(다가옴/멀어짐)
+        val theta = meteorRnd.nextFloat() * 6.2832f
+        val zc = (meteorRnd.nextFloat() * 2f - 1f) * 0.55f
+        val tc = kotlin.math.sqrt(1f - zc * zc)
+        meteorDir[0] = cos(theta) * tc
+        meteorDir[1] = sin(theta) * tc
+        meteorDir[2] = zc
+        meteorLen = (1.0f + meteorRnd.nextFloat() * 0.7f) * kY
+        meteorP0[0] = sx - meteorDir[0] * meteorLen * 0.5f
+        meteorP0[1] = sy - meteorDir[1] * meteorLen * 0.5f
+        meteorP0[2] = midZ - meteorDir[2] * meteorLen * 0.5f
     }
 
     private fun drawSprites(

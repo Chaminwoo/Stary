@@ -76,9 +76,9 @@
       "filter": ["in", "class", "minor", "service"],
       "layout": { "line-cap": "round", "line-join": "round" },
       "paint": {
-        "line-color": ["interpolate", ["linear"], ["zoom"], 13, "#151A26", 17, "#3A4356"],
+        "line-color": ["interpolate", ["linear"], ["zoom"], 13, "#161310", 17, "#2E2822"],
         "line-width": ["interpolate", ["linear"], ["zoom"], 13, 0.6, 15, 1.8, 17, 4.5],
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 13, 0, 14, 0.85]
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 13, 0, 14, 0.8]
       }
     },
     {
@@ -100,14 +100,14 @@
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
-      "minzoom": 7,
+      "minzoom": 9,
       "filter": ["in", "class", "motorway", "trunk", "primary"],
       "layout": { "line-cap": "round", "line-join": "round" },
       "paint": {
         "line-color": "#FFB25E",
         "line-blur": ["interpolate", ["linear"], ["zoom"], 8, 3, 14, 7, 17, 14],
         "line-width": ["interpolate", ["linear"], ["zoom"], 7, 2.5, 11, 5.5, 14, 11, 17, 20],
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, 0, 8, 0.09, 16, 0.13]
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, 0, 10, 0.09, 16, 0.13]
       }
     },
     {
@@ -115,13 +115,13 @@
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
-      "minzoom": 7,
+      "minzoom": 9,
       "filter": ["in", "class", "motorway", "trunk", "primary"],
       "layout": { "line-cap": "round", "line-join": "round" },
       "paint": {
         "line-color": ["interpolate", ["linear"], ["zoom"], 8, "#46351A", 12, "#7E5D31", 16, "#B08A50"],
         "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.6, 11, 1.5, 14, 3.2, 17, 6.5],
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, 0, 8, 0.8]
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, 0, 10, 0.8]
       }
     },
     {

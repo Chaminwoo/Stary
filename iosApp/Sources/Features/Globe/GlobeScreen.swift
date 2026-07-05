@@ -296,7 +296,7 @@ private struct GlobeSceneView: UIViewRepresentable {
             // rootNode 소속이라 지구 드래그 회전과 무관하게 화면을 가로지른다)
             if time >= nextMeteorAt, let root = sceneRootNode {
                 nextMeteorAt = time + .random(in: 4...11)
-                root.addChildNode(GlobeBuilder.meteorNode())
+                root.addChildNode(GlobeBuilder.meteorNode(camDist: camDist))
             }
         }
 
@@ -1136,16 +1136,17 @@ private enum GlobeBuilder {
         }
     }()
 
-    /// 유성 노드 — 화면 기준(rootNode 좌표 — 컨테이너 회전 무관) 사선 하강.
+    /// 유성 노드 — 실제 3D 우주공간(rootNode 좌표 — 컨테이너 회전 무관)을 직선으로 가로지른다.
+    /// 깊이 성분을 포함한 완전 랜덤 3D 방향이라 원근으로 다가오거나 멀어진다.
     /// 점화(12%)→유지→소멸(30%) 봉투 후 스스로 제거된다.
     /// (Android GlobeRenderer drawMeteor/spawnMeteor 패리티)
-    static func meteorNode() -> SCNNode {
-        let r: Float = 25                 // 중경(22)~원경(38) 별밭 셸 사이 — 시차가 자연스러운 거리
-        let kY = r * 0.38                 // tan(FOV 42°/2) ≈ 그 거리에서의 화면 세로 반높이
+    static func meteorNode(camDist: Float) -> SCNNode {
+        let depth = Float.random(in: 20...36)  // 카메라~통과지점 거리(별밭 셸 사이)
+        let kY = depth * 0.384                 // tan(FOV 42°/2) ≈ 그 깊이에서 화면 세로 반높이
         let bounds = UIScreen.main.bounds
         let kX = kY * Float(bounds.width / max(bounds.height, 1))
-        let len = kY * Float.random(in: 0.34...0.5) // 스트릭(꼬리 포함) 길이
-        let plane = SCNPlane(width: CGFloat(len), height: CGFloat(len) * 0.10)
+        let streak = kY * Float.random(in: 0.17...0.25) // 스트릭 길이(기존의 절반 크기)
+        let plane = SCNPlane(width: CGFloat(streak), height: CGFloat(streak) * 0.10)
         let material = SCNMaterial()
         material.lightingModel = .constant
         material.diffuse.contents = meteorStreak
@@ -1154,20 +1155,24 @@ private enum GlobeBuilder {
         material.writesToDepthBuffer = false
         plane.materials = [material]
         let node = SCNNode(geometry: plane)
-        let x0 = Float.random(in: -0.9...0.9) * kX
-        let y0 = Float.random(in: 0.25...0.9) * kY
-        node.position = SCNVector3(x0, y0, -r)
-        // 사선 하강 — 수평 성분은 시작점 반대쪽으로(화면을 가로지르게)
-        let dx = Float.random(in: 0.35...0.9) * (x0 > 0 ? -1 : 1)
-        let dy = -Float.random(in: 0.65...1.0)
-        let inv = 1 / sqrt(dx * dx + dy * dy)
-        let dirX = dx * inv, dirY = dy * inv
-        node.eulerAngles = SCNVector3(0, 0, atan2(dirY, dirX)) // 스트릭 머리(+x)를 진행 방향으로
+        // 화면 어디서든 나타나게 — 통과 지점을 화면 전역에 랜덤 배치
+        let sx = Float.random(in: -0.85...0.85) * kX
+        let sy = Float.random(in: -0.85...0.85) * kY
+        let midZ = camDist - depth              // 카메라(+z) 앞쪽(-z 방향)
+        // 완전 랜덤 3D 방향 — 화면면 성분(각도 랜덤) + 깊이 성분(다가옴/멀어짐)
+        let theta = Float.random(in: 0..<(2 * .pi))
+        let zc = Float.random(in: -0.55...0.55)
+        let tc = sqrt(1 - zc * zc)
+        let dir = SCNVector3(cos(theta) * tc, sin(theta) * tc, zc)
+        let travel = kY * Float.random(in: 1.0...1.7)
+        node.position = SCNVector3(sx - dir.x * travel * 0.5,
+                                   sy - dir.y * travel * 0.5,
+                                   midZ - dir.z * travel * 0.5)
+        node.eulerAngles = SCNVector3(0, 0, atan2(dir.y, dir.x)) // 스트릭 머리(+x)를 진행 방향으로
         node.opacity = 0
         node.renderingOrder = -9 // 배경층(별밭 셸 다음, 지구보다 먼저 — 지구 뒤로 가려짐)
-        let travel = kY * Float.random(in: 0.9...1.4)
         let dur = Double.random(in: 0.9...1.6)
-        let move = SCNAction.move(by: SCNVector3(dirX * travel, dirY * travel, 0), duration: dur)
+        let move = SCNAction.move(by: SCNVector3(dir.x * travel, dir.y * travel, dir.z * travel), duration: dur)
         move.timingMode = .linear
         let fade = SCNAction.sequence([
             .fadeIn(duration: dur * 0.12),
