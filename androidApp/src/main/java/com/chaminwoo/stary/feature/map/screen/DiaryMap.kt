@@ -123,6 +123,13 @@ private const val CONSTELLATION_NEIGHBORS = 2
 
 /** 인기 별의 글로우 오오라(CircleLayer) id — 위상 그룹별(별과 같은 float 적용). */
 private fun auraLayerId(group: Int) = "diary-aura-$group"
+/**
+ * 바닥 빛 웅덩이(CircleLayer) id — 별이 지면을 은은히 비추는 앵커 고정 광.
+ * 별(iconTranslate 부유)과 달리 지점에 고정되어 부유 시 시차가 생겨 "떠 있음"이 읽힌다.
+ */
+private fun groundLightLayerId(group: Int) = "diary-ground-light-$group"
+private const val GROUND_LIGHT_OPACITY = 0.13f
+private const val GROUND_LIGHT_OFFSET_Y = 8f // 별 중심보다 살짝 아래(지면 쪽)에 고인 빛
 /** 화면상 클러스터 반경(dp). 이 거리 안에서 겹치는 별은 가장 좋아요 많은 별 하나로 합쳐 표시. */
 private const val CLUSTER_RADIUS_DP = 4f
 /** 좋아요 수 → 크기 배율 상한(좋아요 100개에서 3배). */
@@ -154,7 +161,7 @@ private const val MAP_MIN_ZOOM = 2.4
 private const val HAZE_START_ZOOM = 4.4
 
 /** 기본 카메라 틸트(도) — 줌과 무관하게 항상 살짝 기울여 입체감을 낸다. */
-private const val BASE_TILT_DEG = 10.0
+private const val BASE_TILT_DEG = 25.0
 
 /**
  * 별 기본/근접 크기 (iconSize 배율).
@@ -256,6 +263,19 @@ private fun auraRadiusExpression(): Expression {
         Expression.stop(10f, r(6f)),
         Expression.stop(13f, r(14f)),
         Expression.stop(15f, r(26f)),
+    )
+}
+
+/** 바닥 빛 웅덩이 반경: 오오라보다 작고 은은하게, 모든 별 공통(줌 보간 × sizeMult). */
+private fun groundLightRadiusExpression(): Expression {
+    fun r(base: Float): Expression =
+        Expression.product(Expression.literal(base), Expression.get("sizeMult"))
+    return Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        Expression.stop(6f, r(0.6f)),
+        Expression.stop(10f, r(2f)),
+        Expression.stop(13f, r(4.5f)),
+        Expression.stop(15f, r(7f)),
     )
 }
 
@@ -809,6 +829,24 @@ fun DiaryMap(
                     val dSrc = GeoJsonSource(DIARY_SOURCE, FeatureCollection.fromFeatures(emptyList()))
                     style.addSource(dSrc)
 
+                    // 바닥 빛 웅덩이 — 별이 지면을 은은히 비추는 앵커 고정 광(모든 별 공통).
+                    // 별은 iconTranslate 로 부유하지만 이 빛은 지점에 고정 → 시차로 "떠 있음"이 읽힌다.
+                    for (g in 0 until PHASE_GROUPS) {
+                        val light = CircleLayer(groundLightLayerId(g), DIARY_SOURCE).withProperties(
+                            PropertyFactory.circleColor(Expression.toColor(Expression.get("auraColor"))),
+                            PropertyFactory.circleRadius(groundLightRadiusExpression()),
+                            PropertyFactory.circleOpacity(
+                                Expression.product(
+                                    Expression.literal(GROUND_LIGHT_OPACITY), Expression.get("alpha")
+                                )
+                            ),
+                            PropertyFactory.circleBlur(1.4f),
+                            PropertyFactory.circleTranslate(arrayOf(0f, GROUND_LIGHT_OFFSET_Y)),
+                        )
+                        light.setFilter(Expression.eq(Expression.get("phaseGroup"), Expression.literal(g)))
+                        style.addLayer(light)
+                    }
+
                     // 오오라(인기 별 글로우) — 별 아래에 깔리는 CircleLayer. 위상 그룹별로 나눠 별과 같이 float.
                     for (g in 0 until PHASE_GROUPS) {
                         val aura = CircleLayer(auraLayerId(g), DIARY_SOURCE).withProperties(
@@ -1207,7 +1245,8 @@ fun DiaryMap(
             for (g in 0 until PHASE_GROUPS) {
                 val layer = style.getLayer(diaryLayerId(g)) as? SymbolLayer ?: continue
                 val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
-                val floatDy = (sin(t * 1.6f + phase) * 3f * zoomAmp) // 최대 -3..3 dp, 줌 작으면 축소
+                val wave = sin(t * 1.6f + phase) // -1(위)..1(아래)
+                val floatDy = wave * 4f * zoomAmp // 최대 -4..4 dp, 줌 작으면 축소
                 val pulse = 1f + 0.20f * ((sin(t * 3.2f + phase) + 1f) / 2f) // 1.0..1.2 맥동
                 layer.setProperties(
                     PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
@@ -1216,6 +1255,16 @@ fun DiaryMap(
                 // 후광도 같은 float 적용 → 별과 함께 떠오른다
                 (style.getLayer(auraLayerId(g)) as? CircleLayer)?.setProperties(
                     PropertyFactory.circleTranslate(arrayOf(0f, floatDy))
+                )
+                // 바닥 빛 웅덩이는 지점 고정(시차의 기준점). 별이 내려와 가까워질수록 살짝 밝게.
+                val downFrac = (wave + 1f) / 2f // 0(위)..1(아래)
+                (style.getLayer(groundLightLayerId(g)) as? CircleLayer)?.setProperties(
+                    PropertyFactory.circleOpacity(
+                        Expression.product(
+                            Expression.literal(GROUND_LIGHT_OPACITY * (0.7f + 0.3f * downFrac)),
+                            Expression.get("alpha")
+                        )
+                    )
                 )
             }
             // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신 (GeoJSON 재생성 없음)
