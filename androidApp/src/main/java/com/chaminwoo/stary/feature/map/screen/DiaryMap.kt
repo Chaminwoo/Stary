@@ -140,6 +140,8 @@ private const val MARKER_SIDE_PX = 160
 /** 3D 글로브 "지구 보기" 버튼 노출 줌(이하로 줌아웃하면 버튼 표시 — 자동 전환 없음) / 지도 최소 줌. */
 private const val GLOBE_BUTTON_ZOOM = 3.0
 private const val MAP_MIN_ZOOM = 2.4
+/** 대기 헤이즈 시작 줌 — 이 줌부터 [MAP_MIN_ZOOM] 까지 내려갈수록 파란 대기가 차올라 글로브 장면과 이어진다. */
+private const val HAZE_START_ZOOM = 4.4
 
 /**
  * 별 기본/근접 크기 (iconSize 배율).
@@ -575,6 +577,8 @@ fun DiaryMap(
     var savedRoute by remember { mutableStateOf<List<Point>?>(null) }
     val addedIcons = remember { mutableSetOf<String>() }
     val isCameraMoving = remember { mutableStateOf(false) }
+    // 저줌 대기 헤이즈 강도(0..1) — 줌이 HAZE_START_ZOOM 밑으로 내려갈수록 1에 접근.
+    val hazeAlpha = remember { mutableStateOf(0f) }
     // 카메라가 멈출 때마다 증가 → 줌/이동에 따라 화면 클러스터링 재계산 트리거
     var cameraIdleTick by remember { mutableStateOf(0) }
     val clusterRadiusPx = remember { CLUSTER_RADIUS_DP * context.resources.displayMetrics.density }
@@ -649,8 +653,12 @@ fun DiaryMap(
                 }
                 // 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음)
                 map.addOnCameraMoveListener {
-                    val cb = onGlobeAvailabilityRef.value ?: return@addOnCameraMoveListener
                     val z = map.cameraPosition.zoom
+                    // 대기 헤이즈: 알파가 실제로 변할 때만 state 갱신(팬 중 불필요한 리컴포지션 방지)
+                    val a = ((HAZE_START_ZOOM - z) / (HAZE_START_ZOOM - MAP_MIN_ZOOM))
+                        .toFloat().coerceIn(0f, 1f)
+                    if (a != hazeAlpha.value) hazeAlpha.value = a
+                    val cb = onGlobeAvailabilityRef.value ?: return@addOnCameraMoveListener
                     val c = map.cameraPosition.target
                     cb(c?.latitude ?: 0.0, c?.longitude ?: 0.0, z <= GLOBE_BUTTON_ZOOM)
                 }
@@ -839,6 +847,37 @@ fun DiaryMap(
                     styleRef = style
                     mapRef = map
                 }
+            }
+        }
+
+        // 비네트 + 저줌 대기 헤이즈 — 그리기 전용(터치는 지도로 통과), FAB/워프 오버레이보다 아래.
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val r = hypot(size.width, size.height) / 2f
+            if (r <= 0f) return@Canvas
+            // 1) 상시 비네트: 가장자리를 살짝 어둡게 눌러 화면에 깊이감을 준다
+            drawRect(
+                brush = Brush.radialGradient(
+                    0.0f to Color.Transparent,
+                    0.62f to Color.Transparent,
+                    1.0f to Color.Black.copy(alpha = 0.30f),
+                    center = center,
+                    radius = r,
+                )
+            )
+            // 2) 글로브 근접 대기 헤이즈: 줌아웃할수록 파란 대기가 차올라 글로브 전환과 이어진다
+            val a = hazeAlpha.value
+            if (a > 0f) {
+                drawRect(Color(0xFF060E1C).copy(alpha = 0.35f * a))
+                drawRect(
+                    brush = Brush.radialGradient(
+                        0.0f to Color.Transparent,
+                        0.55f to Color.Transparent,
+                        0.85f to Color(0xFF3E7CC4).copy(alpha = 0.10f * a),
+                        1.0f to Color(0xFF9BD1FF).copy(alpha = 0.22f * a),
+                        center = center,
+                        radius = r,
+                    )
+                )
             }
         }
 

@@ -92,12 +92,14 @@ object StarStyle {
             8 -> return planetPath(sizePx)
         }
 
-        // 내부 반지름 비율을 낮춰 꼭지를 더 뾰족하고 깔끔하게(2026-07 모양 다듬기, iOS StarShape 와 동기).
+        // 모든 별을 곡선(quad) 스파이크로 통일 — 직선 별(구 5각/6각)이 투박해 보여 재구성
+        // (2026-07 모양 다듬기 2차, iOS StarShape 와 동기).
+        // innerRatio 는 quad 제어점 거리: 곡선 별의 실제 허리 두께 ≈ 0.5·cos(180°/spikes) + 0.5·innerRatio.
         data class Spec(val spikes: Int, val innerRatio: Float, val rotateDeg: Double, val curved: Boolean)
         val spec = when (type.coerceIn(0, TYPE_COUNT - 1)) {
             0 -> Spec(4, 0.085f, 0.0, curved = true)
-            1 -> Spec(5, 0.34f, -90.0, curved = false)
-            2 -> Spec(6, 0.21f, -90.0, curved = false)
+            1 -> Spec(5, 0.14f, -90.0, curved = true)
+            2 -> Spec(6, 0.11f, -90.0, curved = true)
             3 -> Spec(8, 0.10f, 0.0, curved = true)
             else -> Spec(4, 0.085f, 45.0, curved = true) // 4
         }
