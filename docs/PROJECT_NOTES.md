@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.32 히든 업적 후속 3건 — 심연의 별 아이콘 교체 + 어드민 선점 해제(자가치유) + 친구 프로필 히든 아이콘**(테스트 완료) — 아래 8.32 참고. Android **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
+> 최종 갱신: **8.33 지도 야경 스타일 전면 개편 + 글로브 오로라 삭제→은하수 격상/유성 추가**(테스트 완료) — 아래 8.33 참고. Android **BUILD SUCCESSFUL**(라운드별 확인), iOS 컴파일 CI 대기.
+> 이전: **8.32 히든 업적 후속 3건 — 심연의 별 아이콘 교체 + 어드민 선점 해제(자가치유) + 친구 프로필 히든 아이콘**(테스트 완료) — 아래 8.32 참고. Android **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
 > 이전: **8.31 로그아웃 버튼 zIndex + 히든 칭호 금색『』 + 하루 업로드 10개 제한 + 어드민 히든선점 제외**(체크리스트 19~22) — 아래 8.31 참고.
 > 이전: **8.30 채팅 FCM 알림(백그라운드/종료) + 딥링크**(heads-up 채널 사전생성, 알림 탭→해당 채팅방, singleTop+onNewIntent+DeepLinkState, 서버 data에 friendId/name) — 아래 8.30 참고. Android **BUILD SUCCESSFUL**, 실기기+Functions 배포 검증 대기. Android 전용(iOS APNs 후속).
 > 이전: **8.29 히든 업적(앱 전체 1명 선착순) + 프로필 아이콘·파티클**(업적 화면 일반/히든 2탭, 조건 `???`→달성 시 공개+달성자, 트랜잭션 선점, 안드+iOS) — 아래 8.29 참고.
@@ -21,6 +22,29 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.33 지도 야경 스타일 전면 개편 + 글로브 오로라 삭제→은하수 격상/유성 추가 (테스트 완료)
+사용자가 "지도가 3D 글로브와 분위기 차이가 많이 난다"고 지적 → 지도를 글로브와 이어지는 "위성 야경" 컨셉으로 재작업. 이어서 글로브 쪽도 오로라 제거 + 은하수/유성으로 교체. 여러 라운드에 걸친 시행착오(동적 카메라 틸트·바닥 유리가루 파티클은 시도 후 롤백) 끝에 아래가 최종 상태.
+
+- **지도 스타일(`maplibre_style.json`, Android 전용 — iOS 는 아직 데모 placeholder, 하단 참고)**:
+  - 레이어 확장: 기존 background/water/road-major 3개 → landcover(숲/초지)·landuse(도심)·park 미세 톤 텍스처 추가(벡터 타일에 이미 포함된 데이터라 다운로드 증가 없음).
+  - 도로 재구성 = "밤의 불빛" 위계: motorway/trunk/primary(앰버 글로우 2겹 + 코어 + 스페큘러 하이라이트 + 흐르는 노란 알갱이 `road-glint`), secondary/tertiary(딤 골드), minor/service(파란 슬레이트였다가 최종적으로 땅 톤에 가까운 어두운 웜 그레이 `#161310→#2E2822`). 전체 밝기를 별 마커보다 낮게 캡해 별이 항상 시선의 정점.
+  - `road-glint`(흐르는 빛 알갱이): `DiaryMap.kt` 애니메이션 루프가 `line-dasharray` 위상을 매 틱 흘려 빛이 도로를 따라 흐르게 함. 위상이 한 바퀴 돌아 재생성되는 순간 전후 0.2초씩 삼각 envelope 로 부드럽게 페이드(끊김 방지, `roadGlintOpacityExpression`). 사용자 피드백으로 `minzoom`/페이드 줌 스톱을 11·12·16 → **13·15·17** 로 올려 줌아웃 시 더 빨리 사라지게 튜닝.
+  - 비네트 + 저줌 대기 헤이즈: 화면 가장자리 상시 비네트 + 줌 4.4→2.4(글로브 진입줌) 사이 파란 대기가 차오르는 Compose Canvas 오버레이(터치 통과) — 지도→글로브 전환이 한 장면처럼 이어짐.
+  - **바닥 유리가루(ground-glints) 파티클은 추가했다가 전량 제거**(사용자가 삭제 요청) — 도로의 유리 질감(하이라이트+글린트)만 유지.
+  - 카메라 틸트: 줌 연동 동적 틸트(14~17줌에서 0→42°, `onCameraIdle` 트리거)를 만들었으나 사용자가 롤백 요청 → 최종은 **줌 무관 고정 10° 틸트**(`BASE_TILT_DEG`, 카메라를 세팅하는 5곳에 일괄 적용).
+- **별 마커 개선**:
+  - 5·6각 별의 직선 스파이크가 4·8각(곡선)과 비교해 투박해 보인다는 지적 → 전부 곡선(quad) 스파이크로 통일(`StarStyle.starPath` / iOS `StarShape.swift` 동기, innerRatio 0.14/0.11로 조정).
+  - "별이 지도에 박혀 보인다" → 바닥 빛 웅덩이(`diary-ground-light-N`, 앵커 고정 CircleLayer, 별 색 옅은 원형광)를 각 별 아래 추가. 별은 `iconTranslate` 로 부유하지만 이 빛은 지점에 고정되어 시차가 생겨 "떠 있음"이 읽힘 + 별이 내려올 때 살짝 밝아지는 미세 연출. 부유 진폭도 3→4dp 로 소폭 상향.
+- **글로브(`GlobeRenderer.kt` / iOS `GlobeScreen.swift`, 안드+iOS 동시 반영)**:
+  - **오로라 커튼 4폭 완전 삭제**(안드 GL 지오메트리/전용 셰이더/팔레트, iOS `auroraNodes`/`auroraTexture` 배선까지 전부 제거).
+  - **은하수 격상**: 기존 잔별 560개+헤이즈 10개(거의 안 보이는 수준) → 잔별 1500개(이중 가우시안 두께: 얇은 심+넓은 외곽) + 띠를 따라 끊김 없는 청백 헤이즈 리본 + **은하핵 벌지**(한쪽에 따뜻한 대형 글로우 응집, 그 근처 별이 더 밝고 따뜻한 색) — 뚜렷한 "빛의 강"으로.
+  - **유성 신규 추가**: 처음엔 화면 평면(뷰 공간, 고정 깊이)에서 슬라이드하는 방식이었으나 "2D처럼 보인다"는 지적 → **깊이 성분 포함 완전 랜덤 3D 방향의 직선 경로**로 실제 우주공간을 가로지르게 재작업(원근으로 다가오거나 멀어짐). 크기는 최종적으로 초기안의 절반. 방향은 화면상 수직 성분이 항상 0 이하가 되도록 제한해 **위로 올라가는 각도는 완전히 배제**(아래~사선만).
+  - **유성 출현 = 확률 스트릭 구조**: 글로브 입장 30초 뒤 첫 판정, 이후 30초마다 25% 확률 판정. 성공하면 낙하 시작 → 낙하가 끝나자마자 대기 없이 곧바로 재판정(운이 좋으면 연속으로 계속 떨어짐), 실패하면 스트릭 리셋 + 다시 30초 대기. 연속 스트릭 중엔 매번 다른 색(기본 청백→주황→초록→핑크→골드→보라 순환, `METEOR_TINTS`/iOS `meteorTints`).
+- ⚠️ **iOS 지도(`MapLibreView.swift`)는 아직 MapTiler 데모 스타일(`demotiles.maplibre.org`) placeholder 단계** — 이번 야경 스타일/도로 글린트/틸트/바닥빛/헤이즈는 전부 Android 전용. iOS 에 MapTiler 키 주입 + 커스텀 스타일 번들링부터 필요(기존 TODO에 계속 누적 중). 글로브(오로라 삭제/은하수/유성)는 안드+iOS 양쪽 다 반영됨(별개 렌더러라 패리티 완료).
+- Android **BUILD SUCCESSFUL**(라운드마다 확인). iOS는 Windows 컴파일 불가 → push 후 GitHub Actions(macOS) `ios.yml` 로 검증.
 
 ---
 
@@ -187,16 +211,19 @@
 ## 6. 지도 (MapLibre + MapTiler) 핵심
 - `DiaryMap(diaries, currentLatLng:공용LatLng, isFollowing, onGestureDetected, onRefollowClick, onItemClick, onCreateClick)` — `feature/map/screen/DiaryMap.kt`.
 - 엔진: **MapLibre GL Native**. Compose는 `AndroidView`로 `MapView` 래핑 + `rememberMapViewWithLifecycle()`(생명주기 연결). `MapLibre.getInstance()`는 MapView 생성 전 1회. 좌표 변환 `LatLng.toMl()`.
-- 스타일: `res/raw/maplibre_style.json`(자체 작성). 소스=MapTiler `tiles/v3?key=__MAPTILER_KEY__`(BuildConfig.MAPTILER_KEY 치환). 레이어 = **background / water(fill) / road-major(line)만** → 건물·POI·라벨은 아예 없음(다운로드·렌더 안 함 = 경량).
-- 큰 길만: road-major `filter` = transportation `class` ∈ {motorway,trunk,primary,secondary,tertiary}. `minzoom`(현재 8)으로 저줌에선 길 숨김(바다+땅만).
-- 줌 색 보간: background/water/road `paint` 색이 `["interpolate",["linear"],["zoom"],6,<줌아웃색>,16,<상세색>]` 로 줌6↔16 부드럽게 변함.
+- 스타일: `res/raw/maplibre_style.json`(자체 작성, "위성 야경" 컨셉 — 상세 8.33 참고). 소스=MapTiler `tiles/v3?key=__MAPTILER_KEY__`(BuildConfig.MAPTILER_KEY 치환). 레이어 = background/water(fill) + landcover(숲/초지)·landuse(도심)·park(fill, 미세 톤 텍스처) + 도로 6겹(road-minor/mid/major-glow/major/highlight/glint) → 건물·POI·라벨은 없음(다운로드·렌더 안 함 = 경량, 텍스처는 벡터 타일에 이미 포함돼 추가 다운로드는 없음).
+- 도로: motorway/trunk/primary(앰버 글로우+코어+하이라이트+흐르는 `road-glint`), secondary/tertiary(딤 골드), minor/service(땅 톤 웜 그레이). `minzoom` 7(major)~13(minor). `road-glint` 는 `DiaryMap.kt` 애니메이션 루프가 `line-dasharray` 위상을 흘려 빛이 흐르게 함(재생성 순간 0.2초 페이드), `minzoom`13/페이드 줌 13·15·17.
+- 줌 색 보간: 각 레이어 `paint` 색이 `["interpolate",["linear"],["zoom"],...]` 로 부드럽게 변함(레이어별 줌 범위 상이 — 위 8.33 참고).
+- 비네트 + 저줌 대기 헤이즈: Compose Canvas 오버레이(터치 통과) — 상시 비네트 + 줌 4.4→2.4(글로브 진입줌) 파란 대기.
+- 카메라 틸트: 줌 무관 고정 10°(`BASE_TILT_DEG`) — 카메라를 세팅하는 모든 지점에 적용.
 - 내 위치: GeoJSON source(`current-location`) + CircleLayer. "내 위치로" FAB = 카메라 이동.
 - **다이어리 별 마커**: GeoJSON source(`diaries`) + SymbolLayer(`diary-stars`).
-  - 아이콘 = `StarStyle.starPath`(5종: 십자/5각/6각/8각/대각 스파클 — 스파클은 오목 quad 곡선으로 꼭지 날카롭게)
+  - 아이콘 = `StarStyle.starPath`(5종: 십자/5각/6각/8각/대각 스파클 — **전부 곡선(quad) 스파이크로 통일**, 8.33)
     × 12색, 글로우(blur)+본체+흰 하이라이트로 비트맵 생성(`starBitmap`), 사용 조합만 `style.addImage`.
+  - **바닥 빛 웅덩이**(`diary-ground-light-N`, CircleLayer, 8.33): 별 아래 지점 고정 광 — 별의 부유(iconTranslate)와 시차가 생겨 "떠 있음" 강조.
   - ⚠️ **PNG(star_1~5)를 마커로 쓰지 말 것** — 에뮬레이터에서 PNG→GL 텍스처가 대각선 빗금으로 깨짐. Path 렌더 유지.
   - ⚠️ 비트맵은 정사각+4의 배수 변(현재 160px). addImage 는 기기밀도로 나눠 표시(화면크기 ≈ 160/density × iconSize).
-  - near(100m 이내) = feature bool 속성 → iconSize 확대 + pulse, 전체 float 애니메이션(50ms 루프 setProperties).
+  - near(100m 이내) = feature bool 속성 → iconSize 확대 + pulse, 전체 float 애니메이션(50ms 루프 setProperties, 진폭 4dp).
   - 클릭: queryRenderedFeatures → 100m 이내 열람 / 밖 거리 토스트. (길찾기 기능은 사용자 요청으로 삭제)
 - **별가루 파티클**: GeoJSON source(`star-particles`) + SymbolLayer 4개(`star-particles-0..3`, phaseGroup 필터).
   - Compose Canvas(`StarParticleOverlay`) 는 **삭제됨** — 실좌표 마커라 카메라 동기화 코드 불필요, 컬링은 MapLibre 가 담당.
