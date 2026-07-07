@@ -47,7 +47,12 @@
   - iOS `Data/UserDirectory.swift`(@MainActor ObservableObject 동일 구조) — DetailScreen 작성자/댓글/CommentAvatar. (FriendsScreen 의 ProfileImageCache 는 그대로.)
   - 참고: UserProfileScreen 은 원래 진입 시 현재값 조회라 무변경. 알림 actorName·채팅 발신자명 스냅샷은 범위 밖(이벤트 메시지).
 - **기타**: `androidApp/build.gradle.kts` 의 `minSdk = 26claude` 오타(빌드 불가) 수정.
-- 검증: 안드 `:androidApp:assembleDebug` **BUILD SUCCESSFUL**. iOS 는 push 후 `ios.yml`(macOS CI) 검증 예정.
+- **후속 수정 라운드(사용자 1차 피드백, `488908f`)**:
+  - **Detail 백스택 1개만**: 알림/배너로 같은 다이어리를 여러 번 열면 Detail 이 겹겹이 쌓여 뒤로가기를 여러 번 눌러야 했음 → `NavRoute.kt` 의 `NavHostController.navigateToDetail(diaryId)`(popUpTo<Detail> inclusive + launchSingleTop)로 5개 진입점(NavGraph 3 + MainScreen 딥링크/배너 2) 통일. iOS 는 시트 기반이라 해당 없음.
+  - **촬영 화면 개편**: 타이틀/X/안내 문구 삭제, 프리뷰 **풀스크린**(닫기 = 시스템 뒤로가기, BackHandler). 캡처는 전체 프레임(긴 변 640 작업 해상도)으로 모으고, **촬영 후 ADJUST 단계에서 4:3 프레임에 사진 크롭처럼 드래그/핀치 조정**(좌표 모델 = `ImageCropHelper` 동일) → 확정 시 `BoomerangHelper.cropFrames`(400×300)→GIF 인코딩. 상태 머신 LIVE→CAPTURING→ADJUST→ENCODING. iOS 동일 구조(`cropFrames`+제스처, 단 좌상단 반투명 X 는 유지 — iOS 엔 시스템 뒤로가기 없음). 라벨 "3초 영상 촬영" 통일, `boomer_title/hint/capturing/processing` 문자열 삭제.
+  - **기간 필터 동작**: 다이얼로그에서 "전체 기간" 제거, **활성 칩을 다시 탭하면 해제**(안드 스피드다이얼 + iOS 지도 칩/목록 툴바 동일).
+  - **댓글 아바타 저화질 고속 렌더**: 안드 Coil `ImageRequest.size(96)` 다운샘플 / iOS `AvatarThumbCache`(CGImageSource 96px 썸네일 + 메모리 캐시, AsyncImage 대체).
+- 검증: 안드 `:androidApp:assembleDebug` **BUILD SUCCESSFUL**(후속 라운드 포함). iOS 는 push 후 `ios.yml`(macOS CI) 검증 예정.
 
 ---
 
