@@ -49,10 +49,10 @@ android {
     defaultConfig {
         applicationId = "com.chaminwoo.stary_ios"
         minSdk = 26
-        targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
 2
+        targetSdk = 36
+        versionCode = 3
+        versionName = "1.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // TODO: secrets.properties 에 실제 값 채우기 (커밋 금지)
@@ -78,6 +78,8 @@ android {
         release {
             // ProGuard/R8 코드 축소·난독화 활성 (Firestore 리플렉션 대상은 proguard-rules.pro 에서 keep)
             isMinifyEnabled = true
+            // 미사용 리소스 제거(코드 축소와 함께 동작) — 용량 최소화.
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -157,7 +159,15 @@ dependencies {
     implementation(libs.jwt.decode)
 
     implementation("io.coil-kt:coil-compose:2.6.0")
+    // 부메랑(3초 움짤) GIF 미리보기/상세 표시 — Coil GIF 디코더
+    implementation("io.coil-kt:coil-gif:2.6.0")
     implementation("pl.droidsonroids.gif:android-gif-drawable:1.2.29")
+
+    // 부메랑 촬영 — CameraX 커스텀 카메라(프리뷰 + 프레임 버스트 분석)
+    implementation("androidx.camera:camera-core:1.4.1")
+    implementation("androidx.camera:camera-camera2:1.4.1")
+    implementation("androidx.camera:camera-lifecycle:1.4.1")
+    implementation("androidx.camera:camera-view:1.4.1")
     implementation("androidx.compose.material:material-icons-extended")
 
     // 로그인 인트로 영상(무음 mp4 + 동적 속도 제어) 재생용

@@ -78,6 +78,7 @@ import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.model.UserProfile
 import com.chaminwoo.stary.core.ui.StarShapeIcon
+import com.chaminwoo.stary.core.util.LocalizedNames
 import com.chaminwoo.stary.core.util.RelativeTime
 import com.chaminwoo.stary.core.util.UserProfileActionState
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
@@ -121,7 +122,10 @@ fun UserProfileScreen(
             equippedTitleId = it.equippedTitle
         }
     }
-    val equippedTitleName = com.chaminwoo.stary.feature.profile.equippedTitleName(equippedTitleId.ifBlank { null })
+    // 칭호는 언어 전환에 맞춰 표시(로케일 해석)
+    val equippedTitleName = LocalizedNames.equippedTitle(
+        androidx.compose.ui.platform.LocalContext.current, equippedTitleId.ifBlank { null }
+    )
 
     // 통계/업적/다이어리 — 대상 userId 기준.
     val diaryVm: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())

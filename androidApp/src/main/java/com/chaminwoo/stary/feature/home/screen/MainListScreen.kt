@@ -34,12 +34,15 @@ import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -97,6 +100,16 @@ private data class FilterOpt(
     val onClick: () -> Unit,
 )
 
+/** 기간별 보기 라벨 — null=전체 기간, 0=오늘, 그 외 N=최근 N일. */
+@Composable
+private fun periodLabel(days: Int?): String = when (days) {
+    0 -> stringResource(R.string.period_today)
+    7 -> stringResource(R.string.period_week)
+    30 -> stringResource(R.string.period_month)
+    365 -> stringResource(R.string.period_year)
+    else -> stringResource(R.string.period_all)
+}
+
 @Composable
 fun MainListScreen(
     onItemClick: (String) -> Unit,
@@ -131,6 +144,9 @@ fun MainListScreen(
     var myOnly by remember { mutableStateOf(false) }
     var showFriendPicker by remember { mutableStateOf(false) }
     var selectedFriendIds by remember { mutableStateOf(emptySet<String>()) }
+    // 기간별 보기 — null=전체 기간, 0=오늘(로컬 자정 이후), 그 외 N=최근 N일
+    var periodDays by remember { mutableStateOf<Int?>(null) }
+    var showPeriodPicker by remember { mutableStateOf(false) }
     var speedDialExpanded by remember { mutableStateOf(false) }
 
     val viewedIds by remember(userId) {
@@ -154,16 +170,65 @@ fun MainListScreen(
         else flowOf(emptySet())
     }.collectAsState(initial = emptySet())
 
-    val filteredDiaries = remember(diaries, unviewedOnly, friendsOnly, myOnly, selectedFriendIds, viewedIds, friendIds, blockedIds, userId) {
+    val filteredDiaries = remember(diaries, unviewedOnly, friendsOnly, myOnly, selectedFriendIds, viewedIds, friendIds, blockedIds, userId, periodDays) {
+        // 기간 컷오프(epoch ms) — 오늘=로컬 자정, 그 외=지금-N일. 선택이 바뀔 때 재계산.
+        val periodCutoff: Long? = when (val d = periodDays) {
+            null -> null
+            0 -> java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            else -> System.currentTimeMillis() - d * 86_400_000L
+        }
         diaries.filter { diary ->
             val visibilityOk = diary.visibilityType != "friends" ||
                 diary.userId == userId || diary.userId in friendIds
             val filterOk = (!unviewedOnly || diary.id !in viewedIds) &&
                 (!friendsOnly || diary.userId in friendIds) &&
                 (!myOnly || diary.userId == userId) &&
-                (selectedFriendIds.isEmpty() || diary.userId in selectedFriendIds)
+                (selectedFriendIds.isEmpty() || diary.userId in selectedFriendIds) &&
+                (periodCutoff == null || diary.createdAt >= periodCutoff)
             visibilityOk && filterOk && diary.userId !in blockedIds
         }
+    }
+
+    // 기간별 보기 다이얼로그 — 전체/오늘/7일/30일/1년 중 선택
+    if (showPeriodPicker) {
+        AlertDialog(
+            onDismissRequest = { showPeriodPicker = false },
+            containerColor = Color(0xFF1A1A1A),
+            title = { Text(stringResource(R.string.filter_period), color = Color(0xFFF0F0F0), fontSize = 16.sp) },
+            text = {
+                Column {
+                    listOf(null, 0, 7, 30, 365).forEach { d ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { periodDays = d; showPeriodPicker = false }
+                                .padding(vertical = 2.dp)
+                        ) {
+                            RadioButton(
+                                selected = periodDays == d,
+                                onClick = { periodDays = d; showPeriodPicker = false },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = Color(0xFF6EE7B7),
+                                    unselectedColor = Color(0xFF8A8A8A)
+                                )
+                            )
+                            Text(periodLabel(d), color = Color(0xFFF0F0F0), fontSize = 14.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPeriodPicker = false }) {
+                    Text(stringResource(R.string.common_cancel), color = Color(0xFF8A8A8A))
+                }
+            }
+        )
     }
 
     // 친구 선택 다이얼로그
@@ -172,10 +237,10 @@ fun MainListScreen(
         AlertDialog(
             onDismissRequest = { showFriendPicker = false },
             containerColor = Color(0xFF1A1A1A),
-            title = { Text("친구 선택", color = Color(0xFFF0F0F0), fontSize = 16.sp) },
+            title = { Text(stringResource(R.string.filter_pick_friends), color = Color(0xFFF0F0F0), fontSize = 16.sp) },
             text = {
                 if (friends.isEmpty()) {
-                    Text("친구가 없어요", color = Color(0xFF8A8A8A), fontSize = 14.sp)
+                    Text(stringResource(R.string.filter_no_friends), color = Color(0xFF8A8A8A), fontSize = 14.sp)
                 } else {
                     Column {
                         friends.forEach { friend ->
@@ -206,12 +271,12 @@ fun MainListScreen(
             },
             confirmButton = {
                 TextButton(onClick = { selectedFriendIds = tempSelected; showFriendPicker = false }) {
-                    Text("적용", color = Color(0xFF6EE7B7))
+                    Text(stringResource(R.string.filter_apply), color = Color(0xFF6EE7B7))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showFriendPicker = false }) {
-                    Text("취소", color = Color(0xFF8A8A8A))
+                    Text(stringResource(R.string.common_cancel), color = Color(0xFF8A8A8A))
                 }
             }
         )
@@ -314,28 +379,35 @@ fun MainListScreen(
 
         // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)
         if (userId != null && !MapUiState.mapOnly) {
-            val anyActive = unviewedOnly || friendsOnly || myOnly || selectedFriendIds.isNotEmpty()
+            val anyActive = unviewedOnly || friendsOnly || myOnly || selectedFriendIds.isNotEmpty() || periodDays != null
             val mint = Color(0xFF6EE7B7)
             val pillBg = Color(0xEE111120)
 
             val filterOpts = listOf(
-                FilterOpt("전체보기", Icons.Filled.Public, !anyActive) {
+                FilterOpt(stringResource(R.string.filter_all), Icons.Filled.Public, !anyActive) {
                     unviewedOnly = false; friendsOnly = false; myOnly = false
-                    selectedFriendIds = emptySet(); speedDialExpanded = false
+                    selectedFriendIds = emptySet(); periodDays = null; speedDialExpanded = false
                 },
-                FilterOpt("미조회만", Icons.Filled.FiberNew, unviewedOnly) {
+                FilterOpt(stringResource(R.string.filter_unviewed), Icons.Filled.FiberNew, unviewedOnly) {
                     unviewedOnly = !unviewedOnly; if (unviewedOnly) myOnly = false
                 },
-                FilterOpt("친구만", Icons.Filled.People, friendsOnly) {
+                FilterOpt(stringResource(R.string.filter_friends), Icons.Filled.People, friendsOnly) {
                     friendsOnly = !friendsOnly; if (friendsOnly) myOnly = false
                 },
-                FilterOpt("나만보기", Icons.Filled.Lock, myOnly) {
+                FilterOpt(stringResource(R.string.filter_mine), Icons.Filled.Lock, myOnly) {
                     myOnly = !myOnly; if (myOnly) { friendsOnly = false; selectedFriendIds = emptySet() }
                 },
                 FilterOpt(
-                    if (selectedFriendIds.isEmpty()) "친구 선택" else "친구 ${selectedFriendIds.size}명",
+                    if (selectedFriendIds.isEmpty()) stringResource(R.string.filter_pick_friends)
+                    else stringResource(R.string.filter_friends_n, selectedFriendIds.size),
                     Icons.Filled.GroupAdd, selectedFriendIds.isNotEmpty()
                 ) { showFriendPicker = true },
+                // 기간별 보기 — 다이얼로그에서 전체/오늘/7일/30일/1년 선택
+                FilterOpt(
+                    if (periodDays == null) stringResource(R.string.filter_period)
+                    else stringResource(R.string.filter_period_n, periodLabel(periodDays)),
+                    Icons.Filled.Schedule, periodDays != null
+                ) { showPeriodPicker = true },
                 // (지도만 보기 항목은 제거됨 — 지도 우하단 몰입 버튼으로 대체)
             )
 
@@ -399,7 +471,7 @@ fun MainListScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Explore,
-                        contentDescription = "필터",
+                        contentDescription = stringResource(R.string.cd_filter),
                         tint = if (anyActive) mint else Color.White.copy(alpha = 0.75f),
                         modifier = Modifier.size(22.dp)
                     )

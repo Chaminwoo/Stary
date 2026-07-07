@@ -71,7 +71,8 @@ import kotlinx.coroutines.launch
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Comment
-import com.chaminwoo.stary.data.repository.UserRepository
+import com.chaminwoo.stary.core.util.rememberCurrentUserName
+import com.chaminwoo.stary.core.util.rememberCurrentUserPhoto
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.ImageCropHelper
@@ -301,7 +302,12 @@ fun DetailScreen(
             // ── 헤더: 사진(또는 placeholder) 위 스크림 + 별/작성자/날짜만 오버레이(제목은 본문으로) ──
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(ImageCropHelper.ASPECT)) {
                 when {
-                    // 짧은 영상(3초 이내)이 있으면 음소거 루프 재생.
+                    // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 영상은 기존 플레이어 유지)
+                    currentDiary.videoUrl.isNotEmpty() && com.chaminwoo.stary.core.ui.isGifUrl(currentDiary.videoUrl) ->
+                        com.chaminwoo.stary.core.ui.GifImage(
+                            model = currentDiary.videoUrl,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     currentDiary.videoUrl.isNotEmpty() -> com.chaminwoo.stary.core.ui.LoopingVideoPlayer(
                         uri = android.net.Uri.parse(currentDiary.videoUrl),
                         modifier = Modifier.fillMaxSize(),
@@ -337,12 +343,16 @@ fun DetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // 익명이 아니고 작성자 id 가 있으면 작성자 영역을 탭해 프로필로 진입할 수 있다.
                         val canOpenProfile = !currentDiary.isAnonymous && currentDiary.userId.isNotBlank()
+                        // 작성자 이름은 저장 시점 스냅샷이 아니라 users/{uid} 의 "현재" 닉네임으로 표시(익명 제외).
+                        val authorName =
+                            if (canOpenProfile) rememberCurrentUserName(currentDiary.userId, currentDiary.userName)
+                            else currentDiary.userName
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = if (canOpenProfile) {
                                 Modifier
                                     .clip(RoundedCornerShape(50))
-                                    .clickable { onOpenProfile(currentDiary.userId, currentDiary.userName) }
+                                    .clickable { onOpenProfile(currentDiary.userId, authorName) }
                                     .padding(end = 2.dp)
                             } else Modifier
                         ) {
@@ -352,7 +362,7 @@ fun DetailScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                currentDiary.userName.ifEmpty { stringResource(R.string.common_anonymous) },
+                                authorName.ifEmpty { stringResource(R.string.common_anonymous) },
                                 fontSize = 13.sp, fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f)
                             )
@@ -609,13 +619,9 @@ private fun CommentItem(
 ) {
     val dateStr = remember(comment.createdAt) { com.chaminwoo.stary.core.util.RelativeTime.format(comment.createdAt) }
 
-    // 작성자 프로필 사진 로드(인스타 댓글처럼). 없으면 이니셜 폴백.
-    var photoUrl by remember(comment.userId) { mutableStateOf<String?>(null) }
-    LaunchedEffect(comment.userId) {
-        if (comment.userId.isNotBlank()) {
-            photoUrl = runCatching { UserRepository().getProfileImageUrl(comment.userId) }.getOrNull()
-        }
-    }
+    // 작성자 프로필 사진/이름은 users/{uid} 의 "현재" 값으로 표시(저장 시점 스냅샷 아님) — 실시간 갱신.
+    val displayName = rememberCurrentUserName(comment.userId, comment.userName)
+    val photoUrl = rememberCurrentUserPhoto(comment.userId)
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         // 작성자 프로필 아바타 (탭 → 작성자 프로필). top 패딩으로 사용자 이름 top 과 맞춤
@@ -633,13 +639,13 @@ private fun CommentItem(
             if (!url.isNullOrBlank()) {
                 AsyncImage(
                     model = url,
-                    contentDescription = stringResource(R.string.cd_profile_photo, comment.userName.ifBlank { stringResource(R.string.common_user) }),
+                    contentDescription = stringResource(R.string.cd_profile_photo, displayName.ifBlank { stringResource(R.string.common_user) }),
                     modifier = Modifier.fillMaxSize().clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Text(
-                    comment.userName.take(1).uppercase().ifBlank { "?" },
+                    displayName.take(1).uppercase().ifBlank { "?" },
                     color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
                 )
             }
@@ -648,7 +654,7 @@ private fun CommentItem(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    comment.userName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    displayName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))

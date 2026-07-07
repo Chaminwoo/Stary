@@ -67,8 +67,8 @@ import com.chaminwoo.stary.feature.profile.HiddenAchievements
 import com.chaminwoo.stary.feature.profile.HiddenIconWithEffect
 import com.chaminwoo.stary.feature.profile.ProfileViewModel
 import com.chaminwoo.stary.feature.profile.StigmaStore
-import com.chaminwoo.stary.feature.profile.equippedTitleName
 import com.chaminwoo.stary.feature.profile.rememberUserStats
+import com.chaminwoo.stary.core.util.LocalizedNames
 import com.chaminwoo.stary.data.repository.HiddenAchievementRepository
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.heightIn
@@ -139,7 +139,8 @@ fun ProfileScreen(
 
     val stats = rememberUserStats(userId)
     val equippedStigmaId = StigmaStore.equipped(context, userId)
-    val equippedStigma = equippedTitleName(equippedStigmaId)
+    // 칭호는 언어 전환에 맞춰 표시(정의는 한국어 데이터, 표시만 로케일 해석)
+    val equippedStigma = LocalizedNames.equippedTitle(context, equippedStigmaId)
 
     // 내가 달성한 히든 업적 — 프로필에 전용 아이콘 + 파티클로 표시.
     val hiddenRepo = remember { HiddenAchievementRepository() }
@@ -320,7 +321,7 @@ fun ProfileScreen(
                 )
             } + myHiddenAch.map { ach ->
                 StatBubble(
-                    ach.icon.vector, 0, ach.icon.color, ach.title,
+                    ach.icon.vector, 0, ach.icon.color, LocalizedNames.title(context, ach.id, ach.title)!!,
                     burstOnTap = true, showCount = false, hiddenEffect = ach.effect
                 )
             },

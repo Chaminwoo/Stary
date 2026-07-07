@@ -85,11 +85,9 @@ import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
-import com.chaminwoo.stary.core.ui.LoopingVideoPlayer
 import com.chaminwoo.stary.core.util.ImageCropHelper
 import com.chaminwoo.stary.core.util.ImageUploadHelper
 import com.chaminwoo.stary.core.util.LocationHelper
-import com.chaminwoo.stary.core.util.VideoHelper
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.profile.Achievements
@@ -125,8 +123,9 @@ fun UploadScreen(
     var content by remember { mutableStateOf("") }
     var visibilityType by remember { mutableStateOf("public") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    // 3초 이내 짧은 영상. 이미지와 배타(하나만 첨부) — 영상 선택 시 이미지는 비운다.
-    var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
+    // 부메랑(3초 움짤) GIF — 커스텀 촬영 화면에서 생성. 이미지와 배타(하나만 첨부).
+    var boomerangFile by remember { mutableStateOf<java.io.File?>(null) }
+    var showBoomerangCapture by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
     var isAnonymous by remember { mutableStateOf(false) }
     var showImageSourceDialog by remember { mutableStateOf(false) }
@@ -178,21 +177,10 @@ fun UploadScreen(
     )
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success) { selectedImageUri = cameraUri.value; selectedVideoUri = null }
+        if (success) { selectedImageUri = cameraUri.value; boomerangFile = null }
     }
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { selectedImageUri = it; selectedVideoUri = null }
-    }
-    // 동영상 선택 — 3초 이내만 허용(초과 시 안내 후 무시). 선택되면 이미지는 비운다.
-    val videoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            val dur = VideoHelper.durationMs(context, it)
-            if (dur != null && dur > StaryConfig.VIDEO_MAX_DURATION_MS) {
-                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.upload_video_too_long))
-            } else {
-                selectedVideoUri = it; selectedImageUri = null
-            }
-        }
+        uri?.let { selectedImageUri = it; boomerangFile = null }
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
@@ -228,10 +216,11 @@ fun UploadScreen(
                         Spacer(Modifier.width(10.dp))
                         Text(stringResource(R.string.upload_pick_gallery), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
                     }
-                    TextButton(onClick = { showImageSourceDialog = false; videoLauncher.launch("video/*") }, modifier = Modifier.fillMaxWidth()) {
+                    // 부메랑(3초 움짤) — 파일 선택 대신 커스텀 촬영 화면으로
+                    TextButton(onClick = { showImageSourceDialog = false; showBoomerangCapture = true }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Filled.Videocam, null, tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text(stringResource(R.string.upload_pick_video), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.upload_capture_boomerang), color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
                     }
                 }
             },
@@ -264,12 +253,12 @@ fun UploadScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                    .then(if (selectedImageUri == null && selectedVideoUri == null) Modifier.clickable { showImageSourceDialog = true } else Modifier),
+                    .then(if (selectedImageUri == null && boomerangFile == null) Modifier.clickable { showImageSourceDialog = true } else Modifier),
                 contentAlignment = Alignment.Center
             ) {
                 when {
-                    selectedVideoUri != null -> LoopingVideoPlayer(
-                        uri = selectedVideoUri!!, modifier = Modifier.matchParentSize(), muted = true
+                    boomerangFile != null -> com.chaminwoo.stary.core.ui.GifImage(
+                        model = boomerangFile, modifier = Modifier.matchParentSize()
                     )
                     selectedImageUri != null -> ImageCropFrame(controller = cropController, modifier = Modifier.matchParentSize())
                     else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -280,7 +269,7 @@ fun UploadScreen(
                 }
             }
 
-            if (selectedImageUri != null || selectedVideoUri != null) {
+            if (selectedImageUri != null || boomerangFile != null) {
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { showImageSourceDialog = true }) {
@@ -518,8 +507,9 @@ fun UploadScreen(
                         var imageUrl = ""
                         var videoUrl = ""
                         when {
-                            selectedVideoUri != null -> {
-                                val result = ImageUploadHelper.uploadVideoResult(context, selectedVideoUri!!)
+                            boomerangFile != null -> {
+                                // 부메랑 움짤(GIF) — videoUrl 필드에 저장(스키마 유지, .gif 로 판별)
+                                val result = ImageUploadHelper.uploadGifResult(context, boomerangFile!!)
                                 if (!result.isSuccess) {
                                     com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
                                     isUploading = false; return@launch
@@ -570,6 +560,18 @@ fun UploadScreen(
             }
 
             Spacer(Modifier.height(32.dp))
+        }
+
+        // 부메랑(3초 움짤) 커스텀 촬영 — 전체 화면 오버레이
+        if (showBoomerangCapture) {
+            BoomerangCaptureScreen(
+                onResult = { file ->
+                    boomerangFile = file
+                    selectedImageUri = null
+                    showBoomerangCapture = false
+                },
+                onClose = { showBoomerangCapture = false },
+            )
         }
     }
 }

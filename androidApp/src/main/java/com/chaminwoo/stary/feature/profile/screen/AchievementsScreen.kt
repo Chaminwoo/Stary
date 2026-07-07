@@ -126,7 +126,10 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
                                 .setEquippedTitle(userId, next)
                         }
                         com.chaminwoo.stary.core.ui.StaryToast.show(
-                            if (next != null) context.getString(R.string.ach_title_equipped, ach.titleName ?: ach.name)
+                            if (next != null) context.getString(
+                                R.string.ach_title_equipped,
+                                com.chaminwoo.stary.core.util.LocalizedNames.title(context, ach.id, ach.titleName ?: ach.name)
+                            )
                             else context.getString(R.string.ach_title_unequipped)
                         )
                     }
@@ -144,7 +147,10 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
                                 .setEquippedTitle(userId, next)
                         }
                         com.chaminwoo.stary.core.ui.StaryToast.show(
-                            if (next != null) context.getString(R.string.ach_title_equipped, ach.title)
+                            if (next != null) context.getString(
+                                R.string.ach_title_equipped,
+                                com.chaminwoo.stary.core.util.LocalizedNames.title(context, ach.id, ach.title)
+                            )
                             else context.getString(R.string.ach_title_unequipped)
                         )
                     }
@@ -313,8 +319,11 @@ private fun HiddenAchievementRow(
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            // 칭호(제목)는 항상 보여준다.
-            Text(ach.title, color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            // 칭호(제목)는 항상 보여준다. (언어 전환에 맞춰 로케일 해석)
+            Text(
+                com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.title)!!,
+                color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+            )
             Spacer(Modifier.height(2.dp))
             // 조건은 달성 후에만 공개.
             Text(
@@ -379,7 +388,7 @@ private fun TitleAchievementRow(
                 )
             }
         },
-        title = ach.name,
+        title = com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.name)!!,
         subtitle = ach.condition,
         unlocked = unlocked,
         trailing = {

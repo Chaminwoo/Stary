@@ -77,6 +77,30 @@ object ImageUploadHelper {
         }
     }
 
+    /**
+     * 부메랑(3초 움짤) GIF 업로드. contentType=image/gif 라 diary_images 규칙(이미지 타입, 10MB 미만)을
+     * 그대로 통과한다(규칙 재배포 불필요). URL 은 diary.videoUrl 에 저장해 기존 스키마 유지.
+     */
+    suspend fun uploadGifResult(context: Context, gifFile: java.io.File): Result {
+        try {
+            ensureAuthenticated()
+        } catch (e: Exception) {
+            Log.e(TAG, "인증 세션 확보 실패", e)
+            return Result(null, "로그인 세션을 만들 수 없어요(콘솔에서 익명 인증 활성화 필요): ${e.localizedMessage}")
+        }
+        return try {
+            val ref = Firebase.storage.reference.child("diary_images/${UUID.randomUUID()}.gif")
+            val metadata = com.google.firebase.storage.StorageMetadata.Builder()
+                .setContentType("image/gif")
+                .build()
+            ref.putFile(Uri.fromFile(gifFile), metadata).await()
+            Result(ref.downloadUrl.await().toString())
+        } catch (e: Exception) {
+            Log.e(TAG, "GIF 업로드 실패", e)
+            Result(null, e.localizedMessage ?: e.toString())
+        }
+    }
+
     /** Firebase Auth 세션이 없으면 익명 로그인으로 만든다(이미 있으면 즉시 반환). */
     suspend fun ensureAuthenticated() {
         val auth = FirebaseAuth.getInstance()

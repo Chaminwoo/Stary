@@ -235,4 +235,65 @@
     <!-- ニックネーム変更 -->
     <string name="profile_edit_nickname">ニックネーム変更</string>
     <string name="profile_nickname_hint">ニックネームを入力</string>
+    <!-- 地図フィルター -->
+    <string name="filter_all">すべて表示</string>
+    <string name="filter_unviewed">未読のみ</string>
+    <string name="filter_friends">友達のみ</string>
+    <string name="filter_mine">自分のみ</string>
+    <string name="filter_pick_friends">友達を選択</string>
+    <string name="filter_friends_n">友達%1$d人</string>
+    <string name="filter_no_friends">まだ友達がいません</string>
+    <string name="filter_apply">適用</string>
+    <string name="cd_filter">フィルター</string>
+    <!-- 期間フィルター -->
+    <string name="filter_period">期間で見る</string>
+    <string name="filter_period_n">期間: %1$s</string>
+    <string name="period_all">全期間</string>
+    <string name="period_today">今日</string>
+    <string name="period_week">過去7日</string>
+    <string name="period_month">過去30日</string>
+    <string name="period_year">過去1年</string>
+
+    <!-- ブーメラン(3秒)撮影 -->
+    <string name="upload_capture_boomerang">動く写真を撮影 (3秒)</string>
+    <string name="boomer_title">動く写真</string>
+    <string name="boomer_hint">ボタンを押すと瞬間をつないで
+3秒の動く写真を作ります</string>
+    <string name="cd_boomer_flip">カメラ切替</string>
+    <string name="cd_boomer_shoot">撮影</string>
+    <string name="boomer_capturing">撮影中…</string>
+    <string name="boomer_processing">動く写真を作成中…</string>
+    <string name="boomer_retake">撮り直す</string>
+    <string name="boomer_use">この場面を使う</string>
+    <string name="boomer_failed">撮影に失敗しました。もう一度お試しください</string>
+
+    <!-- BGMトラック名 -->
+    <string name="music_star_whisper">星のささやき</string>
+    <string name="music_tiny_explorer">小さな探検家</string>
+    <string name="music_celestial_drift">天上の漂流</string>
+    <string name="music_cosmic_funk">コズミック・ファンク</string>
+    <string name="music_forgotten_galaxy">忘れられた銀河</string>
+    <string name="music_nebula_garden">星雲の庭園</string>
+
+    <!-- 称号名（通常） -->
+    <string name="title_first_step">はじめの一歩</string>
+    <string name="title_star_traveler">星の旅人</string>
+    <string name="title_storyteller">語り部</string>
+    <string name="title_popular">人気者</string>
+    <string name="title_watched_star">注目の星</string>
+    <string name="title_companion">道連れ</string>
+    <string name="title_pilgrim">宇宙の巡礼者</string>
+    <string name="title_guide">星明かりの導き手</string>
+    <!-- 称号名（ヒドゥン） -->
+    <string name="title_secret_word">星の暗号</string>
+    <string name="title_remote_place">極夜の開拓者</string>
+    <string name="title_place_desert">太陽の残照</string>
+    <string name="title_place_trench">深淵の星</string>
+    <string name="title_place_triangle">消えた航路</string>
+    <string name="title_all_rounder">銀河の頂点</string>
+    <string name="title_cosmic_rascal">星泥棒</string>
+    <string name="title_lone_observer">孤高に輝く星</string>
+    <string name="title_heart_frenzy">ドキドキ</string>
+    <string name="title_melomaniac">星々のオーケストラ</string>
+    <string name="title_earth_pilgrim">青い惑星の足跡</string>
 </resources>

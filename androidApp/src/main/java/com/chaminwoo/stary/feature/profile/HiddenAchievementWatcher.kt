@@ -142,7 +142,10 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                 Text("히든 업적 달성!", color = HiddenGold, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    achievement.title, color = Color.White, fontSize = 22.sp,
+                    com.chaminwoo.stary.core.util.LocalizedNames.title(
+                        androidx.compose.ui.platform.LocalContext.current, achievement.id, achievement.title
+                    )!!,
+                    color = Color.White, fontSize = 22.sp,
                     fontWeight = FontWeight.Bold, textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(6.dp))

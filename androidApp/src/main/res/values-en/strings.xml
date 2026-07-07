@@ -235,4 +235,65 @@
     <!-- Edit nickname -->
     <string name="profile_edit_nickname">Edit nickname</string>
     <string name="profile_nickname_hint">Enter a nickname</string>
+    <!-- Map filter speed dial -->
+    <string name="filter_all">Show all</string>
+    <string name="filter_unviewed">Unviewed</string>
+    <string name="filter_friends">Friends only</string>
+    <string name="filter_mine">Only mine</string>
+    <string name="filter_pick_friends">Pick friends</string>
+    <string name="filter_friends_n">%1$d friends</string>
+    <string name="filter_no_friends">No friends yet</string>
+    <string name="filter_apply">Apply</string>
+    <string name="cd_filter">Filter</string>
+    <!-- Period filter -->
+    <string name="filter_period">By period</string>
+    <string name="filter_period_n">Period: %1$s</string>
+    <string name="period_all">All time</string>
+    <string name="period_today">Today</string>
+    <string name="period_week">Last 7 days</string>
+    <string name="period_month">Last 30 days</string>
+    <string name="period_year">Last year</string>
+
+    <!-- Boomerang (3s living photo) capture -->
+    <string name="upload_capture_boomerang">Living photo (3s)</string>
+    <string name="boomer_title">Living photo</string>
+    <string name="boomer_hint">Press the button to stitch a moment
+into a 3-second living photo</string>
+    <string name="cd_boomer_flip">Flip camera</string>
+    <string name="cd_boomer_shoot">Capture</string>
+    <string name="boomer_capturing">Capturing…</string>
+    <string name="boomer_processing">Creating your living photo…</string>
+    <string name="boomer_retake">Retake</string>
+    <string name="boomer_use">Use this take</string>
+    <string name="boomer_failed">Capture failed. Please try again</string>
+
+    <!-- Music track names -->
+    <string name="music_star_whisper">Star Whisper</string>
+    <string name="music_tiny_explorer">Tiny Explorer</string>
+    <string name="music_celestial_drift">Celestial Drift</string>
+    <string name="music_cosmic_funk">Cosmic Funk</string>
+    <string name="music_forgotten_galaxy">Forgotten Galaxy</string>
+    <string name="music_nebula_garden">Nebula Garden</string>
+
+    <!-- Title names (normal) -->
+    <string name="title_first_step">First Steps</string>
+    <string name="title_star_traveler">Star Traveler</string>
+    <string name="title_storyteller">Storyteller</string>
+    <string name="title_popular">Crowd Favorite</string>
+    <string name="title_watched_star">Star of Attention</string>
+    <string name="title_companion">Companion</string>
+    <string name="title_pilgrim">Cosmic Pilgrim</string>
+    <string name="title_guide">Starlight Guide</string>
+    <!-- Title names (hidden) -->
+    <string name="title_secret_word">Stellar Cipher</string>
+    <string name="title_remote_place">Pioneer of the Polar Night</string>
+    <string name="title_place_desert">Afterglow of the Sun</string>
+    <string name="title_place_trench">Star of the Abyss</string>
+    <string name="title_place_triangle">The Lost Route</string>
+    <string name="title_all_rounder">Apex of the Galaxy</string>
+    <string name="title_cosmic_rascal">Star Thief</string>
+    <string name="title_lone_observer">Lone Shining Star</string>
+    <string name="title_heart_frenzy">Heartbeat</string>
+    <string name="title_melomaniac">Orchestra of the Stars</string>
+    <string name="title_earth_pilgrim">Footprints on the Blue Planet</string>
 </resources>

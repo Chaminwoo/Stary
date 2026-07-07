@@ -179,8 +179,10 @@ fun MusicScreen(modifier: Modifier = Modifier) {
                 }
             }
 
+            // 트랙명/해금 업적명은 언어 전환에 맞춰 표시(로케일 해석)
+            val musicCtx = androidx.compose.ui.platform.LocalContext.current
             Text(
-                text = selected.displayName,
+                text = com.chaminwoo.stary.core.util.LocalizedNames.music(musicCtx, selected.id, selected.displayName),
                 color = if (selectedUnlocked) selectedColor else MusicTextMuted,
                 fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -188,7 +190,12 @@ fun MusicScreen(modifier: Modifier = Modifier) {
             )
 
             val sub = if (selectedUnlocked) stringResource(R.string.music_drag_hint)
-            else stringResource(R.string.music_locked_hint, Achievements.byId(selected.unlockAchievementId)?.name ?: stringResource(R.string.common_secret))
+            else stringResource(
+                R.string.music_locked_hint,
+                Achievements.byId(selected.unlockAchievementId)
+                    ?.let { com.chaminwoo.stary.core.util.LocalizedNames.title(musicCtx, it.id, it.name) }
+                    ?: stringResource(R.string.common_secret)
+            )
             Text(
                 text = sub,
                 color = MusicTextMuted, fontSize = 13.sp,

@@ -237,4 +237,65 @@
     <!-- 닉네임 변경 -->
     <string name="profile_edit_nickname">닉네임 변경</string>
     <string name="profile_nickname_hint">닉네임을 입력하세요</string>
+
+    <!-- 지도 필터 스피드다이얼 -->
+    <string name="filter_all">전체보기</string>
+    <string name="filter_unviewed">미조회만</string>
+    <string name="filter_friends">친구만</string>
+    <string name="filter_mine">나만보기</string>
+    <string name="filter_pick_friends">친구 선택</string>
+    <string name="filter_friends_n">친구 %1$d명</string>
+    <string name="filter_no_friends">친구가 없어요</string>
+    <string name="filter_apply">적용</string>
+    <string name="cd_filter">필터</string>
+    <!-- 기간별 보기 필터 -->
+    <string name="filter_period">기간별 보기</string>
+    <string name="filter_period_n">기간: %1$s</string>
+    <string name="period_all">전체 기간</string>
+    <string name="period_today">오늘</string>
+    <string name="period_week">최근 7일</string>
+    <string name="period_month">최근 30일</string>
+    <string name="period_year">최근 1년</string>
+
+    <!-- 부메랑(3초 움짤) 촬영 -->
+    <string name="upload_capture_boomerang">움직이는 사진 촬영 (3초)</string>
+    <string name="boomer_title">움직이는 사진</string>
+    <string name="boomer_hint">버튼을 누르면 순간을 이어 붙여\n3초 움직이는 사진을 만들어요</string>
+    <string name="cd_boomer_flip">카메라 전환</string>
+    <string name="cd_boomer_shoot">촬영</string>
+    <string name="boomer_capturing">담는 중…</string>
+    <string name="boomer_processing">움직이는 사진을 만드는 중…</string>
+    <string name="boomer_retake">다시 찍기</string>
+    <string name="boomer_use">이 장면 사용</string>
+    <string name="boomer_failed">촬영에 실패했어요. 다시 시도해주세요</string>
+
+    <!-- 배경음악 트랙 이름 (언어 전환 대응) -->
+    <string name="music_star_whisper">별의 속삭임</string>
+    <string name="music_tiny_explorer">작은 탐험가</string>
+    <string name="music_celestial_drift">천상의 표류</string>
+    <string name="music_cosmic_funk">코스믹 펑크</string>
+    <string name="music_forgotten_galaxy">잊혀진 은하</string>
+    <string name="music_nebula_garden">성운의 정원</string>
+
+    <!-- 칭호 이름 (언어 전환 대응) — 일반 -->
+    <string name="title_first_step">첫 발자국</string>
+    <string name="title_star_traveler">별의 여행자</string>
+    <string name="title_storyteller">이야기꾼</string>
+    <string name="title_popular">인기쟁이</string>
+    <string name="title_watched_star">주목받는 별</string>
+    <string name="title_companion">길동무</string>
+    <string name="title_pilgrim">우주의 순례자</string>
+    <string name="title_guide">별빛의 인도자</string>
+    <!-- 칭호 이름 — 히든 -->
+    <string name="title_secret_word">별의 암호</string>
+    <string name="title_remote_place">극야의 개척자</string>
+    <string name="title_place_desert">태양의 잔영</string>
+    <string name="title_place_trench">심연의 별</string>
+    <string name="title_place_triangle">사라진 항로</string>
+    <string name="title_all_rounder">은하의 정점</string>
+    <string name="title_cosmic_rascal">별도둑</string>
+    <string name="title_lone_observer">홀로 빛나는 별</string>
+    <string name="title_heart_frenzy">두근두근</string>
+    <string name="title_melomaniac">별들의 오케스트라</string>
+    <string name="title_earth_pilgrim">푸른 행성의 발자취</string>
 </resources>
