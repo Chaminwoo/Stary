@@ -773,8 +773,9 @@ private enum GlobeBuilder {
                              180 + rnd() * 180)
                     }
 
-                    // 은하수 — ①잔별 밀집 띠 ②끊김 없는 헤이즈 리본 ③은하핵 벌지
-                    // (구 버전 잔별 560+헤이즈 10개는 거의 안 보였음 → 뚜렷한 "빛의 강"으로 격상, Android 패리티)
+                    // 은하수 — 실제 은하수 사진의 구조를 재현(자료 조사: 은하핵 골든 벌지 +
+                    // Great Rift 암흑 균열 + 얼룩덜룩한 스타 클라우드 + H-II 핑크 성운 + 색 온도 구배).
+                    // additive 라 "어두운 먼지"는 균열 자리의 별·유광 감쇠로 표현. (Android 패리티)
                     let bandPhase = rnd() * 2 * .pi
                     func bandY(_ u: CGFloat) -> CGFloat {
                         CGFloat(h) * 0.5 + sin(u * 2 * .pi + bandPhase) * CGFloat(h) * 0.16
@@ -782,36 +783,111 @@ private enum GlobeBuilder {
                     let coreU = rnd() // 은하핵(벌지) 위치 — 이 근처가 가장 밝고 두껍다
                     func coreness(_ u: CGFloat) -> CGFloat { // 핵에 가까울수록 1(주기 거리 가우시안)
                         let d = min(abs(u - coreU), 1 - abs(u - coreU))
-                        return exp(-d * d * 40)
+                        return exp(-d * d * 26)
                     }
-                    // ② 헤이즈 리본 — 띠를 따라 일정 간격으로 겹치는 청백 글로우
-                    for i in 0..<48 {
-                        let u = (CGFloat(i) + rnd() * 0.6) / 48
+                    // Great Rift — 핵 쪽 절반에서 띠를 세로로 가르는 암흑 균열(중심선이 구불구불 흐른다)
+                    func riftAtten(_ u: CGFloat, _ dy: CGFloat) -> CGFloat {
+                        let d = min(abs(u - coreU), 1 - abs(u - coreU))
+                        let strength = exp(-d * d * 20) * 0.90
+                        if strength < 0.04 { return 1 }
+                        let ang = u * 2 * .pi
+                        let center = 13 + 15 * sin(ang * 2.3 + 0.8) + 7 * sin(ang * 5.1)
+                        let halfW = 17 + 8 * sin(ang * 3.7 + 2.0)
+                        let x = (dy - center) / halfW
+                        return 1 - strength * exp(-x * x)
+                    }
+                    // 얼룩(패치) — 밝은 스타 클라우드와 어두운 먼지 조각의 교차(mottled 질감)
+                    func patch(_ u: CGFloat) -> CGFloat {
+                        let ang = u * 2 * .pi
+                        let p = 0.5 + 0.5 * sin(ang * 7.3 + 1.7) * sin(ang * 3.1 + 4.2)
+                        return 0.62 + 0.55 * p
+                    }
+                    // 색 온도 — 핵(골든·오렌지) → 외곽(차가운 청백)
+                    func bandTint(_ warm: CGFloat) -> (CGFloat, CGFloat, CGFloat) {
+                        (0.84 + 0.19 * warm, 0.88 - 0.05 * warm, 1.00 - 0.38 * warm)
+                    }
+                    // ② 연속 유광 리본(희미한 바탕) — 띠가 끊겨 보이지 않게 잇는 은은한 강바닥
+                    for i in 0..<72 {
+                        let u = (CGFloat(i) + rnd() * 0.6) / 72
                         let cn = coreness(u)
-                        haze((0.030 + 0.030 * cn, 0.036 + 0.024 * cn, 0.052 + 0.014 * cn),
-                             CGPoint(x: u * CGFloat(w), y: bandY(u) + (rnd() * 2 - 1) * 12),
-                             70 + rnd() * 60 + cn * 60)
+                        let dy = (rnd() * 2 - 1) * 12
+                        let base = (0.018 + 0.016 * cn) * (0.30 + 0.70 * riftAtten(u, dy))
+                        haze((base * (0.85 + 0.35 * cn), base * 0.92, base * (1.10 - 0.25 * cn)),
+                             CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
+                             65 + rnd() * 50 + cn * 40)
                     }
-                    // ③ 은하핵 벌지 — 따뜻한 대형 글로우 응집
-                    for _ in 0..<6 {
-                        let u = coreU + (rnd() * 2 - 1) * 0.03
-                        haze((0.070, 0.052, 0.040),
-                             CGPoint(x: u * CGFloat(w), y: bandY(u) + (rnd() * 2 - 1) * 10),
-                             90 + rnd() * 70)
+                    // ②-b 스타 클라우드 — 뭉게뭉게 밝은 유광 덩어리(핵 쪽에 더 많이, 균열·얼룩 감쇠)
+                    for _ in 0..<150 {
+                        let u = rnd()
+                        let cn = coreness(u)
+                        if rnd() > 0.30 + 0.70 * cn { continue }
+                        let dy = (rnd() + rnd() - 1) * 32 * (1 + 0.7 * cn)
+                        let atten = riftAtten(u, dy)
+                        let base = (0.014 + 0.030 * cn) * patch(u) * (0.15 + 0.85 * atten)
+                        let warm = (0.25 + 0.75 * cn) * rnd()
+                        let tint = bandTint(warm)
+                        haze((base * tint.0 * 1.15, base * tint.1, base * tint.2),
+                             CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
+                             28 + rnd() * 55 + cn * 25)
+                    }
+                    // ③ 은하핵 벌지 — 골든·오렌지 대형 글로우 응집(가장 밝은 심장부)
+                    for _ in 0..<22 {
+                        let u = coreU + (rnd() + rnd() - 1) * 0.032
+                        let dy = (rnd() + rnd() - 1) * 38
+                        let atten = 0.35 + 0.65 * riftAtten(u, dy)
+                        haze((0.085 * atten, 0.058 * atten, 0.034 * atten),
+                             CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
+                             45 + rnd() * 60)
+                    }
+                    // ③-b 벌지 심장 — 핵 정중앙의 크고 은은한 골든 후광
+                    for i in 0..<2 {
+                        haze((0.052, 0.036, 0.020),
+                             CGPoint(x: (coreU + CGFloat(i) * 0.008) * CGFloat(w),
+                                     y: bandY(coreU) + CGFloat(i) * 7),
+                             105 + CGFloat(i) * 28)
+                    }
+                    // ④ H-II 발광 성운 — 핵 주변 띠 위의 작은 핑크/마젠타 반점(라군 성운풍)
+                    for _ in 0..<9 {
+                        let u = coreU + (rnd() + rnd() - 1) * 0.135
+                        let dy = (rnd() + rnd() - 1) * 35
+                        haze((0.050, 0.016, 0.030),
+                             CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
+                             15 + rnd() * 22)
                     }
                     cg.setBlendMode(.plusLighter)
-                    // ① 잔별 밀집 띠 — 이중 가우시안 두께(얇은 심+넓은 외곽), 핵 근처는 밝고 따뜻하게
-                    for _ in 0..<1500 {
+                    // ① 잔별 밀집 띠 — 2600개, 핵 근처 밀도·두께 증가(채택-기각), 균열·얼룩 감쇠
+                    var placed = 0
+                    while placed < 2600 {
+                        let u = rnd()
+                        let cn = coreness(u)
+                        if rnd() > 0.38 + 0.62 * cn { continue } // 핵 쪽 밀도↑
+                        placed += 1
+                        let x = u * CGFloat(w)
+                        let thick = 1 + 0.8 * cn // 핵 근처는 띠가 두껍다(벌지)
+                        let spreadScale: CGFloat = (rnd() < 0.66 ? 26 : 66) * thick
+                        let dy = (rnd() + rnd() - 1) * spreadScale
+                        let y = bandY(u) + dy
+                        let atten = riftAtten(u, dy)
+                        let br = (0.07 + rnd() * 0.26) * (0.70 + 0.60 * cn) *
+                            patch(u) * (0.22 + 0.78 * atten)
+                        let warm = min(1, rnd() * 0.45 + 0.55 * cn * rnd())
+                        let tint = bandTint(warm)
+                        let r = 0.5 + rnd() * 1.1
+                        UIColor(red: br * tint.0, green: br * tint.1,
+                                blue: br * tint.2, alpha: 1).setFill()
+                        cg.fillEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+                    }
+                    // ①-b 전경 밝은 별 — 띠 위에 도드라지는 소수의 밝은 별
+                    for _ in 0..<26 {
                         let u = rnd()
                         let cn = coreness(u)
                         let x = u * CGFloat(w)
-                        let spreadScale: CGFloat = rnd() < 0.68 ? 26 : 64
-                        let y = bandY(u) + (rnd() + rnd() - 1) * spreadScale
-                        let br = (0.07 + rnd() * 0.24) * (0.75 + 0.55 * cn)
-                        let warm = rnd() * (0.5 + 0.5 * cn)
-                        let r = 0.5 + rnd() * 1.1
-                        UIColor(red: br * (0.86 + 0.16 * warm), green: br * (0.88 + 0.04 * warm),
-                                blue: br * (1.00 - 0.14 * warm), alpha: 1).setFill()
+                        let y = bandY(u) + (rnd() + rnd() - 1) * 52 * (1 + 0.6 * cn)
+                        let br = 0.30 + rnd() * 0.34
+                        let tint = bandTint(rnd() * 0.5)
+                        let r = 1.4 + rnd() * 1.2
+                        UIColor(red: br * tint.0, green: br * tint.1,
+                                blue: br * tint.2, alpha: 1).setFill()
                         cg.fillEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
                     }
 
@@ -1166,17 +1242,44 @@ private enum GlobeBuilder {
         }
     }
 
-    /// 유성 노드 — 실제 3D 우주공간(rootNode 좌표 — 컨테이너 회전 무관)을 직선으로 가로지른다.
-    /// 깊이 성분을 포함한 완전 랜덤 3D 방향이라 원근으로 다가오거나 멀어진다.
-    /// 점화(12%)→유지→소멸(30%) 봉투 후 스스로 제거된다. 반환값의 duration 은 호출부가
-    /// "낙하가 끝나는 즉시 재판정"하기 위한 스케줄링에 쓰인다.
-    /// (Android GlobeRenderer drawMeteor/spawnMeteor 패리티)
+    /// 잔류 스파클 파티클 텍스처 — 작은 라디얼 글로우(백색, particleColor 로 tint).
+    private static let meteorSparkTexture: UIImage = {
+        let s = 32
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: s, height: s), format: format).image { ctx in
+            let cg = ctx.cgContext
+            let space = CGColorSpaceCreateDeviceRGB()
+            let c = CGPoint(x: CGFloat(s) / 2, y: CGFloat(s) / 2)
+            if let g = CGGradient(
+                colorsSpace: space,
+                colors: [UIColor.white.cgColor,
+                         UIColor.white.withAlphaComponent(0.4).cgColor,
+                         UIColor.white.withAlphaComponent(0).cgColor] as CFArray,
+                locations: [0, 0.35, 1]
+            ) {
+                cg.drawRadialGradient(g, startCenter: c, startRadius: 0,
+                                      endCenter: c, endRadius: CGFloat(s) / 2, options: [])
+            }
+        }
+    }()
+
+    /// 유성 노드 — 실제 3D 우주공간(rootNode 좌표 — 컨테이너 회전 무관)을 **약간의 곡선**을
+    /// 그리며 가로지른다(경로 수직 방향 2차 휨: p(s)=p0+dir·travel·s+perp·bend·s²).
+    ///
+    /// 연출(3D 디자인 개편, Android GlobeRenderer drawMeteor/spawnMeteor 패리티):
+    /// - 커스텀 액션으로 매 프레임 곡선 위 위치·접선 방향을 갱신(꼬리가 궤적을 따라 휜다).
+    /// - 머리 밝기가 고주파로 떨리는 **화려한 반짝임** + 스트릭 2색 텍스처.
+    /// - **잔류 스파클**: 월드 공간 방출 SCNParticleSystem — 지나간 자리에 색색의 파편이 남아
+    ///   1~2초 반짝이다 사그라든다(낙하 종료 후에도 잔류, 수명 끝나면 노드 자체 제거).
+    /// 반환값의 duration 은 호출부가 "낙하가 끝나는 즉시 재판정"하기 위한 스케줄링에 쓰인다.
     static func meteorNode(camDist: Float, tintIndex: Int) -> (node: SCNNode, duration: Double) {
+        let tint = meteorTints[tintIndex % meteorTints.count]
         let depth = Float.random(in: 20...36)  // 카메라~통과지점 거리(별밭 셸 사이)
         let kY = depth * 0.384                 // tan(FOV 42°/2) ≈ 그 깊이에서 화면 세로 반높이
         let bounds = UIScreen.main.bounds
         let kX = kY * Float(bounds.width / max(bounds.height, 1))
-        let streak = kY * Float.random(in: 0.17...0.25) // 스트릭 길이(기존의 절반 크기)
+        let streak = kY * Float.random(in: 0.17...0.25) // 스트릭 길이
         let plane = SCNPlane(width: CGFloat(streak), height: CGFloat(streak) * 0.10)
         let material = SCNMaterial()
         material.lightingModel = .constant
@@ -1185,35 +1288,95 @@ private enum GlobeBuilder {
         material.isDoubleSided = true
         material.writesToDepthBuffer = false
         plane.materials = [material]
-        let node = SCNNode(geometry: plane)
+        let streakNode = SCNNode(geometry: plane)
+        streakNode.opacity = 0
+        streakNode.renderingOrder = -9 // 배경층(별밭 셸 다음, 지구보다 먼저 — 지구 뒤로 가려짐)
+
+        // ── 곡선 경로 파라미터 ──
         // 화면 어디서든 나타나게 — 통과 지점을 화면 전역에 랜덤 배치
         let sx = Float.random(in: -0.85...0.85) * kX
         let sy = Float.random(in: -0.85...0.85) * kY
         let midZ = camDist - depth              // 카메라(+z) 앞쪽(-z 방향)
         // 화면면 방향 — 항상 아래쪽(수직 하강)~사선으로만, 위로 올라가는 방향은 배제.
-        // theta ∈ [π+margin, 2π-margin] → sin(theta) ≤ 0(수평 좌/우 ~ 수직 아래) + 깊이 성분(다가옴/멀어짐)
         let margin: Float = 0.20
         let theta = Float.random(in: (.pi + margin)...(2 * .pi - margin))
         let zc = Float.random(in: -0.55...0.55)
         let tc = sqrt(1 - zc * zc)
-        let dir = SCNVector3(cos(theta) * tc, sin(theta) * tc, zc)
+        let dx = cos(theta) * tc, dy = sin(theta) * tc, dz = zc
         let travel = kY * Float.random(in: 1.0...1.7)
-        node.position = SCNVector3(sx - dir.x * travel * 0.5,
-                                   sy - dir.y * travel * 0.5,
-                                   midZ - dir.z * travel * 0.5)
-        node.eulerAngles = SCNVector3(0, 0, atan2(dir.y, dir.x)) // 스트릭 머리(+x)를 진행 방향으로
-        node.opacity = 0
-        node.renderingOrder = -9 // 배경층(별밭 셸 다음, 지구보다 먼저 — 지구 뒤로 가려짐)
+        // 곡선 휨 — 진행 방향과 시선에 수직인 화면면 방향(dir×ẑ), 부호 랜덤
+        var px = dy, py = -dx
+        let pl = sqrt(px * px + py * py)
+        if pl < 0.15 { px = 1; py = 0 } else { px /= pl; py /= pl }
+        if Bool.random() { px = -px; py = -py }
+        let bend = travel * Float.random(in: 0.10...0.24)
+        let p0x = sx - dx * travel * 0.5 - px * bend * 0.25
+        let p0y = sy - dy * travel * 0.5 - py * bend * 0.25
+        let p0z = midZ - dz * travel * 0.5
+        func pathAt(_ s: Float) -> SCNVector3 {
+            SCNVector3(p0x + dx * travel * s + px * bend * s * s,
+                       p0y + dy * travel * s + py * bend * s * s,
+                       p0z + dz * travel * s)
+        }
+        streakNode.position = pathAt(0)
+        streakNode.eulerAngles = SCNVector3(0, 0, atan2(dy, dx))
+
+        // ── 잔류 스파클 — 월드 공간 방출이라 지나간 자리에 남아 반짝이다 사그라든다 ──
+        let trail = SCNParticleSystem()
+        trail.birthRate = 90
+        trail.particleLifeSpan = 1.2
+        trail.particleLifeSpanVariation = 0.5
+        trail.particleSize = CGFloat(streak) * 0.09
+        trail.particleSizeVariation = CGFloat(streak) * 0.05
+        trail.particleVelocity = CGFloat(streak) * 0.10   // 살짝 흩어지는 파편
+        trail.particleVelocityVariation = CGFloat(streak) * 0.08
+        trail.spreadingAngle = 180
+        trail.particleImage = meteorSparkTexture
+        trail.particleColor = UIColor(red: tint.0, green: tint.1, blue: tint.2, alpha: 1)
+        trail.particleColorVariation = SCNVector4(0.14, 0.30, 0.10, 0) // 색상·채도 흔들림 = 색색 반짝임
+        trail.blendMode = .additive
+        trail.isAffectedByGravity = false
+        trail.isLocal = false // 핵심 — 파티클이 방출 지점(월드)에 남는다
+        // 수명 곡선 — 점화 후 서서히 사그라드는 잔광
+        let sparkFade = CAKeyframeAnimation()
+        sparkFade.values = [0.0, 1.0, 0.8, 0.0]
+        sparkFade.keyTimes = [0, 0.08, 0.45, 1]
+        trail.propertyControllers = [.opacity: SCNParticlePropertyController(animation: sparkFade)]
+        let emitter = SCNNode()
+        emitter.position = streakNode.position
+        emitter.addParticleSystem(trail)
+
+        let container = SCNNode()
+        container.addChildNode(streakNode)
+        container.addChildNode(emitter)
+
         let dur = Double.random(in: 0.9...1.6)
-        let move = SCNAction.move(by: SCNVector3(dir.x * travel, dir.y * travel, dir.z * travel), duration: dur)
-        move.timingMode = .linear
+        // 곡선 이동 + 접선 정렬 + 머리 반짝임 — 매 프레임 갱신
+        let move = SCNAction.customAction(duration: dur) { _, elapsed in
+            let s = Float(elapsed) / Float(dur)
+            let p = pathAt(s)
+            streakNode.position = p
+            emitter.position = p
+            let tx = dx * travel + px * 2 * bend * s
+            let ty = dy * travel + py * 2 * bend * s
+            streakNode.eulerAngles = SCNVector3(0, 0, atan2(ty, tx))
+            // 화려한 반짝임 — 머리 밝기가 고주파로 미세하게 떨린다
+            let tw = 0.84 + 0.16 * sin(Double(s) * 46 + Double(tintIndex) * 1.7)
+            streakNode.geometry?.firstMaterial?.transparency = CGFloat(tw)
+        }
         let fade = SCNAction.sequence([
             .fadeIn(duration: dur * 0.12),
             .wait(duration: dur * 0.58),
             .fadeOut(duration: dur * 0.30),
         ])
-        node.runAction(.sequence([.group([move, fade]), .removeFromParentNode()]))
-        return (node, dur)
+        streakNode.runAction(fade)
+        container.runAction(.sequence([
+            move,
+            .run { _ in trail.birthRate = 0 }, // 방출 중단 — 잔류 스파클은 남아 사그라든다
+            .wait(duration: 2.0),              // 잔류 수명만큼 대기 후 정리
+            .removeFromParentNode(),
+        ]))
+        return (container, dur)
     }
 }
 
