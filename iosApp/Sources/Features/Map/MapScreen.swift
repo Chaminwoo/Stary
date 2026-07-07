@@ -15,6 +15,8 @@ struct MapScreen: View {
     @ObservedObject private var focus = MapFocusStore.shared
     @State private var selected: Diary?
     @State private var unviewedOnly = false
+    // 기간별 보기 — nil=전체 기간, 0=오늘(자정 이후), 그 외 N=최근 N일. (Android 기간 필터 패리티)
+    @State private var periodDays: Int?
 
     // 도보 길찾기 상태.
     @State private var focusTarget: CLLocationCoordinate2D?
@@ -39,10 +41,31 @@ struct MapScreen: View {
         let lng: Double
     }
 
-    /// 미조회 필터 적용된 표시 대상.
+    /// 기간 컷오프(epoch ms) — 오늘=로컬 자정, 그 외=지금-N일.
+    private var periodCutoffMs: Int64? {
+        guard let d = periodDays else { return nil }
+        if d == 0 {
+            return Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
+        }
+        return Int64((Date().timeIntervalSince1970 - Double(d) * 86_400) * 1000)
+    }
+
+    /// 미조회/기간 필터 적용된 표시 대상.
     private var shownDiaries: [Diary] {
-        guard unviewedOnly else { return store.diaries }
-        return store.diaries.filter { !viewed.viewedIds.contains($0.id ?? "") }
+        var list = store.diaries
+        if unviewedOnly { list = list.filter { !viewed.viewedIds.contains($0.id ?? "") } }
+        if let cutoff = periodCutoffMs { list = list.filter { $0.createdAt >= cutoff } }
+        return list
+    }
+
+    private func periodName(_ d: Int?) -> String {
+        switch d {
+        case 0: return locale.t(.periodToday)
+        case 7: return locale.t(.periodWeek)
+        case 30: return locale.t(.periodMonth)
+        case 365: return locale.t(.periodYear)
+        default: return locale.t(.periodAll)
+        }
     }
 
     /// 실시간 위치 기준으로 "최근접점→목적지"만 남긴 경로(지나온 구간 제외).
@@ -80,17 +103,38 @@ struct MapScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // 미조회만 필터 칩
-            Button {
-                unviewedOnly.toggle()
-            } label: {
-                Label(locale.t(.filterUnviewed), systemImage: unviewedOnly ? "eye.slash.fill" : "eye")
+            // 필터 칩 — 미조회만 + 기간별 보기
+            VStack(alignment: .trailing, spacing: 8) {
+                Button {
+                    unviewedOnly.toggle()
+                } label: {
+                    Label(locale.t(.filterUnviewed), systemImage: unviewedOnly ? "eye.slash.fill" : "eye")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 14).padding(.vertical, 9)
+                        .background(unviewedOnly ? Theme.mint.opacity(0.9) : Theme.surface.opacity(0.92), in: Capsule())
+                        .foregroundStyle(unviewedOnly ? Color.black : Theme.textPrimary)
+                        .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.4), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+                }
+                // 기간별 보기 — 전체/오늘/7일/30일/1년
+                Menu {
+                    Button(locale.t(.periodAll)) { periodDays = nil }
+                    Button(locale.t(.periodToday)) { periodDays = 0 }
+                    Button(locale.t(.periodWeek)) { periodDays = 7 }
+                    Button(locale.t(.periodMonth)) { periodDays = 30 }
+                    Button(locale.t(.periodYear)) { periodDays = 365 }
+                } label: {
+                    Label(
+                        periodDays == nil ? locale.t(.filterPeriod) : periodName(periodDays),
+                        systemImage: "clock"
+                    )
                     .font(.caption.bold())
                     .padding(.horizontal, 14).padding(.vertical, 9)
-                    .background(unviewedOnly ? Theme.mint.opacity(0.9) : Theme.surface.opacity(0.92), in: Capsule())
-                    .foregroundStyle(unviewedOnly ? Color.black : Theme.textPrimary)
+                    .background(periodDays != nil ? Theme.mint.opacity(0.9) : Theme.surface.opacity(0.92), in: Capsule())
+                    .foregroundStyle(periodDays != nil ? Color.black : Theme.textPrimary)
                     .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.4), lineWidth: 1))
                     .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+                }
             }
             .padding(.top, 12)
             .padding(.trailing, 14)

@@ -35,7 +35,8 @@ struct ProfileScreen: View {
         Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: othersViewedCount)
     }
     private var unlockedCount: Int { Achievements.unlockedIds(stats).count }
-    private var equippedTitle: String? { equippedTitleName(equippedTitleId) }
+    // 칭호는 언어 전환에 맞춰 표시(정의는 한국어 데이터, 표시만 로케일 해석)
+    private var equippedTitle: String? { LocalizedNames.equippedTitle(equippedTitleId) }
     /// 히든 칭호는 일반 칭호와 다르게(금색 + 『 』) 표시.
     private var equippedTitleIsHidden: Bool { HiddenAchievements.byId(equippedTitleId) != nil }
     private var titleDisplayText: String {
@@ -84,7 +85,8 @@ struct ProfileScreen: View {
         for ach in myHiddenAch {
             arr.append(StatBubble(
                 systemImage: ach.icon.systemImage, count: 0, color: ach.icon.color,
-                label: ach.title, burstOnTap: true, showCount: false, hiddenEffect: ach.effect
+                label: LocalizedNames.title(ach.id, fallback: ach.title) ?? ach.title,
+                burstOnTap: true, showCount: false, hiddenEffect: ach.effect
             ))
         }
         return arr
@@ -212,7 +214,7 @@ struct ProfileScreen: View {
                 Button("확인", role: .cancel) { hiddenAlert = nil }
             } message: {
                 if let a = hiddenAlert {
-                    Text("\(a.title)\n\(a.condition)\n앱에서 단 한 명 — 당신이 처음입니다")
+                    Text("\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n앱에서 단 한 명 — 당신이 처음입니다")
                 }
             }
         }

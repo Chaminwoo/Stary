@@ -95,6 +95,8 @@ enum L10n: String {
     case profileEditNickname, profileNicknameHint
     // 히든 업적.
     case achTabNormal, achTabHidden, achHiddenIntro, achHiddenAchiever, achHiddenUnclaimed, achHiddenByMe
+    // 기간별 보기 필터.
+    case filterPeriod, periodAll, periodToday, periodWeek, periodMonth, periodYear
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -206,6 +208,12 @@ enum L10n: String {
         case .achHiddenAchiever:    return ("달성자: %@", "Achiever: %@", "達成者: %@")
         case .achHiddenUnclaimed:   return ("아직 아무도 달성하지 못했어요", "No one has claimed this yet", "まだ誰も達成していません")
         case .achHiddenByMe:        return ("내가 달성!", "You claimed it!", "あなたが達成！")
+        case .filterPeriod:         return ("기간별 보기", "By period", "期間で見る")
+        case .periodAll:            return ("전체 기간", "All time", "全期間")
+        case .periodToday:          return ("오늘", "Today", "今日")
+        case .periodWeek:           return ("최근 7일", "Last 7 days", "過去7日")
+        case .periodMonth:          return ("최근 30일", "Last 30 days", "過去30日")
+        case .periodYear:           return ("최근 1년", "Last year", "過去1年")
         }
     }
 

@@ -18,11 +18,9 @@ struct UploadScreen: View {
     @State private var toast: String?
     @State private var photoItem: PhotosPickerItem?
     @State private var imageData: Data?
-    // 3초 이내 짧은 영상(이미지와 배타). videoLocalURL 은 미리보기용 임시 파일.
-    @State private var videoItem: PhotosPickerItem?
-    @State private var videoData: Data?
-    @State private var videoLocalURL: URL?
-    @State private var videoContentType = "video/mp4"
+    // 부메랑(3초 움짤) GIF — 커스텀 촬영 화면에서 생성(이미지와 배타).
+    @State private var boomerangGif: Data?
+    @State private var showBoomerangCapture = false
     @State private var friendsCount = 0
 
     /// 현재 해금된 업적 id 집합(내 다이어리 + 친구 수 기반).
@@ -66,12 +64,17 @@ struct UploadScreen: View {
                 Task {
                     if let data = try? await item?.loadTransferable(type: Data.self) {
                         imageData = data
-                        clearVideo() // 이미지 선택 시 영상과 배타
+                        boomerangGif = nil // 이미지 선택 시 움짤과 배타
                     }
                 }
             }
-            .onChange(of: videoItem) { item in
-                Task { await handlePickedVideo(item) }
+            // 부메랑(3초 움짤) 커스텀 촬영 — 전체 화면
+            .fullScreenCover(isPresented: $showBoomerangCapture) {
+                BoomerangCaptureView { data in
+                    boomerangGif = data
+                    imageData = nil; photoItem = nil // 이미지와 배타
+                    showBoomerangCapture = false
+                }
             }
             .task {
                 if let uid = auth.uid {
@@ -96,10 +99,10 @@ struct UploadScreen: View {
 
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            label("사진 · 영상 (선택)")
-            if let videoLocalURL {
+            label("사진 · 움짤 (선택)")
+            if let boomerangGif {
                 ZStack(alignment: .topTrailing) {
-                    LoopingVideoPlayer(url: videoLocalURL, muted: true)
+                    GifImageView(data: boomerangGif)
                         .frame(height: 180)
                         .frame(maxWidth: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -120,8 +123,9 @@ struct UploadScreen: View {
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         mediaAddLabel(icon: "photo.on.rectangle.angled", text: "사진 추가")
                     }
-                    PhotosPicker(selection: $videoItem, matching: .videos) {
-                        mediaAddLabel(icon: "video.badge.plus", text: "동영상 (3초 이내)")
+                    // 파일 선택 대신 커스텀 촬영 화면으로(부메랑 3초 움짤)
+                    Button { showBoomerangCapture = true } label: {
+                        mediaAddLabel(icon: "infinity", text: "움직이는 사진 (3초)")
                     }
                 }
             }
@@ -147,34 +151,9 @@ struct UploadScreen: View {
         }
     }
 
-    /// 선택된 영상을 3초 이내인지 검증하고, 통과 시 보관(초과 시 안내 후 취소). 이미지와 배타.
-    private func handlePickedVideo(_ item: PhotosPickerItem?) async {
-        guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
-        let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("upload_\(UUID().uuidString).mov")
-        do { try data.write(to: tmp) } catch { return }
-        let asset = AVURLAsset(url: tmp)
-        let durSec = (try? await asset.load(.duration))?.seconds ?? 0
-        if durSec * 1000 > Double(AppConfig.videoMaxDurationMs) {
-            try? FileManager.default.removeItem(at: tmp)
-            videoItem = nil
-            showToast("3초 이내의 짧은 영상만 올릴 수 있어요")
-            return
-        }
-        videoData = data
-        videoLocalURL = tmp
-        videoContentType = item.supportedContentTypes.first?.preferredMIMEType ?? "video/quicktime"
-        imageData = nil; photoItem = nil // 이미지와 배타
-    }
-
     private func clearMedia() {
         imageData = nil; photoItem = nil
-        clearVideo()
-    }
-
-    private func clearVideo() {
-        if let u = videoLocalURL { try? FileManager.default.removeItem(at: u) }
-        videoData = nil; videoLocalURL = nil; videoItem = nil
+        boomerangGif = nil
     }
 
     private var starPicker: some View {
@@ -267,12 +246,12 @@ struct UploadScreen: View {
         saving = true
         defer { saving = false }
 
-        // 첨부는 영상/사진 중 하나(배타). 영상이 있으면 영상 우선 업로드.
+        // 첨부는 움짤/사진 중 하나(배타). 움짤(GIF)은 videoUrl 필드에 저장(스키마 유지, .gif 로 판별).
         var imageUrl = ""
         var videoUrl = ""
-        if let videoData {
-            do { videoUrl = try await ImageUploader.uploadVideo(videoData, contentType: videoContentType) }
-            catch { showToast("영상 업로드 실패: \(error.localizedDescription)"); return }
+        if let boomerangGif {
+            do { videoUrl = try await ImageUploader.uploadGif(boomerangGif) }
+            catch { showToast("움짤 업로드 실패: \(error.localizedDescription)"); return }
         } else if let imageData {
             do { imageUrl = try await ImageUploader.upload(imageData) }
             catch { showToast("사진 업로드 실패: \(error.localizedDescription)"); return }

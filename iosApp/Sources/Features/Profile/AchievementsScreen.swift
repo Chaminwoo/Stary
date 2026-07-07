@@ -68,7 +68,7 @@ struct AchievementsScreen: View {
             Button("확인", role: .cancel) { hiddenAlert = nil }
         } message: {
             if let a = hiddenAlert {
-                Text("\(a.title)\n\(a.condition)\n앱에서 단 한 명 — 당신이 처음입니다")
+                Text("\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n앱에서 단 한 명 — 당신이 처음입니다")
             }
         }
         .firstVisitInfo(key: "achievements", systemImage: "trophy.fill",
@@ -99,7 +99,9 @@ struct AchievementsScreen: View {
             Image(systemName: done ? "checkmark.seal.fill" : "lock.fill")
                 .foregroundStyle(done ? Theme.mint : Theme.textFaint)
             VStack(alignment: .leading, spacing: 2) {
-                Text(ach.name).font(.subheadline).foregroundStyle(Theme.textPrimary)
+                // 칭호 업적명(=칭호)은 언어 전환에 맞춰 표시(보상 업적은 매핑 밖 → 원문)
+                Text(LocalizedNames.title(ach.id, fallback: ach.name) ?? ach.name)
+                    .font(.subheadline).foregroundStyle(Theme.textPrimary)
                 Text(ach.condition)
                     .font(.caption2).foregroundStyle(Theme.textSecondary)
             }
@@ -151,8 +153,9 @@ struct AchievementsScreen: View {
             HiddenIconBadge(ach: ach, size: 40)
                 .frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 2) {
-                // 칭호는 항상 노출.
-                Text(ach.title).font(.subheadline).foregroundStyle(Theme.textPrimary)
+                // 칭호는 항상 노출. (언어 전환에 맞춰 로케일 해석)
+                Text(LocalizedNames.title(ach.id, fallback: ach.title) ?? ach.title)
+                    .font(.subheadline).foregroundStyle(Theme.textPrimary)
                 // 조건은 달성 후에만 공개.
                 Text(claimed ? ach.condition : "???")
                     .font(.caption2)

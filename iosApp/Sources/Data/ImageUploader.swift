@@ -28,6 +28,17 @@ enum ImageUploader {
         return url.absoluteString
     }
 
+    /// 부메랑(3초 움짤) GIF 업로드. contentType=image/gif 라 diary_images 규칙(이미지 타입)을 그대로 통과.
+    /// URL 은 diary.videoUrl 에 저장해 스키마 유지(.gif 로 판별). Android uploadGifResult 패리티.
+    static func uploadGif(_ data: Data) async throws -> String {
+        let ref = Storage.storage().reference().child("diary_images/\(UUID().uuidString).gif")
+        let meta = StorageMetadata()
+        meta.contentType = "image/gif"
+        _ = try await ref.putDataAsync(data, metadata: meta)
+        let url = try await ref.downloadURL()
+        return url.absoluteString
+    }
+
     /// 프로필 사진 업로드(항상 같은 경로 profile_images/{uid}.jpg) + users/{uid}.profileImageUrl 갱신.
     /// Android UserRepository.uploadProfileImage 와 동일.
     static func uploadProfile(uid: String, data: Data) async throws -> String {

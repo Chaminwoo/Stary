@@ -132,7 +132,8 @@ struct UserProfileScreen: View {
             Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
                 .font(.title3).bold()
                 .foregroundStyle(Theme.textPrimary)
-            if let title = equippedTitleName(equippedTitleId) {
+            // 칭호는 언어 전환에 맞춰 표시(로케일 해석)
+            if let title = LocalizedNames.equippedTitle(equippedTitleId) {
                 // 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.
                 let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
                 let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.mint
@@ -204,7 +205,7 @@ struct UserProfileScreen: View {
                 ForEach(theirHiddenAch) { ach in
                     VStack(spacing: 4) {
                         HiddenIconBadge(ach: ach, size: 40)
-                        Text(ach.title)
+                        Text(LocalizedNames.title(ach.id, fallback: ach.title) ?? ach.title)
                             .font(.caption2).bold()
                             .foregroundStyle(Color(hex: 0xFFD86F))
                             .lineLimit(1)

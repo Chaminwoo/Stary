@@ -8,6 +8,8 @@ struct DetailScreen: View {
     @EnvironmentObject var location: LocationManager
     @StateObject private var vm: DetailViewModel
     @ObservedObject private var focus = MapFocusStore.shared
+    // 작성자/댓글 이름·프사를 users/{uid} 의 "현재" 값으로 표시(스냅샷 아님) — Android UserDirectory 패리티.
+    @ObservedObject private var directory = UserDirectory.shared
     @State private var didCountView = false
     @State private var commentText = ""
     @State private var profileTarget: ProfileTarget?
@@ -60,18 +62,26 @@ struct DetailScreen: View {
                             .font(.subheadline)
                             .foregroundStyle(Theme.textSecondary)
                     } else {
-                        Button { openProfile(diary.userId, diary.userName) } label: {
+                        let authorName = directory.name(diary.userId, fallback: diary.userName)
+                        Button { openProfile(diary.userId, authorName) } label: {
                             HStack(spacing: 4) {
-                                Text(diary.userName)
+                                Text(authorName)
                                 Image(systemName: "chevron.right").font(.caption2)
                             }
                             .font(.subheadline)
                             .foregroundStyle(Theme.textSecondary)
                         }
                         .buttonStyle(.plain)
+                        .task(id: diary.userId) { directory.ensureWatching(diary.userId) }
                     }
 
-                    if canOpen, !diary.videoUrl.isEmpty, let vurl = URL(string: diary.videoUrl) {
+                    if canOpen, !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
+                        // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 는 아래 플레이어 유지)
+                        RemoteGifView(urlString: diary.videoUrl)
+                            .frame(height: 220)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    } else if canOpen, !diary.videoUrl.isEmpty, let vurl = URL(string: diary.videoUrl) {
                         // 짧은 영상(3초 이내) 음소거 루프 재생.
                         LoopingVideoPlayer(url: vurl, muted: true)
                             .frame(height: 220)
@@ -249,7 +259,9 @@ struct DetailScreen: View {
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
                             Button { openProfile(c.userId, c.userName) } label: {
-                                Text(c.userName).font(.caption).bold().foregroundStyle(Theme.textSecondary)
+                                // 저장 시점 스냅샷이 아닌 현재 닉네임으로 표시
+                                Text(directory.name(c.userId, fallback: c.userName))
+                                    .font(.caption).bold().foregroundStyle(Theme.textSecondary)
                             }
                             .buttonStyle(.plain)
                             Spacer()
@@ -293,20 +305,21 @@ final class ProfileImageCache {
     }
 }
 
-/// 인스타식 댓글 프로필 아바타 — userId 로 사진 조회, 없으면 이니셜 폴백. (Android CommentItem 패리티)
+/// 인스타식 댓글 프로필 아바타 — users/{uid} 의 "현재" 사진/이름으로 표시(실시간), 없으면 이니셜 폴백.
 private struct CommentAvatar: View {
     let userId: String
     let userName: String
-    @State private var url: String?
+    @ObservedObject private var directory = UserDirectory.shared
 
     private var initial: String {
-        let first = userName.trimmingCharacters(in: .whitespaces).prefix(1).uppercased()
+        let name = directory.name(userId, fallback: userName)
+        let first = name.trimmingCharacters(in: .whitespaces).prefix(1).uppercased()
         return first.isEmpty ? "?" : first
     }
 
     var body: some View {
         Group {
-            if let url, !url.isEmpty {
+            if let url = directory.photoUrl(userId), !url.isEmpty {
                 AsyncImage(url: URL(string: url)) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
@@ -323,6 +336,6 @@ private struct CommentAvatar: View {
         .frame(width: 32, height: 32)
         .clipShape(Circle())
         .overlay(Circle().stroke(Theme.mint.opacity(0.30), lineWidth: 1))
-        .task(id: userId) { url = await ProfileImageCache.shared.url(for: userId) }
+        .task(id: userId) { directory.ensureWatching(userId) }
     }
 }

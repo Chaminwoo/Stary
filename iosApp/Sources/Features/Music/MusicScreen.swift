@@ -244,8 +244,10 @@ struct MusicScreen: View {
 
     private var subtitle: String {
         if isUnlocked(selected) { return "좌우로 드래그해 음악을 골라보세요" }
+        // 해금 업적명은 언어 전환에 맞춰 표시(로케일 해석)
         let ach = Achievements.byId(selected.unlockAchievementId)
-        return "🔒 ‘\(ach?.name ?? "비밀")’ 달성 시 해금"
+        let name = ach.flatMap { LocalizedNames.title($0.id, fallback: $0.name) } ?? "비밀"
+        return "🔒 ‘\(name)’ 달성 시 해금"
     }
 
     var body: some View {
@@ -265,7 +267,8 @@ struct MusicScreen: View {
                 }
                 .frame(height: 360)
 
-                Text(selected.displayName)
+                // 트랙명은 언어 전환에 맞춰 표시(로케일 해석)
+                Text(LocalizedNames.music(selected.id, fallback: selected.displayName))
                     .font(.title3).bold()
                     .foregroundStyle(isUnlocked(selected) ? selected.color : Theme.textSecondary)
                 Text(subtitle)
