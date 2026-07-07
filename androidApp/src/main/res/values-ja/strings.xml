@@ -255,14 +255,9 @@
     <string name="period_year">過去1年</string>
 
     <!-- ブーメラン(3秒)撮影 -->
-    <string name="upload_capture_boomerang">動く写真を撮影 (3秒)</string>
-    <string name="boomer_title">動く写真</string>
-    <string name="boomer_hint">ボタンを押すと瞬間をつないで
-3秒の動く写真を作ります</string>
+    <string name="upload_capture_boomerang">3秒動画を撮影</string>
     <string name="cd_boomer_flip">カメラ切替</string>
     <string name="cd_boomer_shoot">撮影</string>
-    <string name="boomer_capturing">撮影中…</string>
-    <string name="boomer_processing">動く写真を作成中…</string>
     <string name="boomer_retake">撮り直す</string>
     <string name="boomer_use">この場面を使う</string>
     <string name="boomer_failed">撮影に失敗しました。もう一度お試しください</string>

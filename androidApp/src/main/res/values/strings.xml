@@ -258,13 +258,9 @@
     <string name="period_year">최근 1년</string>
 
     <!-- 부메랑(3초 움짤) 촬영 -->
-    <string name="upload_capture_boomerang">움직이는 사진 촬영 (3초)</string>
-    <string name="boomer_title">움직이는 사진</string>
-    <string name="boomer_hint">버튼을 누르면 순간을 이어 붙여\n3초 움직이는 사진을 만들어요</string>
+    <string name="upload_capture_boomerang">3초 영상 촬영</string>
     <string name="cd_boomer_flip">카메라 전환</string>
     <string name="cd_boomer_shoot">촬영</string>
-    <string name="boomer_capturing">담는 중…</string>
-    <string name="boomer_processing">움직이는 사진을 만드는 중…</string>
     <string name="boomer_retake">다시 찍기</string>
     <string name="boomer_use">이 장면 사용</string>
     <string name="boomer_failed">촬영에 실패했어요. 다시 시도해주세요</string>

@@ -76,17 +76,23 @@ struct ListScreen: View {
                     }
                     .tint(unviewedOnly ? Theme.mint : Theme.textSecondary)
                 }
-                // 기간별 보기 — 전체/오늘/7일/30일/1년
+                // 기간별 보기 — 비활성이면 메뉴(오늘/7일/30일/1년), 활성이면 재탭으로 해제.
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Menu {
-                        Button(locale.t(.periodAll)) { periodDays = nil }
-                        Button(locale.t(.periodToday)) { periodDays = 0 }
-                        Button(locale.t(.periodWeek)) { periodDays = 7 }
-                        Button(locale.t(.periodMonth)) { periodDays = 30 }
-                        Button(locale.t(.periodYear)) { periodDays = 365 }
-                    } label: {
-                        Label(periodDays == nil ? locale.t(.filterPeriod) : periodName(periodDays),
-                              systemImage: "clock")
+                    Group {
+                        if periodDays != nil {
+                            Button { periodDays = nil } label: {
+                                Label(periodName(periodDays), systemImage: "clock")
+                            }
+                        } else {
+                            Menu {
+                                Button(locale.t(.periodToday)) { periodDays = 0 }
+                                Button(locale.t(.periodWeek)) { periodDays = 7 }
+                                Button(locale.t(.periodMonth)) { periodDays = 30 }
+                                Button(locale.t(.periodYear)) { periodDays = 365 }
+                            } label: {
+                                Label(locale.t(.filterPeriod), systemImage: "clock")
+                            }
+                        }
                     }
                     .tint(periodDays != nil ? Theme.mint : Theme.textSecondary)
                 }

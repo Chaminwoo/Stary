@@ -2,7 +2,20 @@ package com.chaminwoo.stary.navigation
 
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavHostController
 import kotlinx.serialization.Serializable
+
+/**
+ * 다이어리 상세로 이동 — **백스택에 Detail 은 항상 1개만 유지.**
+ * 알림/배너로 같은(또는 다른) 다이어리를 연달아 열어도 Detail 이 겹겹이 쌓이지 않아
+ * 뒤로가기 한 번이면 이전 화면(지도)으로 빠져나간다.
+ */
+fun NavHostController.navigateToDetail(diaryId: String) {
+    navigate(NavRoute.Detail(diaryId = diaryId)) {
+        launchSingleTop = true
+        popUpTo<NavRoute.Detail> { inclusive = true }
+    }
+}
 
 // 화면 경로 및 UI 상태를 정의하는 Type-Safe 라우트
 @Serializable

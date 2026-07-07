@@ -637,8 +637,12 @@ private fun CommentItem(
         ) {
             val url = photoUrl
             if (!url.isNullOrBlank()) {
+                // 아바타는 32dp — 원본 대신 저해상도(96px)로 디코드해 빠르게 렌더링.
                 AsyncImage(
-                    model = url,
+                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                        .data(url)
+                        .size(96)
+                        .build(),
                     contentDescription = stringResource(R.string.cd_profile_photo, displayName.ifBlank { stringResource(R.string.common_user) }),
                     modifier = Modifier.fillMaxSize().clip(CircleShape),
                     contentScale = ContentScale.Crop

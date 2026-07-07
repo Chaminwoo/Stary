@@ -125,7 +125,7 @@ struct UploadScreen: View {
                     }
                     // 파일 선택 대신 커스텀 촬영 화면으로(부메랑 3초 움짤)
                     Button { showBoomerangCapture = true } label: {
-                        mediaAddLabel(icon: "infinity", text: "움직이는 사진 (3초)")
+                        mediaAddLabel(icon: "infinity", text: "3초 영상 촬영")
                     }
                 }
             }

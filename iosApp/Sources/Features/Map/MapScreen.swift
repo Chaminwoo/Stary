@@ -68,6 +68,20 @@ struct MapScreen: View {
         }
     }
 
+    /// 기간 칩 라벨(활성=민트 배경).
+    private var periodChipLabel: some View {
+        Label(
+            periodDays == nil ? locale.t(.filterPeriod) : periodName(periodDays),
+            systemImage: "clock"
+        )
+        .font(.caption.bold())
+        .padding(.horizontal, 14).padding(.vertical, 9)
+        .background(periodDays != nil ? Theme.mint.opacity(0.9) : Theme.surface.opacity(0.92), in: Capsule())
+        .foregroundStyle(periodDays != nil ? Color.black : Theme.textPrimary)
+        .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.4), lineWidth: 1))
+        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+    }
+
     /// 실시간 위치 기준으로 "최근접점→목적지"만 남긴 경로(지나온 구간 제외).
     private var partialRoute: [CLLocationCoordinate2D] {
         guard fullRoute.count >= 2 else { return [] }
@@ -116,24 +130,16 @@ struct MapScreen: View {
                         .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.4), lineWidth: 1))
                         .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
                 }
-                // 기간별 보기 — 전체/오늘/7일/30일/1년
-                Menu {
-                    Button(locale.t(.periodAll)) { periodDays = nil }
-                    Button(locale.t(.periodToday)) { periodDays = 0 }
-                    Button(locale.t(.periodWeek)) { periodDays = 7 }
-                    Button(locale.t(.periodMonth)) { periodDays = 30 }
-                    Button(locale.t(.periodYear)) { periodDays = 365 }
-                } label: {
-                    Label(
-                        periodDays == nil ? locale.t(.filterPeriod) : periodName(periodDays),
-                        systemImage: "clock"
-                    )
-                    .font(.caption.bold())
-                    .padding(.horizontal, 14).padding(.vertical, 9)
-                    .background(periodDays != nil ? Theme.mint.opacity(0.9) : Theme.surface.opacity(0.92), in: Capsule())
-                    .foregroundStyle(periodDays != nil ? Color.black : Theme.textPrimary)
-                    .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.4), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+                // 기간별 보기 — 비활성이면 메뉴(오늘/7일/30일/1년), 활성이면 재탭으로 해제.
+                if periodDays != nil {
+                    Button { periodDays = nil } label: { periodChipLabel }
+                } else {
+                    Menu {
+                        Button(locale.t(.periodToday)) { periodDays = 0 }
+                        Button(locale.t(.periodWeek)) { periodDays = 7 }
+                        Button(locale.t(.periodMonth)) { periodDays = 30 }
+                        Button(locale.t(.periodYear)) { periodDays = 365 }
+                    } label: { periodChipLabel }
                 }
             }
             .padding(.top, 12)

@@ -200,7 +200,8 @@ fun MainListScreen(
             title = { Text(stringResource(R.string.filter_period), color = Color(0xFFF0F0F0), fontSize = 16.sp) },
             text = {
                 Column {
-                    listOf(null, 0, 7, 30, 365).forEach { d ->
+                    // '전체 기간' 항목은 없음 — 해제는 활성 칩을 다시 탭.
+                    listOf(0, 7, 30, 365).forEach { d ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -402,12 +403,14 @@ fun MainListScreen(
                     else stringResource(R.string.filter_friends_n, selectedFriendIds.size),
                     Icons.Filled.GroupAdd, selectedFriendIds.isNotEmpty()
                 ) { showFriendPicker = true },
-                // 기간별 보기 — 다이얼로그에서 전체/오늘/7일/30일/1년 선택
+                // 기간별 보기 — 비활성이면 다이얼로그(오늘/7일/30일/1년), 활성이면 재탭으로 해제.
                 FilterOpt(
                     if (periodDays == null) stringResource(R.string.filter_period)
                     else stringResource(R.string.filter_period_n, periodLabel(periodDays)),
                     Icons.Filled.Schedule, periodDays != null
-                ) { showPeriodPicker = true },
+                ) {
+                    if (periodDays == null) showPeriodPicker = true else periodDays = null
+                },
                 // (지도만 보기 항목은 제거됨 — 지도 우하단 몰입 버튼으로 대체)
             )
 

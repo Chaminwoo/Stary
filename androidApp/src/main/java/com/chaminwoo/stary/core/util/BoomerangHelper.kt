@@ -32,6 +32,9 @@ object BoomerangHelper {
     /** 결과 비율 — 업로드/상세 프레임과 동일(4:3). */
     const val ASPECT = 4f / 3f
 
+    /** 캡처 프레임 작업 해상도(긴 변). 크롭은 촬영 후 조정 단계에서 하므로 전체 프레임을 이 크기로 보관. */
+    const val WORK_MAX = 640
+
     /**
      * CameraX RGBA_8888 [ImageProxy] → [Bitmap].
      * rowStride 가 width*4 보다 클 수 있어 stride 폭으로 만든 뒤 실제 폭으로 잘라낸다.
@@ -47,7 +50,8 @@ object BoomerangHelper {
 
     /**
      * 센서 프레임을 화면 그대로의 모습으로 정규화 —
-     * [rotationDegrees] 회전 + (전면 카메라면) 좌우 미러 + 4:3 센터 크롭 + [TARGET_WIDTH] 다운스케일.
+     * [rotationDegrees] 회전 + (전면 카메라면) 좌우 미러 + 긴 변 [WORK_MAX] 다운스케일.
+     * 4:3 크롭은 여기서 하지 않고, 촬영 후 조정 단계([cropFrames])에서 사용자가 정한다.
      */
     fun normalize(src: Bitmap, rotationDegrees: Int, mirror: Boolean): Bitmap {
         val rotated = if (rotationDegrees != 0 || mirror) {
@@ -57,22 +61,54 @@ object BoomerangHelper {
             Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
         } else src
 
-        // 4:3 센터 크롭(프리뷰 FILL_CENTER 와 동일한 영역)
-        val cropW: Int
-        val cropH: Int
-        if (rotated.width.toFloat() / rotated.height > ASPECT) {
-            cropH = rotated.height
-            cropW = (cropH * ASPECT).roundToInt().coerceAtMost(rotated.width)
-        } else {
-            cropW = rotated.width
-            cropH = (cropW / ASPECT).roundToInt().coerceAtMost(rotated.height)
-        }
-        val x = (rotated.width - cropW) / 2
-        val y = (rotated.height - cropH) / 2
-        val cropped = Bitmap.createBitmap(rotated, x, y, cropW, cropH)
+        val longest = maxOf(rotated.width, rotated.height)
+        if (longest <= WORK_MAX) return rotated
+        val s = WORK_MAX.toFloat() / longest
+        return Bitmap.createScaledBitmap(
+            rotated,
+            (rotated.width * s).roundToInt().coerceAtLeast(1),
+            (rotated.height * s).roundToInt().coerceAtLeast(1),
+            true,
+        )
+    }
 
+    /**
+     * 조정 단계의 크롭 상태로 모든 프레임을 4:3(400×300)으로 잘라낸다.
+     * 좌표 모델은 사진 크롭([ImageCropHelper.cropToFile])과 동일:
+     * cover = max(frameW/bmpW, frameH/bmpH), disp = bmp × cover × scale, left = (frameW-dispW)/2 + offsetX.
+     */
+    fun cropFrames(
+        frames: List<Bitmap>,
+        frameW: Float, frameH: Float,
+        scale: Float, offsetX: Float, offsetY: Float,
+    ): List<Bitmap> {
+        if (frameW <= 0f || frameH <= 0f) return frames
+        val targetW = TARGET_WIDTH
         val targetH = (TARGET_WIDTH / ASPECT).roundToInt()
-        return Bitmap.createScaledBitmap(cropped, TARGET_WIDTH, targetH, true)
+        return frames.map { bmp ->
+            val bw = bmp.width.toFloat()
+            val bh = bmp.height.toFloat()
+            val dispScale = maxOf(frameW / bw, frameH / bh) * scale
+            val dispW = bw * dispScale
+            val dispH = bh * dispScale
+            val left = (frameW - dispW) / 2f + offsetX
+            val top = (frameH - dispH) / 2f + offsetY
+
+            var srcLeft = (-left) / dispScale
+            var srcTop = (-top) / dispScale
+            var srcW = frameW / dispScale
+            var srcH = frameH / dispScale
+            srcLeft = srcLeft.coerceIn(0f, bw - 1f)
+            srcTop = srcTop.coerceIn(0f, bh - 1f)
+            srcW = srcW.coerceIn(1f, bw - srcLeft)
+            srcH = srcH.coerceIn(1f, bh - srcTop)
+
+            val cropped = Bitmap.createBitmap(
+                bmp, srcLeft.roundToInt(), srcTop.roundToInt(),
+                srcW.roundToInt().coerceAtLeast(1), srcH.roundToInt().coerceAtLeast(1)
+            )
+            Bitmap.createScaledBitmap(cropped, targetW, targetH, true)
+        }
     }
 
     /** 부메랑 시퀀스 — 정방향 + 역방향(양 끝 중복 제거). 12장 → 22장. */

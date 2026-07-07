@@ -86,6 +86,7 @@ import com.chaminwoo.stary.feature.auth.screen.LoginScreen
 import com.chaminwoo.stary.feature.diary.NotificationViewModel
 import com.chaminwoo.stary.navigation.NavGraph
 import com.chaminwoo.stary.navigation.NavRoute
+import com.chaminwoo.stary.navigation.navigateToDetail
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -170,7 +171,7 @@ fun MainScreen(
     // 푸시 알림 탭 딥링크 — DeepLinkState 관찰(콜드 스타트/앱 살아있을 때 모두). 소비 후 해당 화면으로 이동.
     androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.diaryId) {
         com.chaminwoo.stary.core.util.DeepLinkState.consumeDiary()?.let {
-            navController.navigate(NavRoute.Detail(diaryId = it))
+            navController.navigateToDetail(it)
         }
     }
     androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.chatFriendId) {
@@ -442,7 +443,7 @@ fun MainScreen(
                     com.chaminwoo.stary.core.util.MapFocusState.request(n.diaryId)
                     navController.navigate(NavRoute.Main) { popUpTo<NavRoute.Main> { inclusive = true } }
                 } else if (n.diaryId.isNotBlank()) {
-                    navController.navigate(NavRoute.Detail(diaryId = n.diaryId))
+                    navController.navigateToDetail(n.diaryId)
                 } else {
                     navController.navigate(NavRoute.Notification)
                 }

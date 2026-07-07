@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.SystemClock
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -14,10 +15,11 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +37,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AllInclusive
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -49,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,13 +59,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -76,9 +82,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 /**
  * 부메랑 캡처 컨트롤러 — ImageAnalysis 분석 스레드에서 프레임을 간격에 맞춰 모은다.
@@ -137,14 +145,15 @@ internal suspend fun awaitCameraProvider(context: Context): ProcessCameraProvide
         future.addListener({ cont.resume(future.get()) }, ContextCompat.getMainExecutor(context))
     }
 
-/** 촬영 화면 상태. */
-private enum class BoomerStage { LIVE, CAPTURING, PROCESSING, REVIEW }
+/** 촬영 화면 상태. ADJUST = 촬영 후 크롭(위치/확대) 조정, ENCODING = GIF 생성 중. */
+private enum class BoomerStage { LIVE, CAPTURING, ADJUST, ENCODING }
 
 /**
  * 부메랑(3초 움짤) 커스텀 촬영 화면 — 전체 화면 오버레이.
  *
- * 하단에 카메라 전환 버튼 + 가운데 촬영 버튼. 촬영을 누르면 약 1.5초간 프레임을 모아
- * 정→역으로 이어 붙인 3초 GIF(저화질)로 만들고, 확인 후 [onResult] 로 파일을 돌려준다.
+ * 프리뷰가 화면을 꽉 채우고, 하단에 카메라 전환 + 가운데 촬영 버튼만 둔다(텍스트/닫기 버튼 없음 —
+ * 닫기는 시스템 뒤로가기). 촬영하면 약 1.5초간 프레임을 모으고, **사진 크롭처럼 드래그/핀치로
+ * 4:3 프레임 안에서 위치·확대를 조정**한 뒤 확정하면 3초 GIF 로 만들어 [onResult] 로 돌려준다.
  */
 @Composable
 fun BoomerangCaptureScreen(
@@ -157,8 +166,8 @@ fun BoomerangCaptureScreen(
 
     var stage by remember { mutableStateOf(BoomerStage.LIVE) }
     var lensFacing by remember { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
-    var reviewFrames by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
-    var resultFile by remember { mutableStateOf<File?>(null) }
+    // 촬영된 원본(전체 화면) 프레임 — 조정 단계에서 크롭된다.
+    var capturedFrames by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     var hasPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -173,19 +182,14 @@ fun BoomerangCaptureScreen(
         PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
     }
 
-    // 캡처 완료(분석 스레드) → 메인에서 처리 단계로 전환 + GIF 인코딩
+    // 닫기 버튼 없음 — 시스템 뒤로가기로 닫는다.
+    BackHandler { onClose() }
+
+    // 캡처 완료(분석 스레드) → 곧바로 조정 단계(인코딩은 확정 시).
     controller.onComplete = { frames ->
         scope.launch(Dispatchers.Main) {
-            stage = BoomerStage.PROCESSING
-            val file = runCatching { BoomerangHelper.encodeToFile(context, frames) }.getOrNull()
-            if (file != null) {
-                resultFile = file
-                reviewFrames = BoomerangHelper.boomerangSequence(frames)
-                stage = BoomerStage.REVIEW
-            } else {
-                StaryToast.show(context.getString(R.string.boomer_failed))
-                stage = BoomerStage.LIVE
-            }
+            capturedFrames = frames
+            stage = BoomerStage.ADJUST
         }
     }
 
@@ -232,197 +236,82 @@ fun BoomerangCaptureScreen(
         }
     }
 
-    BoomerangCaptureUi(
-        stage = stage,
-        previewView = previewView,
-        captureProgress = controller.progress.intValue,
-        reviewFrames = reviewFrames,
-        onShoot = {
-            if (stage == BoomerStage.LIVE) {
-                stage = BoomerStage.CAPTURING
-                controller.start()
-            }
-        },
-        onFlip = {
-            if (stage == BoomerStage.LIVE) {
-                lensFacing =
-                    if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT
-                    else CameraSelector.LENS_FACING_BACK
-            }
-        },
-        onRetake = {
-            resultFile?.delete()
-            resultFile = null
-            reviewFrames = emptyList()
-            stage = BoomerStage.LIVE
-        },
-        onUse = { resultFile?.let(onResult) },
-        onClose = onClose,
-    )
-}
-
-// ─── UI ──────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun BoomerangCaptureUi(
-    stage: BoomerStage,
-    previewView: PreviewView,
-    captureProgress: Int,
-    reviewFrames: List<Bitmap>,
-    onShoot: () -> Unit,
-    onFlip: () -> Unit,
-    onRetake: () -> Unit,
-    onUse: () -> Unit,
-    onClose: () -> Unit,
-) {
     val mint = Color(0xFF6EE7B7)
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xF2050510))
+            .background(Color.Black)
             // 아래 화면으로 터치 통과 방지
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
-            .systemBarsPadding()
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // 상단 바 — 제목 + 닫기
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.boomer_title),
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-                IconButton(onClick = onClose, modifier = Modifier.align(Alignment.CenterEnd)) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cd_close), tint = Color.White)
-                }
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            // 4:3 프레임 — 프리뷰 또는 결과 미리보기(움짤 재생)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(BoomerangHelper.ASPECT)
-                    .clip(RoundedCornerShape(18.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(18.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (stage == BoomerStage.REVIEW && reviewFrames.isNotEmpty()) {
-                    // 결과 미리보기 — 프레임 순환으로 부메랑 재생
-                    var frameIdx by remember { mutableIntStateOf(0) }
-                    LaunchedEffect(reviewFrames) {
-                        while (true) {
-                            delay(BoomerangHelper.FRAME_DELAY_CS * 10L)
-                            frameIdx = (frameIdx + 1) % reviewFrames.size
+        if (stage == BoomerStage.ADJUST || stage == BoomerStage.ENCODING) {
+            BoomerangAdjustUi(
+                frames = capturedFrames,
+                encoding = stage == BoomerStage.ENCODING,
+                mint = mint,
+                onRetake = {
+                    capturedFrames = emptyList()
+                    stage = BoomerStage.LIVE
+                },
+                onConfirm = { frameW, frameH, cropScale, cropOffset ->
+                    stage = BoomerStage.ENCODING
+                    scope.launch {
+                        val file = runCatching {
+                            withContext(Dispatchers.Default) {
+                                val cropped = BoomerangHelper.cropFrames(
+                                    capturedFrames, frameW, frameH,
+                                    cropScale, cropOffset.x, cropOffset.y,
+                                )
+                                BoomerangHelper.encodeToFile(context, cropped)
+                            }
+                        }.getOrNull()
+                        if (file != null) {
+                            onResult(file)
+                        } else {
+                            StaryToast.show(context.getString(R.string.boomer_failed))
+                            stage = BoomerStage.ADJUST
                         }
                     }
-                    Image(
-                        bitmap = reviewFrames[frameIdx % reviewFrames.size].asImageBitmap(),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                    )
-                } else {
-                    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-                    if (stage == BoomerStage.PROCESSING) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0x99000000)),
-                        ) {
-                            CircularProgressIndicator(color = mint, strokeWidth = 2.5.dp)
-                            Spacer(Modifier.height(12.dp))
-                            Text(stringResource(R.string.boomer_processing), color = Color.White, fontSize = 13.sp)
-                        }
-                    }
-                }
-            }
+                },
+            )
+        } else {
+            // ── 촬영 모드 — 프리뷰 풀스크린 + 하단 컨트롤 ──
+            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 
-            // 안내 문구(대기) / 캡처 진행바
-            Spacer(Modifier.height(14.dp))
-            when (stage) {
-                BoomerStage.LIVE -> Text(
-                    stringResource(R.string.boomer_hint),
-                    color = Color.White.copy(alpha = 0.65f),
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 19.sp,
-                )
-                BoomerStage.CAPTURING -> {
-                    Text(
-                        stringResource(R.string.boomer_capturing),
-                        color = mint, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .systemBarsPadding()
+                    .padding(bottom = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (stage == BoomerStage.CAPTURING) {
                     LinearProgressIndicator(
-                        progress = { captureProgress.toFloat() / BoomerangHelper.CAPTURE_FRAMES },
+                        progress = { controller.progress.intValue.toFloat() / BoomerangHelper.CAPTURE_FRAMES },
                         color = mint,
-                        trackColor = Color.White.copy(alpha = 0.12f),
-                        modifier = Modifier.fillMaxWidth(0.55f),
+                        trackColor = Color.White.copy(alpha = 0.15f),
+                        modifier = Modifier.fillMaxWidth(0.5f),
                     )
+                    Spacer(Modifier.height(18.dp))
                 }
-                else -> {}
-            }
 
-            Spacer(Modifier.weight(1f))
-
-            // 하단 컨트롤
-            if (stage == BoomerStage.REVIEW) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 28.dp, vertical = 26.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    OutlinedButton(
-                        onClick = onRetake,
-                        modifier = Modifier.weight(1f).height(50.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
-                    ) {
-                        Text(stringResource(R.string.boomer_retake), color = Color.White)
-                    }
-                    Button(
-                        onClick = onUse,
-                        modifier = Modifier.weight(1f).height(50.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = mint),
-                    ) {
-                        Text(
-                            stringResource(R.string.boomer_use),
-                            color = Color(0xFF0D0D0D),
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
-            } else {
-                // 하단 바 — 왼쪽 카메라 전환 + 가운데 촬영 버튼(요청 레이아웃)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 26.dp),
-                ) {
+                // 하단 바 — 왼쪽 카메라 전환 + 가운데 촬영 버튼
+                Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                     IconButton(
-                        onClick = onFlip,
+                        onClick = {
+                            if (stage == BoomerStage.LIVE) {
+                                lensFacing =
+                                    if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT
+                                    else CameraSelector.LENS_FACING_BACK
+                            }
+                        },
                         enabled = stage == BoomerStage.LIVE,
                         modifier = Modifier
                             .align(Alignment.CenterStart)
                             .padding(start = 40.dp)
                             .size(52.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.10f)),
+                            .background(Color.White.copy(alpha = 0.14f)),
                     ) {
                         Icon(
                             Icons.Filled.FlipCameraAndroid,
@@ -432,7 +321,6 @@ private fun BoomerangCaptureUi(
                         )
                     }
 
-                    // 촬영 버튼 — 이중 링, 캡처 중이면 민트 링
                     val capturing = stage == BoomerStage.CAPTURING
                     Box(
                         modifier = Modifier
@@ -440,7 +328,10 @@ private fun BoomerangCaptureUi(
                             .size(78.dp)
                             .clip(CircleShape)
                             .border(3.dp, if (capturing) mint else Color.White, CircleShape)
-                            .clickable(enabled = stage == BoomerStage.LIVE) { onShoot() }
+                            .clickable(enabled = stage == BoomerStage.LIVE) {
+                                stage = BoomerStage.CAPTURING
+                                controller.start()
+                            }
                             .padding(7.dp),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -459,6 +350,140 @@ private fun BoomerangCaptureUi(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 촬영 후 조정 화면 — 4:3 프레임 안에서 움짤이 재생되고, 사진 크롭처럼 드래그/핀치로
+ * 위치·확대를 정한다(좌표 모델 = 업로드 사진 크롭과 동일). 확정하면 그 상태로 잘라 GIF 생성.
+ */
+@Composable
+private fun BoomerangAdjustUi(
+    frames: List<Bitmap>,
+    encoding: Boolean,
+    mint: Color,
+    onRetake: () -> Unit,
+    onConfirm: (frameW: Float, frameH: Float, scale: Float, offset: Offset) -> Unit,
+) {
+    // 크롭 상태(사용자 조작) — UploadScreen CropController 와 동일 모델/클램프.
+    var cropScale by remember(frames) { mutableFloatStateOf(1f) }
+    var cropOffset by remember(frames) { mutableStateOf(Offset.Zero) }
+    var frameSize by remember { mutableStateOf(IntSize.Zero) }
+
+    // 부메랑 재생(정→역) 프레임 인덱스
+    val playback = remember(frames) { BoomerangHelper.boomerangSequence(frames) }
+    var frameIdx by remember(frames) { mutableIntStateOf(0) }
+    LaunchedEffect(playback) {
+        if (playback.isEmpty()) return@LaunchedEffect
+        while (true) {
+            delay(BoomerangHelper.FRAME_DELAY_CS * 10L)
+            frameIdx = (frameIdx + 1) % playback.size
+        }
+    }
+
+    fun onTransform(zoomChange: Float, panChange: Offset) {
+        val bmp = frames.firstOrNull() ?: return
+        val fw = frameSize.width.toFloat()
+        val fh = frameSize.height.toFloat()
+        if (fw <= 0f || fh <= 0f) return
+        cropScale = (cropScale * zoomChange).coerceIn(1f, 4f)
+        val dispScale = maxOf(fw / bmp.width, fh / bmp.height) * cropScale
+        val dispW = bmp.width * dispScale
+        val dispH = bmp.height * dispScale
+        val maxX = ((dispW - fw) / 2f).coerceAtLeast(0f)
+        val maxY = ((dispH - fh) / 2f).coerceAtLeast(0f)
+        val moved = cropOffset + panChange
+        cropOffset = Offset(moved.x.coerceIn(-maxX, maxX), moved.y.coerceIn(-maxY, maxY))
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().systemBarsPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.weight(1f))
+
+        // 4:3 크롭 프레임 — 썸네일/상세에 보일 영역 그대로.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(BoomerangHelper.ASPECT)
+                .clipToBounds()
+                .onSizeChanged { frameSize = it }
+                .border(1.dp, Color.White.copy(alpha = 0.25f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (playback.isNotEmpty()) {
+                val current = playback[frameIdx % playback.size]
+                val image = current.asImageBitmap()
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(frames) {
+                            detectTransformGestures { _, pan, zoom, _ -> onTransform(zoom, pan) }
+                        }
+                ) {
+                    val fw = size.width
+                    val fh = size.height
+                    val dispScale = maxOf(fw / current.width, fh / current.height) * cropScale
+                    val dispW = current.width * dispScale
+                    val dispH = current.height * dispScale
+                    val left = (fw - dispW) / 2f + cropOffset.x
+                    val top = (fh - dispH) / 2f + cropOffset.y
+                    drawImage(
+                        image = image,
+                        dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
+                        dstSize = IntSize(dispW.roundToInt(), dispH.roundToInt()),
+                    )
+                    // 3분할 크롭 가이드(사진 크롭과 동일)
+                    val guide = Color.White.copy(alpha = 0.35f)
+                    val sw = 1.dp.toPx()
+                    drawLine(guide, Offset(fw / 3f, 0f), Offset(fw / 3f, fh), sw)
+                    drawLine(guide, Offset(fw * 2f / 3f, 0f), Offset(fw * 2f / 3f, fh), sw)
+                    drawLine(guide, Offset(0f, fh / 3f), Offset(fw, fh / 3f), sw)
+                    drawLine(guide, Offset(0f, fh * 2f / 3f), Offset(fw, fh * 2f / 3f), sw)
+                }
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 28.dp, vertical = 26.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            OutlinedButton(
+                onClick = onRetake,
+                enabled = !encoding,
+                modifier = Modifier.weight(1f).height(50.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
+            ) {
+                Text(stringResource(R.string.boomer_retake), color = Color.White)
+            }
+            Button(
+                onClick = {
+                    onConfirm(frameSize.width.toFloat(), frameSize.height.toFloat(), cropScale, cropOffset)
+                },
+                enabled = !encoding,
+                modifier = Modifier.weight(1f).height(50.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = mint),
+            ) {
+                if (encoding) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF0D0D0D), strokeWidth = 2.dp, modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Text(
+                        stringResource(R.string.boomer_use),
+                        color = Color(0xFF0D0D0D),
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }

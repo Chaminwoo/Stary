@@ -15,11 +15,53 @@ enum BoomerangConfig {
     /// 결과 GIF 폭(4:3 → 400×300). 저화질/저용량(사용자 요구: 용량 우선).
     static let targetWidth: CGFloat = 400
     static let aspect: CGFloat = 4.0 / 3.0
+    /// 캡처 프레임 작업 해상도(긴 변). 크롭은 촬영 후 조정 단계에서.
+    static let workMax: CGFloat = 640
 
     /// 부메랑 시퀀스 — 정방향 + 역방향(양 끝 중복 제거).
     static func boomerangSequence(_ capture: [UIImage]) -> [UIImage] {
         guard capture.count >= 3 else { return capture }
         return capture + capture.reversed().dropFirst().dropLast()
+    }
+
+    /// 조정 단계의 크롭 상태로 모든 프레임을 4:3(400×300)으로 잘라낸다.
+    /// 좌표 모델(Android ImageCropHelper 와 동일):
+    /// cover = max(frameW/bmpW, frameH/bmpH), disp = bmp × cover × scale, left = (frameW-dispW)/2 + offsetX.
+    static func cropFrames(
+        _ frames: [UIImage],
+        frameW: CGFloat, frameH: CGFloat,
+        scale: CGFloat, offset: CGSize
+    ) -> [UIImage] {
+        guard frameW > 0, frameH > 0 else { return frames }
+        let targetW = targetWidth
+        let targetH = (targetW / aspect).rounded()
+        let fmt = UIGraphicsImageRendererFormat()
+        fmt.scale = 1
+
+        return frames.compactMap { img in
+            guard let cg = img.cgImage else { return nil }
+            let bw = CGFloat(cg.width), bh = CGFloat(cg.height)
+            let dispScale = max(frameW / bw, frameH / bh) * scale
+            let dispW = bw * dispScale, dispH = bh * dispScale
+            let left = (frameW - dispW) / 2 + offset.width
+            let top = (frameH - dispH) / 2 + offset.height
+
+            var srcLeft = (-left) / dispScale
+            var srcTop = (-top) / dispScale
+            var srcW = frameW / dispScale
+            var srcH = frameH / dispScale
+            srcLeft = min(max(srcLeft, 0), bw - 1)
+            srcTop = min(max(srcTop, 0), bh - 1)
+            srcW = min(max(srcW, 1), bw - srcLeft)
+            srcH = min(max(srcH, 1), bh - srcTop)
+
+            guard let cropped = cg.cropping(to: CGRect(x: srcLeft, y: srcTop, width: srcW, height: srcH))
+            else { return nil }
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: targetW, height: targetH), format: fmt)
+            return renderer.image { _ in
+                UIImage(cgImage: cropped).draw(in: CGRect(x: 0, y: 0, width: targetW, height: targetH))
+            }
+        }
     }
 
     /// ImageIO 로 무한 루프 GIF 인코딩.
@@ -147,27 +189,22 @@ final class BoomerangCamera: NSObject, ObservableObject, AVCaptureVideoDataOutpu
         }
     }
 
-    /// 픽셀 버퍼 → 4:3 센터 크롭 + 400px 다운스케일 UIImage. (방향/미러는 connection 에서 처리됨)
+    /// 픽셀 버퍼 → 전체 프레임(긴 변 workMax 다운스케일) UIImage. (방향/미러는 connection 에서 처리됨)
+    /// 4:3 크롭은 촬영 후 조정 단계([BoomerangConfig.cropFrames])에서 사용자가 정한다.
     private func normalize(_ buffer: CVPixelBuffer) -> UIImage? {
         let ci = CIImage(cvPixelBuffer: buffer)
         guard let cg = ciContext.createCGImage(ci, from: ci.extent) else { return nil }
         let w = CGFloat(cg.width), h = CGFloat(cg.height)
 
-        // 4:3 센터 크롭(프리뷰 resizeAspectFill 과 동일 영역)
-        var cropW = w, cropH = h
-        if w / h > BoomerangConfig.aspect { cropW = h * BoomerangConfig.aspect }
-        else { cropH = w / BoomerangConfig.aspect }
-        let cropRect = CGRect(x: (w - cropW) / 2, y: (h - cropH) / 2, width: cropW, height: cropH)
-        guard let cropped = cg.cropping(to: cropRect) else { return nil }
-
-        let targetW = BoomerangConfig.targetWidth
-        let targetH = (targetW / BoomerangConfig.aspect).rounded()
+        let longest = max(w, h)
+        let s = longest > BoomerangConfig.workMax ? BoomerangConfig.workMax / longest : 1
+        let outW = (w * s).rounded(), outH = (h * s).rounded()
         // scale=1 고정 — 레티나 배율로 프레임이 3배 커지면 GIF 용량이 폭증한다.
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = 1
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: targetW, height: targetH), format: fmt)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: outW, height: outH), format: fmt)
         return renderer.image { _ in
-            UIImage(cgImage: cropped).draw(in: CGRect(x: 0, y: 0, width: targetW, height: targetH))
+            UIImage(cgImage: cg).draw(in: CGRect(x: 0, y: 0, width: outW, height: outH))
         }
     }
 }

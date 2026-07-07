@@ -1,4 +1,6 @@
+import ImageIO
 import SwiftUI
+import UIKit
 
 /// 별 상세 — 본문/작성자 + 좋아요·댓글. 가까이 있으면 본문 열람, 멀면 거리 게이팅.
 struct DetailScreen: View {
@@ -305,11 +307,35 @@ final class ProfileImageCache {
     }
 }
 
-/// 인스타식 댓글 프로필 아바타 — users/{uid} 의 "현재" 사진/이름으로 표시(실시간), 없으면 이니셜 폴백.
+/// 아바타 썸네일 캐시 — 원본 프사를 96px 로 다운샘플(CGImageSource)해 빠르게 렌더링.
+@MainActor
+final class AvatarThumbCache {
+    static let shared = AvatarThumbCache()
+    private var cache: [String: UIImage] = [:]
+
+    func image(for urlString: String, maxPixel: CGFloat = 96) async -> UIImage? {
+        if let hit = cache[urlString] { return hit }
+        guard let url = URL(string: urlString),
+              let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        let opts: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+        ]
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil),
+              let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
+        let img = UIImage(cgImage: cg)
+        cache[urlString] = img
+        return img
+    }
+}
+
+/// 인스타식 댓글 프로필 아바타 — users/{uid} 의 "현재" 사진/이름(실시간), 저해상도 썸네일로 빠르게. 없으면 이니셜 폴백.
 private struct CommentAvatar: View {
     let userId: String
     let userName: String
     @ObservedObject private var directory = UserDirectory.shared
+    @State private var thumb: UIImage?
 
     private var initial: String {
         let name = directory.name(userId, fallback: userName)
@@ -319,12 +345,8 @@ private struct CommentAvatar: View {
 
     var body: some View {
         Group {
-            if let url = directory.photoUrl(userId), !url.isEmpty {
-                AsyncImage(url: URL(string: url)) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Theme.surfaceAlt
-                }
+            if let thumb {
+                Image(uiImage: thumb).resizable().scaledToFill()
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(initial)
@@ -337,5 +359,12 @@ private struct CommentAvatar: View {
         .clipShape(Circle())
         .overlay(Circle().stroke(Theme.mint.opacity(0.30), lineWidth: 1))
         .task(id: userId) { directory.ensureWatching(userId) }
+        .task(id: directory.photoUrl(userId)) {
+            if let url = directory.photoUrl(userId), !url.isEmpty {
+                thumb = await AvatarThumbCache.shared.image(for: url)
+            } else {
+                thumb = nil
+            }
+        }
     }
 }

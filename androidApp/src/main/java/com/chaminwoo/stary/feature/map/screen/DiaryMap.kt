@@ -128,7 +128,7 @@ private fun auraLayerId(group: Int) = "diary-aura-$group"
  * 별(iconTranslate 부유)과 달리 지점에 고정되어 부유 시 시차가 생겨 "떠 있음"이 읽힌다.
  */
 private fun groundLightLayerId(group: Int) = "diary-ground-light-$group"
-private const val GROUND_LIGHT_OPACITY = 0.13f
+private const val GROUND_LIGHT_OPACITY = 0.30f
 private const val GROUND_LIGHT_OFFSET_Y = 8f // 별 중심보다 살짝 아래(지면 쪽)에 고인 빛
 /** 화면상 클러스터 반경(dp). 이 거리 안에서 겹치는 별은 가장 좋아요 많은 별 하나로 합쳐 표시. */
 private const val CLUSTER_RADIUS_DP = 4f

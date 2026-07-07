@@ -255,14 +255,9 @@
     <string name="period_year">Last year</string>
 
     <!-- Boomerang (3s living photo) capture -->
-    <string name="upload_capture_boomerang">Living photo (3s)</string>
-    <string name="boomer_title">Living photo</string>
-    <string name="boomer_hint">Press the button to stitch a moment
-into a 3-second living photo</string>
+    <string name="upload_capture_boomerang">3-second clip</string>
     <string name="cd_boomer_flip">Flip camera</string>
     <string name="cd_boomer_shoot">Capture</string>
-    <string name="boomer_capturing">Capturing…</string>
-    <string name="boomer_processing">Creating your living photo…</string>
     <string name="boomer_retake">Retake</string>
     <string name="boomer_use">Use this take</string>
     <string name="boomer_failed">Capture failed. Please try again</string>

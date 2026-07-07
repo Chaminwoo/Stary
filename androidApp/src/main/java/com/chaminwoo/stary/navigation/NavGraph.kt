@@ -68,7 +68,7 @@ fun NavGraph(
         composable<NavRoute.Main> {
             MainListScreen(
                 onItemClick = { diaryId ->
-                    navController.navigate(NavRoute.Detail(diaryId = diaryId))
+                    navController.navigateToDetail(diaryId)
                 },
                 onCreateClick = {
                     navController.navigate(NavRoute.Upload)
@@ -110,7 +110,7 @@ fun NavGraph(
         composable<NavRoute.MyDiary> {
             MyDiaryScreen(
                 onDiaryClick = { diaryId ->
-                    navController.navigate(NavRoute.Detail(diaryId = diaryId))
+                    navController.navigateToDetail(diaryId)
                 }
             )
         }
@@ -146,7 +146,7 @@ fun NavGraph(
         composable<NavRoute.Notification> {
             NotificationScreen(
                 onOpenDiary = { diaryId ->
-                    navController.navigate(NavRoute.Detail(diaryId = diaryId))
+                    navController.navigateToDetail(diaryId)
                 },
                 onFocusDiaryOnMap = { diaryId ->
                     // 지도로 돌아가 해당 다이어리 위치로 카메라 이동 + 파장 연출
