@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.33 지도 야경 스타일 전면 개편 + 글로브 오로라 삭제→은하수 격상/유성 추가**(테스트 완료) — 아래 8.33 참고. Android **BUILD SUCCESSFUL**(라운드별 확인), iOS 컴파일 CI 대기.
+> 최종 갱신: **8.34 4건 라운드 — 음악·칭호 다국어화 / 부메랑 3초 움짤 촬영 / 기간별 필터 / 프사·이름 현재값 표시**(Android BUILD SUCCESSFUL, 실기기 테스트 대기 / iOS 컴파일 CI 대기) — 아래 8.34 참고.
+> 이전: **8.33 지도 야경 스타일 전면 개편 + 글로브 오로라 삭제→은하수 격상/유성 추가**(테스트 완료) — 아래 8.33 참고. Android **BUILD SUCCESSFUL**(라운드별 확인), iOS 컴파일 CI 대기.
 > 이전: **8.32 히든 업적 후속 3건 — 심연의 별 아이콘 교체 + 어드민 선점 해제(자가치유) + 친구 프로필 히든 아이콘**(테스트 완료) — 아래 8.32 참고. Android **BUILD SUCCESSFUL**, iOS 컴파일 CI 대기.
 > 이전: **8.31 로그아웃 버튼 zIndex + 히든 칭호 금색『』 + 하루 업로드 10개 제한 + 어드민 히든선점 제외**(체크리스트 19~22) — 아래 8.31 참고.
 > 이전: **8.30 채팅 FCM 알림(백그라운드/종료) + 딥링크**(heads-up 채널 사전생성, 알림 탭→해당 채팅방, singleTop+onNewIntent+DeepLinkState, 서버 data에 friendId/name) — 아래 8.30 참고. Android **BUILD SUCCESSFUL**, 실기기+Functions 배포 검증 대기. Android 전용(iOS APNs 후속).
@@ -22,6 +23,31 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.34 4건 라운드 — 음악·칭호 다국어화 / 부메랑 3초 움짤 / 기간별 필터 / 프사·이름 현재값 (Android BUILD SUCCESSFUL, 실기기 테스트 대기 / iOS CI 대기)
+안드+iOS 동시 반영(§1.5). 커밋 2건: `9fe4bbd`(안드), `e3f63ea`(iOS).
+
+- **① 음악 이름·칭호 다국어화(언어 변경 시 적용)**:
+  - 트랙/업적 정의(id·판정·한국어 원문)는 공용 데이터로 유지하고 **표시할 때만** id → 로케일 해석.
+  - 안드 `core/util/LocalizedNames.kt`(음악 6 + 칭호 19 매핑 → `strings.xml` ko/en/ja `music_*`/`title_*` 키) — 적용: ProfileScreen(장착 칭호+히든 버블 라벨)/UserProfileScreen/AchievementsScreen(칭호 행·히든 행·장착 토스트)/MusicScreen(트랙명+잠금 힌트 업적명)/HiddenAchievementWatcher(달성 팝업).
+  - iOS `Core/LocalizedNames.swift`(같은 매핑 내장 ko/en/ja 튜플, `LocaleManager.effectiveLanguage` 기준) — 같은 5개 화면 적용.
+  - ⚠️ **새 트랙/칭호 추가 시 안드 strings.xml 3벌 + iOS LocalizedNames 매핑을 함께 추가**해야 함. 업적 이름(보상형)·조건 문구는 기존 방침대로 비번역(후속 대상).
+- **② 부메랑식 3초 움짤(GIF) 커스텀 촬영** — "내 파일에서 3초 영상 선택" 완전 대체:
+  - 안드: `BoomerangCaptureScreen.kt`(CameraX Preview+ImageAnalysis RGBA, 전체화면 오버레이 — 하단 좌측 전환/가운데 셔터, LIVE→CAPTURING→PROCESSING→REVIEW(다시찍기/사용)). 12프레임×125ms(≈1.5초)버스트 → `BoomerangHelper`(회전/전면미러/4:3 센터크롭/400×300 다운스케일, 정→역 22프레임) → `GifEncoder.kt`(자체 GIF89a: 6×7×6 고정 팔레트+Bayer 디더+LZW(ppmtogif 포팅), 무한루프, 0.13s/프레임 ≈ 2.9초).
+  - 업로드: `ImageUploadHelper.uploadGifResult` → **`diary_images/{uuid}.gif`**(contentType image/gif → 기존 storage 규칙 image/* 통과, 규칙 재배포 불필요). URL 은 **기존 `videoUrl` 필드 재사용**(스키마 무변경, `.gif` 포함 여부로 판별 `isGifUrl`).
+  - 표시: `core/ui/GifImage.kt`(coil-gif 디코더 로더) — 업로드 미리보기(파일)+DetailScreen(.gif 분기, 구버전 mp4 는 기존 LoopingVideoPlayer 유지).
+  - 의존성 추가: `androidx.camera:*:1.4.1`(core/camera2/lifecycle/view), `io.coil-kt:coil-gif:2.6.0`. `VideoHelper.kt` 삭제(파일 영상 검증 불용).
+  - iOS: `BoomerangCamera.swift`(AVCaptureSession vga640x480+VideoDataOutput BGRA, connection 에서 portrait/전면미러 처리, 4:3 크롭+400px, **renderer scale=1 필수**(레티나 3배 용량 방지)) + `BoomerangCaptureView.swift`(fullScreenCover UI) + ImageIO GIF 인코딩(`UTType.gif`+LoopCount 0) + `GifImageView`/`RemoteGifView`(animatedImage) + `ImageUploader.uploadGif`. UploadScreen 영상 PhotosPicker 제거→촬영 버튼, DetailScreen `.gif` 분기.
+  - ⚠️ Kotlin 함정: **KDoc 블록 주석 안의 `image/*` 문자열이 중첩 주석 시작(`/*`)으로 파싱**돼 파일 뒷부분 전체가 주석 처리됨(Unclosed comment) — 주석에 `xxx/*` 패턴 금지.
+- **③ 필터에 기간별 보기**: 안드 `MainListScreen` 스피드다이얼에 "기간별 보기"(Schedule 아이콘) → 다이얼로그(전체/오늘/최근 7·30일/1년, 라디오). `periodDays: Int?`(null=전체, 0=오늘 자정 이후, N=지금-N일) → `filteredDiaries` 컷오프. "전체보기" 가 기간도 리셋. **기존 필터 라벨/친구선택 다이얼로그 하드코딩도 리소스화**(`filter_*`/`period_*` ko/en/ja). iOS: MapScreen 우상단 칩 아래 기간 Menu + ListScreen 툴바 Menu(L10n `filterPeriod`/`period*` 6키).
+- **④ 프사·이름 현재 상태로 표시(스냅샷 제거)**: 다이어리/댓글 문서의 userName 스냅샷 대신 **표시 시점에 `users/{uid}` 현재값**.
+  - 안드 `core/util/UserDirectory.kt`(uid별 스냅샷 리스너 1개 → `mutableStateMapOf` 캐시, `rememberCurrentUserName/Photo`) — DetailScreen 작성자 이름(익명 제외)+댓글 이름/아바타(기존 UserRepository 단발 조회 대체).
+  - iOS `Data/UserDirectory.swift`(@MainActor ObservableObject 동일 구조) — DetailScreen 작성자/댓글/CommentAvatar. (FriendsScreen 의 ProfileImageCache 는 그대로.)
+  - 참고: UserProfileScreen 은 원래 진입 시 현재값 조회라 무변경. 알림 actorName·채팅 발신자명 스냅샷은 범위 밖(이벤트 메시지).
+- **기타**: `androidApp/build.gradle.kts` 의 `minSdk = 26claude` 오타(빌드 불가) 수정.
+- 검증: 안드 `:androidApp:assembleDebug` **BUILD SUCCESSFUL**. iOS 는 push 후 `ios.yml`(macOS CI) 검증 예정.
 
 ---
 
