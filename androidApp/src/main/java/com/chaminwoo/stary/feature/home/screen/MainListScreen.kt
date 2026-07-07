@@ -398,11 +398,15 @@ fun MainListScreen(
                 FilterOpt(stringResource(R.string.filter_mine), Icons.Filled.Lock, myOnly) {
                     myOnly = !myOnly; if (myOnly) { friendsOnly = false; selectedFriendIds = emptySet() }
                 },
+                // 친구 선택 — 비활성이면 선택 다이얼로그, 활성이면 재탭으로 해제(기간 필터와 동일 패턴).
                 FilterOpt(
                     if (selectedFriendIds.isEmpty()) stringResource(R.string.filter_pick_friends)
                     else stringResource(R.string.filter_friends_n, selectedFriendIds.size),
                     Icons.Filled.GroupAdd, selectedFriendIds.isNotEmpty()
-                ) { showFriendPicker = true },
+                ) {
+                    if (selectedFriendIds.isEmpty()) showFriendPicker = true
+                    else selectedFriendIds = emptySet()
+                },
                 // 기간별 보기 — 비활성이면 다이얼로그(오늘/7일/30일/1년), 활성이면 재탭으로 해제.
                 FilterOpt(
                     if (periodDays == null) stringResource(R.string.filter_period)

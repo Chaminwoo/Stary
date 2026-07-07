@@ -259,7 +259,7 @@
     <string name="cd_boomer_flip">Flip camera</string>
     <string name="cd_boomer_shoot">Capture</string>
     <string name="boomer_retake">Retake</string>
-    <string name="boomer_use">Use this take</string>
+    <string name="boomer_use">Crop done</string>
     <string name="boomer_failed">Capture failed. Please try again</string>
 
     <!-- Music track names -->

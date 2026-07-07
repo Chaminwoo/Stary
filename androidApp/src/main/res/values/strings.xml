@@ -262,7 +262,7 @@
     <string name="cd_boomer_flip">카메라 전환</string>
     <string name="cd_boomer_shoot">촬영</string>
     <string name="boomer_retake">다시 찍기</string>
-    <string name="boomer_use">이 장면 사용</string>
+    <string name="boomer_use">자르기 완료</string>
     <string name="boomer_failed">촬영에 실패했어요. 다시 시도해주세요</string>
 
     <!-- 배경음악 트랙 이름 (언어 전환 대응) -->

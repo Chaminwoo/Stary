@@ -259,7 +259,7 @@
     <string name="cd_boomer_flip">カメラ切替</string>
     <string name="cd_boomer_shoot">撮影</string>
     <string name="boomer_retake">撮り直す</string>
-    <string name="boomer_use">この場面を使う</string>
+    <string name="boomer_use">切り抜き完了</string>
     <string name="boomer_failed">撮影に失敗しました。もう一度お試しください</string>
 
     <!-- BGMトラック名 -->
