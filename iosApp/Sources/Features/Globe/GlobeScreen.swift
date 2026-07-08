@@ -750,9 +750,11 @@ private enum GlobeBuilder {
                 let cg = ctx.cgContext
                 if nebula {
                     // 아주 어두운 성운 글로우 — 배경에 색 온도와 깊이(도형이 아니라 '공간'으로 읽히게)
+                    // 레퍼런스의 짙푸른 하늘 — 인디고·블루 워시 3종 추가(Android 패리티)
                     let colors: [(CGFloat, CGFloat, CGFloat)] = [
                         (0.055, 0.030, 0.100), (0.040, 0.050, 0.110), (0.070, 0.030, 0.080),
                         (0.030, 0.050, 0.100), (0.060, 0.040, 0.110), (0.050, 0.020, 0.090),
+                        (0.014, 0.034, 0.090), (0.010, 0.028, 0.078), (0.016, 0.040, 0.084),
                     ]
                     let space = CGColorSpaceCreateDeviceRGB()
                     func haze(_ c: (CGFloat, CGFloat, CGFloat), _ center: CGPoint, _ radius: CGFloat) {
@@ -773,121 +775,119 @@ private enum GlobeBuilder {
                              180 + rnd() * 180)
                     }
 
-                    // 은하수 — 실제 은하수 사진의 구조를 재현(자료 조사: 은하핵 골든 벌지 +
-                    // Great Rift 암흑 균열 + 얼룩덜룩한 스타 클라우드 + H-II 핑크 성운 + 색 온도 구배).
-                    // additive 라 "어두운 먼지"는 균열 자리의 별·유광 감쇠로 표현. (Android 패리티)
+                    // 은하수 — 레퍼런스(references/은하수.jpg) 스타일: 청보라 별바다 위로 흐르는
+                    // 핑크·마젠타 빛의 강. 백열 코어 라인 + 마젠타 리본 + 바이올렛 외곽 글로우 +
+                    // 골드 응집 + 시안 가장자리 미광 + 암흑 균열(감쇠) + 조밀한 잔별. (Android 패리티)
                     let bandPhase = rnd() * 2 * .pi
                     func bandY(_ u: CGFloat) -> CGFloat {
                         CGFloat(h) * 0.5 + sin(u * 2 * .pi + bandPhase) * CGFloat(h) * 0.16
                     }
-                    let coreU = rnd() // 은하핵(벌지) 위치 — 이 근처가 가장 밝고 두껍다
+                    let coreU = rnd() // 은하핵 위치 — 이 근처가 가장 밝고 두껍다
                     func coreness(_ u: CGFloat) -> CGFloat { // 핵에 가까울수록 1(주기 거리 가우시안)
                         let d = min(abs(u - coreU), 1 - abs(u - coreU))
                         return exp(-d * d * 26)
                     }
-                    // Great Rift — 핵 쪽 절반에서 띠를 세로로 가르는 암흑 균열(중심선이 구불구불 흐른다)
+                    // 암흑 균열 — 리본 속을 세로로 가르는 어두운 결(레퍼런스 리본 안의 어두운 줄)
                     func riftAtten(_ u: CGFloat, _ dy: CGFloat) -> CGFloat {
                         let d = min(abs(u - coreU), 1 - abs(u - coreU))
-                        let strength = exp(-d * d * 20) * 0.90
+                        let strength = exp(-d * d * 20) * 0.72
                         if strength < 0.04 { return 1 }
                         let ang = u * 2 * .pi
-                        let center = 13 + 15 * sin(ang * 2.3 + 0.8) + 7 * sin(ang * 5.1)
-                        let halfW = 17 + 8 * sin(ang * 3.7 + 2.0)
+                        let center = 12 + 14 * sin(ang * 2.3 + 0.8) + 6 * sin(ang * 5.1)
+                        let halfW = 15 + 6 * sin(ang * 3.7 + 2.0)
                         let x = (dy - center) / halfW
                         return 1 - strength * exp(-x * x)
                     }
-                    // 얼룩(패치) — 밝은 스타 클라우드와 어두운 먼지 조각의 교차(mottled 질감)
+                    // 얼룩(패치) — 밝은 구름과 옅은 구간의 교차(리본이 살아 숨쉬는 질감)
                     func patch(_ u: CGFloat) -> CGFloat {
                         let ang = u * 2 * .pi
                         let p = 0.5 + 0.5 * sin(ang * 7.3 + 1.7) * sin(ang * 3.1 + 4.2)
-                        return 0.62 + 0.55 * p
+                        return 0.70 + 0.45 * p
                     }
-                    // 색 온도 — 핵(골든·오렌지) → 외곽(차가운 청백)
-                    func bandTint(_ warm: CGFloat) -> (CGFloat, CGFloat, CGFloat) {
-                        (0.84 + 0.19 * warm, 0.88 - 0.05 * warm, 1.00 - 0.38 * warm)
-                    }
-                    // ② 연속 유광 리본(희미한 바탕) — 띠가 끊겨 보이지 않게 잇는 은은한 강바닥
-                    for i in 0..<72 {
-                        let u = (CGFloat(i) + rnd() * 0.6) / 72
+                    // ① 백열 코어 라인 — 리본 정중앙을 따라 끊김 없이 이어지는 밝은 백핑크 심줄
+                    for i in 0..<96 {
+                        let u = (CGFloat(i) + rnd() * 0.6) / 96
                         let cn = coreness(u)
-                        let dy = (rnd() * 2 - 1) * 12
-                        let base = (0.018 + 0.016 * cn) * (0.30 + 0.70 * riftAtten(u, dy))
-                        haze((base * (0.85 + 0.35 * cn), base * 0.92, base * (1.10 - 0.25 * cn)),
+                        let dy = (rnd() + rnd() - 1) * 6
+                        let a = riftAtten(u, dy)
+                        let base = (0.030 + 0.022 * cn) * (0.40 + 0.60 * a) * patch(u)
+                        haze((base, base * 0.86, base * 0.94),
                              CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
-                             65 + rnd() * 50 + cn * 40)
+                             27 + rnd() * 18 + cn * 15)
                     }
-                    // ②-b 스타 클라우드 — 뭉게뭉게 밝은 유광 덩어리(핵 쪽에 더 많이, 균열·얼룩 감쇠)
+                    // ② 마젠타 리본 — 코어를 감싸며 흐르는 선명한 핑크 빛의 강(레퍼런스의 주인공)
                     for _ in 0..<150 {
                         let u = rnd()
                         let cn = coreness(u)
-                        if rnd() > 0.30 + 0.70 * cn { continue }
-                        let dy = (rnd() + rnd() - 1) * 32 * (1 + 0.7 * cn)
-                        let atten = riftAtten(u, dy)
-                        let base = (0.014 + 0.030 * cn) * patch(u) * (0.15 + 0.85 * atten)
-                        let warm = (0.25 + 0.75 * cn) * rnd()
-                        let tint = bandTint(warm)
-                        haze((base * tint.0 * 1.15, base * tint.1, base * tint.2),
+                        let dy = (rnd() + rnd() - 1) * 20 * (1 + 0.5 * cn)
+                        let a = riftAtten(u, dy)
+                        let base = (0.022 + 0.020 * cn) * patch(u) * (0.25 + 0.75 * a)
+                        haze((base * 1.00, base * 0.30, base * 0.62),
                              CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
-                             28 + rnd() * 55 + cn * 25)
+                             48 + rnd() * 45 + cn * 18)
                     }
-                    // ③ 은하핵 벌지 — 골든·오렌지 대형 글로우 응집(가장 밝은 심장부)
-                    for _ in 0..<22 {
-                        let u = coreU + (rnd() + rnd() - 1) * 0.032
-                        let dy = (rnd() + rnd() - 1) * 38
-                        let atten = 0.35 + 0.65 * riftAtten(u, dy)
-                        haze((0.085 * atten, 0.058 * atten, 0.034 * atten),
-                             CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
-                             45 + rnd() * 60)
-                    }
-                    // ③-b 벌지 심장 — 핵 정중앙의 크고 은은한 골든 후광
-                    for i in 0..<2 {
-                        haze((0.052, 0.036, 0.020),
-                             CGPoint(x: (coreU + CGFloat(i) * 0.008) * CGFloat(w),
-                                     y: bandY(coreU) + CGFloat(i) * 7),
-                             105 + CGFloat(i) * 28)
-                    }
-                    // ④ H-II 발광 성운 — 핵 주변 띠 위의 작은 핑크/마젠타 반점(라군 성운풍)
-                    for _ in 0..<9 {
-                        let u = coreU + (rnd() + rnd() - 1) * 0.135
-                        let dy = (rnd() + rnd() - 1) * 35
-                        haze((0.050, 0.016, 0.030),
-                             CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
-                             15 + rnd() * 22)
-                    }
-                    cg.setBlendMode(.plusLighter)
-                    // ① 잔별 밀집 띠 — 2600개, 핵 근처 밀도·두께 증가(채택-기각), 균열·얼룩 감쇠
-                    var placed = 0
-                    while placed < 2600 {
+                    // ③ 바이올렛 외곽 글로우 — 리본 밖으로 넓게 번지는 보랏빛 숨결
+                    for _ in 0..<110 {
                         let u = rnd()
                         let cn = coreness(u)
-                        if rnd() > 0.38 + 0.62 * cn { continue } // 핵 쪽 밀도↑
+                        let dy = (rnd() + rnd() - 1) * 49 * (1 + 0.6 * cn)
+                        let base = (0.009 + 0.009 * cn) * patch(u)
+                        haze((base * 0.62, base * 0.30, base * 0.95),
+                             CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
+                             84 + rnd() * 56)
+                    }
+                    // ④ 골드 응집 — 핵 쪽 리본 가장자리에 배는 따뜻한 금빛(레퍼런스 하단의 주황 구름)
+                    for _ in 0..<30 {
+                        let u = coreU + (rnd() + rnd() - 1) * 0.088
+                        let dy = 17 + abs(rnd() + rnd() - 1) * 26
+                        haze((0.052, 0.032, 0.011),
+                             CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
+                             42 + rnd() * 51)
+                    }
+                    // ⑤ 시안 가장자리 미광 — 리본 가장자리를 스치는 청록 결(레퍼런스의 시안 하늘빛)
+                    for _ in 0..<26 {
+                        let u = rnd()
+                        let side: CGFloat = rnd() < 0.5 ? 1 : -1
+                        let dy = side * (52 + rnd() * 40)
+                        haze((0.007, 0.024, 0.028),
+                             CGPoint(x: u * CGFloat(w), y: bandY(u) + dy),
+                             66 + rnd() * 48)
+                    }
+                    cg.setBlendMode(.plusLighter)
+                    // ⑥ 잔별 밀집 띠 — 3200개(채택-기각으로 핵 쪽 밀도↑). 청백 위주 + 핑크/골드 소수
+                    var placed = 0
+                    while placed < 3200 {
+                        let u = rnd()
+                        let cn = coreness(u)
+                        if rnd() > 0.34 + 0.66 * cn { continue }
                         placed += 1
                         let x = u * CGFloat(w)
-                        let thick = 1 + 0.8 * cn // 핵 근처는 띠가 두껍다(벌지)
-                        let spreadScale: CGFloat = (rnd() < 0.66 ? 26 : 66) * thick
+                        let thick = 1 + 0.7 * cn
+                        let spreadScale: CGFloat = (rnd() < 0.62 ? 29 : 75) * thick
                         let dy = (rnd() + rnd() - 1) * spreadScale
                         let y = bandY(u) + dy
-                        let atten = riftAtten(u, dy)
-                        let br = (0.07 + rnd() * 0.26) * (0.70 + 0.60 * cn) *
-                            patch(u) * (0.22 + 0.78 * atten)
-                        let warm = min(1, rnd() * 0.45 + 0.55 * cn * rnd())
-                        let tint = bandTint(warm)
-                        let r = 0.5 + rnd() * 1.1
+                        let a = riftAtten(u, dy)
+                        let br = (0.09 + rnd() * 0.30) * (0.75 + 0.50 * cn) *
+                            patch(u) * (0.30 + 0.70 * a)
+                        let roll = rnd()
+                        let tint: (CGFloat, CGFloat, CGFloat) =
+                            roll < 0.68 ? (0.90, 0.94, 1.00) :       // 청백
+                            roll < 0.90 ? (1.00, 0.68, 0.85) :       // 핑크
+                                          (1.00, 0.88, 0.62)          // 골드
+                        let r = 0.5 + rnd() * 1.2
                         UIColor(red: br * tint.0, green: br * tint.1,
                                 blue: br * tint.2, alpha: 1).setFill()
                         cg.fillEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
                     }
-                    // ①-b 전경 밝은 별 — 띠 위에 도드라지는 소수의 밝은 별
-                    for _ in 0..<26 {
+                    // ⑦ 전경 밝은 별 — 띠 위에 도드라지는 큰 별(레퍼런스의 빛나는 점들)
+                    for _ in 0..<40 {
                         let u = rnd()
                         let cn = coreness(u)
                         let x = u * CGFloat(w)
-                        let y = bandY(u) + (rnd() + rnd() - 1) * 52 * (1 + 0.6 * cn)
-                        let br = 0.30 + rnd() * 0.34
-                        let tint = bandTint(rnd() * 0.5)
-                        let r = 1.4 + rnd() * 1.2
-                        UIColor(red: br * tint.0, green: br * tint.1,
-                                blue: br * tint.2, alpha: 1).setFill()
+                        let y = bandY(u) + (rnd() + rnd() - 1) * 58 * (1 + 0.6 * cn)
+                        let br = 0.34 + rnd() * 0.40
+                        let r = 1.5 + rnd() * 1.2
+                        UIColor(red: br * 0.95, green: br * 0.96, blue: br, alpha: 1).setFill()
                         cg.fillEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
                     }
 
@@ -917,69 +917,97 @@ private enum GlobeBuilder {
                     }
                     // 12궁 — equirect(2048×1024) 상 경도 30°씩 + 위도 4단 사이클로 골고루 분산
                     // (x=(lng+180)/360·w, y=(90−lat)/180·h — Android 위경도 배치와 동일 지점)
+                    // ※ 12궁 별 배치/연결은 references/zodiac.avif 를 별 단위로 판독해 그대로 옮긴 것 —
+                    //    임의 수정 금지(수정하려면 레퍼런스와 대조). 좌표 [-1,1] 정규화(y=위), Android 패리티.
                     // 양자리 — 코랄 레드
                     constellation(center: CGPoint(x: 85, y: 216), scale: 26, roll: -0.14,
                                   tint: (1.00, 0.52, 0.42), points: [
-                        (0.0, 0.0), (0.9, 0.3), (1.6, 0.35), (1.9, 0.05),
+                        (-1.0, 0.35), (0.45, 0.15), (0.91, -0.08), (1.0, -0.35),
                     ], segments: [(0, 1), (1, 2), (2, 3)])
-                    // 황소자리 — 연두
-                    constellation(center: CGPoint(x: 256, y: 410), scale: 27, roll: 0.17,
+                    // 황소자리 — 연두 (두 뿔 + V 히아데스 + 꼬리)
+                    constellation(center: CGPoint(x: 256, y: 410), scale: 29, roll: 0.17,
                                   tint: (0.62, 0.95, 0.55), points: [
-                        (0.0, 0.0), (0.6, 0.5), (1.6, 0.9), (0.55, -0.35), (1.5, -0.75),
-                    ], segments: [(0, 1), (1, 2), (0, 3), (3, 4)])
-                    // 쌍둥이자리 — 옐로
-                    constellation(center: CGPoint(x: 427, y: 614), scale: 26, roll: -0.24,
+                        (-0.81, 0.83), (-0.33, 0.4), (-1.0, 0.31), (-0.15, 0.13), (-0.3, -0.11),
+                        (-0.14, -0.03), (0.0, -0.04), (-0.11, -0.2), (0.05, -0.18), (0.32, -0.41),
+                        (0.91, -0.61), (1.0, -0.83),
+                    ], segments: [(0, 1), (1, 3), (3, 5), (5, 7), (2, 4), (4, 7), (7, 8), (6, 8),
+                                  (8, 9), (9, 10), (10, 11)])
+                    // 쌍둥이자리 — 옐로 (나란한 두 사람 직사각 틀)
+                    constellation(center: CGPoint(x: 427, y: 614), scale: 27, roll: -0.24,
                                   tint: (1.00, 0.88, 0.45), points: [
-                        (0.0, 1.0), (0.55, 0.95), (0.05, 0.4), (0.6, 0.35), (0.0, -0.35), (0.65, -0.4),
-                    ], segments: [(0, 2), (2, 4), (1, 3), (3, 5), (2, 3)])
-                    // 게자리 — 은청
+                        (-0.77, 0.8), (-0.34, 0.69), (-0.08, 0.52), (-1.0, 0.39), (0.33, 0.32),
+                        (0.73, 0.17), (1.0, 0.17), (-0.91, 0.1), (-0.46, -0.08), (0.65, -0.15),
+                        (-0.08, -0.16), (0.45, -0.43), (0.36, -0.8),
+                    ], segments: [(0, 1), (1, 2), (2, 4), (4, 5), (5, 6), (5, 9), (9, 11), (11, 12),
+                                  (11, 10), (10, 8), (8, 7), (7, 3), (3, 0)])
+                    // 게자리 — 은청 (Y 자)
                     constellation(center: CGPoint(x: 597, y: 808), scale: 24, roll: 0.10,
                                   tint: (0.75, 0.85, 1.00), points: [
-                        (0.0, 0.65), (0.35, 0.15), (0.05, -0.55), (0.85, 0.3),
-                    ], segments: [(0, 1), (1, 2), (1, 3)])
-                    // 사자자리 — 골드
-                    constellation(center: CGPoint(x: 768, y: 216), scale: 26, roll: 0,
+                        (-1.0, 0.96), (-0.38, 0.16), (-0.2, -0.17), (1.0, -0.51), (-0.42, -0.96),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (2, 4)])
+                    // 사자자리 — 골드 (낫(머리 갈고리) + 몸통·꼬리)
+                    constellation(center: CGPoint(x: 768, y: 216), scale: 27, roll: 0,
                                   tint: (1.00, 0.72, 0.30), points: [
-                        (0.0, 0.0), (0.15, 0.55), (0.5, 0.9), (1.0, 0.9), (1.25, 0.55),
-                        (-1.2, 0.35), (-0.7, 0.62), (-0.55, 0.05),
-                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (0, 7), (7, 5), (5, 6), (6, 1)])
-                    // 처녀자리 — 민트
-                    constellation(center: CGPoint(x: 939, y: 410), scale: 27, roll: 0.21,
+                        (1.0, 0.74), (0.64, 0.84), (0.34, 0.47), (0.4, 0.2), (0.77, 0.06),
+                        (-0.51, -0.23), (0.85, -0.35), (-0.38, -0.6), (-1.0, -0.84),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 6), (3, 5), (5, 8), (8, 7), (7, 6)])
+                    // 처녀자리 — 민트 (사각 몸통 + 좌우 팔 + 꼬리)
+                    constellation(center: CGPoint(x: 939, y: 410), scale: 30, roll: 0.21,
                                   tint: (0.55, 1.00, 0.80), points: [
-                        (0.0, -0.95), (0.15, -0.2), (-0.4, 0.3), (0.5, 0.35), (-0.9, 0.55), (0.95, 0.8), (0.15, 0.9),
-                    ], segments: [(0, 1), (1, 2), (1, 3), (2, 4), (3, 5), (2, 6)])
-                    // 천칭자리 — 핑크
-                    constellation(center: CGPoint(x: 1109, y: 614), scale: 25, roll: -0.10,
+                        (-0.09, 0.75), (1.0, 0.68), (0.17, 0.43), (0.72, 0.34), (0.49, 0.24),
+                        (-0.2, 0.0), (-0.4, -0.01), (-0.54, -0.05), (0.28, -0.15), (-1.0, -0.28),
+                        (0.23, -0.5), (-0.33, -0.6), (-0.26, -0.68), (-0.6, -0.75),
+                    ], segments: [(0, 2), (2, 4), (4, 3), (3, 1), (2, 5), (4, 8), (5, 8), (5, 6),
+                                  (6, 7), (7, 9), (8, 10), (10, 11), (11, 12), (12, 13)])
+                    // 천칭자리 — 핑크 (삼각 접시 + 두 다리)
+                    constellation(center: CGPoint(x: 1109, y: 614), scale: 26, roll: -0.10,
                                   tint: (1.00, 0.62, 0.82), points: [
-                        (0.0, 0.7), (-0.65, 0.2), (0.6, 0.25), (-0.5, -0.6), (0.55, -0.65),
-                    ], segments: [(0, 1), (0, 2), (1, 2), (1, 3), (2, 4)])
-                    // 전갈자리 — 크림슨
-                    constellation(center: CGPoint(x: 1280, y: 808), scale: 27, roll: 0.14,
+                        (-0.36, 1.0), (0.56, 0.9), (-0.29, 0.26), (0.87, -0.04), (-0.87, -0.29),
+                        (0.39, -0.77), (0.51, -1.0),
+                    ], segments: [(0, 1), (0, 2), (0, 3), (1, 3), (2, 4), (3, 5), (5, 6)])
+                    // 전갈자리 — 크림슨 (머리 갈래 + 굽은 몸통 + 갈고리 꼬리)
+                    constellation(center: CGPoint(x: 1280, y: 808), scale: 29, roll: 0.14,
                                   tint: (1.00, 0.42, 0.48), points: [
-                        (1.35, 0.85), (1.2, 0.55), (1.35, 0.3), (0.95, 0.5), (0.6, 0.3), (0.3, 0.0),
-                        (0.15, -0.45), (0.25, -0.85), (0.55, -1.1), (0.9, -1.05), (1.05, -0.85),
-                    ], segments: [(0, 3), (1, 3), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10)])
-                    // 사수자리 — 퍼플 (주전자)
-                    constellation(center: CGPoint(x: 1451, y: 216), scale: 25, roll: -0.17,
+                        (0.55, 0.8), (0.96, 0.58), (0.56, 0.35), (0.97, 0.3), (0.38, 0.28),
+                        (0.27, 0.16), (1.0, 0.06), (0.04, -0.13), (-0.69, -0.22), (-0.86, -0.43),
+                        (-1.0, -0.52), (-0.11, -0.71), (-0.76, -0.78), (-0.42, -0.8),
+                    ], segments: [(0, 1), (1, 3), (3, 6), (1, 2), (2, 4), (4, 5), (5, 7), (7, 11),
+                                  (11, 13), (13, 12), (12, 10), (10, 9), (9, 8)])
+                    // 사수자리 — 퍼플 (주전자 + 활, 레퍼런스 전체 형상)
+                    constellation(center: CGPoint(x: 1451, y: 216), scale: 31, roll: -0.17,
                                   tint: (0.72, 0.55, 1.00), points: [
-                        (0.0, 0.05), (0.3, 0.3), (0.65, 0.55), (1.0, 0.3), (1.3, 0.0), (1.0, -0.35), (0.3, -0.35),
-                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 0), (1, 6), (3, 5)])
-                    // 염소자리 — 틸
-                    constellation(center: CGPoint(x: 1621, y: 410), scale: 26, roll: 0.07,
+                        (-0.66, 0.82), (0.45, 0.81), (-0.09, 0.77), (-0.25, 0.7), (-0.38, 0.66),
+                        (0.31, 0.4), (-0.09, 0.39), (-0.63, 0.35), (0.07, 0.28), (-0.25, 0.28),
+                        (0.71, 0.13), (-0.9, 0.13), (0.43, 0.13), (-0.1, 0.12), (-1.0, -0.06),
+                        (0.4, -0.09), (0.54, -0.25), (-0.7, -0.44), (-0.3, -0.5), (-0.56, -0.67),
+                        (-0.12, -0.82), (1.0, 0.4),
+                    ], segments: [(0, 4), (4, 3), (3, 2), (2, 6), (6, 9), (9, 7), (7, 11), (11, 14),
+                                  (14, 17), (17, 19), (19, 18), (19, 20), (6, 13), (13, 8), (8, 5),
+                                  (5, 1), (5, 12), (12, 15), (15, 16), (12, 10), (10, 21)])
+                    // 염소자리 — 틸 (아래로 처진 보트형 삼각)
+                    constellation(center: CGPoint(x: 1621, y: 410), scale: 27, roll: 0.07,
                                   tint: (0.45, 0.88, 0.92), points: [
-                        (-1.0, 0.5), (-0.45, 0.1), (0.15, -0.2), (0.75, -0.05), (1.05, 0.45),
-                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 0)])
-                    // 물병자리 — 블루
-                    constellation(center: CGPoint(x: 1792, y: 614), scale: 26, roll: -0.07,
+                        (1.0, 0.93), (0.93, 0.59), (0.05, -0.18), (-0.76, -0.54), (-1.0, -0.75),
+                        (-0.63, -0.81), (-0.21, -0.93), (0.63, -0.93), (0.69, -0.75),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 1)])
+                    // 물병자리 — 블루 (긴 팔 + 물줄기 지그재그)
+                    constellation(center: CGPoint(x: 1792, y: 614), scale: 27, roll: -0.07,
                                   tint: (0.50, 0.72, 1.00), points: [
-                        (0.0, 0.8), (0.35, 0.95), (0.65, 0.75), (0.95, 0.92), (0.3, 0.3),
-                        (-0.25, 0.1), (0.5, -0.3), (0.15, -0.75),
-                    ], segments: [(0, 1), (1, 2), (2, 3), (1, 4), (4, 5), (4, 6), (6, 7)])
-                    // 물고기자리 — 라벤더
-                    constellation(center: CGPoint(x: 1940, y: 808), scale: 27, roll: 0.24,
+                        (0.72, 1.0), (-0.52, 0.21), (0.39, 0.05), (-0.05, -0.02), (-0.55, -0.12),
+                        (-0.72, -0.14), (-0.72, -0.4), (0.19, -0.58), (-0.17, -0.63), (0.65, -0.79),
+                        (-0.32, -1.0),
+                    ], segments: [(0, 1), (1, 3), (3, 2), (1, 4), (4, 5), (5, 6), (6, 10), (10, 8),
+                                  (8, 7), (7, 9)])
+                    // 물고기자리 — 라벤더 (서쪽 물고기 고리 + 두 끈이 만나는 매듭)
+                    constellation(center: CGPoint(x: 1940, y: 808), scale: 30, roll: 0.24,
                                   tint: (0.82, 0.70, 1.00), points: [
-                        (1.35, 0.95), (0.95, 0.6), (0.5, 0.3), (0.0, 0.0), (0.5, -0.18), (1.05, -0.28), (1.55, -0.2),
-                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6)])
+                        (-0.02, 1.0), (0.18, 0.91), (0.24, 0.7), (0.07, 0.57), (-0.07, 0.6),
+                        (-0.23, 0.69), (-0.19, 0.88), (-0.03, 0.32), (0.21, -0.08), (0.26, -0.36),
+                        (0.64, -0.77), (0.83, -1.0), (0.53, -0.93), (0.06, -0.82), (-0.36, -0.82),
+                        (-0.54, -1.0), (-0.83, -0.85),
+                    ], segments: [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 0), (4, 7),
+                                  (7, 8), (8, 9), (9, 10), (10, 11), (11, 12), (12, 13), (13, 14),
+                                  (14, 15), (15, 16)])
 
                     // 4방 광선 반짝별 — 은은한 포인트 몇 개
                     let flare = makeFlareImage()
@@ -1027,9 +1055,10 @@ private enum GlobeBuilder {
         }
 
         return [
-            shell(radius: 12, count: 320, brightMul: 1.00, nebula: false, order: -12), // 근경 — 시차 큼
-            shell(radius: 22, count: 620, brightMul: 0.72, nebula: false, order: -11), // 중경
-            shell(radius: 38, count: 900, brightMul: 0.52, nebula: true, order: -10),  // 원경 + 성운
+            // 레퍼런스(references/은하수.jpg)의 "별이 가득한 하늘" — 셸 밀도 상향(Android 패리티)
+            shell(radius: 12, count: 460, brightMul: 1.00, nebula: false, order: -12), // 근경 — 시차 큼
+            shell(radius: 22, count: 900, brightMul: 0.76, nebula: false, order: -11), // 중경
+            shell(radius: 38, count: 1400, brightMul: 0.56, nebula: true, order: -10), // 원경 + 성운/은하수
         ]
     }
 

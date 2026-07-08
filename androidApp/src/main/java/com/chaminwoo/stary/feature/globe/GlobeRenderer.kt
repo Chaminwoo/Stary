@@ -750,10 +750,12 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 )
             }
         }
-        addShell(radius = 12f, count = 320, sizeBase = 0.018f, sizeVar = 0.062f, brightMul = 1.00f) // 근경
-        addShell(radius = 22f, count = 620, sizeBase = 0.028f, sizeVar = 0.100f, brightMul = 0.72f) // 중경
-        addShell(radius = 38f, count = 900, sizeBase = 0.042f, sizeVar = 0.140f, brightMul = 0.52f) // 원경
-        // 원경 너머 아주 어두운 성운 글로우 — 배경에 색 온도와 깊이(도형이 아니라 '공간'으로 읽히게)
+        // 레퍼런스(references/은하수.jpg)의 "별이 가득한 하늘" — 셸 밀도 상향
+        addShell(radius = 12f, count = 460, sizeBase = 0.018f, sizeVar = 0.062f, brightMul = 1.00f) // 근경
+        addShell(radius = 22f, count = 900, sizeBase = 0.028f, sizeVar = 0.100f, brightMul = 0.76f) // 중경
+        addShell(radius = 38f, count = 1400, sizeBase = 0.042f, sizeVar = 0.140f, brightMul = 0.56f) // 원경
+        // 원경 너머 아주 어두운 성운 글로우 — 배경에 색 온도와 깊이(도형이 아니라 '공간'으로 읽히게).
+        // 레퍼런스의 짙푸른 하늘을 위해 인디고·블루 워시를 추가.
         val nebulaColors = arrayOf(
             floatArrayOf(0.055f, 0.030f, 0.100f), // 보라
             floatArrayOf(0.040f, 0.050f, 0.110f), // 청보라
@@ -761,6 +763,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             floatArrayOf(0.030f, 0.050f, 0.100f), // 청록빛
             floatArrayOf(0.060f, 0.040f, 0.110f), // 연보라
             floatArrayOf(0.050f, 0.020f, 0.090f), // 짙은 보라
+            floatArrayOf(0.014f, 0.034f, 0.090f), // 인디고 블루
+            floatArrayOf(0.010f, 0.028f, 0.078f), // 딥 블루
+            floatArrayOf(0.016f, 0.040f, 0.084f), // 청람
         )
         for (c in nebulaColors) {
             val p = randomOnSphere(41f)
@@ -790,132 +795,130 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 Matrix.multiplyMV(pout, 0, m, 0, pin, 0)
                 return floatArrayOf(pout[0] * radius, pout[1] * radius, pout[2] * radius)
             }
-            val coreAng = 1.2f // 은하핵(벌지) 방향 — 이 근처가 가장 밝고 두껍다
+            val coreAng = 1.2f // 은하핵 방향 — 이 근처가 가장 밝고 두껍다
             fun angDist(ang: Float): Float = // 핵까지의 대원 위 각거리(0..π)
                 kotlin.math.abs((ang - coreAng + Math.PI.toFloat()).mod(6.2832f) - Math.PI.toFloat())
             fun coreness(ang: Float): Float { // 핵에 가까울수록 1(가우시안)
                 val d = angDist(ang)
                 return exp(-d * d / 1.5f)
             }
-            // Great Rift — 핵 쪽 절반에서 띠를 세로로 가르는 암흑 성운 균열.
-            // 균열 중심선은 사인 2개로 구불구불 밴드 중심에서 살짝 벗어나 흐르고, 폭도 변한다.
+            // 암흑 균열 — 리본 속을 세로로 가르는 어두운 결(레퍼런스에도 리본 안에 어두운 줄이 있다)
             fun riftAtten(ang: Float, spread: Float): Float {
                 val d = angDist(ang)
-                val strength = exp(-d * d / 1.9f) * 0.90f // 핵 근처에서 가장 짙고 반대편은 없음
+                val strength = exp(-d * d / 1.9f) * 0.72f
                 if (strength < 0.04f) return 1f
-                val center = 0.022f + 0.026f * sin(ang * 2.3f + 0.8f) + 0.012f * sin(ang * 5.1f)
-                val halfW = 0.030f + 0.013f * sin(ang * 3.7f + 2.0f)
+                val center = 0.020f + 0.024f * sin(ang * 2.3f + 0.8f) + 0.011f * sin(ang * 5.1f)
+                val halfW = 0.026f + 0.011f * sin(ang * 3.7f + 2.0f)
                 val x = (spread - center) / halfW
                 return 1f - strength * exp(-x * x)
             }
-            // 얼룩(패치) — 밝은 스타 클라우드와 어두운 먼지 조각이 띠를 따라 교차(사진의 mottled 질감)
+            // 얼룩(패치) — 밝은 구름과 옅은 구간이 띠를 따라 교차(리본이 살아 숨쉬는 질감)
             fun patch(ang: Float): Float {
                 val p = 0.5f + 0.5f * sin(ang * 7.3f + 1.7f) * sin(ang * 3.1f + 4.2f)
-                return 0.62f + 0.55f * p
+                return 0.70f + 0.45f * p
             }
-            // 색 온도 — 핵(골든·오렌지) → 외곽(차가운 청백). warm ∈ 0..1
-            fun bandTint(warm: Float): FloatArray = floatArrayOf(
-                0.84f + 0.19f * warm,          // r
-                0.88f - 0.05f * warm,          // g
-                1.00f - 0.38f * warm,          // b
-            )
 
-            // ① 잔별 밀집 띠 — 2600개, 핵 근처 밀도·두께 증가(채택-기각 샘플링), 균열·얼룩 감쇠
-            var placed = 0
-            while (placed < 2600) {
-                val ang = rnd.nextFloat() * 6.2832f
+            // ① 백열 코어 라인 — 리본 정중앙을 따라 끊김 없이 이어지는 밝은 백핑크 심줄
+            repeat(96) { i ->
+                val ang = i / 96f * 6.2832f + (rnd.nextFloat() - 0.5f) * 0.04f
                 val cn = coreness(ang)
-                if (rnd.nextFloat() > 0.38f + 0.62f * cn) continue // 핵 쪽 밀도↑
-                placed++
-                val thick = 1f + 0.8f * cn // 핵 근처는 띠가 두껍다(벌지)
-                val sigma = (if (rnd.nextFloat() < 0.66f) 0.045f else 0.115f) * thick
-                val spread = (rnd.nextGaussian() * sigma).toFloat()
-                val atten = riftAtten(ang, spread)
-                val br = (0.07f + rnd.nextFloat() * 0.26f) * (0.70f + 0.60f * cn) *
-                    patch(ang) * (0.22f + 0.78f * atten)
-                val warm = (rnd.nextFloat() * 0.45f + 0.55f * cn * rnd.nextFloat()).coerceIn(0f, 1f)
-                val tint = bandTint(warm)
-                addSprite(
-                    list, p = bandPoint(39f, spread, ang),
-                    r = br * tint[0], g = br * tint[1], b = br * tint[2], a = 1f,
-                    size = 0.028f + rnd.nextFloat() * rnd.nextFloat() * 0.10f,
-                    phase = rnd.nextFloat(), mode = 1f,
-                )
-            }
-            // ①-b 전경 밝은 별 — 띠 위에 도드라지는 소수의 밝은 별(사진의 빛나는 점들)
-            repeat(26) {
-                val ang = rnd.nextFloat() * 6.2832f
-                val cn = coreness(ang)
-                val spread = (rnd.nextGaussian() * 0.09f * (1f + 0.6f * cn)).toFloat()
-                val br = 0.30f + rnd.nextFloat() * 0.34f
-                val warm = rnd.nextFloat() * 0.5f
-                val tint = bandTint(warm)
-                addSprite(
-                    list, p = bandPoint(39f, spread, ang),
-                    r = br * tint[0], g = br * tint[1], b = br * tint[2], a = 1f,
-                    size = 0.11f + rnd.nextFloat() * 0.09f,
-                    phase = rnd.nextFloat(), mode = 1f,
-                )
-            }
-            // ② 연속 유광 리본(희미한 바탕) — 띠가 끊겨 보이지 않게 잇는 은은한 강바닥
-            repeat(72) { i ->
-                val ang = i / 72f * 6.2832f + (rnd.nextFloat() - 0.5f) * 0.05f
-                val cn = coreness(ang)
-                val spread = (rnd.nextGaussian() * 0.022).toFloat()
-                val base = (0.018f + 0.016f * cn) * (0.30f + 0.70f * riftAtten(ang, spread))
+                val spread = (rnd.nextGaussian() * 0.010).toFloat()
+                val a = riftAtten(ang, spread)
+                val base = (0.030f + 0.022f * cn) * (0.40f + 0.60f * a) * patch(ang)
                 addSprite(
                     list, p = bandPoint(40f, spread, ang),
-                    r = base * (0.85f + 0.35f * cn), g = base * 0.92f, b = base * (1.10f - 0.25f * cn), a = 1f,
-                    size = 2.2f + rnd.nextFloat() * 1.5f + 1.1f * cn,
+                    r = base, g = base * 0.86f, b = base * 0.94f, a = 1f,
+                    size = 0.9f + rnd.nextFloat() * 0.6f + 0.5f * cn,
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
-            // ②-b 스타 클라우드 — 뭉게뭉게 밝은 유광 덩어리(얼룩·균열을 따라 응집/단절)
+            // ② 마젠타 리본 — 코어를 감싸며 흐르는 선명한 핑크 빛의 강(레퍼런스의 주인공)
             repeat(150) {
                 val ang = rnd.nextFloat() * 6.2832f
                 val cn = coreness(ang)
-                if (rnd.nextFloat() > 0.30f + 0.70f * cn) return@repeat // 핵 쪽에 더 많이
-                val spread = (rnd.nextGaussian() * 0.055f * (1f + 0.7f * cn)).toFloat()
-                val atten = riftAtten(ang, spread)
-                val base = (0.014f + 0.030f * cn) * patch(ang) * (0.15f + 0.85f * atten)
-                val warm = (0.25f + 0.75f * cn) * rnd.nextFloat()
-                val tint = bandTint(warm)
+                val spread = (rnd.nextGaussian() * 0.035f * (1f + 0.5f * cn)).toFloat()
+                val a = riftAtten(ang, spread)
+                val base = (0.022f + 0.020f * cn) * patch(ang) * (0.25f + 0.75f * a)
                 addSprite(
                     list, p = bandPoint(40f, spread, ang),
-                    r = base * tint[0] * 1.15f, g = base * tint[1], b = base * tint[2], a = 1f,
-                    size = 0.9f + rnd.nextFloat() * 1.8f + 0.8f * cn,
+                    r = base * 1.00f, g = base * 0.30f, b = base * 0.62f, a = 1f,
+                    size = 1.6f + rnd.nextFloat() * 1.5f + 0.6f * cn,
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
-            // ③ 은하핵 벌지 — 골든·오렌지 대형 글로우 응집(사진의 가장 밝은 심장부)
-            repeat(22) {
-                val ang = coreAng + (rnd.nextGaussian() * 0.20).toFloat()
-                val spread = (rnd.nextGaussian() * 0.065).toFloat()
-                val atten = 0.35f + 0.65f * riftAtten(ang, spread) // 벌지도 균열에 살짝 갈라진다
+            // ③ 바이올렛 외곽 글로우 — 리본 밖으로 넓게 번지는 보랏빛 숨결
+            repeat(110) {
+                val ang = rnd.nextFloat() * 6.2832f
+                val cn = coreness(ang)
+                val spread = (rnd.nextGaussian() * 0.085f * (1f + 0.6f * cn)).toFloat()
+                val base = (0.009f + 0.009f * cn) * patch(ang)
+                addSprite(
+                    list, p = bandPoint(40.5f, spread, ang),
+                    r = base * 0.62f, g = base * 0.30f, b = base * 0.95f, a = 1f,
+                    size = 2.8f + rnd.nextFloat() * 1.9f,
+                    phase = rnd.nextFloat(), mode = 1f,
+                )
+            }
+            // ④ 골드 응집 — 핵 쪽 리본 가장자리에 배는 따뜻한 금빛(레퍼런스 하단의 주황 구름)
+            repeat(30) {
+                val ang = coreAng + (rnd.nextGaussian() * 0.55).toFloat()
+                val spread = 0.030f + kotlin.math.abs(rnd.nextGaussian() * 0.045).toFloat() // 한쪽으로 치우침
                 addSprite(
                     list, p = bandPoint(40f, spread, ang),
-                    r = 0.085f * atten, g = 0.058f * atten, b = 0.034f * atten, a = 1f,
-                    size = 1.5f + rnd.nextFloat() * 1.9f,
+                    r = 0.052f, g = 0.032f, b = 0.011f, a = 1f,
+                    size = 1.4f + rnd.nextFloat() * 1.7f,
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
-            // ③-b 벌지 심장 — 핵 정중앙의 크고 은은한 골든 후광 2장
-            repeat(2) { i ->
+            // ⑤ 시안 가장자리 미광 — 리본 반대쪽 가장자리를 스치는 청록 결(레퍼런스의 시안 하늘빛)
+            repeat(26) {
+                val ang = rnd.nextFloat() * 6.2832f
+                val side = if (rnd.nextBoolean()) 1f else -1f
+                val spread = side * (0.09f + rnd.nextFloat() * 0.07f)
                 addSprite(
-                    list, p = bandPoint(40f, 0.012f * i, coreAng + 0.05f * i),
-                    r = 0.052f, g = 0.036f, b = 0.020f, a = 1f,
-                    size = 3.4f + i * 0.9f,
+                    list, p = bandPoint(40.5f, spread, ang),
+                    r = 0.007f, g = 0.024f, b = 0.028f, a = 1f,
+                    size = 2.2f + rnd.nextFloat() * 1.6f,
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
-            // ④ H-II 발광 성운 — 핵 주변 띠 위에 흩어진 작은 핑크/마젠타 반점(라군 성운풍)
-            repeat(9) {
-                val ang = coreAng + (rnd.nextGaussian() * 0.85).toFloat()
-                val spread = (rnd.nextGaussian() * 0.06).toFloat()
+            // ⑥ 잔별 밀집 띠 — 3200개(채택-기각으로 핵 쪽 밀도↑). 청백 위주 + 핑크/골드 소수 —
+            //    리본 위에 뿌려진 무수한 별이 레퍼런스의 "압도적인" 밀도를 만든다.
+            var placed = 0
+            while (placed < 3200) {
+                val ang = rnd.nextFloat() * 6.2832f
+                val cn = coreness(ang)
+                if (rnd.nextFloat() > 0.34f + 0.66f * cn) continue
+                placed++
+                val thick = 1f + 0.7f * cn
+                val sigma = (if (rnd.nextFloat() < 0.62f) 0.05f else 0.13f) * thick
+                val spread = (rnd.nextGaussian() * sigma).toFloat()
+                val a = riftAtten(ang, spread)
+                val br = (0.09f + rnd.nextFloat() * 0.30f) * (0.75f + 0.50f * cn) *
+                    patch(ang) * (0.30f + 0.70f * a)
+                val roll = rnd.nextFloat()
+                val (tr, tg, tb) = when {
+                    roll < 0.68f -> Triple(0.90f, 0.94f, 1.00f) // 청백
+                    roll < 0.90f -> Triple(1.00f, 0.68f, 0.85f) // 핑크
+                    else -> Triple(1.00f, 0.88f, 0.62f)          // 골드
+                }
                 addSprite(
-                    list, p = bandPoint(39.5f, spread, ang),
-                    r = 0.050f, g = 0.016f, b = 0.030f, a = 1f,
-                    size = 0.5f + rnd.nextFloat() * 0.7f,
+                    list, p = bandPoint(39f, spread, ang),
+                    r = br * tr, g = br * tg, b = br * tb, a = 1f,
+                    size = 0.028f + rnd.nextFloat() * rnd.nextFloat() * 0.11f,
+                    phase = rnd.nextFloat(), mode = 1f,
+                )
+            }
+            // ⑦ 전경 밝은 별 — 띠 위에 도드라지는 큰 별(레퍼런스의 빛나는 점들)
+            repeat(40) {
+                val ang = rnd.nextFloat() * 6.2832f
+                val cn = coreness(ang)
+                val spread = (rnd.nextGaussian() * 0.10f * (1f + 0.6f * cn)).toFloat()
+                val br = 0.34f + rnd.nextFloat() * 0.40f
+                addSprite(
+                    list, p = bandPoint(39f, spread, ang),
+                    r = br * 0.95f, g = br * 0.96f, b = br, a = 1f,
+                    size = 0.12f + rnd.nextFloat() * 0.10f,
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
@@ -971,56 +974,78 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             Array(s.size / 2) { intArrayOf(s[it * 2], s[it * 2 + 1]) }
         // 12궁 — 경도 30°씩 + 위도 4단 사이클로 하늘 전체에 골고루 분산. 궁마다 고유색.
         // 양자리 — 코랄 레드
+        // ※ 12궁 별 배치/연결은 references/zodiac.avif 를 별 단위로 판독해 그대로 옮긴 것 —
+        //    임의 수정 금지(수정하려면 레퍼런스와 대조). 좌표는 [-1,1] 정규화(y=위), roll 은 기울임만.
+        // 양자리 — 코랄 레드
         addConstellation(52.0, -165.0, 4.5f, -8f, floatArrayOf(1.00f, 0.52f, 0.42f),
-            pts(0f, 0f, 0.9f, 0.3f, 1.6f, 0.35f, 1.9f, 0.05f),
+            pts(-1.0f, 0.35f, 0.45f, 0.15f, 0.91f, -0.08f, 1.0f, -0.35f),
             segs(0, 1, 1, 2, 2, 3))
-        // 황소자리 — 연두 (V 자 히아데스 + 두 뿔)
-        addConstellation(18.0, -135.0, 4.8f, 10f, floatArrayOf(0.62f, 0.95f, 0.55f),
-            pts(0f, 0f, 0.6f, 0.5f, 1.6f, 0.9f, 0.55f, -0.35f, 1.5f, -0.75f),
-            segs(0, 1, 1, 2, 0, 3, 3, 4))
-        // 쌍둥이자리 — 옐로 (나란한 두 줄기 + 어깨 연결)
-        addConstellation(-18.0, -105.0, 4.6f, -14f, floatArrayOf(1.00f, 0.88f, 0.45f),
-            pts(0f, 1.0f, 0.55f, 0.95f, 0.05f, 0.4f, 0.6f, 0.35f, 0f, -0.35f, 0.65f, -0.4f),
-            segs(0, 2, 2, 4, 1, 3, 3, 5, 2, 3))
-        // 게자리 — 은청 (희미한 Y)
+        // 황소자리 — 연두 (두 뿔 + V 히아데스 + 꼬리)
+        addConstellation(18.0, -135.0, 5.0f, 10f, floatArrayOf(0.62f, 0.95f, 0.55f),
+            pts(-0.81f, 0.83f, -0.33f, 0.4f, -1.0f, 0.31f, -0.15f, 0.13f, -0.3f, -0.11f,
+                -0.14f, -0.03f, 0.0f, -0.04f, -0.11f, -0.2f, 0.05f, -0.18f, 0.32f, -0.41f,
+                0.91f, -0.61f, 1.0f, -0.83f),
+            segs(0, 1, 1, 3, 3, 5, 5, 7, 2, 4, 4, 7, 7, 8, 6, 8, 8, 9, 9, 10, 10, 11))
+        // 쌍둥이자리 — 옐로 (나란한 두 사람 직사각 틀)
+        addConstellation(-18.0, -105.0, 4.8f, -14f, floatArrayOf(1.00f, 0.88f, 0.45f),
+            pts(-0.77f, 0.8f, -0.34f, 0.69f, -0.08f, 0.52f, -1.0f, 0.39f, 0.33f, 0.32f,
+                0.73f, 0.17f, 1.0f, 0.17f, -0.91f, 0.1f, -0.46f, -0.08f, 0.65f, -0.15f,
+                -0.08f, -0.16f, 0.45f, -0.43f, 0.36f, -0.8f),
+            segs(0, 1, 1, 2, 2, 4, 4, 5, 5, 6, 5, 9, 9, 11, 11, 12, 11, 10, 10, 8, 8, 7, 7, 3, 3, 0))
+        // 게자리 — 은청 (Y 자)
         addConstellation(-52.0, -75.0, 4.2f, 6f, floatArrayOf(0.75f, 0.85f, 1.00f),
-            pts(0f, 0.65f, 0.35f, 0.15f, 0.05f, -0.55f, 0.85f, 0.3f),
-            segs(0, 1, 1, 2, 1, 3))
-        // 사자자리 — 골드 (낫 + 몸통)
-        addConstellation(52.0, -45.0, 4.6f, 0f, floatArrayOf(1.00f, 0.72f, 0.30f),
-            pts(0f, 0f, 0.15f, 0.55f, 0.5f, 0.9f, 1.0f, 0.9f, 1.25f, 0.55f,
-                -1.2f, 0.35f, -0.7f, 0.62f, -0.55f, 0.05f),
-            segs(0, 1, 1, 2, 2, 3, 3, 4, 0, 7, 7, 5, 5, 6, 6, 1))
-        // 처녀자리 — 민트 (스피카에서 뻗는 가지)
-        addConstellation(18.0, -15.0, 4.8f, 12f, floatArrayOf(0.55f, 1.00f, 0.80f),
-            pts(0f, -0.95f, 0.15f, -0.2f, -0.4f, 0.3f, 0.5f, 0.35f, -0.9f, 0.55f, 0.95f, 0.8f, 0.15f, 0.9f),
-            segs(0, 1, 1, 2, 1, 3, 2, 4, 3, 5, 2, 6))
+            pts(-1.0f, 0.96f, -0.38f, 0.16f, -0.2f, -0.17f, 1.0f, -0.51f, -0.42f, -0.96f),
+            segs(0, 1, 1, 2, 2, 3, 2, 4))
+        // 사자자리 — 골드 (낫(머리 갈고리) + 몸통·꼬리)
+        addConstellation(52.0, -45.0, 4.8f, 0f, floatArrayOf(1.00f, 0.72f, 0.30f),
+            pts(1.0f, 0.74f, 0.64f, 0.84f, 0.34f, 0.47f, 0.4f, 0.2f, 0.77f, 0.06f,
+                -0.51f, -0.23f, 0.85f, -0.35f, -0.38f, -0.6f, -1.0f, -0.84f),
+            segs(0, 1, 1, 2, 2, 3, 3, 4, 4, 6, 3, 5, 5, 8, 8, 7, 7, 6))
+        // 처녀자리 — 민트 (사각 몸통 + 좌우 팔 + 꼬리)
+        addConstellation(18.0, -15.0, 5.2f, 12f, floatArrayOf(0.55f, 1.00f, 0.80f),
+            pts(-0.09f, 0.75f, 1.0f, 0.68f, 0.17f, 0.43f, 0.72f, 0.34f, 0.49f, 0.24f,
+                -0.2f, 0.0f, -0.4f, -0.01f, -0.54f, -0.05f, 0.28f, -0.15f, -1.0f, -0.28f,
+                0.23f, -0.5f, -0.33f, -0.6f, -0.26f, -0.68f, -0.6f, -0.75f),
+            segs(0, 2, 2, 4, 4, 3, 3, 1, 2, 5, 4, 8, 5, 8, 5, 6, 6, 7, 7, 9, 8, 10, 10, 11, 11, 12, 12, 13))
         // 천칭자리 — 핑크 (삼각 접시 + 두 다리)
-        addConstellation(-18.0, 15.0, 4.4f, -6f, floatArrayOf(1.00f, 0.62f, 0.82f),
-            pts(0f, 0.7f, -0.65f, 0.2f, 0.6f, 0.25f, -0.5f, -0.6f, 0.55f, -0.65f),
-            segs(0, 1, 0, 2, 1, 2, 1, 3, 2, 4))
-        // 전갈자리 — 크림슨 (집게 + 갈고리 꼬리)
-        addConstellation(-52.0, 45.0, 4.8f, 8f, floatArrayOf(1.00f, 0.42f, 0.48f),
-            pts(1.35f, 0.85f, 1.2f, 0.55f, 1.35f, 0.3f, 0.95f, 0.5f, 0.6f, 0.3f, 0.3f, 0f,
-                0.15f, -0.45f, 0.25f, -0.85f, 0.55f, -1.1f, 0.9f, -1.05f, 1.05f, -0.85f),
-            segs(0, 3, 1, 3, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10))
-        // 사수자리 — 퍼플 (주전자 Teapot)
-        addConstellation(52.0, 75.0, 4.4f, -10f, floatArrayOf(0.72f, 0.55f, 1.00f),
-            pts(0f, 0.05f, 0.3f, 0.3f, 0.65f, 0.55f, 1.0f, 0.3f, 1.3f, 0f, 1.0f, -0.35f, 0.3f, -0.35f),
-            segs(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 0, 1, 6, 3, 5))
-        // 염소자리 — 틸 (아래로 처진 보울)
-        addConstellation(18.0, 105.0, 4.6f, 4f, floatArrayOf(0.45f, 0.88f, 0.92f),
-            pts(-1.0f, 0.5f, -0.45f, 0.1f, 0.15f, -0.2f, 0.75f, -0.05f, 1.05f, 0.45f),
-            segs(0, 1, 1, 2, 2, 3, 3, 4, 4, 0))
-        // 물병자리 — 블루 (물항아리 Y + 흘러내리는 물줄기)
-        addConstellation(-18.0, 135.0, 4.6f, -4f, floatArrayOf(0.50f, 0.72f, 1.00f),
-            pts(0f, 0.8f, 0.35f, 0.95f, 0.65f, 0.75f, 0.95f, 0.92f, 0.3f, 0.3f,
-                -0.25f, 0.1f, 0.5f, -0.3f, 0.15f, -0.75f),
-            segs(0, 1, 1, 2, 2, 3, 1, 4, 4, 5, 4, 6, 6, 7))
-        // 물고기자리 — 라벤더 (두 끈이 만나는 V)
-        addConstellation(-52.0, 165.0, 4.8f, 14f, floatArrayOf(0.82f, 0.70f, 1.00f),
-            pts(1.35f, 0.95f, 0.95f, 0.6f, 0.5f, 0.3f, 0f, 0f, 0.5f, -0.18f, 1.05f, -0.28f, 1.55f, -0.2f),
-            segs(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6))
+        addConstellation(-18.0, 15.0, 4.6f, -6f, floatArrayOf(1.00f, 0.62f, 0.82f),
+            pts(-0.36f, 1.0f, 0.56f, 0.9f, -0.29f, 0.26f, 0.87f, -0.04f, -0.87f, -0.29f,
+                0.39f, -0.77f, 0.51f, -1.0f),
+            segs(0, 1, 0, 2, 0, 3, 1, 3, 2, 4, 3, 5, 5, 6))
+        // 전갈자리 — 크림슨 (머리 갈래 + 굽은 몸통 + 갈고리 꼬리)
+        addConstellation(-52.0, 45.0, 5.0f, 8f, floatArrayOf(1.00f, 0.42f, 0.48f),
+            pts(0.55f, 0.8f, 0.96f, 0.58f, 0.56f, 0.35f, 0.97f, 0.3f, 0.38f, 0.28f,
+                0.27f, 0.16f, 1.0f, 0.06f, 0.04f, -0.13f, -0.69f, -0.22f, -0.86f, -0.43f,
+                -1.0f, -0.52f, -0.11f, -0.71f, -0.76f, -0.78f, -0.42f, -0.8f),
+            segs(0, 1, 1, 3, 3, 6, 1, 2, 2, 4, 4, 5, 5, 7, 7, 11, 11, 13, 13, 12, 12, 10, 10, 9, 9, 8))
+        // 사수자리 — 퍼플 (주전자 + 활, 레퍼런스 전체 형상)
+        addConstellation(52.0, 75.0, 5.4f, -10f, floatArrayOf(0.72f, 0.55f, 1.00f),
+            pts(-0.66f, 0.82f, 0.45f, 0.81f, -0.09f, 0.77f, -0.25f, 0.7f, -0.38f, 0.66f,
+                0.31f, 0.4f, -0.09f, 0.39f, -0.63f, 0.35f, 0.07f, 0.28f, -0.25f, 0.28f,
+                0.71f, 0.13f, -0.9f, 0.13f, 0.43f, 0.13f, -0.1f, 0.12f, -1.0f, -0.06f,
+                0.4f, -0.09f, 0.54f, -0.25f, -0.7f, -0.44f, -0.3f, -0.5f, -0.56f, -0.67f,
+                -0.12f, -0.82f, 1.0f, 0.4f),
+            segs(0, 4, 4, 3, 3, 2, 2, 6, 6, 9, 9, 7, 7, 11, 11, 14, 14, 17, 17, 19, 19, 18,
+                19, 20, 6, 13, 13, 8, 8, 5, 5, 1, 5, 12, 12, 15, 15, 16, 12, 10, 10, 21))
+        // 염소자리 — 틸 (아래로 처진 보트형 삼각)
+        addConstellation(18.0, 105.0, 4.8f, 4f, floatArrayOf(0.45f, 0.88f, 0.92f),
+            pts(1.0f, 0.93f, 0.93f, 0.59f, 0.05f, -0.18f, -0.76f, -0.54f, -1.0f, -0.75f,
+                -0.63f, -0.81f, -0.21f, -0.93f, 0.63f, -0.93f, 0.69f, -0.75f),
+            segs(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 1))
+        // 물병자리 — 블루 (긴 팔 + 물줄기 지그재그)
+        addConstellation(-18.0, 135.0, 4.8f, -4f, floatArrayOf(0.50f, 0.72f, 1.00f),
+            pts(0.72f, 1.0f, -0.52f, 0.21f, 0.39f, 0.05f, -0.05f, -0.02f, -0.55f, -0.12f,
+                -0.72f, -0.14f, -0.72f, -0.4f, 0.19f, -0.58f, -0.17f, -0.63f, 0.65f, -0.79f,
+                -0.32f, -1.0f),
+            segs(0, 1, 1, 3, 3, 2, 1, 4, 4, 5, 5, 6, 6, 10, 10, 8, 8, 7, 7, 9))
+        // 물고기자리 — 라벤더 (서쪽 물고기 고리 + 두 끈이 만나는 매듭)
+        addConstellation(-52.0, 165.0, 5.2f, 14f, floatArrayOf(0.82f, 0.70f, 1.00f),
+            pts(-0.02f, 1.0f, 0.18f, 0.91f, 0.24f, 0.7f, 0.07f, 0.57f, -0.07f, 0.6f,
+                -0.23f, 0.69f, -0.19f, 0.88f, -0.03f, 0.32f, 0.21f, -0.08f, 0.26f, -0.36f,
+                0.64f, -0.77f, 0.83f, -1.0f, 0.53f, -0.93f, 0.06f, -0.82f, -0.36f, -0.82f,
+                -0.54f, -1.0f, -0.83f, -0.85f),
+            segs(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 0, 4, 7, 7, 8, 8, 9, 9, 10, 10, 11,
+                11, 12, 12, 13, 13, 14, 14, 15, 15, 16))
         constLineVbo = genBuffer()
         uploadBuffer(constLineVbo, toFloatBuffer(constLines))
         constLineVertexCount = constLines.size / 6
