@@ -175,7 +175,7 @@ struct BoomerangCaptureView: View {
                         if stage == .encoding {
                             ProgressView().tint(.black)
                         } else {
-                            Text("이 장면 사용").bold()
+                            Text("자르기 완료").bold()
                         }
                     }
                     .frame(maxWidth: .infinity)
