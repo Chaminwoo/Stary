@@ -133,8 +133,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var screenAspect = 0.55f        // onSurfaceChanged 에서 갱신(가로/세로)
     private val identityM = FloatArray(16).also { Matrix.setIdentityM(it, 0) }
 
-    /** 잔류 스파클 — 유성이 지나간 자리에 남아 반짝이다 사그라드는 파티클.
-     *  [x, y, z, r, g, b, size, birthT, life, phase] × N. 유성이 죽은 뒤에도 수명이 다할 때까지 그려진다. */
+    /** 잔류 파장(wake) — 보트가 지나간 뒤의 물결처럼, 유성이 지나간 경로를 따라 남아
+     *  천천히 벌어지고 일렁이다 사그라드는 파티클(5~10초). 유성이 사라진 뒤에도 계속 그려진다.
+     *  [x, y, z, vx, vy, vz, r, g, b, size, birthT, life, waveArg] × N. */
     private val meteorSparks = ArrayList<FloatArray>()
     private var sparkEmitCarry = 0f         // 프레임 간 방출량 이월(초당 방출률 적분)
     private var lastMeteorU = 0f            // 직전 프레임의 진행도(방출 구간 보간용)
@@ -428,12 +429,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         return bmp
     }
 
-    /** 유성 경로 — 약간의 곡선(2차 베지어풍): p(s) = p0 + dir·len·s + perp·bend·s². */
+    /** 유성 경로 — 양 끝점을 잇는 완만한 아치: p(s) = p0 + dir·len·s + perp·bend·4s(1-s).
+     *  (끝점이 고정된 채 중간이 불룩한 곡선 — 시작·도착 위치를 화면 기준으로 정확히 지킨다) */
     private fun meteorPathAt(s: Float, out: FloatArray) {
-        val s2 = s * s
-        out[0] = meteorP0[0] + meteorDir[0] * meteorLen * s + meteorPerp[0] * meteorBend * s2
-        out[1] = meteorP0[1] + meteorDir[1] * meteorLen * s + meteorPerp[1] * meteorBend * s2
-        out[2] = meteorP0[2] + meteorDir[2] * meteorLen * s + meteorPerp[2] * meteorBend * s2
+        val arc = 4f * s * (1f - s)
+        out[0] = meteorP0[0] + meteorDir[0] * meteorLen * s + meteorPerp[0] * meteorBend * arc
+        out[1] = meteorP0[1] + meteorDir[1] * meteorLen * s + meteorPerp[1] * meteorBend * arc
+        out[2] = meteorP0[2] + meteorDir[2] * meteorLen * s + meteorPerp[2] * meteorBend * arc
     }
 
     /** 유성 — 글로브 입장 후 [METEOR_ROLL_INTERVAL]초마다 [METEOR_SPAWN_CHANCE] 확률 판정.
@@ -462,36 +464,42 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         val list = ArrayList<Float>((meteorSparks.size + METEOR_SPRITES) * 6 * SPRITE_FLOATS)
 
-        // ── 잔류 스파클 — 수명이 다한 것은 제거, 살아있는 것은 나이에 따라 사그라들며 반짝인다 ──
+        // ── 잔류 파장(wake) — 경로 양옆으로 천천히 벌어지며(보트 물결), 물결처럼 일렁이다
+        //    5~10초에 걸쳐 사그라든다. 수명이 다한 것만 제거. ──
         if (meteorSparks.isNotEmpty()) {
             val it = meteorSparks.iterator()
             while (it.hasNext()) {
                 val s = it.next()
-                val age = (t - s[7]) / s[8]
-                if (age >= 1f) { it.remove(); continue }
-                val fadeS = (1f - age) * (1f - age) // 잔광 easeOut
+                val age = t - s[10]
+                val f = age / s[11]
+                if (f >= 1f) { it.remove(); continue }
+                val bloom = min(1f, age / 0.35f)            // 지나간 직후 피어오르고
+                val fadeS = bloom * (1f - f) * (1f - f)     // 긴 시간 서서히 잦아든다
+                // 물결 — 경로를 따라 흐르는 파동(waveArg = 경로 위치 기반 위상)
+                val wave = 0.55f + 0.45f * sin(s[12] - t * 2.2f)
+                val k = fadeS * wave
                 addSprite(
-                    list, floatArrayOf(s[0], s[1], s[2]),
-                    r = s[3] * fadeS, g = s[4] * fadeS, b = s[5] * fadeS, a = 1f,
-                    size = s[6] * (0.55f + 0.45f * (1f - age)),
-                    phase = s[9], mode = 1f, // 트윙클 — 잔해가 자글자글 반짝인다
+                    list,
+                    floatArrayOf(s[0] + s[3] * age, s[1] + s[4] * age, s[2] + s[5] * age),
+                    r = s[6] * k, g = s[7] * k, b = s[8] * k, a = 1f,
+                    size = s[9] * (0.7f + 0.6f * (1f - f)), // 퍼지며 조금씩 잘아진다
+                    phase = s[12] * 0.159f, mode = 1f,      // 트윙클 — 물결 위 반짝임
                 )
             }
         }
 
-        // ── 본체(머리+휘어지는 꼬리) ──
+        // ── 본체(머리+휘어지는 꼬리) — 화면 밖으로 완전히 나갈 때까지 사라지지 않는다 ──
         if (meteorStartT >= 0f) {
-            val u = (t - meteorStartT) / meteorDur
-            if (u >= 1f) {
+            val u = (t - meteorStartT) / meteorDur // 0→1 = 화면 통과(끝점은 화면 밖)
+            if (u >= 1f + METEOR_TAIL_FRAC + 0.06f) { // 꼬리 끝까지 화면 밖으로 나간 뒤 정리
                 meteorStartT = -1f
                 nextRollT = t // 낙하가 끝나면 대기 없이 즉시 재도전(연속 확률)
             } else {
-                val ignite = min(1f, u / 0.12f)
-                val dieRaw = ((1f - u) / 0.30f).coerceIn(0f, 1f)
-                val env = ignite * dieRaw * (2f - dieRaw) // 소멸 구간은 easeOut
+                val ignite = min(1f, u / 0.08f)
+                val env = ignite // 중간 소멸 없음 — 화면 밖 퇴장으로만 사라진다
                 val tint = METEOR_TINTS[meteorTintIdx]
                 val tint2 = METEOR_TINTS[(meteorTintIdx + 1) % METEOR_TINTS.size] // 꼬리 쪽 보조색
-                val tailFrac = 0.14f + 0.12f * ignite // 점화되며 꼬리가 자란다(경로 비율)
+                val tailFrac = METEOR_TAIL_FRAC * (0.4f + 0.6f * ignite) // 점화되며 꼬리가 자란다
                 val pos = FloatArray(3)
                 for (i in 0 until METEOR_SPRITES) {
                     val back = i / (METEOR_SPRITES - 1f) // 0=머리 → 1=꼬리 끝
@@ -514,9 +522,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                         mode = if (i == 0) 2f else 1f, // 머리=정광, 꼬리=트윙클
                     )
                 }
-                // 잔류 스파클 방출 — 머리가 지나는 구간을 따라 초당 일정량 흩뿌린다
-                emitSparks(t, dt, u, tint, tint2)
-                lastMeteorU = u
+                // 잔류 파장 방출 — 머리가 지나온 구간(화면 안)을 따라 초당 일정량 흩뿌린다
+                emitSparks(t, dt, u.coerceAtMost(1.0f), tint, tint2)
+                lastMeteorU = u.coerceAtMost(1.0f)
             }
         }
 
@@ -528,78 +536,93 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         )
     }
 
-    /** 잔류 스파클 방출 — 직전 프레임 진행도와 현재 진행도 사이 경로에 고르게 뿌린다. */
+    /** 잔류 파장 방출 — 직전 프레임 진행도와 현재 진행도 사이 경로에 고르게 뿌린다.
+     *  각 파편은 경로 수직 방향으로 천천히 벌어지는 속도(보트 파장의 V자)와,
+     *  경로 위치 기반 물결 위상(waveArg)을 가진다. 은은한 유광(70%) + 반짝이(30%) 2계층. */
     private fun emitSparks(t: Float, dt: Float, u: Float, tint: FloatArray, tint2: FloatArray) {
         sparkEmitCarry += dt * SPARK_RATE
         val n = sparkEmitCarry.toInt()
         if (n <= 0) return
         sparkEmitCarry -= n
         val pos = FloatArray(3)
-        val jitter = meteorLen * 0.012f
+        val jitter = meteorLen * 0.008f
         repeat(n) {
             if (meteorSparks.size >= SPARK_MAX) meteorSparks.removeAt(0)
-            val s = lastMeteorU + (u - lastMeteorU) * meteorRnd.nextFloat()
-            meteorPathAt(s.coerceIn(0f, 1f), pos)
-            // 색 — 본색↔보조색↔백색 사이를 랜덤하게 오가는 화려한 불꽃 파편
+            val s = (lastMeteorU + (u - lastMeteorU) * meteorRnd.nextFloat()).coerceIn(0f, 1f)
+            meteorPathAt(s, pos)
+            // 색 — 본색↔보조색↔백색 사이를 랜덤하게 오가는 색색의 물결
             val m1 = meteorRnd.nextFloat() * 0.8f
             val m2 = meteorRnd.nextFloat() * 0.45f
             var cr = tint[0] + (tint2[0] - tint[0]) * m1; cr += (1f - cr) * m2
             var cg = tint[1] + (tint2[1] - tint[1]) * m1; cg += (1f - cg) * m2
             var cb = tint[2] + (tint2[2] - tint[2]) * m1; cb += (1f - cb) * m2
-            val br = 0.35f + meteorRnd.nextFloat() * 0.45f
+            // 두 계층: 은은하게 퍼지는 유광(파장의 몸) / 작고 밝은 반짝이(물결 위 빛조각)
+            val soft = meteorRnd.nextFloat() < 0.70f
+            val br = if (soft) 0.16f + meteorRnd.nextFloat() * 0.18f
+                     else 0.40f + meteorRnd.nextFloat() * 0.34f
+            val size = if (soft) 0.036f + meteorRnd.nextFloat() * 0.030f
+                       else 0.016f + meteorRnd.nextFloat() * 0.016f
+            // V자 파장 — 경로 양옆으로 아주 천천히 벌어지는 드리프트(초당 속도)
+            val side = if (meteorRnd.nextBoolean()) 1f else -1f
+            val drift = meteorLen * (0.0035f + meteorRnd.nextFloat() * 0.0055f) * side
             meteorSparks.add(
                 floatArrayOf(
                     pos[0] + (meteorRnd.nextFloat() * 2f - 1f) * jitter,
                     pos[1] + (meteorRnd.nextFloat() * 2f - 1f) * jitter,
                     pos[2] + (meteorRnd.nextFloat() * 2f - 1f) * jitter,
+                    meteorPerp[0] * drift, meteorPerp[1] * drift, meteorPerp[2] * drift,
                     cr * br, cg * br, cb * br,
-                    0.020f + meteorRnd.nextFloat() * 0.034f, // size
-                    t,                                        // birthT
-                    SPARK_LIFE_MIN + meteorRnd.nextFloat() * SPARK_LIFE_VAR, // life
-                    meteorRnd.nextFloat(),                    // phase
+                    size,
+                    t,                                                        // birthT
+                    SPARK_LIFE_MIN + meteorRnd.nextFloat() * SPARK_LIFE_VAR,  // life 5~10초
+                    s * 18f + meteorRnd.nextFloat() * 0.9f,                   // waveArg(물결 위상)
                 )
             )
         }
     }
 
-    /** 유성 생성 — 카메라 앞 임의 깊이의 통과 지점을 잡고, 깊이 성분을 포함한 랜덤 3D 방향에
-     *  경로 수직 방향의 **곡선 휨**(perp·bend)을 더해 완만한 포물선 궤적을 뽑는다. */
+    /** 유성 생성 — **화면 기준 사선 횡단**: 좌우 어느 한쪽 화면 밖, 상단 10% 높이쯤에서 출발해
+     *  반대쪽 화면 밖, 하단 50~90% 높이로 빠져나간다(좌→우/우→좌 랜덤). 끝점이 화면 밖이라
+     *  중간에 사라지지 않고 퇴장으로만 사라진다. 깊이 성분(z)을 조금 섞어 원근감 유지,
+     *  경로 수직 방향의 완만한 아치 휨(perp·bend·4s(1-s))으로 곡선을 그린다. */
     private fun spawnMeteor(t: Float) {
         meteorStartT = t
-        meteorDur = 0.9f + meteorRnd.nextFloat() * 0.7f
+        meteorDur = 1.5f + meteorRnd.nextFloat() * 0.7f    // 화면 횡단(0→1) 시간
         lastMeteorU = 0f
         sparkEmitCarry = 0f
         val depth = 20f + meteorRnd.nextFloat() * 16f      // 카메라~통과지점 거리(별밭 셸 사이)
         val kY = depth * 0.384f                            // 그 깊이에서 화면 세로 반높이(tan 21°)
         val kX = kY * screenAspect
-        // 화면 어디서든 나타나게 — 통과 지점을 화면 전역에 랜덤 배치
-        val sx = (meteorRnd.nextFloat() * 1.7f - 0.85f) * kX
-        val sy = (meteorRnd.nextFloat() * 1.7f - 0.85f) * kY
         val midZ = camDist - depth                         // 카메라(+z) 앞쪽(-z 방향)
-        // 화면면 방향 — 항상 아래쪽(수직 하강)~사선으로만, 위로 올라가는 방향은 배제.
-        // theta ∈ [π+margin, 2π-margin] → sin(theta) ≤ 0(수평 좌/우 ~ 수직 아래) + 깊이 성분(다가옴/멀어짐)
-        val margin = 0.20f
-        val theta = Math.PI.toFloat() + margin + meteorRnd.nextFloat() * (Math.PI.toFloat() - 2f * margin)
-        val zc = (meteorRnd.nextFloat() * 2f - 1f) * 0.55f
-        val tc = kotlin.math.sqrt(1f - zc * zc)
-        meteorDir[0] = cos(theta) * tc
-        meteorDir[1] = sin(theta) * tc
-        meteorDir[2] = zc
-        meteorLen = (1.0f + meteorRnd.nextFloat() * 0.7f) * kY
-        // 곡선 휨 — 진행 방향과 시선(z축)에 수직인 화면면 방향으로 완만하게 휜다.
-        // perp = normalize(dir × ẑ) (dir 이 z 에 가까우면 화면 가로로 폴백), 부호는 랜덤.
-        var px = meteorDir[1] * 1f - 0f
-        var py = 0f - meteorDir[0] * 1f
+        // 좌→우 / 우→좌 랜덤
+        val leftToRight = meteorRnd.nextBoolean()
+        val xEdge = kX * 1.30f                             // 화면 가장자리 살짝 밖(꼬리까지 퇴장 여유)
+        val x0 = if (leftToRight) -xEdge else xEdge
+        val x1 = -x0
+        // 시작 높이 = 상단 ~10%(화면 비율 0.06~0.14), 도착 높이 = 하단 50~90%
+        val fTop = 0.06f + meteorRnd.nextFloat() * 0.08f
+        val fEnd = 0.50f + meteorRnd.nextFloat() * 0.40f
+        val y0 = kY * (1f - 2f * fTop)
+        val y1 = kY * (1f - 2f * fEnd)
+        // 깊이 변화 — 다가오거나 멀어지는 원근(작게)
+        val z0 = midZ + (meteorRnd.nextFloat() - 0.5f) * 0.30f * kY
+        val z1 = midZ - (z0 - midZ)
+        meteorP0[0] = x0; meteorP0[1] = y0; meteorP0[2] = z0
+        val dx = x1 - x0; val dy = y1 - y0; val dz = z1 - z0
+        meteorLen = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz)
+        meteorDir[0] = dx / meteorLen
+        meteorDir[1] = dy / meteorLen
+        meteorDir[2] = dz / meteorLen
+        // 아치 휨 — 진행 방향에 수직인 화면면 방향, 부호 랜덤(위로 불룩/아래로 불룩)
+        var px = meteorDir[1]
+        var py = -meteorDir[0]
         val pl = kotlin.math.sqrt(px * px + py * py)
-        if (pl < 0.15f) { px = 1f; py = 0f } else { px /= pl; py /= pl }
+        if (pl < 0.15f) { px = 0f; py = 1f } else { px /= pl; py /= pl }
         val sign = if (meteorRnd.nextBoolean()) 1f else -1f
         meteorPerp[0] = px * sign
         meteorPerp[1] = py * sign
         meteorPerp[2] = 0f
-        meteorBend = meteorLen * (0.10f + meteorRnd.nextFloat() * 0.14f)
-        meteorP0[0] = sx - meteorDir[0] * meteorLen * 0.5f - meteorPerp[0] * meteorBend * 0.25f
-        meteorP0[1] = sy - meteorDir[1] * meteorLen * 0.5f - meteorPerp[1] * meteorBend * 0.25f
-        meteorP0[2] = midZ - meteorDir[2] * meteorLen * 0.5f
+        meteorBend = meteorLen * (0.04f + meteorRnd.nextFloat() * 0.06f) // 완만한 아치
     }
 
     private fun drawSprites(
@@ -1402,16 +1425,17 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val SUN_DIST = 45f // 태양 위치 반지름(원경 별밭 너머, far plane 안)
         private const val CLOUD_DRIFT = 0.0035f // 구름 경도 드리프트 속도(rev/s — 한 바퀴 ≈ 4.8분)
 
-        /** 유성 — 꼬리 스프라이트 수 / 확률 판정 주기(초) / 판정 성공 확률. */
+        /** 유성 — 꼬리 스프라이트 수 / 확률 판정 주기(초) / 판정 성공 확률 / 꼬리 길이(경로 비율). */
         private const val METEOR_SPRITES = 22
         private const val METEOR_ROLL_INTERVAL = 30f
         private const val METEOR_SPAWN_CHANCE = 0.25f
+        private const val METEOR_TAIL_FRAC = 0.15f
 
-        /** 잔류 스파클 — 초당 방출 수 / 최대 동시 수 / 수명(초, 최소+가변). */
-        private const val SPARK_RATE = 85f
-        private const val SPARK_MAX = 240
-        private const val SPARK_LIFE_MIN = 1.0f
-        private const val SPARK_LIFE_VAR = 0.9f
+        /** 잔류 파장(wake) — 초당 방출 수 / 최대 동시 수 / 수명(초, 5~10초 물결 잔광). */
+        private const val SPARK_RATE = 60f
+        private const val SPARK_MAX = 340
+        private const val SPARK_LIFE_MIN = 5.0f
+        private const val SPARK_LIFE_VAR = 5.0f
 
         /** 유성 스트릭 색상 팔레트 — 연속으로 떨어질 때마다 순서대로 바뀐다(0=기본 청백). */
         private val METEOR_TINTS = arrayOf(

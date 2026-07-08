@@ -1327,56 +1327,67 @@ private enum GlobeBuilder {
         streakNode.opacity = 0
         streakNode.renderingOrder = -9 // 배경층(별밭 셸 다음, 지구보다 먼저 — 지구 뒤로 가려짐)
 
-        // ── 곡선 경로 파라미터 ──
-        // 화면 어디서든 나타나게 — 통과 지점을 화면 전역에 랜덤 배치
-        let sx = Float.random(in: -0.85...0.85) * kX
-        let sy = Float.random(in: -0.85...0.85) * kY
+        // ── 화면 기준 사선 횡단 경로(Android spawnMeteor 패리티) ──
+        // 좌우 어느 한쪽 화면 밖, 상단 ~10% 높이에서 출발해 반대쪽 화면 밖, 하단 50~90%로
+        // 빠져나간다(좌→우/우→좌 랜덤). 끝점이 화면 밖 → 중간 소멸 없이 퇴장으로만 사라진다.
         let midZ = camDist - depth              // 카메라(+z) 앞쪽(-z 방향)
-        // 화면면 방향 — 항상 아래쪽(수직 하강)~사선으로만, 위로 올라가는 방향은 배제.
-        let margin: Float = 0.20
-        let theta = Float.random(in: (.pi + margin)...(2 * .pi - margin))
-        let zc = Float.random(in: -0.55...0.55)
-        let tc = sqrt(1 - zc * zc)
-        let dx = cos(theta) * tc, dy = sin(theta) * tc, dz = zc
-        let travel = kY * Float.random(in: 1.0...1.7)
-        // 곡선 휨 — 진행 방향과 시선에 수직인 화면면 방향(dir×ẑ), 부호 랜덤
+        let leftToRight = Bool.random()
+        let xEdge = kX * 1.30                   // 화면 가장자리 살짝 밖(꼬리까지 퇴장 여유)
+        let x0: Float = leftToRight ? -xEdge : xEdge
+        let x1: Float = -x0
+        let fTop = Float.random(in: 0.06...0.14)   // 시작 = 상단 ~10%
+        let fEnd = Float.random(in: 0.50...0.90)   // 도착 = 하단 50~90%
+        let y0 = kY * (1 - 2 * fTop)
+        let y1 = kY * (1 - 2 * fEnd)
+        let z0 = midZ + Float.random(in: -0.15...0.15) * kY // 깊이 변화(원근, 작게)
+        let z1 = midZ - (z0 - midZ)
+        let dxv = x1 - x0, dyv = y1 - y0, dzv = z1 - z0
+        let travel = sqrt(dxv * dxv + dyv * dyv + dzv * dzv)
+        let dx = dxv / travel, dy = dyv / travel, dz = dzv / travel
+        // 아치 휨 — 진행 방향에 수직인 화면면 방향, 부호 랜덤. p(s)=p0+dir·len·s+perp·bend·4s(1-s)
         var px = dy, py = -dx
         let pl = sqrt(px * px + py * py)
-        if pl < 0.15 { px = 1; py = 0 } else { px /= pl; py /= pl }
+        if pl < 0.15 { px = 0; py = 1 } else { px /= pl; py /= pl }
         if Bool.random() { px = -px; py = -py }
-        let bend = travel * Float.random(in: 0.10...0.24)
-        let p0x = sx - dx * travel * 0.5 - px * bend * 0.25
-        let p0y = sy - dy * travel * 0.5 - py * bend * 0.25
-        let p0z = midZ - dz * travel * 0.5
+        let bend = travel * Float.random(in: 0.04...0.10)
         func pathAt(_ s: Float) -> SCNVector3 {
-            SCNVector3(p0x + dx * travel * s + px * bend * s * s,
-                       p0y + dy * travel * s + py * bend * s * s,
-                       p0z + dz * travel * s)
+            let arc = 4 * s * (1 - s)
+            return SCNVector3(x0 + dxv * s + px * bend * arc,
+                              y0 + dyv * s + py * bend * arc,
+                              z0 + dzv * s)
         }
         streakNode.position = pathAt(0)
         streakNode.eulerAngles = SCNVector3(0, 0, atan2(dy, dx))
 
-        // ── 잔류 스파클 — 월드 공간 방출이라 지나간 자리에 남아 반짝이다 사그라든다 ──
+        // ── 잔류 파장(wake) — 보트가 지나간 뒤의 물결처럼 5~10초 남아 일렁이다 사그라든다.
+        //    월드 공간 방출(isLocal=false)이라 지나간 자리에 그대로 남는다. ──
         let trail = SCNParticleSystem()
-        trail.birthRate = 90
-        trail.particleLifeSpan = 1.2
-        trail.particleLifeSpanVariation = 0.5
-        trail.particleSize = CGFloat(streak) * 0.09
-        trail.particleSizeVariation = CGFloat(streak) * 0.05
-        trail.particleVelocity = CGFloat(streak) * 0.10   // 살짝 흩어지는 파편
-        trail.particleVelocityVariation = CGFloat(streak) * 0.08
+        trail.birthRate = 60
+        trail.particleLifeSpan = 7.5
+        trail.particleLifeSpanVariation = 2.5      // 5~10초
+        trail.particleSize = CGFloat(streak) * 0.11
+        trail.particleSizeVariation = CGFloat(streak) * 0.06
+        trail.particleVelocity = CGFloat(streak) * 0.035  // 아주 천천히 벌어지는 물결
+        trail.particleVelocityVariation = CGFloat(streak) * 0.025
         trail.spreadingAngle = 180
         trail.particleImage = meteorSparkTexture
         trail.particleColor = UIColor(red: tint.0, green: tint.1, blue: tint.2, alpha: 1)
-        trail.particleColorVariation = SCNVector4(0.14, 0.30, 0.10, 0) // 색상·채도 흔들림 = 색색 반짝임
+        trail.particleColorVariation = SCNVector4(0.14, 0.30, 0.10, 0) // 색상·채도 흔들림 = 색색 물결
         trail.blendMode = .additive
         trail.isAffectedByGravity = false
         trail.isLocal = false // 핵심 — 파티클이 방출 지점(월드)에 남는다
-        // 수명 곡선 — 점화 후 서서히 사그라드는 잔광
+        // 수명 곡선 — 지나간 직후 피어오르고, 긴 시간 물결처럼 잦아든다
         let sparkFade = CAKeyframeAnimation()
-        sparkFade.values = [0.0, 1.0, 0.8, 0.0]
-        sparkFade.keyTimes = [0, 0.08, 0.45, 1]
-        trail.propertyControllers = [.opacity: SCNParticlePropertyController(animation: sparkFade)]
+        sparkFade.values = [0.0, 0.9, 0.55, 0.28, 0.0]
+        sparkFade.keyTimes = [0, 0.10, 0.45, 0.75, 1]
+        // 크기 곡선 — 파장이 퍼지듯 서서히 커진다
+        let sparkGrow = CABasicAnimation()
+        sparkGrow.fromValue = 0.7
+        sparkGrow.toValue = 1.7
+        trail.propertyControllers = [
+            .opacity: SCNParticlePropertyController(animation: sparkFade),
+            .size: SCNParticlePropertyController(animation: sparkGrow),
+        ]
         let emitter = SCNNode()
         emitter.position = streakNode.position
         emitter.addParticleSystem(trail)
@@ -1385,30 +1396,28 @@ private enum GlobeBuilder {
         container.addChildNode(streakNode)
         container.addChildNode(emitter)
 
-        let dur = Double.random(in: 0.9...1.6)
+        let dur = Double.random(in: 1.5...2.2)     // 화면 횡단(0→1) 시간
+        let sMax: Float = 1.2                      // 꼬리까지 화면 밖으로 완전히 퇴장
+        let total = dur * Double(sMax)
         // 곡선 이동 + 접선 정렬 + 머리 반짝임 — 매 프레임 갱신
-        let move = SCNAction.customAction(duration: dur) { _, elapsed in
-            let s = Float(elapsed) / Float(dur)
+        let move = SCNAction.customAction(duration: total) { _, elapsed in
+            let s = Float(elapsed) / Float(total) * sMax
             let p = pathAt(s)
             streakNode.position = p
-            emitter.position = p
-            let tx = dx * travel + px * 2 * bend * s
-            let ty = dy * travel + py * 2 * bend * s
+            if s <= 1.02 { emitter.position = p }  // 방출은 화면 안 구간에서만
+            let tx = dxv + px * bend * (4 - 8 * s)
+            let ty = dyv + py * bend * (4 - 8 * s)
             streakNode.eulerAngles = SCNVector3(0, 0, atan2(ty, tx))
             // 화려한 반짝임 — 머리 밝기가 고주파로 미세하게 떨린다
             let tw = 0.84 + 0.16 * sin(Double(s) * 46 + Double(tintIndex) * 1.7)
             streakNode.geometry?.firstMaterial?.transparency = CGFloat(tw)
         }
-        let fade = SCNAction.sequence([
-            .fadeIn(duration: dur * 0.12),
-            .wait(duration: dur * 0.58),
-            .fadeOut(duration: dur * 0.30),
-        ])
-        streakNode.runAction(fade)
+        // 중간 소멸 없음 — 빠르게 점화한 뒤 화면 밖 퇴장으로만 사라진다
+        streakNode.runAction(.fadeIn(duration: dur * 0.08))
         container.runAction(.sequence([
             move,
-            .run { _ in trail.birthRate = 0 }, // 방출 중단 — 잔류 스파클은 남아 사그라든다
-            .wait(duration: 2.0),              // 잔류 수명만큼 대기 후 정리
+            .run { _ in trail.birthRate = 0 }, // 방출 중단 — 잔류 파장은 남아 잦아든다
+            .wait(duration: 10.5),             // 파장 최대 수명만큼 대기 후 정리
             .removeFromParentNode(),
         ]))
         return (container, dur)
