@@ -108,14 +108,20 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var sunVbo = 0
     private var sunBuiltFrac = -1f      // 태양 스프라이트를 빌드한 시각(dayFrac) — 1분 넘게 지나면 재배치
 
-    /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전).
-     *  phase: 트레일별 파동 위상(불규칙성), intensity: 트레일별 투명도 차등(1=기준). */
+    /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전 + 자체적으로 지구를 중심으로 아주 천천히 공전).
+     *  phase: 트레일별 파동 위상(불규칙성), intensity: 트레일별 투명도 차등(1=기준).
+     *  orbitAxis/orbitDegPerSec: 트레일마다 고유한 축·속도로 계속 공전(사용자가 손을 떼도 멈추지 않음). */
     private class Trail(
         val vbo: Int, val count: Int,
         val colorA: FloatArray, val colorB: FloatArray,
         val speed: Float, val phase: Float, val intensity: Float,
+        val orbitAxis: FloatArray, val orbitDegPerSec: Float,
     )
     private val trails = ArrayList<Trail>()
+    // drawTrail 스크래치 행렬(프레임마다 재할당 방지)
+    private val trailOrbitM = FloatArray(16)
+    private val trailModelM = FloatArray(16)
+    private val trailMvpM = FloatArray(16)
 
     // ── 유성(별똥별) — 랜덤 간격으로 하늘을 곡선으로 가로지르는 빛줄기 + 잔류 스파클 ──
     private var meteorVbo = 0
@@ -306,11 +312,15 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
     }
 
-    /** 트레일 = 지구 좌표계 원호 리본 — uMVP(vp·model)로 그려 구와 함께 회전. */
+    /** 트레일 = 지구 좌표계 원호 리본 — uMVP(vp·model·ownOrbit)로 그려 구와 함께 회전하면서도,
+     *  자체 축을 중심으로 아주 천천히 추가 공전한다(사용자가 만지지 않아도 계속 돎). */
     private fun drawTrail(tr: Trail, t: Float) {
         if (tr.vbo == 0 || tr.count == 0) return
+        Matrix.setRotateM(trailOrbitM, 0, tr.orbitDegPerSec * t, tr.orbitAxis[0], tr.orbitAxis[1], tr.orbitAxis[2])
+        Matrix.multiplyMM(trailModelM, 0, model, 0, trailOrbitM, 0)
+        Matrix.multiplyMM(trailMvpM, 0, vp, 0, trailModelM, 0)
         GLES20.glUseProgram(ringProgram)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(ringProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(ringProgram, "uMVP"), 1, false, trailMvpM, 0)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uTime"), t)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uSpeed"), tr.speed)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uPhase"), tr.phase)
@@ -613,16 +623,19 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         meteorDir[0] = dx / meteorLen
         meteorDir[1] = dy / meteorLen
         meteorDir[2] = dz / meteorLen
-        // 아치 휨 — 진행 방향에 수직인 화면면 방향, 부호 랜덤(위로 불룩/아래로 불룩)
+        // 아치 휨 — 진행 방향에 수직인 화면면 방향. **항상 위쪽(+y)으로 불룩하게 고정**
+        // (부호를 랜덤으로 두면 절반은 "중력이 반대로 작용"하는 것처럼 보였음 — 실제 포물선은
+        //  초기엔 완만하다가 갈수록 가파르게 떨어지므로, 직선 경로 기준으로 항상 위로 볼록해야
+        //  "위에서 아래로 중력이 당기는" 자연스러운 낙하로 읽힌다).
         var px = meteorDir[1]
         var py = -meteorDir[0]
         val pl = kotlin.math.sqrt(px * px + py * py)
         if (pl < 0.15f) { px = 0f; py = 1f } else { px /= pl; py /= pl }
-        val sign = if (meteorRnd.nextBoolean()) 1f else -1f
-        meteorPerp[0] = px * sign
-        meteorPerp[1] = py * sign
+        if (py < 0f) { px = -px; py = -py } // 항상 +y 쪽으로
+        meteorPerp[0] = px
+        meteorPerp[1] = py
         meteorPerp[2] = 0f
-        meteorBend = meteorLen * (0.04f + meteorRnd.nextFloat() * 0.06f) // 완만한 아치
+        meteorBend = meteorLen * (0.05f + meteorRnd.nextFloat() * 0.07f) // 완만한 포물선
     }
 
     private fun drawSprites(
@@ -986,14 +999,15 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     g = br * (0.45f + 0.55f * tint[1]),
                     b = br * (0.45f + 0.55f * tint[2]),
                     a = 1f,
-                    size = 0.20f + rnd.nextFloat() * 0.08f,
+                    size = 0.14f + rnd.nextFloat() * 0.056f, // 기존보다 작게(0.20~0.28 → 0.14~0.196)
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
             for (seg in segments) {
                 for (i in intArrayOf(seg[0], seg[1])) {
                     constLines.addAll(pts[i].toList())
-                    constLines.add(tint[0] * 0.30f); constLines.add(tint[1] * 0.30f); constLines.add(tint[2] * 0.30f)
+                    // 연결선 밝기 50% 더 연하게(0.30 → 0.15)
+                    constLines.add(tint[0] * 0.15f); constLines.add(tint[1] * 0.15f); constLines.add(tint[2] * 0.15f)
                 }
             }
         }
@@ -1222,6 +1236,12 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             val sweep = 130f + rnd.nextFloat() * 150f
             val (vbo, count) = buildArc(radius, halfW, tiltX, tiltZ, start, sweep)
             val dir = if (rnd.nextBoolean()) 1f else -1f
+            // 공전 축 — 임의의 단위벡터(트레일마다 고유), 지구 자체 회전과는 별개로 계속 돈다.
+            val az = rnd.nextFloat() * 2f - 1f
+            val aAng = rnd.nextFloat() * 6.2832f
+            val ar = kotlin.math.sqrt(1f - az * az)
+            val orbitAxis = floatArrayOf(cos(aAng) * ar, az, sin(aAng) * ar)
+            val orbitSign = if (rnd.nextBoolean()) 1f else -1f
             trails.add(
                 Trail(
                     vbo, count,
@@ -1231,6 +1251,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     phase = rnd.nextFloat() * 6.2832f,
                     // 앞 2개만 기준 세기, 나머지는 훨씬 옅게 — 궤적이 많아 보이지 않게 위계를 준다
                     intensity = if (i < 2) 1f else 0.35f + rnd.nextFloat() * 0.25f,
+                    orbitAxis = orbitAxis,
+                    // 아주 천천히 — 한 바퀴에 6~14분(0.4~1.0 도/초)
+                    orbitDegPerSec = orbitSign * (0.4f + rnd.nextFloat() * 0.6f),
                 )
             )
         }
@@ -1426,10 +1449,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val CLOUD_DRIFT = 0.0035f // 구름 경도 드리프트 속도(rev/s — 한 바퀴 ≈ 4.8분)
 
         /** 유성 — 꼬리 스프라이트 수 / 확률 판정 주기(초) / 판정 성공 확률 / 꼬리 길이(경로 비율). */
-        private const val METEOR_SPRITES = 22
+        private const val METEOR_SPRITES = 34
         private const val METEOR_ROLL_INTERVAL = 30f
         private const val METEOR_SPAWN_CHANCE = 0.25f
-        private const val METEOR_TAIL_FRAC = 0.15f
+        private const val METEOR_TAIL_FRAC = 0.30f // 더 길게(기존 0.15f 대비 2배)
 
         /** 잔류 파장(wake) — 초당 방출 수 / 최대 동시 수 / 수명(초, 5~10초 물결 잔광). */
         private const val SPARK_RATE = 60f

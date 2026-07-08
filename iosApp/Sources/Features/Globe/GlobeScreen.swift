@@ -905,10 +905,11 @@ private enum GlobeBuilder {
                             CGPoint(x: center.x + (p.0 * cosR - p.1 * sinR) * s,
                                     y: center.y - (p.0 * sinR + p.1 * cosR) * s)
                         }
+                        // 연결선 50% 더 연하게(0.26 → 0.13), 별 자체도 더 작게(반지름 2.2 → 1.6)
                         cg.setBlendMode(.plusLighter)
-                        cg.setStrokeColor(UIColor(red: tint.0 * 0.26, green: tint.1 * 0.26,
-                                                  blue: tint.2 * 0.26, alpha: 1).cgColor)
-                        cg.setLineWidth(1.3)
+                        cg.setStrokeColor(UIColor(red: tint.0 * 0.13, green: tint.1 * 0.13,
+                                                  blue: tint.2 * 0.13, alpha: 1).cgColor)
+                        cg.setLineWidth(1.1)
                         for s in segments {
                             cg.move(to: pts[s.0]); cg.addLine(to: pts[s.1]); cg.strokePath()
                         }
@@ -916,7 +917,7 @@ private enum GlobeBuilder {
                             let br = (0.55 + rnd() * 0.25) * 0.88 // 배경보다 또렷한 밝기 + 궁별 틴트
                             UIColor(red: br * (0.45 + 0.55 * tint.0), green: br * (0.45 + 0.55 * tint.1),
                                     blue: br * (0.45 + 0.55 * tint.2), alpha: 1).setFill()
-                            cg.fillEllipse(in: CGRect(x: p.x - 2.2, y: p.y - 2.2, width: 4.4, height: 4.4))
+                            cg.fillEllipse(in: CGRect(x: p.x - 1.6, y: p.y - 1.6, width: 3.2, height: 3.2))
                         }
                     }
                     // 12궁 — equirect(2048×1024) 상 경도 30°씩 + 위도 4단 사이클로 골고루 분산
@@ -1100,9 +1101,21 @@ private enum GlobeBuilder {
             let speed = dir * (0.030 + Double(rnd()) * 0.040) // 느긋하지만 흐름이 느껴지는 속도
             // 앞 2개만 기준 세기, 나머지는 훨씬 옅게 — 궤적이 많아 보이지 않게 위계를 준다
             let intensity = i < 2 ? 1.0 : 0.35 + Double(rnd()) * 0.25
-            return trailNode(radius: radius, halfWidth: halfW, tiltX: tiltX, tiltZ: tiltZ,
-                             startDeg: start, sweepDeg: sweep, colors: palette[i % palette.count],
-                             phase: phase, speed: speed, intensity: intensity)
+            let node = trailNode(radius: radius, halfWidth: halfW, tiltX: tiltX, tiltZ: tiltZ,
+                                 startDeg: start, sweepDeg: sweep, colors: palette[i % palette.count],
+                                 phase: phase, speed: speed, intensity: intensity)
+            // 자체 공전 — 지구/컨테이너 회전과는 별개로 트레일이 지구를 중심으로 아주 천천히
+            // 계속 돈다(사용자가 손을 떼도 멈추지 않음). 축은 트레일마다 고유, 한 바퀴 6~15분.
+            // (Android drawTrail 의 orbitAxis/orbitDegPerSec 패리티)
+            let az = rnd() * 2 - 1
+            let aAng = Double(rnd()) * 2 * .pi
+            let ar = sqrt(max(0, 1 - az * az))
+            let axis = SCNVector3(cos(Float(aAng)) * ar, az, sin(Float(aAng)) * ar)
+            let period = Double(360) / Double(0.4 + rnd() * 0.6) // 도/초 0.4~1.0 → 360~900초
+            let sign: CGFloat = rnd() < 0.5 ? 1 : -1
+            let orbit = SCNAction.rotate(by: sign * 2 * .pi, around: axis, duration: period)
+            node.runAction(.repeatForever(orbit))
+            return node
         }
     }
 
@@ -1314,7 +1327,7 @@ private enum GlobeBuilder {
         let kY = depth * 0.384                 // tan(FOV 42°/2) ≈ 그 깊이에서 화면 세로 반높이
         let bounds = UIScreen.main.bounds
         let kX = kY * Float(bounds.width / max(bounds.height, 1))
-        let streak = kY * Float.random(in: 0.17...0.25) // 스트릭 길이
+        let streak = kY * Float.random(in: 0.34...0.50) // 스트릭 길이(기존 대비 2배 — 더 길게)
         let plane = SCNPlane(width: CGFloat(streak), height: CGFloat(streak) * 0.10)
         let material = SCNMaterial()
         material.lightingModel = .constant
@@ -1344,12 +1357,15 @@ private enum GlobeBuilder {
         let dxv = x1 - x0, dyv = y1 - y0, dzv = z1 - z0
         let travel = sqrt(dxv * dxv + dyv * dyv + dzv * dzv)
         let dx = dxv / travel, dy = dyv / travel, dz = dzv / travel
-        // 아치 휨 — 진행 방향에 수직인 화면면 방향, 부호 랜덤. p(s)=p0+dir·len·s+perp·bend·4s(1-s)
+        // 아치 휨 — 진행 방향에 수직인 화면면 방향. **항상 위쪽(+y)으로 불룩하게 고정**(Android
+        // spawnMeteor 패리티) — 부호를 랜덤으로 두면 절반은 "중력이 반대로" 보였다. 실제 포물선은
+        // 초반엔 완만하다가 갈수록 가파르게 떨어지므로, 직선 경로 기준 항상 위로 볼록해야
+        // "위에서 아래로 중력이 당기는" 자연스러운 낙하로 읽힌다. p(s)=p0+dir·len·s+perp·bend·4s(1-s)
         var px = dy, py = -dx
         let pl = sqrt(px * px + py * py)
         if pl < 0.15 { px = 0; py = 1 } else { px /= pl; py /= pl }
-        if Bool.random() { px = -px; py = -py }
-        let bend = travel * Float.random(in: 0.04...0.10)
+        if py < 0 { px = -px; py = -py } // 항상 +y 쪽으로
+        let bend = travel * Float.random(in: 0.05...0.12)
         func pathAt(_ s: Float) -> SCNVector3 {
             let arc = 4 * s * (1 - s)
             return SCNVector3(x0 + dxv * s + px * bend * arc,
@@ -1397,7 +1413,9 @@ private enum GlobeBuilder {
         container.addChildNode(emitter)
 
         let dur = Double.random(in: 1.5...2.2)     // 화면 횡단(0→1) 시간
-        let sMax: Float = 1.2                      // 꼬리까지 화면 밖으로 완전히 퇴장
+        // 꼬리(streak)까지 화면 밖으로 완전히 퇴장할 만큼 s 를 더 진행시킨다.
+        // (꼬리가 길어질수록 더 멀리 가야 완전히 빠져나간다 — Android METEOR_TAIL_FRAC 패리티)
+        let sMax: Float = 1 + streak / travel + 0.08
         let total = dur * Double(sMax)
         // 곡선 이동 + 접선 정렬 + 머리 반짝임 — 매 프레임 갱신
         let move = SCNAction.customAction(duration: total) { _, elapsed in
