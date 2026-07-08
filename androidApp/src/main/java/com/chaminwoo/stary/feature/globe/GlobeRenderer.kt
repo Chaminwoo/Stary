@@ -108,20 +108,14 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var sunVbo = 0
     private var sunBuiltFrac = -1f      // 태양 스프라이트를 빌드한 시각(dayFrac) — 1분 넘게 지나면 재배치
 
-    /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전 + 자체적으로 지구를 중심으로 아주 천천히 공전).
-     *  phase: 트레일별 파동 위상(불규칙성), intensity: 트레일별 투명도 차등(1=기준).
-     *  orbitAxis/orbitDegPerSec: 트레일마다 고유한 축·속도로 계속 공전(사용자가 손을 떼도 멈추지 않음). */
+    /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전).
+     *  phase: 트레일별 파동 위상(불규칙성), intensity: 트레일별 투명도 차등(1=기준). */
     private class Trail(
         val vbo: Int, val count: Int,
         val colorA: FloatArray, val colorB: FloatArray,
         val speed: Float, val phase: Float, val intensity: Float,
-        val orbitAxis: FloatArray, val orbitDegPerSec: Float,
     )
     private val trails = ArrayList<Trail>()
-    // drawTrail 스크래치 행렬(프레임마다 재할당 방지)
-    private val trailOrbitM = FloatArray(16)
-    private val trailModelM = FloatArray(16)
-    private val trailMvpM = FloatArray(16)
 
     // ── 유성(별똥별) — 랜덤 간격으로 하늘을 곡선으로 가로지르는 빛줄기 + 잔류 스파클 ──
     private var meteorVbo = 0
@@ -312,15 +306,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
     }
 
-    /** 트레일 = 지구 좌표계 원호 리본 — uMVP(vp·model·ownOrbit)로 그려 구와 함께 회전하면서도,
-     *  자체 축을 중심으로 아주 천천히 추가 공전한다(사용자가 만지지 않아도 계속 돎). */
+    /** 트레일 = 지구 좌표계 원호 리본 — uMVP(vp·model)로 그려 구와 함께 회전. */
     private fun drawTrail(tr: Trail, t: Float) {
         if (tr.vbo == 0 || tr.count == 0) return
-        Matrix.setRotateM(trailOrbitM, 0, tr.orbitDegPerSec * t, tr.orbitAxis[0], tr.orbitAxis[1], tr.orbitAxis[2])
-        Matrix.multiplyMM(trailModelM, 0, model, 0, trailOrbitM, 0)
-        Matrix.multiplyMM(trailMvpM, 0, vp, 0, trailModelM, 0)
         GLES20.glUseProgram(ringProgram)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(ringProgram, "uMVP"), 1, false, trailMvpM, 0)
+        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(ringProgram, "uMVP"), 1, false, mvp, 0)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uTime"), t)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uSpeed"), tr.speed)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uPhase"), tr.phase)
@@ -1236,12 +1226,6 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             val sweep = 130f + rnd.nextFloat() * 150f
             val (vbo, count) = buildArc(radius, halfW, tiltX, tiltZ, start, sweep)
             val dir = if (rnd.nextBoolean()) 1f else -1f
-            // 공전 축 — 임의의 단위벡터(트레일마다 고유), 지구 자체 회전과는 별개로 계속 돈다.
-            val az = rnd.nextFloat() * 2f - 1f
-            val aAng = rnd.nextFloat() * 6.2832f
-            val ar = kotlin.math.sqrt(1f - az * az)
-            val orbitAxis = floatArrayOf(cos(aAng) * ar, az, sin(aAng) * ar)
-            val orbitSign = if (rnd.nextBoolean()) 1f else -1f
             trails.add(
                 Trail(
                     vbo, count,
@@ -1251,9 +1235,6 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     phase = rnd.nextFloat() * 6.2832f,
                     // 앞 2개만 기준 세기, 나머지는 훨씬 옅게 — 궤적이 많아 보이지 않게 위계를 준다
                     intensity = if (i < 2) 1f else 0.35f + rnd.nextFloat() * 0.25f,
-                    orbitAxis = orbitAxis,
-                    // 아주 천천히 — 한 바퀴에 6~14분(0.4~1.0 도/초)
-                    orbitDegPerSec = orbitSign * (0.4f + rnd.nextFloat() * 0.6f),
                 )
             )
         }

@@ -1101,21 +1101,9 @@ private enum GlobeBuilder {
             let speed = dir * (0.030 + Double(rnd()) * 0.040) // 느긋하지만 흐름이 느껴지는 속도
             // 앞 2개만 기준 세기, 나머지는 훨씬 옅게 — 궤적이 많아 보이지 않게 위계를 준다
             let intensity = i < 2 ? 1.0 : 0.35 + Double(rnd()) * 0.25
-            let node = trailNode(radius: radius, halfWidth: halfW, tiltX: tiltX, tiltZ: tiltZ,
-                                 startDeg: start, sweepDeg: sweep, colors: palette[i % palette.count],
-                                 phase: phase, speed: speed, intensity: intensity)
-            // 자체 공전 — 지구/컨테이너 회전과는 별개로 트레일이 지구를 중심으로 아주 천천히
-            // 계속 돈다(사용자가 손을 떼도 멈추지 않음). 축은 트레일마다 고유, 한 바퀴 6~15분.
-            // (Android drawTrail 의 orbitAxis/orbitDegPerSec 패리티)
-            let az = rnd() * 2 - 1
-            let aAng = Double(rnd()) * 2 * .pi
-            let ar = sqrt(max(0, 1 - az * az))
-            let axis = SCNVector3(cos(Float(aAng)) * ar, az, sin(Float(aAng)) * ar)
-            let period = Double(360) / Double(0.4 + rnd() * 0.6) // 도/초 0.4~1.0 → 360~900초
-            let sign: CGFloat = rnd() < 0.5 ? 1 : -1
-            let orbit = SCNAction.rotate(by: sign * 2 * .pi, around: axis, duration: period)
-            node.runAction(.repeatForever(orbit))
-            return node
+            return trailNode(radius: radius, halfWidth: halfW, tiltX: tiltX, tiltZ: tiltZ,
+                             startDeg: start, sweepDeg: sweep, colors: palette[i % palette.count],
+                             phase: phase, speed: speed, intensity: intensity)
         }
     }
 
