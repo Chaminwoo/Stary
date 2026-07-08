@@ -22,7 +22,6 @@ struct SettingsScreen: View {
                     glassCard {
                         toggleRow(icon: "music.note",
                                   label: locale.t(.settingsBgm1),
-                                  description: locale.t(.settingsBgmDesc),
                                   isOn: music.enabled) { music.setActive($0) }
                         divider
                         volumeRow(label: locale.t(.settingsBgmVolume),
@@ -171,13 +170,15 @@ struct SettingsScreen: View {
             .overlay(Circle().strokeBorder(active ? Theme.mint.opacity(0.35) : Color.white.opacity(0.08), lineWidth: 1))
     }
 
-    private func toggleRow(icon: String, label: String, description: String,
+    private func toggleRow(icon: String, label: String, description: String? = nil,
                            isOn: Bool, onChange: @escaping (Bool) -> Void) -> some View {
         HStack(spacing: 14) {
             iconBadge(icon, active: isOn)
             VStack(alignment: .leading, spacing: 2) {
                 Text(label).foregroundStyle(Theme.textPrimary)
-                Text(description).font(.caption2).foregroundStyle(Theme.textSecondary)
+                if let description {
+                    Text(description).font(.caption2).foregroundStyle(Theme.textSecondary)
+                }
             }
             Spacer()
             Toggle("", isOn: Binding(get: { isOn }, set: { onChange($0) }))

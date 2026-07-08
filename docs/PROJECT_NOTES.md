@@ -31,7 +31,10 @@
 
 ## 8.36-iOS CI 그린 복구 (CI(macOS) BUILD SUCCESS `25232a6`, 2026-07-08)
 - **7/7부터 iOS CI 레드**였던 원인 1건: `SettingsScreen.swift:24` — BGM 토글 `toggleRow(...)` 호출에 필수 `description` 인자 누락(컴파일 에러).
-  → `L10n.settingsBgmDesc` 키 추가(ko "별들 사이를 떠다니는 우주의 소리" / en / ja — Android `settings_bgm_desc` 패리티) 후 전달.
+  → 최초엔 `L10n.settingsBgmDesc` 키를 추가해 문구를 채워 넣었으나(`25232a6`), **BGM 설명 문구는 사용자가 의도적으로 지운 것**이었음 —
+  잘못된 방향이라 되돌림. **올바른 수정**: Android `ToggleRow`가 원래 `description: String? = null`(옵셔널)로 설계돼 있던 것과 동일하게
+  iOS `toggleRow`도 `description: String? = nil`로 바꾸고, BGM 행은 description 을 아예 전달하지 않도록 정정(`L10n.settingsBgmDesc` 케이스 삭제).
+  Android 쪽도 `settings_bgm_desc` 문자열 리소스(ko/en/ja)와 `ToggleRow` 호출의 description 전달을 함께 제거해 완전히 지움.
 - `BoomerangCaptureView.swift` 완료 버튼 문구 "이 장면 사용" → **"자르기 완료"** (Android `boomer_use` 패리티, `13c674b`).
 - CI 로그 확인 요령(이번에 확립): 레포 public → `git credential fill` 토큰으로 GitHub API 인증 →
   `/actions/workflows/ios.yml/runs?head_sha=<full sha>` 로 상태, `/actions/runs/<id>/logs`(zip) 로 에러 검색. `gh` CLI 는 미설치.

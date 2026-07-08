@@ -28,7 +28,6 @@
     <string name="settings_notification">알림</string>
     <string name="settings_language">언어</string>
     <string name="settings_bgm">배경음악</string>
-    <string name="settings_bgm_desc">별들 사이를 떠다니는 우주의 소리</string>
     <string name="settings_bgm_volume">배경음악 볼륨</string>
     <string name="settings_sfx_volume">효과음 볼륨</string>
     <string name="settings_notif_popup">알림 팝업</string>

@@ -130,7 +130,6 @@ fun SettingsScreen(
                 ToggleRow(
                     icon = Icons.Filled.MusicNote,
                     label = stringResource(R.string.settings_bgm),
-                    description = stringResource(R.string.settings_bgm_desc),
                     checked = MusicManager.enabled,
                     onCheckedChange = { MusicManager.setActive(it) }
                 )

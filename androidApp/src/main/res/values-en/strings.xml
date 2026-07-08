@@ -26,7 +26,6 @@
     <string name="settings_notification">Notifications</string>
     <string name="settings_language">Language</string>
     <string name="settings_bgm">Background music</string>
-    <string name="settings_bgm_desc">Cosmic sounds drifting among the stars</string>
     <string name="settings_bgm_volume">Music volume</string>
     <string name="settings_sfx_volume">Sound effects volume</string>
     <string name="settings_notif_popup">Notification banners</string>

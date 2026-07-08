@@ -26,7 +26,6 @@
     <string name="settings_notification">通知</string>
     <string name="settings_language">言語</string>
     <string name="settings_bgm">BGM</string>
-    <string name="settings_bgm_desc">星々の間を漂う宇宙の音</string>
     <string name="settings_bgm_volume">BGMの音量</string>
     <string name="settings_sfx_volume">効果音の音量</string>
     <string name="settings_notif_popup">通知バナー</string>
