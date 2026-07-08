@@ -4,6 +4,7 @@
 코드 구조·분석 내용은 [`docs/PROJECT_NOTES.md`](docs/PROJECT_NOTES.md) 에 정리되어 있으니
 작업 시작 전 그 파일부터 읽으면 코드를 처음부터 다시 읽지 않아도 된다.
 기능 개발 로드맵/체크리스트는 [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md) 참고(초기 셋업은 완료됨).
+실기기(Android USB / iOS TestFlight) 테스트 방법은 [`docs/DEVICE_TESTING.md`](docs/DEVICE_TESTING.md) 참고.
 
 ---
 
