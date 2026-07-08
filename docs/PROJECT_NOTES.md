@@ -49,7 +49,7 @@
   - 포물선 휨 부호가 랜덤이라 절반은 "중력이 반대로 작용"하는 것처럼 보였던 버그 수정 — perp 벡터를 **항상 +y(화면 위쪽)** 로 고정(초반 완만→후반 급락하는 실제 포물선 모양). iOS 도 동일(`if py < 0 { px=-px; py=-py }`).
   - 꼬리 길이 2배: 안드 `METEOR_TAIL_FRAC 0.15→0.30` + `METEOR_SPRITES 22→34`, iOS `streak 0.17~0.25→0.34~0.50`. iOS 퇴장 여유 `sMax`를 `1+streak/travel+0.08`로 꼬리 비율에 비례하게 재계산(꼬리까지 화면 밖으로 완전히 나갈 때까지 유지).
   - 별자리 축소·연하게: 별 크기 -30%(안드 0.20~0.28→0.14~0.196 / iOS 반지름 2.2→1.6), 연결선 밝기 -50%(안드 0.30→0.15 / iOS 0.26→0.13).
-  - **트레일 자체 공전**: `Trail`에 `orbitAxis`(랜덤 단위벡터)·`orbitDegPerSec`(0.4~1.0°/s, 부호 랜덤 → 한 바퀴 6~15분) 필드 추가. 안드 `drawTrail`이 매 프레임 `trailMvp = vp·model·rotate(orbitDegPerSec·t, orbitAxis)`로 지구 자체 회전(model)과 별개의 추가 공전을 곱함(스크래치 행렬 재사용, GC 없음). iOS는 `trailNodes()`에서 각 노드에 `SCNAction.rotate(by:around:duration:)`를 `repeatForever`로 실행 — 컨테이너(지구) 회전에 얹혀 계속 자체 공전.
+  - **트레일 자체 공전 — 추가했다가 롤백(`6b1950e`)**: `Trail.orbitAxis/orbitDegPerSec` + 안드 `drawTrail`의 `trailMvp = vp·model·rotate(...)` + iOS `trailNodes()`의 `SCNAction.rotate(repeatForever)`로 지구 자체 회전과 별개의 공전을 구현했으나, 사용자가 "지구 궤적은 이전 버전으로 롤백"을 요청 → 다시 `uMVP=vp·model`(지구 자체 회전에만 종속)로 원복. 트레일은 지구를 드래그하거나 3초 이상 무입력 자동 회전이 걸릴 때만 같이 돈다(기존 동작). 유성 중력 방향 고정/꼬리 2배, 별자리 축소·연하게는 유지.
 
 ---
 
