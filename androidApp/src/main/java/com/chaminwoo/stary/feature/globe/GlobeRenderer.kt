@@ -750,10 +750,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 )
             }
         }
-        // 레퍼런스(references/은하수.jpg)의 "별이 가득한 하늘" — 셸 밀도 상향
-        addShell(radius = 12f, count = 460, sizeBase = 0.018f, sizeVar = 0.062f, brightMul = 1.00f) // 근경
-        addShell(radius = 22f, count = 900, sizeBase = 0.028f, sizeVar = 0.100f, brightMul = 0.76f) // 중경
-        addShell(radius = 38f, count = 1400, sizeBase = 0.042f, sizeVar = 0.140f, brightMul = 0.56f) // 원경
+        // 레퍼런스(references/은하수.jpg)의 "별이 가득한 하늘" — 셸 밀도 상향.
+        // 렌더 범위: far plane 100, 카메라 최대 9.5 → 최원거리 요소(은하수 40.5)도 ≈50 — 전부 범위 내.
+        // 원근감: 멀리 있는 셸일수록 별의 월드 크기를 "작게"(과거엔 크게 줘 원근을 상쇄했었음)
+        //         → 가까운 별은 굵고 또렷, 먼 별은 잘게 반짝여 깊이가 읽힌다.
+        addShell(radius = 12f, count = 460, sizeBase = 0.022f, sizeVar = 0.070f, brightMul = 1.00f) // 근경 — 굵게
+        addShell(radius = 22f, count = 900, sizeBase = 0.026f, sizeVar = 0.088f, brightMul = 0.76f) // 중경
+        addShell(radius = 38f, count = 1400, sizeBase = 0.032f, sizeVar = 0.105f, brightMul = 0.56f) // 원경 — 잘게
         // 원경 너머 아주 어두운 성운 글로우 — 배경에 색 온도와 깊이(도형이 아니라 '공간'으로 읽히게).
         // 레퍼런스의 짙푸른 하늘을 위해 인디고·블루 워시를 추가.
         val nebulaColors = arrayOf(
@@ -905,7 +908,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 addSprite(
                     list, p = bandPoint(39f, spread, ang),
                     r = br * tr, g = br * tg, b = br * tb, a = 1f,
-                    size = 0.028f + rnd.nextFloat() * rnd.nextFloat() * 0.11f,
+                    // 최소 크기를 살짝 키워 원거리(≈48)에서도 알갱이가 보이게(렌더 범위 확인 라운드)
+                    size = 0.032f + rnd.nextFloat() * rnd.nextFloat() * 0.11f,
                     phase = rnd.nextFloat(), mode = 1f,
                 )
             }
@@ -931,7 +935,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             centerLat: Double, centerLng: Double, scaleDeg: Float, rollDeg: Float,
             tint: FloatArray, points: Array<FloatArray>, segments: Array<IntArray>,
         ) {
-            val radius = 36f
+            // 42 = 사용자 요청 "지금보다 조금 멀리" (36 → 42, far plane 100 내).
+            // 각도 기반 배치라 모양은 그대로, 원근으로 별·선이 살짝 작아져 하늘에 녹아든다.
+            val radius = 42f
             val c = latLngToXyz(centerLat, centerLng, 1f)
             val east = norm3(cross3(floatArrayOf(0f, 1f, 0f), c)) // 접평면 기저
             val north = norm3(cross3(c, east))

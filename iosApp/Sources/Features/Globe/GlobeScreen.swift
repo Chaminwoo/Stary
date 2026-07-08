@@ -743,7 +743,7 @@ private enum GlobeBuilder {
             return CGFloat(seed % 10_000) / 10_000
         }
 
-        func shellImage(count: Int, brightMul: CGFloat, nebula: Bool) -> UIImage {
+        func shellImage(count: Int, brightMul: CGFloat, sizeMul: CGFloat, nebula: Bool) -> UIImage {
             UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: format).image { ctx in
                 UIColor.black.setFill()
                 ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
@@ -896,23 +896,27 @@ private enum GlobeBuilder {
                     func constellation(center: CGPoint, scale: CGFloat, roll: CGFloat,
                                        tint: (CGFloat, CGFloat, CGFloat),
                                        points: [(CGFloat, CGFloat)], segments: [(Int, Int)]) {
+                        // "지금보다 조금 멀리" — Android 반지름 36→42 패리티: 모양은 유지하고
+                        // 스케일·점·선을 ~14% 줄이고 살짝 어둡게 해 더 먼 하늘로 읽히게 한다.
+                        let far: CGFloat = 0.86
+                        let s = scale * far
                         let cosR = cos(roll), sinR = sin(roll)
                         let pts = points.map { p in
-                            CGPoint(x: center.x + (p.0 * cosR - p.1 * sinR) * scale,
-                                    y: center.y - (p.0 * sinR + p.1 * cosR) * scale)
+                            CGPoint(x: center.x + (p.0 * cosR - p.1 * sinR) * s,
+                                    y: center.y - (p.0 * sinR + p.1 * cosR) * s)
                         }
                         cg.setBlendMode(.plusLighter)
-                        cg.setStrokeColor(UIColor(red: tint.0 * 0.30, green: tint.1 * 0.30,
-                                                  blue: tint.2 * 0.30, alpha: 1).cgColor)
-                        cg.setLineWidth(1.5)
+                        cg.setStrokeColor(UIColor(red: tint.0 * 0.26, green: tint.1 * 0.26,
+                                                  blue: tint.2 * 0.26, alpha: 1).cgColor)
+                        cg.setLineWidth(1.3)
                         for s in segments {
                             cg.move(to: pts[s.0]); cg.addLine(to: pts[s.1]); cg.strokePath()
                         }
                         for p in pts {
-                            let br = 0.55 + rnd() * 0.25 // 배경보다 또렷한 밝기 + 궁별 틴트
+                            let br = (0.55 + rnd() * 0.25) * 0.88 // 배경보다 또렷한 밝기 + 궁별 틴트
                             UIColor(red: br * (0.45 + 0.55 * tint.0), green: br * (0.45 + 0.55 * tint.1),
                                     blue: br * (0.45 + 0.55 * tint.2), alpha: 1).setFill()
-                            cg.fillEllipse(in: CGRect(x: p.x - 2.6, y: p.y - 2.6, width: 5.2, height: 5.2))
+                            cg.fillEllipse(in: CGRect(x: p.x - 2.2, y: p.y - 2.2, width: 4.4, height: 4.4))
                         }
                     }
                     // 12궁 — equirect(2048×1024) 상 경도 30°씩 + 위도 4단 사이클로 골고루 분산
@@ -1027,7 +1031,8 @@ private enum GlobeBuilder {
                     // 은은한 밝기 상한 — 배경은 깊이감만 주고 지구/별 플레어가 주인공이 되게
                     let bright = (0.15 + rnd() * 0.68) * brightMul
                     let big = rnd()
-                    let r = 0.8 + big * big * 2.6 // 대부분 잔별, 소수만 크게
+                    // sizeMul: 먼 셸일수록 작게 — 원근감(Android 셸 sizeBase 차등 패리티)
+                    let r = (0.8 + big * big * 2.6) * sizeMul // 대부분 잔별, 소수만 크게
                     UIColor(
                         red: bright * (0.85 + 0.15 * warm),
                         green: bright * (0.85 + 0.10 * warm),
@@ -1039,12 +1044,12 @@ private enum GlobeBuilder {
             }
         }
 
-        func shell(radius: CGFloat, count: Int, brightMul: CGFloat, nebula: Bool, order: Int) -> SCNNode {
+        func shell(radius: CGFloat, count: Int, brightMul: CGFloat, sizeMul: CGFloat, nebula: Bool, order: Int) -> SCNNode {
             let sphere = SCNSphere(radius: radius)
             sphere.segmentCount = 32
             let material = SCNMaterial()
             material.lightingModel = .constant
-            material.diffuse.contents = shellImage(count: count, brightMul: brightMul, nebula: nebula)
+            material.diffuse.contents = shellImage(count: count, brightMul: brightMul, sizeMul: sizeMul, nebula: nebula)
             material.blendMode = .add          // 검정 배경 = 투명
             material.cullMode = .front         // 구 안쪽 면을 렌더
             material.writesToDepthBuffer = false
@@ -1055,10 +1060,11 @@ private enum GlobeBuilder {
         }
 
         return [
-            // 레퍼런스(references/은하수.jpg)의 "별이 가득한 하늘" — 셸 밀도 상향(Android 패리티)
-            shell(radius: 12, count: 460, brightMul: 1.00, nebula: false, order: -12), // 근경 — 시차 큼
-            shell(radius: 22, count: 900, brightMul: 0.76, nebula: false, order: -11), // 중경
-            shell(radius: 38, count: 1400, brightMul: 0.56, nebula: true, order: -10), // 원경 + 성운/은하수
+            // 레퍼런스(references/은하수.jpg)의 "별이 가득한 하늘" — 셸 밀도 상향(Android 패리티).
+            // sizeMul: 먼 셸일수록 별을 작게 그려 원근감(가까움=굵고 또렷 / 멂=잘게 반짝).
+            shell(radius: 12, count: 460, brightMul: 1.00, sizeMul: 1.15, nebula: false, order: -12), // 근경
+            shell(radius: 22, count: 900, brightMul: 0.76, sizeMul: 0.95, nebula: false, order: -11), // 중경
+            shell(radius: 38, count: 1400, brightMul: 0.56, sizeMul: 0.75, nebula: true, order: -10), // 원경 + 은하수
         ]
     }
 
