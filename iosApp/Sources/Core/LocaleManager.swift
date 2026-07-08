@@ -58,7 +58,7 @@ final class LocaleManager: ObservableObject {
 enum L10n: String {
     case navSettings
     case settingsSound, settingsNotification, settingsLanguage
-    case settingsBgm1, settingsBgmVolume, settingsSfxVolume
+    case settingsBgm1, settingsBgmDesc, settingsBgmVolume, settingsSfxVolume
     case settingsNotifPopup, settingsNotifPopupDesc, settingsLanguageDesc, settingsAutosave
     case languageDialogTitle, languageSystem, languageKo, languageEn, languageJa
     case tabMap, tabList, tabUpload, tabFriends, tabProfile
@@ -106,6 +106,7 @@ enum L10n: String {
         case .settingsNotification: return ("알림", "Notifications", "通知")
         case .settingsLanguage:     return ("언어", "Language", "言語")
         case .settingsBgm1:         return ("배경음악", "Background music", "BGM")
+        case .settingsBgmDesc:      return ("별들 사이를 떠다니는 우주의 소리", "Cosmic sounds drifting among the stars", "星々の間を漂う宇宙の音")
         case .settingsBgmVolume:    return ("배경음악 볼륨", "Music volume", "BGMの音量")
         case .settingsSfxVolume:    return ("효과음 볼륨", "Sound effects volume", "効果音の音量")
         case .settingsNotifPopup:   return ("알림 팝업", "Notification banners", "通知バナー")
