@@ -3,8 +3,11 @@
 > 작성: 2026-07-08. 기존 `storyboard.md`(씬 구성) + `STARY_commercial_master.md`(Veo용 프롬프트)를
 > **Seedance 2.0 전용**으로 계승·확장한 문서. 이 파일 하나로 "무엇을, 어떤 순서로, 어떤 프롬프트로" 전부 해결.
 >
-> 현재 확보 자산: `scene1~8.png`(스틸), `영상/scene1~3.mp4`(생성 완료 컷), `min_zoom.png`(앱 글로브 실화면),
-> `은하수.jpg`(글로브 은하수 레퍼런스), 앱 BGM 6트랙(`raw/bgm_*.mp3`).
+> 현재 확보 자산: `scene1~4, 6-1~4, 7.png`(스틸 — **scene5·scene8 은 품질 문제로 삭제됨, 해당 컷은 프롬프트-온리로 생성**),
+> `영상/scene1~3.mp4`(생성 완료 컷), `min_zoom.png`(앱 글로브 실화면), `은하수.jpg`(글로브 은하수 레퍼런스), 앱 BGM 6트랙(`raw/bgm_*.mp3`).
+>
+> **개정(2026-07-08 2차)**: ① 모든 클립 **5초 단위 생성**(편집에서 컷다운) ② S5·S7 은 이미지 없이/레퍼런스만으로 생성
+> ③ S5→S6 은 "전환"이 아니라 **노란(골드) 별 속으로 들어가면 그 금빛 안에서 회상이 열리는 연속 샷**으로 연결.
 
 ---
 
@@ -12,13 +15,13 @@
 
 | 질문 | 결정 | 이유 |
 |---|---|---|
-| 이미지로 만들까, 텍스트로 만들까? | **이미지 기반(i2v) — 씬마다 첫 프레임 이미지 1장 + @레퍼런스** | 이미 고퀄 스틸 8장 확보(비주얼 복권 없음), 인물·장소 일관성, Seedance 2.0 멀티레퍼런스가 i2v에서 가장 강함 |
+| 이미지로 만들까, 텍스트로 만들까? | **기본 i2v(첫 프레임/레퍼런스) + S5·S7 만 프롬프트-온리** | 확보 스틸은 그대로 활용(인물·장소 일관성), 스틸이 구린 컷(구 scene5·scene8)은 이미지에 발목 잡히지 말고 텍스트 주도로 |
 | 화면 안에 글자(카피)를 생성할까? | **절대 금지 → 후반 편집(CapCut/프리미어)에서 얹기** | AI 생성 한글은 깨짐·오탈자. 로고/자막은 검은 화면·엔딩 위에 직접 |
 | 메인 광고는 어떤 방향? | **기획안 A "별이 된 기억" 30초 완결판** (+ 엔딩에 기획안 B의 글로브 흡수) | 진행 중 자산 재활용 + 마지막에 "제품 비주얼(별 박힌 지구)"로 앱 각인 |
 | 보조 포맷? | **기획안 C 15초 세로(9:16) 티저** — 릴스/쇼츠/틱톡용 | 메인은 유튜브/앱스토어용 16:9, SNS는 세로 필수 |
 | 음악? | Seedance 네이티브 오디오는 **앰비언스만**, 음악은 **앱 BGM 트랙**으로 편집에서 교체 | 광고 사운드 = 앱 사운드 → 사운드 브랜딩 일치 |
 
-**추천 실행 순서**: ① 메인 필름 잔여 5컷 생성(S4~S8) → ② 30초/15초 편집 → ③ 세로 티저 4컷 → ④ (여유 시) 범퍼 D.
+**추천 실행 순서**: ① 메인 필름 잔여 6클립 생성(S4→S5→S6a→S6b→S7→S8 — S5~S6b 는 마지막 프레임 릴레이 때문에 반드시 이 순서) → ② 30초/15초 편집 → ③ 세로 티저 4컷 → ④ (여유 시) 범퍼 D.
 
 ---
 
@@ -76,24 +79,28 @@
 
 ## 3. 메인 필름 상세 — 「별이 된 기억: 완결판」 (30초, 16:9)
 
-### 3.0 타임라인 & 씬-이미지 매핑
+### 3.0 타임라인 & 씬-이미지 매핑 (전 클립 5초 생성)
 
-| 씬 | 최종 컷 길이 | 내용 | 첫 프레임 이미지 | 상태 |
-|---|---|---|---|---|
-| S1 | 2.5s | 밤 강변을 걷는 뒷모습 | scene1.png | ✅ 영상 확보(scene1.mp4) |
-| S2 | 2.0s | 난간에 멈춤, 첫 별 등장 | scene2.png | ✅ 영상 확보(scene2.mp4) |
-| S3 | 1.5s | 시선을 올림, 별이 맥동 | scene3.png | ✅ 영상 확보(scene3.mp4) |
-| S4 | 2.0s | 다섯 별이 도시 위에 | scene4.png | 🔲 생성 (5초 생성→2초 사용) |
-| S5 | 2.5s | 눈 매크로 → 화이트 블룸 | scene5.png | 🔲 생성 (5초→2.5초) |
-| S6 | 5.5s | 기억 몽타주 4컷 | scene6-1~4.png (4장 동시) | 🔲 생성 (8초→5.5초, **1회 생성**) |
-| S7 | 5.0s | 손 위로 파티클 → 새 별 탄생 | scene8.png (+scene7.png 와이드 참조) | 🔲 생성 (8초→5초) |
-| S8 | 5.0s | 도시에서 물러나면 — 별 박힌 지구 | **신규 글로브 이미지**(§6-①) | 🔲 이미지부터 생성 |
-| S9 | 4.0s | 검은 화면 로고 + 카피 | (편집에서 제작) | 🔲 편집 |
+| 씬 | 최종 컷 | 생성 | 내용 | 첨부(@번호 순서) | 상태 |
+|---|---|---|---|---|---|
+| S1 | 2.5s | — | 밤 강변을 걷는 뒷모습 | scene1.png | ✅ 영상 확보(scene1.mp4) |
+| S2 | 2.0s | — | 난간에 멈춤, 첫 별 등장 | scene2.png | ✅ 영상 확보(scene2.mp4) |
+| S3 | 1.5s | — | 시선을 올림, 별이 맥동 | scene3.png | ✅ 영상 확보(scene3.mp4) |
+| S4 | 2.0s | 5s | 다섯 별이 도시 위에 | ① scene4.png(첫 프레임) | 🔲 |
+| S5 | 3.0s | 5s | 눈 매크로 → **노란 별 속으로**(마지막 프레임 = 금빛 글로우) | **없음 — 프롬프트-온리(t2v)** | 🔲 |
+| S6a | 3.0s | 5s | 금빛 글로우가 풀리며 기억 1·2 | ① **S5 마지막 프레임 캡처**(첫 프레임) ② scene6-1 ③ scene6-2 | 🔲 |
+| S6b | 3.0s | 5s | 기억 3·4 → 밤으로 식음 | ① **S6a 마지막 프레임 캡처**(첫 프레임) ② scene6-3 ③ scene6-4 | 🔲 |
+| S7 | 5.0s | 5s | 도시의 빛이 별이 되다(피날레) | ① scene7.png(배경·프레이밍) ② scene1.png(인물) — **첫 프레임 없음, 프롬프트 주도** | 🔲 |
+| S8 | 4.0s | 5s | 도시에서 물러나면 — 별 박힌 지구 | ① 신규 글로브 이미지(§6-①) 또는 t2v | 🔲 |
+| S9 | 4.0s | — | 검은 화면 로고 + 카피 | (편집에서 제작) | 🔲 |
 
-합계 30.0초. **15초 컷다운**: S2(1.5)+S4(2)+S5(2)+S6(3.5)+S7(4)+S9(2).
+합계 30.0초. **15초 컷다운**: S2(1.5)+S4(2)+S5(2)+S6a(2.5)+S7(4)+S9(3).
 
-⚠️ 화면비 정리: scene6-1~4, scene8은 3:2(1536×1024) → 생성 전에 **16:9로 상하 크롭**(구도상 하늘/바닥 여유 있어 안전)
-하거나, 그대로 생성 후 편집에서 크롭. 나머지는 이미 16:9.
+⚠️ 화면비 정리: scene6-1~4 는 3:2(1536×1024) → 생성 전에 **16:9로 상하 크롭**(구도상 하늘/바닥 여유 있어 안전)
+하거나, 그대로 생성 후 편집에서 크롭. 나머지는 이미 16:9. (scene5·scene8 삭제로 크롭 대상은 scene6 4장뿐.)
+
+⚠️ **마지막 프레임 릴레이**: S5→S6a→S6b 는 앞 클립의 마지막 프레임을 캡처해 다음 클립 첫 프레임으로 넣는 게 핵심.
+이 릴레이 덕분에 "눈 → 노란 별 → 별 속 기억"이 컷 없이 한 호흡으로 이어진다.
 
 ⚠️ 기존 scene1~3.mp4 와 새 컷의 톤이 다르면, 아래 같은 요령으로 S1~S3도 재생성(첫 프레임 = scene1/2/3.png,
 프롬프트는 구 `STARY_commercial_master.md`의 해당 타임코드 문단 재사용 + 아래 공통 스타일 문구 부착).
@@ -122,70 +129,99 @@ body, cross-shaped lens flares, CG look, any text or logos.
 Audio: distant city hum, calm water lapping, one soft intimate piano note.
 ```
 
-### 3.3 S5 — 눈 매크로 → 화이트 블룸 (생성 5초)
-**첨부**: ① scene5.png
+### 3.3 S5 — 눈 매크로 → 노란 별 속으로 (생성 5초) ★프롬프트-온리(scene5 삭제됨)
+**첨부**: 없음(t2v). 별 배색이 안 맞으면 scene4.png 를 추가하고 첫 줄에
+`@Image1 is a color/style reference ONLY, not the first frame.` 를 붙인다.
 ```
-@Image1 is the first frame. Extreme macro of a human eye at night; the city
-skyline and five tiny colored stars are reflected inside the dark brown
-iris. One slow, natural half-blink at the very start, then the eye holds
-almost still with only micro-movements. The reflection slowly brightens as
-the camera pushes deeper into the pupil in one continuous move; the
-eyelashes drift out of focus, the reflected stars bloom, and by the final
-frame the whole image floods into soft warm white light. The LAST frame must
-be almost pure soft warm white. Realistic macro photography, shallow depth
-of field, fine film grain, no CG look, no text.
-Audio: a hushed rising string swell that resolves into near-silence.
+Text-to-video, 16:9. Extreme macro close-up of a young East Asian man's eye
+at night, filling the frame. Reflected inside the dark brown iris: a night
+city skyline across a river and five tiny soft colored stars — warm amber,
+cool blue-white, soft white, deep red-orange, and one clearly brighter warm
+GOLDEN star. One slow natural half-blink at the very start, then the eye
+holds almost still with only micro-movements.
+In ONE continuous move the camera pushes deeper into the pupil, aiming at
+the reflected GOLDEN star. The golden star grows larger and brighter, its
+warm glow spreading outward until, by the final frame, the ENTIRE screen is
+filled with soft warm golden light and a few slowly floating golden bokeh
+sparks — as if we have passed INSIDE the star. IMPORTANT: the final frame is
+warm GOLDEN light only — never white, never black, no cut, no flash, the
+star light simply takes over the frame.
+Realistic macro photography, shallow depth of field, fine film grain, no CG
+look, no text.
+Audio: a hushed rising string swell that melts into a warm shimmering calm.
 ```
-> 거절(얼굴 정책) 시: 이미지 없이 t2v로 같은 문단을 생성하거나, scene5.png를 어둡게 크롭(눈만)해 재시도.
+> **마지막 프레임(금빛 글로우)을 캡처해 그대로 S6a 의 첫 프레임으로 쓴다** — 그래야 "전환 효과"가 아니라
+> **노란 별 안에서 다음 장면(회상)이 열리는** 연속 샷이 된다. 얼굴 정책 거절 시: "man's" 를 빼고 리롤.
 
-### 3.4 S6 — 기억 몽타주 (4장 → 1회 생성, 8초) ★Seedance 2.0 핵심 활용
-**첨부**: ① scene6-1.png ② scene6-2.png ③ scene6-3.png ④ scene6-4.png
+### 3.4 S6a — 별 속에서 열리는 기억 1·2 (생성 5초) ★노란 별 → 회상 연결의 핵심 컷
+**첨부**: ① **S5 마지막 프레임 캡처**(금빛 글로우) ② scene6-1.png ③ scene6-2.png
 ```
-@Image1, @Image2, @Image3 and @Image4 are four still memories. Play them as
-ONE continuous memory montage in this exact order, about 1.6 seconds each,
-joined by soft warm film dissolves with subtle motion blur — fragments of
-life racing through someone's mind, never looking like separate video clips.
-- @Image1: the young couple runs hand in hand along the golden sunset
-  riverside, hair and clothes flying, joyful and free.
-- @Image2: the couple laughs over a picnic beneath cherry blossoms in full
-  bloom, petals drifting down between them.
-- @Image3: the family watches red and gold fireworks bloom over the night
-  river; the fireworks flicker and fall softly.
-- @Image4: the small child runs along the riverbank with the little dog in
-  low golden-hour light while the father watches from the bench; at the end
-  the warm light slowly dims and cools into deep night tones.
+@Image1 is the first frame — a frame completely filled with soft warm golden
+light and slowly floating golden bokeh sparks: the inside of a glowing star.
+@Image2 and @Image3 are two still memories.
+Do NOT cut away from the golden light. It breathes once, then gently
+RESOLVES: the floating golden bokeh becomes the golden sunset sun-glitter of
+@Image2 — the young couple runs hand in hand along the golden sunset
+riverside, hair and clothes flying, joyful and free (about 2 seconds). Then
+a soft warm film dissolve into @Image3 — the couple laughs over a picnic
+beneath cherry blossoms in full bloom, petals drifting down between them.
+One continuous dreamy memory flow unfolding INSIDE the star's warm light,
+never looking like separate video clips; subtle motion blur on dissolves.
 Golden Kodak-film warmth, soft halation, fine 35mm grain, gentle handheld
-feel, dreamy and nostalgic. No text, no logos. The final frame fades toward
-near-black night.
-Audio: faint film-projector flutter, distant children's laughter, warm
-nostalgic piano over soft strings.
+feel, nostalgic. No text, no logos.
+Audio: warm nostalgic piano over soft strings, faint film-projector flutter.
+```
+> @Image1(캡처)이 준비 안 됐으면: 첨부를 scene6-1·6-2 두 장만 하고 프롬프트 첫 문장을
+> `The clip OPENS on a frame of pure soft warm golden light with floating golden bokeh.` 로 바꿔 t2v 서두를 만들면 된다.
+
+### 3.5 S6b — 기억 3·4 → 밤으로 (생성 5초)
+**첨부**: ① **S6a 마지막 프레임 캡처**(벚꽃 컷) ② scene6-3.png ③ scene6-4.png
+```
+@Image1 is the first frame, the current moment of a warm memory montage.
+@Image2 and @Image3 are the next two still memories.
+Soft warm film dissolve from @Image1 into @Image2 — the family watches red
+and gold fireworks bloom over the night river; the fireworks flicker and
+fall softly (about 2 seconds). Then dissolve into @Image3 — the small child
+runs along the riverbank with the little dog in low golden-hour light while
+the father watches from the bench. In the final second the warm light
+slowly dims and cools into deep navy night tones, the memory settling back
+into the present night. One continuous dreamy memory flow, soft dissolves
+with subtle motion blur, golden Kodak-film warmth, soft halation, fine 35mm
+grain. No text, no logos.
+Audio: distant fireworks crackle, children's laughter, warm piano easing
+into quiet.
 ```
 
-### 3.5 S7 — 피날레: 풍경이 별이 되다 (생성 8초)
-**첨부**: ① scene8.png ② scene7.png
+### 3.6 S7 — 피날레: 풍경이 별이 되다 (생성 5초) ★프롬프트-온리(scene8 삭제됨)
+**첨부**: ① scene7.png(배경·최종 프레이밍 플레이트) ② scene1.png(인물 identity) — **첫 프레임 지정 없음, 만능 레퍼런스 모드**
 ```
-@Image1 is the first frame — a man seen from behind raising one open hand
-toward the night city, a wide stream of golden dust particles rising from
-the skyline into the sky where a bright star is forming. @Image2 is a wide
-clean night-skyline plate: use it ONLY as the framing reference for the
-final pulled-back composition.
-Continue the motion of @Image1: countless golden particles keep lifting off
-the city, the river and its reflections, drifting upward past his open hand.
-CRITICAL: nothing is emitted from his hand or body — the light rises only
-from the scenery he is looking at. The particles slowly condense into ONE
-beautiful bright warm star high above the skyline; the new star settles and
-calms among a few faint colored stars. Then the camera pulls back slowly and
-smoothly, the man becoming small against the railing, matching the wide
-framing of @Image2, the new star glowing quietly above the city. End on a
-still wide hold. Realistic live-action, premium emotional brand film, deep
-navy grade, soft halation, fine film grain. NEVER: CG explosion, beam of
-light, cross-shaped flares, any text.
+@Image1 is a wide clean night city-skyline plate across the river: use it as
+the exact location, lighting and color grade, and as the FINAL pulled-back
+framing of this shot. @Image2 defines the man: same man throughout — short
+dark hair, dark jacket, always seen from BEHIND at the riverside railing,
+his face never visible.
+The shot begins as a medium shot from behind the man standing at the
+railing. He slowly raises one open hand toward the city. Countless golden
+dust particles rise from the city lights, the river and its reflections,
+drifting calmly upward past his open hand into the night sky. CRITICAL:
+nothing is emitted from his hand or body — the light rises ONLY from the
+scenery he is looking at. The particles slowly condense into ONE beautiful
+bright warm star high above the skyline; the new star settles and calms.
+Meanwhile the camera pulls back slowly and smoothly until the composition
+matches the wide framing of @Image1, the man now small against the railing,
+the new star glowing quietly above the city. End on a still wide hold.
+Realistic live-action, premium emotional brand film, deep navy grade, soft
+halation, fine film grain. NEVER: CG explosion, beam of light, cross-shaped
+flares, any text.
 Audio: a gentle string-and-piano swell that resolves into one sustained
 warm note as the star settles.
 ```
+> 파티클이 자꾸 손에서 나오면: "raises one open hand" 문장을 통째로 빼고(그냥 올려다보게) 리롤.
+> 그래도 안 되면 scene7 플레이트만 첨부해 무인물 파티클 컷으로 만들고, 인물은 S2/S3 컷 재활용으로 교차 편집.
 
-### 3.6 S8 — 도시 → 별 박힌 지구 (생성 8초) ★앱 시그니처 컷
-**첨부**: ① 신규 글로브 이미지(§6-① 프롬프트로 먼저 생성, 또는 앱 글로브 실화면 고해상 캡처)
+### 3.7 S8 — 도시 → 별 박힌 지구 (생성 5초) ★앱 시그니처 컷
+**첨부**: ① 신규 글로브 이미지(§6-① 프롬프트로 먼저 생성, 또는 앱 글로브 실화면 고해상 캡처).
+이미지 없이 가려면 §6-① 문단을 그대로 서두에 붙여 t2v 로 생성해도 된다(스틸 확보가 더 안정적).
 ```
 @Image1 is the first frame — the Earth seen from space at night, its dark
 side covered with thousands of tiny colorful twinkling stars where people's
@@ -204,7 +240,7 @@ motif into stillness. End on a still hold suitable for a logo overlay.
 ```
 > 편집 팁: S8 끝에서 **실제 앱 글로브 녹화 화면**으로 1초 크로스디졸브하면 "광고 = 실제 앱" 신뢰가 생긴다(선택).
 
-### 3.7 S9 — 로고 엔딩 (편집 제작, 생성 없음)
+### 3.8 S9 — 로고 엔딩 (편집 제작, 생성 없음)
 검은 화면 → `logo.webp` 페이드 인 → 카피 2줄(§5) → 스토어 뱃지. Seedance 불필요.
 
 ---
@@ -262,14 +298,14 @@ Audio: soft waves, a single warm piano motif rising.
 
 | 타이밍 | 한국어(메인) | English(수출/영문판) |
 |---|---|---|
-| 메인 S4 (7.5~9.5s) | 밤하늘의 별 하나하나는 | Every star above this city |
-| 메인 S5 (10~12s) | 누군가의 기억입니다 | is someone's memory. |
-| 메인 S7 (20~24s) | 당신의 오늘도, 별이 됩니다 | Your today becomes a star, too. |
+| 메인 S4 (6~8s) | 밤하늘의 별 하나하나는 | Every star above this city |
+| 메인 S5 (8~11s) | 누군가의 기억입니다 | is someone's memory. |
+| 메인 S7 (18~22s) | 당신의 오늘도, 별이 됩니다 | Your today becomes a star, too. |
 | 메인 S9 (26~30s) | 당신의 이야기를 우주에 남겨보세요 · **STARY** | Leave your story among the stars. · **STARY** |
 | 티저 V1/V2/V4 | 위 §4 표 참고 | Right where you stand / someone's memory is shining / Your today becomes a star |
 
 - 서체: 감성 세리프 **마루 부리**(무료) 또는 프리텐다드 Light. 흰색 85~90% 불투명, 화면 하단 1/4, 페이드 0.3s.
-- 몽타주(S6) 구간은 **무자막** — 숨 쉬는 구간으로 남긴다.
+- 몽타주(S6a·S6b) 구간은 **무자막** — 숨 쉬는 구간으로 남긴다.
 - 마지막 프레임에 스토어 뱃지(App Store / Google Play) + 앱 아이콘(`app_image.webp`).
 
 ---
@@ -343,10 +379,11 @@ film grain, hopeful and tender, premium brand-film still. No readable text.
 
 ## 8. 제작 워크플로 체크리스트
 
-1. **이미지 준비**: scene6-1~4·scene8 → 16:9 크롭본 저장(메인용). §6 프롬프트로 신규 4장 생성.
+1. **이미지 준비**: scene6-1~4 → 16:9 크롭본 저장(메인용). §6 프롬프트로 신규 4장 생성.
+   (scene5·scene8 은 삭제됨 — S5는 §3.3 t2v, S7은 §3.6 레퍼런스 모드로 이미지 없이 생성.)
 2. **클립 생성**(Dreamina/즉몽 or fal·WaveSpeed API): 씬마다 §3·§4 블록 복붙, 이미지를 **프롬프트의 @번호 순서대로 첨부**.
-   길이는 표의 "생성 초" 선택. 마음에 들 때까지 씬 단위 리롤(한 번에 전체 생성 금지 — 비용/통제 둘 다 불리).
-3. **연속성**: 이어지는 컷이 어색하면 앞 클립 마지막 프레임 캡처 → 다음 클립 첫 프레임으로 교체 생성.
+   길이는 **전부 5초**로 생성 후 편집에서 컷다운(§3.0 표). 마음에 들 때까지 씬 단위 리롤(한 번에 전체 생성 금지 — 비용/통제 둘 다 불리).
+3. **연속성**: S5→S6a→S6b 는 **마지막 프레임 릴레이 필수**(§3.0). 그 외 컷도 이음새가 어색하면 같은 방법 적용.
 4. **편집**(CapCut/프리미어): §3.0 타임라인대로 컷 → 자막·로고(§5) → BGM(§7) → 전 클립에 동일한 미세 LUT(네이비 강조)로 톤 통일.
 5. **출력**: 16:9 1080p 30s/15s(유튜브·앱스토어) + 9:16 15s(릴스·쇼츠). 필요 시 업스케일.
 6. **앱 실화면 촬영 리스트**(티저 V2·S8 대안·스토어 프리뷰 공용):
@@ -355,8 +392,9 @@ film grain, hopeful and tender, premium brand-film still. No readable text.
    - 부메랑 3초 움짤 촬영 → 저장 플로우(범퍼 D용)
 
 **문제 해결**
-- 파티클이 손에서 뿜어져 나옴 → 프롬프트의 CRITICAL 문장 유지한 채 리롤, 계속되면 scene7(무인물 플레이트)로 파티클 상승만 만들고 인물 컷과 교차 편집.
-- 얼굴 이미지 업로드 거절 → 뒷모습 크롭으로 재시도, S5(눈)는 t2v 폴백(§3.3 참고).
+- 파티클이 손에서 뿜어져 나옴 → CRITICAL 문장 유지한 채 리롤 → "raises one open hand" 문장 삭제 → 최후엔 scene7(무인물 플레이트)로 파티클 상승만 만들고 인물 컷과 교차 편집(§3.6 하단).
+- 얼굴 이미지 업로드 거절 → 뒷모습 크롭으로 재시도. S5(눈)는 애초에 t2v(§3.3)라 업로드 이슈 없음.
+- S5 마지막 프레임이 금빛이 아니라 하얗게/까맣게 끝남 → "final frame is warm GOLDEN light only" 문장을 프롬프트 앞쪽으로 옮겨 리롤. 그래도 안 되면 마지막 금빛 구간 프레임 아무거나 캡처해 S6a 첫 프레임으로 사용(연출상 동일).
 - 별이 움직여버림 → "The stars stay in place; only subtle pulsing" 문구가 앞쪽에 오도록 프롬프트 순서 조정.
 - 톤 널뜀 → 같은 씬 리롤 시 시드 고정(플랫폼 지원 시) 또는 잘 나온 클립을 @Video 스타일 레퍼런스로 첨부.
 
