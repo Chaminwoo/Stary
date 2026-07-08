@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.36 Seedance 2.0 광고 마스터 기획 + 광고 자산 정리**(기획안 4종 + 씬별 i2v 프롬프트, 코드 변경 없음 — 커밋 `db12725`) — 아래 8.36 참고.
+> 최종 갱신: **8.36-iOS CI 그린 복구** — SettingsScreen 컴파일 에러(BGM 토글 description 누락) + 부메랑 문구 패리티. **CI(macOS) BUILD SUCCESS `25232a6`** — 아래 8.36-iOS 참고.
+> 이전: **8.36 Seedance 2.0 광고 마스터 기획 + 광고 자산 정리**(기획안 4종 + 씬별 i2v 프롬프트, 코드 변경 없음 — 커밋 `db12725`) — 아래 8.36 참고.
 > 이전: **8.35 글로브 유성·은하수 3D 연출 전면 개편 + 레퍼런스 재작업**(곡선 유성+잔류 스파클 / 은하수.jpg 스타일 핑크 은하수 / zodiac.avif 별 단위 12궁 — Android BUILD SUCCESSFUL, 테스트 대기) — 아래 8.35 참고.
 > 이전: **8.34 4건 라운드 — 음악·칭호 다국어화 / 부메랑 3초 움짤 촬영 / 기간별 필터 / 프사·이름 현재값 표시**(테스트 완료·push, 후속 수정 포함) — 아래 8.34 참고.
 > 이전: **8.33 지도 야경 스타일 전면 개편 + 글로브 오로라 삭제→은하수 격상/유성 추가**(테스트 완료) — 아래 8.33 참고. Android **BUILD SUCCESSFUL**(라운드별 확인), iOS 컴파일 CI 대기.
@@ -25,6 +26,16 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.36-iOS CI 그린 복구 (CI(macOS) BUILD SUCCESS `25232a6`, 2026-07-08)
+- **7/7부터 iOS CI 레드**였던 원인 1건: `SettingsScreen.swift:24` — BGM 토글 `toggleRow(...)` 호출에 필수 `description` 인자 누락(컴파일 에러).
+  → `L10n.settingsBgmDesc` 키 추가(ko "별들 사이를 떠다니는 우주의 소리" / en / ja — Android `settings_bgm_desc` 패리티) 후 전달.
+- `BoomerangCaptureView.swift` 완료 버튼 문구 "이 장면 사용" → **"자르기 완료"** (Android `boomer_use` 패리티, `13c674b`).
+- CI 로그 확인 요령(이번에 확립): 레포 public → `git credential fill` 토큰으로 GitHub API 인증 →
+  `/actions/workflows/ios.yml/runs?head_sha=<full sha>` 로 상태, `/actions/runs/<id>/logs`(zip) 로 에러 검색. `gh` CLI 는 미설치.
+  ⚠️ 익명 API 는 60회/시 제한 — 폴링은 반드시 인증 토큰으로.
 
 ---
 
