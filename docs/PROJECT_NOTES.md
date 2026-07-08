@@ -2,7 +2,7 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.36-iOS CI 그린 복구** — SettingsScreen 컴파일 에러(BGM 토글 description 누락) + 부메랑 문구 패리티. **CI(macOS) BUILD SUCCESS `25232a6`** — 아래 8.36-iOS 참고.
+> 최종 갱신: **8.36-iOS CI 그린 복구 + BGM 설명 문구 정정** — SettingsScreen 컴파일 에러 수정 + 부메랑 문구 패리티 + BGM 설명(의도적 삭제분) 양쪽 완전 제거. **CI(macOS) BUILD SUCCESS `0367fcb`**, Android `compileDebugKotlin` **BUILD SUCCESSFUL** — 아래 8.36-iOS 참고.
 > 이전: **8.36 Seedance 2.0 광고 마스터 기획 + 광고 자산 정리**(기획안 4종 + 씬별 i2v 프롬프트, 코드 변경 없음 — 커밋 `db12725`) — 아래 8.36 참고.
 > 이전: **8.35 글로브 유성·은하수 3D 연출 전면 개편 + 레퍼런스 재작업**(곡선 유성+잔류 스파클 / 은하수.jpg 스타일 핑크 은하수 / zodiac.avif 별 단위 12궁 — Android BUILD SUCCESSFUL, 테스트 대기) — 아래 8.35 참고.
 > 이전: **8.34 4건 라운드 — 음악·칭호 다국어화 / 부메랑 3초 움짤 촬영 / 기간별 필터 / 프사·이름 현재값 표시**(테스트 완료·push, 후속 수정 포함) — 아래 8.34 참고.
@@ -29,7 +29,7 @@
 
 ---
 
-## 8.36-iOS CI 그린 복구 (CI(macOS) BUILD SUCCESS `25232a6`, 2026-07-08)
+## 8.36-iOS CI 그린 복구 + BGM 설명 문구 정정 (CI(macOS) BUILD SUCCESS `0367fcb`, 2026-07-08)
 - **7/7부터 iOS CI 레드**였던 원인 1건: `SettingsScreen.swift:24` — BGM 토글 `toggleRow(...)` 호출에 필수 `description` 인자 누락(컴파일 에러).
   → 최초엔 `L10n.settingsBgmDesc` 키를 추가해 문구를 채워 넣었으나(`25232a6`), **BGM 설명 문구는 사용자가 의도적으로 지운 것**이었음 —
   잘못된 방향이라 되돌림. **올바른 수정**: Android `ToggleRow`가 원래 `description: String? = null`(옵셔널)로 설계돼 있던 것과 동일하게
