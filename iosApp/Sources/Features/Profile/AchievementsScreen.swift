@@ -16,6 +16,7 @@ struct AchievementsScreen: View {
     @State private var friendsCount = 0
     @State private var invitedFriends = 0
     @State private var redeemedInvite = false
+    @State private var myPioneerCodes: [String] = []
     @State private var tab = 0
     @State private var hiddenAlert: HiddenAchievement?
 
@@ -61,6 +62,11 @@ struct AchievementsScreen: View {
             let invite = await InviteStore.fetchStats(uid: uid)
             invitedFriends = invite.invited
             redeemedInvite = invite.redeemed
+            // 내가 개척한 나라(체크리스트 32)
+            if let snap = try? await FirestoreService.db.collection(PioneerQuest.collection)
+                .whereField("userId", isEqualTo: uid).getDocuments() {
+                myPioneerCodes = snap.documents.map { $0.documentID }.sorted()
+            }
             if equippedTitleId == nil,
                let doc = try? await FirestoreService.users.document(uid).getDocument() {
                 equippedTitleId = doc.get("equippedTitle") as? String
@@ -94,10 +100,35 @@ struct AchievementsScreen: View {
             ForEach(Achievements.all) { ach in
                 achievementRow(ach)
             }
+            // 개척 칭호(체크리스트 32) — 내가 개척한 나라만 노출, 장착 가능.
+            ForEach(myPioneerCodes, id: \.self) { code in
+                pioneerRow(code)
+            }
             AboutView()
                 .padding(.top, 12)
         }
         .padding(16)
+    }
+
+    /// 개척 칭호 행 — 항상 달성 상태, 탭으로 장착/해제. (Android NormalTab 개척 섹션 패리티)
+    private func pioneerRow(_ code: String) -> some View {
+        let titleId = PioneerQuest.titleId(code)
+        let display = LocalizedNames.pioneerTitle(titleId) ?? LocalizedNames.countryName(code)
+        return HStack(spacing: 10) {
+            Image(systemName: "flag.fill").foregroundStyle(Theme.mint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(display).font(.subheadline).foregroundStyle(Theme.textPrimary)
+                Text(locale.t(.pioneerCondition))
+                    .font(.caption2).foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            Button(equippedTitleId == titleId ? "장착됨" : "장착") {
+                equipTitle(equippedTitleId == titleId ? nil : titleId)
+            }
+            .font(.caption2).tint(Theme.mint)
+        }
+        .padding(10)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func achievementRow(_ ach: Achievement) -> some View {

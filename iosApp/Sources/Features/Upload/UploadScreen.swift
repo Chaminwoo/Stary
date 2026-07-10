@@ -281,6 +281,13 @@ struct UploadScreen: View {
             }
             title = ""; content = ""; clearMedia()
             showToast("별을 남겼어요 ✨")
+            // 개척 퀘스트 선점 시도(체크리스트 32) — 화면 이탈과 무관하게 진행, 실패는 무시.
+            let myName = auth.displayName
+            Task.detached {
+                await PioneerStore.attemptClaim(
+                    lat: diary.latitude, lng: diary.longitude, uid: uid, name: myName
+                )
+            }
         } catch {
             showToast("저장 실패: \(error.localizedDescription)")
         }

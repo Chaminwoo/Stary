@@ -39,6 +39,10 @@ enum LocalizedNames {
         "heart_frenzy":   ("두근두근", "Heartbeat", "ドキドキ"),
         "melomaniac":     ("별들의 오케스트라", "Orchestra of the Stars", "星々のオーケストラ"),
         "earth_pilgrim":  ("푸른 행성의 발자취", "Footprints on the Blue Planet", "青い惑星の足跡"),
+        // 친구 초대 보상 칭호(체크리스트 31)
+        "invite_bond":    ("별의 인연", "Bonded by Stars", "星の縁"),
+        "invite_beacon":  ("별의 등대", "Star Beacon", "星の灯台"),
+        "invite_flock":   ("별무리의 길잡이", "Guide of the Flock", "星団の道しるべ"),
     ]
 
     private static func pick(_ t: (String, String, String)) -> String {
@@ -61,10 +65,44 @@ enum LocalizedNames {
         return pick(t)
     }
 
-    /// 장착 칭호 id → 표시명(현재 언어). 일반+히든 통합(Android `equippedTitle` 패리티).
+    /// 장착 칭호 id → 표시명(현재 언어). 일반+히든+개척 통합(Android `equippedTitle` 패리티).
     static func equippedTitle(_ id: String?) -> String? {
         guard let id, !id.isEmpty else { return nil }
+        if let pioneer = pioneerTitle(id) { return pioneer }
         let fallback = Achievements.byId(id)?.titleName ?? HiddenAchievements.byId(id)?.title
         return title(id, fallback: fallback)
+    }
+
+    /// 개척 칭호(pioneer_{code}) 표시명 — "대한민국 개척자" 형태. 아니면 nil. (체크리스트 32)
+    static func pioneerTitle(_ id: String?) -> String? {
+        guard let code = PioneerQuest.codeFromTitleId(id) else { return nil }
+        let country = countryName(code)
+        switch LocaleManager.shared.effectiveLanguage {
+        case "en": return "\(country) Pioneer"
+        case "ja": return "\(country)開拓者"
+        default:   return "\(country) 개척자"
+        }
+    }
+
+    /// 개척 퀘스트 비콘 탭 안내문(Android pioneer_quest_toast 패리티).
+    static func pioneerQuestMessage(_ code: String) -> String {
+        let country = countryName(code)
+        let title = pioneerTitle(PioneerQuest.titleId(code)) ?? country
+        switch LocaleManager.shared.effectiveLanguage {
+        case "en": return "The first star left in \(country) earns the '\(title)' title!"
+        case "ja": return "\(country)に最初の星を残した人が「\(title)」の称号を獲得します！"
+        default:   return "\(country)에 첫 별을 남긴 사람이 '\(title)' 칭호를 가져요!"
+        }
+    }
+
+    /// ISO 국가 코드 → 현재 언어 국가명(모르면 코드 그대로).
+    static func countryName(_ code: String) -> String {
+        let localeId: String
+        switch LocaleManager.shared.effectiveLanguage {
+        case "en": localeId = "en"
+        case "ja": localeId = "ja"
+        default:   localeId = "ko"
+        }
+        return Locale(identifier: localeId).localizedString(forRegionCode: code) ?? code
     }
 }

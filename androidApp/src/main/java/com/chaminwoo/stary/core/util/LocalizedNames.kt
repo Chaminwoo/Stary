@@ -47,6 +47,10 @@ object LocalizedNames {
         "heart_frenzy" to R.string.title_heart_frenzy,
         "melomaniac" to R.string.title_melomaniac,
         "earth_pilgrim" to R.string.title_earth_pilgrim,
+        // 친구 초대 보상 칭호(체크리스트 31)
+        "invite_bond" to R.string.title_invite_bond,
+        "invite_beacon" to R.string.title_invite_beacon,
+        "invite_flock" to R.string.title_invite_flock,
     )
 
     /** 음악 트랙 표시명(현재 언어). 매핑에 없으면 [fallback]. */
@@ -58,12 +62,24 @@ object LocalizedNames {
         titleRes[achievementId]?.let { context.getString(it) } ?: fallback
 
     /**
-     * 장착 칭호 id → 표시명(현재 언어). 일반+히든 통합.
+     * 장착 칭호 id → 표시명(현재 언어). 일반+히든+개척 통합.
      * (기존 [com.chaminwoo.stary.feature.profile.equippedTitleName] 의 로케일 대응판)
      */
     fun equippedTitle(context: Context, id: String?): String? {
         if (id.isNullOrBlank()) return null
+        // 개척 칭호(pioneer_{code}) — 국가명은 로케일 API 로 동적 표시(체크리스트 32).
+        pioneerTitle(context, id)?.let { return it }
         val fallback = Achievements.byId(id)?.titleName ?: HiddenAchievements.byId(id)?.title
         return title(context, id, fallback)
     }
+
+    /** 개척 칭호 표시명 — "대한민국 개척자" 형태. pioneer_ id 가 아니면 null. */
+    fun pioneerTitle(context: Context, id: String?): String? {
+        val code = com.chaminwoo.stary.shared.config.PioneerQuest.codeFromTitleId(id) ?: return null
+        return context.getString(R.string.pioneer_title_format, countryName(code))
+    }
+
+    /** ISO 국가 코드 → 현재 언어 국가명(모르면 코드 그대로). */
+    fun countryName(code: String): String =
+        java.util.Locale("", code).displayCountry.ifBlank { code }
 }

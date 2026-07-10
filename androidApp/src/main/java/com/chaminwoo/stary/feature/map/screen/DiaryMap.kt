@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -153,6 +154,11 @@ private const val PARTICLE_SEED = 42
 
 /** 마커 비트맵 변(px). 4의 배수 유지(GL 행 정렬). */
 private const val MARKER_SIDE_PX = 160
+
+/** 개척 퀘스트(체크리스트 32) 대상국 비콘 소스/레이어/아이콘 id. */
+private const val PIONEER_SOURCE = "pioneer-source"
+private const val PIONEER_LAYER = "pioneer-layer"
+private const val PIONEER_ICON_ID = "pioneer-icon"
 
 /** 3D 글로브 "지구 보기" 버튼 노출 줌(이하로 줌아웃하면 버튼 표시 — 자동 전환 없음) / 지도 최소 줌. */
 private const val GLOBE_BUTTON_ZOOM = 3.0
@@ -618,6 +624,7 @@ fun DiaryMap(
     var diarySource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var constellationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var routeSource by remember { mutableStateOf<GeoJsonSource?>(null) }
+    var pioneerSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     val routeScope = rememberCoroutineScope()
     // 도보 길찾기: 처음 받은 전체 경로(목적지까지)를 저장. null = 길찾기 비활성(X 취소 시).
     var savedRoute by remember { mutableStateOf<List<Point>?>(null) }
@@ -712,6 +719,17 @@ fun DiaryMap(
                 // 별 클릭 → 100m 게이팅 (길찾기 기능은 제거됨 — 밖이면 안내 토스트만)
                 map.addOnMapClickListener { point ->
                     val screen = map.projection.toScreenLocation(point)
+                    // 개척 퀘스트 비콘 탭 → 퀘스트 안내(체크리스트 32)
+                    val pioneer = map.queryRenderedFeatures(screen, PIONEER_LAYER).firstOrNull()
+                    if (pioneer != null) {
+                        val code = pioneer.getStringProperty("code") ?: ""
+                        val country = com.chaminwoo.stary.core.util.LocalizedNames.countryName(code)
+                        val title = context.getString(R.string.pioneer_title_format, country)
+                        com.chaminwoo.stary.core.ui.StaryToast.show(
+                            context.getString(R.string.pioneer_quest_toast, country, title)
+                        )
+                        return@addOnMapClickListener true
+                    }
                     val features = map.queryRenderedFeatures(screen, *DIARY_LAYER_IDS)
                     val id = features.firstOrNull()?.getStringProperty("id")
                     if (id != null) {
@@ -886,6 +904,36 @@ fun DiaryMap(
                     }
 
                     diarySource = dSrc
+
+                    // 개척 퀘스트 대상국 비콘(체크리스트 32) — 미개척 대상국 중심좌표에 금색 스파클 + 라벨.
+                    // 데이터는 아래 LaunchedEffect(pioneerClaims)가 채운다. 탭 → 퀘스트 안내 토스트.
+                    style.addImage(PIONEER_ICON_ID, starBitmap(3, 15))
+                    val pSrc = GeoJsonSource(PIONEER_SOURCE, FeatureCollection.fromFeatures(emptyList()))
+                    style.addSource(pSrc)
+                    style.addLayer(
+                        SymbolLayer(PIONEER_LAYER, PIONEER_SOURCE).withProperties(
+                            PropertyFactory.iconImage(PIONEER_ICON_ID),
+                            PropertyFactory.iconSize(
+                                Expression.interpolate(
+                                    Expression.linear(), Expression.zoom(),
+                                    Expression.stop(2f, 0.45f),
+                                    Expression.stop(8f, 0.7f),
+                                    Expression.stop(14f, 0.95f),
+                                )
+                            ),
+                            PropertyFactory.iconAllowOverlap(true),
+                            PropertyFactory.iconIgnorePlacement(true),
+                            PropertyFactory.textField(Expression.get("label")),
+                            PropertyFactory.textColor("#FFD86F"),
+                            PropertyFactory.textHaloColor("#000000"),
+                            PropertyFactory.textHaloWidth(1.2f),
+                            PropertyFactory.textSize(12f),
+                            PropertyFactory.textOffset(arrayOf(0f, 1.6f)),
+                            PropertyFactory.textAllowOverlap(true),
+                            PropertyFactory.textIgnorePlacement(true),
+                        )
+                    )
+                    pioneerSource = pSrc
 
                     // 내 위치 마커 (별 위에 표시)
                     val src = GeoJsonSource(
@@ -1321,6 +1369,27 @@ fun DiaryMap(
     // 현재 위치 마커 갱신
     LaunchedEffect(currentLatLng, mapRef) {
         locationSource?.setGeoJson(Point.fromLngLat(currentLatLng.longitude, currentLatLng.latitude))
+    }
+
+    // 개척 퀘스트 비콘 갱신(체크리스트 32) — 개척 현황을 구독해 "등장했지만 미개척"인 나라만 표시.
+    val pioneerClaims by remember {
+        com.chaminwoo.stary.data.repository.FirebasePioneerRepository().observeClaims()
+    }.collectAsState(initial = emptyMap())
+    LaunchedEffect(pioneerClaims, pioneerSource) {
+        val src = pioneerSource ?: return@LaunchedEffect
+        val featured = com.chaminwoo.stary.shared.config.PioneerQuest
+            .featuredCountries(System.currentTimeMillis(), pioneerClaims.keys)
+        val features = featured.map { c ->
+            Feature.fromGeometry(Point.fromLngLat(c.lng, c.lat)).apply {
+                addStringProperty("code", c.code)
+                addStringProperty(
+                    "label",
+                    context.getString(R.string.pioneer_quest_marker) + " · " +
+                        com.chaminwoo.stary.core.util.LocalizedNames.countryName(c.code)
+                )
+            }
+        }
+        src.setGeoJson(FeatureCollection.fromFeatures(features))
     }
 
     // 최초 진입 시 내 위치로 카메라 1회 이동 — 스타일 로드 시점엔 아직 위치 fix 가 없어 기본 좌표로

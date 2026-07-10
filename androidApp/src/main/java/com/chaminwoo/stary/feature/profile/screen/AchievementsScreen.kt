@@ -92,6 +92,14 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
     val hiddenRepo = remember { HiddenAchievementRepository() }
     val claims by remember { hiddenRepo.observe() }.collectAsState(initial = emptyMap())
 
+    // 개척 퀘스트(체크리스트 32) — 내가 개척한 나라들 = 장착 가능한 개척 칭호.
+    val pioneerClaims by remember {
+        com.chaminwoo.stary.data.repository.FirebasePioneerRepository().observeClaims()
+    }.collectAsState(initial = emptyMap())
+    val myPioneerCodes = remember(pioneerClaims, userId) {
+        pioneerClaims.filterValues { it.userId == userId }.keys.sorted()
+    }
+
     val unlockedCount = Achievements.all.count { it.unlocked(stats) }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -117,6 +125,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
                     stats = stats,
                     unlockedCount = unlockedCount,
                     equipped = equipped,
+                    myPioneerCodes = myPioneerCodes,
                     onToggleEquip = { ach ->
                         val next = if (equipped == ach.id) null else ach.id
                         StigmaStore.equip(context, userId, next)
@@ -210,8 +219,10 @@ private fun NormalTab(
     stats: com.chaminwoo.stary.feature.profile.UserStats,
     unlockedCount: Int,
     equipped: String?,
+    myPioneerCodes: List<String> = emptyList(),
     onToggleEquip: (Achievement) -> Unit,
 ) {
+    val context = LocalContext.current
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp),
@@ -237,6 +248,27 @@ private fun NormalTab(
                 equipped = equipped == ach.id,
                 onToggleEquip = { if (unlocked) onToggleEquip(ach) }
             )
+        }
+
+        // 개척 칭호(체크리스트 32) — 내가 개척한 나라만 노출, 탭으로 장착/해제.
+        if (myPioneerCodes.isNotEmpty()) {
+            item { GroupHeader(stringResource(R.string.ach_pioneer_section), stringResource(R.string.pioneer_condition)) }
+            items(myPioneerCodes, key = { "pioneer_$it" }) { code ->
+                val titleId = com.chaminwoo.stary.shared.config.PioneerQuest.titleId(code)
+                val display = com.chaminwoo.stary.core.util.LocalizedNames.pioneerTitle(context, titleId)
+                    ?: com.chaminwoo.stary.core.util.LocalizedNames.countryName(code)
+                val synthetic = Achievement(
+                    id = titleId, name = display,
+                    condition = stringResource(R.string.pioneer_condition),
+                    reward = com.chaminwoo.stary.feature.profile.Reward.Title(display),
+                ) { true }
+                TitleAchievementRow(
+                    ach = synthetic,
+                    unlocked = true,
+                    equipped = equipped == titleId,
+                    onToggleEquip = { onToggleEquip(synthetic) }
+                )
+            }
         }
 
         item { GroupHeader(stringResource(R.string.ach_group_rewards), stringResource(R.string.ach_group_rewards_sub)) }

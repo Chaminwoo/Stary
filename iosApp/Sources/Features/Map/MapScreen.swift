@@ -15,6 +15,9 @@ struct MapScreen: View {
     @ObservedObject private var focus = MapFocusStore.shared
     @State private var selected: Diary?
     @State private var unviewedOnly = false
+    // 개척 퀘스트(체크리스트 32) — 개척 현황 구독 + 비콘 탭 안내.
+    @StateObject private var pioneer = PioneerStore()
+    @State private var pioneerMessage: String?
     // 기간별 보기 — nil=전체 기간, 0=오늘(자정 이후), 그 외 N=최근 N일. (Android 기간 필터 패리티)
     @State private var periodDays: Int?
 
@@ -100,7 +103,9 @@ struct MapScreen: View {
                 onGlobeAvailability: { lat, lng, available in
                     globeButtonCenter = available ? GlobeCenter(lat: lat, lng: lng) : nil
                 },
-                globeReturnCamera: globeReturn
+                globeReturnCamera: globeReturn,
+                pioneerCountries: pioneer.featured,
+                onTapPioneer: { code in pioneerMessage = LocalizedNames.pioneerQuestMessage(code) }
             )
             .ignoresSafeArea()
 
@@ -196,6 +201,14 @@ struct MapScreen: View {
         // 다른 탭에서 길찾기 요청 → 지도 탭으로 전환되며 나타날 때 처리(숨김 동안 onChange 미수신 대비).
         .onAppear {
             handleFocus(focus.pendingDiaryId)
+            pioneer.start() // 개척 퀘스트 현황 구독(체크리스트 32)
+        }
+        // 개척 비콘 탭 → 퀘스트 안내(체크리스트 32)
+        .alert(pioneerMessage ?? "", isPresented: Binding(
+            get: { pioneerMessage != nil },
+            set: { if !$0 { pioneerMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
         }
     }
 

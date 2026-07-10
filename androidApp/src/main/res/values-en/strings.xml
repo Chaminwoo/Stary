@@ -214,6 +214,15 @@
     <string name="invite_self">You can\'t use your own invite link</string>
     <string name="invite_too_old">Invite rewards are only available within 7 days of signing up</string>
     <string name="invite_failed">Couldn\'t verify the invite. Please try again later</string>
+    <string name="title_invite_bond">Bonded by Stars</string>
+    <string name="title_invite_beacon">Star Beacon</string>
+    <string name="title_invite_flock">Guide of the Flock</string>
+    <string name="pioneer_title_format">%1$s Pioneer</string>
+    <string name="pioneer_quest_marker">Pioneer quest</string>
+    <string name="pioneer_quest_toast">The first star left in %1$s earns the \'%2$s\' title!</string>
+    <string name="pioneer_claimed_toast">🎉 First star in this country! You earned the \'%1$s\' title</string>
+    <string name="ach_pioneer_section">Pioneer titles</string>
+    <string name="pioneer_condition">Leave the first star in that country</string>
     <string name="location_mock_blocked">Mock location detected — location features are limited</string>
     <string name="map_route_summary">~%1$d min walk · %2$dm</string>
     <string name="map_route_cancel">Cancel route</string>

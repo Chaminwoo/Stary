@@ -20,6 +20,10 @@ struct MapLibreView: UIViewRepresentable {
     var onGlobeAvailability: ((_ lat: Double, _ lng: Double, _ available: Bool) -> Void)? = nil
     /// 글로브 → 지도 복귀 카메라 요청(nonce 로 같은 좌표 반복 요청도 트리거).
     var globeReturnCamera: GlobeReturnCamera? = nil
+    /// 개척 퀘스트 미개척 대상국(체크리스트 32) — 중심좌표에 금색 스파클 비콘 표시.
+    var pioneerCountries: [PioneerQuest.Country] = []
+    /// 개척 비콘 탭 → 국가 코드 전달(호출부가 퀘스트 안내 표시).
+    var onTapPioneer: ((String) -> Void)? = nil
 
     /// 3D 글로브 "지구 보기" 버튼 노출 줌 / 지도 최소 줌.
     /// (Android DiaryMap GLOBE_BUTTON_ZOOM/MAP_MIN_ZOOM 패리티)
@@ -67,6 +71,8 @@ struct MapLibreView: UIViewRepresentable {
             guard diary.latitude != 0 || diary.longitude != 0 else { return nil }
             return DiaryAnnotation(diary: diary)
         }
+        // 개척 퀘스트 비콘(체크리스트 32) — 미개척 대상국 중심좌표에 금색 스파클.
+        toAdd.append(contentsOf: pioneerCountries.map { PioneerAnnotation(country: $0) })
         // 도보 경로 폴리라인(있으면) — 별 마커와 함께 한 번에 추가.
         if route.count >= 2 {
             toAdd.append(MLNPolyline(coordinates: route, count: UInt(route.count)))
@@ -105,6 +111,13 @@ struct MapLibreView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, imageFor annotation: MLNAnnotation) -> MLNAnnotationImage? {
+            // 개척 비콘 — 금색 스파클(8꼭지, 앰버골드 = Android starBitmap(3, 15) 패리티).
+            if annotation is PioneerAnnotation {
+                let key = "pioneer-beacon"
+                if let cached = mapView.dequeueReusableAnnotationImage(withIdentifier: key) { return cached }
+                let img = StarImageRenderer.image(type: 3, colorIndex: 15)
+                return MLNAnnotationImage(image: img, reuseIdentifier: key)
+            }
             guard let d = annotation as? DiaryAnnotation else { return nil }
             let key = "star-\(d.diary.starType)-\(d.diary.starColor)"
             if let cached = mapView.dequeueReusableAnnotationImage(withIdentifier: key) { return cached }
@@ -114,6 +127,7 @@ struct MapLibreView: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {
             if let d = annotation as? DiaryAnnotation { parent.onTapDiary(d.diary) }
+            if let p = annotation as? PioneerAnnotation { parent.onTapPioneer?(p.country.code) }
             mapView.deselectAnnotation(annotation, animated: false)
         }
 
@@ -133,6 +147,19 @@ struct GlobeReturnCamera: Equatable {
     let lng: Double
     let zoom: Double
     let nonce: Int
+}
+
+/// 개척 퀘스트 대상국 비콘 어노테이션(체크리스트 32).
+final class PioneerAnnotation: NSObject, MLNAnnotation {
+    let country: PioneerQuest.Country
+    var coordinate: CLLocationCoordinate2D
+    var title: String?
+
+    init(country: PioneerQuest.Country) {
+        self.country = country
+        self.coordinate = CLLocationCoordinate2D(latitude: country.lat, longitude: country.lng)
+        self.title = nil
+    }
 }
 
 /// 다이어리를 담는 지도 어노테이션.

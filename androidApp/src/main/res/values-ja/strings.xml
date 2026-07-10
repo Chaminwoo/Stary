@@ -214,6 +214,15 @@
     <string name="invite_self">自分の招待リンクは使用できません</string>
     <string name="invite_too_old">招待特典は登録後7日以内のみ受け取れます</string>
     <string name="invite_failed">招待の確認に失敗しました。しばらくしてからお試しください</string>
+    <string name="title_invite_bond">星の縁</string>
+    <string name="title_invite_beacon">星の灯台</string>
+    <string name="title_invite_flock">星団の道しるべ</string>
+    <string name="pioneer_title_format">%1$s開拓者</string>
+    <string name="pioneer_quest_marker">開拓クエスト</string>
+    <string name="pioneer_quest_toast">%1$sに最初の星を残した人が「%2$s」の称号を獲得します！</string>
+    <string name="pioneer_claimed_toast">🎉 この国の最初の星！「%1$s」の称号を獲得しました</string>
+    <string name="ach_pioneer_section">開拓称号</string>
+    <string name="pioneer_condition">その国に最初の星を残す</string>
     <string name="location_mock_blocked">模擬位置（位置偽装）が検出されたため、位置機能を制限しています</string>
     <string name="map_route_summary">徒歩約%1$d分 · %2$dm</string>
     <string name="map_route_cancel">経路を取り消す</string>

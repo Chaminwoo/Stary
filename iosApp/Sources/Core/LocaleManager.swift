@@ -101,6 +101,8 @@ enum L10n: String {
     case shareDiary, shareDiaryText, shareCardTagline, shareCardUntitled, shareCardAnonymous
     // 친구 초대 보상(체크리스트 31).
     case inviteFriends, inviteFriendsDesc, inviteShareText
+    // 주간 개척 퀘스트(체크리스트 32).
+    case pioneerCondition
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -234,6 +236,9 @@ enum L10n: String {
         case .inviteShareText:      return ("Stary 에서 함께 별을 남겨요 ✦ 가입 후 이 링크를 다시 열면 우리 둘 다 칭호를 받아요!",
                                             "Leave stars together on Stary ✦ Sign up and open this link again — we both get a title!",
                                             "Staryで一緒に星を残しましょう ✦ 登録後にこのリンクをもう一度開くと、ふたりとも称号がもらえます！")
+        case .pioneerCondition:     return ("그 나라에 처음으로 별을 남기기",
+                                            "Leave the first star in that country",
+                                            "その国に最初の星を残す")
         }
     }
 

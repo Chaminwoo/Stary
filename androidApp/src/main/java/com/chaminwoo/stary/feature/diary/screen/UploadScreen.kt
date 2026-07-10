@@ -229,10 +229,17 @@ fun UploadScreen(
         )
     }
 
+    // 개척 퀘스트(체크리스트 32) — 저장 성공 시 이 좌표로 선점 시도(자체 스코프라 네비게이션에 안 죽음).
+    var pioneerClaimTarget by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     LaunchedEffect(Unit) {
         diaryViewModel.event.collect { msg ->
             com.chaminwoo.stary.core.ui.StaryToast.show(msg)
-            if (msg == "저장 완료!") onSaveClick()
+            if (msg == "저장 완료!") {
+                pioneerClaimTarget?.let { (la, ln) ->
+                    com.chaminwoo.stary.feature.profile.PioneerClaimHelper.attemptClaim(context, la, ln)
+                }
+                onSaveClick()
+            }
         }
     }
 
@@ -537,6 +544,7 @@ fun UploadScreen(
                             }
                         }
                         val uName = when { !isLoggedIn -> "익명"; isAnonymous -> "익명"; else -> GoogleAuthHelper.currentUserName ?: "알 수 없음" }
+                        pioneerClaimTarget = lat to lng // 저장 성공 이벤트에서 개척 선점 시도(체크리스트 32)
                         diaryViewModel.saveDiary(
                             Diary(
                                 title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
