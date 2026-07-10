@@ -223,6 +223,8 @@
     <string name="pioneer_claimed_toast">🎉 この国の最初の星！「%1$s」の称号を獲得しました</string>
     <string name="ach_pioneer_section">開拓称号</string>
     <string name="pioneer_condition">その国に最初の星を残す</string>
+    <string name="nearby_star_title">近くにまだ見ていない星があります ✦</string>
+    <string name="nearby_star_body">約%1$dm先 — タップすると地図に表示します</string>
     <string name="location_mock_blocked">模擬位置（位置偽装）が検出されたため、位置機能を制限しています</string>
     <string name="map_route_summary">徒歩約%1$d分 · %2$dm</string>
     <string name="map_route_cancel">経路を取り消す</string>

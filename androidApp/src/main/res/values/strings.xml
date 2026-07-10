@@ -225,6 +225,8 @@
     <string name="pioneer_claimed_toast">🎉 이 나라의 첫 별! \'%1$s\' 칭호를 획득했어요</string>
     <string name="ach_pioneer_section">개척 칭호</string>
     <string name="pioneer_condition">그 나라에 처음으로 별을 남기기</string>
+    <string name="nearby_star_title">근처에 아직 안 본 별이 있어요 ✦</string>
+    <string name="nearby_star_body">약 %1$dm 앞 — 탭하면 지도에서 보여드릴게요</string>
     <string name="location_mock_blocked">모의 위치(위치 조작)가 감지되어 위치 기능이 제한돼요</string>
     <string name="map_route_summary">도보 약 %1$d분 · %2$dm</string>
     <string name="map_route_cancel">길찾기 취소</string>

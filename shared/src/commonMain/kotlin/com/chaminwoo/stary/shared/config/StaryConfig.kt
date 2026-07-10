@@ -100,4 +100,9 @@ object StaryConfig {
 
     /** 초대 리딤 허용 기간 — 가입 후 이 시간 이내에만(신규 유입 보상, 체크리스트 31). iOS AppConfig 와 동기화. */
     const val INVITE_REDEEM_WINDOW_MS: Long = 7L * 24 * 60 * 60 * 1000
+
+    /** 근처 미조회 별 알림(체크리스트 33) — 감지 반경/하루 상한/알림 최소 간격. iOS AppConfig 와 동기화. */
+    const val NEARBY_ALERT_RADIUS_M: Float = 250f
+    const val NEARBY_ALERT_DAILY_LIMIT: Int = 5
+    const val NEARBY_ALERT_MIN_INTERVAL_MS: Long = 3L * 60 * 1000
 }

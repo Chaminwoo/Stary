@@ -223,6 +223,8 @@
     <string name="pioneer_claimed_toast">🎉 First star in this country! You earned the \'%1$s\' title</string>
     <string name="ach_pioneer_section">Pioneer titles</string>
     <string name="pioneer_condition">Leave the first star in that country</string>
+    <string name="nearby_star_title">There\'s an unseen star nearby ✦</string>
+    <string name="nearby_star_body">About %1$dm ahead — tap to see it on the map</string>
     <string name="location_mock_blocked">Mock location detected — location features are limited</string>
     <string name="map_route_summary">~%1$d min walk · %2$dm</string>
     <string name="map_route_cancel">Cancel route</string>

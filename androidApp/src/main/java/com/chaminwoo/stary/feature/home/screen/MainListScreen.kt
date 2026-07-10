@@ -206,6 +206,13 @@ fun MainListScreen(
         }
     }
 
+    // 근처 미조회 별 발견 알림(체크리스트 33) — 실제 위치가 갱신될 때마다 검사(빈도 제한은 내부에서).
+    // 지도에 보이는 목록(공개범위 반영) 기준. 탭 → 그 별로 지도 포커스.
+    LaunchedEffect(liveLocation, filteredDiaries, viewedIds, userId) {
+        val me = liveLocation ?: return@LaunchedEffect
+        com.chaminwoo.stary.core.util.NearbyStarAlert.check(context, me, filteredDiaries, viewedIds, userId)
+    }
+
     // 기간별 보기 다이얼로그 — 전체/오늘/7일/30일/1년 중 선택
     if (showPeriodPicker) {
         AlertDialog(
