@@ -15,6 +15,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -97,7 +98,32 @@ class FirebaseFriendRepository : FriendRepository {
                 val list = snapshot?.documents?.mapNotNull { doc ->
                     doc.toObject(Friend::class.java)?.copy(userId = doc.id)
                 } ?: emptyList()
-                trySend(list)
+                // friends 문서는 요청/수락 시점의 스냅샷이라 이후 상대가 이름/사진을 바꾸면 낡은 값이 남는다.
+                // users/{friendUid} 의 현재 공개 프로필로 덮어써서 항상 최신 이름/사진이 보이게 한다.
+                launch {
+                    val enriched = try {
+                        coroutineScope {
+                            list.map { friend ->
+                                async {
+                                    try {
+                                        val profile = users.document(friend.userId).get().await()
+                                        val name = profile.getString("userName")
+                                        val photo = profile.getString("profileImageUrl")
+                                        friend.copy(
+                                            userName = name?.takeIf { it.isNotBlank() } ?: friend.userName,
+                                            photoUrl = photo?.takeIf { it.isNotBlank() } ?: friend.photoUrl
+                                        )
+                                    } catch (_: Exception) {
+                                        friend
+                                    }
+                                }
+                            }.awaitAll()
+                        }
+                    } catch (_: Exception) {
+                        list
+                    }
+                    trySend(enriched)
+                }
             }
         awaitClose { listener.remove() }
     }

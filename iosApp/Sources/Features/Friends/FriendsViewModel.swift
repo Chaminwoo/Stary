@@ -16,7 +16,26 @@ final class FriendsViewModel: ObservableObject {
         stop()
         regs.append(
             FirestoreService.friends(of: uid).addSnapshotListener { [weak self] snap, _ in
-                self?.friends = snap?.documents.compactMap { try? $0.data(as: Friend.self) } ?? []
+                let base = snap?.documents.compactMap { try? $0.data(as: Friend.self) } ?? []
+                self?.friends = base
+                // friends 문서는 요청/수락 시점의 스냅샷이라 이후 상대가 이름/사진을 바꾸면 낡은 값이 남는다.
+                // users/{friendUid} 의 현재 공개 프로필로 덮어써서 항상 최신 이름/사진이 보이게 한다. (Android observeFriends 패리티)
+                Task { [weak self] in
+                    var enriched: [Friend] = []
+                    for friend in base {
+                        guard let doc = try? await FirestoreService.users.document(friend.userId).getDocument() else {
+                            enriched.append(friend)
+                            continue
+                        }
+                        let name = doc.get("userName") as? String
+                        let photo = doc.get("profileImageUrl") as? String
+                        var updated = friend
+                        if let name, !name.isEmpty { updated.userName = name }
+                        if let photo, !photo.isEmpty { updated.photoUrl = photo }
+                        enriched.append(updated)
+                    }
+                    self?.friends = enriched
+                }
             }
         )
         regs.append(
