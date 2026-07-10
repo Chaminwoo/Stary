@@ -440,18 +440,7 @@ fun DetailScreen(
                             )
                         }
                         Text("$likeCount", fontSize = 14.sp, color = MaterialTheme.colorScheme.secondary)
-                        // 공유 — 밤하늘 카드 이미지 + 웹 랜딩 링크를 시스템 공유 시트로(체크리스트 30).
-                        IconButton(onClick = {
-                            reportScope.launch {
-                                com.chaminwoo.stary.core.util.ShareCardHelper.shareDiary(context, currentDiary)
-                            }
-                        }) {
-                            Icon(
-                                imageVector = Icons.Filled.Share,
-                                contentDescription = stringResource(R.string.share_diary),
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                        }
+                        ShareDiaryButton(currentDiary)
                         Spacer(modifier = Modifier.weight(1f))
                         if (isMyDiary) {
                             TextButton(onClick = { editTitle = currentDiary.title; editContent = currentDiary.content; showEditDialog = true }) {
@@ -566,6 +555,26 @@ fun DetailScreen(
                 onClose = { showFullImage = false }
             )
         }
+    }
+}
+
+/**
+ * 공유 버튼(체크리스트 30) — 밤하늘 카드 이미지 + 웹 랜딩 링크를 시스템 공유 시트로.
+ * ⚠️ DetailScreen 본체에 인라인하면 dex 메서드 레지스터 한계(256)를 넘겨 VerifyError 로
+ * 클래스 로드가 거부된다(열람 즉시 크래시) — 반드시 별도 컴포저블로 유지할 것.
+ */
+@Composable
+private fun ShareDiaryButton(diary: Diary) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    IconButton(onClick = {
+        scope.launch { com.chaminwoo.stary.core.util.ShareCardHelper.shareDiary(context, diary) }
+    }) {
+        Icon(
+            imageVector = Icons.Filled.Share,
+            contentDescription = stringResource(R.string.share_diary),
+            tint = MaterialTheme.colorScheme.secondary
+        )
     }
 }
 
