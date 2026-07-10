@@ -12,5 +12,15 @@
       "codebase": "default",
       "ignore": ["node_modules", ".git", "*.log"]
     }
-  ]
+  ],
+  "hosting": {
+    "public": "web",
+    "ignore": ["firebase.json", "**/.*"],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
 }

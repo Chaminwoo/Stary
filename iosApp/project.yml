@@ -52,9 +52,12 @@ targets:
         NSCameraUsageDescription: 다이어리에 넣을 사진을 촬영하기 위해 카메라가 필요해요.
         NSPhotoLibraryUsageDescription: 다이어리에 넣을 사진을 선택하기 위해 사진 보관함 접근이 필요해요.
         # 구글 로그인 콜백 URL 스킴(REVERSED_CLIENT_ID). CI 에서 빌드 설정으로 주입.
+        # + 공유 랜딩 → 앱 딥링크 스킴(stary://diary/{id}, 체크리스트 30).
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - $(GOOGLE_REVERSED_CLIENT_ID)
+          - CFBundleURLSchemes:
+              - stary
     dependencies:
       - package: Firebase
         product: FirebaseAuth

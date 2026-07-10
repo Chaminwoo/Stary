@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -439,6 +440,18 @@ fun DetailScreen(
                             )
                         }
                         Text("$likeCount", fontSize = 14.sp, color = MaterialTheme.colorScheme.secondary)
+                        // 공유 — 밤하늘 카드 이미지 + 웹 랜딩 링크를 시스템 공유 시트로(체크리스트 30).
+                        IconButton(onClick = {
+                            reportScope.launch {
+                                com.chaminwoo.stary.core.util.ShareCardHelper.shareDiary(context, currentDiary)
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.Share,
+                                contentDescription = stringResource(R.string.share_diary),
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        }
                         Spacer(modifier = Modifier.weight(1f))
                         if (isMyDiary) {
                             TextButton(onClick = { editTitle = currentDiary.title; editContent = currentDiary.content; showEditDialog = true }) {

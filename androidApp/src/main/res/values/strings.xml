@@ -202,6 +202,12 @@
     <string name="cd_create_diary">다이어리 생성</string>
     <string name="map_open_range">%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)</string>
     <string name="map_waiting_fix">현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요</string>
+    <string name="share_diary">공유</string>
+    <string name="share_diary_text">밤하늘에 별 하나를 남겼어요. 이 별은 그 장소에 가야 열려요 ✦\n%1$s</string>
+    <string name="share_failed">공유 준비에 실패했어요</string>
+    <string name="share_card_tagline">이 별은 그 장소에 가야 열려요</string>
+    <string name="share_card_untitled">(제목 없음)</string>
+    <string name="share_card_anonymous">익명의 별</string>
     <string name="location_mock_blocked">모의 위치(위치 조작)가 감지되어 위치 기능이 제한돼요</string>
     <string name="map_route_summary">도보 약 %1$d분 · %2$dm</string>
     <string name="map_route_cancel">길찾기 취소</string>

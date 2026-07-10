@@ -21,6 +21,15 @@ struct StaryApp: App {
                 .environmentObject(auth)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
+                    // 공유 랜딩 딥링크(stary://diary/{id}) → 지도 탭 전환 + 그 별로 포커스(체크리스트 30).
+                    if url.scheme == AppConfig.deepLinkScheme, url.host == AppConfig.deepLinkHostDiary {
+                        let id = url.lastPathComponent
+                        if !id.isEmpty, id != "/" {
+                            TabRouter.shared.go(TabRouter.map)
+                            MapFocusStore.shared.request(diaryId: id)
+                        }
+                        return
+                    }
                     _ = GIDSignIn.sharedInstance.handle(url)
                 }
         }

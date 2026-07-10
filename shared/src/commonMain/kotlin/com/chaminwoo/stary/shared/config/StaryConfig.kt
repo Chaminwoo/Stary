@@ -78,4 +78,17 @@ object StaryConfig {
     /** 지도 초기 좌표 폴백 (서울 시청 부근 — 비밀 아님). */
     const val DEFAULT_LAT: Double = 37.5409
     const val DEFAULT_LNG: Double = 127.0794
+
+    /**
+     * 다이어리 공유 웹 랜딩(Firebase Hosting, momentdiary-f26c8 — 비밀 아님) 베이스 URL.
+     * 랜딩은 `web/` 소스, 배포는 `firebase deploy --only hosting`. iOS AppConfig 와 동기화.
+     */
+    const val SHARE_BASE_URL: String = "https://momentdiary-f26c8.web.app"
+
+    /** 다이어리 공유 링크 — 웹 랜딩이 앱 설치자는 stary://diary/{id} 딥링크로 돌려보낸다. */
+    fun shareLink(diaryId: String): String = "$SHARE_BASE_URL/s/$diaryId"
+
+    /** 앱 딥링크 스킴/호스트 (stary://diary/{id}). Android Manifest·iOS Info.plist 와 동기화. */
+    const val DEEP_LINK_SCHEME: String = "stary"
+    const val DEEP_LINK_HOST_DIARY: String = "diary"
 }

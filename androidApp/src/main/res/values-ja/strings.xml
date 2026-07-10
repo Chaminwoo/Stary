@@ -200,6 +200,12 @@
     <string name="cd_create_diary">日記を作成</string>
     <string name="map_open_range">%1$dm以内で閲覧できます（現在%2$dm）</string>
     <string name="map_waiting_fix">現在地を確認しています。しばらくしてからお試しください</string>
+    <string name="share_diary">共有</string>
+    <string name="share_diary_text">夜空に星をひとつ残しました。この星はその場所でしか開けません ✦\n%1$s</string>
+    <string name="share_failed">共有の準備に失敗しました</string>
+    <string name="share_card_tagline">この星はその場所でしか開けません</string>
+    <string name="share_card_untitled">（タイトルなし）</string>
+    <string name="share_card_anonymous">名もなき星</string>
     <string name="location_mock_blocked">模擬位置（位置偽装）が検出されたため、位置機能を制限しています</string>
     <string name="map_route_summary">徒歩約%1$d分 · %2$dm</string>
     <string name="map_route_cancel">経路を取り消す</string>

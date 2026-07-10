@@ -200,6 +200,12 @@
     <string name="cd_create_diary">New diary</string>
     <string name="map_open_range">You need to be within %1$dm to open it (currently %2$dm)</string>
     <string name="map_waiting_fix">Locating you… please try again in a moment</string>
+    <string name="share_diary">Share</string>
+    <string name="share_diary_text">I left a star in the night sky. It only opens at that place ✦\n%1$s</string>
+    <string name="share_failed">Couldn\'t prepare the share</string>
+    <string name="share_card_tagline">This star only opens at that place</string>
+    <string name="share_card_untitled">(Untitled)</string>
+    <string name="share_card_anonymous">An anonymous star</string>
     <string name="location_mock_blocked">Mock location detected — location features are limited</string>
     <string name="map_route_summary">~%1$d min walk · %2$dm</string>
     <string name="map_route_cancel">Cancel route</string>

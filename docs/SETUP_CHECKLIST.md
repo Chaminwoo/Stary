@@ -338,11 +338,17 @@
 - [x] iOS 패리티: `LocationManager` UserDefaults 저장/복원 + `sourceInformation.isSimulatedBySoftware/isProducedByAccessory`
       모의 위치 거부 + `MapLibreView` 시작 좌표 폴백 + `DetailScreen.canOpen` fix 필수. (경고 토스트 UI 는 iOS 전역 토스트 부재로 후속)
 
-### 30. 다이어리 공유 카드 + 웹 랜딩 (유입)
-- [ ] 다이어리(별)를 이미지 카드(밤하늘 배경 + 별 모양/색 + 위치 힌트)로 렌더 → 시스템 공유 시트로 인스타 등 공유.
-- [ ] 공유 링크 → 웹 미리보기(랜딩) "이 별을 열려면 그 장소에 가야 해요" + 스토어 유도. (호스팅: Firebase Hosting 등 검토)
-- [ ] 앱 설치자에겐 딥링크로 해당 별 지도 포커스(기존 diaryId DeepLinkState 재사용).
-- [ ] iOS 패리티(§1.5).
+### 30. 다이어리 공유 카드 + 웹 랜딩 (유입) — ✅ (Android BUILD SUCCESSFUL, 테스트/호스팅 배포 대기)
+- [x] **공유 카드**: 밤하늘(시드 고정 잔별) + 그 별 모양/색(StarStyle 재사용) + 제목/작성자/날짜/역지오코딩 동네 힌트 +
+      태그라인·STARY 브랜드를 1080×1920 카드로 렌더 → 시스템 공유 시트(이미지+링크 텍스트, ko/en/ja).
+      안드 `core/util/ShareCardHelper.kt` + `DetailScreen` 공유 버튼 / iOS `Core/ShareCard.swift`(ImageRenderer) + 툴바 버튼.
+- [x] **웹 랜딩**: `web/index.html`(밤하늘 캔버스 + "이 별은 그 장소에 가야 열려요" + 앱 열기/설치 버튼) +
+      `firebase.json` hosting 블록. 링크 = `StaryConfig.shareLink()` → `https://momentdiary-f26c8.web.app/s/{diaryId}`.
+- [x] **딥링크**: `stary://diary/{id}` (Manifest/Info.plist 스킴 등록). ⚠️ 상세 직행이면 100m 게이팅 우회라
+      **지도 포커스(MapFocusState/MapFocusStore)** 로 처리(카메라+파장만). 푸시 알림(extras) 딥링크는 기존 상세 직행 유지.
+- [x] iOS 패리티(§1.5): AppConfig.shareLink/deepLink*, StaryApp.onOpenURL, L10n 공유 키.
+- [ ] **배포(사용자)**: `firebase deploy --only hosting` (미배포 시 링크가 404 — 카드 이미지 공유는 무관하게 동작).
+- [ ] (후속) iOS App Store 등록 후 랜딩의 스토어 링크 교체.
 
 ### 31. 친구 초대 보상 (유입)
 - [ ] 초대 링크 생성/공유 → 신규 가입 시 초대자·피초대자 모두 보상(한정 별 색 or 칭호 해금, 업적 시스템 재사용).

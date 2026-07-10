@@ -48,6 +48,15 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 공유 웹 랜딩 → 앱 딥링크 (stary://diary/{diaryId}, 체크리스트 30) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="diary"
+                    android:scheme="stary" />
+            </intent-filter>
         </activity>
 
         <!-- FCM 수신 (푸시 발송은 Cloud Functions 필요 — 체크리스트 7/8) -->

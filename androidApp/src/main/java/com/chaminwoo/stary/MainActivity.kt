@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
 
         // 푸시 알림 탭 → 채팅방/다이어리 상세로 딥링크. (콜드 스타트: onCreate, 살아있을 때: onNewIntent)
         handleDeepLinkIntent(intent)
-        val initialDiaryId = intent?.getStringExtra(EXTRA_DIARY_ID)
+        val initialDiaryId = intent?.getStringExtra(EXTRA_DIARY_ID) ?: diaryIdFromUri(intent)
         val initialChatFriendId = intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID)
 
         enableEdgeToEdge()
@@ -74,11 +74,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleDeepLinkIntent(intent: Intent?) {
+        // 푸시 알림(extras) → 상세 화면 딥링크(본인 다이어리 알림이라 게이팅 무관).
         com.chaminwoo.stary.core.util.DeepLinkState.request(
             diaryId = intent?.getStringExtra(EXTRA_DIARY_ID),
             chatFriendId = intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID),
             chatFriendName = intent?.getStringExtra(EXTRA_CHAT_FRIEND_NAME),
         )
+        // 공유 랜딩(stary://diary/{id}) → 상세가 아닌 "지도 포커스"(카메라+파장)로.
+        // 상세 직행이면 100m 열람 게이팅이 우회되므로 별 위치만 보여준다(체크리스트 30).
+        diaryIdFromUri(intent)?.let { com.chaminwoo.stary.core.util.MapFocusState.request(it) }
+    }
+
+    /** 공유 랜딩의 stary://diary/{diaryId} 딥링크에서 다이어리 id 추출(체크리스트 30). */
+    private fun diaryIdFromUri(intent: Intent?): String? {
+        val uri = intent?.data ?: return null
+        val cfg = com.chaminwoo.stary.shared.config.StaryConfig
+        if (uri.scheme != cfg.DEEP_LINK_SCHEME || uri.host != cfg.DEEP_LINK_HOST_DIARY) return null
+        return uri.lastPathSegment?.takeIf { it.isNotBlank() }
     }
 
     companion object {

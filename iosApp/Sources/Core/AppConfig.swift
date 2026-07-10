@@ -53,4 +53,14 @@ enum AppConfig {
     /// 지도 초기 좌표 폴백(서울 시청 부근).
     static let defaultLat = 37.5409
     static let defaultLng = 127.0794
+
+    /// 다이어리 공유 웹 랜딩 베이스 URL. (StaryConfig.SHARE_BASE_URL 와 동기화)
+    static let shareBaseUrl = "https://momentdiary-f26c8.web.app"
+
+    /// 다이어리 공유 링크 — 랜딩이 앱 설치자는 stary://diary/{id} 딥링크로 돌려보낸다.
+    static func shareLink(diaryId: String) -> String { "\(shareBaseUrl)/s/\(diaryId)" }
+
+    /// 앱 딥링크 스킴/호스트 (stary://diary/{id}). (StaryConfig.DEEP_LINK_* 와 동기화)
+    static let deepLinkScheme = "stary"
+    static let deepLinkHostDiary = "diary"
 }

@@ -110,6 +110,15 @@ struct DetailScreen: View {
         .navigationTitle("별")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // 공유 — 밤하늘 카드 이미지 + 웹 랜딩 링크를 공유 시트로(체크리스트 30, Android 패리티).
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    Task { await ShareCard.share(diary: diary) }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .tint(Theme.mint)
+            }
             if !isOwner, !diary.userId.isEmpty, auth.uid != nil {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {

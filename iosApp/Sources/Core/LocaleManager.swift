@@ -97,6 +97,8 @@ enum L10n: String {
     case achTabNormal, achTabHidden, achHiddenIntro, achHiddenAchiever, achHiddenUnclaimed, achHiddenByMe
     // 기간별 보기 필터.
     case filterPeriod, periodAll, periodToday, periodWeek, periodMonth, periodYear
+    // 다이어리 공유 카드(체크리스트 30).
+    case shareDiary, shareDiaryText, shareCardTagline, shareCardUntitled, shareCardAnonymous
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -214,6 +216,15 @@ enum L10n: String {
         case .periodWeek:           return ("최근 7일", "Last 7 days", "過去7日")
         case .periodMonth:          return ("최근 30일", "Last 30 days", "過去30日")
         case .periodYear:           return ("최근 1년", "Last year", "過去1年")
+        case .shareDiary:           return ("공유", "Share", "共有")
+        case .shareDiaryText:       return ("밤하늘에 별 하나를 남겼어요. 이 별은 그 장소에 가야 열려요 ✦",
+                                            "I left a star in the night sky. It only opens at that place ✦",
+                                            "夜空に星をひとつ残しました。この星はその場所でしか開けません ✦")
+        case .shareCardTagline:     return ("이 별은 그 장소에 가야 열려요",
+                                            "This star only opens at that place",
+                                            "この星はその場所でしか開けません")
+        case .shareCardUntitled:    return ("(제목 없음)", "(Untitled)", "（タイトルなし）")
+        case .shareCardAnonymous:   return ("익명의 별", "An anonymous star", "名もなき星")
         }
     }
 
