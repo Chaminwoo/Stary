@@ -30,6 +30,12 @@ struct StaryApp: App {
                         }
                         return
                     }
+                    // 친구 초대 딥링크(stary://invite/{uid}) → 리딤(비로그인이면 보관, 체크리스트 31).
+                    if url.scheme == AppConfig.deepLinkScheme, url.host == AppConfig.deepLinkHostInvite {
+                        let id = url.lastPathComponent
+                        if !id.isEmpty, id != "/" { InviteStore.handleDeepLink(inviterId: id) }
+                        return
+                    }
                     _ = GIDSignIn.sharedInstance.handle(url)
                 }
         }

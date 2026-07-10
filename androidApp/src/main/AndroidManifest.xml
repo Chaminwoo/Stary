@@ -48,13 +48,17 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 공유 웹 랜딩 → 앱 딥링크 (stary://diary/{diaryId}, 체크리스트 30) -->
+            <!-- 공유 웹 랜딩 → 앱 딥링크 (stary://diary/{diaryId} = 별 지도 포커스,
+                 stary://invite/{inviterUid} = 친구 초대 리딤. 체크리스트 30/31) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:host="diary"
+                    android:scheme="stary" />
+                <data
+                    android:host="invite"
                     android:scheme="stary" />
             </intent-filter>
         </activity>

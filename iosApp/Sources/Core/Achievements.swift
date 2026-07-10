@@ -17,6 +17,9 @@ struct UserStats {
     // ── 히든 업적용 통계 ──
     var secretKeywordTitle = false // 제목에 히든 키워드를 넣은 다이어리가 있는가
     var remoteRegions: Set<String> = [] // 도달한 오지 region 집합(glacier/desert/trench/triangle)
+    // ── 친구 초대 보상용 통계(체크리스트 31) ──
+    var invitedFriends = 0        // 내 초대를 리딤해 가입한 친구 수
+    var redeemedInvite = false    // 내가 초대를 리딤했는가
 }
 
 /// 업적 보상 — 칭호 / 별 모양 / 별 색.
@@ -50,6 +53,10 @@ enum Achievements {
         Achievement(id: "companion", name: "길동무", condition: "친구 3명 만들기", reward: .title("길동무")) { $0.friends >= 3 },
         Achievement(id: "pilgrim", name: "우주의 순례자", condition: "다이어리 30개 작성하기", reward: .title("우주의 순례자")) { $0.diariesCreated >= 30 },
         Achievement(id: "guide", name: "별빛의 인도자", condition: "좋아요 200개 받기", reward: .title("별빛의 인도자")) { $0.likesReceived >= 200 },
+        // ── 친구 초대 보상(체크리스트 31) — 초대한 쪽/받은 쪽 모두 칭호 ──
+        Achievement(id: "invite_bond", name: "별의 인연", condition: "초대를 받아 Stary 에 합류하기", reward: .title("별의 인연")) { $0.redeemedInvite },
+        Achievement(id: "invite_beacon", name: "별의 등대", condition: "친구 1명을 Stary 로 초대하기", reward: .title("별의 등대")) { $0.invitedFriends >= 1 },
+        Achievement(id: "invite_flock", name: "별무리의 길잡이", condition: "친구 5명을 Stary 로 초대하기", reward: .title("별무리의 길잡이")) { $0.invitedFriends >= 5 },
         // ※ 기존 '???' 칭호(우주의 악동/고독한 관측자)는 히든 업적(HiddenAchievements)으로 이관됨.
     ]
 
@@ -91,7 +98,11 @@ enum Achievements {
     }
 
     /// 내 다이어리 + 친구/열람 수로 통계를 계산. (Android rememberUserStats 의 파생 로직)
-    static func computeStats(diaries: [Diary], friendsCount: Int, viewedCount: Int) -> UserStats {
+    /// invitedFriends/redeemedInvite 는 InviteStore.fetchStats 로 조회해 넘긴다(기본 0/false).
+    static func computeStats(
+        diaries: [Diary], friendsCount: Int, viewedCount: Int,
+        invitedFriends: Int = 0, redeemedInvite: Bool = false
+    ) -> UserStats {
         let coords = diaries.filter { $0.latitude != 0 || $0.longitude != 0 }
         var maxSpan = 0.0
         if coords.count > 1 {
@@ -125,7 +136,9 @@ enum Achievements {
             distinctDays: days,
             nightPosts: night,
             secretKeywordTitle: keywordHit,
-            remoteRegions: regions
+            remoteRegions: regions,
+            invitedFriends: invitedFriends,
+            redeemedInvite: redeemedInvite
         )
     }
 }

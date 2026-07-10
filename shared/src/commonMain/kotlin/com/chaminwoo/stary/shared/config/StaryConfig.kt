@@ -45,6 +45,8 @@ object StaryConfig {
         const val REPORTS = "reports"
         /** 최상위: 히든 업적 선점 기록 (문서 id = 업적 id, 앱 전체 단 한 명만) */
         const val HIDDEN_ACHIEVEMENTS = "hiddenAchievements"
+        /** 최상위: 친구 초대 리딤 기록 (문서 id = 초대받은 사람 uid — 계정당 1회, 체크리스트 31) */
+        const val INVITES = "invites"
     }
 
     /**
@@ -91,4 +93,11 @@ object StaryConfig {
     /** 앱 딥링크 스킴/호스트 (stary://diary/{id}). Android Manifest·iOS Info.plist 와 동기화. */
     const val DEEP_LINK_SCHEME: String = "stary"
     const val DEEP_LINK_HOST_DIARY: String = "diary"
+
+    /** 친구 초대 딥링크 호스트 (stary://invite/{inviterUid}) + 초대 링크({BASE}/i/{uid}). */
+    const val DEEP_LINK_HOST_INVITE: String = "invite"
+    fun inviteLink(inviterUid: String): String = "$SHARE_BASE_URL/i/$inviterUid"
+
+    /** 초대 리딤 허용 기간 — 가입 후 이 시간 이내에만(신규 유입 보상, 체크리스트 31). iOS AppConfig 와 동기화. */
+    const val INVITE_REDEEM_WINDOW_MS: Long = 7L * 24 * 60 * 60 * 1000
 }

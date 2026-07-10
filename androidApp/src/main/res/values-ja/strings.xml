@@ -206,6 +206,14 @@
     <string name="share_card_tagline">この星はその場所でしか開けません</string>
     <string name="share_card_untitled">（タイトルなし）</string>
     <string name="share_card_anonymous">名もなき星</string>
+    <string name="invite_friends">友達をStaryに招待する</string>
+    <string name="invite_friends_desc">招待した友達がリンクを開くと、ふたりとも称号がもらえます</string>
+    <string name="invite_share_text">Staryで一緒に星を残しましょう ✦ 登録後にこのリンクをもう一度開くと、ふたりとも称号がもらえます！\n%1$s</string>
+    <string name="invite_redeemed">招待特典を獲得しました！実績で新しい称号を確認してください ✦</string>
+    <string name="invite_already">このアカウントはすでに招待を使用しています</string>
+    <string name="invite_self">自分の招待リンクは使用できません</string>
+    <string name="invite_too_old">招待特典は登録後7日以内のみ受け取れます</string>
+    <string name="invite_failed">招待の確認に失敗しました。しばらくしてからお試しください</string>
     <string name="location_mock_blocked">模擬位置（位置偽装）が検出されたため、位置機能を制限しています</string>
     <string name="map_route_summary">徒歩約%1$d分 · %2$dm</string>
     <string name="map_route_cancel">経路を取り消す</string>

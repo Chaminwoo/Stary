@@ -180,6 +180,22 @@ fun MainScreen(
             navController.navigate(NavRoute.Chat(friendId = fid, friendName = fname))
         }
     }
+    // 친구 초대 딥링크(stary://invite/{uid}) 리딤 — 로그인 상태여야 소비. 비로그인이면 보관해 두고
+    // 로그인 완료(showLogin 변경) 시 재시도한다. 결과는 토스트로 안내(체크리스트 31).
+    androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.inviterId, showLogin) {
+        com.chaminwoo.stary.core.util.DeepLinkState.inviterId ?: return@LaunchedEffect
+        val uid = GoogleAuthHelper.currentUserId ?: return@LaunchedEffect
+        val inviter = com.chaminwoo.stary.core.util.DeepLinkState.consumeInvite() ?: return@LaunchedEffect
+        val result = com.chaminwoo.stary.data.repository.FirebaseInviteRepository().redeem(inviter, uid)
+        val msg = when (result) {
+            com.chaminwoo.stary.data.repository.FirebaseInviteRepository.RedeemResult.SUCCESS -> R.string.invite_redeemed
+            com.chaminwoo.stary.data.repository.FirebaseInviteRepository.RedeemResult.ALREADY -> R.string.invite_already
+            com.chaminwoo.stary.data.repository.FirebaseInviteRepository.RedeemResult.SELF -> R.string.invite_self
+            com.chaminwoo.stary.data.repository.FirebaseInviteRepository.RedeemResult.TOO_OLD -> R.string.invite_too_old
+            com.chaminwoo.stary.data.repository.FirebaseInviteRepository.RedeemResult.FAILED -> R.string.invite_failed
+        }
+        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(msg))
+    }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()

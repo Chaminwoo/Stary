@@ -350,10 +350,18 @@
 - [ ] **배포(사용자)**: `firebase deploy --only hosting` (미배포 시 링크가 404 — 카드 이미지 공유는 무관하게 동작).
 - [ ] (후속) iOS App Store 등록 후 랜딩의 스토어 링크 교체.
 
-### 31. 친구 초대 보상 (유입)
-- [ ] 초대 링크 생성/공유 → 신규 가입 시 초대자·피초대자 모두 보상(한정 별 색 or 칭호 해금, 업적 시스템 재사용).
-- [ ] 초대 코드 귀속/중복 방지(서버 검증 필요 여부 검토 — Functions).
-- [ ] iOS 패리티(§1.5).
+### 31. 친구 초대 보상 (유입) — ✅ (Android BUILD SUCCESSFUL, 테스트 대기)
+- [x] **초대 링크 공유**: 친구 탭 상단 초대 카드 → `{SHARE_BASE_URL}/i/{내uid}` 텍스트 공유(ko/en/ja).
+      랜딩(`web/index.html` /i/ 모드)이 "친구가 초대했어요" + `stary://invite/{uid}` 버튼 표시.
+- [x] **리딤**: 딥링크 수신 → 로그인 후 `invites/{내uid}` 생성(문서 id = 리딤자 → 계정당 1회 자동 중복방지).
+      본인 링크 불가 + **가입 7일 이내**(`INVITE_REDEEM_WINDOW_MS`)만. 결과 토스트(성공/중복/본인/기간초과/실패).
+- [x] **보상 = 칭호 업적 3종**(별 색/모양 슬롯은 전부 사용 중): 받은 쪽 `별의 인연`(리딤), 초대한 쪽
+      `별의 등대`(1명)/`별무리의 길잡이`(5명). UserStats.invitedFriends/redeemedInvite → 실시간 판정.
+- [x] **서버 강제**: `firestore.rules` — invites 는 create 만 허용(이미 있으면 실패), update/delete 거부.
+      (+ 기존 파일에 누락돼 있던 `hiddenAchievements` 규칙도 함께 추가 — 배포 시 히든 업적 깨짐 방지)
+- [x] iOS 패리티(§1.5): InviteStore(딥링크 보관→로그인 후 리딤/통계) + FriendsScreen ShareLink 초대 카드 +
+      AchievementsScreen 통계 반영. ⚠️ iOS 리딤 결과 안내 UI 는 전역 토스트 부재로 후속(무음 처리).
+- [ ] **배포(사용자)**: `firebase deploy --only firestore:rules,hosting`.
 
 ### 32. 주간 개척 퀘스트 — 매주 랜덤 나라, 첫 다이어리 = 개척자 칭호 (흥미)
 - [ ] 매주 세계에서 나라 1개 랜덤 선정(이미 개척된 나라는 후보 제외) → 해당 나라에 **처음으로 다이어리를 올린 사람**이

@@ -21,8 +21,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PersonAdd
@@ -48,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -91,6 +94,7 @@ fun FriendScreen(
         return
     }
 
+    val context = LocalContext.current
     val me = remember {
         UserProfile(
             userId = userId,
@@ -151,6 +155,25 @@ fun FriendScreen(
                     query = query,
                     onValueChange = { query = it },
                     onSearch = { if (query.isNotBlank()) vm.search(query) }
+                )
+            }
+
+            // --- 친구 초대(체크리스트 31) — 초대 링크 공유. 가입+리딤 시 양쪽 다 칭호 보상 ---
+            item {
+                InviteCard(
+                    onClick = {
+                        val text = context.getString(
+                            R.string.invite_share_text,
+                            StaryConfig.inviteLink(userId)
+                        )
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, text)
+                        }
+                        context.startActivity(
+                            android.content.Intent.createChooser(send, context.getString(R.string.invite_friends))
+                        )
+                    }
                 )
             }
 
@@ -244,6 +267,42 @@ fun FriendScreen(
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
+    }
+}
+
+/** 친구 초대 카드 — 탭하면 초대 링크를 공유 시트로 보낸다(체크리스트 31). */
+@Composable
+private fun InviteCard(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .appCard(16.dp)
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Green.copy(alpha = 0.14f))
+                .border(1.dp, Green.copy(alpha = 0.30f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = Green, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.invite_friends),
+                color = TextMain, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                stringResource(R.string.invite_friends_desc),
+                color = TextMuted, fontSize = 12.sp
+            )
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted)
     }
 }
 

@@ -13,6 +13,7 @@ struct FriendsScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         searchSection
+                        inviteSection
                         if !vm.requests.isEmpty { requestsSection }
                         friendsSection
                     }
@@ -57,6 +58,34 @@ struct FriendsScreen: View {
                 }
                 .padding(10)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+
+    /// 친구 초대(체크리스트 31) — 초대 링크 공유. 가입+리딤 시 양쪽 다 칭호 보상. (Android InviteCard 패리티)
+    private var inviteSection: some View {
+        Group {
+            if let uid = auth.uid {
+                ShareLink(item: LocaleManager.shared.t(.inviteShareText) + "\n" + AppConfig.inviteLink(inviterUid: uid)) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.badge.plus")
+                            .foregroundStyle(Theme.mint)
+                            .frame(width: 40, height: 40)
+                            .background(Theme.mint.opacity(0.14), in: Circle())
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(LocaleManager.shared.t(.inviteFriends))
+                                .font(.subheadline).bold()
+                                .foregroundStyle(Theme.textPrimary)
+                            Text(LocaleManager.shared.t(.inviteFriendsDesc))
+                                .font(.caption)
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(Theme.textSecondary)
+                    }
+                    .padding(12)
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                }
             }
         }
     }

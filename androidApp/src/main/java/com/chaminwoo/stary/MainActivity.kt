@@ -83,13 +83,21 @@ class MainActivity : ComponentActivity() {
         // 공유 랜딩(stary://diary/{id}) → 상세가 아닌 "지도 포커스"(카메라+파장)로.
         // 상세 직행이면 100m 열람 게이팅이 우회되므로 별 위치만 보여준다(체크리스트 30).
         diaryIdFromUri(intent)?.let { com.chaminwoo.stary.core.util.MapFocusState.request(it) }
+        // 친구 초대(stary://invite/{inviterUid}) → 로그인 후 MainScreen 이 리딤(체크리스트 31).
+        inviterIdFromUri(intent)?.let { com.chaminwoo.stary.core.util.DeepLinkState.requestInvite(it) }
     }
 
     /** 공유 랜딩의 stary://diary/{diaryId} 딥링크에서 다이어리 id 추출(체크리스트 30). */
-    private fun diaryIdFromUri(intent: Intent?): String? {
+    private fun diaryIdFromUri(intent: Intent?): String? =
+        lastSegmentForHost(intent, com.chaminwoo.stary.shared.config.StaryConfig.DEEP_LINK_HOST_DIARY)
+
+    /** 초대 랜딩의 stary://invite/{inviterUid} 딥링크에서 초대자 uid 추출(체크리스트 31). */
+    private fun inviterIdFromUri(intent: Intent?): String? =
+        lastSegmentForHost(intent, com.chaminwoo.stary.shared.config.StaryConfig.DEEP_LINK_HOST_INVITE)
+
+    private fun lastSegmentForHost(intent: Intent?, host: String): String? {
         val uri = intent?.data ?: return null
-        val cfg = com.chaminwoo.stary.shared.config.StaryConfig
-        if (uri.scheme != cfg.DEEP_LINK_SCHEME || uri.host != cfg.DEEP_LINK_HOST_DIARY) return null
+        if (uri.scheme != com.chaminwoo.stary.shared.config.StaryConfig.DEEP_LINK_SCHEME || uri.host != host) return null
         return uri.lastPathSegment?.takeIf { it.isNotBlank() }
     }
 

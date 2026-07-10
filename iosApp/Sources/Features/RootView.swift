@@ -100,6 +100,8 @@ struct MainTabView: View {
             if let uid = newUid { viewed.start(uid: uid); blocks.start(uid: uid) }
             else { viewed.stop(); blocks.stop() }
             startWatcher()
+            // 로그인 전에 들어온 친구 초대 딥링크가 있으면 이제 리딤(체크리스트 31).
+            Task { await InviteStore.redeemPendingIfPossible(uid: newUid) }
         }
         .onChange(of: scenePhase) { phase in
             // 앱 백그라운드/복귀에 맞춰 배경음악 정지/이어재생(위치 보존)

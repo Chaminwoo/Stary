@@ -26,6 +26,9 @@ data class UserStats(
     // ── 히든 업적용 통계 ──
     val secretKeywordTitle: Boolean = false, // 제목에 히든 키워드를 넣은 다이어리가 있는가
     val remoteRegions: Set<String> = emptySet(), // 도달한 오지 region 집합(glacier/desert/trench/triangle)
+    // ── 친구 초대 보상용 통계(체크리스트 31) ──
+    val invitedFriends: Int = 0,        // 내 초대를 리딤해 가입한 친구 수
+    val redeemedInvite: Boolean = false, // 내가 초대를 리딤했는가
 )
 
 /** 업적 보상 — 칭호 / 별 모양 / 별 색 중 하나. (칭호 업적과 별·색 업적을 분리) */
@@ -62,6 +65,10 @@ object Achievements {
         Achievement("companion", "길동무", "친구 3명 만들기", Reward.Title("길동무")) { it.friends >= 3 },
         Achievement("pilgrim", "우주의 순례자", "다이어리 30개 작성하기", Reward.Title("우주의 순례자")) { it.diariesCreated >= 30 },
         Achievement("guide", "별빛의 인도자", "좋아요 200개 받기", Reward.Title("별빛의 인도자")) { it.likesReceived >= 200 },
+        // ── 친구 초대 보상(체크리스트 31) — 초대한 쪽/받은 쪽 모두 칭호 ──
+        Achievement("invite_bond", "별의 인연", "초대를 받아 Stary 에 합류하기", Reward.Title("별의 인연")) { it.redeemedInvite },
+        Achievement("invite_beacon", "별의 등대", "친구 1명을 Stary 로 초대하기", Reward.Title("별의 등대")) { it.invitedFriends >= 1 },
+        Achievement("invite_flock", "별무리의 길잡이", "친구 5명을 Stary 로 초대하기", Reward.Title("별무리의 길잡이")) { it.invitedFriends >= 5 },
         // ※ 기존 '???' 칭호(우주의 악동/고독한 관측자)는 히든 업적(HiddenAchievements)으로 이관됨.
     )
 
@@ -153,6 +160,14 @@ fun rememberUserStats(
         FirebaseFriendRepository().observeFriends(userId)
     }.collectAsState(initial = emptyList())
 
+    // 친구 초대 보상 통계(체크리스트 31) — 초대해 가입시킨 수 / 내가 리딤했는지.
+    val invitedCount by remember(userId) {
+        com.chaminwoo.stary.data.repository.FirebaseInviteRepository().observeInvitedCount(userId)
+    }.collectAsState(initial = 0)
+    val redeemedInvite by remember(userId) {
+        com.chaminwoo.stary.data.repository.FirebaseInviteRepository().observeRedeemed(userId)
+    }.collectAsState(initial = false)
+
     // 다이어리 좌표/시간 기반 파생 통계 (목록이 바뀔 때만 재계산)
     val derived = remember(myDiaries) {
         val coords = myDiaries.filter { it.latitude != 0.0 || it.longitude != 0.0 }
@@ -193,5 +208,10 @@ fun rememberUserStats(
     // 열람 업적은 "다른 사람의 다이어리" 기준 — 내가 쓴 글의 열람 기록은 제외한다.
     val myDiaryIds = myDiaries.map { it.id }.toSet()
     val othersViewed = viewedIds.count { it !in myDiaryIds }
-    return derived.copy(diariesViewed = othersViewed, friends = friends.size)
+    return derived.copy(
+        diariesViewed = othersViewed,
+        friends = friends.size,
+        invitedFriends = invitedCount,
+        redeemedInvite = redeemedInvite,
+    )
 }

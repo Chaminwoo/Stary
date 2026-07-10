@@ -206,6 +206,14 @@
     <string name="share_card_tagline">This star only opens at that place</string>
     <string name="share_card_untitled">(Untitled)</string>
     <string name="share_card_anonymous">An anonymous star</string>
+    <string name="invite_friends">Invite friends to Stary</string>
+    <string name="invite_friends_desc">When an invited friend opens your link, you both earn a title</string>
+    <string name="invite_share_text">Leave stars together on Stary ✦ Sign up and open this link again — we both get a title!\n%1$s</string>
+    <string name="invite_redeemed">Invite reward unlocked! Check your new title in Achievements ✦</string>
+    <string name="invite_already">This account has already used an invite</string>
+    <string name="invite_self">You can\'t use your own invite link</string>
+    <string name="invite_too_old">Invite rewards are only available within 7 days of signing up</string>
+    <string name="invite_failed">Couldn\'t verify the invite. Please try again later</string>
     <string name="location_mock_blocked">Mock location detected — location features are limited</string>
     <string name="map_route_summary">~%1$d min walk · %2$dm</string>
     <string name="map_route_cancel">Cancel route</string>

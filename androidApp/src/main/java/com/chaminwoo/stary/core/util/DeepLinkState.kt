@@ -18,6 +18,9 @@ object DeepLinkState {
         private set
     var chatFriendName by mutableStateOf<String?>(null)
         private set
+    /** 친구 초대 딥링크(stary://invite/{uid})의 초대자 uid — 로그인 후 리딤 시 소비(체크리스트 31). */
+    var inviterId by mutableStateOf<String?>(null)
+        private set
 
     /** 인텐트에서 읽은 딥링크 목적지를 등록(있는 것만). */
     fun request(diaryId: String? = null, chatFriendId: String? = null, chatFriendName: String? = null) {
@@ -27,6 +30,18 @@ object DeepLinkState {
         } else if (!diaryId.isNullOrBlank()) {
             this.diaryId = diaryId
         }
+    }
+
+    /** 초대 딥링크 등록 — 로그인 전에 들어와도 보관했다가 로그인 후 리딤한다. */
+    fun requestInvite(inviterId: String?) {
+        if (!inviterId.isNullOrBlank()) this.inviterId = inviterId
+    }
+
+    /** 초대자 uid 를 꺼내고 비운다(1회 소비). */
+    fun consumeInvite(): String? {
+        val v = inviterId
+        inviterId = null
+        return v?.takeIf { it.isNotBlank() }
     }
 
     /** 다이어리 목적지를 꺼내고 비운다(1회 소비). */

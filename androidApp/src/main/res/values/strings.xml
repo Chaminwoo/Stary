@@ -208,6 +208,14 @@
     <string name="share_card_tagline">이 별은 그 장소에 가야 열려요</string>
     <string name="share_card_untitled">(제목 없음)</string>
     <string name="share_card_anonymous">익명의 별</string>
+    <string name="invite_friends">친구를 Stary 로 초대하기</string>
+    <string name="invite_friends_desc">가입한 친구가 초대 링크를 열면 둘 다 칭호를 받아요</string>
+    <string name="invite_share_text">Stary 에서 함께 별을 남겨요 ✦ 가입 후 이 링크를 다시 열면 우리 둘 다 칭호를 받아요!\n%1$s</string>
+    <string name="invite_redeemed">초대 보상이 해금됐어요! 업적에서 새 칭호를 확인해 보세요 ✦</string>
+    <string name="invite_already">이미 초대를 사용한 계정이에요</string>
+    <string name="invite_self">자신의 초대 링크는 사용할 수 없어요</string>
+    <string name="invite_too_old">초대 보상은 가입 7일 이내에만 받을 수 있어요</string>
+    <string name="invite_failed">초대 확인에 실패했어요. 잠시 후 다시 시도해 주세요</string>
     <string name="location_mock_blocked">모의 위치(위치 조작)가 감지되어 위치 기능이 제한돼요</string>
     <string name="map_route_summary">도보 약 %1$d분 · %2$dm</string>
     <string name="map_route_cancel">길찾기 취소</string>

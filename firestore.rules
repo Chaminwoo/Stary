@@ -79,6 +79,20 @@ service cloud.firestore {
       }
     }
 
+    // 히든 업적 선점(문서 id = 업적 id, 앱 전체 1명) — 클라 트랜잭션이 read+create 를 쓴다.
+    // (기존 파일에 누락돼 있었음 — 배포 시 히든 업적 선점이 깨지지 않도록 추가, 2026-07-10)
+    match /hiddenAchievements/{achievementId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // 친구 초대 리딤(문서 id = 리딤한 사람 uid → 계정당 1회, 체크리스트 31)
+    //  - 생성만 허용 + 이미 있으면 create 자체가 실패 → 중복 리딤 서버 강제.
+    //  - 수정/삭제 불가(초대 기록 조작 방지). 읽기는 업적 카운트 조회용.
+    match /invites/{redeemerId} {
+      allow read, create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
     // 그 외 경로는 모두 거부
     match /{document=**} {
       allow read, write: if false;

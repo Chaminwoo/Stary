@@ -14,6 +14,8 @@ struct AchievementsScreen: View {
 
     @StateObject private var hidden = HiddenAchievementStore()
     @State private var friendsCount = 0
+    @State private var invitedFriends = 0
+    @State private var redeemedInvite = false
     @State private var tab = 0
     @State private var hiddenAlert: HiddenAchievement?
 
@@ -24,7 +26,8 @@ struct AchievementsScreen: View {
         return viewed.viewedIds.subtracting(myIds).count
     }
     private var stats: UserStats {
-        Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: othersViewedCount)
+        Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: othersViewedCount,
+                                  invitedFriends: invitedFriends, redeemedInvite: redeemedInvite)
     }
     private var unlocked: Set<String> { Achievements.unlockedIds(stats) }
     private var allNormalDone: Bool {
@@ -54,6 +57,10 @@ struct AchievementsScreen: View {
             guard let uid = auth.uid else { return }
             let snap = try? await FirestoreService.friends(of: uid).getDocuments()
             friendsCount = snap?.documents.count ?? 0
+            // 친구 초대 보상 통계(체크리스트 31)
+            let invite = await InviteStore.fetchStats(uid: uid)
+            invitedFriends = invite.invited
+            redeemedInvite = invite.redeemed
             if equippedTitleId == nil,
                let doc = try? await FirestoreService.users.document(uid).getDocument() {
                 equippedTitleId = doc.get("equippedTitle") as? String

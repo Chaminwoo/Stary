@@ -22,6 +22,7 @@ enum AppConfig {
         static let chats = "chats"
         static let messages = "messages"        // chats/{chatId} 하위
         static let hiddenAchievements = "hiddenAchievements" // 최상위 (히든 업적 선점, 앱 전체 1명)
+        static let invites = "invites"          // 최상위 (친구 초대 리딤, 문서 id = 리딤한 사람 uid)
     }
 
     /// 두 사용자 ID 로 결정적 채팅방 ID 생성(정렬 후 결합).
@@ -63,4 +64,11 @@ enum AppConfig {
     /// 앱 딥링크 스킴/호스트 (stary://diary/{id}). (StaryConfig.DEEP_LINK_* 와 동기화)
     static let deepLinkScheme = "stary"
     static let deepLinkHostDiary = "diary"
+
+    /// 친구 초대 딥링크 호스트 + 초대 링크(체크리스트 31). (StaryConfig 와 동기화)
+    static let deepLinkHostInvite = "invite"
+    static func inviteLink(inviterUid: String) -> String { "\(shareBaseUrl)/i/\(inviterUid)" }
+
+    /// 초대 리딤 허용 기간(ms) — 가입 후 이 시간 이내에만. (StaryConfig.INVITE_REDEEM_WINDOW_MS 와 동기화)
+    static let inviteRedeemWindowMs: Int64 = 7 * 24 * 60 * 60 * 1000
 }
