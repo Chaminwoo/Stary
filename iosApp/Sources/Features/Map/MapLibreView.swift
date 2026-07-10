@@ -33,8 +33,10 @@ struct MapLibreView: UIViewRepresentable {
         // 키 불필요한 데모 벡터 스타일(추후 자체 스타일/키로 교체).
         mapView.styleURL = URL(string: "https://demotiles.maplibre.org/style.json")
         mapView.delegate = context.coordinator
-        // 위치 fix 전엔 기본 좌표로 시작(이후 실제 fix 가 들어오면 재센터).
-        let fallback = CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
+        // 위치 fix 전엔 "지난 세션 마지막 위치"(없으면 기본 좌표)로 시작 — 기본좌표에서 내 위치로
+        // 크게 점프하는 간격을 줄인다(체크리스트 29). 실제 fix 가 들어오면 재센터.
+        let fallback = LocationManager.lastSavedCoordinate
+            ?? CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
         mapView.setCenter(userLocation ?? fallback, zoomLevel: 13, animated: false)
         mapView.showsUserLocation = true
         mapView.minimumZoomLevel = Self.mapMinZoom // 이 밑은 3D 글로브가 담당

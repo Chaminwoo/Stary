@@ -124,11 +124,25 @@ fun MainListScreen(
 
     // 실시간 위치 — LocationHelper 의 StateFlow 를 관찰해 연속 업데이트가 들어올 때마다 따라온다.
     // (예전엔 진입 시 1회만 currentLatLng 를 채워 내 위치 마커가 실시간으로 움직이지 않았다.)
+    // 첫 fix 전 초기 좌표는 "지난 세션 마지막 위치"(없으면 기본좌표) — 기본좌표(건국대)에서
+    // 내 위치로 크게 점프하는 어색한 간격을 줄인다. 열람 게이팅은 실제 fix 만 사용(DiaryMap).
     val liveLocation by LocationHelper.location.collectAsState()
     var currentLatLng by remember {
-        mutableStateOf(liveLocation ?: LatLng(StaryConfig.DEFAULT_LAT, StaryConfig.DEFAULT_LNG))
+        mutableStateOf(
+            liveLocation
+                ?: LocationHelper.lastSavedLatLng(context)
+                ?: LatLng(StaryConfig.DEFAULT_LAT, StaryConfig.DEFAULT_LNG)
+        )
     }
     LaunchedEffect(liveLocation) { liveLocation?.let { currentLatLng = it } }
+
+    // 모의 위치(위치 조작 앱) 감지 시 1회 경고 — 조작된 좌표는 LocationHelper 가 이미 거부한다.
+    val mockDetected by LocationHelper.mockDetected.collectAsState()
+    LaunchedEffect(mockDetected) {
+        if (mockDetected) {
+            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.location_mock_blocked))
+        }
+    }
 
     // currentUserId 는 일반 var(관찰 불가)라, 로그인 화면 뒤에서 미리 렌더된 이 화면이
     // 로그인 완료 시 리컴포즈되지 않는다. FirebaseAuth 상태를 관찰해 reactive 하게 만든다.

@@ -717,6 +717,14 @@ fun DiaryMap(
                     if (id != null) {
                         val diary = diariesRef.value.firstOrNull { it.id == id }
                         if (diary != null) {
+                            // 실제 위치 fix 전에는 열람 불가 — currentLatLng 폴백(마지막 저장 위치/기본좌표)으로
+                            // 100m 판정하면 이동/조작으로 우회될 수 있다.
+                            if (LocationHelper.getCurrentLatLng() == null) {
+                                com.chaminwoo.stary.core.ui.StaryToast.show(
+                                    context.getString(R.string.map_waiting_fix)
+                                )
+                                return@addOnMapClickListener true
+                            }
                             val cur = currentLatLngRef.value
                             val distance = LocationHelper.distanceBetween(
                                 cur.latitude, cur.longitude, diary.latitude, diary.longitude

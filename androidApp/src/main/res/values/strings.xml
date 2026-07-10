@@ -201,6 +201,8 @@
     <string name="map_only">지도만 보기</string>
     <string name="cd_create_diary">다이어리 생성</string>
     <string name="map_open_range">%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)</string>
+    <string name="map_waiting_fix">현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요</string>
+    <string name="location_mock_blocked">모의 위치(위치 조작)가 감지되어 위치 기능이 제한돼요</string>
     <string name="map_route_summary">도보 약 %1$d분 · %2$dm</string>
     <string name="map_route_cancel">길찾기 취소</string>
     <string name="globe_hint">드래그로 회전 · 아래를 탭해 닫기</string>

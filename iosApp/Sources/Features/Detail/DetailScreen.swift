@@ -45,7 +45,9 @@ struct DetailScreen: View {
     }
 
     private var isOwner: Bool { diary.userId == auth.uid }
-    private var canOpen: Bool { isOwner || distanceM <= AppConfig.diaryOpenRadiusM }
+    /// 실제 위치 fix(coordinate != nil) 전에는 열람 불가 — 기본좌표/저장좌표로 100m 판정하면
+    /// 이동·조작으로 우회될 수 있다(체크리스트 29, Android DiaryMap 게이팅 패리티).
+    private var canOpen: Bool { isOwner || (location.coordinate != nil && distanceM <= AppConfig.diaryOpenRadiusM) }
     /// 차단한 사용자의 댓글은 숨긴다. (Android DetailScreen 패리티)
     private var visibleComments: [Comment] { vm.comments.filter { !blockedIds.contains($0.userId) } }
 

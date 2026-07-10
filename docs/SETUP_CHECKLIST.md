@@ -324,6 +324,46 @@
 
 ---
 
+## 📝 다음 작업 (TODO / 2026-07-10 — 사용자 지정: 유입/흥미 라운드)
+
+### 29. 앱 시작 위치 개선 — 마지막 위치에서 시작 + 위치 조작 차단 — ✅ (Android BUILD SUCCESSFUL, 테스트 대기)
+- [x] **마지막 위치에서 시작**: `LocationHelper` 가 실제 fix 를 SharedPreferences(`stary_location`, 10초 스로틀)에 저장,
+      `lastSavedLatLng()` 로 복원. `MainListScreen` 초기 좌표 = 실시간 fix → 지난 세션 위치 → 기본좌표(건국대) 순.
+      첫 fix 도착 시 카메라 보정(didAutoCenter)은 기존 그대로 — 가까우면 점프가 체감되지 않는다.
+- [x] **모의 위치 차단**: `Location.isMock`(API 31+)/`isFromMockProvider` 감지 시 위치 반영 거부 + `mockDetected` StateFlow
+      → `MainListScreen` 경고 토스트(`location_mock_blocked`, ko/en/ja). 폴백 `getLastKnownLocation` 경로도 필터.
+      VPN 은 IP 만 바꾸고 GPS 는 못 바꾸므로 별도 차단 불필요(모의 위치 차단이 핵심).
+- [x] **fix 전 열람 차단**: 실제 fix 없으면 지도 별 클릭 시 열람 대신 안내(`map_waiting_fix`) — 저장 좌표/기본좌표로
+      100m 판정하던 구멍 제거.
+- [x] iOS 패리티: `LocationManager` UserDefaults 저장/복원 + `sourceInformation.isSimulatedBySoftware/isProducedByAccessory`
+      모의 위치 거부 + `MapLibreView` 시작 좌표 폴백 + `DetailScreen.canOpen` fix 필수. (경고 토스트 UI 는 iOS 전역 토스트 부재로 후속)
+
+### 30. 다이어리 공유 카드 + 웹 랜딩 (유입)
+- [ ] 다이어리(별)를 이미지 카드(밤하늘 배경 + 별 모양/색 + 위치 힌트)로 렌더 → 시스템 공유 시트로 인스타 등 공유.
+- [ ] 공유 링크 → 웹 미리보기(랜딩) "이 별을 열려면 그 장소에 가야 해요" + 스토어 유도. (호스팅: Firebase Hosting 등 검토)
+- [ ] 앱 설치자에겐 딥링크로 해당 별 지도 포커스(기존 diaryId DeepLinkState 재사용).
+- [ ] iOS 패리티(§1.5).
+
+### 31. 친구 초대 보상 (유입)
+- [ ] 초대 링크 생성/공유 → 신규 가입 시 초대자·피초대자 모두 보상(한정 별 색 or 칭호 해금, 업적 시스템 재사용).
+- [ ] 초대 코드 귀속/중복 방지(서버 검증 필요 여부 검토 — Functions).
+- [ ] iOS 패리티(§1.5).
+
+### 32. 주간 개척 퀘스트 — 매주 랜덤 나라, 첫 다이어리 = 개척자 칭호 (흥미)
+- [ ] 매주 세계에서 나라 1개 랜덤 선정(이미 개척된 나라는 후보 제외) → 해당 나라에 **처음으로 다이어리를 올린 사람**이
+      "○○ 개척자" 칭호 획득(선착순 1명 — 기존 히든 업적 트랜잭션 선점 메커닉 재사용).
+- [ ] 개척되지 않은 동안 그 나라를 **지도/글로브에서 특별한 표시**로 구분(개척 완료 시 표시 제거, 칭호는 영구).
+- [ ] 주간 로테이션/당첨 판정은 서버 권위 필요(Functions 스케줄러 + 국가 경계 판정) — 클라 단독 구현 여부 검토.
+- [ ] iOS 패리티(§1.5).
+
+### 33. 근처 별 발견 알림 (리텐션)
+- [ ] "○○m 앞에 안 읽은 별이 있어요" — 근처 미조회 별 감지 시 로컬 알림(미조회 필터 + 위치 추적 인프라 재사용).
+- [ ] 백그라운드 위치는 정책 부담 큼 → 1차는 **앱 사용 중(foreground) 감지**로 시작, 지오펜스 API 확장은 후속 검토.
+- [ ] 빈도 제한(같은 별 재알림 금지, 하루 상한) 설계.
+- [ ] iOS 패리티(§1.5).
+
+---
+
 ## 🍎 (추후) iOS 확장 — **macOS + Xcode 필요(Windows 불가)**
 - [ ] `iosApp/` Xcode(SwiftUI) 프로젝트 생성 + `:shared` 프레임워크 임포트(`linkDebugFrameworkIosSimulatorArm64`).
 - [ ] `Repositories.kt` 인터페이스를 Firebase iOS SDK로 구현, `GoogleService-Info.plist`(f26c8 iOS 앱) 추가.

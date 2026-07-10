@@ -6,8 +6,14 @@ import Foundation
 final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var coordinate: CLLocationCoordinate2D?
     @Published var authorized = false
+    /// 모의 위치(시뮬레이션/외장 액세서리) 감지 — 감지된 좌표는 거부한다. (Android LocationHelper.mockDetected 패리티)
+    @Published var mockDetected = false
 
     private let manager = CLLocationManager()
+    private var lastPersistMs: TimeInterval = 0
+
+    private static let lastLatKey = "stary_last_lat"
+    private static let lastLngKey = "stary_last_lng"
 
     override init() {
         super.init()
@@ -28,9 +34,41 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         coordinate ?? CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
     }
 
+    /// 지난 세션에서 저장한 마지막 실제 위치 — 앱 시작 시 초기 카메라용(없으면 nil).
+    /// 100m 열람 게이팅에는 쓰지 않는다(게이팅은 실제 fix 인 `coordinate` 만). (Android lastSavedLatLng 패리티)
+    static var lastSavedCoordinate: CLLocationCoordinate2D? {
+        let d = UserDefaults.standard
+        guard d.object(forKey: lastLatKey) != nil, d.object(forKey: lastLngKey) != nil else { return nil }
+        return CLLocationCoordinate2D(latitude: d.double(forKey: lastLatKey), longitude: d.double(forKey: lastLngKey))
+    }
+
+    private func persistLastLocation(_ coord: CLLocationCoordinate2D) {
+        let now = Date().timeIntervalSince1970
+        guard now - lastPersistMs >= 10 else { return } // 업데이트마다 디스크에 쓰지 않게 스로틀
+        lastPersistMs = now
+        let d = UserDefaults.standard
+        d.set(coord.latitude, forKey: Self.lastLatKey)
+        d.set(coord.longitude, forKey: Self.lastLngKey)
+    }
+
+    /// 시뮬레이션(Xcode 위치 조작 등)/외장 액세서리가 만든 위치인지. iOS 15 미만은 판별 불가 → 통과.
+    private nonisolated static func isMock(_ loc: CLLocation) -> Bool {
+        guard let info = loc.sourceInformation else { return false }
+        return info.isSimulatedBySoftware || info.isProducedByAccessory
+    }
+
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.last else { return }
-        Task { @MainActor in self.coordinate = loc.coordinate }
+        let mock = Self.isMock(loc)
+        Task { @MainActor in
+            if mock {
+                self.mockDetected = true
+                return // 조작된 좌표는 반영하지 않는다
+            }
+            self.mockDetected = false
+            self.coordinate = loc.coordinate
+            self.persistLastLocation(loc.coordinate)
+        }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
