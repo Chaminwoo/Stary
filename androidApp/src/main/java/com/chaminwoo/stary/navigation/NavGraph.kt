@@ -70,9 +70,21 @@ fun NavGraph(
                 onItemClick = { diaryId ->
                     navController.navigateToDetail(diaryId)
                 },
+                onOpenCluster = { ids ->
+                    // 30m 안에서 합쳐진 별 무리 → 좌우 스와이프 카드 뷰어
+                    navController.navigate(NavRoute.StarCluster(ids = ids.joinToString(",")))
+                },
                 onCreateClick = {
                     navController.navigate(NavRoute.Upload)
                 }
+            )
+        }
+
+        composable<NavRoute.StarCluster> { backStackEntry ->
+            val args: NavRoute.StarCluster = backStackEntry.toRoute()
+            com.chaminwoo.stary.feature.diary.screen.StarClusterScreen(
+                ids = args.ids.split(",").filter { it.isNotBlank() },
+                onOpenDiary = { diaryId -> navController.navigateToDetail(diaryId) }
             )
         }
         // 글쓰기는 '모달' 느낌 — 아래에서 위로 슬라이드, 닫을 땐 아래로.

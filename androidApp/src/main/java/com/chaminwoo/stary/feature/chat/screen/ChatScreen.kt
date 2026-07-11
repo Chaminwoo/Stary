@@ -152,7 +152,7 @@ fun ChatScreen(
             ) {
                 OutlinedTextField(
                     value = input,
-                    onValueChange = { input = it },
+                    onValueChange = { input = it.take(com.chaminwoo.stary.shared.config.StaryConfig.CHAT_MESSAGE_MAX_LEN) },
                     placeholder = { Text(stringResource(R.string.chat_input_placeholder), color = TextMuted, fontSize = 14.sp) },
                     modifier = Modifier.weight(1f),
                     maxLines = 4,

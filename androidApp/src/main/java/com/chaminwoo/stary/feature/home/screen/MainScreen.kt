@@ -497,6 +497,7 @@ private fun localizedTitle(route: NavRoute): String = when (route) {
     is NavRoute.Notification -> stringResource(R.string.nav_notification)
     is NavRoute.Upload -> stringResource(R.string.nav_upload)
     is NavRoute.Detail -> stringResource(R.string.nav_detail)
+    is NavRoute.StarCluster -> stringResource(R.string.nav_star_cluster)
     is NavRoute.UserProfile -> stringResource(R.string.nav_profile) // 타인 프로필도 탑바엔 "프로필"
     else -> route.title // Chat(친구명) 등 동적 제목
 }

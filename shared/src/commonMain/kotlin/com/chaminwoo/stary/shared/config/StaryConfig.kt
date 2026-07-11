@@ -62,6 +62,20 @@ object StaryConfig {
     /** 하루(로컬 자정 기준) 최대 업로드 개수. */
     const val DAILY_UPLOAD_LIMIT: Int = 10
 
+    /** 입력 글자수 제한 — 필드에서 초과분을 잘라 선차단. iOS AppConfig 와 동기화. */
+    const val DIARY_TITLE_MAX_LEN: Int = 30
+    const val DIARY_CONTENT_MAX_LEN: Int = 2000
+    const val COMMENT_MAX_LEN: Int = 300
+    const val CHAT_MESSAGE_MAX_LEN: Int = 500
+    const val NICKNAME_MAX_LEN: Int = 20
+
+    /**
+     * 별 합치기(머지) 반경(m) — 업로드된 다이어리가 이 거리 안에 기존 다이어리와 겹치면
+     * 지도에서 한 별로 합쳐 표시한다. 대표(모양/색)는 좋아요 내림차순 → 오래된 순 1순위,
+     * 크기/밝기는 합쳐진 모든 별의 좋아요 합산으로 반영. iOS AppConfig 와 동기화.
+     */
+    const val STAR_MERGE_RADIUS_M: Float = 30f
+
     /** 채팅 메시지 완전 삭제 허용 시간(전송 후 이 시간 이내에만, 보낸 본인이 삭제 가능). iOS AppConfig 와 동기화. */
     const val CHAT_DELETE_WINDOW_MS: Long = 60_000L
 

@@ -203,15 +203,29 @@
     <string name="map_open_range">%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)</string>
     <string name="map_waiting_fix">현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요</string>
     <string name="share_diary">공유</string>
-    <string name="share_diary_text">밤하늘에 별 하나를 남겼어요. 이 별은 그 장소에 가야 열려요 ✦\n%1$s</string>
+    <string name="share_to_story">인스타그램 스토리에 공유</string>
+    <string name="share_as_image">이미지로 공유</string>
+    <string name="share_diary_text">제가 밤하늘에 별 하나를 남겼어요. Stary에서 함께 이 별을 열어보세요! \n%1$s</string>
     <string name="share_failed">공유 준비에 실패했어요</string>
     <string name="share_card_tagline">이 별은 그 장소에 가야 열려요</string>
     <string name="share_card_untitled">(제목 없음)</string>
     <string name="share_card_anonymous">익명의 별</string>
+    <string name="share_story_link_copied">링크를 복사했어요 — 스토리에서 \'링크 스티커\'로 붙여넣으면 탭할 수 있어요</string>
+    <string name="share_edit_title">공유 카드 꾸미기</string>
+    <string name="share_edit_hint">미리보기를 드래그하면 별 위치를 옮길 수 있어요</string>
+    <string name="share_edit_field_title">카드 제목</string>
+    <string name="share_edit_show_map">지도</string>
+    <string name="share_edit_show_location">위치</string>
+    <string name="share_edit_show_date">날짜</string>
+    <string name="share_edit_star_size">별 크기</string>
+    <string name="nav_star_cluster">겹쳐진 별</string>
+    <string name="cluster_header">이곳에 별 %1$d개가 겹쳐 있어요</string>
+    <string name="cluster_hint">좌우로 넘겨 별을 살펴보세요</string>
+    <string name="cluster_open">탭해서 들여다보기</string>
     <string name="invite_friends">친구를 Stary 로 초대하기</string>
     <string name="invite_friends_desc">가입한 친구가 초대 링크를 열면 둘 다 칭호를 받아요</string>
-    <string name="invite_share_text">Stary 에서 함께 별을 남겨요 ✦ 가입 후 이 링크를 다시 열면 우리 둘 다 칭호를 받아요!\n%1$s</string>
-    <string name="invite_redeemed">초대 보상이 해금됐어요! 업적에서 새 칭호를 확인해 보세요 ✦</string>
+    <string name="invite_share_text">Stary에서 함께 우주를 탐험해요! 가입 후 이 링크를 다시 열면 우리 둘 다 칭호를 받아요!\n%1$s</string>
+    <string name="invite_redeemed">초대 보상이 해금됐어요! 업적에서 새 칭호를 확인해 보세요</string>
     <string name="invite_already">이미 초대를 사용한 계정이에요</string>
     <string name="invite_self">자신의 초대 링크는 사용할 수 없어요</string>
     <string name="invite_too_old">초대 보상은 가입 7일 이내에만 받을 수 있어요</string>
@@ -219,9 +233,9 @@
     <string name="title_invite_bond">별의 인연</string>
     <string name="title_invite_beacon">별의 등대</string>
     <string name="title_invite_flock">별무리의 길잡이</string>
-    <string name="pioneer_title_format">%1$s 개척자</string>
+    <string name="pioneer_title_format">%1$s의 개척자</string>
     <string name="pioneer_quest_marker">개척 퀘스트</string>
-    <string name="pioneer_quest_toast">%1$s에 첫 별을 남긴 사람이 \'%2$s\' 칭호를 가져요!</string>
+    <string name="pioneer_quest_toast">%1$s에 첫 별을 남긴 사람이 \'%2$s\' 칭호를 얻어요! \n(일주일마다 나라 변경)</string>
     <string name="pioneer_claimed_toast">🎉 이 나라의 첫 별! \'%1$s\' 칭호를 획득했어요</string>
     <string name="ach_pioneer_section">개척 칭호</string>
     <string name="pioneer_condition">그 나라에 처음으로 별을 남기기</string>
@@ -245,7 +259,7 @@
     <string name="common_untitled">(제목 없음)</string>
     <string name="user_view_diary_stars">별로 보기</string>
     <string name="user_unfriend_title">친구 취소</string>
-    <string name="user_unfriend_confirm">정말 %1$s님과 친구를 취소하시겠어요?</string>
+    <string name="user_unfriend_confirm">정말 %1$s님을 삭제할까요?</string>
     <string name="user_unfriend_yes">친구 취소</string>
     <string name="user_unfriend_no">유지</string>
     <!-- 화면 첫 진입 설명창 (FirstVisitInfo) -->
@@ -271,7 +285,7 @@
     <string name="filter_mine">나만보기</string>
     <string name="filter_pick_friends">친구 선택</string>
     <string name="filter_friends_n">친구 %1$d명</string>
-    <string name="filter_no_friends">친구가 없어요</string>
+    <string name="filter_no_friends">검색을 통해 친구를 만들어봐요!</string>
     <string name="filter_apply">적용</string>
     <string name="cd_filter">필터</string>
     <!-- 기간별 보기 필터 -->
@@ -306,8 +320,8 @@
     <string name="title_popular">인기쟁이</string>
     <string name="title_watched_star">주목받는 별</string>
     <string name="title_companion">길동무</string>
-    <string name="title_pilgrim">우주의 순례자</string>
-    <string name="title_guide">별빛의 인도자</string>
+    <string name="title_pilgrim">순례자</string>
+    <string name="title_guide">별빛 인도자</string>
     <!-- 칭호 이름 — 히든 -->
     <string name="title_secret_word">별의 암호</string>
     <string name="title_remote_place">극야의 개척자</string>

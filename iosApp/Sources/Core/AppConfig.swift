@@ -36,6 +36,17 @@ enum AppConfig {
     /// 하루(로컬 자정 기준) 최대 업로드 개수. (StaryConfig.DAILY_UPLOAD_LIMIT 와 동기화)
     static let dailyUploadLimit = 10
 
+    /// 입력 글자수 제한 — 필드에서 초과분을 잘라 선차단. (StaryConfig.*_MAX_LEN 과 동기화)
+    static let diaryTitleMaxLen = 30
+    static let diaryContentMaxLen = 2000
+    static let commentMaxLen = 300
+    static let chatMessageMaxLen = 500
+    static let nicknameMaxLen = 20
+
+    /// 별 합치기(머지) 반경(m) — 이 거리 안에 겹치는 다이어리는 지도에서 한 별로 합쳐 표시.
+    /// (StaryConfig.STAR_MERGE_RADIUS_M 와 동기화. iOS 지도 머지 렌더는 후속 TODO)
+    static let starMergeRadiusM: Double = 30
+
     /// 채팅 메시지 완전 삭제 허용 시간(ms) — 전송 후 이 시간 이내에만 보낸 본인이 삭제 가능.
     /// (StaryConfig.CHAT_DELETE_WINDOW_MS 와 동기화)
     static let chatDeleteWindowMs: Int64 = 60_000

@@ -288,16 +288,34 @@ fun UploadScreen(
             Spacer(Modifier.height(20.dp))
 
             OutlinedTextField(
-                value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.field_title)) },
+                value = title,
+                onValueChange = { title = it.take(StaryConfig.DIARY_TITLE_MAX_LEN) },
+                label = { Text(stringResource(R.string.field_title)) },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                 shape = RoundedCornerShape(12.dp), colors = fieldColors,
+                supportingText = {
+                    Text(
+                        "${title.length}/${StaryConfig.DIARY_TITLE_MAX_LEN}",
+                        color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp,
+                        modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.End
+                    )
+                },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = content, onValueChange = { content = it }, label = { Text(stringResource(R.string.upload_content_label)) },
+                value = content,
+                onValueChange = { content = it.take(StaryConfig.DIARY_CONTENT_MAX_LEN) },
+                label = { Text(stringResource(R.string.upload_content_label)) },
                 modifier = Modifier.fillMaxWidth().height(160.dp),
                 shape = RoundedCornerShape(12.dp), colors = fieldColors,
+                supportingText = {
+                    Text(
+                        "${content.length}/${StaryConfig.DIARY_CONTENT_MAX_LEN}",
+                        color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp,
+                        modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.End
+                    )
+                },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
             )
 

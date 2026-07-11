@@ -115,6 +115,8 @@ fun MainListScreen(
     onItemClick: (String) -> Unit,
     onCreateClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 30m 안에서 합쳐진 별(2개 이상) 열람 — 우선순위 정렬된 다이어리 id 목록. */
+    onOpenCluster: (List<String>) -> Unit = {},
     diaryViewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())
 ) {
     val context = LocalContext.current
@@ -389,6 +391,7 @@ fun MainListScreen(
             diaries = filteredDiaries,
             currentLatLng = currentLatLng,
             onDiaryClick = onItemClick,
+            onClusterClick = onOpenCluster,
             onCreateClick = onCreateClick,
             focusDiary = focusTarget,
             onFocusHandled = { MapFocusState.consume() },

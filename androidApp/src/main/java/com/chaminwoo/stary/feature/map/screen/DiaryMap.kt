@@ -226,6 +226,46 @@ private fun starBitmap(type: Int, colorIdx: Int): Bitmap {
 }
 
 /**
+ * 개척 퀘스트 비콘 비트맵(체크리스트 32) — 다이어리 별과 확실히 구분되는 "금색 이중 링 + 스파클".
+ * 바깥 글로우 링(blur) + 얇은 실선 링 + 중앙 8꼭지 금색 스파클.
+ */
+private fun pioneerBeaconBitmap(): Bitmap {
+    val side = MARKER_SIDE_PX
+    val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(out)
+    val cx = side / 2f
+    val cy = side / 2f
+    val gold = AndroidColor.parseColor("#FFD86F")
+
+    // 1) 바깥 글로우 링(은은히 번지는 금빛)
+    canvas.drawCircle(cx, cy, side * 0.40f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = gold
+        style = Paint.Style.STROKE
+        strokeWidth = side * 0.045f
+        maskFilter = android.graphics.BlurMaskFilter(side * 0.07f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        alpha = 190
+    })
+    // 2) 얇은 실선 링(선명한 경계)
+    canvas.drawCircle(cx, cy, side * 0.40f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = gold
+        style = Paint.Style.STROKE
+        strokeWidth = side * 0.015f
+    })
+    // 3) 중앙 스파클(8꼭지, 앰버골드 그라데이션 느낌은 단색+코어로)
+    val starSize = side * 0.52f
+    val offset = (side - starSize) / 2f
+    val path = android.graphics.Path(StarStyle.starPath(3, starSize)).apply { offset(offset, offset) }
+    val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = gold
+        maskFilter = android.graphics.BlurMaskFilter(9f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    canvas.drawPath(path, glow)
+    canvas.drawPath(path, glow)
+    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = gold })
+    return out
+}
+
+/**
  * iconSize 표현식: 줌 보간(줌아웃일수록 작게) × near 확대 × pulse(애니메이션 루프에서 갱신).
  * ["zoom"] 은 최상위 interpolate 에서만 허용되므로 줌 스톱의 출력값에 near 분기를 넣는다.
  */
@@ -353,6 +393,50 @@ private fun clusterTopLiked(
 private fun clusterSizeBoost(count: Int): Float =
     (1f + (count - 1) * 0.12f).coerceAtMost(2.2f)
 
+/** 별 합치기(30m) 우선순위 — 좋아요 내림차순 → 오래된 순 → id(안정 타이브레이크). 대표 = 1순위. */
+private val MERGE_PRIORITY: Comparator<Diary> =
+    compareByDescending<Diary> { it.likeCount }.thenBy { it.createdAt }.thenBy { it.id }
+
+/** 30m 지오 머지 결과: 대표 별 목록 + (대표 id → 우선순위 정렬된 멤버 전체). */
+private data class MergeResult(val reps: List<Diary>, val groups: Map<String, List<Diary>>)
+
+/**
+ * 좌표 기반 별 합치기 — [StaryConfig.STAR_MERGE_RADIUS_M](30m) 안에 겹치는 다이어리는
+ * 우선순위 1위(좋아요↓ → 오래된 순) 별을 대표로 한 별로 합친다(줌과 무관한 의미적 머지).
+ * 대표의 모양/색이 합쳐진 별의 모양/색이 되고, 크기/밝기는 [mergeSizeMult] 로 합산 반영.
+ */
+private fun mergeByProximity(valid: List<Diary>): MergeResult {
+    if (valid.isEmpty()) return MergeResult(emptyList(), emptyMap())
+    val sorted = valid.sortedWith(MERGE_PRIORITY)
+    val taken = BooleanArray(sorted.size)
+    val reps = ArrayList<Diary>()
+    val groups = HashMap<String, List<Diary>>()
+    for (i in sorted.indices) {
+        if (taken[i]) continue
+        taken[i] = true
+        val anchor = sorted[i]
+        val members = ArrayList<Diary>()
+        members.add(anchor)
+        for (j in i + 1 until sorted.size) {
+            if (taken[j]) continue
+            val d = sorted[j]
+            if (LocationHelper.distanceBetween(anchor.latitude, anchor.longitude, d.latitude, d.longitude)
+                <= StaryConfig.STAR_MERGE_RADIUS_M
+            ) {
+                taken[j] = true
+                members.add(d) // sorted 순회라 members 도 우선순위 정렬 상태
+            }
+        }
+        reps.add(anchor)
+        groups[anchor.id] = members
+    }
+    return MergeResult(reps, groups)
+}
+
+/** 합쳐진 별 크기/밝기 배율 — 멤버 전체 좋아요 "합산" + 개수 보너스(모든 별 합산 반영 규칙). */
+private fun mergeSizeMult(members: List<Diary>): Float =
+    likeSizeMult(members.sumOf { it.likeCount }) * clusterSizeBoost(members.size)
+
 /**
  * 다이어리 → 별 마커 Feature.
  * [lng]/[lat] 와 [alpha] 는 합쳐짐/펼쳐짐 보간에 사용. [sizeMult] 는 최종 크기 배율(좋아요×클러스터 보너스).
@@ -386,6 +470,41 @@ private fun particleBitmap(): Bitmap {
     canvas.drawCircle(c, c, side * 0.22f, glowPaint)
     canvas.drawCircle(c, c, side * 0.13f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
     return out
+}
+
+/** 다이어리 별 주위를 도는 마이크로 스파클 — 세트 수(궤도 2개: 안쪽/바깥쪽 역방향). */
+private const val SPARKLE_SETS = 2
+private const val SPARKLE_ICON_ID = "diary-sparkle-icon"
+private fun sparkleLayerId(set: Int, group: Int) = "diary-sparkle-$set-$group"
+
+/** 마커 곁 스파클 비트맵 — 아주 작은 4꼭지 별(글로우+본체). */
+private fun sparkleBitmap(): Bitmap {
+    val side = 24
+    val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(out)
+    val starSize = side * 0.62f
+    val offset = (side - starSize) / 2f
+    val path = android.graphics.Path(StarStyle.starPath(0, starSize)).apply { offset(offset, offset) }
+    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE
+        maskFilter = android.graphics.BlurMaskFilter(3.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    })
+    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
+    return out
+}
+
+/**
+ * 스파클 iconSize — 줌인 상태에서만 보이는 미세 장식(줌 11 이하 완전 숨김).
+ * 바깥 궤도(set 1)는 살짝 더 작게.
+ */
+private fun sparkleSizeExpression(set: Int): Expression {
+    val base = if (set == 0) 0.42f else 0.30f
+    return Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        Expression.stop(11f, 0f),
+        Expression.stop(13f, base * 0.55f),
+        Expression.stop(15.5f, base),
+    )
 }
 
 /**
@@ -466,8 +585,8 @@ private fun buildConstellationFeatures(
 ): FeatureCollection {
     val valid = diaries.filter { it.latitude != 0.0 && it.longitude != 0.0 }
     if (valid.size < 2) return FeatureCollection.fromFeatures(emptyList())
-    // 화면에 실제 표시되는 대표 별만 사용
-    val reps = clusterTopLiked(map, valid, radiusPx).reps
+    // 화면에 실제 표시되는 대표 별만 사용 (30m 지오 머지 → 화면 클러스터링 순서로 마커와 동일)
+    val reps = clusterTopLiked(map, mergeByProximity(valid).reps, radiusPx).reps
     val bounds = map.projection.visibleRegion.latLngBounds
     val visible = reps.filter { bounds.contains(MlLatLng(it.latitude, it.longitude)) }
     if (visible.size < 2) return FeatureCollection.fromFeatures(emptyList())
@@ -598,6 +717,8 @@ fun DiaryMap(
     onDiaryClick: (String) -> Unit,
     onCreateClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 30m 안에서 합쳐진 별(2개 이상) 열람 — 파장 후 카드 스와이프 화면으로. 우선순위 정렬된 id 목록 전달. */
+    onClusterClick: (List<String>) -> Unit = {},
     focusDiary: DiaryFocusTarget? = null,
     onFocusHandled: () -> Unit = {},
     showCreate: Boolean = true, // 비로그인 시 다이어리 생성(업로드) 버튼 숨김
@@ -646,7 +767,10 @@ fun DiaryMap(
     val warpState = remember { mutableStateOf<DiaryOpenWarpData?>(null) }
 
     val onDiaryClickRef = rememberUpdatedState(onDiaryClick)
+    val onClusterClickRef = rememberUpdatedState(onClusterClick)
     val onFocusHandledRef = rememberUpdatedState(onFocusHandled)
+    // 30m 머지 그룹(대표 id → 우선순위 정렬된 멤버들) — 클릭 리스너(1회 등록)에서 최신값 참조.
+    val mergeGroupsState = remember { mutableStateOf<Map<String, List<Diary>>>(emptyMap()) }
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
     val diariesRef = rememberUpdatedState(diaries)
     val initialLatLngRef = rememberUpdatedState(currentLatLng)
@@ -756,11 +880,19 @@ fun DiaryMap(
                                 val h = mv.height.toFloat().coerceAtLeast(1f)
                                 val ox = (sp.x / w).coerceIn(0f, 1f)
                                 val oy = (sp.y / h).coerceIn(0f, 1f)
+                                // 30m 머지 그룹 — 2개 이상이면 파장에 멤버 별 모양 파티클을 얹고 카드 뷰어로.
+                                val group = mergeGroupsState.value[id] ?: listOf(diary)
                                 // 현재 지도를 스냅샷으로 떠서, 그 이미지를 1초간 왜곡(파장+울렁)한 뒤 세부 화면으로 이동
                                 map.snapshot { bmp ->
                                     // 열람 애니메이션(파장) 시작과 동시에 열람 효과음 재생
                                     com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
-                                    warpState.value = DiaryOpenWarpData(bmp, ox, oy, id, diary.starColor, navigateAfter = true)
+                                    warpState.value = DiaryOpenWarpData(
+                                        bmp, ox, oy, id, diary.starColor, navigateAfter = true,
+                                        burstStars = if (group.size > 1) {
+                                            group.take(12).map { it.starType to it.starColor }
+                                        } else emptyList(),
+                                        clusterIds = if (group.size > 1) group.map { it.id } else emptyList(),
+                                    )
                                 }
                             } else {
                                 com.chaminwoo.stary.core.ui.StaryToast.show(
@@ -903,11 +1035,31 @@ fun DiaryMap(
                         style.addLayer(layer)
                     }
 
+                    // 별 곁 마이크로 스파클 — 각 별 주위를 도는 작은 반짝이 2개(안쪽/바깥쪽 역방향 궤도).
+                    // 같은 source 를 쓰고 iconTranslate 를 궤도로 움직인다(애니메이션 루프에서 갱신).
+                    style.addImage(SPARKLE_ICON_ID, sparkleBitmap())
+                    for (s in 0 until SPARKLE_SETS) {
+                        for (g in 0 until PHASE_GROUPS) {
+                            val layer = SymbolLayer(sparkleLayerId(s, g), DIARY_SOURCE).withProperties(
+                                PropertyFactory.iconImage(SPARKLE_ICON_ID),
+                                PropertyFactory.iconSize(sparkleSizeExpression(s)),
+                                PropertyFactory.iconOpacity(0f),
+                                PropertyFactory.iconAllowOverlap(true),
+                                PropertyFactory.iconIgnorePlacement(true),
+                            )
+                            layer.setFilter(
+                                Expression.eq(Expression.get("phaseGroup"), Expression.literal(g))
+                            )
+                            style.addLayer(layer)
+                        }
+                    }
+
                     diarySource = dSrc
 
-                    // 개척 퀘스트 대상국 비콘(체크리스트 32) — 미개척 대상국 중심좌표에 금색 스파클 + 라벨.
-                    // 데이터는 아래 LaunchedEffect(pioneerClaims)가 채운다. 탭 → 퀘스트 안내 토스트.
-                    style.addImage(PIONEER_ICON_ID, starBitmap(3, 15))
+                    // 개척 퀘스트 대상국 비콘(체크리스트 32) — 미개척 대상국 중심좌표에 "금색 링+스파클" 아이콘.
+                    // ⚠️ 이 스타일 JSON 에는 glyphs(폰트) 엔드포인트가 없어 textField 를 쓰면 심볼이 아예
+                    // 렌더되지 않는다 → 아이콘 전용으로 유지(나라 이름은 탭 토스트로 안내).
+                    style.addImage(PIONEER_ICON_ID, pioneerBeaconBitmap())
                     val pSrc = GeoJsonSource(PIONEER_SOURCE, FeatureCollection.fromFeatures(emptyList()))
                     style.addSource(pSrc)
                     style.addLayer(
@@ -916,21 +1068,13 @@ fun DiaryMap(
                             PropertyFactory.iconSize(
                                 Expression.interpolate(
                                     Expression.linear(), Expression.zoom(),
-                                    Expression.stop(2f, 0.45f),
-                                    Expression.stop(8f, 0.7f),
-                                    Expression.stop(14f, 0.95f),
+                                    Expression.stop(2f, 0.55f),
+                                    Expression.stop(8f, 0.8f),
+                                    Expression.stop(14f, 1.0f),
                                 )
                             ),
                             PropertyFactory.iconAllowOverlap(true),
                             PropertyFactory.iconIgnorePlacement(true),
-                            PropertyFactory.textField(Expression.get("label")),
-                            PropertyFactory.textColor("#FFD86F"),
-                            PropertyFactory.textHaloColor("#000000"),
-                            PropertyFactory.textHaloWidth(1.2f),
-                            PropertyFactory.textSize(12f),
-                            PropertyFactory.textOffset(arrayOf(0f, 1.6f)),
-                            PropertyFactory.textAllowOverlap(true),
-                            PropertyFactory.textIgnorePlacement(true),
                         )
                     )
                     pioneerSource = pSrc
@@ -1133,9 +1277,10 @@ fun DiaryMap(
             DiaryOpenWarp(wd) {
                 warpState.value = null
                 if (wd.navigateAfter) {
-                    // 별 탭(100m 이내) → 파장 후 세부 화면으로
+                    // 별 탭(100m 이내) → 파장 후 세부 화면으로 (합쳐진 별이면 카드 뷰어로)
                     MapUiState.exitMapOnly()
-                    onDiaryClickRef.value(wd.id)
+                    if (wd.clusterIds.size > 1) onClusterClickRef.value(wd.clusterIds)
+                    else onDiaryClickRef.value(wd.id)
                 } else {
                     // 알림 포커스 → 파장만 내고 지도에 머문다
                     onFocusHandledRef.value()
@@ -1159,10 +1304,16 @@ fun DiaryMap(
         delay(90)
 
         val valid = diaries.filter { it.latitude != 0.0 && it.longitude != 0.0 }
-        val byId = valid.associateBy { it.id }
 
-        // 화면 좌표 기준 클러스터링 → 대표(최다 좋아요) + 배정표
-        val result = clusterTopLiked(map, valid, clusterRadiusPx)
+        // ① 30m 지오 머지(줌 무관, 의미적 합치기) — 겹친 다이어리는 우선순위 1위 별로 합쳐진다.
+        //    대표의 모양/색으로 렌더되고, 크기/밝기는 멤버 좋아요 합산(mergeSizeMult)으로 반영.
+        val merged = mergeByProximity(valid)
+        mergeGroupsState.value = merged.groups
+        val mergedReps = merged.reps
+        val byId = mergedReps.associateBy { it.id }
+
+        // ② 화면 좌표 기준 클러스터링(저줌 시각 병합) → 대표(최다 좋아요) + 배정표
+        val result = clusterTopLiked(map, mergedReps, clusterRadiusPx)
         val reps = result.reps
         val assignment = result.assignment
         val nearIds = reps.filter { d ->
@@ -1172,8 +1323,10 @@ fun DiaryMap(
         }.map { it.id }.toSet()
         // 대표별 클러스터 크기(흡수된 다이어리 수, 자기 포함) → 크기 보너스
         val clusterCount = assignment.values.groupingBy { it }.eachCount()
+        // 30m 머지 합산 배율(멤버 좋아요 합 + 개수 보너스)
+        fun mergeMult(d: Diary): Float = mergeSizeMult(merged.groups[d.id] ?: listOf(d))
         fun repSizeMult(d: Diary): Float =
-            likeSizeMult(d.likeCount) * clusterSizeBoost(clusterCount[d.id] ?: 1)
+            mergeMult(d) * clusterSizeBoost(clusterCount[d.id] ?: 1)
 
         val key = reps.map { it.id } to nearIds
         if (key == lastFeaturesKey) return@LaunchedEffect
@@ -1220,8 +1373,8 @@ fun DiaryMap(
             if (startNanos == 0L) startNanos = frame
             t = ((frame - startNanos) / durationNanos).toFloat().coerceIn(0f, 1f)
             val e = FastOutSlowInEasing.transform(t)
-            val feats = ArrayList<Feature>(valid.size)
-            for (d in valid) {
+            val feats = ArrayList<Feature>(mergedReps.size)
+            for (d in mergedReps) {
                 val fromRep = from[d.id] ?: d.id
                 val toRep = assignment[d.id] ?: d.id
                 val fromAlpha = if (fromRep == d.id) 1f else 0f
@@ -1234,8 +1387,8 @@ fun DiaryMap(
                 val lng = fLng + (tLng - fLng) * e
                 val lat = fLat + (tLat - fLat) * e
                 val a = fromAlpha + (toAlpha - fromAlpha) * e
-                // 대표로 정착하는 별만 클러스터 보너스 적용(흡수되는 별은 기본 크기로 페이드)
-                val sm = if (toRep == d.id) repSizeMult(d) else likeSizeMult(d.likeCount)
+                // 대표로 정착하는 별만 클러스터 보너스 적용(흡수되는 별은 머지 배율만으로 페이드)
+                val sm = if (toRep == d.id) repSizeMult(d) else mergeMult(d)
                 feats.add(diaryFeature(d, lng, lat, d.id in nearIds, a, sm))
             }
             source.setGeoJson(FeatureCollection.fromFeatures(feats))
@@ -1323,6 +1476,22 @@ fun DiaryMap(
                         )
                     )
                 )
+                // 별 곁 마이크로 스파클 — 안쪽/바깥쪽 역방향 타원 궤도 + 별 부유 동기 + 트윙클.
+                for (s in 0 until SPARKLE_SETS) {
+                    val sl = style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer ?: continue
+                    val orbitR = if (s == 0) 13f else 19f
+                    val speed = if (s == 0) 1.1f else -0.8f
+                    val ang = t * speed + phase + s * 1.9f
+                    val sx = (kotlin.math.cos(ang) * orbitR)
+                    val sy = (sin(ang) * orbitR * 0.55f) + floatDy
+                    val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
+                    sl.setProperties(
+                        PropertyFactory.iconTranslate(arrayOf(sx, sy)),
+                        PropertyFactory.iconOpacity(
+                            Expression.product(Expression.literal(op), Expression.get("alpha"))
+                        ),
+                    )
+                }
             }
             // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신 (GeoJSON 재생성 없음)
             for (g in 0 until PHASE_GROUPS) {
@@ -1382,11 +1551,6 @@ fun DiaryMap(
         val features = featured.map { c ->
             Feature.fromGeometry(Point.fromLngLat(c.lng, c.lat)).apply {
                 addStringProperty("code", c.code)
-                addStringProperty(
-                    "label",
-                    context.getString(R.string.pioneer_quest_marker) + " · " +
-                        com.chaminwoo.stary.core.util.LocalizedNames.countryName(c.code)
-                )
             }
         }
         src.setGeoJson(FeatureCollection.fromFeatures(features))
@@ -1463,6 +1627,10 @@ private class DiaryOpenWarpData(
     val id: String,
     val colorIndex: Int,
     val navigateAfter: Boolean,
+    /** 30m 안에서 합쳐진 별들의 (모양, 색) — 파장 중심에서 작은 파티클로 퍼진다(합쳐진 별 열람 시만). */
+    val burstStars: List<Pair<Int, Int>> = emptyList(),
+    /** 합쳐진 멤버 다이어리 id(우선순위 정렬) — 2개 이상이면 파장 후 카드 뷰어로 이동. */
+    val clusterIds: List<String> = emptyList(),
 )
 
 /**
@@ -1519,6 +1687,33 @@ private fun DiaryOpenWarp(data: DiaryOpenWarpData, onFinished: () -> Unit) {
         }
         drawIntoCanvas { c ->
             c.nativeCanvas.drawBitmapMesh(data.bitmap, mw, mh, verts, 0, null, 0, meshPaint)
+        }
+
+        // 합쳐진 별 파티클 — 파장 중심(별 위치)에서 각 멤버의 모양/색이 작은 별로 퍼져 나간다.
+        if (data.burstStars.isNotEmpty() && p > 0.02f) {
+            drawIntoCanvas { c ->
+                val n = data.burstStars.size
+                data.burstStars.forEachIndexed { i, (type, colorIdx) ->
+                    // 황금비 시퀀스로 방향/거리/크기를 결정론적으로 흩뿌린다(매 프레임 동일).
+                    val golden = (i * 0.61803398f) % 1f
+                    val ang = (i.toFloat() / n) * 2f * Math.PI.toFloat() + golden * 0.9f
+                    val dist = (70.dp.toPx() + golden * 90.dp.toPx()) * p
+                    val x = cx + kotlin.math.cos(ang) * dist
+                    val y = cy + sin(ang) * dist
+                    val sizePx = (12f + golden * 8f).dp.toPx() * (1f - 0.35f * p)
+                    val alpha = ((1f - p) * 1.4f).coerceIn(0f, 1f)
+                    if (alpha <= 0.01f) return@forEachIndexed
+                    val color = StarStyle.colorOf(colorIdx).copy(alpha = alpha).toArgb()
+                    val path = android.graphics.Path(StarStyle.starPath(type, sizePx)).apply {
+                        offset(x - sizePx / 2f, y - sizePx / 2f)
+                    }
+                    c.nativeCanvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        this.color = color
+                        maskFilter = android.graphics.BlurMaskFilter(4.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                    })
+                    c.nativeCanvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+                }
+            }
         }
 
         // 파장 링 — 별 위치에서 퍼지는 빛 테두리 (+ 강한 후광)

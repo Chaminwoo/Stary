@@ -248,14 +248,16 @@ fun DetailScreen(
             text = {
                 Column {
                     OutlinedTextField(
-                        value = editTitle, onValueChange = { editTitle = it },
+                        value = editTitle,
+                        onValueChange = { editTitle = it.take(com.chaminwoo.stary.shared.config.StaryConfig.DIARY_TITLE_MAX_LEN) },
                         label = { Text(stringResource(R.string.field_title)) }, modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp), colors = fieldColors,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
-                        value = editContent, onValueChange = { editContent = it },
+                        value = editContent,
+                        onValueChange = { editContent = it.take(com.chaminwoo.stary.shared.config.StaryConfig.DIARY_CONTENT_MAX_LEN) },
                         label = { Text(stringResource(R.string.field_content)) }, modifier = Modifier.fillMaxWidth(), minLines = 3,
                         shape = RoundedCornerShape(10.dp), colors = fieldColors,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
@@ -470,7 +472,8 @@ fun DetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(modifier = Modifier.weight(1f)) {
                             OutlinedTextField(
-                                value = commentInput, onValueChange = { commentInput = it },
+                                value = commentInput,
+                                onValueChange = { commentInput = it.take(com.chaminwoo.stary.shared.config.StaryConfig.COMMENT_MAX_LEN) },
                                 placeholder = { Text(stringResource(R.string.comment_placeholder), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
                                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                                 enabled = isLoggedIn,
@@ -559,22 +562,23 @@ fun DetailScreen(
 }
 
 /**
- * 공유 버튼(체크리스트 30) — 밤하늘 카드 이미지 + 웹 랜딩 링크를 시스템 공유 시트로.
+ * 공유 버튼(체크리스트 30) — 탭하면 **공유 카드 편집 화면**(별 위치 드래그/제목/표시 토글/별 크기)이
+ * 뜨고, 거기서 인스타 스토리 또는 일반 공유로 내보낸다(ShareCardEditor.kt).
  * ⚠️ DetailScreen 본체에 인라인하면 dex 메서드 레지스터 한계(256)를 넘겨 VerifyError 로
  * 클래스 로드가 거부된다(열람 즉시 크래시) — 반드시 별도 컴포저블로 유지할 것.
  */
 @Composable
 private fun ShareDiaryButton(diary: Diary) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    IconButton(onClick = {
-        scope.launch { com.chaminwoo.stary.core.util.ShareCardHelper.shareDiary(context, diary) }
-    }) {
+    var editorOpen by remember { mutableStateOf(false) }
+    IconButton(onClick = { editorOpen = true }) {
         Icon(
             imageVector = Icons.Filled.Share,
             contentDescription = stringResource(R.string.share_diary),
             tint = MaterialTheme.colorScheme.secondary
         )
+    }
+    if (editorOpen) {
+        ShareCardEditorDialog(diary = diary, onDismiss = { editorOpen = false })
     }
 }
 

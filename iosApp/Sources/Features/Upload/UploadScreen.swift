@@ -38,10 +38,18 @@ struct UploadScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         preview
-                        field("제목") { TextField("", text: $title).textFieldStyle(.plain) }
+                        field("제목") {
+                            TextField("", text: $title).textFieldStyle(.plain)
+                                .onChange(of: title) { v in
+                                    if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
+                                }
+                        }
                         field("내용") {
                             TextField("", text: $content, axis: .vertical)
                                 .lineLimit(4...8)
+                                .onChange(of: content) { v in
+                                    if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
+                                }
                         }
                         photoSection
                         starPicker

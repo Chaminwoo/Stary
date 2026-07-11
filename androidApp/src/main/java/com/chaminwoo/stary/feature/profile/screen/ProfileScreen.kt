@@ -404,7 +404,9 @@ private fun NicknameEditDialog(
                 }
                 BasicTextField(
                     value = text,
-                    onValueChange = { if (it.length <= 20) text = it.replace("\n", "") },
+                    onValueChange = {
+                        if (it.length <= com.chaminwoo.stary.shared.config.StaryConfig.NICKNAME_MAX_LEN) text = it.replace("\n", "")
+                    },
                     singleLine = true,
                     textStyle = TextStyle(color = TextMain, fontSize = 15.sp),
                     cursorBrush = SolidColor(Green),

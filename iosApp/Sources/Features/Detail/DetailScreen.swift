@@ -237,6 +237,9 @@ struct DetailScreen: View {
             HStack {
                 TextField("댓글 달기…", text: $commentText, axis: .vertical)
                     .lineLimit(1...4)
+                    .onChange(of: commentText) { v in
+                        if v.count > AppConfig.commentMaxLen { commentText = String(v.prefix(AppConfig.commentMaxLen)) }
+                    }
                     .padding(10)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                     .foregroundStyle(Theme.textPrimary)

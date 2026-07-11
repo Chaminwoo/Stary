@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.36-iOS CI 그린 복구 + BGM 설명 문구 정정** — SettingsScreen 컴파일 에러 수정 + 부메랑 문구 패리티 + BGM 설명(의도적 삭제분) 양쪽 완전 제거. **CI(macOS) BUILD SUCCESS `0367fcb`**, Android `compileDebugKotlin` **BUILD SUCCESSFUL** — 아래 8.36-iOS 참고.
+> 최종 갱신: **8.37 제한·30m 별 합치기·공유카드 편집·인스타 링크·마커 스파클 5건 라운드** — Android **`assembleDebug` BUILD SUCCESSFUL(2026-07-12), 테스트 대기** — 아래 8.37 참고.
+> 이전: **8.36-iOS CI 그린 복구 + BGM 설명 문구 정정** — SettingsScreen 컴파일 에러 수정 + 부메랑 문구 패리티 + BGM 설명(의도적 삭제분) 양쪽 완전 제거. **CI(macOS) BUILD SUCCESS `0367fcb`**, Android `compileDebugKotlin` **BUILD SUCCESSFUL** — 아래 8.36-iOS 참고.
 > 이전: **8.36 Seedance 2.0 광고 마스터 기획 + 광고 자산 정리**(기획안 4종 + 씬별 i2v 프롬프트, 코드 변경 없음 — 커밋 `db12725`) — 아래 8.36 참고.
 > 이전: **8.35 글로브 유성·은하수 3D 연출 전면 개편 + 레퍼런스 재작업**(곡선 유성+잔류 스파클 / 은하수.jpg 스타일 핑크 은하수 / zodiac.avif 별 단위 12궁 — Android BUILD SUCCESSFUL, 테스트 대기) — 아래 8.35 참고.
 > 이전: **8.34 4건 라운드 — 음악·칭호 다국어화 / 부메랑 3초 움짤 촬영 / 기간별 필터 / 프사·이름 현재값 표시**(테스트 완료·push, 후속 수정 포함) — 아래 8.34 참고.
@@ -26,6 +27,22 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.37 입력 제한 + 30m 별 합치기 + 공유카드 편집 + 인스타 링크 + 마커 스파클 (Android BUILD SUCCESSFUL 2026-07-12, 테스트 대기)
+사용자 5건 일괄 요청("테스트 이전까지 한번에"). Android 전면 구현, iOS 는 상수/입력 제한만 패리티(나머지 TODO).
+
+- **① 입력 글자수 제한**: `StaryConfig` 에 `DIARY_TITLE_MAX_LEN 30 / DIARY_CONTENT_MAX_LEN 2000 / COMMENT_MAX_LEN 300 / CHAT_MESSAGE_MAX_LEN 500 / NICKNAME_MAX_LEN 20` (+iOS `AppConfig` 동기화). 적용: `UploadScreen`(제목/내용, supportingText 로 `n/max` 카운터), `DetailScreen`(수정 다이얼로그 + 댓글 입력), `ChatScreen`(메시지), `ProfileScreen.NicknameEditDialog`(기존 20 하드코딩 → 상수). 초과분은 `take()` 로 잘라 선차단. 하루 10개 업로드 제한은 기존(8.31) 유지. iOS: Upload 제목/내용·Detail 댓글·Chat 입력에 `.onChange` 클램프(닉네임 alert TextField 는 미적용 — TODO).
+- **② 30m 별 합치기(지오 머지)**: `StaryConfig.STAR_MERGE_RADIUS_M=30`. `DiaryMap.mergeByProximity` — 우선순위(`MERGE_PRIORITY` = 좋아요 내림차순→오래된 순→id) 1위를 앵커로 30m 내 흡수(greedy). **대표의 모양/색**으로 렌더, 크기/밝기 = `mergeSizeMult` = `likeSizeMult(멤버 좋아요 합산)` × `clusterSizeBoost(개수)`. 파이프라인: 지오 머지(줌 무관) → 기존 화면 클러스터링(4dp) 앞단에 삽입, 별자리 라인도 머지 반영. 머지 그룹은 `mergeGroupsState`(대표 id→멤버들)로 클릭 리스너에서 참조.
+  - **열람 연출**: 파장(`DiaryOpenWarp`)에 `burstStars`(멤버 별 모양/색 최대 12개) — 파장 중심에서 황금비 시퀀스로 작은 별 파티클이 퍼지며 페이드.
+  - **카드 뷰어**: 파장 후 그룹 2개 이상이면 `NavRoute.StarCluster(ids=","연결 문자열)` → `StarClusterScreen`(신설, feature/diary/screen) — 헤더(겹친 별 아이콘들+개수) + `HorizontalPager` 카드(썸네일 또는 큰 별/제목/#순위·날짜/**하트·댓글 수만**) + 인디케이터, 카드 탭→`navigateToDetail`. 정렬 = 대표 선정과 동일 우선순위. 데이터는 `DiaryCache`→`getDiaryById` 폴백.
+  - 배선: `DiaryMap(onClusterClick)` → `MainListScreen(onOpenCluster)` → NavGraph. `MainScreen.localizedTitle` 에 `nav_star_cluster` 추가.
+- **③ 별 마커 곁 마이크로 스파클**: `SPARKLE_SETS=2`(안쪽 13dp/바깥 19dp 역방향 타원 궤도) × PHASE_GROUPS 레이어(`diary-sparkle-<set>-<group>`, DIARY_SOURCE 재사용). `sparkleBitmap`(24px 4꼭지 흰 별), 줌 11 이하 숨김(`sparkleSizeExpression`). 기존 50ms 애니메이션 루프에서 `iconTranslate`(궤도+별 부유 floatDy 동기)/`iconOpacity`(트윙클×alpha) 갱신 — 추가 소스/GeoJSON 없음.
+- **④ 공유 카드 편집**: `ShareCardHelper` 리팩토링 — `ShareCardOptions(title/showMap/showLocation/showDate/stageXFrac/stageYFrac/starScale)` + `ShareCardAssets`(`prepareAssets` 1회 로드: 역지오코딩+정적지도, `release()` 로 해제) + `renderCard` public(자산 재활용 안 함). `ShareCardEditorDialog`(**ShareCardEditor.kt 신설**): 전체화면 다이얼로그 — 프리뷰 **드래그로 별(+지도 무대) 위치 이동**(델타 기반, x 0.15..0.85 / y 0.15..0.52 클램프), 카드 제목 수정, 지도/위치/날짜 토글 알약, 별 크기 슬라이더(0.6..1.6), 하단 [스토리 공유]/[이미지 공유]. 렌더는 60ms 스로틀로 Default 디스패처 재렌더. `DetailScreen.ShareDiaryButton` 이 드롭다운 대신 편집 다이얼로그를 연다. ⚠️ dex VerifyError(레지스터 한계) 재발 방지 — 편집 UI 는 반드시 별도 파일 유지.
+- **⑤ 인스타 스토리 링크 안 뜨던 원인**: **`secrets.properties` 에 `INSTAGRAM_APP_ID` 미설정** → 빈 `source_application` 이면 인스타가 `content_url`(링크스티커)을 조용히 무시. 수정: 빈 값이면 두 extra 자체를 생략 + **항상 공유 링크를 클립보드에 복사**하고 시스템 토스트(`share_story_link_copied`, 앱이 배경으로 가도 보이게 StaryToast 아님)로 "스토리 '링크 스티커'로 붙여넣기" 안내. **근본 해결(사용자 액션)**: developers.facebook.com 에서 앱 생성 → 앱 ID를 `secrets.properties` 의 `INSTAGRAM_APP_ID` 로 설정(+Meta 측 앱 활성화). 그래야 자동 링크스티커가 붙는다.
+- **strings(ko/en/ja)**: `share_story_link_copied`, `share_edit_title/hint/field_title/show_map/show_location/show_date/star_size`, `nav_star_cluster`, `cluster_header/hint/open`.
+- **iOS TODO(후속)**: 지도 30m 머지 렌더+클러스터 카드 뷰어(iOS 지도는 아직 데모 스타일 placeholder 단계), 공유 카드 기능 자체(iOS 미구현), 마커 스파클, 닉네임 20자 클램프.
 
 ---
 

@@ -134,6 +134,19 @@ sealed class NavRoute {
         override val showFab = false
     }
 
+    /**
+     * 30m 안에서 합쳐진 별 무리 열람 — 좌우 스와이프 카드 뷰.
+     * [ids] 는 우선순위(좋아요↓→오래된 순) 정렬된 다이어리 id 를 ','로 이어붙인 문자열
+     * (Firestore id 에는 ','가 없어 안전. type-safe 라우트의 컬렉션 직렬화 이슈 회피).
+     */
+    @Serializable
+    data class StarCluster(val ids: String = "") : NavRoute() {
+        override val title = "겹쳐진 별"
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
     /** 타인의 다이어리를 내 다이어리처럼 떠다니는 별로 보는 화면(드래그=이름, 클릭=지도 이동). */
     @Serializable
     data class UserDiaryStars(val userId: String = "", val userName: String = "") : NavRoute() {

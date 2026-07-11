@@ -97,6 +97,9 @@ struct ChatScreen: View {
         HStack(spacing: 10) {
             TextField("메시지", text: $text, axis: .vertical)
                 .lineLimit(1...4)
+                .onChange(of: text) { v in
+                    if v.count > AppConfig.chatMessageMaxLen { text = String(v.prefix(AppConfig.chatMessageMaxLen)) }
+                }
                 .padding(10)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14))
                 .foregroundStyle(Theme.textPrimary)
