@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -135,25 +137,39 @@ fun StarClusterScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // 카드 페이저 — 중앙 카드 강조(양옆은 축소/반투명)
+            // 카드 페이저 — 가운데 카드는 좌우로 좁고 상하로 긴 직사각형(세로 카드).
+            // 옆 카드는 바닥 중앙 피벗으로 우측(다음)=시계 / 좌측(이전)=반시계 회전해
+            // 위쪽이 바깥으로 기울고, 바깥 밀기+축소를 더해 가운데 카드와 겹치지 않는다.
             HorizontalPager(
                 state = pagerState,
-                contentPadding = PaddingValues(horizontal = 44.dp),
-                pageSpacing = 14.dp,
+                contentPadding = PaddingValues(horizontal = 58.dp, vertical = 8.dp),
+                pageSpacing = 18.dp,
                 modifier = Modifier.weight(1f)
             ) { page ->
                 val diary = diaries[page]
-                val pageOffset =
-                    ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-                val scale = 1f - 0.08f * pageOffset.coerceIn(0f, 1f)
-                val cardAlpha = 1f - 0.45f * pageOffset.coerceIn(0f, 1f)
-                ClusterDiaryCard(
-                    diary = diary,
-                    rank = page + 1,
-                    modifier = Modifier
-                        .graphicsLayer { scaleX = scale; scaleY = scale; alpha = cardAlpha },
-                    onClick = { onOpenDiary(diary.id) }
-                )
+                // 부호 있는 오프셋: 우측(다음) = +1, 좌측(이전) = -1 방향
+                val signed = ((page - pagerState.currentPage) - pagerState.currentPageOffsetFraction)
+                    .coerceIn(-1f, 1f)
+                val dist = signed.absoluteValue
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    ClusterDiaryCard(
+                        diary = diary,
+                        rank = page + 1,
+                        modifier = Modifier
+                            .fillMaxHeight(0.97f)
+                            .aspectRatio(0.62f, matchHeightConstraintsFirst = true)
+                            .graphicsLayer {
+                                val s = 1f - 0.10f * dist
+                                scaleX = s; scaleY = s
+                                alpha = 1f - 0.42f * dist
+                                rotationZ = 8f * signed
+                                transformOrigin = TransformOrigin(0.5f, 1f)
+                                translationX = signed * 14.dp.toPx()
+                                translationY = dist * 10.dp.toPx()
+                            },
+                        onClick = { onOpenDiary(diary.id) }
+                    )
+                }
             }
 
             // 페이지 인디케이터 점
@@ -177,7 +193,11 @@ fun StarClusterScreen(
     }
 }
 
-/** 합쳐진 별 카드 — 간략 정보만: (썸네일) + 별/제목/날짜 + 하트·댓글 수. 탭 → 세부 화면. */
+/**
+ * 합쳐진 별 카드 — 좌우로 좁고 상하로 긴 세로 직사각형(포트레이트).
+ * 미디어(사진 또는 큰 별) 영역이 남는 세로를 모두 차지하고, 하단에 간략 정보만:
+ * 별/제목/날짜 + 하트·댓글 수. 탭 → 세부 화면.
+ */
 @Composable
 private fun ClusterDiaryCard(
     diary: Diary,
@@ -188,48 +208,48 @@ private fun ClusterDiaryCard(
     val accent = StarStyle.colorOf(diary.starColor)
     Column(
         modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(Color(0xE614181F))
             .border(
                 1.dp,
                 Brush.linearGradient(listOf(accent.copy(alpha = 0.55f), accent.copy(alpha = 0.15f))),
-                RoundedCornerShape(22.dp)
+                RoundedCornerShape(24.dp)
             )
             .clickable { onClick() }
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center
+            .padding(14.dp)
     ) {
-        // 썸네일(있을 때만) — 카드 상단 4:3
-        if (diary.imageUrl.isNotEmpty()) {
-            AsyncImage(
-                model = diary.imageUrl,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(4f / 3f)
-                    .clip(RoundedCornerShape(14.dp)),
-                contentScale = ContentScale.Crop
-            )
-            Spacer(Modifier.height(14.dp))
-        } else {
-            // 사진이 없으면 별을 큼직하게 — 카드의 주인공은 별
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(4f / 3f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        Brush.radialGradient(
-                            listOf(accent.copy(alpha = 0.18f), Color.Transparent)
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                StarShapeIcon(type = diary.starType, colorIndex = diary.starColor, modifier = Modifier.size(72.dp))
+        // 미디어 영역 — 카드의 남는 세로 전체(세로로 긴 카드의 주인공)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (diary.imageUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = diary.imageUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // 사진이 없으면 별을 큼직하게 — 카드의 주인공은 별
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.radialGradient(
+                                listOf(accent.copy(alpha = 0.18f), Color.Transparent)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    StarShapeIcon(type = diary.starType, colorIndex = diary.starColor, modifier = Modifier.size(84.dp))
+                }
             }
-            Spacer(Modifier.height(14.dp))
         }
+        Spacer(Modifier.height(12.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             StarShapeIcon(type = diary.starType, colorIndex = diary.starColor, modifier = Modifier.size(18.dp))
