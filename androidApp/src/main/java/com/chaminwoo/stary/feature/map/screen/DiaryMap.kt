@@ -462,14 +462,32 @@ private fun particleBitmap(): Bitmap {
     return out
 }
 
-/** 다이어리 별 주위를 도는 마이크로 스파클 — 세트 수(궤도 2개: 안쪽/바깥쪽 역방향). */
-private const val SPARKLE_SETS = 2
+/**
+ * 다이어리 별 주위를 도는 마이크로 스파클 — 세트 3개(별 크기에 따라 개수가 늘어난다):
+ *  - set 0 : 안쪽 궤도. 모든 별에 항상 1개.
+ *  - set 1 : 바깥 궤도(역방향). 별이 좀 커지면([SPARKLE_SET_MIN_SIZE]) 추가돼 2개가 된다.
+ *  - set 2 : **위성** — 별이 아니라 set 1 파티클을 부모로 삼아 그 주위를 도는 작은 반짝이(주전원).
+ *            더 큰 별에서만 등장. 항상 흰 4꼭지(작은 달 느낌).
+ */
+private const val SPARKLE_SETS = 3
+private const val SPARKLE_SATELLITE_SET = 2
 private const val SPARKLE_ICON_ID = "diary-sparkle-icon"
 private fun sparkleLayerId(set: Int, group: Int) = "diary-sparkle-$set-$group"
 private fun sparkleStarIconId(type: Int, color: Int) = "sparkle-star-t$type-c$color"
 
-/** 스파클 iconSize 기본 배율(세트별) — 4차 피드백("파티클이 너무 작음")으로 상향. */
-private fun sparkleSizeBase(set: Int) = if (set == 0) 0.90f else 0.68f
+/** 세트별 등장 최소 sizeMult — 이 값 미만인 별에서는 그 세트가 숨겨진다(작을 땐 1개 → 2개 → +위성). */
+private fun sparkleSetMinSize(set: Int): Float = when (set) {
+    0 -> 1f      // 항상
+    1 -> 1.6f    // 좀 큰 별 → 2개
+    else -> 2.6f // 더 큰 별 → 위성까지
+}
+
+/** 스파클 iconSize 기본 배율(세트별) — 4차 피드백("파티클이 너무 작음")으로 상향. 위성은 작게. */
+private fun sparkleSizeBase(set: Int) = when (set) {
+    0 -> 0.90f
+    1 -> 0.68f
+    else -> 0.42f // 위성 — 부모 파티클보다 확실히 작아야 "도는 달"로 읽힌다
+}
 
 /** 마커 곁 스파클 비트맵 — 작은 4꼭지 별(글로우+본체). 작은/보통 별 곁에서 쓰는 기본 반짝이. */
 private fun sparkleBitmap(): Bitmap {
@@ -544,29 +562,35 @@ private fun sparkleZoomFactor(zoom: Float): Float = when {
  * (near/far·pulse 등 변수가 많아) 오히려 너무 크게 벌어지는 문제가 반복돼, "항상 별 바로
  * 곁에서 작게 도는" 디자인 의도를 직접 dp 로 못박아 관리한다(4차 피드백: 여전히 궤도가 큼).
  * sizeMult(1..6.6)에 따라 로그 성장(작은 별과 큰 별의 차이는 있되 폭주하지 않음).
+ * (set 2 = 위성은 별이 아니라 부모 파티클을 도는 주전원이라 [satelliteOrbitDp] 를 쓴다.)
  */
 private fun orbitTargetDp(set: Int, sizeMult: Float): Float {
     val (base, growth) = if (set == 0) 5f to 3.2f else 7.5f to 4.6f
     return base + growth * kotlin.math.ln(sizeMult.coerceAtLeast(1f))
 }
 
+/** 위성(set 2)이 **부모 파티클(set 1) 주위**를 도는 주전원 반경(dp) — 작게 유지해야 "달"로 읽힌다. */
+private fun satelliteOrbitDp(sizeMult: Float): Float =
+    3.2f + 1.5f * kotlin.math.ln(sizeMult.coerceAtLeast(1f))
+
 /**
- * 스파클 궤도 iconOffset — [orbitTargetDp] 를 기기 밀도로 스프라이트 픽셀 단위로 환산한 뒤,
- * 스파클 아이콘 자신의 icon-size 배율로 나눠 offset-unit 을 구한다(offset 은 icon-size 와 같은
- * 스프라이트 픽셀 공간에서 정의되고 최종적으로 함께 밀도로 나뉘어 표시되므로, 이렇게 하면
- * 기기 밀도와 무관하게 항상 목표 dp 반경으로 보인다). step(sizeMult) 티어로 양자화.
+ * 스파클 iconOffset — 별 중심 기준 목표 오프셋([dpAt], 단위 dp)을 기기 밀도로 스프라이트 픽셀
+ * 단위로 환산한 뒤, 스파클 아이콘 자신의 icon-size 배율로 나눠 offset-unit 을 구한다
+ * (offset 은 icon-size 와 같은 스프라이트 픽셀 공간에서 정의되고 최종적으로 함께 밀도로 나뉘어
+ * 표시되므로, 이렇게 하면 기기 밀도와 무관하게 항상 목표 dp 위치로 보인다).
+ * step(sizeMult) 티어로 양자화 — [dpAt] 은 티어별 sizeMult 를 받아 (dx, dy) dp 를 돌려준다.
  */
-private fun sparkleOrbitOffsetExpression(
-    set: Int, ux: Float, uy: Float, sizeZoomFactor: Float, density: Float,
+private fun sparkleOffsetExpression(
+    set: Int, sizeZoomFactor: Float, density: Float, dpAt: (Float) -> Pair<Float, Float>,
 ): Expression {
     fun offsetFor(tier: Float): Expression {
-        val desiredSpritePx = orbitTargetDp(set, tier) * density
+        val (dxDp, dyDp) = dpAt(tier)
         val spriteScale = (
             sparkleSizeBase(set) * sizeZoomFactor *
                 Math.pow(tier.toDouble(), SPARKLE_SIZE_POW.toDouble()).toFloat()
             ).coerceAtLeast(0.0001f)
-        val u = desiredSpritePx / spriteScale
-        return Expression.literal(arrayOf<Any>(ux * u, uy * u))
+        val k = density / spriteScale
+        return Expression.literal(arrayOf<Any>(dxDp * k, dyDp * k))
     }
     // 티어 경계는 mergeSizeMult(좋아요×개수 보너스) 실효 범위 1..6.6 을 커버
     return Expression.step(
@@ -582,6 +606,22 @@ private fun sparkleOrbitOffsetExpression(
 
 /** 이 sizeMult 이상이면 "큰 별" — 스파클이 흰색 4꼭지 대신 그 별의 모양/색을 닮은 미니 크리스탈로 바뀐다. */
 private const val SPARKLE_BIG_STAR_THRESHOLD = 1.75f
+
+/**
+ * 스파클 iconOpacity — [alpha](합쳐짐 보간) × [op](트윙클) × **세트 등장 게이트**.
+ * 게이트는 sizeMult 가 [sparkleSetMinSize] 미만이면 0 → 작은 별엔 1개, 좀 크면 2개,
+ * 더 크면 위성까지 나타난다(레이어는 그대로 두고 데이터 주도로 켜고 끈다).
+ */
+private fun sparkleOpacityExpression(set: Int, op: Float): Expression {
+    val min = sparkleSetMinSize(set)
+    val gate: Expression =
+        if (min <= 1f) Expression.literal(1f)
+        else Expression.step(
+            Expression.get("sizeMult"), Expression.literal(0f),
+            Expression.stop(min, Expression.literal(1f)),
+        )
+    return Expression.product(Expression.literal(op), Expression.get("alpha"), gate)
+}
 
 /**
  * 별가루 파티클 FeatureCollection — [center] 기준 반경 [PARTICLE_RADIUS_M] 내 균등 분포.
@@ -1112,10 +1152,11 @@ fun DiaryMap(
                         style.addLayer(layer)
                     }
 
-                    // 별 곁 마이크로 스파클 — 각 별 주위를 도는 작은 반짝이 2개(안쪽/바깥쪽 역방향 궤도).
-                    // 같은 source 를 쓰고 icon-offset(별 크기 비례 궤도)+iconTranslate(부유)를 루프에서 갱신.
-                    // 큰 별(sizeMult ≥ SPARKLE_BIG_STAR_THRESHOLD) 곁에서는 흰 4꼭지 대신
-                    // 그 별의 모양/색을 닮은 미니 크리스탈(sparkleIcon)로 데이터 주도 전환.
+                    // 별 곁 마이크로 스파클 — 별 크기에 따라 개수가 늘어난다(1개 → 2개 → +위성).
+                    // 같은 source 를 쓰고 icon-offset(궤도)+iconTranslate(부유)+iconOpacity(등장 게이트)를
+                    // 루프에서 갱신. 큰 별(sizeMult ≥ SPARKLE_BIG_STAR_THRESHOLD) 곁에서는 흰 4꼭지 대신
+                    // 그 별의 모양/색을 닮은 미니 크리스탈(sparkleIcon)로 데이터 주도 전환하되,
+                    // 위성(set 2)은 부모 파티클을 도는 "달"이라 항상 흰 4꼭지를 유지한다.
                     style.addImage(SPARKLE_ICON_ID, sparkleBitmap())
                     val sparkleIconExpression = Expression.switchCase(
                         Expression.gte(Expression.get("sizeMult"), Expression.literal(SPARKLE_BIG_STAR_THRESHOLD)),
@@ -1125,7 +1166,10 @@ fun DiaryMap(
                     for (s in 0 until SPARKLE_SETS) {
                         for (g in 0 until PHASE_GROUPS) {
                             val layer = SymbolLayer(sparkleLayerId(s, g), DIARY_SOURCE).withProperties(
-                                PropertyFactory.iconImage(sparkleIconExpression),
+                                PropertyFactory.iconImage(
+                                    if (s == SPARKLE_SATELLITE_SET) Expression.literal(SPARKLE_ICON_ID)
+                                    else sparkleIconExpression
+                                ),
                                 PropertyFactory.iconSize(sparkleSizeExpression(s)),
                                 PropertyFactory.iconOpacity(0f),
                                 PropertyFactory.iconAllowOverlap(true),
@@ -1566,24 +1610,42 @@ fun DiaryMap(
                 )
                 // 별 곁 마이크로 스파클 — 안쪽/바깥쪽 역방향 타원 궤도 + 별 부유 동기 + 트윙클.
                 // 궤도는 icon-offset(step on sizeMult)으로 별 크기에 비례, 부유는 iconTranslate 로 동기.
+                // 개수는 iconOpacity 게이트(sparkleOpacityExpression)로 별 크기에 따라 1→2→+위성.
                 val sparkleZoom = sparkleZoomFactor(zoom)
-                for (s in 0 until SPARKLE_SETS) {
-                    val sl = style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer ?: continue
-                    if (sparkleZoom <= 0.01f) continue // 숨김 줌(iconSize 0) — 궤도 갱신 불필요
-                    val speed = if (s == 0) 1.1f else -0.8f
-                    val ang = t * speed + phase + s * 1.9f
-                    val ux = kotlin.math.cos(ang)
-                    val uy = sin(ang) * 0.55f
-                    val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
-                    sl.setProperties(
-                        PropertyFactory.iconOffset(
-                            sparkleOrbitOffsetExpression(s, ux, uy, sparkleZoom, screenDensity)
-                        ),
-                        PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                        PropertyFactory.iconOpacity(
-                            Expression.product(Expression.literal(op), Expression.get("alpha"))
-                        ),
-                    )
+                if (sparkleZoom > 0.01f) { // 숨김 줌(iconSize 0)에서는 갱신 자체를 건너뛴다
+                    // 부모(set 1) 궤도 각 — 위성(set 2)이 이 위치를 중심으로 다시 돌기 위해 미리 구한다.
+                    val parentAng = t * -0.8f + phase + 1.9f
+                    val parentUx = kotlin.math.cos(parentAng)
+                    val parentUy = sin(parentAng) * 0.55f
+                    // 위성의 주전원 각 — 부모보다 훨씬 빠르게 돌아 "달"처럼 보인다.
+                    val satAng = t * 3.4f + phase
+                    val satUx = kotlin.math.cos(satAng)
+                    val satUy = sin(satAng) * 0.55f
+
+                    for (s in 0 until SPARKLE_SETS) {
+                        val sl = style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer ?: continue
+                        val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
+                        // 세트별 목표 오프셋(dp) — 위성은 부모 파티클 위치 + 주전원(그 파티클을 공전).
+                        val dpAt: (Float) -> Pair<Float, Float> = when (s) {
+                            SPARKLE_SATELLITE_SET -> { tier ->
+                                val pr = orbitTargetDp(1, tier)
+                                val sr = satelliteOrbitDp(tier)
+                                (parentUx * pr + satUx * sr) to (parentUy * pr + satUy * sr)
+                            }
+                            else -> { tier ->
+                                val ang = t * (if (s == 0) 1.1f else -0.8f) + phase + s * 1.9f
+                                val r = orbitTargetDp(s, tier)
+                                (kotlin.math.cos(ang) * r) to (sin(ang) * 0.55f * r)
+                            }
+                        }
+                        sl.setProperties(
+                            PropertyFactory.iconOffset(
+                                sparkleOffsetExpression(s, sparkleZoom, screenDensity, dpAt)
+                            ),
+                            PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
+                            PropertyFactory.iconOpacity(sparkleOpacityExpression(s, op)),
+                        )
+                    }
                 }
             }
             // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신 (GeoJSON 재생성 없음)
