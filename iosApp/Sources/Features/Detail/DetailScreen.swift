@@ -321,16 +321,19 @@ final class ProfileImageCache {
     }
 }
 
-/// 아바타 썸네일 캐시 — 원본 프사를 96px 로 다운샘플(CGImageSource)해 빠르게 렌더링.
+/// 아바타/썸네일 캐시 — 원본을 요청 크기로 다운샘플(CGImageSource)해 빠르게 렌더링.
+/// 네트워크는 [ImageCache.session](디스크 캐시 + returnCacheDataElseLoad)을 써서 재방문 시
+/// 다시 받지 않는다. 캐시 키에 **크기를 포함**해 같은 URL 을 다른 크기로 써도 흐려지지 않는다.
 @MainActor
 final class AvatarThumbCache {
     static let shared = AvatarThumbCache()
     private var cache: [String: UIImage] = [:]
 
     func image(for urlString: String, maxPixel: CGFloat = 96) async -> UIImage? {
-        if let hit = cache[urlString] { return hit }
+        let key = "\(urlString)@\(Int(maxPixel))"
+        if let hit = cache[key] { return hit }
         guard let url = URL(string: urlString),
-              let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+              let (data, _) = try? await ImageCache.session.data(from: url) else { return nil }
         let opts: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -339,7 +342,7 @@ final class AvatarThumbCache {
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
               let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
         let img = UIImage(cgImage: cg)
-        cache[urlString] = img
+        cache[key] = img
         return img
     }
 }

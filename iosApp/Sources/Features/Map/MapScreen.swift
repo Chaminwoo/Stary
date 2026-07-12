@@ -14,6 +14,8 @@ struct MapScreen: View {
     @ObservedObject private var locale = LocaleManager.shared
     @ObservedObject private var focus = MapFocusStore.shared
     @State private var selected: Diary?
+    /// 30m 안에서 겹친 별 무리(2개 이상) — 카드 뷰어 시트로 연다.
+    @State private var cluster: ClusterSelection?
     @State private var unviewedOnly = false
     // 개척 퀘스트(체크리스트 32) — 개척 현황 구독 + 비콘 탭 안내.
     @StateObject private var pioneer = PioneerStore()
@@ -97,7 +99,14 @@ struct MapScreen: View {
             MapLibreView(
                 diaries: shownDiaries,
                 userLocation: location.coordinate,
-                onTapDiary: { selected = $0 },
+                onTapStar: { members in
+                    // 30m 안에서 겹친 별이면 카드 뷰어로, 하나면 바로 상세로.
+                    if members.count > 1 {
+                        cluster = ClusterSelection(members: members)
+                    } else if let one = members.first {
+                        selected = one
+                    }
+                },
                 route: partialRoute,
                 focusTarget: focusTarget,
                 onGlobeAvailability: { lat, lng, available in
@@ -193,6 +202,18 @@ struct MapScreen: View {
         }
         .sheet(item: $selected) { diary in
             NavigationStack { DetailScreen(diary: diary) }
+        }
+        // 겹친 별 카드 뷰어 — 카드 탭 → 그 별의 상세로 이어서 연다.
+        .sheet(item: $cluster) { selection in
+            StarClusterView(
+                diaries: selection.members,
+                onOpenDiary: { diary in
+                    cluster = nil
+                    // 시트 교체가 겹치지 않도록 한 틱 뒤에 상세를 연다.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { selected = diary }
+                },
+                onClose: { cluster = nil }
+            )
         }
         // 이미 지도 탭일 때(핀/친구 길찾기로 값이 바뀌면) 즉시 처리.
         .onChange(of: focus.pendingDiaryId) { id in

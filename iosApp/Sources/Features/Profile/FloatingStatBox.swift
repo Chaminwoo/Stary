@@ -80,12 +80,18 @@ struct FloatingStatBox: View {
     }
 
     /// 캔버스 심볼(아이콘 또는 별) — 후광 없이 본체만. 후광/회전/확대는 Canvas 가 그린다.
+    /// 별은 지도 마커/내 다이어리와 같은 크리스탈 채움(Android `drawStarBubble` 패리티).
     @ViewBuilder
     private func symbolView(_ item: StatBubble) -> some View {
         if item.starType >= 0 {
-            StarShape(type: item.starType)
-                .fill(StarStyle.fill(item.starColorIndex), style: FillStyle(eoFill: true))
-                .frame(width: FloatingEngine.iconBase, height: FloatingEngine.iconBase)
+            // ⚠️ 여기는 `Canvas(symbols:)` 의 심볼이라 Canvas 를 중첩하면 렌더가 불안정하다.
+            //    → 크리스탈 별을 비트맵으로 구워(캐시) Image 로 넘긴다.
+            Image(uiImage: StarCrystal.image(
+                type: item.starType,
+                colorIndex: item.starColorIndex,
+                size: FloatingEngine.iconBase
+            ))
+            .frame(width: FloatingEngine.iconBase, height: FloatingEngine.iconBase)
         } else {
             Image(systemName: item.systemImage)
                 .resizable().scaledToFit()

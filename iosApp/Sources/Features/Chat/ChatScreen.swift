@@ -66,13 +66,22 @@ struct ChatScreen: View {
         .onAppear {
             vm.start()
             ChatPresence.shared.activeFriendId = friendId // 이 방 메시지는 배너 억제
+            markRead()
         }
+        // 이 방을 보는 동안 새 메시지가 와도 계속 읽음 처리(친구 목록의 미읽음 파란 점 해제).
+        .onChange(of: vm.messages.count) { _ in markRead() }
         .onDisappear {
             vm.stop()
             if ChatPresence.shared.activeFriendId == friendId {
                 ChatPresence.shared.activeFriendId = nil
             }
+            markRead()
         }
+    }
+
+    private func markRead() {
+        guard let uid = auth.uid else { return }
+        ChatReadStore.shared.markRead(AppConfig.chatId(uid, friendId))
     }
 
     private func bubble(_ msg: ChatMessage) -> some View {

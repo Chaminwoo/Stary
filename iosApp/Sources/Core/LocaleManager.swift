@@ -103,6 +103,10 @@ enum L10n: String {
     case inviteFriends, inviteFriendsDesc, inviteShareText
     // 주간 개척 퀘스트(체크리스트 32).
     case pioneerCondition
+    // 30m 안에서 겹쳐진 별 무리(카드 뷰어).
+    case clusterHeader, clusterHint, clusterOpen
+    // 친구 목록(메신저형 행).
+    case friendNoChatYet
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -239,6 +243,17 @@ enum L10n: String {
         case .pioneerCondition:     return ("그 나라에 처음으로 별을 남기기",
                                             "Leave the first star in that country",
                                             "その国に最初の星を残す")
+        // ⚠️ clusterHeader 는 %d(별 개수) 를 String(format:) 으로 채운다.
+        case .clusterHeader:        return ("이곳에 별 %d개가 겹쳐 있어요",
+                                            "%d stars are merged here",
+                                            "ここに星が%d個重なっています")
+        case .clusterHint:          return ("좌우로 넘겨 별을 살펴보세요",
+                                            "Swipe left or right to browse the stars",
+                                            "左右にスワイプして星を見てみましょう")
+        case .clusterOpen:          return ("탭해서 들여다보기", "Tap to open", "タップして開く")
+        case .friendNoChatYet:      return ("아직 대화가 없어요 — 탭해서 시작해 보세요",
+                                            "No messages yet — tap to start",
+                                            "まだメッセージがありません — タップして始めましょう")
         }
     }
 

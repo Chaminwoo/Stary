@@ -8,12 +8,37 @@ final class FriendsViewModel: ObservableObject {
     @Published var requests: [FriendRequest] = []
     @Published var results: [UserProfile] = []
     @Published var searching = false
+    /// 친구 uid → 그 친구와의 채팅방 메타(마지막 메시지/시각) — 친구 행 미리보기·미읽음 점.
+    @Published var chatSummaries: [String: ChatSummary] = [:]
     private var regs: [ListenerRegistration] = []
 
     deinit { regs.forEach { $0.remove() } }
 
     func start(uid: String) {
         stop()
+        // 내 채팅방 메타 — orderBy 서버 금지(복합 인덱스 회피), 정렬/판단은 클라이언트.
+        // (InAppWatcher 와 같은 쿼리지만 용도가 달라 별도 구독: 여기선 목록 행 표시용.)
+        regs.append(
+            FirestoreService.chats
+                .whereField("participants", arrayContains: uid)
+                .addSnapshotListener { [weak self] snap, _ in
+                    var byFriend: [String: ChatSummary] = [:]
+                    for doc in snap?.documents ?? [] {
+                        let participants = (doc.get("participants") as? [String])
+                            ?? doc.documentID.components(separatedBy: "_")
+                        guard let friendId = participants.first(where: { $0 != uid }) else { continue }
+                        byFriend[friendId] = ChatSummary(
+                            chatId: doc.documentID,
+                            participants: participants,
+                            lastMessage: doc.get("lastMessage") as? String ?? "",
+                            lastSenderId: doc.get("lastSenderId") as? String ?? "",
+                            lastSenderName: doc.get("lastSenderName") as? String ?? "",
+                            updatedAt: (doc.get("updatedAt") as? NSNumber)?.int64Value ?? 0
+                        )
+                    }
+                    self?.chatSummaries = byFriend
+                }
+        )
         regs.append(
             FirestoreService.friends(of: uid).addSnapshotListener { [weak self] snap, _ in
                 let base = snap?.documents.compactMap { try? $0.data(as: Friend.self) } ?? []
@@ -132,5 +157,6 @@ final class FriendsViewModel: ObservableObject {
     func stop() {
         regs.forEach { $0.remove() }
         regs.removeAll()
+        chatSummaries = [:]
     }
 }

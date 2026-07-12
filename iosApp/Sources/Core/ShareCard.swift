@@ -52,26 +52,39 @@ struct ShareCardView: View {
 
     var body: some View {
         ZStack {
-            // 1) 밤하늘 그라데이션
-            LinearGradient(
-                colors: [Color(red: 0.043, green: 0.063, blue: 0.149),
-                         Color(red: 0.027, green: 0.039, blue: 0.094),
-                         Color(red: 0.016, green: 0.020, blue: 0.047)],
-                startPoint: .top, endPoint: .bottom
-            )
-
-            // 2) 잔별 — 다이어리 id 시드 고정(같은 별 = 같은 하늘)
-            Canvas { ctx, size in
-                var rng = SeededRandom(seed: UInt64(bitPattern: Int64(diary.id.hashValue)))
-                for _ in 0..<170 {
-                    let x = rng.nextFloat() * size.width
-                    let y = rng.nextFloat() * size.height
-                    let r = 0.3 + CGFloat(pow(rng.nextFloat(), 2)) * 1.1
-                    let alpha = 0.15 + rng.nextFloat() * 0.65
-                    ctx.fill(Path(ellipseIn: CGRect(x: x, y: y, width: r * 2, height: r * 2)),
-                             with: .color(.white.opacity(alpha)))
+            // 1) 밤하늘 배경 — Android 와 같은 AI 생성 이미지(share_card_bg.webp).
+            //    번들에 없으면 그라데이션 + 절차적 잔별로 폴백(카드는 항상 만들어진다).
+            if let bg = ShareCardBackground.image {
+                Image(uiImage: bg)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                LinearGradient(
+                    colors: [Color(red: 0.043, green: 0.063, blue: 0.149),
+                             Color(red: 0.027, green: 0.039, blue: 0.094),
+                             Color(red: 0.016, green: 0.020, blue: 0.047)],
+                    startPoint: .top, endPoint: .bottom
+                )
+                // 잔별 — 다이어리 id 시드 고정(같은 별 = 같은 하늘)
+                Canvas { ctx, size in
+                    var rng = SeededRandom(seed: UInt64(bitPattern: Int64(diary.id.hashValue)))
+                    for _ in 0..<170 {
+                        let x = rng.nextFloat() * size.width
+                        let y = rng.nextFloat() * size.height
+                        let r = 0.3 + CGFloat(pow(rng.nextFloat(), 2)) * 1.1
+                        let alpha = 0.15 + rng.nextFloat() * 0.65
+                        ctx.fill(Path(ellipseIn: CGRect(x: x, y: y, width: r * 2, height: r * 2)),
+                                 with: .color(.white.opacity(alpha)))
+                    }
                 }
             }
+
+            // 하단 텍스트 존 스크림 — 흰 글자 가독성(Android drawBackground 패리티)
+            LinearGradient(
+                colors: [.clear, Color(red: 0, green: 0, blue: 0.03).opacity(0.38),
+                         Color(red: 0, green: 0, blue: 0.03).opacity(0.51)],
+                startPoint: .center, endPoint: .bottom
+            )
 
             VStack(spacing: 0) {
                 Spacer().frame(height: 130)
@@ -113,6 +126,7 @@ struct ShareCardView: View {
             }
         }
         .frame(width: 360, height: 640)
+        .clipped() // 배경 이미지 scaledToFill 이 카드 밖으로 넘치지 않게
     }
 
     private var authorName: String {

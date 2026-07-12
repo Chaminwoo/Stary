@@ -4,6 +4,8 @@ import SwiftUI
 struct FriendsScreen: View {
     @EnvironmentObject var auth: AuthManager
     @StateObject private var vm = FriendsViewModel()
+    /// 읽음 기록 — markRead 되면 미읽음 파란 점이 즉시 사라지도록 관찰한다.
+    @ObservedObject private var readStore = ChatReadStore.shared
     @State private var query = ""
 
     var body: some View {
@@ -112,6 +114,8 @@ struct FriendsScreen: View {
         }
     }
 
+    /// 친구 목록 — 메신저형 행(Android FriendRow 패리티):
+    /// [프로필 사진] [이름 / 마지막 채팅 · 상대시간] [미읽음 파란 점]. 행 탭 = 채팅.
     private var friendsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("친구 \(vm.friends.count)").font(.headline).foregroundStyle(Theme.textPrimary)
@@ -121,19 +125,59 @@ struct FriendsScreen: View {
             } else {
                 ForEach(vm.friends) { friend in
                     NavigationLink(value: friend) {
-                        HStack {
-                            avatar(friend.userName, photoUrl: friend.photoUrl, userId: friend.userId)
-                            Text(friend.userName).foregroundStyle(Theme.textPrimary)
-                            Spacer()
-                            Image(systemName: "bubble.right").foregroundStyle(Theme.textFaint)
-                        }
-                        .padding(10)
-                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                        friendRow(friend)
                     }
                     .buttonStyle(.plain)
+                    .simultaneousGesture(TapGesture().onEnded {
+                        // 열자마자 읽음 처리 — 파란 점이 즉시 사라진다(ChatScreen 도 중복 호출하지만 멱등).
+                        if let uid = auth.uid {
+                            ChatReadStore.shared.markRead(AppConfig.chatId(uid, friend.userId))
+                        }
+                    })
                 }
             }
         }
+    }
+
+    private func friendRow(_ friend: Friend) -> some View {
+        let summary = vm.chatSummaries[friend.userId]
+        let chatId = AppConfig.chatId(auth.uid ?? "", friend.userId)
+        let unread = summary.map { s in
+            !s.lastMessage.isEmpty
+                && s.lastSenderId != (auth.uid ?? "")
+                && s.updatedAt > readStore.lastRead(chatId)
+        } ?? false
+
+        return HStack(spacing: 12) {
+            // 사진은 텍스트 2줄보다 조금 크게(52pt)
+            FriendAvatar(name: friend.userName, photoUrl: friend.photoUrl, userId: friend.userId, size: 52)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(friend.userName.isEmpty ? "(이름 없음)" : friend.userName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                if let summary, !summary.lastMessage.isEmpty {
+                    Text("\(summary.lastMessage) · \(RelativeTime.string(fromMillis: summary.updatedAt))")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                } else {
+                    Text(LocaleManager.shared.t(.friendNoChatYet))
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary.opacity(0.7))
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            if unread {
+                Circle()
+                    .fill(Color(red: 0.298, green: 0.553, blue: 1.0)) // 0xFF4C8DFF
+                    .frame(width: 10, height: 10)
+            }
+        }
+        .padding(10)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
     }
 
     private func avatar(_ name: String, photoUrl: String = "", userId: String = "") -> some View {
@@ -157,6 +201,7 @@ private struct FriendAvatar: View {
     let name: String
     let photoUrl: String
     let userId: String
+    var size: CGFloat = 36
     @State private var resolved: String?
 
     private var effectiveUrl: String? {
@@ -167,11 +212,8 @@ private struct FriendAvatar: View {
     var body: some View {
         Group {
             if let url = effectiveUrl, !url.isEmpty {
-                AsyncImage(url: URL(string: url)) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Theme.surfaceAlt
-                }
+                // 작은 아바타 — 원본 대신 다운샘플 썸네일로 즉시 표시(목록 스크롤 렉 방지).
+                AvatarThumbView(url: url, pixelSize: size * 3)
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(String(name.prefix(1)).uppercased())
@@ -179,7 +221,7 @@ private struct FriendAvatar: View {
                 )
             }
         }
-        .frame(width: 36, height: 36)
+        .frame(width: size, height: size)
         .clipShape(Circle())
         .overlay(Circle().stroke(Theme.mint.opacity(0.30), lineWidth: 1))
         .task(id: userId) {

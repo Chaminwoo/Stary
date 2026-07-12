@@ -9,7 +9,9 @@ struct MapLibreView: UIViewRepresentable {
     let diaries: [Diary]
     /// 실제 위치 fix(없으면 nil) — 처음 들어오면 그 위치로 1회 카메라 이동.
     let userLocation: CLLocationCoordinate2D?
-    var onTapDiary: (Diary) -> Void
+    /// 별 마커 탭 — 30m 안에서 합쳐진 멤버 전체(우선순위 정렬)를 넘긴다.
+    /// 1개면 바로 상세, 2개 이상이면 겹친 별 카드 뷰어를 여는 것이 호출부의 책임.
+    var onTapStar: ([Diary]) -> Void
     /// 도보 길찾기 경로(비었으면 표시 안 함). (Android DiaryMap ROUTE_LAYER 패리티)
     var route: [CLLocationCoordinate2D] = []
     /// 외부(알림/친구 별 탭)에서 "이 좌표로 카메라 이동" 요청. 값이 바뀔 때 1회 애니메이션 이동.
@@ -67,10 +69,9 @@ struct MapLibreView: UIViewRepresentable {
             mapView.setCenter(target, zoomLevel: 15, animated: true)
         }
         if let existing = mapView.annotations { mapView.removeAnnotations(existing) }
-        var toAdd: [MLNAnnotation] = diaries.compactMap { diary -> DiaryAnnotation? in
-            guard diary.latitude != 0 || diary.longitude != 0 else { return nil }
-            return DiaryAnnotation(diary: diary)
-        }
+        // 30m 지오 머지 — 겹치는 별은 대표 하나로 합치고, 크기는 멤버 합산으로 키운다.
+        // (Android DiaryMap.mergeByProximity 패리티. 탭하면 멤버가 2개 이상일 때 카드 뷰어로.)
+        var toAdd: [MLNAnnotation] = StarMerge.merge(diaries).map { DiaryAnnotation(merged: $0) }
         // 개척 퀘스트 비콘(체크리스트 32) — 미개척 대상국 중심좌표에 금색 스파클.
         toAdd.append(contentsOf: pioneerCountries.map { PioneerAnnotation(country: $0) })
         // 도보 경로 폴리라인(있으면) — 별 마커와 함께 한 번에 추가.
@@ -119,14 +120,18 @@ struct MapLibreView: UIViewRepresentable {
                 return MLNAnnotationImage(image: img, reuseIdentifier: key)
             }
             guard let d = annotation as? DiaryAnnotation else { return nil }
-            let key = "star-\(d.diary.starType)-\(d.diary.starColor)"
+            // 합쳐진 별일수록 큰 이미지(크기는 0.25 단위 양자화 → 이미지 재사용).
+            let key = d.imageKey
             if let cached = mapView.dequeueReusableAnnotationImage(withIdentifier: key) { return cached }
-            let img = StarImageRenderer.image(type: d.diary.starType, colorIndex: d.diary.starColor)
+            let img = StarImageRenderer.image(
+                type: d.diary.starType, colorIndex: d.diary.starColor, size: d.markerSize
+            )
             return MLNAnnotationImage(image: img, reuseIdentifier: key)
         }
 
         func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {
-            if let d = annotation as? DiaryAnnotation { parent.onTapDiary(d.diary) }
+            // 겹친 별(멤버 2개 이상)이면 카드 뷰어로, 하나면 바로 상세로.
+            if let d = annotation as? DiaryAnnotation { parent.onTapStar(d.members) }
             if let p = annotation as? PioneerAnnotation { parent.onTapPioneer?(p.country.code) }
             mapView.deselectAnnotation(annotation, animated: false)
         }
@@ -163,14 +168,34 @@ final class PioneerAnnotation: NSObject, MLNAnnotation {
 }
 
 /// 다이어리를 담는 지도 어노테이션.
+/// 30m 지오 머지 결과라 [members] 가 2개 이상일 수 있다(그 경우 탭 → 겹친 별 카드 뷰어).
+/// [diary] 는 대표 별(멤버 중 우선순위 1위) — 마커의 모양/색은 대표를 따른다.
 final class DiaryAnnotation: NSObject, MLNAnnotation {
     let diary: Diary
+    /// 이 마커에 합쳐진 다이어리 전체(우선순위 정렬, 대표 포함).
+    let members: [Diary]
+    /// 마커 크기 배율(좋아요 합산 × 개수 보너스).
+    let sizeMult: Double
     var coordinate: CLLocationCoordinate2D
     var title: String?
 
-    init(diary: Diary) {
-        self.diary = diary
-        self.coordinate = CLLocationCoordinate2D(latitude: diary.latitude, longitude: diary.longitude)
-        self.title = diary.title
+    init(merged: StarMerge.MergedStar) {
+        self.diary = merged.rep
+        self.members = merged.members
+        self.sizeMult = merged.sizeMult
+        self.coordinate = CLLocationCoordinate2D(latitude: merged.rep.latitude, longitude: merged.rep.longitude)
+        self.title = merged.rep.title
+    }
+
+    /// 마커 이미지 크기(pt) — 배율을 0.25 단위로 양자화해 이미지 재사용(reuse identifier) 효율 유지.
+    /// 기본 40pt(단일 별) ~ 최대 약 100pt(좋아요 많고 여러 개 합쳐진 별).
+    var markerSize: CGFloat {
+        let quantized = (sizeMult / 0.25).rounded() * 0.25
+        return 40 * CGFloat(min(max(quantized, 1.0), 2.5))
+    }
+
+    /// 같은 (모양, 색, 크기) 마커는 이미지를 공유한다.
+    var imageKey: String {
+        "star-\(diary.starType)-\(diary.starColor)-\(Int(markerSize))"
     }
 }
