@@ -468,8 +468,8 @@ private const val SPARKLE_ICON_ID = "diary-sparkle-icon"
 private fun sparkleLayerId(set: Int, group: Int) = "diary-sparkle-$set-$group"
 private fun sparkleStarIconId(type: Int, color: Int) = "sparkle-star-t$type-c$color"
 
-/** 스파클 iconSize 기본 배율(세트별). */
-private fun sparkleSizeBase(set: Int) = if (set == 0) 0.46f else 0.34f
+/** 스파클 iconSize 기본 배율(세트별) — 4차 피드백("파티클이 너무 작음")으로 상향. */
+private fun sparkleSizeBase(set: Int) = if (set == 0) 0.90f else 0.68f
 
 /** 마커 곁 스파클 비트맵 — 작은 4꼭지 별(글로우+본체). 작은/보통 별 곁에서 쓰는 기본 반짝이. */
 private fun sparkleBitmap(): Bitmap {
@@ -540,37 +540,32 @@ private fun sparkleZoomFactor(zoom: Float): Float = when {
 }
 
 /**
- * 별의 실제 시각 반경(px) 근사 — [starSizeExpression](near 기준)과 같은 계수를 사용해,
- * 스파클 궤도가 "별 크기에 비례하되 별 바로 곁"에 머물도록 하는 기준값을 만든다.
- * 정확한 zoom 보간 대신 스파클이 보이는 구간(줌 11~15.5)만 다루는 근사 보간으로 충분하다.
+ * 스파클 궤도 목표 반경(**dp**, 화면에 실제로 보일 크기) — 별의 렌더 공식을 그대로 따라가면
+ * (near/far·pulse 등 변수가 많아) 오히려 너무 크게 벌어지는 문제가 반복돼, "항상 별 바로
+ * 곁에서 작게 도는" 디자인 의도를 직접 dp 로 못박아 관리한다(4차 피드백: 여전히 궤도가 큼).
+ * sizeMult(1..6.6)에 따라 로그 성장(작은 별과 큰 별의 차이는 있되 폭주하지 않음).
  */
-private fun starVisualRadiusPx(zoom: Float, sizeMult: Float): Float {
-    val zoomScalar = when {
-        zoom <= 10f -> 0.2f
-        zoom <= 13f -> 0.2f + (zoom - 10f) / 3f * 0.3f
-        zoom <= 15f -> 0.5f + (zoom - 13f) / 2f * 0.5f
-        else -> 1f
-    }
-    val bodyDiameter = MARKER_SIDE_PX * 0.78f // starBitmap 의 별 본체 지름(글로우 제외)
-    return bodyDiameter / 2f * STAR_SIZE_NEAR * zoomScalar * sizeMult
+private fun orbitTargetDp(set: Int, sizeMult: Float): Float {
+    val (base, growth) = if (set == 0) 5f to 3.2f else 7.5f to 4.6f
+    return base + growth * kotlin.math.ln(sizeMult.coerceAtLeast(1f))
 }
 
 /**
- * 스파클 궤도 iconOffset — 궤도 반경을 [starVisualRadiusPx](실제 별 반경) + 고정 여백으로
- * 직접 설계해, 별이 커지면 궤도도 그만큼 커지되 **항상 별 표면 바로 곁**에 머물게 한다
- * (기존엔 orbitBase·sizeMult 로 별과 무관하게 커져 너무 크게 돌았음).
- * iconTranslate 는 레이어 일괄이라 크기별 궤도가 불가능 → icon-offset(데이터 주도, 최종
- * icon-size 배수로 픽셀 환산)을 step(sizeMult) 티어로 양자화해 준다.
+ * 스파클 궤도 iconOffset — [orbitTargetDp] 를 기기 밀도로 스프라이트 픽셀 단위로 환산한 뒤,
+ * 스파클 아이콘 자신의 icon-size 배율로 나눠 offset-unit 을 구한다(offset 은 icon-size 와 같은
+ * 스프라이트 픽셀 공간에서 정의되고 최종적으로 함께 밀도로 나뉘어 표시되므로, 이렇게 하면
+ * 기기 밀도와 무관하게 항상 목표 dp 반경으로 보인다). step(sizeMult) 티어로 양자화.
  */
-private fun sparkleOrbitOffsetExpression(set: Int, ux: Float, uy: Float, zoom: Float, sizeZoomFactor: Float): Expression {
-    val marginPx = if (set == 0) 4f else 11f // 안쪽=별 표면에 거의 붙음, 바깥=살짝 띄워서
+private fun sparkleOrbitOffsetExpression(
+    set: Int, ux: Float, uy: Float, sizeZoomFactor: Float, density: Float,
+): Expression {
     fun offsetFor(tier: Float): Expression {
-        val desiredPx = starVisualRadiusPx(zoom, tier) + marginPx
+        val desiredSpritePx = orbitTargetDp(set, tier) * density
         val spriteScale = (
             sparkleSizeBase(set) * sizeZoomFactor *
                 Math.pow(tier.toDouble(), SPARKLE_SIZE_POW.toDouble()).toFloat()
             ).coerceAtLeast(0.0001f)
-        val u = desiredPx / spriteScale
+        val u = desiredSpritePx / spriteScale
         return Expression.literal(arrayOf<Any>(ux * u, uy * u))
     }
     // 티어 경계는 mergeSizeMult(좋아요×개수 보너스) 실효 범위 1..6.6 을 커버
@@ -837,6 +832,7 @@ fun DiaryMap(
     // 카메라가 멈출 때마다 증가 → 줌/이동에 따라 화면 클러스터링 재계산 트리거
     var cameraIdleTick by remember { mutableStateOf(0) }
     val clusterRadiusPx = remember { CLUSTER_RADIUS_DP * context.resources.displayMetrics.density }
+    val screenDensity = remember { context.resources.displayMetrics.density }
     // 별자리 최대 연결 거리(px) — 화면 짧은 변의 절반 정도까지만 이어 과한 장거리 연결 방지
     val constellationMaxLinkPx = remember {
         context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) * 0.55f }
@@ -1581,7 +1577,7 @@ fun DiaryMap(
                     val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
                     sl.setProperties(
                         PropertyFactory.iconOffset(
-                            sparkleOrbitOffsetExpression(s, ux, uy, zoom, sparkleZoom)
+                            sparkleOrbitOffsetExpression(s, ux, uy, sparkleZoom, screenDensity)
                         ),
                         PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
                         PropertyFactory.iconOpacity(

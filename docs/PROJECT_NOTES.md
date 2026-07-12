@@ -42,10 +42,10 @@
   - 색 변주: hue ±24°·채도 0.8~1.2·명도 해시±0.18, 6% "글린트"(백색 55% 혼합) 조각. 옅은 흰 능선은 파편 경계 전체를 Path 1개로 스트로크. 전부 결정론적 해시(같은 별=같은 무늬).
   적용처: 지도 마커(`starBitmap` — 글로우 유지+본체 교체), `StarShapeIcon` 2종(피커/목록/클러스터 카드 전부 자동 반영), 공유카드 히어로별,
   `DiaryStarBox`/`FloatingStatBox`(프로필), 파장 burstStars. ⚠️ 새 별 type 추가 시 `facetDensity` 에 밀도 추가.
-- **② 마커 스파클 확대 + 궤도 별 크기 비례** (3차 피드백 "궤도가 너무 크게 돎 → 별 딱 주변만, 큰 별은 파티클도 별 모양처럼, 크기도 눈에 띄게" 로 재작업):
-  - **궤도 = 별의 실제 시각 반경 기반**: `starVisualRadiusPx(zoom, sizeMult)` 가 `starSizeExpression`(near 기준)과 같은 계수(MARKER_SIDE_PX·0.78·STAR_SIZE_NEAR)로 별의 진짜 화면 반경을 근사 → `sparkleOrbitOffsetExpression` 이 그 반경 + 고정 여백(안쪽 4px/바깥쪽 11px)을 목표 픽셀로 두고 스프라이트 스케일로 역산해 offset-unit 산출(7개 sizeMult 티어 step). 이전엔 별과 무관한 `orbitBase×sizeMult` 로 커져 실제 별보다 훨씬 크게 돌았음 — 이제 별이 커져도 궤도는 항상 별 표면 바로 곁.
+- **② 마커 스파클 확대 + 궤도 별 크기 비례** (3차 피드백 "궤도가 너무 크게 돎" → `starVisualRadiusPx` 기반으로 재작업했으나 **4차 피드백으로도 여전히 궤도가 크고 파티클은 작다** → 최종적으로 물리 공식 기반을 포기하고 dp 로 직접 못박는 방식으로 재설계):
+  - **궤도 = dp 로 직접 지정(물리 공식 아님)**: `orbitTargetDp(set, sizeMult) = base + growth·ln(sizeMult)` (안쪽 base 5dp/growth 3.2, 바깥 7.5dp/growth 4.6 — 로그 성장이라 sizeMult 1..6.6 전체에서 최대 ~13/19dp 로 폭주하지 않음). `sparkleOrbitOffsetExpression` 이 이 dp 값을 **화면 밀도**(`screenDensity = context.resources.displayMetrics.density`, DiaryMap 컴포저블에서 `remember`)로 스프라이트 px 로 환산 후 스파클 자신의 icon-size 배율로 나눠 offset-unit 산출 — icon-offset 이 icon-size 와 같은 스프라이트 픽셀 공간에서 정의되고 최종적으로 함께 밀도로 나뉘어 표시되므로, 이렇게 하면 **기기 밀도와 무관하게 항상 목표 dp 반경**으로 보인다. (이전 `starVisualRadiusPx` 시도는 별 렌더 공식[near/far·pulse·MARKER_SIDE_PX]을 그대로 따라가려다 오히려 스파클 하나가 별 자체만큼 커지는 문제가 있었음 — 폐기.) 7개 sizeMult 티어 step 은 유지.
   - **큰 별 = 파티클 모양도 그 별을 닮음**: `sparkleStarBitmap(type,colorIdx)`(32px, `drawCrystalFill` 미니 크리스탈) 신규 — 마커 아이콘 등록 루프에서 `sparkleStarIconId(type,color)` 로 함께 addImage. sparkle 레이어의 `iconImage` 를 `switchCase(sizeMult ≥ SPARKLE_BIG_STAR_THRESHOLD(1.75), get("sparkleIcon"), literal(SPARKLE_ICON_ID))` 데이터 주도 표현식으로 — 합쳐진/인기 별(1.75배 이상)은 흰 4꼭지 대신 자기 모양·색의 미니 크리스탈이 돈다. `diaryFeature` 에 `sparkleIcon` 프로퍼티 추가.
-  - **파티클 크기 = 눈에 띄게 커짐**: `sparkleSizeExpression` 의 sizeMult 지수를 √(0.5) → **0.8**(`SPARKLE_SIZE_POW`, `Expression.pow`)로 올려 성장 곡선을 가파르게.
+  - **파티클 크기**: 기본 배율(`sparkleSizeBase`) 0.46/0.34 → **0.90/0.68**(4차 피드백 "너무 작음"으로 약 2배 상향) + sizeMult 지수 `SPARKLE_SIZE_POW=0.8`(`Expression.pow`) 로 큰 별 곁에서 더 커짐.
   - 부유(floatDy)는 iconTranslate 유지. `sparkleZoomFactor` = sparkleSizeExpression 줌 보간의 코드 미러(수정 시 함께).
 - **③ 공유카드 지도 안 보임 원인 = MapTiler 정적 지도 API 403**: 이 키/플랜에서 `/maps/{style}/static/...` 전 스타일 403(타일 엔드포인트는 정상 — curl 로 확인).
   → `fetchRegionMap` 을 **래스터 타일 스티칭**으로 교체: dataviz-dark z4 타일(512px 셀) 2×2 를 웹 메르카토르 전역픽셀 기준으로 이어붙여 좌표 중심 512px 비트맵 생성(날짜변경선 x 래핑, 극지 클램프, 전부 실패 시 null).
