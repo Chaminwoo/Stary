@@ -2,8 +2,15 @@ package com.chaminwoo.stary
 
 import android.app.Activity
 import android.app.Application
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import com.chaminwoo.stary.core.util.AppForeground
 import com.google.firebase.auth.FirebaseAuth
 
@@ -15,7 +22,31 @@ import com.google.firebase.auth.FirebaseAuth
  * (Firebase Console > Authentication > Sign-in method 에서 '익명' 활성화 필요)
  * Google 로그인 시 GoogleAuthHelper 가 signInWithCredential 로 교체한다.
  */
-class StaryApplication : Application() {
+class StaryApplication : Application(), ImageLoaderFactory {
+
+    /**
+     * 앱 전역 Coil 로더 — 이미지 "불러오는 텀"을 줄이는 핵심 튜닝.
+     *  - respectCacheHeaders(false): Firebase Storage 응답의 보수적 Cache-Control 을 무시하고
+     *    항상 디스크에 캐시 → 재방문 시 네트워크 없이 즉시 표시.
+     *  - 메모리 25% + 디스크 256MB 캐시로 목록 스크롤 재사용을 넉넉하게.
+     *  - GIF 디코더 포함(부메랑 움짤) → GifImage 도 이 싱글턴을 그대로 쓴다.
+     */
+    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.25).build() }
+        .diskCache {
+            DiskCache.Builder()
+                .directory(cacheDir.resolve("image_cache"))
+                .maxSizeBytes(256L * 1024 * 1024)
+                .build()
+        }
+        .respectCacheHeaders(false)
+        .crossfade(120)
+        .components {
+            if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory())
+            else add(GifDecoder.Factory())
+        }
+        .build()
+
     override fun onCreate() {
         super.onCreate()
 

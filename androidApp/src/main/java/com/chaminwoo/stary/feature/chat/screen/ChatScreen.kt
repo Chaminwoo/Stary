@@ -94,6 +94,15 @@ fun ChatScreen(
     // 롱프레스한 내 메시지(1분 이내) — 완전 삭제 확인 대상. null 이면 다이얼로그 숨김.
     var pendingDelete by remember { mutableStateOf<ChatMessage?>(null) }
 
+    // 이 방을 보는 동안은 항상 읽음 처리 — 친구 목록의 미읽음 파란 점 해제.
+    val chatContext = androidx.compose.ui.platform.LocalContext.current
+    val chatId = remember(myId, friendId) {
+        com.chaminwoo.stary.shared.config.StaryConfig.chatId(myId, friendId)
+    }
+    LaunchedEffect(messages.size) {
+        com.chaminwoo.stary.core.util.ChatReadStore.markRead(chatContext, chatId)
+    }
+
     // 새 메시지가 오면 맨 아래로 스크롤.
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)

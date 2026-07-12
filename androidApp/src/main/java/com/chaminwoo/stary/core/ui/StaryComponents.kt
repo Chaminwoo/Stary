@@ -55,29 +55,18 @@ fun Modifier.appCard(radius: Dp = 16.dp): Modifier = this
 @Composable
 fun StarShapeIcon(type: Int, color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
-        val path = StarStyle.starPath(type, size.minDimension)
         drawIntoCanvas { canvas ->
-            canvas.nativeCanvas.drawPath(
-                path,
-                android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    this.color = color.toArgb()
-                }
-            )
+            StarStyle.drawCrystalFill(canvas.nativeCanvas, type, listOf(color.toArgb()), 0f, 0f, size.minDimension)
         }
     }
 }
 
-/** 색 인덱스 기반 별 아이콘 — 그라데이션 색(16~)이면 2색 그라데이션으로 채운다. */
+/** 색 인덱스 기반 별 아이콘 — 수정 결정(크리스탈) 패싯 채움(그라데이션 색은 2색 혼합). */
 @Composable
 fun StarShapeIcon(type: Int, colorIndex: Int, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
-        val s = size.minDimension
-        val path = StarStyle.starPath(type, s)
         drawIntoCanvas { canvas ->
-            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-            val shader = StarStyle.fillShader(colorIndex, 0f, 0f, s)
-            if (shader != null) paint.shader = shader else paint.color = StarStyle.colorOf(colorIndex).toArgb()
-            canvas.nativeCanvas.drawPath(path, paint)
+            StarStyle.drawCrystalFill(canvas.nativeCanvas, type, colorIndex, 0f, 0f, size.minDimension)
         }
     }
 }

@@ -354,12 +354,8 @@ private fun DrawScope.drawStar(b: StarBody, cx: Float, cy: Float, scale: Float =
                 maskFilter = android.graphics.BlurMaskFilter(r * 0.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
             }
         )
-        nc.drawPath(
-            path,
-            android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                if (gradShader != null) this.shader = gradShader else this.color = b.color.toArgb()
-            }
-        )
+        // 본체 — 수정 결정(크리스탈) 패싯 채움(지도 마커와 동일)
+        StarStyle.drawCrystalFill(nc, b.type, b.colorIndex, cx - r, cy - r, sizePx)
         nc.restoreToCount(save)
     }
 }

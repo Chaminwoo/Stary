@@ -515,18 +515,12 @@ private fun DrawScope.drawStarBubble(
         radius = r * 2.6f, center = pos
     )
     val sizePx = r * 2f
-    val path = android.graphics.Path(StarStyle.starPath(type, sizePx)).apply { offset(pos.x - r, pos.y - r) }
-    val shader = StarStyle.fillShader(colorIndex, pos.x - r, pos.y - r, sizePx)
     drawIntoCanvas { canvas ->
         val nc = canvas.nativeCanvas
         val save = nc.save()
         nc.rotate(rotationDeg, pos.x, pos.y)
-        nc.drawPath(
-            path,
-            android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                if (shader != null) this.shader = shader else this.color = color.toArgb()
-            }
-        )
+        // 수정 결정(크리스탈) 패싯 채움 — 지도 마커/내 다이어리와 동일
+        StarStyle.drawCrystalFill(nc, type, colorIndex, pos.x - r, pos.y - r, sizePx)
         nc.restoreToCount(save)
     }
 }

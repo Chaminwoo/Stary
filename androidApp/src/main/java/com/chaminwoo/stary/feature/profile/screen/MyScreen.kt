@@ -137,20 +137,20 @@ fun MyScreen(
                             }
 
                             profileImageUrl != null -> {
-                                AsyncImage(
+                                com.chaminwoo.stary.core.ui.ThumbAsyncImage(
                                     model = profileImageUrl,
                                     contentDescription = "프로필 이미지",
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                                    sizePx = 256,
                                 )
                             }
 
                             GoogleAuthHelper.currentUserPhotoUrl != null -> {
-                                AsyncImage(
+                                com.chaminwoo.stary.core.ui.ThumbAsyncImage(
                                     model = GoogleAuthHelper.currentUserPhotoUrl,
                                     contentDescription = "구글 프로필",
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                                    sizePx = 256,
                                 )
                             }
 

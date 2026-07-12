@@ -263,13 +263,13 @@ fun UserProfileScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             if (photoUrl.isNotBlank()) {
-                                AsyncImage(
+                                com.chaminwoo.stary.core.ui.ThumbAsyncImage(
                                     model = photoUrl,
                                     contentDescription = stringResource(
                                         R.string.cd_profile_photo,
                                         resolvedName.ifBlank { stringResource(R.string.common_user) }),
                                     modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                    contentScale = ContentScale.Crop
+                                    sizePx = 384,
                                 )
                             } else {
                                 Icon(

@@ -1,5 +1,7 @@
 package com.chaminwoo.stary.feature.diary.screen
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,10 +25,12 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,11 +42,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -68,11 +78,13 @@ import kotlin.math.absoluteValue
 fun StarClusterScreen(
     ids: List<String>,
     onOpenDiary: (String) -> Unit,
+    onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var diaries by remember(ids) { mutableStateOf<List<Diary>>(emptyList()) }
     var isLoading by remember(ids) { mutableStateOf(true) }
     val repository = remember { FirebaseDiaryRepository() }
+    val context = LocalContext.current
 
     LaunchedEffect(ids) {
         val loaded = ids.mapNotNull { id -> DiaryCache.get(id) ?: repository.getDiaryById(id) }
@@ -83,7 +95,33 @@ fun StarClusterScreen(
         isLoading = false
     }
 
+    // 카드 배경 — 공유 카드와 같은 AI 밤하늘 프레임(share_card_bg.webp). 실패 시 기존 톤.
+    val cardBgImage = remember {
+        runCatching {
+            context.assets.open("share_card_bg.webp").use { BitmapFactory.decodeStream(it) }
+        }.getOrNull()?.asImageBitmap()
+    }
+
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // 스크린 배경 — 친구 스크린과 동일(mydiary_bg 어둡게 틴트)
+        Image(
+            painter = painterResource(R.drawable.mydiary_bg),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
+        )
+        // 뒤로가기 — 좌상단
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 4.dp)
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.cd_back),
+                tint = Color.White
+            )
+        }
         if (isLoading) {
             CircularProgressIndicator(
                 color = MaterialTheme.colorScheme.onBackground,
@@ -155,9 +193,10 @@ fun StarClusterScreen(
                     ClusterDiaryCard(
                         diary = diary,
                         rank = page + 1,
+                        bgImage = cardBgImage,
                         modifier = Modifier
                             .fillMaxHeight(0.97f)
-                            .aspectRatio(0.62f, matchHeightConstraintsFirst = true)
+                            .aspectRatio(0.54f, matchHeightConstraintsFirst = true)
                             .graphicsLayer {
                                 val s = 1f - 0.10f * dist
                                 scaleX = s; scaleY = s
@@ -195,6 +234,7 @@ fun StarClusterScreen(
 
 /**
  * 합쳐진 별 카드 — 좌우로 좁고 상하로 긴 세로 직사각형(포트레이트).
+ * 배경은 공유 카드와 같은 밤하늘 프레임([bgImage]) + 가독성 스크림.
  * 미디어(사진 또는 큰 별) 영역이 남는 세로를 모두 차지하고, 하단에 간략 정보만:
  * 별/제목/날짜 + 하트·댓글 수. 탭 → 세부 화면.
  */
@@ -202,11 +242,12 @@ fun StarClusterScreen(
 private fun ClusterDiaryCard(
     diary: Diary,
     rank: Int,
+    bgImage: ImageBitmap?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val accent = StarStyle.colorOf(diary.starColor)
-    Column(
+    Box(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
             .background(Color(0xE614181F))
@@ -216,8 +257,26 @@ private fun ClusterDiaryCard(
                 RoundedCornerShape(24.dp)
             )
             .clickable { onClick() }
-            .padding(14.dp)
     ) {
+        // 카드 배경 = 공유 카드 프레임(밤하늘) + 아래로 갈수록 짙은 스크림(텍스트 가독성)
+        if (bgImage != null) {
+            Image(
+                bitmap = bgImage,
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0x3D05070D), Color(0x2905070D), Color(0xB805070D))
+                        )
+                    )
+            )
+        }
+        Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
         // 미디어 영역 — 카드의 남는 세로 전체(세로로 긴 카드의 주인공)
         Box(
             modifier = Modifier
@@ -227,11 +286,12 @@ private fun ClusterDiaryCard(
             contentAlignment = Alignment.Center
         ) {
             if (diary.imageUrl.isNotEmpty()) {
-                AsyncImage(
+                // 카드 썸네일 — 원본 대신 512px 다운샘플(스와이프 시 빠른 표시)
+                com.chaminwoo.stary.core.ui.ThumbAsyncImage(
                     model = diary.imageUrl,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    sizePx = 512,
                 )
             } else {
                 // 사진이 없으면 별을 큼직하게 — 카드의 주인공은 별
@@ -289,6 +349,7 @@ private fun ClusterDiaryCard(
                 stringResource(R.string.cluster_open),
                 color = accent.copy(alpha = 0.9f), fontSize = 12.sp
             )
+        }
         }
     }
 }

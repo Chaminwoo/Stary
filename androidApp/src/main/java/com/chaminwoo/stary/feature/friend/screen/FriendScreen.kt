@@ -23,7 +23,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -60,7 +59,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.tasks.await
 import com.chaminwoo.stary.R
@@ -107,6 +105,13 @@ fun FriendScreen(
     val requests by vm.incomingRequests.collectAsState()
     val results by vm.searchResults.collectAsState()
     val isSearching by vm.isSearching.collectAsState()
+    // 채팅방 메타(마지막 메시지/시각) — 친구 행의 미리보기·미읽음 점에 사용.
+    val chatRepo = remember { com.chaminwoo.stary.data.repository.FirebaseChatRepository() }
+    val chatSummaries by remember(userId) { chatRepo.observeMyChats(userId) }
+        .collectAsState(initial = emptyList())
+    val summaryByFriend = remember(chatSummaries) {
+        chatSummaries.associateBy { c -> c.participants.firstOrNull { it != userId } ?: "" }
+    }
     var query by remember { mutableStateOf("") }
     // 현재 query 로 검색이 실제 디스패치됐는지 추적 — '결과 없음' 표시를 디바운스 중 깜빡임 없이 띄우기 위함.
     var lastSearched by remember { mutableStateOf<String?>(null) }
@@ -247,22 +252,27 @@ fun FriendScreen(
                     }
                 }
             }
+            // 메신저형 친구 행(2026-07-12 개편) — 채팅/삭제 버튼 없이
+            // [사진] [이름 / 마지막 채팅 ㆍ상대시간] [미읽음 파란 점]. 행 탭=채팅, 사진 탭=프로필.
             items(friends, key = { "friend_${it.userId}" }) { friend ->
-                PersonCard(
+                val chatId = StaryConfig.chatId(userId, friend.userId)
+                val summary = summaryByFriend[friend.userId]
+                val lastReadAt = com.chaminwoo.stary.core.util.ChatReadStore.lastReadAt(context, chatId)
+                val unread = summary != null && summary.lastMessage.isNotBlank() &&
+                    summary.lastSenderId != userId && summary.updatedAt > lastReadAt
+                FriendRow(
                     name = friend.userName,
                     photoUrl = friend.photoUrl,
                     userId = friend.userId,
-                    onClick = { onOpenProfile(friend.userId, friend.userName) }
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Pill(stringResource(R.string.friend_chat), Icons.AutoMirrored.Filled.Chat, Green.copy(alpha = 0.16f), Green) {
-                            onOpenChat(friend.userId, friend.userName)
-                        }
-                        Pill(stringResource(R.string.common_delete), null, Color.White.copy(alpha = 0.05f), TextMuted) {
-                            vm.remove(friend.userId, friend.userName)
-                        }
-                    }
-                }
+                    lastMessage = summary?.lastMessage.orEmpty(),
+                    lastAt = summary?.updatedAt ?: 0L,
+                    unread = unread,
+                    onOpenProfile = { onOpenProfile(friend.userId, friend.userName) },
+                    onClick = {
+                        com.chaminwoo.stary.core.util.ChatReadStore.markRead(context, chatId)
+                        onOpenChat(friend.userId, friend.userName)
+                    },
+                )
             }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -390,8 +400,71 @@ private fun PersonCard(
     }
 }
 
+/**
+ * 친구 행(메신저형) — [프로필 사진] [이름 / 마지막 채팅 ㆍ상대시간] [미읽음 파란 점].
+ * 행 탭 = 채팅 열기, 사진 탭 = 프로필 열기. 사진은 텍스트 2줄보다 조금 크게(52dp).
+ */
 @Composable
-private fun Avatar(name: String, photoUrl: String, userId: String = "") {
+private fun FriendRow(
+    name: String,
+    photoUrl: String,
+    userId: String,
+    lastMessage: String,
+    lastAt: Long,
+    unread: Boolean,
+    onOpenProfile: () -> Unit,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .appCard(16.dp)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Avatar(name, photoUrl, userId, size = 52.dp, onClick = onOpenProfile)
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                name.ifBlank { stringResource(R.string.friend_no_name) },
+                color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+            if (lastMessage.isNotBlank()) {
+                Text(
+                    "$lastMessage · ${com.chaminwoo.stary.core.util.RelativeTime.format(lastAt)}",
+                    color = TextMuted, fontSize = 12.5.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+            } else {
+                Text(
+                    stringResource(R.string.friend_no_chat_yet),
+                    color = TextMuted.copy(alpha = 0.7f), fontSize = 12.5.sp, maxLines = 1
+                )
+            }
+        }
+        if (unread) {
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF4C8DFF))
+            )
+        }
+    }
+}
+
+@Composable
+private fun Avatar(
+    name: String,
+    photoUrl: String,
+    userId: String = "",
+    size: androidx.compose.ui.unit.Dp = 44.dp,
+    onClick: (() -> Unit)? = null,
+) {
     // photoUrl 이 비어 있으면(예전 친구 데이터) users/{userId}.profileImageUrl 을 조회해 채운다.
     var resolved by remember(userId, photoUrl) { mutableStateOf(photoUrl) }
     LaunchedEffect(userId, photoUrl) {
@@ -406,18 +479,20 @@ private fun Avatar(name: String, photoUrl: String, userId: String = "") {
     }
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(size)
             .clip(CircleShape)
             .background(CardBgTop)
-            .border(1.5.dp, Green.copy(alpha = 0.30f), CircleShape),
+            .border(1.5.dp, Green.copy(alpha = 0.30f), CircleShape)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         contentAlignment = Alignment.Center
     ) {
         if (resolved.isNotBlank()) {
-            AsyncImage(
+            // 작은 아바타 — 96px 다운샘플 디코드로 목록 스크롤에서도 즉시 뜨게.
+            com.chaminwoo.stary.core.ui.ThumbAsyncImage(
                 model = resolved,
                 contentDescription = stringResource(R.string.cd_profile_photo, name.ifBlank { stringResource(R.string.common_user) }),
                 modifier = Modifier.fillMaxSize().clip(CircleShape),
-                contentScale = ContentScale.Crop
+                sizePx = 96,
             )
         } else {
             Text(

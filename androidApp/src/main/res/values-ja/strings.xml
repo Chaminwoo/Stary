@@ -129,6 +129,7 @@
     <string name="friend_chat">チャット</string>
     <string name="friend_search_placeholder">名前で友達を探す</string>
     <string name="friend_no_name">(名前なし)</string>
+    <string name="friend_no_chat_yet">まだメッセージがありません — タップして始めましょう</string>
 
     <!-- プロフィール画面 -->
     <string name="profile_upload_failed">プロフィール画像のアップロードに失敗: %1$s</string>
@@ -210,12 +211,16 @@
     <string name="share_card_anonymous">名もなき星</string>
     <string name="share_story_link_copied">リンクをコピーしました — ストーリーの「リンク」スタンプで貼り付けるとタップできます</string>
     <string name="share_edit_title">シェアカードを編集</string>
-    <string name="share_edit_hint">プレビューをドラッグして星の位置を動かせます</string>
+    <string name="share_edit_hint">星・タイトル・場所・日付をドラッグして自由に配置できます</string>
     <string name="share_edit_field_title">カードのタイトル</string>
     <string name="share_edit_show_map">地図</string>
     <string name="share_edit_show_location">場所</string>
     <string name="share_edit_show_date">日付</string>
     <string name="share_edit_star_size">星の大きさ</string>
+    <string name="share_edit_import_stars">マイダイアリーから星を追加</string>
+    <string name="share_edit_pick_star">追加する星を選択</string>
+    <string name="share_edit_no_stars">追加できる星がありません — まずダイアリーを残しましょう</string>
+    <string name="share_edit_extra_star_size">選択した星</string>
     <string name="nav_star_cluster">重なった星</string>
     <string name="cluster_header">ここに星が%1$d個重なっています</string>
     <string name="cluster_hint">左右にスワイプして星を見てみましょう</string>

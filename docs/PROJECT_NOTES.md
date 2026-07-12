@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.37 제한·30m 별 합치기·공유카드 편집·인스타 링크·마커 스파클 5건 라운드** — Android **`assembleDebug` BUILD SUCCESSFUL(2026-07-12), 테스트 대기** — 아래 8.37 참고.
+> 최종 갱신: **8.38 크리스탈 별 렌더·스파클 궤도 비례·공유카드 편집 확장·겹친별 배경·이미지 고속화·친구 스크린 개편** — Android **`assembleDebug` BUILD SUCCESSFUL(2026-07-12), 테스트 대기(테스트 완료 후 iOS 패리티 착수 예정)** — 아래 8.38 참고.
+> 이전: **8.37 제한·30m 별 합치기·공유카드 편집·인스타 링크·마커 스파클 5건 라운드** — Android BUILD SUCCESSFUL(2026-07-12) — 아래 8.37 참고.
 > 이전: **8.36-iOS CI 그린 복구 + BGM 설명 문구 정정** — SettingsScreen 컴파일 에러 수정 + 부메랑 문구 패리티 + BGM 설명(의도적 삭제분) 양쪽 완전 제거. **CI(macOS) BUILD SUCCESS `0367fcb`**, Android `compileDebugKotlin` **BUILD SUCCESSFUL** — 아래 8.36-iOS 참고.
 > 이전: **8.36 Seedance 2.0 광고 마스터 기획 + 광고 자산 정리**(기획안 4종 + 씬별 i2v 프롬프트, 코드 변경 없음 — 커밋 `db12725`) — 아래 8.36 참고.
 > 이전: **8.35 글로브 유성·은하수 3D 연출 전면 개편 + 레퍼런스 재작업**(곡선 유성+잔류 스파클 / 은하수.jpg 스타일 핑크 은하수 / zodiac.avif 별 단위 12궁 — Android BUILD SUCCESSFUL, 테스트 대기) — 아래 8.35 참고.
@@ -27,6 +28,40 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.38 크리스탈 별 + 스파클 궤도 + 공유카드 편집 확장 + 겹친별 배경 + 이미지 고속화 + 친구 스크린 (Android BUILD SUCCESSFUL 2026-07-12, 테스트 대기)
+"디자인 전문가" 라운드 + 추가 2건(이미지 로딩, 친구 스크린). Android 전면 구현 — **테스트 완료 후 iOS 패리티 착수(사용자 지시)**.
+
+- **① 별 = 수정 결정(크리스탈) 렌더**: `StarStyle.drawCrystalFill(canvas, type, colorIndex|colors, left, top, sizePx, alpha)` 신설 —
+  실루엣(starPath)은 **그대로 clip** 하고 내부만 파편형 패싯으로 갈라 조각마다 색을 달리함. 1차본(정직한 부채꼴)에 사용자 피드백("너무 정직, 더 잘게·색 다양하게") →
+  **경계 각도 지터(±스텝 55%) + 안/밖 2겹 링 분할(불규칙 코어 다각형, `midR` 해시) + 방사선 밀도 2배(`facetLayout` 16~24)** = 조각 수 32~48개.
+  색 변주: hue ±24°·채도 0.8~1.2·명도 교차±, 6% 확률 "글린트"(백색 55% 혼합) 조각. 옅은 흰 능선(방사선+코어 링) + 중심 광채. 전부 결정론적 해시(같은 별=같은 무늬).
+  적용처: 지도 마커(`starBitmap` — 글로우 유지+본체 교체), `StarShapeIcon` 2종(피커/목록/클러스터 카드 전부 자동 반영), 공유카드 히어로별,
+  `DiaryStarBox`/`FloatingStatBox`(프로필), 파장 burstStars. ⚠️ 새 별 type 추가 시 `facetLayout` 에 방사선 수/시작각 추가할 것.
+- **② 마커 스파클 확대 + 궤도 별 크기 비례**: 비트맵 24→32px, iconSize 기본 0.42/0.30→0.46/0.34 × **√sizeMult**(데이터 주도).
+  궤도는 iconTranslate(레이어 일괄이라 크기별 불가) → **icon-offset**(데이터 주도, 최종 icon-size 배수)으로 이전:
+  `sparkleOrbitOffsetExpression` 이 step(sizeMult) 7티어로 궤도 단위를 양자화, 단위 = orbitBase(16/24px)·√tier/(base·zoomFactor)
+  → 실제 픽셀 궤도 ≈ orbitBase×sizeMult (합쳐진/인기 별은 크게 돎 — "큰 다이어리에서 안 보임" 해결). 부유(floatDy)는 iconTranslate 유지.
+  `sparkleZoomFactor` = sparkleSizeExpression 줌 보간의 코드 미러(수정 시 함께).
+- **③ 공유카드 지도 안 보임 원인 = MapTiler 정적 지도 API 403**: 이 키/플랜에서 `/maps/{style}/static/...` 전 스타일 403(타일 엔드포인트는 정상 — curl 로 확인).
+  → `fetchRegionMap` 을 **래스터 타일 스티칭**으로 교체: dataviz-dark z4 타일(512px 셀) 2×2 를 웹 메르카토르 전역픽셀 기준으로 이어붙여 좌표 중심 512px 비트맵 생성(날짜변경선 x 래핑, 극지 클램프, 전부 실패 시 null).
+- **④ 공유카드 편집 확장**(`ShareCardOptions` 확장 — 기존 필드 유지):
+  - 별 크기 슬라이더 0.6..1.6 → **0.25..2.2**(렌더 클램프 0.2..2.5).
+  - **제목/위치/날짜 자유 배치**: `titleX/YFrac·locationX/YFrac·dateX/YFrac`(앵커=요소 중심) — 렌더가 각자 위치에 그림(하단 고정 플로우 제거).
+  - **내 다이어리에서 별 가져오기**: `ExtraStar(type,colorIndex,x,y,scale)` 리스트 — `observeMyDiaries(uid).first()` 에서 (모양×색) 중복 제거 후 그리드 피커, 프리셋 위치 순환 배치. 히어로별 아래 레이어로 후광+크리스탈 렌더.
+  - 에디터: 드래그 시작점에서 최근접 요소 히트테스트(`hitTarget` — 추가별 0.09/제목 0.11/위치 0.09/날짜 0.08/무대 0.30, 정규화 반경) 후 델타 이동.
+    탭 = 추가 별 선택(점선 링 표시) → 전용 크기 슬라이더+삭제 버튼.
+- **⑤ 겹친 별 카드(StarClusterScreen)**: **스크린 배경 = 친구 스크린과 동일**(mydiary_bg + 검정 0.82 Darken 틴트),
+  **카드 각각의 배경 = 공유카드 프레임**(`assets/share_card_bg.webp` Crop + 세로 스크림, 사용자 피드백으로 1차본의 "스크린 배경 교체"에서 정정).
+  **좌상단 뒤로가기**(`onBack` — NavGraph `navigateUp`) 추가. 카드 썸네일 512px 다운샘플.
+- **⑥ 이미지 로딩 고속화**: `StaryApplication : ImageLoaderFactory` — 전역 Coil 로더(**respectCacheHeaders(false)** ← Firebase Storage 의 보수적 Cache-Control 무시하고 항상 디스크 캐시 = 재방문 즉시 표시, 메모리 25%+디스크 256MB, crossfade 120ms, GIF 디코더 포함).
+  `core/ui/ThumbAsyncImage`(다운샘플 요청 공용) — 친구 아바타 96px, 클러스터 카드 512px, 프로필/타인 프로필/마이 프사 256~384px 적용. `GifImage` 는 전용 로더 제거(싱글턴 재사용).
+- **⑦ 친구 스크린 메신저형 개편**: 친구 행에서 채팅/삭제 버튼 제거 → [사진 52dp(텍스트 2줄보다 조금 큼)] [이름 / "마지막 채팅 · 상대시간(RelativeTime)"] [우측 **미읽음 파란 점**(0xFF4C8DFF)]. **행 탭=채팅, 사진 탭=프로필**. 친구 삭제 UI 는 현재 진입점 없음(요청에 따라 제거 — `vm.remove` 는 유지).
+  - 미읽음 판정: `observeMyChats` 메타(updatedAt/lastSenderId) × **`core/util/ChatReadStore`**(신설, SharedPreferences+mutableStateMap — chatId→마지막 열람 시각, 기기 로컬). ChatScreen 이 열람 중 `markRead`(messages.size 변화마다), 행 탭 시에도 즉시 markRead.
+- **strings(ko/en/ja)**: `share_edit_import_stars/pick_star/no_stars/extra_star_size`, `friend_no_chat_yet`, `share_edit_hint` 문구 갱신.
+- **iOS TODO(후속, 테스트 완료 후)**: 크리스탈 별(StarShape/StarStyle.swift), 스파클 궤도 비례(iOS 지도 자체가 placeholder), 공유카드(iOS 미구현), 겹친별 화면, 친구 행 개편+ChatReadStore, 이미지 캐시 튜닝.
 
 ---
 

@@ -84,7 +84,8 @@ fun NavGraph(
             val args: NavRoute.StarCluster = backStackEntry.toRoute()
             com.chaminwoo.stary.feature.diary.screen.StarClusterScreen(
                 ids = args.ids.split(",").filter { it.isNotBlank() },
-                onOpenDiary = { diaryId -> navController.navigateToDetail(diaryId) }
+                onOpenDiary = { diaryId -> navController.navigateToDetail(diaryId) },
+                onBack = { navController.navigateUp() }
             )
         }
         // 글쓰기는 '모달' 느낌 — 아래에서 위로 슬라이드, 닫을 땐 아래로.

@@ -186,7 +186,7 @@ private fun starIconId(type: Int, color: Int) = "star-t$type-c$color"
 /**
  * 별 마커 비트맵 생성 — PNG 미사용, [StarStyle.starPath] 로 직접 그린다.
  * (PNG 디코드→텍스처 경로가 에뮬레이터에서 대각선 빗금으로 깨지는 문제가 있어 Path 렌더로 교체)
- * 구성: 팔레트색 글로우(blur) + 팔레트색 본체 + 흰색 중심 하이라이트.
+ * 구성: 팔레트색 글로우(blur) + 수정 결정(크리스탈) 패싯 본체([StarStyle.drawCrystalFill]).
  */
 private fun starBitmap(type: Int, colorIdx: Int): Bitmap {
     val color = StarStyle.colorOf(colorIdx).toArgb()
@@ -209,19 +209,8 @@ private fun starBitmap(type: Int, colorIdx: Int): Bitmap {
     canvas.drawPath(path, glowPaint)
     canvas.drawPath(path, glowPaint)
 
-    // 2) 본체 (그라데이션 색이면 셰이더로 채움)
-    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        val shader = StarStyle.fillShader(colorIdx, offset, offset, starSize)
-        if (shader != null) this.shader = shader else this.color = color
-    })
-
-    // 3) 중심 코어: 원색보다 살짝 어두운 톤(35% 어둡게) + 65% 크기 —
-    //    흰색/작은 코어는 본체와 분리돼 보였음. 어두운 코어가 글로우와 한 덩어리로 빛나는 인상.
-    val coreColor = androidx.core.graphics.ColorUtils.blendARGB(color, AndroidColor.BLACK, 0.05f)
-    val centerPath = android.graphics.Path(path)
-    val m = android.graphics.Matrix().apply { setScale(0.8f, 0.8f, side / 2f, side / 2f) }
-    centerPath.transform(m)
-    canvas.drawPath(centerPath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = coreColor })
+    // 2) 본체 — 크리스탈 패싯 채움(실루엣 동일, 조각마다 색 변주)
+    StarStyle.drawCrystalFill(canvas, type, colorIdx, offset, offset, starSize)
     return out
 }
 
@@ -477,9 +466,13 @@ private const val SPARKLE_SETS = 2
 private const val SPARKLE_ICON_ID = "diary-sparkle-icon"
 private fun sparkleLayerId(set: Int, group: Int) = "diary-sparkle-$set-$group"
 
-/** 마커 곁 스파클 비트맵 — 아주 작은 4꼭지 별(글로우+본체). */
+/** 스파클 iconSize 기본 배율(세트별) / 궤도 기본 반경(px, sizeMult 1 기준). */
+private fun sparkleSizeBase(set: Int) = if (set == 0) 0.46f else 0.34f
+private fun sparkleOrbitBase(set: Int) = if (set == 0) 16f else 24f
+
+/** 마커 곁 스파클 비트맵 — 작은 4꼭지 별(글로우+본체). */
 private fun sparkleBitmap(): Bitmap {
-    val side = 24
+    val side = 32
     val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(out)
     val starSize = side * 0.62f
@@ -487,23 +480,61 @@ private fun sparkleBitmap(): Bitmap {
     val path = android.graphics.Path(StarStyle.starPath(0, starSize)).apply { offset(offset, offset) }
     canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE
-        maskFilter = android.graphics.BlurMaskFilter(3.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        maskFilter = android.graphics.BlurMaskFilter(4.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
     })
     canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
     return out
 }
 
 /**
- * 스파클 iconSize — 줌인 상태에서만 보이는 미세 장식(줌 11 이하 완전 숨김).
+ * 스파클 iconSize — 줌인 상태에서만 보이는 장식(줌 11 이하 완전 숨김).
+ * per-feature √sizeMult 를 곱해 큰(합쳐진/인기) 별 곁 스파클은 더 크게.
  * 바깥 궤도(set 1)는 살짝 더 작게.
  */
 private fun sparkleSizeExpression(set: Int): Expression {
-    val base = if (set == 0) 0.42f else 0.30f
+    val base = sparkleSizeBase(set)
+    fun sized(zoomMult: Float): Expression = Expression.product(
+        Expression.literal(base * zoomMult),
+        Expression.sqrt(Expression.get("sizeMult"))
+    )
     return Expression.interpolate(
         Expression.linear(), Expression.zoom(),
-        Expression.stop(11f, 0f),
-        Expression.stop(13f, base * 0.55f),
-        Expression.stop(15.5f, base),
+        Expression.stop(11f, sized(0f)),
+        Expression.stop(13f, sized(0.55f)),
+        Expression.stop(15.5f, sized(1f)),
+    )
+}
+
+/** [sparkleSizeExpression] 의 줌 구간 배율(0..1) — iconOffset px→icon 단위 환산에 사용. */
+private fun sparkleZoomFactor(zoom: Float): Float = when {
+    zoom <= 11f -> 0f
+    zoom <= 13f -> (zoom - 11f) / 2f * 0.55f
+    zoom <= 15.5f -> 0.55f + (zoom - 13f) / 2.5f * 0.45f
+    else -> 1f
+}
+
+/**
+ * 스파클 궤도 iconOffset — 궤도 반경이 별 크기([sizeMult])에 비례하도록 per-feature 로 계산한다.
+ * iconTranslate 는 레이어 일괄이라 크기별 궤도가 불가능 → icon-offset(데이터 주도, 최종
+ * icon-size 배수로 픽셀 환산)을 step(sizeMult) 티어로 양자화해 준다.
+ * icon-size = base·zoomFactor·√sizeMult 이므로 offset 단위 = orbitBase·√tier/(base·zoomFactor)
+ * 로 두면 실제 픽셀 궤도 ≈ orbitBase·sizeMult — 별이 클수록 크게 돈다.
+ */
+private fun sparkleOrbitOffsetExpression(set: Int, ux: Float, uy: Float, zoomFactor: Float): Expression {
+    val unitBase = sparkleOrbitBase(set) / (sparkleSizeBase(set) * zoomFactor)
+    fun offsetFor(tier: Float): Expression {
+        val u = unitBase * kotlin.math.sqrt(tier)
+        return Expression.literal(arrayOf<Any>(ux * u, uy * u))
+    }
+    // 티어 경계는 mergeSizeMult(좋아요×개수 보너스) 실효 범위 1..6.6 을 커버
+    return Expression.step(
+        Expression.get("sizeMult"), offsetFor(1f),
+        Expression.stop(1.25f, offsetFor(1.5f)),
+        Expression.stop(1.75f, offsetFor(2f)),
+        Expression.stop(2.35f, offsetFor(2.75f)),
+        Expression.stop(3.1f, offsetFor(3.5f)),
+        Expression.stop(4f, offsetFor(4.5f)),
+        Expression.stop(5f, offsetFor(5.5f)),
     )
 }
 
@@ -1036,7 +1067,7 @@ fun DiaryMap(
                     }
 
                     // 별 곁 마이크로 스파클 — 각 별 주위를 도는 작은 반짝이 2개(안쪽/바깥쪽 역방향 궤도).
-                    // 같은 source 를 쓰고 iconTranslate 를 궤도로 움직인다(애니메이션 루프에서 갱신).
+                    // 같은 source 를 쓰고 icon-offset(별 크기 비례 궤도)+iconTranslate(부유)를 루프에서 갱신.
                     style.addImage(SPARKLE_ICON_ID, sparkleBitmap())
                     for (s in 0 until SPARKLE_SETS) {
                         for (g in 0 until PHASE_GROUPS) {
@@ -1477,16 +1508,21 @@ fun DiaryMap(
                     )
                 )
                 // 별 곁 마이크로 스파클 — 안쪽/바깥쪽 역방향 타원 궤도 + 별 부유 동기 + 트윙클.
+                // 궤도는 icon-offset(step on sizeMult)으로 별 크기에 비례, 부유는 iconTranslate 로 동기.
+                val sparkleZoom = sparkleZoomFactor(zoom)
                 for (s in 0 until SPARKLE_SETS) {
                     val sl = style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer ?: continue
-                    val orbitR = if (s == 0) 13f else 19f
+                    if (sparkleZoom <= 0.01f) continue // 숨김 줌(iconSize 0) — 궤도 갱신 불필요
                     val speed = if (s == 0) 1.1f else -0.8f
                     val ang = t * speed + phase + s * 1.9f
-                    val sx = (kotlin.math.cos(ang) * orbitR)
-                    val sy = (sin(ang) * orbitR * 0.55f) + floatDy
+                    val ux = kotlin.math.cos(ang)
+                    val uy = sin(ang) * 0.55f
                     val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
                     sl.setProperties(
-                        PropertyFactory.iconTranslate(arrayOf(sx, sy)),
+                        PropertyFactory.iconOffset(
+                            sparkleOrbitOffsetExpression(s, ux, uy, sparkleZoom)
+                        ),
+                        PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
                         PropertyFactory.iconOpacity(
                             Expression.product(Expression.literal(op), Expression.get("alpha"))
                         ),
@@ -1711,7 +1747,11 @@ private fun DiaryOpenWarp(data: DiaryOpenWarpData, onFinished: () -> Unit) {
                         this.color = color
                         maskFilter = android.graphics.BlurMaskFilter(4.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
                     })
-                    c.nativeCanvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+                    StarStyle.drawCrystalFill(
+                        c.nativeCanvas, type, colorIdx,
+                        x - sizePx / 2f, y - sizePx / 2f, sizePx,
+                        alpha = (alpha * 255).toInt()
+                    )
                 }
             }
         }

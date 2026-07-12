@@ -129,6 +129,7 @@
     <string name="friend_chat">Chat</string>
     <string name="friend_search_placeholder">Find friends by name</string>
     <string name="friend_no_name">(No name)</string>
+    <string name="friend_no_chat_yet">No messages yet — tap to start</string>
 
     <!-- Profile screen -->
     <string name="profile_upload_failed">Profile image upload failed: %1$s</string>
@@ -210,12 +211,16 @@
     <string name="share_card_anonymous">An anonymous star</string>
     <string name="share_story_link_copied">Link copied — paste it with the \'Link\' sticker in your story to make it tappable</string>
     <string name="share_edit_title">Customize Share Card</string>
-    <string name="share_edit_hint">Drag the preview to move the star</string>
+    <string name="share_edit_hint">Drag the star, title, location and date to place them freely</string>
     <string name="share_edit_field_title">Card title</string>
     <string name="share_edit_show_map">Map</string>
     <string name="share_edit_show_location">Location</string>
     <string name="share_edit_show_date">Date</string>
     <string name="share_edit_star_size">Star size</string>
+    <string name="share_edit_import_stars">Add stars from my diary</string>
+    <string name="share_edit_pick_star">Pick a star to add</string>
+    <string name="share_edit_no_stars">No stars yet — leave a diary first</string>
+    <string name="share_edit_extra_star_size">Selected star</string>
     <string name="nav_star_cluster">Merged Stars</string>
     <string name="cluster_header">%1$d stars are merged here</string>
     <string name="cluster_hint">Swipe left or right to browse the stars</string>

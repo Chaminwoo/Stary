@@ -236,8 +236,8 @@ fun ProfileScreen(
                 ) {
                     when {
                         isUploading -> CircularProgressIndicator(color = Green, modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
-                        profileImageUrl != null -> AsyncImage(profileImageUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
-                        GoogleAuthHelper.currentUserPhotoUrl != null -> AsyncImage(GoogleAuthHelper.currentUserPhotoUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                        profileImageUrl != null -> com.chaminwoo.stary.core.ui.ThumbAsyncImage(profileImageUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), sizePx = 384)
+                        GoogleAuthHelper.currentUserPhotoUrl != null -> com.chaminwoo.stary.core.ui.ThumbAsyncImage(GoogleAuthHelper.currentUserPhotoUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), sizePx = 384)
                         else -> Icon(Icons.Filled.AccountCircle, stringResource(R.string.cd_default_profile), tint = Color(0xFF555555), modifier = Modifier.fillMaxSize())
                     }
                 }

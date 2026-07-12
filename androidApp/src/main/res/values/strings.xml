@@ -131,6 +131,7 @@
     <string name="friend_chat">채팅</string>
     <string name="friend_search_placeholder">이름으로 친구 찾기</string>
     <string name="friend_no_name">(이름 없음)</string>
+    <string name="friend_no_chat_yet">아직 대화가 없어요 — 탭해서 시작해 보세요</string>
 
     <!-- 프로필 화면 -->
     <string name="profile_upload_failed">프로필 이미지 업로드 실패: %1$s</string>
@@ -212,12 +213,16 @@
     <string name="share_card_anonymous">익명의 별</string>
     <string name="share_story_link_copied">링크를 복사했어요 — 스토리에서 \'링크 스티커\'로 붙여넣으면 탭할 수 있어요</string>
     <string name="share_edit_title">공유 카드 꾸미기</string>
-    <string name="share_edit_hint">미리보기를 드래그하면 별 위치를 옮길 수 있어요</string>
+    <string name="share_edit_hint">별·제목·위치·날짜를 드래그해 자유롭게 배치해 보세요</string>
     <string name="share_edit_field_title">카드 제목</string>
     <string name="share_edit_show_map">지도</string>
     <string name="share_edit_show_location">위치</string>
     <string name="share_edit_show_date">날짜</string>
     <string name="share_edit_star_size">별 크기</string>
+    <string name="share_edit_import_stars">내 다이어리에서 별 가져오기</string>
+    <string name="share_edit_pick_star">가져올 별 선택</string>
+    <string name="share_edit_no_stars">가져올 별이 없어요 — 다이어리를 먼저 남겨보세요</string>
+    <string name="share_edit_extra_star_size">선택한 별</string>
     <string name="nav_star_cluster">겹쳐진 별</string>
     <string name="cluster_header">이곳에 별 %1$d개가 겹쳐 있어요</string>
     <string name="cluster_hint">좌우로 넘겨 별을 살펴보세요</string>

@@ -40,6 +40,11 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.tan
 
 /**
  * 다이어리 공유 카드(체크리스트 30) — 인스타 스토리 규격(1080×1920) 세로 카드.
@@ -64,8 +69,21 @@ object ShareCardHelper {
     private const val INSTAGRAM_PKG = "com.instagram.android"
 
     /**
+     * 카드에 추가로 얹는 장식 별(내 다이어리에서 가져온 별) — 개별 위치/크기 조절.
+     * [xFrac]/[yFrac] 는 카드 내 상대 위치(0..1), [scale] 은 크기 배율(0.2..2.5).
+     */
+    data class ExtraStar(
+        val type: Int,
+        val colorIndex: Int,
+        val xFrac: Float,
+        val yFrac: Float,
+        val scale: Float = 0.6f,
+    )
+
+    /**
      * 공유 카드 편집 옵션 — 공유 버튼을 누르면 뜨는 편집 화면(ShareCardEditor)에서 사용자가 조정한다.
      * [stageXFrac]/[stageYFrac] 는 별(+지도 무대) 중심의 카드 내 상대 위치(0..1).
+     * 제목/위치/날짜도 각자 상대 위치를 가져 자유롭게 배치할 수 있다(앵커 = 요소 중심).
      */
     data class ShareCardOptions(
         val title: String? = null,          // null → diary.title
@@ -74,7 +92,14 @@ object ShareCardHelper {
         val showDate: Boolean = true,       // 날짜
         val stageXFrac: Float = 0.5f,
         val stageYFrac: Float = 0.40f,
-        val starScale: Float = 1f,          // 별 크기 배율(0.6..1.6)
+        val starScale: Float = 1f,          // 별 크기 배율(0.25..2.2)
+        val titleXFrac: Float = 0.5f,
+        val titleYFrac: Float = 0.71f,
+        val locationXFrac: Float = 0.5f,
+        val locationYFrac: Float = 0.795f,
+        val dateXFrac: Float = 0.5f,
+        val dateYFrac: Float = 0.85f,
+        val extraStars: List<ExtraStar> = emptyList(),
     )
 
     /**
@@ -210,22 +235,66 @@ object ShareCardHelper {
             }
         }
 
+    /** 지역 지도 타일 줌/출력 변(px). 줌 4 = 나라+주변국 스케일. */
+    private const val REGION_MAP_ZOOM = 4
+    private const val REGION_MAP_SIDE = 512
+
     /**
-     * 별 좌표를 중심으로 한 나라+주변국 지도 — MapTiler 정적 지도(dataviz-dark, zoom 4).
+     * 별 좌표를 중심으로 한 나라+주변국 지도 — MapTiler **래스터 타일**(dataviz-dark, z4)을
+     * 직접 이어붙여 좌표 중심 512px 비트맵을 만든다.
+     * ⚠️ 정적 지도 API(/maps/{style}/static/...)는 이 프로젝트 키/플랜에서 403 이라 사용 불가
+     *    (라이브 지도가 쓰는 타일 엔드포인트는 허용) → 타일 스티칭으로 대체(2026-07-12).
      * 네트워크/키 문제 시 null → 지도 없이 하늘 위 별만 그린다(카드는 항상 생성).
      */
     private suspend fun fetchRegionMap(lat: Double, lng: Double): Bitmap? = withContext(Dispatchers.IO) {
         val key = BuildConfig.MAPTILER_KEY
         if (key.isBlank() || key.startsWith("TODO")) return@withContext null
-        // MapTiler static: /maps/{style}/static/{lon},{lat},{zoom}/{w}x{h}@2x.png?key=
-        // Double.toString 은 로케일 무관(항상 '.') → URL 안전.
-        val url = "https://api.maptiler.com/maps/dataviz-dark/static/$lng,$lat,4/512x512@2x.png?key=$key"
         runCatching {
-            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 6000
-                readTimeout = 6000
+            val n = 1 shl REGION_MAP_ZOOM
+            // 웹 메르카토르: 좌표 → 전역 픽셀(타일 한 변 = REGION_MAP_SIDE 로 정규화)
+            val latRad = Math.toRadians(lat.coerceIn(-85.05, 85.05))
+            val px = (lng + 180.0) / 360.0 * n * REGION_MAP_SIDE
+            val py = (1.0 - ln(tan(latRad) + 1 / cos(latRad)) / PI) / 2.0 * n * REGION_MAP_SIDE
+            val left = px - REGION_MAP_SIDE / 2.0
+            val top = py - REGION_MAP_SIDE / 2.0
+
+            val out = Bitmap.createBitmap(REGION_MAP_SIDE, REGION_MAP_SIDE, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(out)
+            canvas.drawColor(0xFF10141F.toInt()) // 타일 결손/극지 폴백(스타일 바다색 근사)
+            val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+            var drawnAny = false
+            val tx0 = floor(left / REGION_MAP_SIDE).toInt()
+            val ty0 = floor(top / REGION_MAP_SIDE).toInt()
+            for (ty in ty0..ty0 + 1) {
+                if (ty < 0 || ty >= n) continue
+                for (tx in tx0..tx0 + 1) {
+                    val wrapX = ((tx % n) + n) % n // 날짜변경선 래핑
+                    val url = "https://api.maptiler.com/maps/dataviz-dark/$REGION_MAP_ZOOM/$wrapX/$ty.png?key=$key"
+                    val tile = runCatching {
+                        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                            connectTimeout = 6000
+                            readTimeout = 6000
+                        }
+                        conn.inputStream.use { BitmapFactory.decodeStream(it) }
+                    }.getOrNull() ?: continue
+                    canvas.drawBitmap(
+                        tile, null,
+                        RectF(
+                            (tx * REGION_MAP_SIDE - left).toFloat(),
+                            (ty * REGION_MAP_SIDE - top).toFloat(),
+                            ((tx + 1) * REGION_MAP_SIDE - left).toFloat(),
+                            ((ty + 1) * REGION_MAP_SIDE - top).toFloat()
+                        ),
+                        paint
+                    )
+                    tile.recycle()
+                    drawnAny = true
+                }
             }
-            conn.inputStream.use { BitmapFactory.decodeStream(it) }
+            if (!drawnAny) {
+                out.recycle()
+                null
+            } else out
         }.getOrNull()
     }
 
@@ -241,25 +310,29 @@ object ShareCardHelper {
         val regionMap = assets.regionMap?.takeIf { options.showMap && !it.isRecycled }
 
         // 중앙 무대 좌표 — 지도 원과 별이 여기 겹쳐 앉는다(편집에서 드래그로 이동 가능).
-        val stageCx = W * options.stageXFrac.coerceIn(0.12f, 0.88f)
-        val stageCy = H * options.stageYFrac.coerceIn(0.14f, 0.55f)
+        val stageCx = W * options.stageXFrac.coerceIn(0.08f, 0.92f)
+        val stageCy = H * options.stageYFrac.coerceIn(0.08f, 0.90f)
         val mapRadius = 250f
 
         drawBackground(context, canvas, accent, stageCx, stageCy)
 
-        // ── [중앙] 나라 지도(있으면) → 그 정중앙에 작은 별 ──
+        // ── [무대] 나라 지도(있으면) → 그 정중앙에 별 ──
         if (regionMap != null) {
             drawRegionMap(canvas, regionMap, stageCx, stageCy, mapRadius, accent)
         }
+
+        // ── 추가 별(내 다이어리에서 가져온 별) — 히어로 별 아래 레이어 ──
+        options.extraStars.forEach { star ->
+            drawExtraStar(canvas, star)
+        }
+
         drawHeroStar(
             canvas, diary, accent, stageCx, stageCy,
             hasMap = regionMap != null,
-            scale = options.starScale.coerceIn(0.5f, 2f)
+            scale = options.starScale.coerceIn(0.2f, 2.5f)
         )
 
-        // ── [하단] 텍스트 — 제목 → 위치 → 날짜 (작성자 이름 없음) ──
-        var y = H * 0.66f
-
+        // ── 텍스트 — 제목/위치/날짜 각자 위치(앵커=요소 중심)에 자유 배치 ──
         val title = (options.title ?: diary.title).ifBlank { context.getString(R.string.share_card_untitled) }
         val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
@@ -276,15 +349,21 @@ object ShareCardHelper {
             .setLineSpacing(0f, 1.06f)
             .build()
         canvas.save()
-        canvas.translate((W - titleWidth) / 2f, y)
+        canvas.translate(
+            W * options.titleXFrac.coerceIn(0.08f, 0.92f) - titleWidth / 2f,
+            H * options.titleYFrac.coerceIn(0.05f, 0.95f) - titleLayout.height / 2f
+        )
         titleLayout.draw(canvas)
         canvas.restore()
-        y += titleLayout.height + 70f
 
         // 위치 캡슐(있을 때만 + 옵션 켜짐) — 별색 테두리 알약형 배지
         if (options.showLocation && locationHint != null) {
-            drawLocationPill(canvas, W / 2f, y, "✦ $locationHint", accent, handFont)
-            y += 96f
+            drawLocationPill(
+                canvas,
+                W * options.locationXFrac.coerceIn(0.08f, 0.92f),
+                H * options.locationYFrac.coerceIn(0.05f, 0.96f),
+                "✦ $locationHint", accent, handFont
+            )
         }
 
         // 날짜 — 작고 은은하게(옵션으로 숨김 가능)
@@ -296,7 +375,9 @@ object ShareCardHelper {
                 textAlign = Paint.Align.CENTER
                 typeface = handFont ?: Typeface.DEFAULT
             }
-            canvas.drawText(date, W / 2f, y + 20f, datePaint)
+            val dateCy = H * options.dateYFrac.coerceIn(0.05f, 0.97f)
+            val baseline = dateCy - (datePaint.fontMetrics.ascent + datePaint.fontMetrics.descent) / 2f
+            canvas.drawText(date, W * options.dateXFrac.coerceIn(0.08f, 0.92f), baseline, datePaint)
         }
 
         return out
@@ -405,7 +486,7 @@ object ShareCardHelper {
             )
         })
 
-        // 별 본체 — 마커와 같은 정의(StarStyle)
+        // 별 본체 — 마커와 같은 정의(StarStyle), 수정 결정(크리스탈) 패싯 채움
         val left = cx - starSize / 2f
         val top = cy - starSize / 2f
         val path = android.graphics.Path(StarStyle.starPath(diary.starType, starSize)).apply { offset(left, top) }
@@ -415,19 +496,35 @@ object ShareCardHelper {
         }
         canvas.drawPath(path, glow)
         canvas.drawPath(path, glow)
-        canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            val shader = StarStyle.fillShader(diary.starColor, left, top, starSize)
-            if (shader != null) this.shader = shader else color = accent
-        })
-        val core = android.graphics.Path(path)
-        core.transform(android.graphics.Matrix().apply { setScale(0.8f, 0.8f, cx, cy) })
-        canvas.drawPath(core, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = ColorUtils.blendARGB(accent, Color.BLACK, 0.05f)
-        })
+        StarStyle.drawCrystalFill(canvas, diary.starType, diary.starColor, left, top, starSize)
 
         // 작은 궤도 스파클 2개 — 정적이지만 "반짝" 포인트
         drawSparkle(canvas, cx - starSize * 0.78f, cy - starSize * 0.52f, 9f, ColorUtils.setAlphaComponent(Color.WHITE, 210))
         drawSparkle(canvas, cx + starSize * 0.82f, cy + starSize * 0.18f, 7f, ColorUtils.setAlphaComponent(accent, 230))
+    }
+
+    /** 추가 별(내 다이어리에서 가져온 장식 별) — 은은한 후광 + 크리스탈 본체. */
+    private fun drawExtraStar(canvas: Canvas, star: ExtraStar) {
+        val color = StarStyle.colorOf(star.colorIndex).toArgb()
+        val size = 150f * star.scale.coerceIn(0.2f, 2.5f)
+        val cx = W * star.xFrac.coerceIn(0.04f, 0.96f)
+        val cy = H * star.yFrac.coerceIn(0.03f, 0.97f)
+        val haloR = size * 1.3f
+        canvas.drawCircle(cx, cy, haloR, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(
+                cx, cy, haloR,
+                intArrayOf(ColorUtils.setAlphaComponent(color, 70), Color.TRANSPARENT),
+                floatArrayOf(0f, 1f), Shader.TileMode.CLAMP
+            )
+        })
+        val left = cx - size / 2f
+        val top = cy - size / 2f
+        val path = android.graphics.Path(StarStyle.starPath(star.type, size)).apply { offset(left, top) }
+        canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            maskFilter = BlurMaskFilter(12f, BlurMaskFilter.Blur.NORMAL)
+        })
+        StarStyle.drawCrystalFill(canvas, star.type, star.colorIndex, left, top, size)
     }
 
     /** 작은 4꼭지 스파클(장식). */

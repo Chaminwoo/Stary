@@ -1,19 +1,13 @@
 package com.chaminwoo.stary.core.ui
 
-import android.os.Build
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import coil.ImageLoader
 import coil.compose.AsyncImage
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
 
 /**
- * 움직이는 GIF 표시(부메랑 움짤) — Coil 기본 로더는 GIF 를 정지 프레임으로만 그리므로
- * GIF 디코더를 얹은 전용 ImageLoader 로 애니메이션 재생한다. 로컬 File/원격 URL 모두 지원.
+ * 움직이는 GIF 표시(부메랑 움짤) — GIF 디코더는 앱 전역 로더(StaryApplication.newImageLoader)에
+ * 포함되어 있어 싱글턴 로더를 그대로 쓴다(전용 로더의 별도 캐시 낭비 제거). 로컬 File/원격 URL 모두 지원.
  */
 @Composable
 fun GifImage(
@@ -22,18 +16,8 @@ fun GifImage(
     contentScale: ContentScale = ContentScale.Crop,
     contentDescription: String? = null,
 ) {
-    val context = LocalContext.current
-    val gifLoader = remember {
-        ImageLoader.Builder(context)
-            .components {
-                if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory())
-                else add(GifDecoder.Factory())
-            }
-            .build()
-    }
     AsyncImage(
         model = model,
-        imageLoader = gifLoader,
         contentDescription = contentDescription,
         modifier = modifier,
         contentScale = contentScale,
