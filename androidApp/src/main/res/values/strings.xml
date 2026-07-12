@@ -226,7 +226,6 @@
     <string name="nav_star_cluster">겹쳐진 별</string>
     <string name="cluster_header">이곳에 별 %1$d개가 겹쳐 있어요</string>
     <string name="cluster_hint">좌우로 넘겨 별을 살펴보세요</string>
-    <string name="cluster_open">탭해서 들여다보기</string>
     <string name="invite_friends">친구를 Stary 로 초대하기</string>
     <string name="invite_friends_desc">가입한 친구가 초대 링크를 열면 둘 다 칭호를 받아요</string>
     <string name="invite_share_text">Stary에서 함께 우주를 탐험해요! 가입 후 이 링크를 다시 열면 우리 둘 다 칭호를 받아요!\n%1$s</string>

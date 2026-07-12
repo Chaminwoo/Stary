@@ -224,7 +224,6 @@
     <string name="nav_star_cluster">Merged Stars</string>
     <string name="cluster_header">%1$d stars are merged here</string>
     <string name="cluster_hint">Swipe left or right to browse the stars</string>
-    <string name="cluster_open">Tap to open</string>
     <string name="invite_friends">Invite friends to Stary</string>
     <string name="invite_friends_desc">When an invited friend opens your link, you both earn a title</string>
     <string name="invite_share_text">Leave stars together on Stary ✦ Sign up and open this link again — we both get a title!\n%1$s</string>

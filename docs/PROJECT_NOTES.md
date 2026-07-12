@@ -42,11 +42,11 @@
   - 색 변주: hue ±24°·채도 0.8~1.2·명도 해시±0.18, 6% "글린트"(백색 55% 혼합) 조각. 옅은 흰 능선은 파편 경계 전체를 Path 1개로 스트로크. 전부 결정론적 해시(같은 별=같은 무늬).
   적용처: 지도 마커(`starBitmap` — 글로우 유지+본체 교체), `StarShapeIcon` 2종(피커/목록/클러스터 카드 전부 자동 반영), 공유카드 히어로별,
   `DiaryStarBox`/`FloatingStatBox`(프로필), 파장 burstStars. ⚠️ 새 별 type 추가 시 `facetDensity` 에 밀도 추가.
-- **② 마커 스파클 확대 + 궤도 별 크기 비례**: 비트맵 24→32px, iconSize 기본 0.42/0.30→0.46/0.34 × **√sizeMult**(데이터 주도).
-  궤도는 iconTranslate(레이어 일괄이라 크기별 불가) → **icon-offset**(데이터 주도, 최종 icon-size 배수)으로 이전:
-  `sparkleOrbitOffsetExpression` 이 step(sizeMult) 7티어로 궤도 단위를 양자화, 단위 = orbitBase(16/24px)·√tier/(base·zoomFactor)
-  → 실제 픽셀 궤도 ≈ orbitBase×sizeMult (합쳐진/인기 별은 크게 돎 — "큰 다이어리에서 안 보임" 해결). 부유(floatDy)는 iconTranslate 유지.
-  `sparkleZoomFactor` = sparkleSizeExpression 줌 보간의 코드 미러(수정 시 함께).
+- **② 마커 스파클 확대 + 궤도 별 크기 비례** (3차 피드백 "궤도가 너무 크게 돎 → 별 딱 주변만, 큰 별은 파티클도 별 모양처럼, 크기도 눈에 띄게" 로 재작업):
+  - **궤도 = 별의 실제 시각 반경 기반**: `starVisualRadiusPx(zoom, sizeMult)` 가 `starSizeExpression`(near 기준)과 같은 계수(MARKER_SIDE_PX·0.78·STAR_SIZE_NEAR)로 별의 진짜 화면 반경을 근사 → `sparkleOrbitOffsetExpression` 이 그 반경 + 고정 여백(안쪽 4px/바깥쪽 11px)을 목표 픽셀로 두고 스프라이트 스케일로 역산해 offset-unit 산출(7개 sizeMult 티어 step). 이전엔 별과 무관한 `orbitBase×sizeMult` 로 커져 실제 별보다 훨씬 크게 돌았음 — 이제 별이 커져도 궤도는 항상 별 표면 바로 곁.
+  - **큰 별 = 파티클 모양도 그 별을 닮음**: `sparkleStarBitmap(type,colorIdx)`(32px, `drawCrystalFill` 미니 크리스탈) 신규 — 마커 아이콘 등록 루프에서 `sparkleStarIconId(type,color)` 로 함께 addImage. sparkle 레이어의 `iconImage` 를 `switchCase(sizeMult ≥ SPARKLE_BIG_STAR_THRESHOLD(1.75), get("sparkleIcon"), literal(SPARKLE_ICON_ID))` 데이터 주도 표현식으로 — 합쳐진/인기 별(1.75배 이상)은 흰 4꼭지 대신 자기 모양·색의 미니 크리스탈이 돈다. `diaryFeature` 에 `sparkleIcon` 프로퍼티 추가.
+  - **파티클 크기 = 눈에 띄게 커짐**: `sparkleSizeExpression` 의 sizeMult 지수를 √(0.5) → **0.8**(`SPARKLE_SIZE_POW`, `Expression.pow`)로 올려 성장 곡선을 가파르게.
+  - 부유(floatDy)는 iconTranslate 유지. `sparkleZoomFactor` = sparkleSizeExpression 줌 보간의 코드 미러(수정 시 함께).
 - **③ 공유카드 지도 안 보임 원인 = MapTiler 정적 지도 API 403**: 이 키/플랜에서 `/maps/{style}/static/...` 전 스타일 403(타일 엔드포인트는 정상 — curl 로 확인).
   → `fetchRegionMap` 을 **래스터 타일 스티칭**으로 교체: dataviz-dark z4 타일(512px 셀) 2×2 를 웹 메르카토르 전역픽셀 기준으로 이어붙여 좌표 중심 512px 비트맵 생성(날짜변경선 x 래핑, 극지 클램프, 전부 실패 시 null).
 - **④ 공유카드 편집 확장**(`ShareCardOptions` 확장 — 기존 필드 유지):
@@ -57,7 +57,7 @@
     탭 = 추가 별 선택(점선 링 표시) → 전용 크기 슬라이더+삭제 버튼.
 - **⑤ 겹친 별 카드(StarClusterScreen)**: **스크린 배경 = 친구 스크린과 동일**(mydiary_bg + 검정 0.82 Darken 틴트),
   **카드 각각의 배경 = 공유카드 프레임**(`assets/share_card_bg.webp` Crop + 세로 스크림, 사용자 피드백으로 1차본의 "스크린 배경 교체"에서 정정).
-  **좌상단 뒤로가기**(`onBack` — NavGraph `navigateUp`) 추가. 카드 썸네일 512px 다운샘플.
+  **좌상단 뒤로가기**(`onBack` — NavGraph `navigateUp`) 추가. 카드 썸네일 512px 다운샘플. 카드 테두리(별색 border) 는 3차 피드백으로 제거.
 - **⑥ 이미지 로딩 고속화**: `StaryApplication : ImageLoaderFactory` — 전역 Coil 로더(**respectCacheHeaders(false)** ← Firebase Storage 의 보수적 Cache-Control 무시하고 항상 디스크 캐시 = 재방문 즉시 표시, 메모리 25%+디스크 256MB, crossfade 120ms, GIF 디코더 포함).
   `core/ui/ThumbAsyncImage`(다운샘플 요청 공용) — 친구 아바타 96px, 클러스터 카드 512px, 프로필/타인 프로필/마이 프사 256~384px 적용. `GifImage` 는 전용 로더 제거(싱글턴 재사용).
 - **⑦ 친구 스크린 메신저형 개편**: 친구 행에서 채팅/삭제 버튼 제거 → [사진 52dp(텍스트 2줄보다 조금 큼)] [이름 / "마지막 채팅 · 상대시간(RelativeTime)"] [우측 **미읽음 파란 점**(0xFF4C8DFF)]. **행 탭=채팅, 사진 탭=프로필**. 친구 삭제 UI 는 현재 진입점 없음(요청에 따라 제거 — `vm.remove` 는 유지).

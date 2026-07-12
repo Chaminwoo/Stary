@@ -251,11 +251,6 @@ private fun ClusterDiaryCard(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
             .background(Color(0xE614181F))
-            .border(
-                1.dp,
-                Brush.linearGradient(listOf(accent.copy(alpha = 0.55f), accent.copy(alpha = 0.15f))),
-                RoundedCornerShape(24.dp)
-            )
             .clickable { onClick() }
     ) {
         // 카드 배경 = 공유 카드 프레임(밤하늘) + 아래로 갈수록 짙은 스크림(텍스트 가독성)
@@ -345,10 +340,6 @@ private fun ClusterDiaryCard(
             Spacer(Modifier.width(5.dp))
             Text("${diary.commentCount}", color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp)
             Spacer(Modifier.weight(1f))
-            Text(
-                stringResource(R.string.cluster_open),
-                color = accent.copy(alpha = 0.9f), fontSize = 12.sp
-            )
         }
         }
     }

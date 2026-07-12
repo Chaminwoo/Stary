@@ -440,6 +440,7 @@ private fun diaryFeature(d: Diary, lng: Double, lat: Double, near: Boolean, alph
         addStringProperty("auraColor", starColorHex(colorIdx))
         addNumberProperty("alpha", alpha)
         addStringProperty("icon", starIconId(d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1), colorIdx))
+        addStringProperty("sparkleIcon", sparkleStarIconId(d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1), colorIdx))
     }
 }
 
@@ -465,12 +466,12 @@ private fun particleBitmap(): Bitmap {
 private const val SPARKLE_SETS = 2
 private const val SPARKLE_ICON_ID = "diary-sparkle-icon"
 private fun sparkleLayerId(set: Int, group: Int) = "diary-sparkle-$set-$group"
+private fun sparkleStarIconId(type: Int, color: Int) = "sparkle-star-t$type-c$color"
 
-/** 스파클 iconSize 기본 배율(세트별) / 궤도 기본 반경(px, sizeMult 1 기준). */
+/** 스파클 iconSize 기본 배율(세트별). */
 private fun sparkleSizeBase(set: Int) = if (set == 0) 0.46f else 0.34f
-private fun sparkleOrbitBase(set: Int) = if (set == 0) 16f else 24f
 
-/** 마커 곁 스파클 비트맵 — 작은 4꼭지 별(글로우+본체). */
+/** 마커 곁 스파클 비트맵 — 작은 4꼭지 별(글로우+본체). 작은/보통 별 곁에서 쓰는 기본 반짝이. */
 private fun sparkleBitmap(): Bitmap {
     val side = 32
     val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
@@ -487,15 +488,40 @@ private fun sparkleBitmap(): Bitmap {
 }
 
 /**
+ * "큰 별" 곁을 도는 스파클 비트맵 — 그 별과 같은 모양([type])·색([colorIdx])의 미니 크리스탈.
+ * [sparkleBitmap] 과 같은 32px 캔버스(같은 iconSize 스케일 기준)라 두 아이콘을 데이터 주도로
+ * 섞어 써도 크기가 어긋나지 않는다.
+ */
+private fun sparkleStarBitmap(type: Int, colorIdx: Int): Bitmap {
+    val color = StarStyle.colorOf(colorIdx).toArgb()
+    val side = 32
+    val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(out)
+    val starSize = side * 0.66f
+    val offset = (side - starSize) / 2f
+    val path = android.graphics.Path(StarStyle.starPath(type, starSize)).apply { offset(offset, offset) }
+    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color
+        maskFilter = android.graphics.BlurMaskFilter(4.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    })
+    StarStyle.drawCrystalFill(canvas, type, colorIdx, offset, offset, starSize)
+    return out
+}
+
+/** 스파클 크기의 sizeMult 지수 — 1(선형)에 가까울수록 큰 별 곁에서 눈에 띄게 커진다. */
+private const val SPARKLE_SIZE_POW = 0.8f
+
+/**
  * 스파클 iconSize — 줌인 상태에서만 보이는 장식(줌 11 이하 완전 숨김).
- * per-feature √sizeMult 를 곱해 큰(합쳐진/인기) 별 곁 스파클은 더 크게.
+ * per-feature sizeMult^[SPARKLE_SIZE_POW] 를 곱해 큰(합쳐진/인기) 별 곁 스파클은 눈에 띄게 커진다
+ * (기존 √sizeMult 보다 성장이 가팔라 "커짐"이 뚜렷하게 읽힌다).
  * 바깥 궤도(set 1)는 살짝 더 작게.
  */
 private fun sparkleSizeExpression(set: Int): Expression {
     val base = sparkleSizeBase(set)
     fun sized(zoomMult: Float): Expression = Expression.product(
         Expression.literal(base * zoomMult),
-        Expression.sqrt(Expression.get("sizeMult"))
+        Expression.pow(Expression.get("sizeMult"), Expression.literal(SPARKLE_SIZE_POW))
     )
     return Expression.interpolate(
         Expression.linear(), Expression.zoom(),
@@ -514,16 +540,37 @@ private fun sparkleZoomFactor(zoom: Float): Float = when {
 }
 
 /**
- * 스파클 궤도 iconOffset — 궤도 반경이 별 크기([sizeMult])에 비례하도록 per-feature 로 계산한다.
+ * 별의 실제 시각 반경(px) 근사 — [starSizeExpression](near 기준)과 같은 계수를 사용해,
+ * 스파클 궤도가 "별 크기에 비례하되 별 바로 곁"에 머물도록 하는 기준값을 만든다.
+ * 정확한 zoom 보간 대신 스파클이 보이는 구간(줌 11~15.5)만 다루는 근사 보간으로 충분하다.
+ */
+private fun starVisualRadiusPx(zoom: Float, sizeMult: Float): Float {
+    val zoomScalar = when {
+        zoom <= 10f -> 0.2f
+        zoom <= 13f -> 0.2f + (zoom - 10f) / 3f * 0.3f
+        zoom <= 15f -> 0.5f + (zoom - 13f) / 2f * 0.5f
+        else -> 1f
+    }
+    val bodyDiameter = MARKER_SIDE_PX * 0.78f // starBitmap 의 별 본체 지름(글로우 제외)
+    return bodyDiameter / 2f * STAR_SIZE_NEAR * zoomScalar * sizeMult
+}
+
+/**
+ * 스파클 궤도 iconOffset — 궤도 반경을 [starVisualRadiusPx](실제 별 반경) + 고정 여백으로
+ * 직접 설계해, 별이 커지면 궤도도 그만큼 커지되 **항상 별 표면 바로 곁**에 머물게 한다
+ * (기존엔 orbitBase·sizeMult 로 별과 무관하게 커져 너무 크게 돌았음).
  * iconTranslate 는 레이어 일괄이라 크기별 궤도가 불가능 → icon-offset(데이터 주도, 최종
  * icon-size 배수로 픽셀 환산)을 step(sizeMult) 티어로 양자화해 준다.
- * icon-size = base·zoomFactor·√sizeMult 이므로 offset 단위 = orbitBase·√tier/(base·zoomFactor)
- * 로 두면 실제 픽셀 궤도 ≈ orbitBase·sizeMult — 별이 클수록 크게 돈다.
  */
-private fun sparkleOrbitOffsetExpression(set: Int, ux: Float, uy: Float, zoomFactor: Float): Expression {
-    val unitBase = sparkleOrbitBase(set) / (sparkleSizeBase(set) * zoomFactor)
+private fun sparkleOrbitOffsetExpression(set: Int, ux: Float, uy: Float, zoom: Float, sizeZoomFactor: Float): Expression {
+    val marginPx = if (set == 0) 4f else 11f // 안쪽=별 표면에 거의 붙음, 바깥=살짝 띄워서
     fun offsetFor(tier: Float): Expression {
-        val u = unitBase * kotlin.math.sqrt(tier)
+        val desiredPx = starVisualRadiusPx(zoom, tier) + marginPx
+        val spriteScale = (
+            sparkleSizeBase(set) * sizeZoomFactor *
+                Math.pow(tier.toDouble(), SPARKLE_SIZE_POW.toDouble()).toFloat()
+            ).coerceAtLeast(0.0001f)
+        val u = desiredPx / spriteScale
         return Expression.literal(arrayOf<Any>(ux * u, uy * u))
     }
     // 티어 경계는 mergeSizeMult(좋아요×개수 보너스) 실효 범위 1..6.6 을 커버
@@ -537,6 +584,9 @@ private fun sparkleOrbitOffsetExpression(set: Int, ux: Float, uy: Float, zoomFac
         Expression.stop(5f, offsetFor(5.5f)),
     )
 }
+
+/** 이 sizeMult 이상이면 "큰 별" — 스파클이 흰색 4꼭지 대신 그 별의 모양/색을 닮은 미니 크리스탈로 바뀐다. */
+private const val SPARKLE_BIG_STAR_THRESHOLD = 1.75f
 
 /**
  * 별가루 파티클 FeatureCollection — [center] 기준 반경 [PARTICLE_RADIUS_M] 내 균등 분포.
@@ -1068,11 +1118,18 @@ fun DiaryMap(
 
                     // 별 곁 마이크로 스파클 — 각 별 주위를 도는 작은 반짝이 2개(안쪽/바깥쪽 역방향 궤도).
                     // 같은 source 를 쓰고 icon-offset(별 크기 비례 궤도)+iconTranslate(부유)를 루프에서 갱신.
+                    // 큰 별(sizeMult ≥ SPARKLE_BIG_STAR_THRESHOLD) 곁에서는 흰 4꼭지 대신
+                    // 그 별의 모양/색을 닮은 미니 크리스탈(sparkleIcon)로 데이터 주도 전환.
                     style.addImage(SPARKLE_ICON_ID, sparkleBitmap())
+                    val sparkleIconExpression = Expression.switchCase(
+                        Expression.gte(Expression.get("sizeMult"), Expression.literal(SPARKLE_BIG_STAR_THRESHOLD)),
+                        Expression.get("sparkleIcon"),
+                        Expression.literal(SPARKLE_ICON_ID)
+                    )
                     for (s in 0 until SPARKLE_SETS) {
                         for (g in 0 until PHASE_GROUPS) {
                             val layer = SymbolLayer(sparkleLayerId(s, g), DIARY_SOURCE).withProperties(
-                                PropertyFactory.iconImage(SPARKLE_ICON_ID),
+                                PropertyFactory.iconImage(sparkleIconExpression),
                                 PropertyFactory.iconSize(sparkleSizeExpression(s)),
                                 PropertyFactory.iconOpacity(0f),
                                 PropertyFactory.iconAllowOverlap(true),
@@ -1374,6 +1431,10 @@ fun DiaryMap(
                 if (addedIcons.add(iconId)) {
                     style.addImage(iconId, starBitmap(type, color))
                 }
+                val sparkleIconId = sparkleStarIconId(type, color)
+                if (addedIcons.add(sparkleIconId)) {
+                    style.addImage(sparkleIconId, sparkleStarBitmap(type, color))
+                }
             }
 
         // 최종(정착) 상태: 대표만 alpha=1, 크기는 좋아요×클러스터 보너스
@@ -1520,7 +1581,7 @@ fun DiaryMap(
                     val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
                     sl.setProperties(
                         PropertyFactory.iconOffset(
-                            sparkleOrbitOffsetExpression(s, ux, uy, sparkleZoom)
+                            sparkleOrbitOffsetExpression(s, ux, uy, zoom, sparkleZoom)
                         ),
                         PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
                         PropertyFactory.iconOpacity(

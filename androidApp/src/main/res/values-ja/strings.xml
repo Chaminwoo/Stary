@@ -224,7 +224,6 @@
     <string name="nav_star_cluster">重なった星</string>
     <string name="cluster_header">ここに星が%1$d個重なっています</string>
     <string name="cluster_hint">左右にスワイプして星を見てみましょう</string>
-    <string name="cluster_open">タップして開く</string>
     <string name="invite_friends">友達をStaryに招待する</string>
     <string name="invite_friends_desc">招待した友達がリンクを開くと、ふたりとも称号がもらえます</string>
     <string name="invite_share_text">Staryで一緒に星を残しましょう ✦ 登録後にこのリンクをもう一度開くと、ふたりとも称号がもらえます！\n%1$s</string>
