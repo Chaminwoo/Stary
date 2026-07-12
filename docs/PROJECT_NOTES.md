@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.38 크리스탈 별 렌더·스파클 궤도 비례·공유카드 편집 확장·겹친별 배경·이미지 고속화·친구 스크린 개편** — Android **`assembleDebug` BUILD SUCCESSFUL(2026-07-12), 테스트 대기(테스트 완료 후 iOS 패리티 착수 예정)** — 아래 8.38 참고.
+> 최종 갱신: **8.38-iOS 패리티**(크리스탈 별 / 30m 머지·겹친별 카드 / 친구 메신저형 행 / 이미지 캐시) — **CI(macOS) BUILD SUCCESS `a173f7e`** — 아래 8.38-iOS 참고.
+> 이전: **8.38 크리스탈 별 렌더·스파클(궤도·개수·위성)·공유카드 편집 확장·겹친별 배경·이미지 고속화·친구 스크린 개편** — Android **테스트 완료·push(`fbf7470`)** — 아래 8.38 참고.
 > 이전: **8.37 제한·30m 별 합치기·공유카드 편집·인스타 링크·마커 스파클 5건 라운드** — Android BUILD SUCCESSFUL(2026-07-12) — 아래 8.37 참고.
 > 이전: **8.36-iOS CI 그린 복구 + BGM 설명 문구 정정** — SettingsScreen 컴파일 에러 수정 + 부메랑 문구 패리티 + BGM 설명(의도적 삭제분) 양쪽 완전 제거. **CI(macOS) BUILD SUCCESS `0367fcb`**, Android `compileDebugKotlin` **BUILD SUCCESSFUL** — 아래 8.36-iOS 참고.
 > 이전: **8.36 Seedance 2.0 광고 마스터 기획 + 광고 자산 정리**(기획안 4종 + 씬별 i2v 프롬프트, 코드 변경 없음 — 커밋 `db12725`) — 아래 8.36 참고.
@@ -68,7 +69,39 @@
 - **⑦ 친구 스크린 메신저형 개편**: 친구 행에서 채팅/삭제 버튼 제거 → [사진 52dp(텍스트 2줄보다 조금 큼)] [이름 / "마지막 채팅 · 상대시간(RelativeTime)"] [우측 **미읽음 파란 점**(0xFF4C8DFF)]. **행 탭=채팅, 사진 탭=프로필**. 친구 삭제 UI 는 현재 진입점 없음(요청에 따라 제거 — `vm.remove` 는 유지).
   - 미읽음 판정: `observeMyChats` 메타(updatedAt/lastSenderId) × **`core/util/ChatReadStore`**(신설, SharedPreferences+mutableStateMap — chatId→마지막 열람 시각, 기기 로컬). ChatScreen 이 열람 중 `markRead`(messages.size 변화마다), 행 탭 시에도 즉시 markRead.
 - **strings(ko/en/ja)**: `share_edit_import_stars/pick_star/no_stars/extra_star_size`, `friend_no_chat_yet`, `share_edit_hint` 문구 갱신.
-- **iOS TODO(후속, 테스트 완료 후)**: 크리스탈 별(StarShape/StarStyle.swift), 스파클 궤도 비례(iOS 지도 자체가 placeholder), 공유카드(iOS 미구현), 겹친별 화면, 친구 행 개편+ChatReadStore, 이미지 캐시 튜닝.
+- Android 테스트 완료 → push(`fbf7470`). iOS 패리티는 아래 8.38-iOS.
+
+---
+
+## 8.38-iOS 패리티 — 크리스탈 별 / 30m 머지·겹친별 카드 / 친구 메신저형 행 / 이미지 캐시 (CI(macOS) BUILD SUCCESS `a173f7e`, 2026-07-12)
+8.38 Android 라운드의 iOS 반영(§1.5). 커밋 `a173f7e` — **iOS CI(ios.yml) 그린 확인 완료**.
+
+- **크리스탈 별**: **`Core/StarCrystal.swift` 신설** — Android `StarStyle.drawCrystalFill` 포팅.
+  실루엣은 `StarShape` 그대로 clip(even-odd) 하고 내부만 불규칙 파편 메시(코어 다각형 + 어긋난 링 3겹) + 볼록 돔 셰이딩.
+  **해시식(`sin(seed*12.9898)*43758.5453` fract)·상수·`facetDensity` 가 Android 와 동일** → 같은 별이 두 플랫폼에서 같은 무늬로 보인다(수정 시 양쪽 함께).
+  HSL 변환은 `UIColor.hsl` / `UIColor(hsl:)`(androidx `ColorUtils` 공식과 동일)로 자체 구현.
+  적용: `StarView`(→ 상세/목록/업로드/프로필/로그인/공유카드 전부 자동), 지도 마커(`StarImageRenderer` — 글로우 + 크리스탈 본체, 캔버스의 78%가 본체),
+  프로필 부유 별(`FloatingStatBox`). ⚠️ **`Canvas(symbols:)` 의 심볼 자리엔 Canvas 를 중첩하지 말 것**(렌더 불안정) →
+  `StarCrystal.image(type:colorIndex:size:)`(NSCache) 로 비트맵을 구워 `Image(uiImage:)` 로 넘긴다.
+- **30m 지오 머지 + 겹친 별 카드(iOS 최초 구현)**:
+  - **`Core/StarMerge.swift` 신설** — 대표 우선순위(`precedes` = 좋아요↓ → 오래된 순 → id)·`sizeMult`(좋아요 합산 × 개수 보너스, 상수 Android 동일)로 30m greedy 머지.
+  - `MapLibreView`: 어노테이션을 **머지 단위**로 생성(`DiaryAnnotation(merged:)` 이 `members`/`sizeMult` 보유).
+    마커 이미지 크기 = `40pt × sizeMult`(0.25 단위 **양자화** → `imageKey` 로 재사용, 최대 2.5배) — 합쳐질수록 큰 별.
+    콜백을 `onTapDiary(Diary)` → **`onTapStar([Diary])`**(멤버 전체)로 변경.
+  - **`Features/Map/StarClusterView.swift` 신설** — 헤더(겹친 별 아이콘+개수) + `TabView(.page)` 스와이프 카드 + 인디케이터, 좌상단 뒤로가기.
+    **카드 각각의 배경 = 공유카드 프레임**(`Resources/share_card_bg.webp` — Android assets 와 같은 파일을 iOS 번들에 복사, `ShareCardBackground.image` 로 1회 로드).
+    `MapScreen` 이 멤버 2개 이상이면 `ClusterSelection` 시트로 열고, 카드 탭 → 시트 교체(0.35s 뒤 Detail).
+  - ⚠️ **마커 곁 스파클(궤도/위성)은 iOS 미구현** — iOS 지도는 어노테이션 이미지 기반이라 per-frame 레이어 애니메이션이 없다(GeoJSON 소스 + SymbolLayer 로 재작성해야 가능). iOS TODO.
+- **친구 스크린 메신저형 행**: `FriendsScreen` 행 = [사진 52pt] [이름 / "마지막 채팅 · 상대시간(`RelativeTime`)"] [미읽음 파란 점(0xFF4C8DFF)]. 행 탭 = 채팅(기존 NavigationLink 유지).
+  - **`Data/ChatReadStore.swift` 신설**(UserDefaults + `@Published` — Android `core/util/ChatReadStore` 패리티, 기기 로컬 기준).
+    `ChatScreen` 이 onAppear/메시지 증가/onDisappear 마다 `markRead`, 친구 행 탭 시에도 즉시 markRead(`simultaneousGesture`).
+  - `FriendsViewModel` 에 채팅방 메타 구독 추가(`chatSummaries: [친구uid: ChatSummary]`) — `InAppWatcher` 와 같은 쿼리지만 용도가 달라 별도 리스너.
+- **이미지 로딩 고속화**: **`Core/ImageCache.swift` 신설** — 디스크 256MB `URLSession`(**`.returnCacheDataElseLoad`** = Firebase Storage 의 보수적 Cache-Control 무시, Android `respectCacheHeaders(false)` 대응) + `AvatarThumbView`(다운샘플 표시, Android `ThumbAsyncImage` 대응).
+  `AvatarThumbCache` 캐시 키에 **크기 포함**(같은 URL 을 다른 크기로 써도 흐려지지 않게) + 세션 교체.
+- **공유카드**: 배경을 Android 와 같은 밤하늘 이미지(`share_card_bg.webp`)로 통일(+하단 스크림, 실패 시 기존 절차적 하늘로 폴백). 별은 `StarView` 경유라 크리스탈 자동 반영.
+  ⚠️ **공유카드 편집 다이얼로그(드래그 배치·내 별 가져오기·지역 지도)는 iOS 미구현** — Android 전용. iOS TODO.
+- **`LocaleManager`**: `clusterHeader`(`%d`)/`clusterHint`/`clusterOpen`/`friendNoChatYet` 추가(ko/en/ja).
+- **iOS 남은 TODO**: 마커 스파클(궤도/개수 티어/위성), 공유카드 편집 다이얼로그, 지도 야경 커스텀 스타일(여전히 `demotiles` placeholder), 닉네임 20자 클램프.
 
 ---
 
