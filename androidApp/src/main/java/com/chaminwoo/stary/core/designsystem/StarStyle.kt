@@ -171,35 +171,44 @@ object StarStyle {
         val silhouette = Path(starPath(t, sizePx)).apply { offset(left, top) }
         val cx = left + sizePx / 2f
         val cy = top + sizePx / 2f
-        val (wedges, startDeg) = facetLayout(t)
+        val n = facetDensity(t)
 
         val save = canvas.save()
         canvas.clipPath(silhouette)
 
-        // 파편형 패싯 — 경계 각도를 지터하고 안/밖 2겹 링으로 갈라, 규칙적인 부채꼴이 아니라
-        // 잘게 깨진 수정 파편처럼 보이게 한다. 모든 좌표/색은 결정론적 해시(같은 별 = 같은 무늬).
-        val step = 360.0 / wedges
-        val outR = sizePx // 실루엣보다 넉넉히 — clip 이 잘라낸다
-        // 경계 각도(지터) + 그 경계에서의 안쪽 링 반지름(불규칙한 코어 다각형)
-        val angles = DoubleArray(wedges + 1)
-        val midR = FloatArray(wedges + 1)
-        for (k in 0 until wedges) {
-            val jitter = (facetHash(k * 17 + t * 57 + 3) - 0.5) * step * 0.55
-            angles[k] = Math.toRadians(startDeg + k * step + jitter)
-            midR[k] = sizePx * (0.13f + 0.15f * facetHash(k * 23 + t * 91 + 11))
+        // ── 불규칙 파편 메시 — 방사형 "패턴"이 생기지 않도록:
+        //  · 중심은 한 점이 아니라 불규칙 코어 다각형(스포크/부챗살 소멸)
+        //  · 링 3겹의 꼭짓점 각도를 서로 어긋나게(중간 링은 반 스텝 시프트) + 강한 지터
+        //    → 경계선이 한 줄로 이어지지 않아 그냥 "깨진 조각"으로 읽힌다
+        //  · 명도는 중심(밝음)→가장자리(어두움) 구배 = 가운데가 볼록한 돔 셰이딩
+        // 모든 좌표/색은 결정론적 해시(같은 별 = 항상 같은 무늬).
+        val step = 2.0 * Math.PI / n
+        fun jit(seed: Int) = facetHash(seed) - 0.5f
+
+        val x0 = FloatArray(n + 1); val y0 = FloatArray(n + 1) // 코어 다각형
+        val x1 = FloatArray(n + 1); val y1 = FloatArray(n + 1) // 중간 링(반 스텝 시프트)
+        val x2 = FloatArray(n + 1); val y2 = FloatArray(n + 1) // 외곽(실루엣 밖 — clip 마무리)
+        for (k in 0 until n) {
+            val a0 = k * step + jit(k * 17 + t * 57 + 3) * step * 0.7
+            val a1 = (k + 0.5) * step + jit(k * 29 + t * 71 + 5) * step * 0.7
+            val a2 = k * step + jit(k * 41 + t * 13 + 9) * step * 0.7
+            val r0 = sizePx * (0.09f + 0.10f * facetHash(k * 23 + t * 91 + 11))
+            val r1 = sizePx * (0.24f + 0.15f * facetHash(k * 37 + t * 143 + 17))
+            x0[k] = cx + (cos(a0) * r0).toFloat(); y0[k] = cy + (sin(a0) * r0).toFloat()
+            x1[k] = cx + (cos(a1) * r1).toFloat(); y1[k] = cy + (sin(a1) * r1).toFloat()
+            x2[k] = cx + (cos(a2) * sizePx).toFloat(); y2[k] = cy + (sin(a2) * sizePx).toFloat()
         }
-        angles[wedges] = angles[0] + 2 * Math.PI
-        midR[wedges] = midR[0]
+        x0[n] = x0[0]; y0[n] = y0[0]; x1[n] = x1[0]; y1[n] = y1[0]; x2[n] = x2[0]; y2[n] = y2[0]
 
-        fun px(a: Double, r: Float) = cx + (cos(a) * r).toFloat()
-        fun py(a: Double, r: Float) = cy + (sin(a) * r).toFloat()
-
-        // 조각 색 — 그라데이션은 좌상→우하 방향 투영으로 두 색을 섞고, 조각마다 색상(±24°)·
-        // 채도·명도를 크게 흔든다. 드물게 빛을 정면으로 받은 "글린트"(백색 근접) 조각.
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val shard = Path()
+        val edges = Path()
         val hsl = FloatArray(3)
-        fun facetColor(seed: Int, midAng: Double, ring: Int): Int {
+
+        // 파편 색 — 명도 = 돔 구배(ringBias) + 해시 변주, 색상 ±24°, 채도 0.8~1.2, 6% 글린트(백색 혼합)
+        fun shardColor(seed: Int, px: Float, py: Float, ringBias: Float): Int {
             val base = if (colors.size >= 2) {
-                val f = (((cos(midAng) + sin(midAng)) / 2.0 + 1.0) / 2.0).toFloat()
+                val f = (((px - left) + (py - top)) / (2f * sizePx)).coerceIn(0f, 1f)
                 ColorUtils.blendARGB(colors[0], colors[1], f)
             } else colors[0]
             val h1 = facetHash(seed * 7 + t * 131 + 1)
@@ -209,62 +218,70 @@ object StarStyle {
             ColorUtils.colorToHSL(base, hsl)
             hsl[0] = (hsl[0] + (h1 - 0.5f) * 48f + 360f) % 360f
             hsl[1] = (hsl[1] * (0.80f + 0.40f * h2)).coerceIn(0f, 1f)
-            val lightBias = (if (seed % 2 == 0) 0.09f else -0.08f) + (if (ring == 0) 0.045f else -0.02f)
-            hsl[2] = (hsl[2] + lightBias + (h1 - 0.5f) * 0.16f).coerceIn(0.05f, 0.97f)
+            hsl[2] = (hsl[2] + ringBias + (h1 - 0.5f) * 0.18f).coerceIn(0.05f, 0.97f)
             return ColorUtils.HSLToColor(hsl)
         }
 
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val piece = Path()
-        for (k in 0 until wedges) {
-            val a0 = angles[k]
-            val a1 = angles[k + 1]
-            val mid = (a0 + a1) / 2
-            // 안쪽 조각(코어 파편) — 중심에서 불규칙 링까지
-            paint.color = facetColor(k, mid, ring = 0)
+        fun drawShard(seed: Int, ringBias: Float, vararg pts: Float) {
+            shard.reset()
+            shard.moveTo(pts[0], pts[1])
+            var i = 2
+            while (i < pts.size) {
+                shard.lineTo(pts[i], pts[i + 1])
+                i += 2
+            }
+            shard.close()
+            var sx = 0f; var sy = 0f
+            var j = 0
+            while (j < pts.size) { sx += pts[j]; sy += pts[j + 1]; j += 2 }
+            val m = pts.size / 2
+            paint.color = shardColor(seed, sx / m, sy / m, ringBias)
             paint.alpha = alpha
-            piece.reset()
-            piece.moveTo(cx, cy)
-            piece.lineTo(px(a0, midR[k]), py(a0, midR[k]))
-            piece.lineTo(px(a1, midR[k + 1]), py(a1, midR[k + 1]))
-            piece.close()
-            canvas.drawPath(piece, paint)
-            // 바깥 조각(스파이크 파편) — 링에서 실루엣 밖까지(clip 이 마무리)
-            paint.color = facetColor(k + wedges * 3, mid, ring = 1)
-            paint.alpha = alpha
-            piece.reset()
-            piece.moveTo(px(a0, midR[k]), py(a0, midR[k]))
-            piece.lineTo(px(a0, outR), py(a0, outR))
-            piece.lineTo(px(a1, outR), py(a1, outR))
-            piece.lineTo(px(a1, midR[k + 1]), py(a1, midR[k + 1]))
-            piece.close()
-            canvas.drawPath(piece, paint)
+            canvas.drawPath(shard, paint)
+            edges.addPath(shard)
         }
 
-        // 패싯 능선 — 모든 조각 경계를 따라 옅은 흰 컷 라인(방사선 + 불규칙 코어 링)
-        val ridge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 1) 중심 코어 다각형 — 가장 밝게(볼록의 정점)
+        val core = FloatArray(n * 2)
+        for (k in 0 until n) { core[k * 2] = x0[k]; core[k * 2 + 1] = y0[k] }
+        drawShard(1, 0.15f, *core)
+
+        // 2) 코어→중간 / 3) 중간→외곽 — 엇갈린 삼각형 스트립(공유 꼭짓점 없음 = 무패턴)
+        for (k in 0 until n) {
+            drawShard(100 + k * 2, 0.05f, x0[k], y0[k], x1[k], y1[k], x0[k + 1], y0[k + 1])
+            drawShard(101 + k * 2, 0.02f, x1[k], y1[k], x0[k + 1], y0[k + 1], x1[k + 1], y1[k + 1])
+            drawShard(400 + k * 2, -0.05f, x1[k], y1[k], x2[k], y2[k], x1[k + 1], y1[k + 1])
+            drawShard(401 + k * 2, -0.09f, x2[k], y2[k], x1[k + 1], y1[k + 1], x2[k + 1], y2[k + 1])
+        }
+
+        // 능선 — 모든 파편 경계를 한 번에 옅은 흰 선으로
+        canvas.drawPath(edges, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = (sizePx * 0.012f).coerceAtLeast(0.7f)
+            strokeWidth = (sizePx * 0.011f).coerceAtLeast(0.7f)
             color = android.graphics.Color.WHITE
-            this.alpha = 46 * alpha / 255
-        }
-        val ridgePath = Path()
-        for (k in 0 until wedges) {
-            ridgePath.moveTo(cx, cy)
-            ridgePath.lineTo(px(angles[k], midR[k]), py(angles[k], midR[k]))
-            ridgePath.lineTo(px(angles[k], outR), py(angles[k], outR))
-            ridgePath.moveTo(px(angles[k], midR[k]), py(angles[k], midR[k]))
-            ridgePath.lineTo(px(angles[k + 1], midR[k + 1]), py(angles[k + 1], midR[k + 1]))
-        }
-        canvas.drawPath(ridgePath, ridge)
+            this.alpha = 40 * alpha / 255
+        })
 
-        // 중심 광채 — 수정 심부가 빛을 모은 듯한 은은한 흰 코어
-        canvas.drawCircle(cx, cy, sizePx * 0.26f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // ── 볼록 돔 셰이딩 ──
+        // 좌상단으로 살짝 치우친 하이라이트(빛을 받는 볼록면) …
+        canvas.drawRect(left, top, left + sizePx, top + sizePx, Paint().apply {
             shader = RadialGradient(
-                cx, cy, sizePx * 0.26f,
-                android.graphics.Color.argb(95 * alpha / 255, 255, 255, 255),
+                cx - sizePx * 0.10f, cy - sizePx * 0.12f, sizePx * 0.45f,
+                android.graphics.Color.argb(85 * alpha / 255, 255, 255, 255),
                 android.graphics.Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
+            )
+        })
+        // … + 실루엣 가장자리로 갈수록 가라앉는 음영(돔의 낙조면)
+        canvas.drawRect(left, top, left + sizePx, top + sizePx, Paint().apply {
+            shader = RadialGradient(
+                cx, cy, sizePx * 0.5f,
+                intArrayOf(
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.argb(70 * alpha / 255, 0, 0, 20)
+                ),
+                floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP
             )
         })
 
@@ -272,19 +289,15 @@ object StarStyle {
     }
 
     /**
-     * 패싯 경계(방사선) 수/시작각(도) — 별(0~4)은 꼭지·골 격자의 2배 밀도(반스파이크당 2조각),
-     * 여기에 안/밖 2겹 링 분할이 더해져 실제 조각 수는 이 값의 2배가 된다.
+     * 파편 메시 밀도(링당 꼭짓점 수) — 실제 조각 수 = 1(코어) + 4n.
+     * 각도는 전부 지터되므로 별 꼭지 정렬 개념은 없다(불규칙 파편이 목적).
      */
-    private fun facetLayout(type: Int): Pair<Int, Double> = when (type) {
-        0 -> 16 to 0.0
-        1 -> 20 to -90.0
-        2 -> 24 to -90.0
-        3 -> 24 to 0.0
-        4 -> 16 to 45.0
-        5 -> 18 to -90.0
-        6 -> 16 to -90.0
-        7 -> 16 to -70.0
-        else -> 18 to -90.0
+    private fun facetDensity(type: Int): Int = when (type) {
+        0, 4 -> 10
+        1, 6, 7 -> 10
+        2, 5 -> 12
+        3 -> 14
+        else -> 12
     }
 
     /** 0..1 결정론적 해시 — 같은 조각은 항상 같은 색(렌더마다 흔들리지 않게). */
