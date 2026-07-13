@@ -103,17 +103,13 @@ private struct ClusterCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 미디어 영역 — 사진이 있으면 사진, 없으면 큰 별(카드의 주인공)
+            // 별 영역 — 사진/영상은 띄우지 않고 항상 별만 크게 보여준다(카드의 주인공은 별).
             ZStack {
-                if !diary.imageUrl.isEmpty {
-                    AvatarThumbView(url: diary.imageUrl, pixelSize: 512)
-                } else {
-                    RadialGradient(
-                        colors: [accent.opacity(0.18), .clear],
-                        center: .center, startRadius: 2, endRadius: 140
-                    )
-                    StarView(type: diary.starType, colorIndex: diary.starColor, size: 84)
-                }
+                RadialGradient(
+                    colors: [accent.opacity(0.18), .clear],
+                    center: .center, startRadius: 2, endRadius: 140
+                )
+                StarView(type: diary.starType, colorIndex: diary.starColor, size: 84)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 16))

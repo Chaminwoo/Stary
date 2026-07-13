@@ -28,6 +28,10 @@ val maptilerKey: String = secretsProps.getProperty("MAPTILER_KEY")
 // OpenRouteService 도보 길찾기 키(무료 발급). 없으면 placeholder → 빌드는 되나 경로 호출은 401.
 val orsApiKey: String = secretsProps.getProperty("ORS_API_KEY")
     ?: "TODO_ADD_ORS_API_KEY"
+// 인스타그램 스토리 공유 링크스티커(content_url) 귀속용 Facebook App ID.
+// 없으면 빈 값 → 스토리에 카드 이미지는 올라가나 자동 링크스티커는 붙지 않는다(수동 추가 필요).
+// 발급: developers.facebook.com → 앱 생성 → 앱 ID. iOS 도 동일 값 사용.
+val instagramAppId: String = secretsProps.getProperty("INSTAGRAM_APP_ID") ?: ""
 
 // --- 릴리즈 서명 키 로딩 (절대 하드코딩/커밋 금지) ---------------------------
 // keystore.properties(gitignore 대상, 프로젝트 루트)에서 서명 정보를 읽는다.
@@ -49,10 +53,9 @@ android {
     defaultConfig {
         applicationId = "com.chaminwoo.stary_ios"
         minSdk = 26
-2
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 5
+        versionName = "1.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // TODO: secrets.properties 에 실제 값 채우기 (커밋 금지)
@@ -61,6 +64,8 @@ android {
         buildConfigField("String", "MAPTILER_KEY", "\"$maptilerKey\"")
         // OpenRouteService 도보 길찾기 키
         buildConfigField("String", "ORS_API_KEY", "\"$orsApiKey\"")
+        // 인스타 스토리 링크스티커 귀속용 Facebook App ID (없으면 빈 값)
+        buildConfigField("String", "INSTAGRAM_APP_ID", "\"$instagramAppId\"")
     }
 
     signingConfigs {

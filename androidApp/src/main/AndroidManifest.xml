@@ -13,6 +13,11 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 인스타그램 스토리 직접 공유(ADD_TO_STORY) 대상 앱 가시성(Android 11+ 패키지 쿼리 제한) -->
+    <queries>
+        <package android:name="com.instagram.android" />
+    </queries>
+
     <application
         android:name=".StaryApplication"
         android:allowBackup="true"

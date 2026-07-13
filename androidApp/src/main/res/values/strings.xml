@@ -239,7 +239,7 @@
     <string name="title_invite_flock">별무리의 길잡이</string>
     <string name="pioneer_title_format">%1$s의 개척자</string>
     <string name="pioneer_quest_marker">개척 퀘스트</string>
-    <string name="pioneer_quest_toast">%1$s에 첫 별을 남긴 사람이 \'%2$s\' 칭호를 얻어요! \n(일주일마다 나라 변경)</string>
+    <string name="pioneer_quest_toast">%1$s에서 처음으로 별을 만들어 특별한 칭호를 얻으세요.\n(%2$d일 %3$d시간 후 나라 변경)</string>
     <string name="pioneer_claimed_toast">🎉 이 나라의 첫 별! \'%1$s\' 칭호를 획득했어요</string>
     <string name="ach_pioneer_section">개척 칭호</string>
     <string name="pioneer_condition">그 나라에 처음으로 별을 남기기</string>

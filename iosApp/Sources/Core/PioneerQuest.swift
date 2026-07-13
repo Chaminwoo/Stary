@@ -97,6 +97,18 @@ enum PioneerQuest {
         return result
     }
 
+    /// 다음 나라 교체(다음 주 경계)까지 남은 ms — 안내문의 "d일 h시간 후 나라 변경" 계산용.
+    static func msUntilCountryChange(nowMs: Int64) -> Int64 {
+        let next = epochWeekStartMs + Int64(weekIndex(nowMs: nowMs) + 1) * weekMs
+        return max(0, next - nowMs)
+    }
+
+    /// `msUntilCountryChange` 를 (일, 시간) 으로 — 시간은 0..23 (분 이하 버림).
+    static func daysHoursUntilCountryChange(nowMs: Int64) -> (days: Int, hours: Int) {
+        let totalHours = msUntilCountryChange(nowMs: nowMs) / (60 * 60 * 1000)
+        return (Int(totalHours / 24), Int(totalHours % 24))
+    }
+
     /// 칭호 id ↔ 국가 코드.
     static func titleId(_ code: String) -> String { "\(titlePrefix)\(code.uppercased())" }
     static func codeFromTitleId(_ titleId: String?) -> String? {

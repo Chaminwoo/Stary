@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  리소스 축소(isShrinkResources) 보호 규칙.
+  아래 오디오는 MusicManager 가 Resources.getIdentifier(이름,"raw",..) 로 "동적 참조"하므로
+  R8 정적 분석이 미사용으로 오판해 제거한다 → 명시적으로 keep 해야 릴리즈에서 음악/효과음이 나온다.
+  (login_video/maplibre_style 은 R.raw.* 직접 참조라 자동 유지되어 여기 불필요)
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/bgm_star_whisper,@raw/bgm_tiny_explorer,@raw/bgm_celestial_drift,@raw/bgm_cosmic_funk,@raw/bgm_forgotten_galaxy,@raw/bgm_nebula_garden,@raw/open_diary,@raw/wind,@raw/turning_dial" />

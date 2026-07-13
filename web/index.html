@@ -52,8 +52,8 @@
   <p class="desc" id="desc">이 별은 <b>그 장소에 가야</b> 열려요.<br>
     Stary 앱을 열고, 별이 뜬 곳으로 걸어가 보세요.</p>
   <a class="btn btn-primary" id="openApp" href="#">앱에서 별 보기</a>
-  <a class="btn btn-ghost" id="store"
-     href="https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios">앱 설치하기</a>
+  <!-- 스토어 링크는 앱 출시 후 채운다. 미출시 동안은 '준비 중'(비활성). -->
+  <a class="btn btn-ghost" id="store" href="#" aria-disabled="true">앱 설치 (준비 중)</a>
   <div class="brand">S T A R Y</div>
   <div class="tagline">지도 위 밤하늘에 남기는 위치 다이어리</div>
 </main>
@@ -77,9 +77,18 @@
       var id = (share && share[1]) || qs.get("d") || "";
       btn.href = "stary://diary/" + encodeURIComponent(id);
     }
-    // iOS 는 App Store, 그 외는 Play Store (iOS 앱 스토어 등록 후 URL 교체).
-    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      document.getElementById("store").textContent = "App Store 에서 설치 (준비 중)";
+    // 스토어 출시 후 아래에 실제 URL 을 채운다(현재는 미출시 → '준비 중' 비활성 유지).
+    //   Android: https://play.google.com/store/apps/details?id=<PACKAGE>
+    //   iOS    : https://apps.apple.com/app/id<APPSTORE_ID>
+    var STORE_URL_ANDROID = ""; // TODO: Play Store 출시 후 채우기
+    var STORE_URL_IOS = "";     // TODO: App Store 출시 후 채우기
+    var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    var storeUrl = isIOS ? STORE_URL_IOS : STORE_URL_ANDROID;
+    var storeBtn = document.getElementById("store");
+    if (storeUrl) {
+      storeBtn.href = storeUrl;
+      storeBtn.setAttribute("aria-disabled", "false");
+      storeBtn.textContent = isIOS ? "App Store 에서 설치" : "Play 스토어에서 설치";
     }
   })();
 

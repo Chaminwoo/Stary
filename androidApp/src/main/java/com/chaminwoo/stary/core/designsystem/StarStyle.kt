@@ -169,12 +169,36 @@ object StarStyle {
         if (sizePx <= 0f || colors.isEmpty() || alpha <= 0) return
         val t = type.coerceIn(0, TYPE_COUNT - 1)
         val silhouette = Path(starPath(t, sizePx)).apply { offset(left, top) }
+        drawCrystalFacets(canvas, silhouette, t, colors, left, top, sizePx, alpha)
+    }
+
+    /**
+     * [drawCrystalFill] 의 임의 실루엣 버전 — 별이 아닌 모양(프로필 부유 아이콘 등)도
+     * 같은 파편 메시·돔 셰이딩으로 채울 수 있게 분리한 몸체.
+     *
+     * @param silhouette clip 할 실루엣. **null 이면 clip 없이 정사각 영역 전체**에 파편을 그린다 —
+     *   호출부가 결과를 아이콘 알파 등으로 마스킹(SRC_IN)하는 용도.
+     * @param seed 파편 무늬 시드(같은 시드 = 항상 같은 무늬). 별은 type 을 그대로 쓴다.
+     */
+    fun drawCrystalFacets(
+        canvas: Canvas,
+        silhouette: Path?,
+        seed: Int,
+        colors: List<Int>,
+        left: Float,
+        top: Float,
+        sizePx: Float,
+        alpha: Int = 255,
+    ) {
+        if (sizePx <= 0f || colors.isEmpty() || alpha <= 0) return
+        val t = seed
         val cx = left + sizePx / 2f
         val cy = top + sizePx / 2f
         val n = facetDensity(t)
 
         val save = canvas.save()
-        canvas.clipPath(silhouette)
+        if (silhouette != null) canvas.clipPath(silhouette)
+        else canvas.clipRect(left, top, left + sizePx, top + sizePx)
 
         // ── 불규칙 파편 메시 — 방사형 "패턴"이 생기지 않도록:
         //  · 중심은 한 점이 아니라 불규칙 코어 다각형(스포크/부챗살 소멸)

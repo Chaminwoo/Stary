@@ -87,11 +87,12 @@ enum LocalizedNames {
     /// 개척 퀘스트 비콘 탭 안내문(Android pioneer_quest_toast 패리티).
     static func pioneerQuestMessage(_ code: String) -> String {
         let country = countryName(code)
-        let title = pioneerTitle(PioneerQuest.titleId(code)) ?? country
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let (d, h) = PioneerQuest.daysHoursUntilCountryChange(nowMs: nowMs)
         switch LocaleManager.shared.effectiveLanguage {
-        case "en": return "The first star left in \(country) earns the '\(title)' title!"
-        case "ja": return "\(country)に最初の星を残した人が「\(title)」の称号を獲得します！"
-        default:   return "\(country)에 첫 별을 남긴 사람이 '\(title)' 칭호를 가져요!"
+        case "en": return "Be the first to leave a star in \(country) and earn a special title.\n(Country changes in \(d)d \(h)h)"
+        case "ja": return "\(country)で最初の星を残して特別な称号を手に入れましょう。\n(\(d)日\(h)時間後に国が変わります)"
+        default:   return "\(country)에서 처음으로 별을 만들어 특별한 칭호를 얻으세요.\n(\(d)일 \(h)시간 후 나라 변경)"
         }
     }
 

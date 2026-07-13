@@ -823,7 +823,33 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
   가장 어려운 업적(좋아요 300/친구 20/100개 작성/조회 1000)에 배치.
 - **업적 화면**: `AchievementsScreen` 「칭호」/「별 모양·색」 2섹션, 보상 미리보기. 배경 = `mydiary_bg`(0.7 darken).
 
+## 8.39 출시 준비 배치 — 용량 경량화 / 인스타 스토리 / 개척 카운트다운 / 크리스탈 아이콘 (BUILD SUCCESSFUL)
+- **용량 경량화**(앱 리소스 ~90MB → ~28MB):
+  - `res/drawable` PNG/JPG 6장 → **WebP**(`app_image`/`image_frame`/`logo`/`mydiary_bg`/`mypage_bg`/`upload_bg`, 총 12.6MB → 1.1MB).
+    파일명(리소스 id)은 그대로라 코드 수정 불필요.
+  - BGM 6곡 재인코딩(33MB → 22MB), `login_video.mp4` 25MB → 3.1MB, `assets/earth_*.jpg`(지구본 텍스처) 5.1MB → 1.6MB.
+  - `res/raw/keep.xml` 신설 — ⚠️ `MusicManager` 가 `Resources.getIdentifier()` 로 BGM/SFX 를 **동적 참조**해서
+    `isShrinkResources=true` 릴리즈에서 R8 이 미사용으로 오판·제거한다. `tools:keep` 로 bgm 6곡 + open_diary/wind/turning_dial 보호.
+  - 디버그 APK 100MB 는 정상(전 ABI 네이티브 41.9MB + 미난독화 dex). 릴리즈 AAB 는 ABI 분할 + minify/shrink 적용.
+- **인스타 스토리 직접 공유**(`ShareCardHelper.shareToInstagramStory`, ShareCardEditor 의 인스타 버튼):
+  - `AndroidManifest` 에 `<queries><package android:name="com.instagram.android"/></queries>` — Android 11+ 패키지 가시성 없으면 인텐트 해석 실패.
+  - `BuildConfig.INSTAGRAM_APP_ID` ← `secrets.properties` 의 `INSTAGRAM_APP_ID`(Facebook 앱 ID, 없으면 빈 값).
+    ⚠️ 링크스티커(`content_url`)는 **Meta 앱 ID 등록 + 인스타 인정**이 있어야 붙는다 → 미등록이면 조용히 무시되므로
+    항상 링크를 클립보드에 복사하고 시스템 Toast 로 "링크 스티커에 붙여넣기" 안내(폴백).
+- **개척 퀘스트 카운트다운**: `pioneer_quest_toast` 를 「%1$s에서 처음으로 별을 만들어 특별한 칭호를 얻으세요.\n(%2$d일 %3$d시간 후 나라 변경)」로 교체
+  (ko/en/ja). 남은 시간은 `shared` 의 `PioneerQuest.daysHoursUntilCountryChange(nowMs)` — iOS `PioneerQuest.swift` 에 동일 구현.
+- **부유 통계 아이콘 = 크리스탈**(`FloatingStatBox`): 벡터 아이콘 틴트(`ColorFilter.tint`) → **별과 같은 크리스탈 파편** 채움.
+  - `StarStyle.drawCrystalFacets(canvas, silhouette=null, ...)` 신설(=`drawCrystalFill` 의 임의 실루엣/무클립 버전).
+  - 파편 무늬는 정적 → `bakeCrystalIcon()` 이 아이콘을 알파 마스크로 깔고 **SRC_IN 레이어**에 파편을 그려 `ImageBitmap` 으로 **1회만 굽고**,
+    매 프레임엔 `drawImage(dstOffset/dstSize)` 로 스케일·회전만(파티클 버스트까지 매 프레임 파편을 그리면 비싸다).
+- **iOS 패리티**: 개척 카운트다운(`LocalizedNames.pioneerQuestMessage`), 겹친별 카드 = 사진 대신 **항상 별**(`StarClusterView`) 반영.
+- **웹 랜딩**(`web/index.html`): 미출시 상태라 스토어 버튼을 '준비 중'(비활성)으로. 출시 후 `STORE_URL_ANDROID/IOS` 상수만 채우면 활성화.
+- 버전: `versionCode 5` / `versionName 1.3.0`.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
+- [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
+      iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
+      `INSTAGRAM_APP_ID` 주입, `UIPasteboard`(com.instagram.sharedSticker.backgroundImage) + `instagram-stories://share` 필요.
 - [ ] iOS 앱(Xcode 프로젝트) 추가 + iOS용 Repository 구현(Firebase iOS SDK) — 현재 `shared` 스캐폴딩만(iosX64/Arm64/Sim 타깃만, iosApp/.xcodeproj 없음). **iOS 빌드·실행은 macOS+Xcode 필요(Windows 불가).**
 - [x] 실제 `secrets.properties` / `google-services.json`(f26c8) 채워 런타임 확인 — 지도·Google 로그인 동작 확인됨.
 - [x] 지도 엔진 Google Maps → **MapLibre + MapTiler** 전환 + 커스텀 스타일(검정/물/큰길, 줌 색보간) — 동작 확인.

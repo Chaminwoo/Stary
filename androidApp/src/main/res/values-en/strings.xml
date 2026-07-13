@@ -237,7 +237,7 @@
     <string name="title_invite_flock">Guide of the Flock</string>
     <string name="pioneer_title_format">%1$s Pioneer</string>
     <string name="pioneer_quest_marker">Pioneer quest</string>
-    <string name="pioneer_quest_toast">The first star left in %1$s earns the \'%2$s\' title!</string>
+    <string name="pioneer_quest_toast">Be the first to leave a star in %1$s and earn a special title.\n(Country changes in %2$dd %3$dh)</string>
     <string name="pioneer_claimed_toast">🎉 First star in this country! You earned the \'%1$s\' title</string>
     <string name="ach_pioneer_section">Pioneer titles</string>
     <string name="pioneer_condition">Leave the first star in that country</string>
