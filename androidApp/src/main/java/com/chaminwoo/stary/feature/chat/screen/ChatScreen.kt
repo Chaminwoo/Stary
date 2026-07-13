@@ -1,5 +1,12 @@
 package com.chaminwoo.stary.feature.chat.screen
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
@@ -94,7 +102,7 @@ fun ChatScreen(
     // 롱프레스한 내 메시지(1분 이내) — 완전 삭제 확인 대상. null 이면 다이얼로그 숨김.
     var pendingDelete by remember { mutableStateOf<ChatMessage?>(null) }
 
-    // 이 방을 보는 동안은 항상 읽음 처리 — 친구 목록의 미읽음 파란 점 해제.
+    // 이 방을 보는 동안은 항상 읽음 처리(친구 목록의 미읽음 판정 기준 — ChatReadStore).
     val chatContext = androidx.compose.ui.platform.LocalContext.current
     val chatId = remember(myId, friendId) {
         com.chaminwoo.stary.shared.config.StaryConfig.chatId(myId, friendId)
@@ -116,6 +124,9 @@ fun ChatScreen(
             contentScale = ContentScale.Crop,
             colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.85f), blendMode = BlendMode.Darken)
         )
+
+        // 별가루 — 메시지 뒤 배경에서 아주 옅게 떠다닌다(장식, 히트테스트 없음).
+        ChatStardust(modifier = Modifier.fillMaxSize())
 
         Column(modifier = Modifier.fillMaxSize()) {
             if (messages.isEmpty()) {
@@ -217,6 +228,45 @@ fun ChatScreen(
                     }
                 }
             )
+        }
+    }
+}
+
+/**
+ * 채팅방 배경 별가루 — 미세한 입자 [STARDUST_COUNT] 개가 아주 느리게 떠다니며 반짝인다.
+ *
+ * 성능: InfiniteTransition **1개**(위상)에서 전 입자를 파라메트릭으로 계산해 Canvas 1개에 그린다.
+ * 배치는 인덱스 기반 고정 시드라 리컴포지션마다 흔들리지 않는다. 히트테스트에 참여하지 않아
+ * 메시지 롱프레스/입력창 조작을 방해하지 않는다.
+ */
+private const val STARDUST_COUNT = 12
+
+@Composable
+private fun ChatStardust(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "chat_stardust")
+    val t by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 6.28318f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(24000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "stardust_phase",
+    )
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        repeat(STARDUST_COUNT) { i ->
+            val fx = ((i * 37 % 100) / 100f)
+            val fy = ((i * 71 % 100) / 100f)
+            val phase = i * 0.7f
+            // 아주 느린 표류(가로는 sin, 세로는 cos — 서로 다른 주기로 겹치지 않게)
+            val px = w * (0.05f + 0.90f * fx) + kotlin.math.sin(t * 0.6f + phase) * 10.dp.toPx()
+            val py = h * (0.06f + 0.88f * fy) + kotlin.math.cos(t * 0.45f + phase * 1.3f) * 14.dp.toPx()
+            val twinkle = 0.35f + 0.65f * (0.5f + 0.5f * kotlin.math.sin(t * 2.1f + phase * 2f))
+            val r = (1.5f + (i % 3) * 0.75f).dp.toPx()
+            drawCircle(Color.White.copy(alpha = 0.10f * twinkle), radius = r * 2.2f, center = Offset(px, py))
+            drawCircle(Color.White.copy(alpha = 0.35f * twinkle), radius = r, center = Offset(px, py))
         }
     }
 }

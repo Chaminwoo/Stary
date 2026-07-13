@@ -1,4 +1,4 @@
-package com.chaminwoo.stary.feature.diary.screen
+﻿package com.chaminwoo.stary.feature.diary.screen
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -231,7 +230,7 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
                         }
                     }
                 } else {
-                    CircularProgressIndicator(color = accent, modifier = Modifier.size(30.dp), strokeWidth = 2.dp)
+                    com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 30.dp, color = accent)
                 }
             }
             Spacer(Modifier.height(6.dp))
@@ -380,7 +379,7 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
                     shape = RoundedCornerShape(13.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color(0xFF0B0F18))
                 ) {
-                    if (busy) CircularProgressIndicator(color = Color(0xFF0B0F18), modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    if (busy) com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 18.dp, color = Color(0xFF0B0F18))
                     else Text(stringResource(R.string.share_to_story), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Button(
@@ -429,7 +428,7 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().height(90.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = accent, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 24.dp, color = accent)
                     }
                     stars.isEmpty() -> Text(
                         stringResource(R.string.share_edit_no_stars),

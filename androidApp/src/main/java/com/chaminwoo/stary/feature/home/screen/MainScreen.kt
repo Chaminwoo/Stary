@@ -296,12 +296,25 @@ fun MainScreen(
                             actionIconContentColor = Color(0xFFF0F0F0)
                         ),
                         title = {
-                            Text(
-                                text = localizedTitle(currentRoute),
-                                fontSize = 20.sp,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color(0xFFF0F0F0)
-                            )
+                            // 사람 이름이 제목인 화면(채팅/타인 프로필)에는 그 사람의 히든 업적 배지를 옆에 붙인다.
+                            val titleUserId = when (val r = currentRoute) {
+                                is NavRoute.Chat -> r.friendId
+                                is NavRoute.UserProfile -> r.userId
+                                else -> ""
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = localizedTitle(currentRoute),
+                                    fontSize = 20.sp,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color(0xFFF0F0F0)
+                                )
+                                com.chaminwoo.stary.core.ui.HiddenStarBadges(
+                                    userId = titleUserId,
+                                    modifier = Modifier.padding(start = 6.dp),
+                                    size = 15.dp,
+                                )
+                            }
                         },
                         navigationIcon = {
                             if (currentRoute.isRoot) {
@@ -477,6 +490,13 @@ fun MainScreen(
         )
     }
 
+    // 화면 전환 별 잔상(34-10) — 라우트 변경 시 빛줄기가 화면을 스친다(드릴인/뒤로가기 방향 반전).
+    com.chaminwoo.stary.core.ui.RouteTransitionStreak(
+        navController = navController,
+        modifier = Modifier.fillMaxSize(),
+    )
+    // 별 탄생 연출(34-8) — 업로드 성공 직후 업로드 화면이 pop 되고 나서 지도 위에서 재생된다.
+    com.chaminwoo.stary.core.ui.StarBirthHost()
     // 인앱 알림 배너(상단) — 모든 콘텐츠 위에 표시. 토스트(하단)와 별개 채널.
     com.chaminwoo.stary.core.ui.InAppBannerHost()
     // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시

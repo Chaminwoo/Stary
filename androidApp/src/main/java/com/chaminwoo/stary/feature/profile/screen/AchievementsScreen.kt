@@ -1,5 +1,7 @@
 package com.chaminwoo.stary.feature.profile.screen
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -51,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.ui.StarShapeIcon
+import com.chaminwoo.stary.core.util.rememberCurrentUserName
 import com.chaminwoo.stary.data.repository.HiddenAchievementRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.profile.Achievement
@@ -212,6 +217,86 @@ private fun androidx.compose.foundation.layout.RowScope.TabChip(
     }
 }
 
+/**
+ * 업적 진행도 — 퍼센트 막대 대신 **성운이 차오르는 밴드**.
+ * 왼쪽부터 달성 비율만큼 성운(민트+보라 blob)이 짙어지고, 나머지는 빈 밤하늘(잔별만).
+ * 경계는 blob 별 알파 감쇠로 부드럽게 흐려진다(하드 컷 없음). 값이 바뀌면 채움이 애니메이션.
+ *
+ * 별/blob 배치는 고정 시드 해시라 매 리컴포지션마다 흔들리지 않는다.
+ */
+@Composable
+private fun NebulaProgress(
+    fraction: Float,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val target = fraction.coerceIn(0f, 1f)
+    val filled by animateFloatAsState(
+        targetValue = target,
+        animationSpec = tween(700),
+        label = "nebula_fill",
+    )
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.03f))
+            .drawBehind {
+                val w = size.width
+                val h = size.height
+                val fw = w * filled
+                val soft = w * 0.14f // 채움 경계가 흐려지는 폭
+
+                // 성운 blob — 채움 경계를 넘어갈수록 옅어진다(부드러운 채움).
+                val blobs = listOf(
+                    Triple(0.06f, 0.55f, Green),
+                    Triple(0.20f, 0.30f, Purple),
+                    Triple(0.34f, 0.68f, Green),
+                    Triple(0.48f, 0.36f, Purple),
+                    Triple(0.62f, 0.60f, Green),
+                    Triple(0.76f, 0.32f, Purple),
+                    Triple(0.90f, 0.58f, Green),
+                )
+                blobs.forEach { (px, py, color) ->
+                    val cx = w * px
+                    val reveal = ((fw - cx) / soft + 0.5f).coerceIn(0f, 1f)
+                    if (reveal <= 0.01f) return@forEach
+                    val r = h * 0.95f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                color.copy(alpha = 0.30f * reveal),
+                                color.copy(alpha = 0.10f * reveal),
+                                Color.Transparent,
+                            ),
+                            center = Offset(cx, h * py),
+                            radius = r,
+                        ),
+                        radius = r,
+                        center = Offset(cx, h * py),
+                    )
+                }
+
+                // 잔별 — 전 구간에 뿌리되, 성운 안쪽이 더 밝다.
+                repeat(30) { i ->
+                    val fx = ((i * 37 % 100) / 100f)
+                    val fy = ((i * 61 % 100) / 100f)
+                    val cx = w * fx
+                    val inNebula = if (cx <= fw) 1f else 0.35f
+                    val rad = 0.7f + (i % 3) * 0.5f
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.10f + 0.35f * inNebula * ((i % 5) / 5f + 0.2f)),
+                        radius = rad,
+                        center = Offset(cx, h * (0.12f + 0.76f * fy)),
+                    )
+                }
+            }
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        content()
+    }
+}
+
 // ────────────────────────── 일반 업적 탭 ──────────────────────────
 
 @Composable
@@ -231,11 +316,17 @@ private fun NormalTab(
         item {
             Column {
                 Text(stringResource(R.string.ach_intro), color = TextMuted, fontSize = 15.sp)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    stringResource(R.string.ach_progress, unlockedCount, Achievements.all.size),
-                    color = Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
-                )
+                Spacer(Modifier.height(8.dp))
+                // 진행도 = 막대 대신 **성운이 차오르는 밴드**. 달성할수록 성운이 오른쪽으로 짙어진다.
+                NebulaProgress(
+                    fraction = unlockedCount.toFloat() / Achievements.all.size.coerceAtLeast(1),
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.ach_progress, unlockedCount, Achievements.all.size),
+                        color = Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
@@ -352,10 +443,17 @@ private fun HiddenAchievementRow(
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             // 칭호(제목)는 항상 보여준다. (언어 전환에 맞춰 로케일 해석)
-            Text(
-                com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.title)!!,
-                color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
-            )
+            // 옆의 작은 크리스탈 = 달성자 이름 옆에 붙는 **이 업적 전용 배지**(어떤 별을 얻는지 미리 보여줌).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.title)!!,
+                    color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.width(6.dp))
+                com.chaminwoo.stary.core.ui.HiddenStarBadge(
+                    type = ach.badgeType, colorIndex = ach.badgeColor, size = 14.dp
+                )
+            }
             Spacer(Modifier.height(2.dp))
             // 조건은 달성 후에만 공개.
             Text(
@@ -365,9 +463,15 @@ private fun HiddenAchievementRow(
             )
             if (claimed) {
                 Spacer(Modifier.height(3.dp))
+                // 달성자 이름은 선점 시점 스냅샷(achieverName)이 아니라 users/{uid} 의 **현재 닉네임**으로 표시.
+                // (닉네임을 바꾸면 업적 화면의 달성자도 함께 바뀐다 — 댓글/작성자 표시와 같은 규칙)
+                val achieverName = rememberCurrentUserName(
+                    claim?.achieverId.orEmpty(),
+                    claim?.achieverName?.ifBlank { "?" } ?: "?",
+                )
                 Text(
                     if (mine) stringResource(R.string.ach_hidden_by_me)
-                    else stringResource(R.string.ach_hidden_achiever, claim?.achieverName?.ifBlank { "?" } ?: "?"),
+                    else stringResource(R.string.ach_hidden_achiever, achieverName),
                     color = if (mine) Gold else Green, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
                 )
             }

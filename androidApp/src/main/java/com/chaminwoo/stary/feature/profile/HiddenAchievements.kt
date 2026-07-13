@@ -56,6 +56,10 @@ data class HiddenContext(
  * 히든 업적 정의.
  * [auto] 가 null 이면 이벤트형(화면에서 직접 [com.chaminwoo.stary.data.repository.HiddenAchievementRepository.claim] 호출),
  * null 이 아니면 통계로 자동 판정한다.
+ *
+ * [badgeType]/[badgeColor] = 이 업적 달성자의 **이름 옆에 붙는 전용 크리스탈 별**
+ * ([com.chaminwoo.stary.core.ui.HiddenStarBadges]) — 업적마다 (모양×색) 조합이 서로 다르다.
+ * ⚠️ iOS `HiddenAchievements.swift` 와 값이 같아야 한다(두 플랫폼에서 같은 배지로 보이게).
  */
 data class HiddenAchievement(
     val id: String,
@@ -63,6 +67,8 @@ data class HiddenAchievement(
     val condition: String,    // 달성 후 공개되는 조건 문구
     val icon: HiddenIcon,
     val effect: ParticleEffect,
+    val badgeType: Int,       // StarStyle.starPath 모양 인덱스
+    val badgeColor: Int,      // StarStyle 색 인덱스
     val auto: ((HiddenContext) -> Boolean)? = null,
 )
 
@@ -99,48 +105,56 @@ object HiddenAchievements {
             id = "secret_word", title = "별의 암호",
             condition = "다이어리 제목에 ‘$SECRET_KEYWORD’ 를 넣기",
             icon = HiddenIcon.COMET, effect = ParticleEffect.STARDUST,
+            badgeType = 0, badgeColor = 8,   // 4꼭지 스파클 · 시안
             auto = { it.stats.secretKeywordTitle },
         ),
         HiddenAchievement(
             id = "remote_place", title = "극야의 개척자",
             condition = "남극 · 에베레스트 둘 중 한 곳에 별 남기기",
             icon = HiddenIcon.GLACIER, effect = ParticleEffect.SNOW,
+            badgeType = 3, badgeColor = 19,  // 8꼭지 가는 스파클 · 빙하(시안→블루)
             auto = { "glacier" in it.stats.remoteRegions },
         ),
         HiddenAchievement(
             id = "place_desert", title = "태양의 잔영",
             condition = "사하라 사막에 별 남기기",
             icon = HiddenIcon.DESERT, effect = ParticleEffect.EMBER,
+            badgeType = 1, badgeColor = 15,  // 5꼭지 별 · 앰버골드
             auto = { "desert" in it.stats.remoteRegions },
         ),
         HiddenAchievement(
             id = "place_trench", title = "심연의 별",
             condition = "마리아나 해구에 별 남기기",
             icon = HiddenIcon.TRENCH, effect = ParticleEffect.BUBBLE,
+            badgeType = 6, badgeColor = 13,  // 다이아몬드 · 코발트
             auto = { "trench" in it.stats.remoteRegions },
         ),
         HiddenAchievement(
             id = "place_triangle", title = "사라진 항로",
             condition = "버뮤다 삼각지대에 별 남기기",
             icon = HiddenIcon.TRIANGLE, effect = ParticleEffect.AURORA,
+            badgeType = 4, badgeColor = 17,  // 다이아 스파클 · 에메랄드 오로라
             auto = { "triangle" in it.stats.remoteRegions },
         ),
         HiddenAchievement(
             id = "all_rounder", title = "은하의 정점",
             condition = "히든을 제외한 모든 업적 달성하기",
             icon = HiddenIcon.CROWN, effect = ParticleEffect.AURORA,
+            badgeType = 2, badgeColor = 18,  // 6꼭지 별 · 석양(골드→코랄)
             auto = { it.allNormalDone },
         ),
         HiddenAchievement(
             id = "cosmic_rascal", title = "별도둑",
             condition = "다른 사람의 다이어리 300개 열람하기",
             icon = HiddenIcon.TRICKSTER, effect = ParticleEffect.EMBER,
+            badgeType = 7, badgeColor = 6,   // 초승달 · 퍼플
             auto = { it.stats.diariesViewed >= 300 },
         ),
         HiddenAchievement(
             id = "lone_observer", title = "홀로 빛나는 별",
             condition = "친구 없이 다이어리 50개 작성하기",
             icon = HiddenIcon.LONE_EYE, effect = ParticleEffect.SHADOW,
+            badgeType = 8, badgeColor = 20,  // 행성 · 흑백(밤→여명)
             auto = { it.stats.diariesCreated >= 50 && it.stats.friends == 0 },
         ),
         // ── 이벤트형(후속 라운드에서 화면 연동) ──
@@ -148,18 +162,21 @@ object HiddenAchievements {
             id = "heart_frenzy", title = "두근두근",
             condition = "프로필에서 나가지 않고 하트를 100번 두드리기",
             icon = HiddenIcon.HEART, effect = ParticleEffect.HEART,
+            badgeType = 5, badgeColor = 4,   // 꽃 · 핑크
             auto = null,
         ),
         HiddenAchievement(
             id = "melomaniac", title = "별들의 오케스트라",
             condition = "배경음악 화면에서 나가지 않고 모든 곡 감상하기",
             icon = HiddenIcon.BATON, effect = ParticleEffect.MUSIC,
+            badgeType = 0, badgeColor = 9,   // 4꼭지 스파클 · 민트
             auto = null,
         ),
         HiddenAchievement(
             id = "earth_pilgrim", title = "푸른 행성의 발자취",
             condition = "세계 유명 관광지에 별을 남기고 다른 사람이 그 별을 열람하기",
             icon = HiddenIcon.GLOBE, effect = ParticleEffect.ORBIT,
+            badgeType = 2, badgeColor = 14,  // 6꼭지 별 · 에메랄드
             auto = null,
         ),
     )

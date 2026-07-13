@@ -1,4 +1,4 @@
-package com.chaminwoo.stary.feature.diary.screen
+﻿package com.chaminwoo.stary.feature.diary.screen
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -80,7 +79,7 @@ fun NotificationScreen(
     // null = Firestore 응답 대기 중 — 빈 화면으로 간주하지 않고 로딩 표시(검은 화면 방지).
     if (notifications == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.onBackground)
+            com.chaminwoo.stary.core.ui.StarLoadingIndicator()
         }
         return
     }

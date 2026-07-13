@@ -965,9 +965,10 @@ fun DiaryMap(
                     if (pioneer != null) {
                         val code = pioneer.getStringProperty("code") ?: ""
                         val country = com.chaminwoo.stary.core.util.LocalizedNames.countryName(code)
-                        val title = context.getString(R.string.pioneer_title_format, country)
+                        val (days, hours) = com.chaminwoo.stary.shared.config.PioneerQuest
+                            .daysHoursUntilCountryChange(System.currentTimeMillis())
                         com.chaminwoo.stary.core.ui.StaryToast.show(
-                            context.getString(R.string.pioneer_quest_toast, country, title)
+                            context.getString(R.string.pioneer_quest_toast, country, days, hours)
                         )
                         return@addOnMapClickListener true
                     }

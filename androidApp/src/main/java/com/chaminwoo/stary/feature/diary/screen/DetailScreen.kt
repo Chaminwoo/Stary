@@ -1,4 +1,4 @@
-package com.chaminwoo.stary.feature.diary.screen
+﻿package com.chaminwoo.stary.feature.diary.screen
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,7 +52,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -138,7 +144,7 @@ fun DetailScreen(
 
     if (isLoading) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.onBackground)
+            com.chaminwoo.stary.core.ui.StarLoadingIndicator()
         }
         return
     }
@@ -369,6 +375,14 @@ fun DetailScreen(
                                 fontSize = 13.sp, fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f)
                             )
+                            // 히든 업적 배지 — 익명 글에는 붙이지 않는다(작성자 은닉 유지).
+                            if (canOpenProfile) {
+                                com.chaminwoo.stary.core.ui.HiddenStarBadges(
+                                    userId = currentDiary.userId,
+                                    modifier = Modifier.padding(start = 5.dp),
+                                    size = 13.dp,
+                                )
+                            }
                             if (canOpenProfile) {
                                 Icon(
                                     Icons.Filled.ChevronRight, contentDescription = stringResource(R.string.cd_view_profile),
@@ -551,6 +565,10 @@ fun DetailScreen(
             }
         }
 
+        // 열람의 여운 — 지도에서 별을 열 때의 파장(DiaryOpenWarp)이 남긴 잔향처럼
+        // 화면 상단에 그 별 색의 오로라가 아주 옅게 드리운다(별마다 화면의 공기가 달라진다).
+        DetailAuroraVeil(accent = accent, modifier = Modifier.align(Alignment.TopCenter))
+
         // 사진 전체화면 뷰어 — 실제 크기로 보며 확대/이동 가능.
         if (showFullImage && currentDiary.imageUrl.isNotEmpty()) {
             FullScreenImageViewer(
@@ -559,6 +577,44 @@ fun DetailScreen(
             )
         }
     }
+}
+
+/**
+ * 상세 화면 상단 오로라 — 별색을 아주 옅게(≤0.16) 드리우고 좌우로 느리게 흐른다.
+ * 장식 전용: 배경 modifier 만 쓰므로 히트테스트에 참여하지 않는다(아래 콘텐츠 탭 그대로 동작).
+ * ⚠️ DetailScreen 본체에 인라인하지 말 것 — dex 레지스터 한계(파일 상단 주석 참고).
+ */
+@Composable
+private fun DetailAuroraVeil(accent: Color, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "detail_aurora")
+    val drift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(15000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "aurora_drift",
+    )
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(220.dp)
+            .drawBehind {
+                val cx = size.width * (0.28f + 0.44f * drift)
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            accent.copy(alpha = 0.16f),
+                            accent.copy(alpha = 0.06f),
+                            Color.Transparent,
+                        ),
+                        center = Offset(cx, 0f),
+                        radius = size.width * 0.95f,
+                    )
+                )
+            }
+    )
 }
 
 /**
@@ -689,6 +745,11 @@ private fun CommentItem(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { onOpenProfile() }
+                )
+                com.chaminwoo.stary.core.ui.HiddenStarBadges(
+                    userId = comment.userId,
+                    modifier = Modifier.padding(start = 5.dp),
+                    size = 12.dp,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(dateStr, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)

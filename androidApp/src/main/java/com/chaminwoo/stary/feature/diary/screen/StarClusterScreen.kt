@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.diary.screen
 
 import android.graphics.BitmapFactory
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,7 +30,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,7 +58,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
@@ -123,8 +123,7 @@ fun StarClusterScreen(
             )
         }
         if (isLoading) {
-            CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.onBackground,
+            com.chaminwoo.stary.core.ui.StarLoadingIndicator(
                 modifier = Modifier.align(Alignment.Center)
             )
             return@Box
@@ -145,18 +144,55 @@ fun StarClusterScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             Spacer(Modifier.height(18.dp))
 
-            // 헤더 — 겹쳐진 별 모양들을 살짝 겹쳐 보여주고 개수 안내
+            // 헤더 — 겹쳐진 별 모양들을 살짝 겹쳐 보여준다.
+            // 카드를 스와이프하면 **지금 보고 있는 별만 밝아지고 커진다**(나머지는 흐릿).
+            // 헤더는 5개까지만 그리므로 6번째 이후 카드에선 아무것도 강조되지 않는다(의도).
             Row(
                 modifier = Modifier.align(Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 diaries.take(5).forEachIndexed { i, d ->
-                    StarShapeIcon(
-                        type = d.starType, colorIndex = d.starColor,
-                        modifier = Modifier
-                            .size(if (i == 0) 30.dp else 22.dp)
-                            .offset(x = (-6 * i).dp)
+                    val active = pagerState.currentPage == i
+                    val emphasis by animateFloatAsState(
+                        targetValue = if (active) 1f else 0f,
+                        animationSpec = tween(220),
+                        label = "cluster_header_emphasis",
                     )
+                    val base = if (i == 0) 30.dp else 22.dp
+                    Box(
+                        modifier = Modifier
+                            .size(base)
+                            .offset(x = (-6 * i).dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // 활성 별에만 옅은 후광 — 별색 그대로.
+                        if (emphasis > 0.01f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer { alpha = 0.35f * emphasis }
+                                    .background(
+                                        Brush.radialGradient(
+                                            listOf(
+                                                StarStyle.colorOf(d.starColor).copy(alpha = 0.9f),
+                                                Color.Transparent,
+                                            )
+                                        ),
+                                        CircleShape
+                                    )
+                            )
+                        }
+                        StarShapeIcon(
+                            type = d.starType, colorIndex = d.starColor,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    alpha = 0.35f + 0.65f * emphasis
+                                    val s = 1f + 0.15f * emphasis
+                                    scaleX = s; scaleY = s
+                                }
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))
@@ -272,37 +308,22 @@ private fun ClusterDiaryCard(
             )
         }
         Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-        // 미디어 영역 — 카드의 남는 세로 전체(세로로 긴 카드의 주인공)
+        // 별 영역 — 카드의 남는 세로 전체. 사진/영상은 띄우지 않고 항상 별만 크게 보여준다.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .clip(RoundedCornerShape(16.dp)),
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    Brush.radialGradient(listOf(accent.copy(alpha = 0.18f), Color.Transparent))
+                ),
             contentAlignment = Alignment.Center
         ) {
-            if (diary.imageUrl.isNotEmpty()) {
-                // 카드 썸네일 — 원본 대신 512px 다운샘플(스와이프 시 빠른 표시)
-                com.chaminwoo.stary.core.ui.ThumbAsyncImage(
-                    model = diary.imageUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    sizePx = 512,
-                )
-            } else {
-                // 사진이 없으면 별을 큼직하게 — 카드의 주인공은 별
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.radialGradient(
-                                listOf(accent.copy(alpha = 0.18f), Color.Transparent)
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    StarShapeIcon(type = diary.starType, colorIndex = diary.starColor, modifier = Modifier.size(84.dp))
-                }
-            }
+            StarShapeIcon(
+                type = diary.starType,
+                colorIndex = diary.starColor,
+                modifier = Modifier.size(84.dp)
+            )
         }
         Spacer(Modifier.height(12.dp))
 

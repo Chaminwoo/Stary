@@ -1,4 +1,4 @@
-package com.chaminwoo.stary.feature.profile.screen
+﻿package com.chaminwoo.stary.feature.profile.screen
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -128,11 +127,7 @@ fun MyScreen(
                                         .background(Color(0xFF2A2A2A), CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    CircularProgressIndicator(
-                                        color = Green,
-                                        modifier = Modifier.size(28.dp),
-                                        strokeWidth = 2.dp
-                                    )
+                                    com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 28.dp, color = Green)
                                 }
                             }
 

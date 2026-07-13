@@ -104,6 +104,22 @@ object PioneerQuest {
     /** 이번 주 대상 나라. */
     fun currentCountry(nowMs: Long): Country = countryForWeek(weekIndex(nowMs))
 
+    /**
+     * 다음 나라 교체(다음 주 경계)까지 남은 ms. 퀘스트 안내문의 "d일 h시간 후 나라 변경" 계산용.
+     * (시작 전이면 첫 주가 끝나는 시각까지 — weekIndex 가 0 으로 고정되는 규칙과 일치.)
+     */
+    fun msUntilCountryChange(nowMs: Long): Long {
+        val next = EPOCH_WEEK_START_MS + (weekIndex(nowMs) + 1L) * WEEK_MS
+        return (next - nowMs).coerceAtLeast(0L)
+    }
+
+    /** [msUntilCountryChange] 를 (일, 시간) 으로 — 시간은 0..23 (분 이하 버림). */
+    fun daysHoursUntilCountryChange(nowMs: Long): Pair<Int, Int> {
+        val ms = msUntilCountryChange(nowMs)
+        val totalHours = ms / (60L * 60 * 1000)
+        return (totalHours / 24).toInt() to (totalHours % 24).toInt()
+    }
+
     /** 칭호 id ↔ 국가 코드. */
     fun titleId(code: String): String = "$TITLE_PREFIX${code.uppercase()}"
     fun codeFromTitleId(titleId: String?): String? =

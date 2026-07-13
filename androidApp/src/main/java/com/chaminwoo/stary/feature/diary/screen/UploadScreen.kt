@@ -1,4 +1,4 @@
-package com.chaminwoo.stary.feature.diary.screen
+﻿package com.chaminwoo.stary.feature.diary.screen
 
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -42,7 +42,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -231,6 +230,10 @@ fun UploadScreen(
 
     // 개척 퀘스트(체크리스트 32) — 저장 성공 시 이 좌표로 선점 시도(자체 스코프라 네비게이션에 안 죽음).
     var pioneerClaimTarget by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    // LaunchedEffect(Unit) 의 람다는 첫 컴포지션 값을 캡처하므로, 저장 직전에 고른 별을 쓰려면
+    // 최신값 참조가 필요하다(선택을 바꾼 뒤 저장해도 그 별로 연출되게).
+    val starTypeRef = androidx.compose.runtime.rememberUpdatedState(starType)
+    val starColorRef = androidx.compose.runtime.rememberUpdatedState(starColor)
     LaunchedEffect(Unit) {
         diaryViewModel.event.collect { msg ->
             com.chaminwoo.stary.core.ui.StaryToast.show(msg)
@@ -238,6 +241,9 @@ fun UploadScreen(
                 pioneerClaimTarget?.let { (la, ln) ->
                     com.chaminwoo.stary.feature.profile.PioneerClaimHelper.attemptClaim(context, la, ln)
                 }
+                // 별 탄생 연출(34-8) — 저장 성공에서만. 화면이 pop 된 뒤 지도 위에서 이어 재생된다
+                // (전역 오버레이 StarBirthHost — MainScreen).
+                com.chaminwoo.stary.core.ui.StarBirthState.trigger(starTypeRef.value, starColorRef.value)
                 onSaveClick()
             }
         }
@@ -581,7 +587,7 @@ fun UploadScreen(
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onBackground, contentColor = MaterialTheme.colorScheme.background)
             ) {
-                if (isUploading) CircularProgressIndicator(color = MaterialTheme.colorScheme.background, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                if (isUploading) com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 22.dp, color = MaterialTheme.colorScheme.background)
                 else Text(stringResource(R.string.common_save), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
 
@@ -640,7 +646,7 @@ private fun ImageCropFrame(controller: CropController, modifier: Modifier) {
         contentAlignment = Alignment.Center
     ) {
         if (bmp == null) {
-            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
+            com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 28.dp, color = Color.White)
             return@Box
         }
         val image = remember(bmp) { bmp.asImageBitmap() }

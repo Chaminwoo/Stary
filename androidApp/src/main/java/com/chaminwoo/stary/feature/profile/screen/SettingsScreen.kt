@@ -1,4 +1,4 @@
-package com.chaminwoo.stary.feature.profile.screen
+﻿package com.chaminwoo.stary.feature.profile.screen
 
 import android.app.Activity
 import android.content.Context
@@ -39,7 +39,6 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
@@ -195,7 +194,7 @@ fun SettingsScreen(
                         Text(stringResource(R.string.settings_delete_account), color = SoftRed, fontFamily = PoorStory, fontSize = 17.sp)
                         Text(stringResource(R.string.settings_delete_account_desc), color = TextMuted, fontFamily = PoorStory, fontSize = 12.sp, lineHeight = 16.sp)
                     }
-                    if (deleting) CircularProgressIndicator(color = SoftRed, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    if (deleting) com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 20.dp, color = SoftRed)
                 }
             }
 

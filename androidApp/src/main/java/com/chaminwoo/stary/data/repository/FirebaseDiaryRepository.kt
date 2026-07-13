@@ -149,6 +149,60 @@ class FirebaseDiaryRepository : DiaryRepository {
         awaitClose { listener.remove() }
     }
 
+    /**
+     * [userId] 가 **가장 최근에 올린, 내가 볼 수 있는** 별 1개를 실시간 구독(없으면 null).
+     * 친구 목록 행 우측의 "최근 별" 표시용(체크리스트 34-6).
+     *
+     * 필터:
+     *  - `private`(나만보기)는 남에게 보이면 안 되므로 제외(`friends` 는 친구 목록에서 보는 것이므로 포함).
+     *  - 익명 다이어리 제외 — 이름 옆에 그 별을 띄우면 익명성이 깨진다.
+     *
+     * 쿼리: 정렬+limit(적은 읽기)이 1순위지만 이 경로엔 **복합 인덱스(userId, createdAt desc)** 가 필요하다.
+     * 인덱스가 없으면(첫 배포 등) 리스너가 에러로 죽어 별이 아예 안 뜨므로,
+     * 에러 시 **정렬 없는 쿼리 + 클라 정렬**로 자동 폴백한다(=인덱스 없어도 동작, 있으면 저렴).
+     */
+    fun observeLatestVisibleDiaryOf(userId: String): Flow<Diary?> = callbackFlow {
+        if (userId.isBlank()) {
+            trySend(null)
+            awaitClose { }
+            return@callbackFlow
+        }
+        fun visible(d: Diary): Boolean = d.visibilityType != "private" && !d.isAnonymous
+
+        var fallback: ListenerRegistration? = null
+        // 최신 몇 개만 받아 그중 "보이는" 첫 별을 고른다(맨 앞이 private/익명일 수 있어 여유분).
+        val primary = diaries
+            .whereEqualTo("userId", userId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(6)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    if (fallback == null) {
+                        fallback = diaries
+                            .whereEqualTo("userId", userId)
+                            .addSnapshotListener { snap2, err2 ->
+                                if (err2 != null) return@addSnapshotListener
+                                val latest = snap2?.documents
+                                    ?.mapNotNull { d -> d.toObject(Diary::class.java)?.copy(id = d.id) }
+                                    ?.filter(::visible)
+                                    ?.maxByOrNull { it.createdAt }
+                                trySend(latest)
+                            }
+                    }
+                    return@addSnapshotListener
+                }
+                val latest = snapshot?.documents
+                    ?.mapNotNull { d -> d.toObject(Diary::class.java)?.copy(id = d.id) }
+                    ?.filter(::visible)
+                    ?.maxByOrNull { it.createdAt }
+                trySend(latest)
+            }
+        awaitClose {
+            primary.remove()
+            fallback?.remove()
+        }
+    }
+
     override suspend fun incrementViewCount(diaryId: String) {
         try {
             diaries.document(diaryId).update("viewCount", FieldValue.increment(1)).await()

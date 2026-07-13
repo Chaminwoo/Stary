@@ -1,4 +1,4 @@
-package com.chaminwoo.stary.feature.diary.screen
+﻿package com.chaminwoo.stary.feature.diary.screen
 
 import android.Manifest
 import android.content.Context
@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -475,9 +474,7 @@ private fun BoomerangAdjustUi(
                 colors = ButtonDefaults.buttonColors(containerColor = mint),
             ) {
                 if (encoding) {
-                    CircularProgressIndicator(
-                        color = Color(0xFF0D0D0D), strokeWidth = 2.dp, modifier = Modifier.size(20.dp)
-                    )
+                    com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 20.dp, color = Color(0xFF0D0D0D))
                 } else {
                     Text(
                         stringResource(R.string.boomer_use),

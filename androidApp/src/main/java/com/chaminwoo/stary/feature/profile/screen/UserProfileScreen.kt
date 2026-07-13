@@ -283,10 +283,17 @@ fun UserProfileScreen(
                     }
 
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        text = resolvedName.ifBlank { stringResource(R.string.friend_no_name) },
-                        fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextMain
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = resolvedName.ifBlank { stringResource(R.string.friend_no_name) },
+                            fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextMain
+                        )
+                        com.chaminwoo.stary.core.ui.HiddenStarBadges(
+                            userId = userId,
+                            modifier = Modifier.padding(start = 8.dp),
+                            size = 20.dp,
+                        )
+                    }
 
                     // 장착 칭호 — 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.
                     Spacer(Modifier.height(12.dp))

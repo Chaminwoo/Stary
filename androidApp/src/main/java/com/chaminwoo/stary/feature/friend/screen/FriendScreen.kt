@@ -253,20 +253,17 @@ fun FriendScreen(
                 }
             }
             // 메신저형 친구 행(2026-07-12 개편) — 채팅/삭제 버튼 없이
-            // [사진] [이름 / 마지막 채팅 ㆍ상대시간] [미읽음 파란 점]. 행 탭=채팅, 사진 탭=프로필.
+            // [사진] [이름 / 마지막 채팅 ㆍ상대시간] [그 친구의 최근 별]. 행 탭=채팅, 사진 탭=프로필.
+            // (미읽음 파란 점은 34-6 에서 최근 별로 교체 — ChatReadStore 는 채팅 화면이 계속 사용하므로 유지)
             items(friends, key = { "friend_${it.userId}" }) { friend ->
                 val chatId = StaryConfig.chatId(userId, friend.userId)
                 val summary = summaryByFriend[friend.userId]
-                val lastReadAt = com.chaminwoo.stary.core.util.ChatReadStore.lastReadAt(context, chatId)
-                val unread = summary != null && summary.lastMessage.isNotBlank() &&
-                    summary.lastSenderId != userId && summary.updatedAt > lastReadAt
                 FriendRow(
                     name = friend.userName,
                     photoUrl = friend.photoUrl,
                     userId = friend.userId,
                     lastMessage = summary?.lastMessage.orEmpty(),
                     lastAt = summary?.updatedAt ?: 0L,
-                    unread = unread,
                     onOpenProfile = { onOpenProfile(friend.userId, friend.userName) },
                     onClick = {
                         com.chaminwoo.stary.core.util.ChatReadStore.markRead(context, chatId)
@@ -392,8 +389,14 @@ private fun PersonCard(
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f, fill = false)
             )
+            com.chaminwoo.stary.core.ui.HiddenStarBadges(
+                userId = userId,
+                modifier = Modifier.padding(start = 5.dp),
+                size = 13.dp,
+            )
+            Spacer(Modifier.weight(1f))
         }
         Spacer(Modifier.width(8.dp))
         trailing()
@@ -401,8 +404,11 @@ private fun PersonCard(
 }
 
 /**
- * 친구 행(메신저형) — [프로필 사진] [이름 / 마지막 채팅 ㆍ상대시간] [미읽음 파란 점].
+ * 친구 행(메신저형) — [프로필 사진] [이름(+히든 배지) / 마지막 채팅 ㆍ상대시간] [그 친구의 최근 별].
  * 행 탭 = 채팅 열기, 사진 탭 = 프로필 열기. 사진은 텍스트 2줄보다 조금 크게(52dp).
+ *
+ * 우측은 원래 미읽음 파란 점이었으나(8.38), **친구가 가장 최근에 남긴 별**로 교체(34-6).
+ * 별은 장식이라 탭 동작이 없다(행 탭 = 채팅 그대로). 최근 별이 없거나 볼 수 없으면 자리 자체가 비어 있다.
  */
 @Composable
 private fun FriendRow(
@@ -411,10 +417,14 @@ private fun FriendRow(
     userId: String,
     lastMessage: String,
     lastAt: Long,
-    unread: Boolean,
     onOpenProfile: () -> Unit,
     onClick: () -> Unit,
 ) {
+    // 친구의 최근(내가 볼 수 있는) 별 — private/익명은 저장소에서 이미 걸러진다.
+    val diaryRepo = remember { com.chaminwoo.stary.data.repository.FirebaseDiaryRepository() }
+    val latestStar by remember(userId) { diaryRepo.observeLatestVisibleDiaryOf(userId) }
+        .collectAsState(initial = null)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -426,11 +436,19 @@ private fun FriendRow(
         Avatar(name, photoUrl, userId, size = 52.dp, onClick = onOpenProfile)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                name.ifBlank { stringResource(R.string.friend_no_name) },
-                color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    name.ifBlank { stringResource(R.string.friend_no_name) },
+                    color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                com.chaminwoo.stary.core.ui.HiddenStarBadges(
+                    userId = userId,
+                    modifier = Modifier.padding(start = 5.dp),
+                    size = 13.dp,
+                )
+            }
             Spacer(Modifier.height(2.dp))
             if (lastMessage.isNotBlank()) {
                 Text(
@@ -445,13 +463,11 @@ private fun FriendRow(
                 )
             }
         }
-        if (unread) {
-            Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF4C8DFF))
+        latestStar?.let { star ->
+            Spacer(Modifier.width(10.dp))
+            com.chaminwoo.stary.core.ui.StarShapeIcon(
+                type = star.starType, colorIndex = star.starColor,
+                modifier = Modifier.size(26.dp)
             )
         }
     }
