@@ -2,14 +2,7 @@
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,10 +48,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -192,16 +182,6 @@ fun ProfileScreen(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
             colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
-        )
-
-        // 내 하늘 — 내가 남긴 별들이 프로필 상단(아바타/이름/칭호 뒤)에서 떠다니는 미니 밤하늘.
-        // 별이 늘수록 하늘이 차오른다. 장식 전용이라 터치를 가로채지 않는다.
-        MyStarSky(
-            diaries = myDiaries,
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.62f)
-                .align(Alignment.TopCenter)
         )
 
         FirstVisitInfo(
@@ -448,98 +428,6 @@ private fun NicknameEditDialog(
             }
         }
     }
-}
-
-/**
- * 내 하늘 — 프로필 상단 배경에 **내가 남긴 별들**이 떠 있는 미니 밤하늘(34-3).
- *
- * - 데이터는 이미 구독 중인 내 다이어리 목록을 그대로 쓴다(추가 쿼리 없음). 최대 [MAX_SKY_STARS] 개.
- * - 배치/크기/위상은 `diary.id` 해시로 **결정론적** — 같은 사람의 하늘은 언제 봐도 같은 모양.
- * - 좋아요가 많은 별일수록 크고, 큰 별만 크리스탈로 그린다(작은 별은 글로우 점 — 30개를 매 프레임
- *   크리스탈로 그리면 무겁다). 전체를 **Canvas 1개**에 직접 그리고 시간축은 InfiniteTransition 1개.
- * - 장식 레이어라 히트테스트에 참여하지 않는다(아바타/이름/칭호 탭 그대로).
- */
-private const val MAX_SKY_STARS = 30
-
-@Composable
-private fun MyStarSky(
-    diaries: List<com.chaminwoo.stary.core.model.Diary>,
-    modifier: Modifier = Modifier,
-) {
-    if (diaries.isEmpty()) return
-
-    // 좋아요 많은 별 우선으로 최대 30개 — 하늘이 과밀해지지 않게.
-    val stars = remember(diaries) {
-        diaries.sortedByDescending { it.likeCount }.take(MAX_SKY_STARS).map { d ->
-            val h = d.id.hashCode()
-            SkyStar(
-                type = d.starType,
-                colorIndex = d.starColor,
-                xFrac = hashFrac(h, 1),
-                yFrac = hashFrac(h, 2),
-                phase = hashFrac(h, 3) * 6.28318f,
-                // 좋아요 0 = 작은 잔별, 많을수록 커진다(상한 15dp).
-                sizeDp = (6f + 2.2f * kotlin.math.ln(1f + d.likeCount)).coerceIn(6f, 15f),
-            )
-        }
-    }
-    val transition = rememberInfiniteTransition(label = "my_sky")
-    val t by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 6.28318f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(9000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "sky_phase",
-    )
-
-    androidx.compose.foundation.Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        stars.forEach { s ->
-            val px = w * (0.06f + 0.88f * s.xFrac)
-            val floatDy = kotlin.math.sin(t + s.phase) * 3.dp.toPx()
-            val py = h * (0.10f + 0.80f * s.yFrac) + floatDy
-            val twinkle = 0.45f + 0.35f * kotlin.math.sin(t * 1.7f + s.phase * 2f)
-            val color = StarStyle.colorOf(s.colorIndex)
-            val sizePx = s.sizeDp.dp.toPx()
-
-            if (s.sizeDp >= 10f) {
-                // 큰 별 — 후광 + 크리스탈 본체(앱의 모든 별과 같은 결정 무늬).
-                drawCircle(color.copy(alpha = 0.16f * twinkle), radius = sizePx * 0.85f, center = Offset(px, py))
-                drawIntoCanvas { canvas ->
-                    StarStyle.drawCrystalFill(
-                        canvas.nativeCanvas, s.type, s.colorIndex,
-                        px - sizePx / 2f, py - sizePx / 2f, sizePx,
-                        alpha = (255 * (0.55f + 0.35f * twinkle)).toInt().coerceIn(0, 255),
-                    )
-                }
-            } else {
-                // 작은 별 — 글로우 점(가볍게).
-                drawCircle(color.copy(alpha = 0.18f * twinkle), radius = sizePx * 0.55f, center = Offset(px, py))
-                drawCircle(color.copy(alpha = 0.75f * twinkle), radius = sizePx * 0.22f, center = Offset(px, py))
-            }
-        }
-    }
-}
-
-private data class SkyStar(
-    val type: Int,
-    val colorIndex: Int,
-    val xFrac: Float,
-    val yFrac: Float,
-    val phase: Float,
-    val sizeDp: Float,
-)
-
-/** 해시 → 0..1 유사난수(같은 입력 = 같은 값). salt 로 축(x/y/위상)을 분리한다. */
-private fun hashFrac(hash: Int, salt: Int): Float {
-    var x = hash * 31 + salt * 0x9E3779B9.toInt()
-    x = x xor (x ushr 16)
-    x *= 0x7FEB352D
-    x = x xor (x ushr 15)
-    return ((x and 0x7FFFFFFF) % 10000) / 10000f
 }
 
 /** 프로필에 띄울 다이어리(별) 고르기 — 최대 3개 토글. */
