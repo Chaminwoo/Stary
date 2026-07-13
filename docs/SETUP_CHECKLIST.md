@@ -390,6 +390,105 @@
 
 ---
 
+## 🎨 34. 디자인 라운드 (TODO / 2026-07-13 — 사용자 지정, **다음 세션(Opus)에서 구현**)
+
+> 디자인 영감 리스트에서 사용자가 고른 10건. **이 섹션은 구현 가이드**(이번 세션은 문서만 작성).
+> 진행 방식: **Android 먼저 → 빌드 → 사용자 테스트 → iOS 패리티 일괄**(8.38 방식). 문서만 바꾼 커밋은 재빌드 불필요.
+>
+> **공통 원칙(전 항목):**
+> - 성능: 화면당 `InfiniteTransition` 1개로 시간축 공유, 파티클은 Canvas 직접 렌더(`drawBehind`/단일 Canvas), 개수 상한 명시.
+>   장식 레이어는 **히트테스트 금지**(체크리스트 19 로그아웃 zIndex 사고 전례 — 터치 가로채기 절대 금지).
+> - 크리스탈 미니 렌더 재사용: 안드 `StarStyle.drawCrystalFill`/`StarShapeIcon`, iOS `StarCrystal.image`(NSCache) — 신규 렌더러 만들지 말 것.
+> - 톤: 전부 "은은하게". 장식 alpha 상한을 각 항목에 명시했으니 넘기지 말 것(1차 피드백 대부분 "과하다"로 온다).
+> - 권장 구현 순서: ① 34-9(로딩 별 = 공용 부품) → ② 34-1/2/5(저위험 장식) → ③ 34-4/6(데이터 연동) → ④ 34-8/3/7/10(연출).
+
+### 34-1. 겹친 별 카드 — 스와이프 ↔ 헤더 별 밝기 연동 (별자리 선은 안 함)
+- [ ] `StarClusterScreen.kt` 헤더 Row(`diaries.take(5)`): 아이콘 i 강조 = `i == pagerState.currentPage`.
+      표현 = `animateFloatAsState` 로 alpha 0.35↔1.0 + scale 1.0↔1.15(+선택: 별색 글로우). **currentPage ≥ 5 면 아무것도 강조 안 함**(헤더는 5개까지만 표시).
+- [ ] 스와이프 중간값은 무시하고 settled page 기준(깜빡임 방지) — `pagerState.currentPage` 그대로면 충분.
+- [ ] iOS `StarClusterView.swift` header — `page` state 로 동일 로직, `.animation(.easeOut(duration: 0.2), value: page)`.
+- ⚠️ 별자리 선 연결은 **하지 않는다**(사용자 명시 제외).
+
+### 34-2. 상세 진입 여운 — 별색 오로라
+- [ ] `DetailScreen.kt`: 배경 최상단(스크롤 무관 고정 레이어)에 `accent`(= `StarStyle.colorOf(diary.starColor)`, 이미 존재) 오로라 —
+      높이 ~200dp `verticalGradient(accent.copy(alpha≤0.16) → Transparent)`. 선택: 그라데이션 중심을 12~18s 주기로 아주 느리게 수평 드리프트.
+- [ ] 파장(DiaryOpenWarp) 색과 이어져 "열람의 여운"으로 읽히게 — 별색 그대로, 화이트 혼합 금지.
+- [ ] iOS `DetailScreen.swift`: ZStack 최하단 LinearGradient 동일(1차는 정적이어도 OK, 드리프트는 TimelineView 선택).
+
+### 34-3. 내 하늘 헤더 (프로필 상단 미니 밤하늘)
+- [ ] `ProfileScreen.kt` 상단 헤더 영역(프사/이름/칭호 뒤) 배경에 **내 별들로 미니 밤하늘**:
+      데이터 = 내 다이어리(이미 구독 중인 flow 재사용 — 신규 쿼리 금지), **최대 30개** 샘플.
+- [ ] 배치/모션: `diary.id` 해시로 결정론적 (x,y)(같은 유저=항상 같은 하늘), 크기 6~14dp(likeCount 가중),
+      개별 위상 sin 부유 + 트윙클. **Canvas 1개에 직접 렌더**(StarShapeIcon 30개 나열 금지) — 큰 별 몇 개만 크리스탈, 작은 별은 글로우 점.
+- [ ] 기존 `FloatingStatBox`(부유 아이콘 오버레이)와 시각적으로 겹치지 않게 z 순서/영역 확인. 히트테스트 없음(이름/프사 탭 기능 침해 금지 — 체크리스트 24 전례).
+- [ ] iOS `ProfileScreen.swift`: 헤더 Canvas + `StarCrystal.image` 캐시 재사용, 동일 해시 배치.
+
+### 34-4. 히든 업적 → 전역 "이름 옆 전용 크리스탈 별" + 달성자 현재 이름 추적
+**(a) 달성자 이름 = 현재 이름 (버그 수정 성격 — 먼저 처리)**
+- [ ] `AchievementsScreen.kt:370` — `claim?.achieverName`(선점 시점 스냅샷) → `rememberCurrentUserName(claim.achieverId, claim.achieverName)` 로 교체.
+      헬퍼는 `core/util/UserDirectory.kt` 에 이미 있음(DetailScreen 댓글과 같은 패턴 — users/{uid} 실시간 구독).
+- [ ] iOS `AchievementsScreen.swift` 의 달성자 표기도 동일하게 — iOS 에 UserDirectory 대응이 없으면 `FirestoreService` 에 uid→현재 이름 구독 헬퍼 신설.
+
+**(b) 업적별 전용 크리스탈 배지 — 이름이 표시되는 모든 곳**
+- [ ] **업적→크리스탈 매핑**: `HiddenAchievement` 에 배지용 `(starType, colorIndex)` 필드 추가 — 11개 업적 전부 **서로 다른 (모양×색)** 조합 지정
+      (업적의 기존 `HiddenIcon.color` 와 톤이 맞는 색 인덱스 선택). iOS `HiddenAchievements.swift` 정의와 값 동일 유지(§1.5 drift 금지).
+- [ ] **`HiddenClaimStore` 신설**(안드 `core/util/` 또는 feature/profile): `hiddenAchievements` 컬렉션(**≤11 문서**) 전체 1회 구독 →
+      `achieverId → Set<achievementId>` 맵 전역 상태. 어느 화면에서든 uid 로 O(1) 조회. AchievementsScreen 의 기존 claims 로딩 로직을 이 스토어로 승격/재사용.
+- [ ] **공용 컴포저블 `core/ui/HiddenStarBadge.kt`**: `HiddenStarBadges(userId, size=12.dp)` — 그 uid 가 달성한 히든 업적 각각의 미니 크리스탈을
+      이름 뒤에 나란히(상한 3개 권장, 정적 렌더 — 파티클 이펙트는 프로필 전용 유지). 비트맵 캐시로 그릴 것(리스트 스크롤 성능).
+- [ ] **삽입 지점(이름 나오는 곳 전부)**: DetailScreen 작성자 행(≈:368) / DetailScreen `CommentItem` 이름(≈:649) /
+      `FriendScreen.FriendRow` 이름 + 친구 검색 결과 행 / `UserProfileScreen` 이름 / `ProfileScreen` 내 이름 / `ChatScreen` 상단 상대 이름 /
+      알림 화면 등 이름 노출부 grep 으로 전수 확인. **익명 다이어리/댓글은 제외**(작성자 은닉 유지).
+- [ ] iOS: `HiddenClaimStore.swift` + `HiddenStarBadge` 뷰, 같은 삽입 지점 전수 적용.
+
+### 34-5. 업적 화면 성운 진행도
+- [ ] `AchievementsScreen.kt` ≈:236(`ach_progress` 텍스트) — 텍스트 뒤에 폭 전체·높이 ~48dp **성운 밴드**:
+      채움 fraction = `unlockedCount / Achievements.all.size`. 채움부 = 2~3색 radial blob(민트 Green + 보라 계열) 겹침 + 미세 잔별 점,
+      빈 영역 = 아주 옅은 잔별만. 경계 soft fade, 값 변화 시 `animateFloatAsState`. 텍스트는 밴드 위 오버레이 유지.
+- [ ] **일반 탭만** 적용(히든 탭은 선착순 개념이라 진행도 없음).
+- [ ] iOS `AchievementsScreen.swift`: Canvas 로 동일 밴드.
+
+### 34-6. 친구 행 — 미읽음 파란 점 삭제 → "최근 올린 별" 표시
+- [ ] `FriendScreen.kt`: FriendRow 의 파란 점(:448~456) + `unread` 파라미터/판정(:261) 제거(죽은 코드 정리).
+      ⚠️ `ChatReadStore` 자체와 행 탭 시 `markRead` 는 유지(ChatScreen 이 계속 사용).
+- [ ] 대체 표시: 행 최우측에 그 친구의 **가장 최근 다이어리 별**(starType/starColor 미니 크리스탈, 22~26dp). 최근 별이 없으면 빈 자리.
+- [ ] 데이터: `FirebaseDiaryRepository` 에 `observeLatestDiaryOf(uid)`(whereEqualTo userId + orderBy createdAt desc + **limit 1**) 신설 —
+      친구 수만큼 limit-1 리스너(전체 다이어리 구독 금지). ⚠️ **복합 인덱스** 필요 가능(에러 로그의 콘솔 링크로 생성 — 사용자 액션 항목으로 남길 것).
+      ⚠️ **공개범위 준수**: 반환 별이 내가 볼 수 있는 것(공개/친구공개)인지 기존 visibility 필터 로직으로 걸러서 "볼 수 없는 최신 별"이 새지 않게.
+- [ ] 행 탭=채팅/사진 탭=프로필은 그대로(별은 장식, 탭 없음).
+- [ ] iOS: `FriendsViewModel` 에 최신 별 구독 추가(chatSummaries 패턴), `FriendsScreen` 행의 파란 점 교체.
+
+### 34-7. 채팅방 배경 미세 별가루
+- [ ] `ChatScreen.kt`: 메시지 리스트 **뒤** 배경 Canvas — 파티클 **8~12개**, 크기 1.5~3dp, alpha ≤ 0.35,
+      개별 속도/위상의 느린 드리프트 + 트윙클. 단일 InfiniteTransition float 하나로 전 파티클 파라메트릭 계산.
+- [ ] 키보드 개폐/스크롤에 레이아웃 영향 없게 배경 고정(imePadding 영역 밖), 히트테스트 없음.
+- [ ] iOS `ChatScreen.swift`: `TimelineView(.animation)` + Canvas 동일.
+
+### 34-8. 별 탄생 연출 (업로드 완료)
+- [ ] 트리거: `UploadScreen.kt` 저장 성공 경로(≈:505 이후 — 이미지/영상 업로드 완료 → Firestore 저장 성공 직후, 실패 시 연출 없음).
+- [ ] 연출(~900ms): 선택한 별(starType/starColor)이 화면 중앙에서 **응축**(scale 2.4→1.0 + 글로우 버스트) → 스파클 링 6~10개 확산 →
+      축소되며 지도 쪽으로 날아가 소멸. 사운드 없음.
+- [ ] 구현: **전역 오버레이 권장** — `DiaryOpenWarp`(파장) 전례처럼 상태 홀더 + MainScreen 오버레이(`core/ui/StarBirth.kt` 신설).
+      Upload 화면이 pop 된 뒤 지도 위에서 연출이 이어져 "별이 실제로 심기는" 체감. (UploadScreen 내부 오버레이 후 pop 은 차선.)
+- [ ] iOS: `UploadScreen.save()` 성공 훅 + RootView 오버레이(파장의 iOS 대응 패턴 확인 후 동일 구조).
+
+### 34-9. 로딩 인디케이터 = 크리스탈 별 (기본 스피너 전면 교체) — **가장 먼저(공용 부품)**
+- [ ] `core/ui/StarLoading.kt` 신설 — `StarLoadingIndicator(modifier, size=36.dp)`:
+      중앙 크리스탈 별 **맥동(pulse+글로우)** + 주위를 도는 스파클 점 2개(회전하는 별보다 크리스탈 무늬에 자연스러움 — 구현 세션 재량).
+- [ ] `CircularProgressIndicator` 사용처 **9파일 전부 교체**: StarClusterScreen / ShareCardEditor / ProfileScreen / MyScreen /
+      DetailScreen / UploadScreen / SettingsScreen / BoomerangCaptureScreen / NotificationScreen. (버튼 내 소형은 size 파라미터로.)
+- [ ] iOS: `StarLoadingView` 신설 후 `ProgressView` 사용처 전수 교체.
+
+### 34-10. 화면 전환 별 잔상
+- [ ] NavGraph 의 기존 전환(fade+scale, ENTER_MS=320)은 그대로. 잔상은 **NavHost 를 감싼 Box 의 오버레이**로:
+      `navController.currentBackStackEntryFlow` 구독 → 라우트 변경 시 1회 ~350ms, **가는 빛줄기 1~2개**(그라데이션 선+끝 글로우, alpha ≤ 0.5)가 대각선으로 스치고 소멸.
+- [ ] 방향: 드릴인 = 한 방향, 뒤로가기(pop) = 반대 방향. 과하면 드릴인만. 전환 시간과 동기(320ms ± 30).
+- [ ] iOS: NavigationStack push/pop 훅이 제한적 — 가능한 범위에서 시도, 어려우면 **iOS TODO 로 남기는 것 허용**(명시).
+
+> 완료 기준(라운드 공통): `:androidApp:assembleDebug` 그린 → 사용자 테스트 → push → iOS 패리티 일괄 → CI 그린 → PROJECT_NOTES 갱신.
+
+---
+
 ## 🍎 (추후) iOS 확장 — **macOS + Xcode 필요(Windows 불가)**
 - [ ] `iosApp/` Xcode(SwiftUI) 프로젝트 생성 + `:shared` 프레임워크 임포트(`linkDebugFrameworkIosSimulatorArm64`).
 - [ ] `Repositories.kt` 인터페이스를 Firebase iOS SDK로 구현, `GoogleService-Info.plist`(f26c8 iOS 앱) 추가.
