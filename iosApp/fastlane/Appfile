@@ -1,2 +1,2 @@
-app_identifier("com.chaminwoo.stary_ios")
+app_identifier("com.chaminwoo.stary") # Apple App ID 언더스코어 불가 → stary_ios 에서 변경(2026-07-14)
 # apple_id / itc_team_id 는 App Store Connect API Key 사용 시 불필요(자동 결정).

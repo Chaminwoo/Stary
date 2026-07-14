@@ -42,7 +42,10 @@
 - [ ] `iosApp/` 디렉터리 + **Xcode 프로젝트(`iosApp.xcodeproj`)** 생성 (KMP 표준 구조).
 - [ ] `Shared` 프레임워크를 iOS 앱에 임베드 (Build Phases / `embedAndSignAppleFrameworkForXcode` 또는 SPM/직접 링크).
 - [ ] 앱 진입점(SwiftUI `App` 또는 CMP `UIViewController`) 작성.
-- [ ] **Bundle Identifier = `com.chaminwoo.stary_ios`** (포크 전용. androidApp `applicationId`와 동일하게 이미 잡혀 있음 — 충돌 방지로 원본 `com.chaminwoo.stary` 절대 사용 금지).
+- [ ] **Bundle Identifier = `com.chaminwoo.stary`** — Apple App ID 언더스코어(`_`) 불가로 `stary_ios` 에서 변경(2026-07-14).
+      원본과의 분리 기준은 **Firebase 프로젝트**(iOS 앱은 반드시 `momentdiary-f26c8` 에 등록)이지 이름 문자열이 아니며,
+      원본(`com.chaminwoo.stary`)은 Android 패키지일 뿐 iOS 앱이 없어 Apple/기기 어디서도 충돌하지 않는다.
+      (androidApp `applicationId` 는 `com.chaminwoo.stary_ios` 그대로.)
 
 ---
 
@@ -66,7 +69,7 @@
 
 ## 5. Firebase iOS 설정 (포크 프로젝트 `momentdiary-f26c8`)
 
-- [ ] Firebase 콘솔 → **`momentdiary-f26c8`** 프로젝트에 **iOS 앱 추가** (Bundle ID `com.chaminwoo.stary_ios`).
+- [ ] Firebase 콘솔 → **`momentdiary-f26c8`** 프로젝트에 **iOS 앱 추가** (Bundle ID `com.chaminwoo.stary` — 기존 `stary_ios` iOS 앱은 번들 ID 수정 불가라 새로 추가).
   - ⚠️ 원본 운영 프로젝트(`momentdiary-52b78`)에 **연결 금지**.
 - [ ] **`GoogleService-Info.plist`** 내려받아 iOS 앱에 추가 (커밋 금지 — 시크릿).
 - [ ] Firestore/Storage **보안 규칙**이 iOS 트래픽에도 맞는지 확인(`storage.rules` 이미 존재).
@@ -78,7 +81,7 @@
 ## 6. Apple Developer / App Store Connect (유료 — 연 $99)
 
 - [ ] **Apple Developer Program 가입**(연 $99 결제).
-- [ ] App ID 등록(`com.chaminwoo.stary_ios`) + Capabilities(Push Notifications, Sign in with Apple 등) 체크.
+- [ ] App ID 등록(`com.chaminwoo.stary`) + Capabilities(Push Notifications, Sign in with Apple 등) 체크.
 - [ ] **인증서/프로비저닝**: Distribution 인증서 + App Store 프로비저닝 프로파일 (Xcode 자동 관리 권장).
 - [ ] **App Store Connect**에서 앱 레코드 생성(이름/SKU/Bundle ID).
 - [ ] 앱 메타데이터: 이름, 부제, 설명, 키워드, 카테고리, 지원 URL.

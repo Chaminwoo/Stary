@@ -18,13 +18,16 @@
 1. **Apple Developer Program 가입 ($99/년, 필수·우회 불가).**
    - https://developer.apple.com/programs/ — 웹/아이폰에서 가입 가능(맥 불필요). 개인/법인 선택.
 2. **App Store Connect 에서 앱 레코드 생성.**
-   - Bundle ID: **`com.chaminwoo.stary_ios`** (안드로이드 applicationId와 동일하게 이미 분기됨, Firebase `momentdiary-f26c8`의 iOS 앱과 일치).
+   - Bundle ID: **`com.chaminwoo.stary`** — ⚠️ Apple App ID 는 언더스코어(`_`) 불가라 `stary_ios` 를 못 쓴다(2026-07-14 변경).
+     원본과의 분리 기준은 **Firebase 프로젝트(`momentdiary-f26c8`)**이지 이름이 아니며, 원본은 iOS 앱이 없어 충돌 없음.
+     (Android `applicationId` 는 `com.chaminwoo.stary_ios` 유지 — 둘이 같을 필요 없음.)
    - 앱 이름: **Stary**, 기본 언어: 한국어, SKU 임의.
 3. **App Store Connect API Key 발급** (CI 업로드용, 비밀번호/2FA 없이 자동화).
    - App Store Connect → Users and Access → Integrations(또는 Keys) → **App Store Connect API** → Key 생성(Role: App Manager).
    - 받은 값 3개를 보관: **Issuer ID**, **Key ID**, **`.p8` 파일 내용**. → CI Secrets 로 등록(아래 4절).
 4. **Firebase iOS 앱 등록 + `GoogleService-Info.plist` 다운로드.**
-   - Firebase 콘솔(`momentdiary-f26c8`) → iOS 앱 추가 → Bundle ID `com.chaminwoo.stary_ios` → `GoogleService-Info.plist` 다운로드.
+   - Firebase 콘솔(`momentdiary-f26c8`) → iOS 앱 추가 → Bundle ID `com.chaminwoo.stary` → `GoogleService-Info.plist` 다운로드.
+     (기존에 `com.chaminwoo.stary_ios` 로 등록한 iOS 앱이 있다면 번들 ID 수정은 불가 — 새 iOS 앱으로 추가하고 새 plist 를 받을 것.)
    - ⚠️ 이 파일은 **커밋 금지**. CI Secret(base64)로 주입하거나, 빌드 시 생성(아래 4절).
 
 ---

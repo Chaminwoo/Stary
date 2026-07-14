@@ -76,7 +76,9 @@ targets:
         product: MapLibre
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.chaminwoo.stary_ios
+        # Apple App ID 는 언더스코어(_) 불가 → stary_ios 대신 com.chaminwoo.stary (2026-07-14).
+        # 원본과의 분리 기준은 Firebase 프로젝트(f26c8)이지 이름 문자열이 아님 — 원본은 iOS 앱 없음.
+        PRODUCT_BUNDLE_IDENTIFIER: com.chaminwoo.stary
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # 구글 로그인 URL 스킴 placeholder(실제 값은 CI/xcconfig 로 주입; 빈 값이어도 컴파일 OK)
         GOOGLE_REVERSED_CLIENT_ID: ""
