@@ -84,7 +84,7 @@ struct SettingsScreen: View {
                                         .font(.caption2).foregroundStyle(Theme.textSecondary)
                                 }
                                 Spacer()
-                                if deleting { ProgressView().tint(SoftRed) }
+                                if deleting { StarLoadingView(size: 20, color: SoftRed) }
                             }
                             .padding(.vertical, 12)
                         }

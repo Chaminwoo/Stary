@@ -76,13 +76,31 @@ struct StarClusterView: View {
     }
 
     /// 헤더 — 겹쳐진 별 모양들을 살짝 겹쳐 보여주고 개수 안내.
+    /// 카드를 스와이프하면 **지금 보고 있는 별만 밝아지고 커진다**(34-1, Android 패리티).
+    /// 헤더는 5개까지만 그리므로 6번째 이후 카드에선 아무것도 강조되지 않는다(의도).
     private var header: some View {
         VStack(spacing: 10) {
             HStack(spacing: -6) {
                 ForEach(Array(ordered.prefix(5).enumerated()), id: \.element.id) { i, d in
-                    StarView(type: d.starType, colorIndex: d.starColor, size: i == 0 ? 30 : 22)
+                    let active = page == i
+                    let side: CGFloat = i == 0 ? 30 : 22
+                    ZStack {
+                        // 활성 별에만 옅은 후광 — 별색 그대로.
+                        if active {
+                            RadialGradient(
+                                colors: [StarStyle.color(d.starColor).opacity(0.9), .clear],
+                                center: .center, startRadius: 0, endRadius: side / 2
+                            )
+                            .opacity(0.35)
+                        }
+                        StarView(type: d.starType, colorIndex: d.starColor, size: side)
+                            .opacity(active ? 1 : 0.35)
+                            .scaleEffect(active ? 1.15 : 1)
+                    }
+                    .frame(width: side, height: side)
                 }
             }
+            .animation(.easeOut(duration: 0.2), value: page)
             Text(String(format: LocaleManager.shared.t(.clusterHeader), ordered.count))
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)

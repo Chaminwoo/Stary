@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.38-iOS 패리티**(크리스탈 별 / 30m 머지·겹친별 카드 / 친구 메신저형 행 / 이미지 캐시) — **CI(macOS) BUILD SUCCESS `a173f7e`** — 아래 8.38-iOS 참고.
+> 최종 갱신: **8.40 마감 라운드(1.3.1) + 전환 잔상 삭제 + iOS 패리티 일괄(33·34 라운드)** — Android BUILD SUCCESSFUL(2026-07-14), iOS 는 push 후 CI 검증 — 아래 8.40 참고.
+> 이전: **8.38-iOS 패리티**(크리스탈 별 / 30m 머지·겹친별 카드 / 친구 메신저형 행 / 이미지 캐시) — **CI(macOS) BUILD SUCCESS `a173f7e`** — 아래 8.38-iOS 참고.
 > 이전: **8.38 크리스탈 별 렌더·스파클(궤도·개수·위성)·공유카드 편집 확장·겹친별 배경·이미지 고속화·친구 스크린 개편** — Android **테스트 완료·push(`fbf7470`)** — 아래 8.38 참고.
 > 이전: **8.37 제한·30m 별 합치기·공유카드 편집·인스타 링크·마커 스파클 5건 라운드** — Android BUILD SUCCESSFUL(2026-07-12) — 아래 8.37 참고.
 > 이전: **8.36-iOS CI 그린 복구 + BGM 설명 문구 정정** — SettingsScreen 컴파일 에러 수정 + 부메랑 문구 패리티 + BGM 설명(의도적 삭제분) 양쪽 완전 제거. **CI(macOS) BUILD SUCCESS `0367fcb`**, Android `compileDebugKotlin` **BUILD SUCCESSFUL** — 아래 8.36-iOS 참고.
@@ -29,6 +30,39 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.40 마감 라운드(1.3.1) + 전환 잔상 삭제 + iOS 패리티 일괄 (Android BUILD SUCCESSFUL 2026-07-14, iOS CI 검증 대기)
+두 커밋으로 분리: ① 이전 세션분 마감 라운드(안드+iOS), ② 전환 잔상 삭제 + iOS 패리티 일괄(33·34 라운드).
+
+**① 마감 라운드(1.3.1, versionCode 6)** — 안드+iOS 동시:
+- **사진/움짤/영상 전체화면 뷰어**: 상세의 미디어 탭 → 원본 비율(Fit) 전체화면 + 핀치 확대/드래그.
+  안드 `DetailScreen.FullScreenMediaViewer` / iOS `DetailScreen.swift` 동명 뷰(+`RemoteGifFitView`).
+- **부메랑 전체 화각 크롭**: 조정 단계 진입 시 "찍힌 화면 전체가 들어오는 최소 배율"로 시작(잘림 없음, 남는 자리 검정).
+  안드 `BoomerangHelper.minScaleFor`+크롭이 캔버스에 그대로 그림 / iOS `BoomerangConfig.minScale`+`cropFrames` 동일 + 프리뷰 `resizeAspect`.
+- **친구 행 최근 별(34-6)**: 행 최우측 = 그 친구의 최근 공개 별(비공개/익명 제외), 탭 → 지도 파동+도보 길찾기.
+  안드 `FriendScreen`+`NavGraph(onOpenDiaryOnMap)` / iOS `FriendsScreen`(store.diaries 필터).
+- **겹친별 위성 부유(iOS)**: `MapLibreView.MergedStarAnnotationView` — 멤버 2개 이상 머지 마커는 뷰 어노테이션으로,
+  대표+위성 미니어처가 함께 상하 float + 위성별 독립 드리프트(Android 위성 부유 패리티, CABasicAnimation 벽시계 위상).
+- **세로 고정**: 안드 `screenOrientation="portrait"` / iOS `UISupportedInterfaceOrientations` Portrait 만.
+- **35-1 리팩토링**: `DiaryMap.kt`(2079줄) → DiaryMap / DiaryMapMarkers / DiaryOpenWarp 3파일 분할 + 주석 다이어트(체크리스트 35 기준).
+
+**② 전환 잔상 삭제 + iOS 패리티 일괄** (`:androidApp:assembleDebug` BUILD SUCCESSFUL):
+- **34-10 화면 전환 별 잔상 완전 삭제(사용자 지시)**: `core/ui/RouteStreak.kt` 삭제 + `MainScreen` 오버레이 호출 제거. iOS 미구현 유지.
+- **iOS 신설 4파일**(`Core/`): `StarLoadingView.swift`(34-9 로딩 별 — 비트맵 1회 굽고 스케일만, 팔레트 밖 색 별도 캐시) /
+  `StarBirth.swift`(34-8 — `StarBirthStore.shared`+`StarBirthHost`, 업로드 성공 → 지도 탭 전환 후 재생) /
+  `NearbyStarAlert.swift`(33 — UserDefaults 로 같은 별 평생 1회·하루 5회·3분 간격, `MainTabView.onReceive(location.$coordinate)` 훅) /
+  `HiddenStarBadge.swift`(34-4 — 이름 옆 전용 크리스탈 배지, `StarCrystal.image` NSCache 재사용).
+- **34-4**: `HiddenAchievements.swift` 에 `badgeType/badgeColor` 추가(**값 Android 동일** — drift 금지) +
+  **칭호 fallback drift 정정**(iOS 구 칭호 "은하의 밀사" 등 → Android 정본 "별의 암호" 등. 표시는 원래 `LocalizedNames` 라 영향 없음).
+  `HiddenAchievementStore` 에 `static shared` 승격(전역 리스너 1개, Android HiddenClaimStore 패턴) + `achievements(of:)`.
+  배지 삽입: Detail 작성자/댓글 · 친구 행/검색 · 채팅 타이틀(principal 툴바) · 내/타인 프로필. 달성자 이름 = `UserDirectory` 현재값(34-4a).
+- **34-1** `StarClusterView` 헤더 별 ↔ 페이지 연동(활성만 밝게+확대+후광, easeOut 0.2s) / **34-2** `DetailAuroraVeil`(콘텐츠 위 고정, 15s 드리프트) /
+  **34-5** `NebulaProgressBand`(**Animatable 보간** Canvas — blob/잔별 배치 Android 동일) / **34-7** `ChatStardust`(시드/주기 동일).
+- **닉네임 20자 클램프(iOS)**: `ProfileScreen` — alert TextField 는 화면 레벨 `.onChange(of: nicknameDraft)` 로 선차단 + 저장 시 prefix.
+- ⚠️ 주의: iOS 장식 Canvas 는 전부 `TimelineView(.animation)` + `allowsHitTesting(false)`; 크리스탈은 매 프레임 파편 렌더 금지 → `StarCrystal.image`(NSCache) 재사용.
+- **남은 iOS TODO(기존 유지)**: 마커 스파클(궤도/개수 티어), 공유카드 편집+인스타 스토리, 지도 야경 커스텀 스타일(demotiles), 설정 음량 슬라이더 별 thumb.
 
 ---
 

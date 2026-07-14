@@ -490,11 +490,6 @@ fun MainScreen(
         )
     }
 
-    // 화면 전환 별 잔상(34-10) — 라우트 변경 시 빛줄기가 화면을 스친다(드릴인/뒤로가기 방향 반전).
-    com.chaminwoo.stary.core.ui.RouteTransitionStreak(
-        navController = navController,
-        modifier = Modifier.fillMaxSize(),
-    )
     // 별 탄생 연출(34-8) — 업로드 성공 직후 업로드 화면이 pop 되고 나서 지도 위에서 재생된다.
     com.chaminwoo.stary.core.ui.StarBirthHost()
     // 인앱 알림 배너(상단) — 모든 콘텐츠 위에 표시. 토스트(하단)와 별개 채널.

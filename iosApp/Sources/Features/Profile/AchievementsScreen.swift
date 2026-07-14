@@ -12,7 +12,9 @@ struct AchievementsScreen: View {
     @EnvironmentObject var viewed: ViewedStore
     @ObservedObject private var locale = LocaleManager.shared
 
-    @StateObject private var hidden = HiddenAchievementStore()
+    @ObservedObject private var hidden = HiddenAchievementStore.shared
+    // 달성자 이름을 users/{uid} 의 "현재" 값으로 표시(선점 시점 스냅샷 아님) — 34-4(a).
+    @ObservedObject private var directory = UserDirectory.shared
     @State private var friendsCount = 0
     @State private var invitedFriends = 0
     @State private var redeemedInvite = false
@@ -92,11 +94,12 @@ struct AchievementsScreen: View {
     // ── 일반 업적 ──
     private var normalList: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            // 진행도 = 막대 대신 **성운이 차오르는 밴드**(34-5). 달성할수록 성운이 오른쪽으로 짙어진다.
+            NebulaProgressBand(fraction: Double(unlocked.count) / Double(Swift.max(Achievements.all.count, 1))) {
                 Text("\(unlocked.count) / \(Achievements.all.count)")
                     .font(.caption).foregroundStyle(Theme.mint)
-                Spacer()
             }
+            .frame(height: 52)
             ForEach(Achievements.all) { ach in
                 achievementRow(ach)
             }
@@ -191,15 +194,20 @@ struct AchievementsScreen: View {
             HiddenIconBadge(ach: ach, size: 40)
                 .frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 2) {
-                // 칭호는 항상 노출. (언어 전환에 맞춰 로케일 해석)
-                Text(LocalizedNames.title(ach.id, fallback: ach.title) ?? ach.title)
-                    .font(.subheadline).foregroundStyle(Theme.textPrimary)
+                // 칭호는 항상 노출 + 이 업적 달성자에게 붙는 전용 크리스탈 배지 미리보기(34-4).
+                HStack(spacing: 6) {
+                    Text(LocalizedNames.title(ach.id, fallback: ach.title) ?? ach.title)
+                        .font(.subheadline).foregroundStyle(Theme.textPrimary)
+                    HiddenStarBadge(type: ach.badgeType, colorIndex: ach.badgeColor, size: 14)
+                }
                 // 조건은 달성 후에만 공개.
                 Text(claimed ? ach.condition : "???")
                     .font(.caption2)
                     .foregroundStyle(claimed ? Theme.textSecondary : Color(hex: 0xB388FF).opacity(0.85))
                 if claimed {
-                    let name = (claim?.achieverName.isEmpty == false) ? claim!.achieverName : "?"
+                    // 달성자 이름은 선점 시점 스냅샷이 아니라 users/{uid} 의 **현재 닉네임**(34-4a).
+                    let snapshot = (claim?.achieverName.isEmpty == false) ? claim!.achieverName : "?"
+                    let name = directory.name(claim?.achieverId ?? "", fallback: snapshot)
                     Text(mineClaim ? locale.t(.achHiddenByMe)
                                    : String(format: locale.t(.achHiddenAchiever), name))
                         .font(.caption2).bold()
@@ -221,6 +229,10 @@ struct AchievementsScreen: View {
         }
         .padding(10)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+        // 달성자 현재 이름 구독 시작(이미 구독 중이면 no-op).
+        .task(id: claim?.achieverId) {
+            if let id = claim?.achieverId, !id.isEmpty { directory.ensureWatching(id) }
+        }
     }
 
     /// 칭호 장착(업적 id 저장). users/{uid}.equippedTitle 에 기록(타인 프로필에서도 보이도록).
@@ -242,6 +254,88 @@ struct AchievementsScreen: View {
         Task {
             let won = await hidden.attemptAutoClaims(stats: s, allNormalDone: done, uid: uid, name: name)
             if let first = won.first { hiddenAlert = first }
+        }
+    }
+}
+
+/// 업적 진행도(34-5) — 퍼센트 막대 대신 **성운이 차오르는 밴드**.
+/// 왼쪽부터 달성 비율만큼 성운(민트+보라 blob)이 짙어지고, 나머지는 빈 밤하늘(잔별만).
+/// 경계는 blob 별 알파 감쇠로 부드럽게(하드 컷 없음), 값이 바뀌면 채움이 애니메이션.
+/// 별/blob 배치는 고정 시드라 리컴포지션마다 흔들리지 않는다. (Android NebulaProgress 패리티)
+private struct NebulaProgressBand<Content: View>: View {
+    let fraction: Double
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            NebulaCanvas(filled: min(max(fraction, 0), 1))
+                .animation(.easeOut(duration: 0.7), value: fraction)
+            content
+                .padding(.horizontal, 14)
+        }
+        .frame(maxWidth: .infinity)
+        .background(Color.white.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+/// 성운 밴드 캔버스 — [Animatable] 로 채움 비율이 부드럽게 보간된다.
+private struct NebulaCanvas: View, Animatable {
+    var filled: Double
+
+    var animatableData: Double {
+        get { filled }
+        set { filled = newValue }
+    }
+
+    private static let green = Color(hex: 0x6EE7B7)
+    private static let purple = Color(hex: 0xB388FF)
+    /// (x비율, y비율, 색) — Android 와 동일 배치.
+    private static let blobs: [(Double, Double, Color)] = [
+        (0.06, 0.55, green), (0.20, 0.30, purple), (0.34, 0.68, green),
+        (0.48, 0.36, purple), (0.62, 0.60, green), (0.76, 0.32, purple),
+        (0.90, 0.58, green),
+    ]
+
+    var body: some View {
+        Canvas { ctx, size in
+            let w = size.width
+            let h = size.height
+            let fw = w * filled
+            let soft = w * 0.14 // 채움 경계가 흐려지는 폭
+
+            // 성운 blob — 채움 경계를 넘어갈수록 옅어진다(부드러운 채움).
+            for (px, py, color) in Self.blobs {
+                let cx = w * px
+                let reveal = min(max((fw - cx) / soft + 0.5, 0), 1)
+                if reveal <= 0.01 { continue }
+                let r = h * 0.95
+                let grad = Gradient(stops: [
+                    .init(color: color.opacity(0.30 * reveal), location: 0),
+                    .init(color: color.opacity(0.10 * reveal), location: 0.5),
+                    .init(color: .clear, location: 1),
+                ])
+                ctx.fill(
+                    Path(ellipseIn: CGRect(x: cx - r, y: h * py - r, width: r * 2, height: r * 2)),
+                    with: .radialGradient(grad, center: CGPoint(x: cx, y: h * py),
+                                          startRadius: 0, endRadius: r)
+                )
+            }
+
+            // 잔별 — 전 구간에 뿌리되, 성운 안쪽이 더 밝다.
+            for i in 0..<30 {
+                let fx = Double(i * 37 % 100) / 100
+                let fy = Double(i * 61 % 100) / 100
+                let cx = w * fx
+                let inNebula = cx <= fw ? 1.0 : 0.35
+                let rad = 0.7 + Double(i % 3) * 0.5
+                let alpha = 0.10 + 0.35 * inNebula * (Double(i % 5) / 5 + 0.2)
+                let cy = h * (0.12 + 0.76 * fy)
+                ctx.fill(
+                    Path(ellipseIn: CGRect(x: cx - rad, y: cy - rad, width: rad * 2, height: rad * 2)),
+                    with: .color(.white.opacity(alpha))
+                )
+            }
         }
     }
 }

@@ -382,16 +382,19 @@
       탭 → 그 별로 지도 포커스(MapFocusState). 대상 = 지도에 보이는 목록(공개범위 반영).
 - [x] **빈도 제한**: 같은 별 평생 1회(SharedPreferences 영구 기록) + 하루 5회 상한 + 최소 간격 3분.
 - [ ] 백그라운드 지오펜스 확장은 후속 검토(위치 권한 정책 부담).
-- [ ] **iOS 패리티 — 연기(사용자 지시 2026-07-10)**: iOS 작업은 안드로이드 테스트·최종 수정 이후 일괄 진행.
-      (AppConfig NEARBY_ALERT_* 동기화 + NearbyStarAlert.swift + RootView 훅 + L10n nearbyStar* 키)
+- [x] **iOS 패리티 — 완료(2026-07-14, 34 라운드 iOS 일괄과 함께)**:
+      AppConfig `nearbyAlert*` 동기화 + `Core/NearbyStarAlert.swift`(같은 별 평생 1회/하루 5회/3분 간격 — UserDefaults) +
+      MainTabView `.onReceive(location.$coordinate)` 훅 + InAppBanner + 탭 → MapFocusStore + L10n `nearbyStar*`(ko/en/ja).
 
 > ⚠️ **iOS 진행 방침(2026-07-10 사용자 지시)**: 이번 유입/흥미 라운드의 추가 iOS 작업은
 > **안드로이드 실기기 테스트와 최종 수정이 끝난 뒤** 일괄 진행한다. (29~32 의 iOS 반영분은 이미 커밋됨 — CI 검증은 push 후)
 
 ---
 
-## 🎨 34. 디자인 라운드 — ✅ Android 구현 완료 (2026-07-13, `:androidApp:assembleDebug` BUILD SUCCESSFUL / 34-3 은 폐기)
-> **남은 것: iOS 패리티 일괄(§1.5) + 아래 사용자 액션.**
+## 🎨 34. 디자인 라운드 — ✅ Android 구현 완료 (2026-07-13) + ✅ iOS 패리티 일괄 (2026-07-14, CI 검증 대기 / 34-3 폐기 · 34-10 삭제)
+> **iOS 패리티 완료(2026-07-14)** — 34-1/2/4/5/6/7/8/9 + 체크리스트 33 근처 별 알림 + 닉네임 클램프. push 후 ios.yml CI 로 컴파일 검증.
+> **34-10(전환 잔상)은 사용자 지시로 Android 에서도 삭제**(RouteStreak.kt 제거) — iOS 미구현 유지.
+> 남은 사용자 액션:
 > - [ ] (사용자, 선택) Firestore 복합 인덱스 `diaries`: `userId` ASC + `createdAt` DESC — 34-6 친구 최근 별의 저렴한 경로.
 >   없어도 **자동 폴백**(정렬 없는 쿼리 + 클라 정렬)으로 동작하므로 급하지 않음. Logcat 의 콘솔 링크로 생성 가능.
 
@@ -409,14 +412,14 @@
 - [ ] `StarClusterScreen.kt` 헤더 Row(`diaries.take(5)`): 아이콘 i 강조 = `i == pagerState.currentPage`.
       표현 = `animateFloatAsState` 로 alpha 0.35↔1.0 + scale 1.0↔1.15(+선택: 별색 글로우). **currentPage ≥ 5 면 아무것도 강조 안 함**(헤더는 5개까지만 표시).
 - [ ] 스와이프 중간값은 무시하고 settled page 기준(깜빡임 방지) — `pagerState.currentPage` 그대로면 충분.
-- [ ] iOS `StarClusterView.swift` header — `page` state 로 동일 로직, `.animation(.easeOut(duration: 0.2), value: page)`.
+- [x] iOS `StarClusterView.swift` header — `page` state 로 동일 로직, `.animation(.easeOut(duration: 0.2), value: page)`. (2026-07-14)
 - ⚠️ 별자리 선 연결은 **하지 않는다**(사용자 명시 제외).
 
 ### 34-2. 상세 진입 여운 — 별색 오로라
 - [ ] `DetailScreen.kt`: 배경 최상단(스크롤 무관 고정 레이어)에 `accent`(= `StarStyle.colorOf(diary.starColor)`, 이미 존재) 오로라 —
       높이 ~200dp `verticalGradient(accent.copy(alpha≤0.16) → Transparent)`. 선택: 그라데이션 중심을 12~18s 주기로 아주 느리게 수평 드리프트.
 - [ ] 파장(DiaryOpenWarp) 색과 이어져 "열람의 여운"으로 읽히게 — 별색 그대로, 화이트 혼합 금지.
-- [ ] iOS `DetailScreen.swift`: ZStack 최하단 LinearGradient 동일(1차는 정적이어도 OK, 드리프트는 TimelineView 선택).
+- [x] iOS `DetailScreen.swift`: `DetailAuroraVeil`(TimelineView+Canvas, 15s 드리프트) — 콘텐츠 위 고정 레이어(Android 동일). (2026-07-14)
 
 ### 34-3. 내 하늘 헤더 — ❌ **폐기(2026-07-13 사용자 지시: "내 하늘만 삭제")**
 > 구현했다가 제거함(프로필 화면은 기존 배경/부유 아이콘 유지). **iOS 에도 만들지 말 것.**
@@ -434,7 +437,7 @@
 **(a) 달성자 이름 = 현재 이름 (버그 수정 성격 — 먼저 처리)**
 - [ ] `AchievementsScreen.kt:370` — `claim?.achieverName`(선점 시점 스냅샷) → `rememberCurrentUserName(claim.achieverId, claim.achieverName)` 로 교체.
       헬퍼는 `core/util/UserDirectory.kt` 에 이미 있음(DetailScreen 댓글과 같은 패턴 — users/{uid} 실시간 구독).
-- [ ] iOS `AchievementsScreen.swift` 의 달성자 표기도 동일하게 — iOS 에 UserDirectory 대응이 없으면 `FirestoreService` 에 uid→현재 이름 구독 헬퍼 신설.
+- [x] iOS `AchievementsScreen.swift` 의 달성자 표기도 동일하게 — 기존 `UserDirectory.shared` 재사용(`ensureWatching`+`name`). (2026-07-14)
 
 **(b) 업적별 전용 크리스탈 배지 — 이름이 표시되는 모든 곳**
 - [ ] **업적→크리스탈 매핑**: `HiddenAchievement` 에 배지용 `(starType, colorIndex)` 필드 추가 — 11개 업적 전부 **서로 다른 (모양×색)** 조합 지정
@@ -446,14 +449,16 @@
 - [ ] **삽입 지점(이름 나오는 곳 전부)**: DetailScreen 작성자 행(≈:368) / DetailScreen `CommentItem` 이름(≈:649) /
       `FriendScreen.FriendRow` 이름 + 친구 검색 결과 행 / `UserProfileScreen` 이름 / `ProfileScreen` 내 이름 / `ChatScreen` 상단 상대 이름 /
       알림 화면 등 이름 노출부 grep 으로 전수 확인. **익명 다이어리/댓글은 제외**(작성자 은닉 유지).
-- [ ] iOS: `HiddenClaimStore.swift` + `HiddenStarBadge` 뷰, 같은 삽입 지점 전수 적용.
+- [x] iOS: `HiddenAchievementStore.shared` 승격(전역 리스너 1개) + `Core/HiddenStarBadge.swift` 뷰,
+      삽입 = Detail 작성자/댓글·친구 행·친구 검색·채팅 타이틀·내/타인 프로필. `HiddenAchievements.swift` 에
+      badgeType/badgeColor(값 Android 동일) + 칭호 fallback drift 정정. (2026-07-14)
 
 ### 34-5. 업적 화면 성운 진행도
 - [ ] `AchievementsScreen.kt` ≈:236(`ach_progress` 텍스트) — 텍스트 뒤에 폭 전체·높이 ~48dp **성운 밴드**:
       채움 fraction = `unlockedCount / Achievements.all.size`. 채움부 = 2~3색 radial blob(민트 Green + 보라 계열) 겹침 + 미세 잔별 점,
       빈 영역 = 아주 옅은 잔별만. 경계 soft fade, 값 변화 시 `animateFloatAsState`. 텍스트는 밴드 위 오버레이 유지.
 - [ ] **일반 탭만** 적용(히든 탭은 선착순 개념이라 진행도 없음).
-- [ ] iOS `AchievementsScreen.swift`: Canvas 로 동일 밴드.
+- [x] iOS `AchievementsScreen.swift`: `NebulaProgressBand`(Canvas+Animatable 보간) 동일 밴드. (2026-07-14)
 
 ### 34-6. 친구 행 — 미읽음 파란 점 삭제 → "최근 올린 별" 표시
 - [ ] `FriendScreen.kt`: FriendRow 의 파란 점(:448~456) + `unread` 파라미터/판정(:261) 제거(죽은 코드 정리).
@@ -463,13 +468,13 @@
       친구 수만큼 limit-1 리스너(전체 다이어리 구독 금지). ⚠️ **복합 인덱스** 필요 가능(에러 로그의 콘솔 링크로 생성 — 사용자 액션 항목으로 남길 것).
       ⚠️ **공개범위 준수**: 반환 별이 내가 볼 수 있는 것(공개/친구공개)인지 기존 visibility 필터 로직으로 걸러서 "볼 수 없는 최신 별"이 새지 않게.
 - [ ] 행 탭=채팅/사진 탭=프로필은 그대로(별은 장식, 탭 없음).
-- [ ] iOS: `FriendsViewModel` 에 최신 별 구독 추가(chatSummaries 패턴), `FriendsScreen` 행의 파란 점 교체.
+- [x] iOS: `FriendsScreen` 행 최우측 = 최근 별(store.diaries 에서 비공개/익명 제외 최신) — 탭 시 지도 길찾기. (2026-07-14 이전 세션분)
 
 ### 34-7. 채팅방 배경 미세 별가루
 - [ ] `ChatScreen.kt`: 메시지 리스트 **뒤** 배경 Canvas — 파티클 **8~12개**, 크기 1.5~3dp, alpha ≤ 0.35,
       개별 속도/위상의 느린 드리프트 + 트윙클. 단일 InfiniteTransition float 하나로 전 파티클 파라메트릭 계산.
 - [ ] 키보드 개폐/스크롤에 레이아웃 영향 없게 배경 고정(imePadding 영역 밖), 히트테스트 없음.
-- [ ] iOS `ChatScreen.swift`: `TimelineView(.animation)` + Canvas 동일.
+- [x] iOS `ChatScreen.swift`: `ChatStardust`(TimelineView+Canvas, 시드/주기 Android 동일). (2026-07-14)
 
 ### 34-8. 별 탄생 연출 (업로드 완료)
 - [ ] 트리거: `UploadScreen.kt` 저장 성공 경로(≈:505 이후 — 이미지/영상 업로드 완료 → Firestore 저장 성공 직후, 실패 시 연출 없음).
@@ -477,22 +482,35 @@
       축소되며 지도 쪽으로 날아가 소멸. 사운드 없음.
 - [ ] 구현: **전역 오버레이 권장** — `DiaryOpenWarp`(파장) 전례처럼 상태 홀더 + MainScreen 오버레이(`core/ui/StarBirth.kt` 신설).
       Upload 화면이 pop 된 뒤 지도 위에서 연출이 이어져 "별이 실제로 심기는" 체감. (UploadScreen 내부 오버레이 후 pop 은 차선.)
-- [ ] iOS: `UploadScreen.save()` 성공 훅 + RootView 오버레이(파장의 iOS 대응 패턴 확인 후 동일 구조).
+- [x] iOS: `UploadScreen.save()` 성공 훅 → `StarBirthStore.trigger` + 지도 탭 전환, `StarBirthHost`(MainTabView 오버레이, `Core/StarBirth.swift`). (2026-07-14)
 
 ### 34-9. 로딩 인디케이터 = 크리스탈 별 (기본 스피너 전면 교체) — **가장 먼저(공용 부품)**
 - [ ] `core/ui/StarLoading.kt` 신설 — `StarLoadingIndicator(modifier, size=36.dp)`:
       중앙 크리스탈 별 **맥동(pulse+글로우)** + 주위를 도는 스파클 점 2개(회전하는 별보다 크리스탈 무늬에 자연스러움 — 구현 세션 재량).
 - [ ] `CircularProgressIndicator` 사용처 **9파일 전부 교체**: StarClusterScreen / ShareCardEditor / ProfileScreen / MyScreen /
       DetailScreen / UploadScreen / SettingsScreen / BoomerangCaptureScreen / NotificationScreen. (버튼 내 소형은 size 파라미터로.)
-- [ ] iOS: `StarLoadingView` 신설 후 `ProgressView` 사용처 전수 교체.
+- [x] iOS: `Core/StarLoadingView.swift` 신설, `ProgressView` 사용처 9곳 교체(Detail×2/Login/Friends/List/Map/Settings/BoomerangCamera/BoomerangCaptureView — 부메랑 캡처 진행 바(값 표시)는 유지). (2026-07-14)
 
-### 34-10. 화면 전환 별 잔상
-- [ ] NavGraph 의 기존 전환(fade+scale, ENTER_MS=320)은 그대로. 잔상은 **NavHost 를 감싼 Box 의 오버레이**로:
-      `navController.currentBackStackEntryFlow` 구독 → 라우트 변경 시 1회 ~350ms, **가는 빛줄기 1~2개**(그라데이션 선+끝 글로우, alpha ≤ 0.5)가 대각선으로 스치고 소멸.
-- [ ] 방향: 드릴인 = 한 방향, 뒤로가기(pop) = 반대 방향. 과하면 드릴인만. 전환 시간과 동기(320ms ± 30).
-- [ ] iOS: NavigationStack push/pop 훅이 제한적 — 가능한 범위에서 시도, 어려우면 **iOS TODO 로 남기는 것 허용**(명시).
+### 34-10. 화면 전환 별 잔상 — ❌ **삭제(2026-07-14 사용자 지시: "실선 2개 띄우는 거 삭제")**
+> Android 로 구현했었으나(RouteStreak.kt + MainScreen 오버레이) 사용자 지시로 완전 제거. **iOS 에도 만들지 말 것.**
 
 > 완료 기준(라운드 공통): `:androidApp:assembleDebug` 그린 → 사용자 테스트 → push → iOS 패리티 일괄 → CI 그린 → PROJECT_NOTES 갱신.
+
+---
+
+## 🧹 35. 전체 리팩토링 + 주석 다이어트 (2026-07-14 시작 — DiaryMap 완료, 나머지 이월)
+
+> 기준(사용자 확정): **구조 리팩토링 + 주석은 "핵심/함정 경고"만 유지**.
+> 유지 = 파일·클래스·함수 헤더(한 줄), ⚠️ 크래시/렌더 함정 경고, Android↔iOS 패리티 앵커, 외부 파일 계약(예: maplibre_style.json 스톱 일치).
+> 삭제 = 줄 단위 서술, 단계 나열(// 1) …), 이력/피드백/체크리스트 번호 참조, 대안 검토 메모.
+> 완료 예시 = `feature/map/screen/` 3파일(DiaryMap / DiaryMapMarkers / DiaryOpenWarp) — 이 톤을 그대로 따를 것.
+
+- [x] 35-1. DiaryMap.kt(2079줄) → 3파일 분할(DiaryMap 컴포저블 / DiaryMapMarkers 상수·비트맵·표현식·머지·클러스터 / DiaryOpenWarp 파장 연출) + 주석 다이어트. 빌드 그린(2026-07-14).
+- [ ] 35-2. GlobeRenderer.kt(1606줄) — seam 분할(지오메트리/셰이더·렌더 패스) + 주석 다이어트.
+- [ ] 35-3. Android diary 화면들 — DetailScreen(786) / UploadScreen(678) / BoomerangCaptureScreen(510) / ShareCardEditor(549) / StarClusterScreen / NotificationScreen. ⚠️ DetailScreen 의 dex 레지스터(VerifyError) 경고 주석은 반드시 유지.
+- [ ] 35-4. Android profile/home/friend/chat/auth 화면들 — AchievementsScreen(637) / MainListScreen(596) / SettingsScreen(588) / FloatingStatBox(586) / FriendScreen(570) / MainScreen(556) / MyDiaryScreen(555) / ProfileScreen(519) / UserProfileScreen(515) / MusicScreen(489) / DiaryStarBox / MyScreen / ChatScreen / LoginScreen / MainOnboardingOverlay.
+- [ ] 35-5. Android core/data/navigation/push + shared — ShareCardHelper(563) / StarStyle(444) / MusicManager / GifEncoder / repository 들 / NavGraph / GoogleAuthHelper 등.
+- [ ] 35-6. iOS 전체(66파일) — GlobeScreen(1440) 우선, 파리티 앵커 주석은 유지. 컴파일은 push 후 CI(ios.yml)로 검증.
 
 ---
 

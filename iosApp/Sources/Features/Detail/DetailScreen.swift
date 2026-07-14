@@ -19,6 +19,8 @@ struct DetailScreen: View {
     @State private var showReportDialog = false
     @State private var showReportedConfirm = false
     @State private var showLoginRequired = false
+    /// 사진/움짤/영상 전체화면 보기.
+    @State private var showFullMedia = false
 
     init(diary: Diary) {
         self.diary = diary
@@ -70,6 +72,8 @@ struct DetailScreen: View {
                         Button { openProfile(diary.userId, authorName) } label: {
                             HStack(spacing: 4) {
                                 Text(authorName)
+                                // 히든 업적 달성자 전용 크리스탈 배지(34-4) — 익명 분기가 아니므로 안전.
+                                HiddenStarBadges(userId: diary.userId, size: 12)
                                 Image(systemName: "chevron.right").font(.caption2)
                             }
                             .font(.subheadline)
@@ -79,18 +83,23 @@ struct DetailScreen: View {
                         .task(id: diary.userId) { directory.ensureWatching(diary.userId) }
                     }
 
+                    // 사진/움짤/영상 모두 탭하면 전체화면으로 크게 볼 수 있다(Android 패리티).
                     if canOpen, !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
                         // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 는 아래 플레이어 유지)
                         RemoteGifView(urlString: diary.videoUrl)
                             .frame(height: 220)
                             .frame(maxWidth: .infinity)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .contentShape(Rectangle())
+                            .onTapGesture { showFullMedia = true }
                     } else if canOpen, !diary.videoUrl.isEmpty, let vurl = URL(string: diary.videoUrl) {
                         // 짧은 영상(3초 이내) 음소거 루프 재생.
                         LoopingVideoPlayer(url: vurl, muted: true)
                             .frame(height: 220)
                             .frame(maxWidth: .infinity)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .contentShape(Rectangle())
+                            .onTapGesture { showFullMedia = true }
                     } else if canOpen, !diary.imageUrl.isEmpty {
                         AsyncImage(url: URL(string: diary.imageUrl)) { image in
                             image.resizable().scaledToFit()
@@ -99,6 +108,8 @@ struct DetailScreen: View {
                         }
                         .frame(maxWidth: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .contentShape(Rectangle())
+                        .onTapGesture { showFullMedia = true }
                     }
                     bodyCard
                     likeBar
@@ -106,6 +117,17 @@ struct DetailScreen: View {
                 }
                 .padding(16)
             }
+
+            // 열람의 여운(34-2) — 파장(별 열람 연출)이 남긴 잔향처럼 화면 상단에
+            // 그 별 색의 오로라가 아주 옅게 드리운다(스크롤 무관 고정 레이어, 터치 통과).
+            DetailAuroraVeil(accent: StarStyle.color(diary.starColor))
+        }
+        .fullScreenCover(isPresented: $showFullMedia) {
+            FullScreenMediaViewer(
+                mediaUrl: diary.videoUrl.isEmpty ? diary.imageUrl : diary.videoUrl,
+                // 움짤(GIF)은 이미지로 재생 — mp4(구버전 영상)만 플레이어가 필요하다.
+                isVideo: !diary.videoUrl.isEmpty && !isGifUrl(diary.videoUrl)
+            )
         }
         .navigationTitle("별")
         .navigationBarTitleDisplayMode(.inline)
@@ -275,9 +297,12 @@ struct DetailScreen: View {
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
                             Button { openProfile(c.userId, c.userName) } label: {
-                                // 저장 시점 스냅샷이 아닌 현재 닉네임으로 표시
-                                Text(directory.name(c.userId, fallback: c.userName))
-                                    .font(.caption).bold().foregroundStyle(Theme.textSecondary)
+                                HStack(spacing: 4) {
+                                    // 저장 시점 스냅샷이 아닌 현재 닉네임으로 표시
+                                    Text(directory.name(c.userId, fallback: c.userName))
+                                        .font(.caption).bold().foregroundStyle(Theme.textSecondary)
+                                    HiddenStarBadges(userId: c.userId, size: 10)
+                                }
                             }
                             .buttonStyle(.plain)
                             Spacer()
@@ -301,6 +326,39 @@ struct DetailScreen: View {
 
     private func distanceLabel(_ m: Double) -> String {
         m < 1000 ? "\(Int(m))m" : String(format: "%.1fkm", m / 1000)
+    }
+}
+
+/// 상세 화면 상단 오로라(34-2) — 별색을 아주 옅게(≤0.16) 드리우고 좌우로 느리게 흐른다.
+/// 장식 전용: 히트테스트에 참여하지 않는다(아래 콘텐츠 탭 그대로 동작). (Android DetailAuroraVeil 패리티)
+private struct DetailAuroraVeil: View {
+    let accent: Color
+
+    var body: some View {
+        VStack(spacing: 0) {
+            TimelineView(.animation(minimumInterval: 1.0 / 20)) { tl in
+                // 15s 왕복 드리프트(Android Reverse 트윈 대응 — 삼각파 0→1→0).
+                let cycle = tl.date.timeIntervalSinceReferenceDate / 15
+                let drift = abs(cycle.truncatingRemainder(dividingBy: 2) - 1)
+                Canvas { ctx, size in
+                    let cx = size.width * (0.28 + 0.44 * drift)
+                    let grad = Gradient(stops: [
+                        .init(color: accent.opacity(0.16), location: 0),
+                        .init(color: accent.opacity(0.06), location: 0.5),
+                        .init(color: .clear, location: 1),
+                    ])
+                    ctx.fill(
+                        Path(CGRect(origin: .zero, size: size)),
+                        with: .radialGradient(grad, center: CGPoint(x: cx, y: 0),
+                                              startRadius: 0, endRadius: size.width * 0.95)
+                    )
+                }
+            }
+            .frame(height: 220)
+            Spacer(minLength: 0)
+        }
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
     }
 }
 
@@ -384,4 +442,114 @@ private struct CommentAvatar: View {
             }
         }
     }
+}
+
+/// 사진/움짤/영상 전체화면 뷰어 — 원본 비율 그대로(Fit) 보여주고 핀치 확대·드래그 이동을 지원한다.
+/// 탭하면 닫힌다(Android DetailScreen.FullScreenMediaViewer 패리티).
+private struct FullScreenMediaViewer: View {
+    let mediaUrl: String
+    let isVideo: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var scale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var pinchStart: CGFloat?
+    @State private var dragStart: CGSize?
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.95).ignoresSafeArea()
+
+            content
+                .scaleEffect(scale)
+                .offset(offset)
+                .gesture(zoomGesture)
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(.black.opacity(0.35), in: Circle())
+                    }
+                    .padding(.trailing, 14)
+                }
+                Spacer()
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { dismiss() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if isVideo, let url = URL(string: mediaUrl) {
+            LoopingVideoPlayer(url: url, muted: false)
+        } else if isGifUrl(mediaUrl) {
+            RemoteGifFitView(urlString: mediaUrl)
+        } else {
+            AsyncImage(url: URL(string: mediaUrl)) { image in
+                image.resizable().scaledToFit()
+            } placeholder: {
+                StarLoadingView(size: 36)
+            }
+        }
+    }
+
+    /// 핀치 확대(1..5) + 확대 상태에서만 드래그 이동. 원배율로 돌아오면 위치 리셋.
+    private var zoomGesture: some Gesture {
+        let pinch = MagnificationGesture()
+            .onChanged { m in
+                if pinchStart == nil { pinchStart = scale }
+                scale = min(max((pinchStart ?? scale) * m, 1), 5)
+                if scale <= 1 { offset = .zero }
+            }
+            .onEnded { _ in pinchStart = nil }
+        let drag = DragGesture()
+            .onChanged { v in
+                guard scale > 1 else { return }
+                if dragStart == nil { dragStart = offset }
+                let base = dragStart ?? offset
+                offset = CGSize(width: base.width + v.translation.width,
+                                height: base.height + v.translation.height)
+            }
+            .onEnded { _ in dragStart = nil }
+        return pinch.simultaneously(with: drag)
+    }
+}
+
+/// 전체화면용 GIF — 잘라내지 않고(scaleAspectFit) 원본 비율 그대로 보여준다.
+private struct RemoteGifFitView: View {
+    let urlString: String
+    @State private var data: Data?
+
+    var body: some View {
+        Group {
+            if let data {
+                GifFitImageView(data: data)
+            } else {
+                StarLoadingView(size: 36)
+            }
+        }
+        .task(id: urlString) {
+            guard let url = URL(string: urlString) else { return }
+            data = try? await URLSession.shared.data(from: url).0
+        }
+    }
+}
+
+private struct GifFitImageView: UIViewRepresentable {
+    let data: Data
+
+    func makeUIView(context: Context) -> UIImageView {
+        let iv = UIImageView()
+        iv.contentMode = .scaleAspectFit
+        iv.image = GifImageView.animatedImage(from: data)
+        return iv
+    }
+
+    func updateUIView(_ uiView: UIImageView, context: Context) {}
 }

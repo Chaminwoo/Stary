@@ -20,7 +20,7 @@ struct UserProfileScreen: View {
     @State private var isBlocked = false
     @State private var showReportDialog = false
     @State private var showReportedConfirm = false
-    @StateObject private var hidden = HiddenAchievementStore()
+    @ObservedObject private var hidden = HiddenAchievementStore.shared
 
     private var isMe: Bool { userId == auth.uid }
 
@@ -129,9 +129,13 @@ struct UserProfileScreen: View {
     private var header: some View {
         VStack(spacing: 10) {
             avatar
-            Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
-                .font(.title3).bold()
-                .foregroundStyle(Theme.textPrimary)
+            HStack(spacing: 6) {
+                Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
+                    .font(.title3).bold()
+                    .foregroundStyle(Theme.textPrimary)
+                // 히든 업적 달성자 전용 크리스탈 배지(34-4).
+                HiddenStarBadges(userId: userId, size: 13)
+            }
             // 칭호는 언어 전환에 맞춰 표시(로케일 해석)
             if let title = LocalizedNames.equippedTitle(equippedTitleId) {
                 // 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.

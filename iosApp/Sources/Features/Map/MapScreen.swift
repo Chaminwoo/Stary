@@ -119,7 +119,7 @@ struct MapScreen: View {
             .ignoresSafeArea()
 
             if store.loading {
-                ProgressView().tint(Theme.mint)
+                StarLoadingView(size: 40)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 

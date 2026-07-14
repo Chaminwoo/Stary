@@ -107,6 +107,8 @@ enum L10n: String {
     case clusterHeader, clusterHint, clusterOpen
     // 친구 목록(메신저형 행).
     case friendNoChatYet
+    // 근처 미조회 별 발견 알림(체크리스트 33).
+    case nearbyStarTitle, nearbyStarBody
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -251,6 +253,13 @@ enum L10n: String {
                                             "Swipe left or right to browse the stars",
                                             "左右にスワイプして星を見てみましょう")
         case .clusterOpen:          return ("탭해서 들여다보기", "Tap to open", "タップして開く")
+        case .nearbyStarTitle:      return ("근처에 아직 안 본 별이 있어요 ✦",
+                                            "There's an unseen star nearby ✦",
+                                            "近くにまだ見ていない星があります ✦")
+        // ⚠️ nearbyStarBody 는 %d(거리 m) 를 String(format:) 으로 채운다.
+        case .nearbyStarBody:       return ("약 %dm 앞 — 탭하면 지도에서 보여드릴게요",
+                                            "About %dm ahead — tap to see it on the map",
+                                            "約%dm先 — タップすると地図に表示します")
         case .friendNoChatYet:      return ("아직 대화가 없어요 — 탭해서 시작해 보세요",
                                             "No messages yet — tap to start",
                                             "まだメッセージがありません — タップして始めましょう")

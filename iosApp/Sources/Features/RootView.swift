@@ -66,6 +66,14 @@ struct MainTabView: View {
             .tint(Theme.mint)
 
             InAppBannerHost()
+            // 별 탄생 연출(34-8) — 업로드 성공 직후 지도 탭 위에서 재생된다(터치 통과).
+            StarBirthHost()
+        }
+        // 근처 미조회 별 발견 알림(체크리스트 33) — 실제 위치 fix 갱신마다 검사(빈도 제한은 내부에서).
+        .onReceive(location.$coordinate) { coord in
+            guard let coord else { return }
+            NearbyStarAlert.check(me: coord, diaries: store.diaries,
+                                  viewedIds: viewed.viewedIds, myUserId: auth.uid)
         }
         // 길찾기/포커스 요청이 들어오면 지도 탭으로 전환하고, 위에 떠 있던 시트(채팅/상세)는 닫는다.
         .onChange(of: focus.pendingDiaryId) { id in
@@ -91,6 +99,8 @@ struct MainTabView: View {
             location.requestPermission()
             location.start()
             store.startIfNeeded(uid: auth.uid)
+            // 히든 업적 선점 현황 전역 구독 — 이름 옆 크리스탈 배지(34-4)가 어디서든 뜨도록.
+            HiddenAchievementStore.shared.start()
             if let uid = auth.uid { viewed.start(uid: uid); blocks.start(uid: uid) }
             MusicManager.shared.resume() // 로그인 후 메인 진입 시 배경음악 시작
             startWatcher()

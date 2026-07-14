@@ -3,8 +3,10 @@ import SwiftUI
 /// 친구 탭 — 사용자 검색/요청 보내기, 받은 요청 수락·거절, 친구 목록(→채팅).
 struct FriendsScreen: View {
     @EnvironmentObject var auth: AuthManager
+    /// 친구의 "최근 별"을 찾기 위한 다이어리 목록(비공개/익명은 여기서 걸러 쓴다).
+    @EnvironmentObject var store: DiaryStore
     @StateObject private var vm = FriendsViewModel()
-    /// 읽음 기록 — markRead 되면 미읽음 파란 점이 즉시 사라지도록 관찰한다.
+    /// 읽음 기록 — 채팅 화면과 공유(행 탭 시 markRead).
     @ObservedObject private var readStore = ChatReadStore.shared
     @State private var query = ""
 
@@ -46,11 +48,12 @@ struct FriendsScreen: View {
                 Button("검색") { runSearch() }
                     .tint(Theme.mint)
             }
-            if vm.searching { ProgressView().tint(Theme.mint) }
+            if vm.searching { StarLoadingView(size: 26) }
             ForEach(vm.results) { user in
                 HStack {
                     avatar(user.userName, photoUrl: user.profileImageUrl ?? "", userId: user.userId)
                     Text(user.userName).foregroundStyle(Theme.textPrimary)
+                    HiddenStarBadges(userId: user.userId, size: 11)
                     Spacer()
                     Button("추가") {
                         guard let uid = auth.uid else { return }
@@ -115,7 +118,8 @@ struct FriendsScreen: View {
     }
 
     /// 친구 목록 — 메신저형 행(Android FriendRow 패리티):
-    /// [프로필 사진] [이름 / 마지막 채팅 · 상대시간] [미읽음 파란 점]. 행 탭 = 채팅.
+    /// [프로필 사진] [이름 / 마지막 채팅 · 상대시간] [그 친구의 최근 별]. 행 탭 = 채팅.
+    /// 최근 별을 탭하면 지도로 가서 그 별까지 도보 길찾기(프로필 핀 별과 동일 동선).
     private var friendsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("친구 \(vm.friends.count)").font(.headline).foregroundStyle(Theme.textPrimary)
@@ -124,38 +128,58 @@ struct FriendsScreen: View {
                     .font(.subheadline).foregroundStyle(Theme.textSecondary)
             } else {
                 ForEach(vm.friends) { friend in
-                    NavigationLink(value: friend) {
-                        friendRow(friend)
-                    }
-                    .buttonStyle(.plain)
-                    .simultaneousGesture(TapGesture().onEnded {
-                        // 열자마자 읽음 처리 — 파란 점이 즉시 사라진다(ChatScreen 도 중복 호출하지만 멱등).
-                        if let uid = auth.uid {
-                            ChatReadStore.shared.markRead(AppConfig.chatId(uid, friend.userId))
+                    ZStack(alignment: .trailing) {
+                        NavigationLink(value: friend) {
+                            friendRow(friend)
                         }
-                    })
+                        .buttonStyle(.plain)
+                        .simultaneousGesture(TapGesture().onEnded {
+                            // 열자마자 읽음 처리 — 파란 점이 즉시 사라진다(ChatScreen 도 중복 호출하지만 멱등).
+                            if let uid = auth.uid {
+                                ChatReadStore.shared.markRead(AppConfig.chatId(uid, friend.userId))
+                            }
+                        })
+                        // 최근 별 버튼은 행 위에 겹쳐 둔다 — 행(채팅)보다 먼저 탭을 받는다.
+                        if let star = latestStar(of: friend.userId), let id = star.id {
+                            Button {
+                                MapFocusStore.shared.request(diaryId: id, withRoute: true)
+                            } label: {
+                                StarView(type: star.starType, colorIndex: star.starColor, size: 26)
+                                    .frame(width: 40, height: 40)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 8)
+                        }
+                    }
                 }
             }
         }
     }
 
+    /// 친구가 가장 최근에 남긴, 내가 볼 수 있는 별(비공개/익명 제외). Android observeLatestVisibleDiaryOf 패리티.
+    private func latestStar(of userId: String) -> Diary? {
+        store.diaries
+            .filter { $0.userId == userId && $0.visibilityType != "private" && !$0.isAnonymous }
+            .max { $0.createdAt < $1.createdAt }
+    }
+
     private func friendRow(_ friend: Friend) -> some View {
         let summary = vm.chatSummaries[friend.userId]
-        let chatId = AppConfig.chatId(auth.uid ?? "", friend.userId)
-        let unread = summary.map { s in
-            !s.lastMessage.isEmpty
-                && s.lastSenderId != (auth.uid ?? "")
-                && s.updatedAt > readStore.lastRead(chatId)
-        } ?? false
+        let hasStar = latestStar(of: friend.userId) != nil
 
         return HStack(spacing: 12) {
             // 사진은 텍스트 2줄보다 조금 크게(52pt)
             FriendAvatar(name: friend.userName, photoUrl: friend.photoUrl, userId: friend.userId, size: 52)
             VStack(alignment: .leading, spacing: 2) {
-                Text(friend.userName.isEmpty ? "(이름 없음)" : friend.userName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(friend.userName.isEmpty ? "(이름 없음)" : friend.userName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
+                    // 히든 업적 달성자 전용 크리스탈 배지(34-4).
+                    HiddenStarBadges(userId: friend.userId, size: 11)
+                }
                 if let summary, !summary.lastMessage.isEmpty {
                     Text("\(summary.lastMessage) · \(RelativeTime.string(fromMillis: summary.updatedAt))")
                         .font(.caption)
@@ -169,10 +193,9 @@ struct FriendsScreen: View {
                 }
             }
             Spacer()
-            if unread {
-                Circle()
-                    .fill(Color(red: 0.298, green: 0.553, blue: 1.0)) // 0xFF4C8DFF
-                    .frame(width: 10, height: 10)
+            // 최근 별이 놓일 자리(겹쳐 둔 버튼과 겹치지 않게 폭만 비워 둔다).
+            if hasStar {
+                Color.clear.frame(width: 40, height: 40)
             }
         }
         .padding(10)

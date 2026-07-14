@@ -289,6 +289,10 @@ struct UploadScreen: View {
             }
             title = ""; content = ""; clearMedia()
             showToast("별을 남겼어요 ✨")
+            // 별 탄생 연출(34-8) — 지도 탭으로 돌아가 방금 심은 별이 태어나는 연출을 지도 위에서 재생.
+            // (Android 는 업로드 화면이 pop 되며 지도 위에서 재생 — 같은 동선.) 실패 경로에선 호출하지 않는다.
+            StarBirthStore.shared.trigger(starType: starType, starColor: starColor)
+            TabRouter.shared.go(TabRouter.map)
             // 개척 퀘스트 선점 시도(체크리스트 32) — 화면 이탈과 무관하게 진행, 실패는 무시.
             let myName = auth.displayName
             Task.detached {

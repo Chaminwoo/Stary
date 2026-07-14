@@ -47,6 +47,11 @@ enum AppConfig {
     /// (StaryConfig.STAR_MERGE_RADIUS_M 와 동기화. iOS 지도 머지 렌더는 후속 TODO)
     static let starMergeRadiusM: Double = 30
 
+    /// 근처 미조회 별 발견 알림(체크리스트 33). (StaryConfig.NEARBY_ALERT_* 와 동기화)
+    static let nearbyAlertRadiusM: Double = 250
+    static let nearbyAlertDailyLimit = 5
+    static let nearbyAlertMinIntervalMs: Int64 = 3 * 60 * 1000
+
     /// 채팅 메시지 완전 삭제 허용 시간(ms) — 전송 후 이 시간 이내에만 보낸 본인이 삭제 가능.
     /// (StaryConfig.CHAT_DELETE_WINDOW_MS 와 동기화)
     static let chatDeleteWindowMs: Int64 = 60_000

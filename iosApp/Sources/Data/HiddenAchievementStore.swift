@@ -7,6 +7,10 @@ import Foundation
 /// (Android `HiddenAchievementRepository` 패리티.)
 @MainActor
 final class HiddenAchievementStore: ObservableObject {
+    /// 전역 공유 인스턴스 — 컬렉션이 작고(≤11 문서) 어디서든 필요하므로 리스너 1개로 공유한다.
+    /// (Android `HiddenClaimStore` 승격 패턴 — 이름 옆 배지/업적 화면/프로필이 함께 쓴다.)
+    static let shared = HiddenAchievementStore()
+
     @Published var claims: [String: HiddenClaim] = [:]
     @Published var loaded = false
 
@@ -42,6 +46,14 @@ final class HiddenAchievementStore: ObservableObject {
     func myIds(uid: String?) -> [String] {
         guard let uid, !uid.isEmpty else { return [] }
         return claims.filter { $0.value.achieverId == uid }.map { $0.key }
+    }
+
+    /// [userId] 가 달성한 히든 업적들 — 정의 순서(안정적 표시 순서). 이름 옆 배지용.
+    func achievements(of userId: String) -> [HiddenAchievement] {
+        guard !userId.isEmpty else { return [] }
+        let mine = Set(claims.filter { $0.value.achieverId == userId }.map { $0.key })
+        guard !mine.isEmpty else { return [] }
+        return HiddenAchievements.all.filter { mine.contains($0.id) }
     }
 
     /// [uid] 가 주인으로 기록된 히든 업적 선점을 서버에서 모두 제거해 슬롯을 되돌린다.

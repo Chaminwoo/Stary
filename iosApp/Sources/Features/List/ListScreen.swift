@@ -48,7 +48,7 @@ struct ListScreen: View {
             ZStack {
                 Theme.background.ignoresSafeArea()
                 if store.loading {
-                    ProgressView().tint(Theme.mint)
+                    StarLoadingView(size: 40)
                 } else if rows.isEmpty {
                     ContentUnavailableCompat(text: unviewedOnly ? "안 본 별이 없어요. 모두 둘러봤네요!" : "아직 별이 없어요. 첫 별을 남겨보세요.")
                 } else {

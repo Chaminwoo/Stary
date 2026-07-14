@@ -57,7 +57,7 @@ struct LoginView: View {
             .disabled(auth.isBusy)
 
             if auth.isBusy {
-                ProgressView().tint(Theme.mint)
+                StarLoadingView(size: 40)
             }
         }
     }

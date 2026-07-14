@@ -21,7 +21,7 @@ struct ProfileScreen: View {
     @State private var path = NavigationPath()
     @State private var showNicknameEditor = false
     @State private var nicknameDraft = ""
-    @StateObject private var hidden = HiddenAchievementStore()
+    @ObservedObject private var hidden = HiddenAchievementStore.shared
     @State private var hiddenAlert: HiddenAchievement?
 
     private enum ProfileRoute: Hashable { case achievements, myStars }
@@ -101,13 +101,17 @@ struct ProfileScreen: View {
                 VStack(spacing: 14) {
                     avatar
                     // 닉네임 — 누르면 변경(기본=구글 닉네임). 레이아웃은 그대로.
-                    Text(auth.displayName.isEmpty ? "Stargazer" : auth.displayName)
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(Theme.textPrimary)
-                        .onTapGesture {
-                            nicknameDraft = auth.displayName
-                            showNicknameEditor = true
-                        }
+                    HStack(spacing: 6) {
+                        Text(auth.displayName.isEmpty ? "Stargazer" : auth.displayName)
+                            .font(.system(size: 26, weight: .bold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .onTapGesture {
+                                nicknameDraft = auth.displayName
+                                showNicknameEditor = true
+                            }
+                        // 내가 달성한 히든 업적 전용 크리스탈 배지(34-4).
+                        HiddenStarBadges(userId: auth.uid ?? "", size: 13)
+                    }
                     Button { path.append(ProfileRoute.achievements) } label: {
                         Text(titleDisplayText)
                             .font(.system(size: 15, weight: equippedTitleIsHidden ? .bold : .semibold))
@@ -203,10 +207,17 @@ struct ProfileScreen: View {
             .alert(locale.t(.profileEditNickname), isPresented: $showNicknameEditor) {
                 TextField(locale.t(.profileNicknameHint), text: $nicknameDraft)
                 Button(locale.t(.commonSave)) {
-                    let n = nicknameDraft
+                    // 20자 클램프(AppConfig.nicknameMaxLen) — Android NicknameEditDialog 패리티.
+                    let n = String(nicknameDraft.prefix(AppConfig.nicknameMaxLen))
                     Task { await auth.setNickname(n) }
                 }
                 Button(locale.t(.commonCancel), role: .cancel) {}
+            }
+            // alert 안 TextField 는 onChange 를 못 다니 화면 레벨에서 초과분을 잘라 선차단.
+            .onChange(of: nicknameDraft) { v in
+                if v.count > AppConfig.nicknameMaxLen {
+                    nicknameDraft = String(v.prefix(AppConfig.nicknameMaxLen))
+                }
             }
             .alert("히든 업적 달성!",
                    isPresented: Binding(get: { hiddenAlert != nil },
