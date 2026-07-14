@@ -24,6 +24,8 @@ struct BoomerangCaptureView: View {
     @State private var pinchStartScale: CGFloat?
     /// 조정 프레임의 실제 표시 크기(pt) — 제스처/크롭 확정이 같은 기준을 쓰도록 보관.
     @State private var adjustFrameSize: CGSize = .zero
+    /// 조정 진입 시 "찍힌 화면 전체가 들어오는 배율"을 한 번만 적용했는지.
+    @State private var fitApplied = false
 
     var body: some View {
         ZStack {
@@ -39,6 +41,7 @@ struct BoomerangCaptureView: View {
                 capturedFrames = frames
                 cropScale = 1
                 cropOffset = .zero
+                fitApplied = false
                 frameIdx = 0
                 stage = .adjust
             }
@@ -137,7 +140,10 @@ struct BoomerangCaptureView: View {
                             .position(x: fw / 2 + cropOffset.width, y: fh / 2 + cropOffset.height)
                     }
                     cropGuides(fw: fw, fh: fh)
-                    Color.clear.onAppear { adjustFrameSize = geo.size }
+                    Color.clear.onAppear {
+                        adjustFrameSize = geo.size
+                        applyFitIfNeeded(frameW: fw, frameH: fh)
+                    }
                 }
                 .contentShape(Rectangle())
                 .gesture(cropGesture(frameW: fw, frameH: fh))
@@ -159,6 +165,7 @@ struct BoomerangCaptureView: View {
             HStack(spacing: 14) {
                 Button {
                     capturedFrames = []
+                    fitApplied = false
                     stage = .live
                 } label: {
                     Text("다시 찍기")
@@ -173,7 +180,7 @@ struct BoomerangCaptureView: View {
                 } label: {
                     Group {
                         if stage == .encoding {
-                            ProgressView().tint(.black)
+                            StarLoadingView(size: 20, color: .black)
                         } else {
                             Text("자르기 완료").bold()
                         }
@@ -188,6 +195,17 @@ struct BoomerangCaptureView: View {
             .padding(.horizontal, 28)
             .padding(.vertical, 26)
         }
+    }
+
+    /// 조정 진입 직후 한 번 — 찍힌 화면 전체가 프레임에 들어오도록 맞춘다(잘림 없음).
+    /// 여기서 핀치로 확대하면 원하는 부분만 채워 담을 수 있다. (Android BoomerangAdjustUi 패리티)
+    private func applyFitIfNeeded(frameW: CGFloat, frameH: CGFloat) {
+        guard !fitApplied, let img = capturedFrames.first, frameW > 0, frameH > 0 else { return }
+        cropScale = BoomerangConfig.minScale(
+            bmpW: img.size.width, bmpH: img.size.height, frameW: frameW, frameH: frameH
+        )
+        cropOffset = .zero
+        fitApplied = true
     }
 
     private var currentFrame: UIImage? {
@@ -231,10 +249,14 @@ struct BoomerangCaptureView: View {
         return drag.simultaneously(with: pinch)
     }
 
-    /// 크롭 상태 반영 — scale 1..4, offset 은 프레임을 벗어나지 않게 클램프(Android 동일).
+    /// 크롭 상태 반영 — scale 은 (전체 화각이 다 들어오는 최소 배율)..4, offset 은 프레임을 벗어나지
+    /// 않게 클램프(Android 동일). 최소 배율까지 축소하면 찍힌 화면이 하나도 잘리지 않는다.
     private func setCrop(scale: CGFloat, offset: CGSize, frameW: CGFloat, frameH: CGFloat) {
         guard let img = capturedFrames.first, frameW > 0, frameH > 0 else { return }
-        let s = min(max(scale, 1), 4)
+        let minS = BoomerangConfig.minScale(
+            bmpW: img.size.width, bmpH: img.size.height, frameW: frameW, frameH: frameH
+        )
+        let s = min(max(scale, minS), 4)
         let disp = max(frameW / img.size.width, frameH / img.size.height) * s
         let dispW = img.size.width * disp
         let dispH = img.size.height * disp

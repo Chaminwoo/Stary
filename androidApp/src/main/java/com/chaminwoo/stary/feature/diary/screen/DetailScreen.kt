@@ -312,16 +312,21 @@ fun DetailScreen(
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(ImageCropHelper.ASPECT)) {
                 when {
                     // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 영상은 기존 플레이어 유지)
+                    // 사진과 마찬가지로 탭하면 전체화면 뷰어로 열린다.
                     currentDiary.videoUrl.isNotEmpty() && com.chaminwoo.stary.core.ui.isGifUrl(currentDiary.videoUrl) ->
                         com.chaminwoo.stary.core.ui.GifImage(
                             model = currentDiary.videoUrl,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().clickable { showFullImage = true },
                         )
-                    currentDiary.videoUrl.isNotEmpty() -> com.chaminwoo.stary.core.ui.LoopingVideoPlayer(
-                        uri = android.net.Uri.parse(currentDiary.videoUrl),
-                        modifier = Modifier.fillMaxSize(),
-                        muted = true
-                    )
+                    currentDiary.videoUrl.isNotEmpty() -> Box(
+                        modifier = Modifier.fillMaxSize().clickable { showFullImage = true }
+                    ) {
+                        com.chaminwoo.stary.core.ui.LoopingVideoPlayer(
+                            uri = android.net.Uri.parse(currentDiary.videoUrl),
+                            modifier = Modifier.fillMaxSize(),
+                            muted = true
+                        )
+                    }
                     currentDiary.imageUrl.isNotEmpty() -> AsyncImage(
                         model = currentDiary.imageUrl, contentDescription = stringResource(R.string.cd_view_photo),
                         modifier = Modifier.fillMaxSize().clickable { showFullImage = true },
@@ -569,10 +574,15 @@ fun DetailScreen(
         // 화면 상단에 그 별 색의 오로라가 아주 옅게 드리운다(별마다 화면의 공기가 달라진다).
         DetailAuroraVeil(accent = accent, modifier = Modifier.align(Alignment.TopCenter))
 
-        // 사진 전체화면 뷰어 — 실제 크기로 보며 확대/이동 가능.
-        if (showFullImage && currentDiary.imageUrl.isNotEmpty()) {
-            FullScreenImageViewer(
-                imageUrl = currentDiary.imageUrl,
+        // 사진/영상 전체화면 뷰어 — 잘린 헤더가 아니라 원본 전체를 보며 확대/이동 가능.
+        // 영상(움짤/mp4)이 있으면 그것을, 없으면 사진을 띄운다(다이어리는 둘 중 하나만 갖는다).
+        val fullMediaUrl = currentDiary.videoUrl.ifBlank { currentDiary.imageUrl }
+        if (showFullImage && fullMediaUrl.isNotEmpty()) {
+            FullScreenMediaViewer(
+                mediaUrl = fullMediaUrl,
+                // 움짤(GIF)은 Coil 이미지로 재생 — mp4(구버전 영상)만 플레이어가 필요하다.
+                isVideo = currentDiary.videoUrl.isNotEmpty() &&
+                    !com.chaminwoo.stary.core.ui.isGifUrl(currentDiary.videoUrl),
                 onClose = { showFullImage = false }
             )
         }
@@ -638,9 +648,12 @@ private fun ShareDiaryButton(diary: Diary) {
     }
 }
 
-/** 사진을 화면 가득 표시하고 핀치 확대/드래그 이동을 지원하는 오버레이. 탭/뒤로가기로 닫힌다. */
+/**
+ * 사진/움짤/영상을 화면 가득(원본 비율 그대로 Fit) 표시하고 핀치 확대·드래그 이동을 지원하는 오버레이.
+ * 탭/뒤로가기로 닫힌다. mp4(구버전 영상)는 VideoView 로 소리와 함께 루프 재생한다.
+ */
 @Composable
-private fun FullScreenImageViewer(imageUrl: String, onClose: () -> Unit) {
+private fun FullScreenMediaViewer(mediaUrl: String, isVideo: Boolean, onClose: () -> Unit) {
     BackHandler(onBack = onClose)
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -666,17 +679,26 @@ private fun FullScreenImageViewer(imageUrl: String, onClose: () -> Unit) {
             },
         contentAlignment = Alignment.Center
     ) {
-        AsyncImage(
-            model = imageUrl,
-            contentDescription = stringResource(R.string.cd_photo_original),
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(
-                    scaleX = scale, scaleY = scale,
-                    translationX = offset.x, translationY = offset.y
-                ),
-            contentScale = ContentScale.Fit
-        )
+        val zoomModifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer(
+                scaleX = scale, scaleY = scale,
+                translationX = offset.x, translationY = offset.y
+            )
+        if (isVideo) {
+            com.chaminwoo.stary.core.ui.LoopingVideoPlayer(
+                uri = android.net.Uri.parse(mediaUrl),
+                modifier = zoomModifier,
+                muted = false,
+            )
+        } else {
+            AsyncImage(
+                model = mediaUrl,
+                contentDescription = stringResource(R.string.cd_photo_original),
+                modifier = zoomModifier,
+                contentScale = ContentScale.Fit
+            )
+        }
 
         // 닫기 버튼
         IconButton(

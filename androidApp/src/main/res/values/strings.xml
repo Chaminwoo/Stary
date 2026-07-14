@@ -204,7 +204,7 @@
     <string name="map_open_range">%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)</string>
     <string name="map_waiting_fix">현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요</string>
     <string name="share_diary">공유</string>
-    <string name="share_to_story">인스타그램 스토리에 공유</string>
+    <string name="share_to_story">SNS에 공유</string>
     <string name="share_as_image">이미지로 공유</string>
     <string name="share_diary_text">제가 밤하늘에 별 하나를 남겼어요. Stary에서 함께 이 별을 열어보세요! \n%1$s</string>
     <string name="share_failed">공유 준비에 실패했어요</string>

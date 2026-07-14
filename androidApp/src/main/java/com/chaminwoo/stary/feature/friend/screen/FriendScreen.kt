@@ -79,6 +79,8 @@ fun FriendScreen(
     modifier: Modifier = Modifier,
     onOpenChat: (friendId: String, friendName: String) -> Unit = { _, _ -> },
     onOpenProfile: (userId: String, userName: String) -> Unit = { _, _ -> },
+    /** 친구의 최근 별 탭 → 지도로 가서 그 별까지 도보 길찾기(프로필 핀 별 탭과 동일 동선). */
+    onOpenDiaryOnMap: (diaryId: String) -> Unit = {},
 ) {
     val userId = GoogleAuthHelper.currentUserId
 
@@ -269,6 +271,7 @@ fun FriendScreen(
                         com.chaminwoo.stary.core.util.ChatReadStore.markRead(context, chatId)
                         onOpenChat(friend.userId, friend.userName)
                     },
+                    onOpenLatestStar = onOpenDiaryOnMap,
                 )
             }
 
@@ -408,7 +411,8 @@ private fun PersonCard(
  * 행 탭 = 채팅 열기, 사진 탭 = 프로필 열기. 사진은 텍스트 2줄보다 조금 크게(52dp).
  *
  * 우측은 원래 미읽음 파란 점이었으나(8.38), **친구가 가장 최근에 남긴 별**로 교체(34-6).
- * 별은 장식이라 탭 동작이 없다(행 탭 = 채팅 그대로). 최근 별이 없거나 볼 수 없으면 자리 자체가 비어 있다.
+ * 그 별을 탭하면 지도로 가서 별까지 도보 길찾기가 뜬다(행 탭 = 채팅, 사진 탭 = 프로필 그대로).
+ * 최근 별이 없거나 볼 수 없으면 자리 자체가 비어 있다.
  */
 @Composable
 private fun FriendRow(
@@ -419,6 +423,7 @@ private fun FriendRow(
     lastAt: Long,
     onOpenProfile: () -> Unit,
     onClick: () -> Unit,
+    onOpenLatestStar: (diaryId: String) -> Unit,
 ) {
     // 친구의 최근(내가 볼 수 있는) 별 — private/익명은 저장소에서 이미 걸러진다.
     val diaryRepo = remember { com.chaminwoo.stary.data.repository.FirebaseDiaryRepository() }
@@ -453,7 +458,7 @@ private fun FriendRow(
             if (lastMessage.isNotBlank()) {
                 Text(
                     "$lastMessage · ${com.chaminwoo.stary.core.util.RelativeTime.format(lastAt)}",
-                    color = TextMuted, fontSize = 12.5.sp,
+                    color = TextMuted, fontSize = 15.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             } else {
@@ -464,11 +469,20 @@ private fun FriendRow(
             }
         }
         latestStar?.let { star ->
-            Spacer(Modifier.width(10.dp))
-            com.chaminwoo.stary.core.ui.StarShapeIcon(
-                type = star.starType, colorIndex = star.starColor,
-                modifier = Modifier.size(26.dp)
-            )
+            Spacer(Modifier.width(6.dp))
+            // 별 자체는 작아서(26dp) 탭 영역을 40dp 로 넓혀 잡는다.
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .clickable { onOpenLatestStar(star.id) },
+                contentAlignment = Alignment.Center,
+            ) {
+                com.chaminwoo.stary.core.ui.StarShapeIcon(
+                    type = star.starType, colorIndex = star.starColor,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
         }
     }
 }

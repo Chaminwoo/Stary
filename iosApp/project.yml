@@ -43,6 +43,11 @@ targets:
         UILaunchScreen: {}
         # 앱 전역 다크(밤하늘) 톤
         UIUserInterfaceStyle: Dark
+        # 회전 금지 — 기기 자동회전이 켜져 있어도 세로 고정(Android screenOrientation=portrait 패리티)
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
         # 수출 규정(표준 암호화만 사용) — 심사 프롬프트 회피
         ITSAppUsesNonExemptEncryption: false
         # OpenRouteService 도보 길찾기 키(빌드 설정으로 주입; 빈 값이면 길찾기 비활성)

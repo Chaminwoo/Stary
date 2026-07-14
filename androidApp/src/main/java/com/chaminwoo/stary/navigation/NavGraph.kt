@@ -111,6 +111,13 @@ fun NavGraph(
                 },
                 onOpenProfile = { uid, uname ->
                     navController.navigate(NavRoute.UserProfile(userId = uid, userName = uname))
+                },
+                onOpenDiaryOnMap = { diaryId ->
+                    // 친구 행의 최근 별 탭 → 지도로 가서 파동 후 그 별까지 도보 길찾기(프로필 핀 별과 동일).
+                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId, withRoute = true)
+                    navController.navigate(NavRoute.Main) {
+                        popUpTo<NavRoute.Main> { inclusive = true }
+                    }
                 }
             )
         }

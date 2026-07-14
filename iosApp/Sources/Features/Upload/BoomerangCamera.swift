@@ -24,9 +24,22 @@ enum BoomerangConfig {
         return capture + capture.reversed().dropFirst().dropLast()
     }
 
-    /// 조정 단계의 크롭 상태로 모든 프레임을 4:3(400×300)으로 잘라낸다.
+    /// 조정 프레임(4:3) 안에서 촬영 원본 전체가 보이는 최소 배율 — cover 기준 상대값(≤ 1).
+    /// 이 값까지 축소할 수 있어야 **찍힌 화면이 하나도 잘리지 않는다**(남는 자리는 검은 여백).
+    /// (Android BoomerangHelper.minScaleFor 패리티)
+    static func minScale(bmpW: CGFloat, bmpH: CGFloat, frameW: CGFloat, frameH: CGFloat) -> CGFloat {
+        guard bmpW > 0, bmpH > 0, frameW > 0, frameH > 0 else { return 1 }
+        let cover = max(frameW / bmpW, frameH / bmpH)
+        let fit = min(frameW / bmpW, frameH / bmpH)
+        return min(max(fit / cover, 0.1), 1)
+    }
+
+    /// 조정 단계의 크롭 상태로 모든 프레임을 4:3(400×300)으로 렌더한다.
     /// 좌표 모델(Android ImageCropHelper 와 동일):
     /// cover = max(frameW/bmpW, frameH/bmpH), disp = bmp × cover × scale, left = (frameW-dispW)/2 + offsetX.
+    ///
+    /// 잘라내기(cropping)가 아니라 **캔버스에 그대로 그린다** — 축소해서 프레임보다 작아진 경우
+    /// (전체 화각 담기)에도 화면에서 본 그대로 검은 여백과 함께 나온다.
     static func cropFrames(
         _ frames: [UIImage],
         frameW: CGFloat, frameH: CGFloat,
@@ -35,8 +48,11 @@ enum BoomerangConfig {
         guard frameW > 0, frameH > 0 else { return frames }
         let targetW = targetWidth
         let targetH = (targetW / aspect).rounded()
+        // 조정 프레임(pt) → 결과 픽셀 배율. 프레임/결과 모두 4:3 이라 한 값으로 충분하다.
+        let k = targetW / frameW
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: targetW, height: targetH), format: fmt)
 
         return frames.compactMap { img in
             guard let cg = img.cgImage else { return nil }
@@ -46,20 +62,12 @@ enum BoomerangConfig {
             let left = (frameW - dispW) / 2 + offset.width
             let top = (frameH - dispH) / 2 + offset.height
 
-            var srcLeft = (-left) / dispScale
-            var srcTop = (-top) / dispScale
-            var srcW = frameW / dispScale
-            var srcH = frameH / dispScale
-            srcLeft = min(max(srcLeft, 0), bw - 1)
-            srcTop = min(max(srcTop, 0), bh - 1)
-            srcW = min(max(srcW, 1), bw - srcLeft)
-            srcH = min(max(srcH, 1), bh - srcTop)
-
-            guard let cropped = cg.cropping(to: CGRect(x: srcLeft, y: srcTop, width: srcW, height: srcH))
-            else { return nil }
-            let renderer = UIGraphicsImageRenderer(size: CGSize(width: targetW, height: targetH), format: fmt)
-            return renderer.image { _ in
-                UIImage(cgImage: cropped).draw(in: CGRect(x: 0, y: 0, width: targetW, height: targetH))
+            return renderer.image { ctx in
+                UIColor.black.setFill()
+                ctx.fill(CGRect(x: 0, y: 0, width: targetW, height: targetH))
+                UIImage(cgImage: cg).draw(in: CGRect(
+                    x: left * k, y: top * k, width: dispW * k, height: dispH * k
+                ))
             }
         }
     }
@@ -221,7 +229,9 @@ struct CameraPreviewView: UIViewRepresentable {
     func makeUIView(context: Context) -> PreviewUIView {
         let v = PreviewUIView()
         v.previewLayer.session = session
-        v.previewLayer.videoGravity = .resizeAspectFill
+        // resizeAspect — 프리뷰가 **실제로 담기는 화각 전체**를 보여준다(AspectFill 은 화면을 채우려고
+        // 좌우/상하를 잘라, 촬영 중 보이는 범위와 조정 단계에서 쓸 수 있는 범위가 어긋났다).
+        v.previewLayer.videoGravity = .resizeAspect
         return v
     }
 
@@ -287,7 +297,7 @@ struct RemoteGifView: View {
             if let data {
                 GifImageView(data: data)
             } else {
-                Theme.surfaceAlt.overlay(ProgressView().tint(Theme.mint))
+                Theme.surfaceAlt.overlay(StarLoadingView(size: 32))
             }
         }
         .task(id: urlString) {

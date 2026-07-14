@@ -111,6 +111,14 @@ struct MapLibreView: UIViewRepresentable {
             return abs(last.latitude - c.latitude) < 1e-7 && abs(last.longitude - c.longitude) < 1e-7
         }
 
+        /// 겹친 별(멤버 2개 이상)은 이미지 대신 **뷰 어노테이션** — 멤버 별 미니어처가 대표 곁에서
+        /// 함께 둥둥 떠다녀, 가 보기 전에도 "여러 별이 겹쳐 있음"이 읽힌다(Android 위성 부유 패리티).
+        /// nil 을 돌려주면 MapLibre 가 imageFor(정적 이미지)로 폴백한다(단일 별/비콘).
+        func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+            guard let d = annotation as? DiaryAnnotation, d.members.count > 1 else { return nil }
+            return MergedStarAnnotationView(annotation: d)
+        }
+
         func mapView(_ mapView: MLNMapView, imageFor annotation: MLNAnnotation) -> MLNAnnotationImage? {
             // 개척 비콘 — 금색 스파클(8꼭지, 앰버골드 = Android starBitmap(3, 15) 패리티).
             if annotation is PioneerAnnotation {
@@ -164,6 +172,114 @@ final class PioneerAnnotation: NSObject, MLNAnnotation {
         self.country = country
         self.coordinate = CLLocationCoordinate2D(latitude: country.lat, longitude: country.lng)
         self.title = nil
+    }
+}
+
+/// 겹친 별(머지) 마커 뷰 — 대표 별을 중심에 두고, 나머지 멤버 별 미니어처(각자 자기 모양/색)가
+/// 대표 곁 고정 자리(타원 배치, y×0.55)에서 저마다의 결로 잔잔히 둥둥 떠다닌다.
+/// 컨테이너 전체(대표+위성)가 같은 상하 float 를 공유해 **대표 별과 함께** 오르내리고,
+/// 그 위에 위성마다 작은 독립 흔들림을 더한다. 회전(공전) 없음. (Android DiaryMap 위성 부유 패리티)
+final class MergedStarAnnotationView: MLNAnnotationView {
+    private static let maxOrbitStars = 4
+    /// 위성 고정 배치각(rad) — Android ORBIT_ANCHOR_ANGLES 와 동일(비대칭 배치).
+    private static let anchorAngles: [CGFloat] = [-0.6, 2.3, 4.1, 1.1]
+    /// 위성별 x/y 부유 주기(초) — 서로 어긋난 주기라 기계적으로 동기화되지 않는다.
+    private static let driftPeriodsX: [Double] = [4.6, 5.7, 3.9, 5.2]
+    private static let driftPeriodsY: [Double] = [3.3, 2.9, 3.8, 3.1]
+    private static let satSize: CGFloat = 16
+    /// 부유 진폭(pt) — 자리를 벗어나 보이지 않게 작게(대표 별 float 와 비슷한 스케일).
+    private static let driftAmpX: CGFloat = 0.8
+    private static let driftAmpY: CGFloat = 1.0
+    /// 컨테이너(대표+위성 공유) float — Android floatDy(wave×4dp, 주기 2π/1.6s)와 동일한 결.
+    private static let floatAmp: CGFloat = 4.0
+    private static let floatPeriod: Double = 2 * .pi / 1.6
+    private static let floatPhaseGroups = 4
+
+    private var satellites: [(view: UIImageView, index: Int)] = []
+    private let repId: String
+
+    /// 위성 배치 반경(pt) — 대표 별 바로 곁(가장자리와 겹치도록)에 붙이고, 인덱스마다 아주 조금씩만 바깥으로.
+    private static func radius(markerSize: CGFloat, satIndex: Int) -> CGFloat {
+        markerSize * 0.12 + 1 + CGFloat(satIndex) * 1.6
+    }
+
+    init(annotation: DiaryAnnotation) {
+        let markerSize = annotation.markerSize
+        let members = Array(annotation.members.dropFirst().prefix(Self.maxOrbitStars))
+        let maxRadius = Self.radius(markerSize: markerSize, satIndex: max(members.count - 1, 0))
+        let side = (maxRadius + Self.satSize / 2 + Self.driftAmpY + Self.floatAmp) * 2
+        self.repId = annotation.diary.id ?? ""
+        super.init(reuseIdentifier: nil)
+        frame = CGRect(x: 0, y: 0, width: side, height: side)
+        backgroundColor = .clear
+        scalesWithViewingDistance = false
+
+        // 위성 먼저 추가 → 대표 별이 항상 위(Android 레이어 순서와 동일).
+        for (i, m) in members.enumerated() {
+            let iv = UIImageView(image: StarImageRenderer.image(
+                type: m.starType, colorIndex: m.starColor, size: Self.satSize
+            ))
+            iv.bounds = CGRect(x: 0, y: 0, width: Self.satSize, height: Self.satSize)
+            let ang = Self.anchorAngles[i]
+            let r = Self.radius(markerSize: markerSize, satIndex: i)
+            iv.center = CGPoint(x: side / 2 + cos(ang) * r, y: side / 2 + sin(ang) * 0.55 * r)
+            iv.alpha = 0.92
+            addSubview(iv)
+            satellites.append((iv, i))
+        }
+
+        let rep = UIImageView(image: StarImageRenderer.image(
+            type: annotation.diary.starType, colorIndex: annotation.diary.starColor, size: markerSize
+        ))
+        rep.frame = CGRect(
+            x: (side - markerSize) / 2, y: (side - markerSize) / 2,
+            width: markerSize, height: markerSize
+        )
+        addSubview(rep)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil else { return }
+        installFloat()
+    }
+
+    /// 부유 설치 — ① 컨테이너(자신) 전체에 대표 별과 같은 상하 float(대표+위성이 함께 오르내림),
+    /// ② 위성마다 그 위에 작은 독립 x/y 흔들림을 더한다. 위상을 벽시계 기준으로 잡아
+    /// 어노테이션이 재생성돼도 이어진다.
+    private func installFloat() {
+        let now = CACurrentMediaTime()
+        if layer.animation(forKey: "float") == nil {
+            let group = abs(repId.hashValue) % Self.floatPhaseGroups
+            let phase = Double(group) / Double(Self.floatPhaseGroups)
+            layer.add(Self.drift(keyPath: "transform.translation.y", amp: Self.floatAmp,
+                                 period: Self.floatPeriod, now: now, phaseFraction: phase), forKey: "float")
+        }
+        for (iv, i) in satellites {
+            guard iv.layer.animation(forKey: "drift-x") == nil else { continue }
+            iv.layer.add(Self.drift(keyPath: "transform.translation.x", amp: Self.driftAmpX,
+                                    period: Self.driftPeriodsX[i], now: now), forKey: "drift-x")
+            iv.layer.add(Self.drift(keyPath: "transform.translation.y", amp: Self.driftAmpY,
+                                    period: Self.driftPeriodsY[i], now: now), forKey: "drift-y")
+        }
+    }
+
+    /// [phaseFraction](0..1, 주기 대비 비율)만큼 시작점을 밀어 같은 주기라도 서로 다른
+    /// 위상에서 시작하게 한다(Android phaseGroup 패리티 — 여러 겹친 별이 한 박자로 안 움직이도록).
+    private static func drift(
+        keyPath: String, amp: CGFloat, period: Double, now: Double, phaseFraction: Double = 0
+    ) -> CABasicAnimation {
+        let a = CABasicAnimation(keyPath: keyPath)
+        a.fromValue = -amp
+        a.toValue = amp
+        a.duration = period / 2 // autoreverse 왕복 = period
+        a.autoreverses = true
+        a.repeatCount = .infinity
+        a.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        a.timeOffset = (now + phaseFraction * period).truncatingRemainder(dividingBy: period)
+        return a
     }
 }
 

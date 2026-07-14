@@ -2,7 +2,9 @@ package com.chaminwoo.stary.core.util
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Paint
 import androidx.camera.core.ImageProxy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -73,9 +75,23 @@ object BoomerangHelper {
     }
 
     /**
-     * 조정 단계의 크롭 상태로 모든 프레임을 4:3(400×300)으로 잘라낸다.
+     * 조정 프레임(4:3) 안에서 촬영 원본 전체가 보이는 최소 배율 — cover 기준 상대값(≤ 1).
+     * 이 값까지 축소할 수 있어야 **찍힌 화면이 하나도 잘리지 않는다**(남는 자리는 검은 여백).
+     */
+    fun minScaleFor(bmpW: Int, bmpH: Int, frameW: Float, frameH: Float): Float {
+        if (bmpW <= 0 || bmpH <= 0 || frameW <= 0f || frameH <= 0f) return 1f
+        val cover = maxOf(frameW / bmpW, frameH / bmpH)
+        val fit = minOf(frameW / bmpW, frameH / bmpH)
+        return (fit / cover).coerceIn(0.1f, 1f)
+    }
+
+    /**
+     * 조정 단계의 크롭 상태로 모든 프레임을 4:3(400×300)으로 렌더한다.
      * 좌표 모델은 사진 크롭([ImageCropHelper.cropToFile])과 동일:
      * cover = max(frameW/bmpW, frameH/bmpH), disp = bmp × cover × scale, left = (frameW-dispW)/2 + offsetX.
+     *
+     * 잘라내기(createBitmap)가 아니라 **캔버스에 그대로 그린다** — 축소해서 프레임보다 작아진 경우
+     * (전체 화각 담기)에도 화면에서 본 그대로 검은 여백과 함께 나온다.
      */
     fun cropFrames(
         frames: List<Bitmap>,
@@ -85,29 +101,24 @@ object BoomerangHelper {
         if (frameW <= 0f || frameH <= 0f) return frames
         val targetW = TARGET_WIDTH
         val targetH = (TARGET_WIDTH / ASPECT).roundToInt()
+        // 조정 프레임(pt) → 결과 픽셀 배율. 프레임/결과 모두 4:3 이라 한 값으로 충분하다.
+        val k = targetW / frameW
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
         return frames.map { bmp ->
-            val bw = bmp.width.toFloat()
-            val bh = bmp.height.toFloat()
-            val dispScale = maxOf(frameW / bw, frameH / bh) * scale
-            val dispW = bw * dispScale
-            val dispH = bh * dispScale
-            val left = (frameW - dispW) / 2f + offsetX
-            val top = (frameH - dispH) / 2f + offsetY
+            val dispScale = maxOf(frameW / bmp.width, frameH / bmp.height) * scale
+            val left = (frameW - bmp.width * dispScale) / 2f + offsetX
+            val top = (frameH - bmp.height * dispScale) / 2f + offsetY
 
-            var srcLeft = (-left) / dispScale
-            var srcTop = (-top) / dispScale
-            var srcW = frameW / dispScale
-            var srcH = frameH / dispScale
-            srcLeft = srcLeft.coerceIn(0f, bw - 1f)
-            srcTop = srcTop.coerceIn(0f, bh - 1f)
-            srcW = srcW.coerceIn(1f, bw - srcLeft)
-            srcH = srcH.coerceIn(1f, bh - srcTop)
-
-            val cropped = Bitmap.createBitmap(
-                bmp, srcLeft.roundToInt(), srcTop.roundToInt(),
-                srcW.roundToInt().coerceAtLeast(1), srcH.roundToInt().coerceAtLeast(1)
-            )
-            Bitmap.createScaledBitmap(cropped, targetW, targetH, true)
+            val out = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+            Canvas(out).apply {
+                drawColor(android.graphics.Color.BLACK)
+                val m = Matrix().apply {
+                    setScale(dispScale * k, dispScale * k)
+                    postTranslate(left * k, top * k)
+                }
+                drawBitmap(bmp, m, paint)
+            }
+            out
         }
     }
 

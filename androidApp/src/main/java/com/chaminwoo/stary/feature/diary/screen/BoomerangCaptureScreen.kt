@@ -177,8 +177,10 @@ fun BoomerangCaptureScreen(
     val controller = remember { BoomerangCaptureController() }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    // FIT_CENTER — 프리뷰가 **실제로 담기는 화각 전체**를 보여준다(FILL_CENTER 는 화면을 채우려고
+    // 좌우/상하를 잘라, 촬영 중 보이는 범위와 조정 단계에서 쓸 수 있는 범위가 어긋났다).
     val previewView = remember {
-        PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
+        PreviewView(context).apply { scaleType = PreviewView.ScaleType.FIT_CENTER }
     }
 
     // 닫기 버튼 없음 — 시스템 뒤로가기로 닫는다.
@@ -210,7 +212,12 @@ fun BoomerangCaptureScreen(
         val provider = awaitCameraProvider(context)
         cameraProvider = provider
         controller.mirror = lensFacing == CameraSelector.LENS_FACING_FRONT
-        val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+        // 프리뷰도 분석(캡처)과 같은 4:3 해상도로 묶는다 — 화각이 어긋나면 "보이는 것 ≠ 찍히는 것".
+        @Suppress("DEPRECATION")
+        val preview = Preview.Builder()
+            .setTargetResolution(android.util.Size(640, 480))
+            .build()
+            .also { it.setSurfaceProvider(previewView.surfaceProvider) }
         @Suppress("DEPRECATION")
         val analysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -371,6 +378,19 @@ private fun BoomerangAdjustUi(
     var cropScale by remember(frames) { mutableFloatStateOf(1f) }
     var cropOffset by remember(frames) { mutableStateOf(Offset.Zero) }
     var frameSize by remember { mutableStateOf(IntSize.Zero) }
+    var fitApplied by remember(frames) { mutableStateOf(false) }
+
+    // 처음엔 **찍힌 화면 전체**가 프레임에 들어오도록 맞춘다(잘림 없음). 여기서 핀치로 확대하면
+    // 원하는 부분만 채워 담을 수 있다.
+    LaunchedEffect(frames, frameSize) {
+        val bmp = frames.firstOrNull() ?: return@LaunchedEffect
+        if (fitApplied || frameSize.width <= 0 || frameSize.height <= 0) return@LaunchedEffect
+        cropScale = BoomerangHelper.minScaleFor(
+            bmp.width, bmp.height, frameSize.width.toFloat(), frameSize.height.toFloat(),
+        )
+        cropOffset = Offset.Zero
+        fitApplied = true
+    }
 
     // 부메랑 재생(정→역) 프레임 인덱스
     val playback = remember(frames) { BoomerangHelper.boomerangSequence(frames) }
@@ -388,7 +408,9 @@ private fun BoomerangAdjustUi(
         val fw = frameSize.width.toFloat()
         val fh = frameSize.height.toFloat()
         if (fw <= 0f || fh <= 0f) return
-        cropScale = (cropScale * zoomChange).coerceIn(1f, 4f)
+        // 최소 배율까지 축소하면 촬영 원본이 통째로 들어온다(잘리는 부분 없음, 남는 자리는 검은 여백).
+        val minScale = BoomerangHelper.minScaleFor(bmp.width, bmp.height, fw, fh)
+        cropScale = (cropScale * zoomChange).coerceIn(minScale, 4f)
         val dispScale = maxOf(fw / bmp.width, fh / bmp.height) * cropScale
         val dispW = bmp.width * dispScale
         val dispH = bmp.height * dispScale
