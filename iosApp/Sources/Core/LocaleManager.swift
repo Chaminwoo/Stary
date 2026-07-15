@@ -135,6 +135,8 @@ enum L10n: String {
     case notifLikeRow, notifCommentRow, notifFriendPostRow
     // 지도 열람 게이팅(Android map_waiting_fix 대응).
     case mapWaitingFix
+    // 지도 우하단 버튼(Android map_constellation/map_only 대응).
+    case mapConstellation, mapOnlyMode
     // 업적 목록 구분 헤더(Android AchievementsScreen 섹션 대응).
     case achSectionTitles, achSectionShapesColors, achSectionPioneer
 
@@ -377,6 +379,8 @@ enum L10n: String {
         case .mapWaitingFix:        return ("현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요",
                                             "Locating you… please try again in a moment",
                                             "現在地を確認しています。しばらくしてからお試しください")
+        case .mapConstellation:     return ("별자리", "Constellations", "星座")
+        case .mapOnlyMode:          return ("지도만 보기", "Map only", "地図のみ表示")
         case .achSectionTitles:     return ("칭호", "Titles", "称号")
         case .achSectionShapesColors: return ("별 모양 · 색", "Star shapes & colors", "星の形・色")
         case .achSectionPioneer:    return ("개척 칭호", "Pioneer titles", "開拓称号")

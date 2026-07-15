@@ -37,6 +37,9 @@ struct MapScreen: View {
     // 줌 +/− / 내 위치 버튼 → MapLibreView 커맨드(nonce 로 반복 요청 허용).
     @State private var zoomRequest: (delta: Double, nonce: Int) = (0, 0)
     @State private var recenterNonce = 0
+    // 별자리 라인 토글(Android constellationEnabled) + 몰입(지도만 보기) 크롬 상태.
+    @State private var constellationOn = false
+    @ObservedObject private var chrome = MapChromeState.shared
 
     // 도보 길찾기 상태.
     @State private var focusTarget: CLLocationCoordinate2D?
@@ -99,11 +102,13 @@ struct MapScreen: View {
     }
 
     /// 지도 위 원형 버튼 공통(Android FloatingActionButton 0x1A1A1A 대응).
-    private func mapCircleButton(_ icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+    private func mapCircleButton(
+        _ icon: String, size: CGFloat, tint: Color = .white, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: size * 0.42, weight: .medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(tint)
                 .frame(width: size, height: size)
                 .background(Color(hex: 0x1A1A1A), in: Circle())
                 .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
@@ -254,7 +259,8 @@ struct MapScreen: View {
                 pioneerCountries: pioneer.featured,
                 onTapPioneer: { code in pioneerMessage = LocalizedNames.pioneerQuestMessage(code) },
                 zoomRequest: zoomRequest,
-                recenterNonce: recenterNonce
+                recenterNonce: recenterNonce,
+                constellationEnabled: constellationOn
             )
             .ignoresSafeArea()
 
@@ -291,6 +297,8 @@ struct MapScreen: View {
                     .allowsHitTesting(false)
             }
 
+            // 몰입(지도만 보기)에선 지도 위 모든 버튼을 숨긴다(Android MapUiState.mapOnly 대응).
+            if !chrome.mapOnly {
             // ── 좌상단 줌 버튼(+/−) — Android DiaryMap 대응(44pt, 0x1A1A1A 원형) ──
             VStack(spacing: 10) {
                 mapCircleButton("plus", size: 44) {
@@ -304,10 +312,23 @@ struct MapScreen: View {
             .padding(.top, 16)
             .padding(.leading, 16)
 
-            // ── 우하단: 내 위치 버튼 — Android DiaryMap 우하단 열 대응.
+            // ── 우하단 열: 내 위치 → 별자리 토글 → 몰입 — Android DiaryMap 우하단 열 순서 동일.
             // (생성 FAB(56pt)은 MainTabView 소유라 그 위(16+56+12)에 얹는다 — Android 세로 나열과 동일한 시각 배치.)
-            mapCircleButton("location.north.fill", size: 48) {
-                recenterNonce += 1
+            VStack(spacing: 12) {
+                mapCircleButton("location.north.fill", size: 48) {
+                    recenterNonce += 1
+                }
+                // 별자리 토글 — 활성 시 민트(Android AutoAwesome tint 동일).
+                mapCircleButton("sparkles", size: 48,
+                                tint: constellationOn ? Theme.mint : .white) {
+                    constellationOn.toggle()
+                }
+                .accessibilityLabel(locale.t(.mapConstellation))
+                // 몰입(지도만 보기) — 탑바/필터/버튼을 모두 숨기고 지도에 집중.
+                mapCircleButton("eye", size: 48) {
+                    chrome.mapOnly = true
+                }
+                .accessibilityLabel(locale.t(.mapOnlyMode))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .padding(.trailing, 16)
@@ -318,6 +339,12 @@ struct MapScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .padding(.leading, 16)
                 .padding(.bottom, 20)
+            } // if !chrome.mapOnly
+
+            // 몰입 종료 — 하단 중앙 X(3초 뒤 자동 숨김, 재탭으로 다시 표시). (Android MapOnlyOverlay 대응)
+            if chrome.mapOnly {
+                MapOnlyExitOverlay { chrome.mapOnly = false }
+            }
 
             // 길찾기 활성 시: 하단 요약 + 취소(X)
             if !fullRoute.isEmpty {
@@ -327,7 +354,7 @@ struct MapScreen: View {
 
             // ── 하단 "지구 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
             // (Android: 0xEE111120 알약 + 민트 0.5 테두리)
-            if let entry = globeButtonCenter, globeCenter == nil {
+            if let entry = globeButtonCenter, globeCenter == nil, !chrome.mapOnly {
                 Button {
                     enterGlobe(lat: entry.lat, lng: entry.lng)
                 } label: {
@@ -524,6 +551,44 @@ struct MapScreen: View {
             out.append(contentsOf: full[(bestK + 1)...])
         }
         return out
+    }
+}
+
+/// 몰입(지도만 보기) 종료 오버레이 — 하단 중앙 X 버튼. 3초 뒤 자동 숨김, 그 자리를 다시
+/// 탭하면 X 가 재등장한다(지도 조작은 그대로 통과). (Android MapOnlyOverlay 대응)
+private struct MapOnlyExitOverlay: View {
+    let onExit: () -> Void
+    @State private var xVisible = true
+    /// 값이 바뀔 때마다 X 를 다시 보이고 3초 자동 숨김 타이머를 재시작.
+    @State private var poke = 0
+
+    var body: some View {
+        Button {
+            if xVisible { onExit() } else { poke += 1 }
+        } label: {
+            ZStack {
+                if xVisible {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Color(hex: 0x141414).opacity(0.8), in: Circle())
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+                        .transition(.opacity.combined(with: .scale(scale: 0.7)))
+                }
+            }
+            .frame(width: 64, height: 64)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .padding(.bottom, 24)
+        .task(id: poke) {
+            withAnimation(.easeOut(duration: 0.18)) { xVisible = true }
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.25)) { xVisible = false }
+        }
     }
 }
 

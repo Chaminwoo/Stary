@@ -62,12 +62,12 @@ struct MainTabView: View {
         NavigationStack(path: $path) {
             ZStack {
                 VStack(spacing: 0) {
-                    if !chrome.hidden { topBar }
+                    if !chrome.chromeHidden { topBar }
                     MapScreen()
                 }
                 .background(Theme.background.ignoresSafeArea())
 
-                if !chrome.hidden { fab }
+                if !chrome.chromeHidden { fab }
 
                 drawerLayer
 

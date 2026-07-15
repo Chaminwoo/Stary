@@ -31,6 +31,8 @@ struct MapLibreView: UIViewRepresentable {
     var zoomRequest: (delta: Double, nonce: Int) = (0, 0)
     /// "내 위치로" 요청 — nonce 가 바뀔 때 현재 위치로 줌 15 이동. (Android recenterToMyLocation 대응)
     var recenterNonce: Int = 0
+    /// 별자리 라인 토글(Android constellationEnabled 대응) — 켜면 뷰포트 별들을 잇는 3겹 라인 페이드 인.
+    var constellationEnabled: Bool = false
 
     /// 3D 글로브 "지구 보기" 버튼 노출 줌 / 지도 최소 줌.
     /// (Android DiaryMap GLOBE_BUTTON_ZOOM/MAP_MIN_ZOOM 패리티)
@@ -112,6 +114,15 @@ struct MapLibreView: UIViewRepresentable {
             toAdd.append(MLNPolyline(coordinates: route, count: UInt(route.count)))
         }
         mapView.addAnnotations(toAdd)
+        // 스타일 이펙트 동기화 — 별 후광 소스 갱신 + 별자리 토글/재계산(MapStyleEffects.swift).
+        context.coordinator.refreshAuraFeatures(mapView)
+        context.coordinator.setConstellation(enabled: constellationEnabled, mapView: mapView)
+        context.coordinator.requestConstellationRebuild(mapView)
+    }
+
+    /// 뷰 해체 — 트윙클 타이머/페이드 태스크 정리(유령 갱신 방지).
+    static func dismantleUIView(_ uiView: MLNMapView, coordinator: Coordinator) {
+        coordinator.teardownStyleEffects()
     }
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
@@ -126,6 +137,22 @@ struct MapLibreView: UIViewRepresentable {
         var lastRecenterNonce: Int = 0
         /// 현재 적용 중인 줌 기반 별 크기 배율(Android iconSize 줌 보간 대응).
         var starZoomScale: CGFloat = 1
+
+        // ── 스타일 이펙트(별가루/별자리/후광) 상태 — 로직은 MapStyleEffects.swift 확장에 ──
+        weak var styleRef: MLNStyle?
+        weak var mapRef: MLNMapView?
+        var twinkleTimer: Timer?
+        var twinkleT: Double = 0
+        /// 카메라 이동 중엔 스타일 갱신을 멈춰 팬/줌 끊김을 방지(Android isCameraMoving 대응).
+        var isCameraMoving = false
+        var constellationOn = false
+        var constellationFadeTask: Task<Void, Never>?
+        var constellationRebuildTask: Task<Void, Never>?
+        /// 마지막으로 파티클/후광 크기를 갱신한 줌(불필요한 expression 재설정 방지).
+        var lastEffectZoom: Double = -1
+        /// 파티클 저줌 게이트가 0(전부 숨김)으로 이미 적용됐는지 — 꺼진 동안 루프 갱신 스킵.
+        var lastGateZero = false
+
         init(_ parent: MapLibreView) { self.parent = parent }
 
         /// 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음).
@@ -161,13 +188,19 @@ struct MapLibreView: UIViewRepresentable {
         }
 
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+            isCameraMoving = true
             reportGlobeAvailability(mapView)
             applyStarZoomScale(mapView)
+            applyStyleEffectZoom(mapView)
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            isCameraMoving = false
             reportGlobeAvailability(mapView)
             applyStarZoomScale(mapView)
+            applyStyleEffectZoom(mapView)
+            // 카메라 idle → 별자리 라인 재계산(90ms 디바운스, Android 동일).
+            requestConstellationRebuild(mapView)
         }
 
         /// 직전 포커스와 (거의) 같은 좌표인지 — 같은 별 재요청 시 카메라를 다시 옮기지 않게.

@@ -8,6 +8,13 @@ final class MapChromeState: ObservableObject {
     static let shared = MapChromeState()
     private init() {}
 
-    /// true 면 상단바·FAB 를 숨긴다(글로브/몰입 진입).
+    /// true 면 상단바·FAB 를 숨긴다(글로브 진입).
     @Published var hidden = false
+
+    /// 몰입(지도만 보기) — 지도 위 모든 버튼/필터까지 숨기고 하단 중앙 X 로 복귀.
+    /// (Android `MapUiState.mapOnly` 대응)
+    @Published var mapOnly = false
+
+    /// 상단바/FAB 를 숨겨야 하는 상태(글로브 또는 몰입).
+    var chromeHidden: Bool { hidden || mapOnly }
 }
