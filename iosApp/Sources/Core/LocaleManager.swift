@@ -131,6 +131,8 @@ enum L10n: String {
     case loginGoogle, loginBrowse, notifEmpty
     // 업적 화면(장착 버튼/히든 달성 알림).
     case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
+    // 알림 행 문구(Android notif_* 대응 — %@ = 다이어리 제목).
+    case notifLikeRow, notifCommentRow, notifFriendPostRow
     // 업적 목록 구분 헤더(Android AchievementsScreen 섹션 대응).
     case achSectionTitles, achSectionShapesColors, achSectionPioneer
 
@@ -366,6 +368,10 @@ enum L10n: String {
                                             "Only one in the whole app — you're the first",
                                             "アプリでただ一人 — あなたが最初です")
         case .commonOk:             return ("확인", "OK", "OK")
+        // ⚠️ notif*Row 는 %@(다이어리 제목)를 format 으로 채운다.
+        case .notifLikeRow:         return ("\"%@\"를 좋아해요", "Liked \"%@\"", "「%@」にいいねしました")
+        case .notifCommentRow:      return ("\"%@\"에 댓글을 남겼어요", "Commented on \"%@\"", "「%@」にコメントしました")
+        case .notifFriendPostRow:   return ("새 다이어리 \"%@\"를 남겼어요", "Posted a new diary \"%@\"", "新しい日記「%@」を投稿しました")
         case .achSectionTitles:     return ("칭호", "Titles", "称号")
         case .achSectionShapesColors: return ("별 모양 · 색", "Star shapes & colors", "星の形・色")
         case .achSectionPioneer:    return ("개척 칭호", "Pioneer titles", "開拓称号")

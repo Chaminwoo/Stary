@@ -320,6 +320,34 @@ struct Comment: Identifiable, Codable {
     var userName: String = ""
     var content: String = ""
     var createdAt: Int64 = 0
+
+    enum CodingKeys: String, CodingKey { case id, diaryId, userId, userName, content, createdAt }
+
+    init(id: String? = nil, diaryId: String = "", userId: String = "",
+         userName: String = "", content: String = "", createdAt: Int64 = 0) {
+        self.id = id; self.diaryId = diaryId; self.userId = userId
+        self.userName = userName; self.content = content; self.createdAt = createdAt
+    }
+
+    // 타입 드리프트(문자열/숫자/Timestamp)로 문서가 통째로 누락되지 않게 방어 디코딩(Diary 와 동일 정책).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        diaryId = c.flexString(.diaryId) ?? ""
+        userId = c.flexString(.userId) ?? ""
+        userName = c.flexString(.userName) ?? ""
+        content = c.flexString(.content) ?? ""
+        createdAt = c.flexMillis(.createdAt) ?? 0
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(diaryId, forKey: .diaryId)
+        try c.encode(userId, forKey: .userId)
+        try c.encode(userName, forKey: .userName)
+        try c.encode(content, forKey: .content)
+        try c.encode(createdAt, forKey: .createdAt)
+    }
 }
 
 
@@ -352,18 +380,61 @@ struct AppNotification: Identifiable, Codable {
 
     var read: Bool = false
 
-    var displayText: String {
+    enum CodingKeys: String, CodingKey {
+        case id, type, diaryId, diaryTitle, diaryOwnerId, actorId, actorName, content, createdAt, read
+    }
 
+    init(id: String? = nil, type: String = "LIKE", diaryId: String = "", diaryTitle: String = "",
+         diaryOwnerId: String = "", actorId: String = "", actorName: String = "",
+         content: String = "", createdAt: Int64 = 0, read: Bool = false) {
+        self.id = id; self.type = type; self.diaryId = diaryId; self.diaryTitle = diaryTitle
+        self.diaryOwnerId = diaryOwnerId; self.actorId = actorId; self.actorName = actorName
+        self.content = content; self.createdAt = createdAt; self.read = read
+    }
+
+    // 타입 드리프트로 문서가 통째로 누락되지 않게 방어 디코딩(read 는 Bool/0·1 모두 허용).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        type = c.flexString(.type) ?? "LIKE"
+        diaryId = c.flexString(.diaryId) ?? ""
+        diaryTitle = c.flexString(.diaryTitle) ?? ""
+        diaryOwnerId = c.flexString(.diaryOwnerId) ?? ""
+        actorId = c.flexString(.actorId) ?? ""
+        actorName = c.flexString(.actorName) ?? ""
+        content = c.flexString(.content) ?? ""
+        createdAt = c.flexMillis(.createdAt) ?? 0
+        if let b = try? c.decodeIfPresent(Bool.self, forKey: .read) {
+            read = b
+        } else if let i = try? c.decodeIfPresent(Int.self, forKey: .read) {
+            read = i != 0
+        } else {
+            read = false
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(type, forKey: .type)
+        try c.encode(diaryId, forKey: .diaryId)
+        try c.encode(diaryTitle, forKey: .diaryTitle)
+        try c.encode(diaryOwnerId, forKey: .diaryOwnerId)
+        try c.encode(actorId, forKey: .actorId)
+        try c.encode(actorName, forKey: .actorName)
+        try c.encode(content, forKey: .content)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(read, forKey: .read)
+    }
+
+    /// 알림 행 문구(현재 언어) — Android notif_like/notif_comment/notif_friend_post(%@ = 다이어리 제목) 대응.
+    @MainActor var displayText: String {
         switch type {
-
         case "COMMENT":
-            return "\(actorName)님이 댓글을 남겼어요"
-
+            return String(format: LocaleManager.shared.t(.notifCommentRow), diaryTitle)
         case "FRIEND_POST":
-            return "\(actorName)님이 새 별을 남겼어요"
-
+            return String(format: LocaleManager.shared.t(.notifFriendPostRow), diaryTitle)
         default:
-            return "\(actorName)님이 좋아요를 눌렀어요"
+            return String(format: LocaleManager.shared.t(.notifLikeRow), diaryTitle)
         }
     }
 }
@@ -462,6 +533,24 @@ struct UserProfile: Identifiable, Codable {
 
     var profileImageUrl: String? = nil
     var equippedTitle: String? = nil
+
+    enum CodingKeys: String, CodingKey { case id, userId, userName, profileImageUrl, equippedTitle }
+
+    init(id: String? = nil, userId: String = "", userName: String = "",
+         profileImageUrl: String? = nil, equippedTitle: String? = nil) {
+        self.id = id; self.userId = userId; self.userName = userName
+        self.profileImageUrl = profileImageUrl; self.equippedTitle = equippedTitle
+    }
+
+    // userId/userName 이 없는 옛 문서도 검색 결과에서 누락되지 않게 방어 디코딩.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        userId = c.flexString(.userId) ?? ""
+        userName = c.flexString(.userName) ?? ""
+        profileImageUrl = c.flexString(.profileImageUrl)
+        equippedTitle = c.flexString(.equippedTitle)
+    }
 }
 
 
@@ -478,6 +567,32 @@ struct ChatMessage: Identifiable, Codable {
     var text: String = ""
 
     var createdAt: Int64 = 0
+
+    enum CodingKeys: String, CodingKey { case id, senderId, senderName, text, createdAt }
+
+    init(id: String? = nil, senderId: String = "", senderName: String = "",
+         text: String = "", createdAt: Int64 = 0) {
+        self.id = id; self.senderId = senderId; self.senderName = senderName
+        self.text = text; self.createdAt = createdAt
+    }
+
+    // 타입 드리프트로 메시지가 누락되지 않게 방어 디코딩.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        senderId = c.flexString(.senderId) ?? ""
+        senderName = c.flexString(.senderName) ?? ""
+        text = c.flexString(.text) ?? ""
+        createdAt = c.flexMillis(.createdAt) ?? 0
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(senderId, forKey: .senderId)
+        try c.encode(senderName, forKey: .senderName)
+        try c.encode(text, forKey: .text)
+        try c.encode(createdAt, forKey: .createdAt)
+    }
 }
 
 
