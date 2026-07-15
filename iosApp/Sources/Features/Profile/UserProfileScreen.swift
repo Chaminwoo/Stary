@@ -20,6 +20,8 @@ struct UserProfileScreen: View {
     @State private var isBlocked = false
     @State private var showReportDialog = false
     @State private var showReportedConfirm = false
+    @State private var friendsCount = 0
+    @State private var openDiary: Diary?
     @ObservedObject private var hidden = HiddenAchievementStore.shared
 
     private var isMe: Bool { userId == auth.uid }
@@ -50,15 +52,35 @@ struct UserProfileScreen: View {
         ZStack {
             // Android UserProfileScreen 배경 — mydiary_bg + 검정 0.82 틴트.
             ScreenBackground(name: "mydiary_bg", darken: 0.82)
-            ScrollView {
-                VStack(spacing: 18) {
-                    header
-                    actionRow
-                    statRow
-                    hiddenSection
-                    diariesSection
+
+            // 중앙: 아바타 + 이름 + 칭호 (내 프로필과 동일 배치 — #6)
+            VStack(spacing: 14) {
+                avatar
+                HStack(spacing: 6) {
+                    Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
+                        .font(.poorStory(26))
+                        .foregroundStyle(Theme.textPrimary)
+                    HiddenStarBadges(userId: userId, size: 13)
                 }
-                .padding(16)
+                if let title = LocalizedNames.equippedTitle(equippedTitleId) {
+                    let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
+                    let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.mint
+                    Text(hiddenT ? "『\(title)』" : title)
+                        .font(.poorStory(15))
+                        .foregroundStyle(titleColor)
+                        .shadow(color: titleColor.opacity(0.9), radius: hiddenT ? 16 : 12)
+                }
+            }
+            .offset(y: -60)
+
+            // 떠다니는 통계/별 아이콘 (내 프로필과 동일한 FloatingStatBox — #6)
+            FloatingStatBox(items: bubbleData.items, onTap: handleBubbleTap, avoidCenterYFraction: 0.42)
+
+            // 하단: 친구 추가/채팅 액션
+            VStack {
+                Spacer()
+                actionRow
+                    .padding(.bottom, 24)
             }
         }
         .navigationTitle(locale.t(.profileTitle))
@@ -86,7 +108,11 @@ struct UserProfileScreen: View {
         .navigationDestination(isPresented: $openChat) {
             ChatScreen(friendId: userId, friendName: userName, myUid: auth.uid ?? "")
         }
-        .navigationDestination(for: Diary.self) { DetailScreen(diary: $0) }
+        .navigationDestination(isPresented: Binding(
+            get: { openDiary != nil }, set: { if !$0 { openDiary = nil } }
+        )) {
+            if let d = openDiary { DetailScreen(diary: d) }
+        }
         .reportDialog(title: locale.t(.reportUser), isPresented: $showReportDialog) { reason in
             guard let myUid = auth.uid else { return }
             Task {
@@ -104,6 +130,9 @@ struct UserProfileScreen: View {
                 profileImageUrl = doc.get("profileImageUrl") as? String
                 equippedTitleId = doc.get("equippedTitle") as? String
             }
+            // 떠다니는 통계용 친구 수(#6).
+            let fsnap = try? await FirestoreService.friends(of: userId).getDocuments()
+            friendsCount = fsnap?.documents.count ?? 0
             if let myUid = auth.uid, !isMe {
                 let f = try? await FirestoreService.friends(of: myUid).document(userId).getDocument()
                 isFriend = f?.exists ?? false
@@ -215,83 +244,40 @@ struct UserProfileScreen: View {
         }
     }
 
-    /// 그 사람이 달성한 히든 업적 — 전용 아이콘 + 파티클을 가로로 나열(달성한 게 있을 때만).
-    @ViewBuilder
-    private var hiddenSection: some View {
-        if !theirHiddenAch.isEmpty {
-            HStack(spacing: 16) {
-                ForEach(theirHiddenAch) { ach in
-                    VStack(spacing: 4) {
-                        HiddenIconBadge(ach: ach, size: 40)
-                        Text(LocalizedNames.title(ach.id, fallback: ach.title) ?? ach.title)
-                            .font(.caption2).bold()
-                            .foregroundStyle(Color(hex: 0xFFD86F))
-                            .lineLimit(1)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+    /// 떠다니는 통계/별 버블 — 내 프로필(ProfileScreen)과 동일 구성(#6).
+    /// 통계(좋아요·친구·별 수·조회) + 그 사람의 별(탭 → 상세) + 달성한 히든 업적 아이콘.
+    private var bubbleData: (items: [StatBubble], diaryAt: [Int: Diary]) {
+        var items: [StatBubble] = []
+        var diaryAt: [Int: Diary] = [:]
+        items.append(StatBubble(systemImage: "heart.fill", count: totalLikes,
+                                color: Color(hex: 0xE7556B), label: locale.t(.statLikes), burstOnTap: true))
+        items.append(StatBubble(systemImage: "person.fill", count: friendsCount,
+                                color: Theme.mint, label: locale.t(.profileFriends)))
+        items.append(StatBubble(systemImage: "book.fill", count: visibleDiaries.count,
+                                color: Color(hex: 0xF7E067), label: locale.t(.profileDiaries)))
+        items.append(StatBubble(systemImage: "eye.fill", count: totalViews,
+                                color: Theme.mint, label: locale.t(.statViews)))
+        for d in visibleDiaries.prefix(10) {
+            diaryAt[items.count] = d
+            items.append(StatBubble(
+                systemImage: "star.fill", count: 0, color: StarStyle.color(d.starColor),
+                label: d.title.isEmpty ? locale.t(.userNoTitle) : d.title,
+                showCount: false, starType: d.starType, starColorIndex: d.starColor
+            ))
         }
+        for ach in theirHiddenAch {
+            items.append(StatBubble(
+                systemImage: ach.icon.systemImage, count: 0, color: ach.icon.color,
+                label: LocalizedNames.title(ach.id, fallback: ach.title) ?? ach.title,
+                burstOnTap: true, showCount: false, hiddenEffect: ach.effect
+            ))
+        }
+        return (items, diaryAt)
     }
 
-    private var statRow: some View {
-        HStack(spacing: 12) {
-            statCell(locale.t(.statStars), visibleDiaries.count)
-            statCell(locale.t(.statViews), totalViews)
-            statCell(locale.t(.statLikes), totalLikes)
-        }
-    }
-
-    private func statCell(_ label: String, _ value: Int) -> some View {
-        VStack(spacing: 4) {
-            Text("\(value)").font(.poorStory(20)).foregroundStyle(Theme.textPrimary)
-            Text(label).font(.poorStory(12)).foregroundStyle(Theme.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    private var diariesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(locale.t(.userStarsHeader))
-                .font(.poorStory(17))
-                .foregroundStyle(Theme.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if visibleDiaries.isEmpty {
-                Text(locale.t(.userNoDiaries))
-                    .font(.poorStory(15))
-                    .foregroundStyle(Theme.textSecondary)
-            } else {
-                ForEach(visibleDiaries) { diary in
-                    HStack(spacing: 8) {
-                        NavigationLink(value: diary) {
-                            DiaryCard(diary: diary)
-                        }
-                        .buttonStyle(.plain)
-                        // 친구 별로 도보 길찾기 — 지도 탭으로 전환해 현위치→그 별 경로를 띄운다.
-                        if !isMe {
-                            Button { startRoute(to: diary) } label: {
-                                Image(systemName: "figure.walk")
-                                    .font(.headline)
-                                    .frame(width: 44, height: 44)
-                                    .background(Theme.mint.opacity(0.16), in: Circle())
-                                    .foregroundStyle(Theme.mint)
-                            }
-                            .accessibilityLabel(locale.t(.routeDirections))
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// 친구 별로 도보 길찾기 시작 — 지도 탭으로 전환해 현위치→그 별 경로를 띄운다.
-    private func startRoute(to diary: Diary) {
-        guard let id = diary.id else { return }
-        MapFocusStore.shared.request(diaryId: id, withRoute: true)
-        dismiss()
+    /// 별 버블을 빠르게 탭하면 그 다이어리 상세로. (통계 버블은 동작 없음)
+    private func handleBubbleTap(_ idx: Int) {
+        if let d = bubbleData.diaryAt[idx] { openDiary = d }
     }
 
     /// 친구 요청 전송(중복 방지) — FriendsViewModel.sendRequest 와 동일 스키마.

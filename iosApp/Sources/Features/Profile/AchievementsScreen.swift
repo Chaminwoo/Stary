@@ -129,15 +129,11 @@ struct AchievementsScreen: View {
 
     /// 업적 구분 헤더 행(Android 섹션 제목 대응).
     private func sectionHeader(_ text: String) -> some View {
-        HStack(spacing: 8) {
-            Text(text)
-                .font(.poorStory(15))
-                .foregroundStyle(Theme.mint)
-            Rectangle()
-                .fill(Theme.mint.opacity(0.25))
-                .frame(height: 1)
-        }
-        .padding(.top, 6)
+        Text(text)
+            .font(.poorStory(15))
+            .foregroundStyle(Theme.mint)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 6)
     }
 
     /// 개척 칭호 행 — 항상 달성 상태, 탭으로 장착/해제. (Android NormalTab 개척 섹션 패리티)

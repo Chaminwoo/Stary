@@ -260,6 +260,13 @@ struct UploadScreen: View {
 
     private func save() async {
         guard let uid = auth.uid else { return }
+        // 잠긴 별 모양/색이 다이얼 중앙에 온 채 저장되지 않도록 차단(#7).
+        if let a = StarUnlocks.lockedShapeAch(starType, unlocked) {
+            showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name)); return
+        }
+        if let a = StarUnlocks.lockedColorAch(starColor, unlocked) {
+            showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name)); return
+        }
         // 하루 업로드 제한 — 오늘(로컬 자정 이후) 내가 올린 개수로 선차단.
         let startOfDay = Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
         let todayCount = store.mine(uid: uid).filter { $0.createdAt >= startOfDay }.count
@@ -356,8 +363,12 @@ private struct WheelPicker<Content: View>: View {
     /// 슬롯 간격 — 5개(중앙 ±2)가 보이도록 넉넉히.
     private var slot: CGFloat { itemSize + 28 }
     @State private var drag: CGFloat = 0
+    @State private var settling = false
 
     private func wrap(_ i: Int) -> Int { ((i % count) + count) % count }
+
+    /// 화면에 그릴 슬롯 반경 — 기본 3(±3=중앙+양옆) + 현재 드래그 이동량만큼 여유.
+    private var visibleSpan: Int { 3 + Int((abs(drag) / slot).rounded(.up)) }
 
     var body: some View {
         ZStack {
@@ -366,8 +377,9 @@ private struct WheelPicker<Content: View>: View {
                 .stroke(Theme.mint.opacity(0.9), lineWidth: 2)
                 .frame(width: itemSize + 18, height: itemSize + 18)
 
-            // 중앙 ±2 슬롯만 그린다(무한 순환은 wrap 으로).
-            ForEach(-2...2, id: \.self) { off in
+            // 많이 드래그해도 빈 공간이 안 생기도록, 현재 드래그 양만큼 슬롯 수를 늘려 그린다.
+            // (아이콘은 modulo 순환이라 계속 돌려도 항상 채워진다.)
+            ForEach(-visibleSpan...visibleSpan, id: \.self) { off in
                 let idx = wrap(selection + off)
                 let x = CGFloat(off) * slot + drag
                 let dist = abs(x)
@@ -376,7 +388,7 @@ private struct WheelPicker<Content: View>: View {
                     .scaleEffect(scale)
                     .opacity(Double(max(0.3, 1 - dist / (slot * 2.2))))
                     .offset(x: x)
-                    .onTapGesture { tapSelect(idx) }
+                    .onTapGesture { commit(steps: off) }
             }
         }
         .frame(maxWidth: .infinity)
@@ -385,23 +397,32 @@ private struct WheelPicker<Content: View>: View {
         .clipped()
         .gesture(
             DragGesture()
-                .onChanged { drag = $0.translation.width }
-                .onEnded { v in
-                    let steps = Int((-v.translation.width / slot).rounded())
-                    let target = wrap(selection + steps)
-                    if steps != 0, isLocked(target) {
-                        onLocked(target)
-                        withAnimation(.easeOut(duration: 0.2)) { drag = 0 }
-                    } else {
-                        withAnimation(.easeOut(duration: 0.2)) { selection = target; drag = 0 }
-                    }
+                .onChanged { g in
+                    guard !settling else { return }
+                    drag = g.translation.width
+                }
+                .onEnded { g in
+                    let steps = Int((-g.translation.width / slot).rounded())
+                    commit(steps: steps)
                 }
         )
     }
 
-    private func tapSelect(_ idx: Int) {
-        if isLocked(idx) { onLocked(idx) }
-        else { withAnimation(.easeOut(duration: 0.2)) { selection = idx } }
+    /// 놓은(또는 탭한) 지점의 항목을 **놓은 자리에서 그대로 중앙으로** 부드럽게 스냅한다.
+    /// selection 은 애니메이션이 끝난 뒤 한 번에 갱신 → 좌표계 불연속(되돌아가는 현상)이 없다.
+    /// 잠긴 항목도 중앙에 고정되며, 저장은 UploadScreen 에서 별도로 막는다.
+    private func commit(steps: Int) {
+        guard steps != 0 else { return }
+        settling = true
+        let target = wrap(selection + steps)
+        // 현재 위치에서 목표 슬롯이 중앙(x=0)에 오도록 drag 를 이동.
+        withAnimation(.easeOut(duration: 0.24)) { drag = -CGFloat(steps) * slot }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+            selection = target      // off=steps 였던 항목이 이제 off=0
+            drag = 0                // 좌표 동일 → 시각적 점프 없음
+            settling = false
+            if isLocked(target) { onLocked(target) }
+        }
     }
 }
 

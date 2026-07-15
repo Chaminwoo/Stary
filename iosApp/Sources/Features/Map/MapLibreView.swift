@@ -53,25 +53,14 @@ struct MapLibreView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    /// 단일 지도 인스턴스 캐시 — 다른 화면으로 push 했다가 돌아와도 같은 MLNMapView 를 재사용해
-    /// 카메라/타일 로드 상태가 유지된다(재생성으로 지도가 "끊기는" 현상 방지, #14).
-    private static var cachedMapView: MLNMapView?
-
     func makeUIView(context: Context) -> MLNMapView {
-        // 이미 만들어 둔 지도가 있으면 재사용(델리게이트만 새 coordinator 로 교체).
-        if let cached = Self.cachedMapView {
-            cached.delegate = context.coordinator
-            return cached
-        }
         let mapView = MLNMapView(frame: .zero)
-        Self.cachedMapView = mapView
         // 야경 커스텀 스타일 — Android `res/raw/maplibre_style.json` 과 같은 파일을 번들에서 로드해
         // `__MAPTILER_KEY__` 를 주입한다. 키 미설정/로드 실패 시 데모 스타일로 폴백(지도는 항상 뜬다).
         mapView.styleURL = Self.staryStyleURL
             ?? URL(string: "https://demotiles.maplibre.org/style.json")
         mapView.delegate = context.coordinator
-        // 위치 fix 전엔 "지난 세션 마지막 위치"(없으면 기본 좌표)로 시작 — 기본좌표에서 내 위치로
-        // 크게 점프하는 간격을 줄인다(체크리스트 29). 실제 fix 가 들어오면 재센터.
+        // 위치 fix 전엔 "지난 세션 마지막 위치"(없으면 기본 좌표=건국대)로 시작. 실제 fix 가 들어오면 재센터.
         let fallback = LocationManager.lastSavedCoordinate
             ?? CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
         mapView.setCenter(userLocation ?? fallback, zoomLevel: 15, animated: false)
@@ -157,12 +146,17 @@ struct MapLibreView: UIViewRepresentable {
             return abs(last.latitude - c.latitude) < 1e-7 && abs(last.longitude - c.longitude) < 1e-7
         }
 
-        /// 겹친 별(멤버 2개 이상)은 이미지 대신 **뷰 어노테이션** — 멤버 별 미니어처가 대표 곁에서
-        /// 함께 둥둥 떠다녀, 가 보기 전에도 "여러 별이 겹쳐 있음"이 읽힌다(Android 위성 부유 패리티).
-        /// nil 을 돌려주면 MapLibre 가 imageFor(정적 이미지)로 폴백한다(단일 별/비콘).
+        /// 모든 별을 **뷰 어노테이션**으로 그린다 — `scalesWithViewingDistance` 로 줌아웃 시 별이
+        /// 자연스럽게 작아진다(#1, Android SymbolLayer iconSize 줌 보간 대응).
+        /// 겹친 별은 위성 부유 뷰, 단일 별은 단순 이미지 뷰. 비콘(PioneerAnnotation)은 nil→imageFor.
         func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
-            guard let d = annotation as? DiaryAnnotation, d.members.count > 1 else { return nil }
-            return MergedStarAnnotationView(annotation: d)
+            guard let d = annotation as? DiaryAnnotation else { return nil }
+            if d.members.count > 1 { return MergedStarAnnotationView(annotation: d) }
+            let id = "single-\(d.imageKey)"
+            if let reused = mapView.dequeueReusableAnnotationView(withIdentifier: id) {
+                return reused
+            }
+            return SingleStarAnnotationView(annotation: d, reuseIdentifier: id)
         }
 
         func mapView(_ mapView: MLNMapView, imageFor annotation: MLNAnnotation) -> MLNAnnotationImage? {
@@ -258,7 +252,7 @@ final class MergedStarAnnotationView: MLNAnnotationView {
         super.init(reuseIdentifier: nil)
         frame = CGRect(x: 0, y: 0, width: side, height: side)
         backgroundColor = .clear
-        scalesWithViewingDistance = false
+        scalesWithViewingDistance = true   // 줌아웃 시 별 무리도 작아지게(#1)
 
         // 위성 먼저 추가 → 대표 별이 항상 위(Android 레이어 순서와 동일).
         for (i, m) in members.enumerated() {
@@ -327,6 +321,24 @@ final class MergedStarAnnotationView: MLNAnnotationView {
         a.timeOffset = (now + phaseFraction * period).truncatingRemainder(dividingBy: period)
         return a
     }
+}
+
+/// 단일 별 마커 뷰 — `scalesWithViewingDistance` 로 줌아웃 시 자연스럽게 작아진다(#1).
+final class SingleStarAnnotationView: MLNAnnotationView {
+    init(annotation: DiaryAnnotation, reuseIdentifier: String) {
+        let size = annotation.markerSize
+        super.init(reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: size, height: size)
+        backgroundColor = .clear
+        scalesWithViewingDistance = true
+        let iv = UIImageView(image: StarImageRenderer.image(
+            type: annotation.diary.starType, colorIndex: annotation.diary.starColor, size: size
+        ))
+        iv.frame = bounds
+        iv.contentMode = .scaleAspectFit
+        addSubview(iv)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
 /// 다이어리를 담는 지도 어노테이션.

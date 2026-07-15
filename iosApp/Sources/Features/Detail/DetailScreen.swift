@@ -209,18 +209,33 @@ struct DetailScreen: View {
 
     // ── 헤더: 4:3 미디어 + 하단 스크림 + 별/작성자/날짜 오버레이 (Android 헤더 Box 대응) ──
 
+    /// 실제 미디어(사진/영상/움짤)가 있고 열람 가능한가 — 없으면 기본 템플릿(image_frame)만.
+    private var hasMedia: Bool {
+        canOpen && !(diary.imageUrl.isEmpty && diary.videoUrl.isEmpty)
+    }
+
     private var heroHeader: some View {
         Color.clear
             .aspectRatio(4.0 / 3.0, contentMode: .fit)
             .overlay { headerMedia }
             .clipped()
             .overlay(
-                // 하단 가독성 스크림(Android verticalGradient 동일 스톱).
-                LinearGradient(stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .black.opacity(0.4), location: 0.55),
-                    .init(color: Theme.background, location: 1),
-                ], startPoint: .top, endPoint: .bottom)
+                // 하단 가독성 스크림은 **실제 미디어가 있을 때만** — 기본 템플릿 위에 덧씌우면
+                // 필터처럼 보여서(사용자 피드백 #5) 미디어 없을 땐 하단만 배경색으로 자연스럽게 잇는다.
+                Group {
+                    if hasMedia {
+                        LinearGradient(stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .black.opacity(0.4), location: 0.55),
+                            .init(color: Theme.background, location: 1),
+                        ], startPoint: .top, endPoint: .bottom)
+                    } else {
+                        LinearGradient(stops: [
+                            .init(color: .clear, location: 0.6),
+                            .init(color: Theme.background, location: 1),
+                        ], startPoint: .top, endPoint: .bottom)
+                    }
+                }
             )
             .overlay(alignment: .bottomLeading) {
                 headerOverlay.padding(20)

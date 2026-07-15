@@ -30,11 +30,10 @@ final class DiaryRepository {
         print("👤 현재 UID:", currentUid ?? "로그인 UID 없음")
         print("📂 Firestore 컬렉션:", col.path)
 
+        // ⚠️ 서버 order(by: createdAt) 를 쓰면 createdAt 필드가 없거나 타입이 다른 문서가
+        // 결과에서 통째로 제외된다(→ 다이어리가 안 뜸). 정렬은 클라이언트에서 하고, 서버는
+        // 전량(상한 500) 구독만 한다(#3). (observeMine 도 동일하게 클라 정렬)
         let reg = col
-            .order(
-                by: "createdAt",
-                descending: true
-            )
             .limit(to: 500)
             .addSnapshotListener { snapshot, error in
 
@@ -110,12 +109,13 @@ final class DiaryRepository {
                     decodedDiaries.count
                 )
 
-                // private는 작성자 본인만 표시
+                // private는 작성자 본인만 표시 + 최신순 클라이언트 정렬(서버 orderBy 제거 대응)
                 let visible = decodedDiaries.filter { diary in
 
                     diary.visibilityType != "private"
                     || diary.userId == currentUid
                 }
+                .sorted { $0.createdAt > $1.createdAt }
 
                 print(
                     "👁️ 공개 범위 필터 후:",

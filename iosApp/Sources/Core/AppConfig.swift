@@ -67,9 +67,9 @@ enum AppConfig {
         return adminEmails.contains(email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 
-    /// 지도 초기 좌표 폴백(서울 시청 부근).
-    static let defaultLat = 37.5409
-    static let defaultLng = 127.0794
+    /// 지도 초기 좌표 폴백(건국대학교).
+    static let defaultLat = 37.5403
+    static let defaultLng = 127.0793
 
     /// 다이어리 공유 웹 랜딩 베이스 URL. (StaryConfig.SHARE_BASE_URL 와 동기화)
     static let shareBaseUrl = "https://momentdiary-f26c8.web.app"
