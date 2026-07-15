@@ -98,7 +98,7 @@ struct UploadScreen: View {
             Spacer()
             VStack(spacing: 8) {
                 StarView(type: starType, colorIndex: starColor, size: 72)
-                Text("미리보기").font(.caption2).foregroundStyle(Theme.textFaint)
+                Text("미리보기").font(.poorStory(11)).foregroundStyle(Theme.textFaint)
             }
             Spacer()
         }
@@ -236,7 +236,7 @@ struct UploadScreen: View {
                 .padding(.vertical, 14)
                 .background(Theme.mint, in: RoundedRectangle(cornerRadius: 14))
                 .foregroundStyle(Color.black)
-                .font(.headline)
+                .font(.poorStory(17))
         }
         .disabled(saving || title.isEmpty)
         .opacity(title.isEmpty ? 0.5 : 1)
@@ -313,7 +313,7 @@ struct UploadScreen: View {
     // MARK: - 작은 헬퍼
 
     private func label(_ t: String) -> some View {
-        Text(t).font(.caption).foregroundStyle(Theme.textSecondary)
+        Text(t).font(.poorStory(12)).foregroundStyle(Theme.textSecondary)
     }
 
     private func field<Content: View>(_ t: String, @ViewBuilder _ content: () -> Content) -> some View {
@@ -331,7 +331,7 @@ struct ToastView: View {
     let text: String
     var body: some View {
         Text(text)
-            .font(.subheadline)
+            .font(.poorStory(15))
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(.ultraThinMaterial, in: Capsule())
             .padding(.bottom, 24)

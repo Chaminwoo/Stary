@@ -13,6 +13,7 @@ struct RootView: View {
                 LoginView()
             }
         }
+        .font(.poorStory(16))   // 앱 기본 폰트(Android bodyLarge=PoorStory 대응)
         .animation(.easeInOut, value: auth.isSignedIn)
         .environmentObject(locale)
         .environment(\.locale, locale.swiftLocale)

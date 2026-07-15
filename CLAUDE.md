@@ -15,8 +15,12 @@
 - **민감값(API 키, Firebase 설정, OAuth, 지도 키)은 절대 하드코딩/커밋 금지.** 항상 TODO/placeholder + 주입.
 - 원본의 운영 Firebase(**원본 = `momentdiary-52b78` / 앱 패키지 `com.chaminwoo.stary`**)/DB/배포 설정에 **연결 금지.**
   - 이 포크 전용 Firebase는 `momentdiary-f26c8` / Android `com.chaminwoo.stary_ios` (별개 프로젝트, 사용 OK).
-  - **iOS 번들 ID는 `com.chaminwoo.stary`** (Apple App ID 가 언더스코어 불가라 `stary_ios` 사용 불가 — 2026-07-14 결정).
+  - **iOS 번들 ID는 `com.chaminwoo.stary.ios`** (Apple App ID 가 언더스코어 불가라 `stary_ios` 사용 불가 — 2026-07-15 점 표기로 확정, Firebase `f26c8` 에 이 ID로 iOS 앱 등록 완료).
     원본과 이름이 같아도 **분리 기준은 Firebase 프로젝트**(iOS 앱은 `f26c8` 에 등록)라 위반이 아니다. 원본은 iOS 앱 없음.
+  - **예외: iOS `GoogleService-Info.plist` 는 `iosApp/Sources/` 에 커밋되어 있다(2026-07-15 사용자 지시).**
+    Firebase iOS 설정값은 앱 바이너리에 항상 포함되는 클라이언트 식별자라 실질적 비밀이 아니며, `iosApp/project.yml` 의
+    `GOOGLE_REVERSED_CLIENT_ID` 도 이 plist 의 `REVERSED_CLIENT_ID` 와 동일한 실제 값으로 맞춰 두었다(로그인 URL 스킴에 필요).
+    **다른 파일(루트, `iosApp/`)에 중복 커밋하지 말고, 이 규칙을 근거로 되돌리려 하지 말 것** — Android 시크릿(§1 하드코딩 금지)과는 별개 취급.
 - **작업 중에는 확인받지 말고 자유롭게 진행한다(2026-06-28).** 파일 이동·생성·쓰기·편집, 빌드, (로컬) 커밋까지 사용자 확인/허락을 받지 않는다.
   - **단, `git push` 만은 예외 — 사용자가 "테스트 완료"라고 말할 때까지 기다린다(§1 워크플로 준수).** 빌드 성공 후 멈추고, 테스트 완료 신호가 오면 그때 push.
   - 즉 "테스트·푸시 직전까지는 확인 불필요, 푸시만 테스트 완료 대기."

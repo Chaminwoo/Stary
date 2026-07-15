@@ -16,15 +16,15 @@ struct NotificationsScreen: View {
                     ForEach(vm.items) { n in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(n.displayText)
-                                .font(.subheadline)
+                                .font(.poorStory(15))
                                 .foregroundStyle(Theme.textPrimary)
                             if !n.diaryTitle.isEmpty {
                                 Text("‘\(n.diaryTitle)’")
-                                    .font(.caption)
+                                    .font(.poorStory(12))
                                     .foregroundStyle(Theme.textSecondary)
                             }
                             Text(RelativeTime.string(fromMillis: n.createdAt))
-                                .font(.caption2)
+                                .font(.poorStory(11))
                                 .foregroundStyle(Theme.textFaint)
                         }
                         .listRowBackground(n.read ? Theme.background : Theme.surface)

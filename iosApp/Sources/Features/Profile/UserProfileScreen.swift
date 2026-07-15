@@ -131,7 +131,7 @@ struct UserProfileScreen: View {
             avatar
             HStack(spacing: 6) {
                 Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
-                    .font(.title3).bold()
+                    .font(.poorStory(20))
                     .foregroundStyle(Theme.textPrimary)
                 // 히든 업적 달성자 전용 크리스탈 배지(34-4).
                 HiddenStarBadges(userId: userId, size: 13)
@@ -142,7 +142,7 @@ struct UserProfileScreen: View {
                 let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
                 let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.mint
                 Text(hiddenT ? "『\(title)』" : title)
-                    .font(.caption).bold()
+                    .font(.poorStory(12))
                     .padding(.horizontal, 12).padding(.vertical, 5)
                     .background(titleColor.opacity(0.2), in: Capsule())
                     .foregroundStyle(titleColor)
@@ -160,7 +160,7 @@ struct UserProfileScreen: View {
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(String((userName.isEmpty ? "?" : userName).prefix(1)))
-                        .font(.system(size: 34, weight: .bold))
+                        .font(.poorStory(34))
                         .foregroundStyle(Theme.mint)
                 )
             }
@@ -173,14 +173,14 @@ struct UserProfileScreen: View {
     private var actionRow: some View {
         if isMe {
             Text(locale.t(.userProfileMe))
-                .font(.subheadline).foregroundStyle(Theme.textSecondary)
+                .font(.poorStory(15)).foregroundStyle(Theme.textSecondary)
         } else if isFriend {
             HStack(spacing: 12) {
                 Label(locale.t(.userStatusFriend), systemImage: "checkmark.seal.fill")
-                    .font(.subheadline).foregroundStyle(Theme.mint)
+                    .font(.poorStory(15)).foregroundStyle(Theme.mint)
                 Button { openChat = true } label: {
                     Label(locale.t(.userChatAction), systemImage: "bubble.left.fill")
-                        .font(.subheadline.bold())
+                        .font(.poorStory(15))
                         .padding(.horizontal, 16).padding(.vertical, 8)
                         .background(Theme.mint.opacity(0.18), in: Capsule())
                         .foregroundStyle(Theme.mint)
@@ -192,7 +192,7 @@ struct UserProfileScreen: View {
             } label: {
                 Label(requested ? locale.t(.userRequested) : locale.t(.userAddFriend),
                       systemImage: requested ? "checkmark" : "person.badge.plus")
-                    .font(.subheadline.bold())
+                    .font(.poorStory(15))
                     .padding(.horizontal, 18).padding(.vertical, 9)
                     .background((requested ? Theme.textFaint : Theme.mint).opacity(0.18), in: Capsule())
                     .foregroundStyle(requested ? Theme.textSecondary : Theme.mint)
@@ -231,8 +231,8 @@ struct UserProfileScreen: View {
 
     private func statCell(_ label: String, _ value: Int) -> some View {
         VStack(spacing: 4) {
-            Text("\(value)").font(.title3).bold().foregroundStyle(Theme.textPrimary)
-            Text(label).font(.caption).foregroundStyle(Theme.textSecondary)
+            Text("\(value)").font(.poorStory(20)).foregroundStyle(Theme.textPrimary)
+            Text(label).font(.poorStory(12)).foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
@@ -242,12 +242,12 @@ struct UserProfileScreen: View {
     private var diariesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(locale.t(.userStarsHeader))
-                .font(.headline)
+                .font(.poorStory(17))
                 .foregroundStyle(Theme.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if visibleDiaries.isEmpty {
                 Text(locale.t(.userNoDiaries))
-                    .font(.subheadline)
+                    .font(.poorStory(15))
                     .foregroundStyle(Theme.textSecondary)
             } else {
                 ForEach(visibleDiaries) { diary in

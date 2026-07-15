@@ -137,7 +137,7 @@ struct MapScreen: View {
                     unviewedOnly.toggle()
                 } label: {
                     Label(locale.t(.filterUnviewed), systemImage: unviewedOnly ? "eye.slash.fill" : "eye")
-                        .font(.caption.bold())
+                        .font(.poorStory(12))
                         .padding(.horizontal, 14).padding(.vertical, 9)
                         .background(unviewedOnly ? Theme.mint.opacity(0.9) : Theme.surface.opacity(0.92), in: Capsule())
                         .foregroundStyle(unviewedOnly ? Color.black : Theme.textPrimary)

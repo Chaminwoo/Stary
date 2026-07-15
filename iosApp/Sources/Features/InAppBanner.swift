@@ -72,12 +72,12 @@ struct InAppBannerHost: View {
                     .background(Theme.mint.opacity(0.16), in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text(e.title.isEmpty ? "새 알림" : e.title)
-                        .font(.subheadline).bold()
+                        .font(.poorStory(15))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     if !e.body.isEmpty {
                         Text(e.body)
-                            .font(.caption)
+                            .font(.poorStory(12))
                             .foregroundStyle(Theme.textSecondary)
                             .lineLimit(2)
                     }

@@ -46,7 +46,7 @@
 - [ ] 옵션:
   - Product Name: `iosApp`
   - Organization Identifier: `com.chaminwoo` → Bundle Identifier가 **`com.chaminwoo.iosApp`** 로 잡힘.
-    출시용 번들 ID는 **`com.chaminwoo.stary`**(Apple 언더스코어 불가로 `stary_ios` 에서 변경, 2026-07-14)이므로, 생성 후 Target ▸ Signing & Capabilities(또는 Build Settings의 `PRODUCT_BUNDLE_IDENTIFIER`)에서 **`com.chaminwoo.stary`** 로 변경.
+    출시용 번들 ID는 **`com.chaminwoo.stary.ios`**(Apple 언더스코어 불가로 `stary_ios` 에서 점 표기로 변경, 2026-07-15)이므로, 생성 후 Target ▸ Signing & Capabilities(또는 Build Settings의 `PRODUCT_BUNDLE_IDENTIFIER`)에서 **`com.chaminwoo.stary.ios`** 로 변경.
   - Interface: **SwiftUI**, Language: **Swift**.
 - [ ] 저장 위치: **레포 루트 안 `Stary/iosApp/`** 로 지정(=`Stary/iosApp/iosApp.xcodeproj`). 구조가 `:shared`와 형제가 되도록.
 

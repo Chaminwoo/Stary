@@ -61,11 +61,11 @@ struct DetailScreen: View {
                     StarView(type: diary.starType, colorIndex: diary.starColor, size: 84)
                         .padding(.top, 12)
                     Text(diary.title.isEmpty ? "(제목 없음)" : diary.title)
-                        .font(.title2).bold()
+                        .font(.poorStory(22))
                         .foregroundStyle(Theme.textPrimary)
                     if diary.isAnonymous || diary.userId.isEmpty {
                         Text("익명")
-                            .font(.subheadline)
+                            .font(.poorStory(15))
                             .foregroundStyle(Theme.textSecondary)
                     } else {
                         let authorName = directory.name(diary.userId, fallback: diary.userName)
@@ -76,7 +76,7 @@ struct DetailScreen: View {
                                 HiddenStarBadges(userId: diary.userId, size: 12)
                                 Image(systemName: "chevron.right").font(.caption2)
                             }
-                            .font(.subheadline)
+                            .font(.poorStory(15))
                             .foregroundStyle(Theme.textSecondary)
                         }
                         .buttonStyle(.plain)
@@ -216,17 +216,17 @@ struct DetailScreen: View {
         VStack(spacing: 10) {
             if canOpen {
                 Text(diary.content.isEmpty ? "내용이 없어요." : diary.content)
-                    .font(.body)
+                    .font(.poorStory(17))
                     .foregroundStyle(Theme.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Image(systemName: "lock.fill").foregroundStyle(Theme.textFaint)
                 Text("이 별 가까이(\(Int(AppConfig.diaryOpenRadiusM))m)로 가면 열람할 수 있어요.")
-                    .font(.subheadline)
+                    .font(.poorStory(15))
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
                 Text("현재 약 \(distanceLabel(distanceM)) 떨어져 있어요.")
-                    .font(.caption)
+                    .font(.poorStory(12))
                     .foregroundStyle(Theme.textFaint)
             }
         }
@@ -251,7 +251,7 @@ struct DetailScreen: View {
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
         }
-        .font(.headline)
+        .font(.poorStory(17))
     }
 
     private var commentsSection: some View {
@@ -300,7 +300,7 @@ struct DetailScreen: View {
                                 HStack(spacing: 4) {
                                     // 저장 시점 스냅샷이 아닌 현재 닉네임으로 표시
                                     Text(directory.name(c.userId, fallback: c.userName))
-                                        .font(.caption).bold().foregroundStyle(Theme.textSecondary)
+                                        .font(.poorStory(12)).foregroundStyle(Theme.textSecondary)
                                     HiddenStarBadges(userId: c.userId, size: 10)
                                 }
                             }
@@ -314,7 +314,7 @@ struct DetailScreen: View {
                                 }
                             }
                         }
-                        Text(c.content).font(.subheadline).foregroundStyle(Theme.textPrimary)
+                        Text(c.content).font(.poorStory(15)).foregroundStyle(Theme.textPrimary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -425,7 +425,7 @@ private struct CommentAvatar: View {
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(initial)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.poorStory(13))
                         .foregroundStyle(Theme.mint)
                 )
             }

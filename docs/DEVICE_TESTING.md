@@ -72,11 +72,10 @@ Windows 개발 환경이라 **Xcode로 기기에 직접 꽂아 설치하는 방�
 
 ### 2.2 최초 1회 설정 (맥 불필요, 웹에서 전부 가능)
 1. **Apple Developer Program 가입**($99/년) — https://developer.apple.com/programs/
-2. **App Store Connect**에서 앱 레코드 생성 — Bundle ID `com.chaminwoo.stary`(⚠️ Apple 은 언더스코어 불가 — `stary_ios` 는 등록 자체가 안 됨, 2026-07-14 변경), 이름 Stary.
+2. **App Store Connect**에서 앱 레코드 생성 — Bundle ID `com.chaminwoo.stary.ios`(⚠️ Apple 은 언더스코어 불가 — `stary_ios` 는 등록 자체가 안 됨, 2026-07-15 점 표기로 확정), 이름 Stary.
 3. **App Store Connect API Key 발급**(Users and Access → Integrations → App Store Connect API, Role: App Manager) →
    `Issuer ID`, `Key ID`, `.p8` 파일 내용 3개 확보.
-4. Firebase 콘솔(`momentdiary-f26c8`) → Bundle ID `com.chaminwoo.stary` 인 iOS 앱의 `GoogleService-Info.plist` 다운로드
-   (없으면 그 번들 ID로 새 iOS 앱 추가 후 다운로드. 예전 `stary_ios` iOS 앱의 plist 는 번들 ID 불일치라 쓰지 말 것).
+4. Firebase 콘솔(`momentdiary-f26c8`) → Bundle ID `com.chaminwoo.stary.ios` 인 iOS 앱의 `GoogleService-Info.plist` — 이미 `iosApp/Sources/GoogleService-Info.plist` 로 커밋되어 있음(재발급 불필요).
 5. GitHub 저장소 → **Settings → Secrets and variables → Actions → New repository secret** 로 아래 5개 등록:
 
    | Secret 이름 | 값 |

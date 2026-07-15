@@ -59,7 +59,7 @@ struct FriendsScreen: View {
                         guard let uid = auth.uid else { return }
                         Task { await vm.sendRequest(fromId: uid, fromName: auth.displayName, to: user) }
                     }
-                    .font(.caption).tint(Theme.mint)
+                    .font(.poorStory(12)).tint(Theme.mint)
                 }
                 .padding(10)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
@@ -97,7 +97,7 @@ struct FriendsScreen: View {
 
     private var requestsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("받은 요청").font(.headline).foregroundStyle(Theme.textPrimary)
+            Text("받은 요청").font(.poorStory(17)).foregroundStyle(Theme.textPrimary)
             ForEach(vm.requests) { req in
                 HStack {
                     avatar(req.fromName, photoUrl: req.fromPhotoUrl, userId: req.fromId)
@@ -107,9 +107,9 @@ struct FriendsScreen: View {
                         guard let uid = auth.uid else { return }
                         Task { await vm.accept(req, myUid: uid, myName: auth.displayName) }
                     }
-                    .font(.caption).tint(Theme.mint)
+                    .font(.poorStory(12)).tint(Theme.mint)
                     Button("거절") { Task { await vm.decline(req) } }
-                        .font(.caption).tint(.red)
+                        .font(.poorStory(12)).tint(.red)
                 }
                 .padding(10)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
@@ -122,10 +122,10 @@ struct FriendsScreen: View {
     /// 최근 별을 탭하면 지도로 가서 그 별까지 도보 길찾기(프로필 핀 별과 동일 동선).
     private var friendsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("친구 \(vm.friends.count)").font(.headline).foregroundStyle(Theme.textPrimary)
+            Text("친구 \(vm.friends.count)").font(.poorStory(17)).foregroundStyle(Theme.textPrimary)
             if vm.friends.isEmpty {
                 Text("아직 친구가 없어요. 위에서 찾아 추가해보세요.")
-                    .font(.subheadline).foregroundStyle(Theme.textSecondary)
+                    .font(.poorStory(15)).foregroundStyle(Theme.textSecondary)
             } else {
                 ForEach(vm.friends) { friend in
                     ZStack(alignment: .trailing) {

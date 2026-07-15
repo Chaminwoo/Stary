@@ -7,13 +7,13 @@ struct AboutView: View {
     var body: some View {
         VStack(spacing: 8) {
             Text("Stary for iOS")
-                .font(.headline)
+                .font(.poorStory(17))
                 .foregroundStyle(Theme.textPrimary)
             Text(PlatformKt.describePlatform())
-                .font(.caption)
+                .font(.poorStory(12))
                 .foregroundStyle(Theme.textSecondary)
             Text("공유 모듈 연동 OK · v1.0.0")
-                .font(.caption2)
+                .font(.poorStory(11))
                 .foregroundStyle(Theme.textFaint)
         }
         .frame(maxWidth: .infinity)

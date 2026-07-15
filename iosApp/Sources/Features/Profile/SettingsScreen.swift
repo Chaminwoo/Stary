@@ -53,11 +53,11 @@ struct SettingsScreen: View {
                                     Text(locale.t(.settingsLanguage))
                                         .foregroundStyle(Theme.textPrimary)
                                     Text(locale.t(.settingsLanguageDesc))
-                                        .font(.caption2).foregroundStyle(Theme.textSecondary)
+                                        .font(.poorStory(11)).foregroundStyle(Theme.textSecondary)
                                 }
                                 Spacer()
                                 Text(languageLabel(locale.language))
-                                    .font(.subheadline).foregroundStyle(Theme.mint)
+                                    .font(.poorStory(15)).foregroundStyle(Theme.mint)
                                 Image(systemName: "chevron.right")
                                     .font(.caption).foregroundStyle(Theme.textFaint)
                             }
@@ -140,7 +140,7 @@ struct SettingsScreen: View {
     private func sectionLabel(_ text: String, _ icon: String) -> some View {
         HStack(spacing: 7) {
             Image(systemName: icon).font(.system(size: 13)).foregroundStyle(Theme.mint)
-            Text(text).font(.subheadline).bold().foregroundStyle(Theme.mint)
+            Text(text).font(.poorStory(15)).foregroundStyle(Theme.mint)
         }
     }
 
@@ -177,7 +177,7 @@ struct SettingsScreen: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label).foregroundStyle(Theme.textPrimary)
                 if let description {
-                    Text(description).font(.caption2).foregroundStyle(Theme.textSecondary)
+                    Text(description).font(.poorStory(11)).foregroundStyle(Theme.textSecondary)
                 }
             }
             Spacer()
@@ -198,7 +198,7 @@ struct SettingsScreen: View {
                 Text(label).foregroundStyle(enabled ? Theme.textPrimary : Theme.textFaint)
                 Spacer()
                 Text("\(Int(value * 100))%")
-                    .font(.caption).bold()
+                    .font(.poorStory(12))
                     .foregroundStyle(enabled ? Theme.mint : Theme.textFaint)
                     .padding(.horizontal, 12).padding(.vertical, 4)
                     .background(enabled ? Theme.mint.opacity(0.14) : Color.white.opacity(0.05), in: Capsule())

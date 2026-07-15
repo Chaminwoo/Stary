@@ -121,11 +121,11 @@ struct DiaryCard: View {
             StarView(type: diary.starType, colorIndex: diary.starColor, size: 36)
             VStack(alignment: .leading, spacing: 4) {
                 Text(diary.title.isEmpty ? "(제목 없음)" : diary.title)
-                    .font(.headline)
+                    .font(.poorStory(17))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 Text(diary.isAnonymous ? "익명" : diary.userName)
-                    .font(.caption)
+                    .font(.poorStory(12))
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -140,7 +140,7 @@ struct DiaryCard: View {
             }
             if let distance {
                 Text(distanceLabel(distance))
-                    .font(.caption2)
+                    .font(.poorStory(11))
                     .foregroundStyle(Theme.textFaint)
             }
         }
@@ -162,7 +162,7 @@ struct ContentUnavailableCompat: View {
                 .font(.largeTitle)
                 .foregroundStyle(Theme.textFaint)
             Text(text)
-                .font(.subheadline)
+                .font(.poorStory(15))
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
         }

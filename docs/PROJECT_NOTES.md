@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.40 마감 라운드(1.3.1) + 전환 잔상 삭제 + iOS 패리티 일괄(33·34 라운드)** — Android BUILD SUCCESSFUL(2026-07-14), iOS 는 push 후 CI 검증 — 아래 8.40 참고.
+> 최종 갱신: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 로컬 커밋만, push 전(2026-07-15) — 아래 8.41 참고.
+> 이전: **8.40 마감 라운드(1.3.1) + 전환 잔상 삭제 + iOS 패리티 일괄(33·34 라운드)** — Android BUILD SUCCESSFUL(2026-07-14), iOS 는 push 후 CI 검증 — 아래 8.40 참고.
 > 이전: **8.38-iOS 패리티**(크리스탈 별 / 30m 머지·겹친별 카드 / 친구 메신저형 행 / 이미지 캐시) — **CI(macOS) BUILD SUCCESS `a173f7e`** — 아래 8.38-iOS 참고.
 > 이전: **8.38 크리스탈 별 렌더·스파클(궤도·개수·위성)·공유카드 편집 확장·겹친별 배경·이미지 고속화·친구 스크린 개편** — Android **테스트 완료·push(`fbf7470`)** — 아래 8.38 참고.
 > 이전: **8.37 제한·30m 별 합치기·공유카드 편집·인스타 링크·마커 스파클 5건 라운드** — Android BUILD SUCCESSFUL(2026-07-12) — 아래 8.37 참고.
@@ -30,6 +31,34 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.41 다른 컴퓨터 iOS 작업 합류 — 로그인 화면 개편 + 커스텀 폰트 + 번들 ID 확정 (로컬 커밋만, 2026-07-15)
+
+**배경**: 다른 컴퓨터(Xcode 신규 설치)에서 이 레포를 클론해 `main` 브랜치에 독립적으로 iOS 작업(`84e7a91`)을 커밋·푸시함.
+그 브랜치는 `feat/moderation-profile-round`(이 세션 전체 iOS 패리티 작업)가 갈라지기 **전**의 옛 지점(`cafec9d`, 6/28)에서
+시작된 것이라 8.27~8.40 라운드 기능이 전부 빠져 있었음 — 로그인/폰트/색상/드로어 네비/지도 스타일 5가지를 새로 얹은 상태였음.
+사용자 지시: **로그인 화면·커스텀 폰트만 그쪽 것을 채택, 나머지(색상/드로어 네비/지도 스타일)는 전부 버리고 이 세션 브랜치 유지**.
+
+- **로컬 `main` 을 `feat/moderation-profile-round` 로 리셋**(첫 자동 병합이 최신 기능들을 조용히 옛 버전으로 되돌려서 재작업) 후,
+  파일 단위가 아니라 **diff hunk 단위로 로그인/폰트만 이식** — 두 브랜치의 diff 를 전부 대조해 폰트 전용 줄(`.font(...)` 만 바뀐 곳)만
+  골라 현재 구조(스파클/히든배지/34-라운드 UI 등) 위에 얹었고, 화면 전체가 다시 설계된 파일(`ProfileScreen`/`RootView` 드로어/
+  `MapScreen` 글로브·길찾기·클러스터/`MapLibreView` 커스텀 스타일)은 통째로 스킵(원래 이 세션 버전 그대로).
+- **로그인 화면 전면 교체**(`LoginView.swift` 통째로 채택): 무음 인트로 영상(`login_video.mp4`, 재생속도 2.5x→감속 곡선) →
+  빛나는 후광 로고(`logo.png`) + 크림색 그라데이션 "Google 계정으로 로그인" 캡슐 버튼 + "로그인 없이 둘러보기".
+- **커스텀 폰트 도입**(`Core/AppFont.swift` 신설): `PoetsenOne-Regular`(영문 타이틀, 미사용) / `PoorStory-Regular`(한글 본문·UI 전반).
+  `RootView.body` 최상단에 `.font(.poorStory(16))` 앱 기본값 적용 + 12개 화면(Detail/Friends/List/Music/Notifications/
+  Settings/UserProfile/Upload/InAppBanner/ContentView/MapScreen 필터칩)에서 기존 `.headline`/`.caption` 류를
+  `.poorStory(size)` 로 1:1 교체(구조/로직은 그대로, 폰트만). `project.yml` 에 `UIAppFonts` 등록 필요(추가함).
+- **번들 ID 최종 확정 = `com.chaminwoo.stary.ios`**(점 표기, 어제 `com.chaminwoo.stary` 로 잠정 설정했던 것 대체) —
+  다른 컴퓨터가 이미 이 ID로 Firebase `momentdiary-f26c8` 에 iOS 앱을 등록하고 실제 `GoogleService-Info.plist` 를 받아왔음.
+  `project.yml`(`PRODUCT_BUNDLE_IDENTIFIER`+`GOOGLE_REVERSED_CLIENT_ID` 실값) / `fastlane/Appfile` / 문서 4종 / `CLAUDE.md` 동기화.
+- **`GoogleService-Info.plist` 커밋 유지(사용자 명시 결정)**: `iosApp/Sources/GoogleService-Info.plist` **1곳만**(레포 루트·`iosApp/` 바로 밑
+  중복 사본은 삭제) — `iosApp/.gitignore` 에 `!Sources/GoogleService-Info.plist` 예외 추가. Firebase iOS 클라이언트 설정은
+  앱 바이너리에 항상 포함되는 값이라 CLAUDE.md 의 "민감값 하드코딩 금지"와는 별개로 취급하기로 함(자세한 근거는 CLAUDE.md §0 참고).
+- ⚠️ **iOS TODO**: `UIAppFonts` 를 아직 CI 로 검증 안 함(다음 push 시 `ios.yml` 확인). Android 쪽엔 이 폰트/로그인 개편을 반영하지
+  않음(요청 범위 밖 — 필요하면 별도 라운드로 Android 패리티 진행할 것).
 
 ---
 
