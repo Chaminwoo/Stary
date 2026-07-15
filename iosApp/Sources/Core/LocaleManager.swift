@@ -133,6 +133,8 @@ enum L10n: String {
     case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
     // 알림 행 문구(Android notif_* 대응 — %@ = 다이어리 제목).
     case notifLikeRow, notifCommentRow, notifFriendPostRow
+    // 지도 열람 게이팅(Android map_waiting_fix 대응).
+    case mapWaitingFix
     // 업적 목록 구분 헤더(Android AchievementsScreen 섹션 대응).
     case achSectionTitles, achSectionShapesColors, achSectionPioneer
 
@@ -372,6 +374,9 @@ enum L10n: String {
         case .notifLikeRow:         return ("\"%@\"를 좋아해요", "Liked \"%@\"", "「%@」にいいねしました")
         case .notifCommentRow:      return ("\"%@\"에 댓글을 남겼어요", "Commented on \"%@\"", "「%@」にコメントしました")
         case .notifFriendPostRow:   return ("새 다이어리 \"%@\"를 남겼어요", "Posted a new diary \"%@\"", "新しい日記「%@」を投稿しました")
+        case .mapWaitingFix:        return ("현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요",
+                                            "Locating you… please try again in a moment",
+                                            "現在地を確認しています。しばらくしてからお試しください")
         case .achSectionTitles:     return ("칭호", "Titles", "称号")
         case .achSectionShapesColors: return ("별 모양 · 색", "Star shapes & colors", "星の形・色")
         case .achSectionPioneer:    return ("개척 칭호", "Pioneer titles", "開拓称号")

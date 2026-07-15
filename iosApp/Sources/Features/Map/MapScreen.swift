@@ -48,6 +48,10 @@ struct MapScreen: View {
     @State private var warpColor: Color = .white
     @State private var warpId = 0
 
+    // 다이어리 열람 파장(warp) + 게이팅 토스트(Android DiaryOpenWarp/StaryToast 대응).
+    @State private var openWarp: DiaryWarpData?
+    @State private var toast: String?
+
     // 3D 행성(글로브) 뷰 상태 — 줌을 충분히 빼면 하단 버튼이 뜨고, 눌러야 진입.
     @State private var globeCenter: GlobeCenter?
     @State private var globeReturn: GlobeReturnCamera?
@@ -205,18 +209,41 @@ struct MapScreen: View {
         return MapScreen.partialRouteFrom(full: fullRoute, me: me)
     }
 
+    /// 별 탭 — Android DiaryMap 마커 클릭과 동일한 100m 게이팅:
+    /// 위치 불명 → 안내 토스트 / 100m 밖 → 거리 토스트 / 이내 → 파장(warp) 후 상세·카드 진입.
+    private func handleStarTap(members: [Diary], origin: CGPoint, snapshot: UIImage?) {
+        guard let rep = members.first else { return }
+        guard openWarp == nil else { return } // 파장 재생 중 중복 탭 무시
+        guard let me = location.coordinate else {
+            showToast(locale.t(.mapWaitingFix))
+            return
+        }
+        let dist = Geo.distanceMeters(lat1: me.latitude, lng1: me.longitude,
+                                      lat2: rep.latitude, lng2: rep.longitude)
+        guard dist <= AppConfig.diaryOpenRadiusM else {
+            showToast(String(format: locale.t(.mapOpenRange),
+                             Int(AppConfig.diaryOpenRadiusM), Int(dist)))
+            return
+        }
+        MusicManager.shared.playOpenDiary() // Android: 파장 시작과 함께 열람 효과음
+        openWarp = DiaryWarpData(snapshot: snapshot, origin: origin, members: members)
+    }
+
+    private func showToast(_ text: String) {
+        toast = text
+        Task {
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            toast = nil
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             MapLibreView(
                 diaries: shownDiaries,
                 userLocation: location.coordinate,
-                onTapStar: { members in
-                    // 30m 안에서 겹친 별이면 카드 뷰어로, 하나면 바로 상세로.
-                    if members.count > 1 {
-                        cluster = ClusterSelection(members: members)
-                    } else if let one = members.first {
-                        selected = one
-                    }
+                onTapStar: { members, origin, snapshot in
+                    handleStarTap(members: members, origin: origin, snapshot: snapshot)
                 },
                 route: partialRoute,
                 focusTarget: focusTarget,
@@ -242,6 +269,26 @@ struct MapScreen: View {
                     .id(warpId)
                     .allowsHitTesting(false)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            // 다이어리 열람 파장(warp) — 지도 스냅샷 굴절 + 파장 링 + (겹친 별) 버스트.
+            // 끝나면 멤버 수에 따라 상세/겹친 별 카드로 진입(Android DiaryOpenWarp 흐름 동일).
+            if let w = openWarp {
+                DiaryOpenWarpView(data: w) {
+                    openWarp = nil
+                    if w.members.count > 1 {
+                        cluster = ClusterSelection(members: w.members)
+                    } else if let one = w.members.first {
+                        selected = one
+                    }
+                }
+            }
+
+            // 하단 토스트(Android StaryToast 대응) — 100m 게이팅/위치 확인 안내.
+            if let t = toast {
+                ToastView(text: t)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
             }
 
             // ── 좌상단 줌 버튼(+/−) — Android DiaryMap 대응(44pt, 0x1A1A1A 원형) ──
