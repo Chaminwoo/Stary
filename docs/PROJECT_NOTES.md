@@ -2,7 +2,7 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.42 iOS UI 전면 패리티 1차 — 드로어 내비/상단바/FAB + 야경 지도 스타일 + 배경 이미지 + 테마 토큰** — 진행 중(2026-07-15) — 아래 8.42 참고.
+> 최종 갱신: **8.42 iOS UI 전면 패리티(1~7차 완료)** — 드로어 내비/테마/야경 지도/지도 크롬/상세 재구성/필터 확장/별자리 보드/L10n — **CI(macOS) BUILD SUCCESS `9cd867b`**(2026-07-15) — 아래 8.42 참고.
 > 이전: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 아래 8.41 참고.
 > 이전: **8.40 마감 라운드(1.3.1) + 전환 잔상 삭제 + iOS 패리티 일괄(33·34 라운드)** — Android BUILD SUCCESSFUL(2026-07-14), iOS 는 push 후 CI 검증 — 아래 8.40 참고.
 > 이전: **8.38-iOS 패리티**(크리스탈 별 / 30m 머지·겹친별 카드 / 친구 메신저형 행 / 이미지 캐시) — **CI(macOS) BUILD SUCCESS `a173f7e`** — 아래 8.38-iOS 참고.
@@ -35,7 +35,29 @@
 
 ---
 
-## 8.42 iOS UI 전면 패리티 1차 — 드로어 내비 + 지도 스타일 + 배경/테마 (진행 중, 2026-07-15)
+## 8.42 iOS UI 전면 패리티 1~7차 (CI BUILD SUCCESS `9cd867b`, 2026-07-15)
+
+**후속 라운드(2~7차) 요약** — 아래 1차(토대) 위에 순차 push, 전부 CI 그린:
+- **2차 지도 크롬**: 좌상단 줌 +/−(44pt, 0x1A1A1A) + 우하단 내 위치(48pt, 생성 FAB 위) —
+  `MapLibreView` 에 zoomRequest/recenterNonce 커맨드 채널. 우상단 칩 제거 → **좌하단 필터 스피드 다이얼**.
+- **3차 상세 재구성**: 4:3 히어로 헤더(미디어/image_frame + 스크림 + 별·작성자·배지·날짜 오버레이),
+  제목 본문 분리, 본문 카드(0xCC14181C + accent 그라데이션 테두리), 인라인 좋아요/공유/**수정·삭제(신규)**/신고,
+  댓글 "댓글 N" 헤더 + 구분선 스타일, 잠금 pill(map_open_range).
+- **4차 지도 필터 확장**: 친구만/나만보기/친구선택(FriendFilterPicker 시트) — Android 상호배타 로직 동일.
+- **5차 내 다이어리 별자리 보드**(`MyDiaryBoardScreen.swift` 신설, 구 MyStarsScreen 대체):
+  별자리 3종(좌표/연결선 Android CONSTELLATIONS 동일) + 트윙클/선택 번쩍임, **바나나 다이얼**(포물선 기하·드래그·탭,
+  최신/인기/거리) + `MusicManager.playWind()` 신설, 부유 별 보드(간이 — 결정론 배치+개별 부유, ⚠️ 드래그 물리는 후속),
+  1열 리스트(0x66161B22 행).
+- **6차 L10n 이관**: Upload/Friends/Chat/Login/Notifications/Achievements/Profile 하드코딩 한국어 →
+  L10n(ko/en/ja, Android strings.xml 값). 업로드 저장 버튼 = common_save, 공개범위 vis* 매핑.
+- **7차 수정**: `MyDiaryBoardScreen:379` CGFloat/Double 혼합 "ambiguous use of '+'" 컴파일 에러 —
+  ⚠️ **Canvas 수식에서 CGFloat(모델값)와 Double(시간값)을 한 식에 섞지 말 것**(Double 통일 후 CGFloat 변환).
+- **CI 개선**: `ios.yml` 이 xcodebuild 실패 시 " error: " 줄을 `::error::` 어노테이션으로 노출 —
+  로그 다운로드 권한 없이 check-runs annotations(공개 API)로 컴파일 에러 확인 가능.
+- **남은 것**: DiaryStarBox 드래그 물리, 지도만보기(몰입) 모드, 별자리 라인 토글(지도), 온보딩 코치마크,
+  ListScreen(고아 — 미사용) 정리, BoomerangCaptureView 문구 2건 L10n.
+
+### 1차 — 드로어 내비 + 지도 스타일 + 배경/테마 (토대)
 사용자 지시: **"Android UI 와 iOS UI 를 모든 스크린에서 최대한 완전히 같게"**. 1차분(구조/토대):
 
 - **테마 토큰 동기화**: `Theme.swift` 를 Android `Color.kt` 와 1:1 로(Bg 0x0D0D0D / Surface1 0x1A1A1A /
