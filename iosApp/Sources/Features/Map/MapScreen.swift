@@ -22,6 +22,12 @@ struct MapScreen: View {
     @State private var pioneerMessage: String?
     // 기간별 보기 — nil=전체 기간, 0=오늘(자정 이후), 그 외 N=최근 N일. (Android 기간 필터 패리티)
     @State private var periodDays: Int?
+    // 좌하단 필터 스피드 다이얼 펼침(Android speedDialExpanded 대응) + 기간 선택 다이얼로그.
+    @State private var speedDialExpanded = false
+    @State private var showPeriodPicker = false
+    // 줌 +/− / 내 위치 버튼 → MapLibreView 커맨드(nonce 로 반복 요청 허용).
+    @State private var zoomRequest: (delta: Double, nonce: Int) = (0, 0)
+    @State private var recenterNonce = 0
 
     // 도보 길찾기 상태.
     @State private var focusTarget: CLLocationCoordinate2D?
@@ -73,18 +79,75 @@ struct MapScreen: View {
         }
     }
 
-    /// 기간 칩 라벨(활성=민트 배경).
-    private var periodChipLabel: some View {
-        Label(
-            periodDays == nil ? locale.t(.filterPeriod) : periodName(periodDays),
-            systemImage: "clock"
-        )
-        .font(.caption.bold())
-        .padding(.horizontal, 14).padding(.vertical, 9)
-        .background(periodDays != nil ? Theme.mint.opacity(0.9) : Theme.surface.opacity(0.92), in: Capsule())
-        .foregroundStyle(periodDays != nil ? Color.black : Theme.textPrimary)
-        .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.4), lineWidth: 1))
-        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+    /// 지도 위 원형 버튼 공통(Android FloatingActionButton 0x1A1A1A 대응).
+    private func mapCircleButton(_ icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: size * 0.42, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(width: size, height: size)
+                .background(Color(hex: 0x1A1A1A), in: Circle())
+                .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+        }
+    }
+
+    /// 좌하단 필터 스피드 다이얼 — Android MainListScreen 대응.
+    /// 메인 원형 버튼(나침반) 탭 → 위로 알약 옵션(전체보기/미조회만/기간별)이 펼쳐진다.
+    /// (친구만/나만보기/친구선택 필터는 iOS 미이식 — 후속.)
+    private var filterSpeedDial: some View {
+        let anyActive = unviewedOnly || periodDays != nil
+        let pillBg = Color(hex: 0x111120).opacity(0.93)
+        return VStack(alignment: .leading, spacing: 8) {
+            if speedDialExpanded {
+                filterPill(locale.t(.filterAll), icon: "globe.asia.australia", active: !anyActive) {
+                    unviewedOnly = false; periodDays = nil; speedDialExpanded = false
+                }
+                filterPill(locale.t(.filterUnviewed), icon: "sparkles", active: unviewedOnly) {
+                    unviewedOnly.toggle()
+                }
+                filterPill(
+                    periodDays == nil ? locale.t(.filterPeriod) : periodName(periodDays),
+                    icon: "clock", active: periodDays != nil
+                ) {
+                    if periodDays == nil { showPeriodPicker = true } else { periodDays = nil }
+                }
+            }
+            Button {
+                withAnimation(.easeOut(duration: 0.18)) { speedDialExpanded.toggle() }
+            } label: {
+                Image(systemName: "safari")
+                    .font(.system(size: 22))
+                    .foregroundStyle(anyActive ? Theme.mint : .white.opacity(0.75))
+                    .frame(width: 48, height: 48)
+                    .background(pillBg, in: Circle())
+                    .overlay(Circle().strokeBorder(
+                        anyActive ? Theme.mint : Color.white.opacity(0.18), lineWidth: 1.5))
+            }
+        }
+        .confirmationDialog(locale.t(.filterPeriod), isPresented: $showPeriodPicker, titleVisibility: .visible) {
+            Button(locale.t(.periodToday)) { periodDays = 0 }
+            Button(locale.t(.periodWeek)) { periodDays = 7 }
+            Button(locale.t(.periodMonth)) { periodDays = 30 }
+            Button(locale.t(.periodYear)) { periodDays = 365 }
+        }
+    }
+
+    /// 스피드 다이얼 알약 옵션(Android FilterOpt 행 대응 — 활성=민트 톤).
+    private func filterPill(_ label: String, icon: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(active ? Theme.mint : .white.opacity(0.7))
+                Text(label)
+                    .font(.poorStory(13))
+                    .foregroundStyle(active ? Theme.mint : .white.opacity(0.85))
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(active ? Theme.mint.opacity(0.18) : Color(hex: 0x111120).opacity(0.93), in: Capsule())
+            .overlay(Capsule().strokeBorder(
+                active ? Theme.mint : Color.white.opacity(0.12), lineWidth: active ? 1.5 : 1))
+        }
     }
 
     /// 실시간 위치 기준으로 "최근접점→목적지"만 남긴 경로(지나온 구간 제외).
@@ -114,7 +177,9 @@ struct MapScreen: View {
                 },
                 globeReturnCamera: globeReturn,
                 pioneerCountries: pioneer.featured,
-                onTapPioneer: { code in pioneerMessage = LocalizedNames.pioneerQuestMessage(code) }
+                onTapPioneer: { code in pioneerMessage = LocalizedNames.pioneerQuestMessage(code) },
+                zoomRequest: zoomRequest,
+                recenterNonce: recenterNonce
             )
             .ignoresSafeArea()
 
@@ -131,33 +196,33 @@ struct MapScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // 필터 칩 — 미조회만 + 기간별 보기
-            VStack(alignment: .trailing, spacing: 8) {
-                Button {
-                    unviewedOnly.toggle()
-                } label: {
-                    Label(locale.t(.filterUnviewed), systemImage: unviewedOnly ? "eye.slash.fill" : "eye")
-                        .font(.poorStory(12))
-                        .padding(.horizontal, 14).padding(.vertical, 9)
-                        .background(unviewedOnly ? Theme.mint.opacity(0.9) : Theme.surface.opacity(0.92), in: Capsule())
-                        .foregroundStyle(unviewedOnly ? Color.black : Theme.textPrimary)
-                        .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.4), lineWidth: 1))
-                        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+            // ── 좌상단 줌 버튼(+/−) — Android DiaryMap 대응(44pt, 0x1A1A1A 원형) ──
+            VStack(spacing: 10) {
+                mapCircleButton("plus", size: 44) {
+                    zoomRequest = (1, zoomRequest.nonce + 1)
                 }
-                // 기간별 보기 — 비활성이면 메뉴(오늘/7일/30일/1년), 활성이면 재탭으로 해제.
-                if periodDays != nil {
-                    Button { periodDays = nil } label: { periodChipLabel }
-                } else {
-                    Menu {
-                        Button(locale.t(.periodToday)) { periodDays = 0 }
-                        Button(locale.t(.periodWeek)) { periodDays = 7 }
-                        Button(locale.t(.periodMonth)) { periodDays = 30 }
-                        Button(locale.t(.periodYear)) { periodDays = 365 }
-                    } label: { periodChipLabel }
+                mapCircleButton("minus", size: 44) {
+                    zoomRequest = (-1, zoomRequest.nonce + 1)
                 }
             }
-            .padding(.top, 12)
-            .padding(.trailing, 14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.top, 16)
+            .padding(.leading, 16)
+
+            // ── 우하단: 내 위치 버튼 — Android DiaryMap 우하단 열 대응.
+            // (생성 FAB(56pt)은 MainTabView 소유라 그 위(16+56+12)에 얹는다 — Android 세로 나열과 동일한 시각 배치.)
+            mapCircleButton("location.north.fill", size: 48) {
+                recenterNonce += 1
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .padding(.trailing, 16)
+            .padding(.bottom, 84)
+
+            // ── 좌하단 필터 스피드 다이얼 — Android MainListScreen 대응(전체/미조회만/기간별) ──
+            filterSpeedDial
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .padding(.leading, 16)
+                .padding(.bottom, 20)
 
             // 길찾기 활성 시: 하단 요약 + 취소(X)
             if !fullRoute.isEmpty {
@@ -166,14 +231,15 @@ struct MapScreen: View {
             }
 
             // ── 하단 "지구 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
+            // (Android: 0xEE111120 알약 + 민트 0.5 테두리)
             if let entry = globeButtonCenter, globeCenter == nil {
                 Button {
                     enterGlobe(lat: entry.lat, lng: entry.lng)
                 } label: {
                     Label(locale.t(.globeOpen), systemImage: "globe.asia.australia.fill")
-                        .font(.caption.bold())
+                        .font(.poorStory(13))
                         .padding(.horizontal, 18).padding(.vertical, 11)
-                        .background(Theme.surface.opacity(0.93), in: Capsule())
+                        .background(Color(hex: 0x111120).opacity(0.93), in: Capsule())
                         .foregroundStyle(Theme.textPrimary)
                         .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.5), lineWidth: 1))
                         .shadow(color: .black.opacity(0.3), radius: 6, y: 2)

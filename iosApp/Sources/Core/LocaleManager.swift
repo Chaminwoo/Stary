@@ -112,6 +112,8 @@ enum L10n: String {
     // 드로어(좌측 메뉴) 내비 — Android MainScreen 대응.
     case navMap, navMyDiary, navMusic, navNotification, navUpload, navDetail, navStarCluster
     case drawerList, drawerLogout, drawerLogin
+    // 지도 필터 스피드 다이얼(Android MainListScreen 대응).
+    case filterAll
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -276,6 +278,7 @@ enum L10n: String {
         case .drawerList:           return ("목록", "Menu", "メニュー")
         case .drawerLogout:         return ("로그아웃", "Sign out", "ログアウト")
         case .drawerLogin:          return ("로그인", "Sign in", "ログイン")
+        case .filterAll:            return ("전체보기", "Show all", "すべて表示")
         }
     }
 

@@ -26,6 +26,10 @@ struct MapLibreView: UIViewRepresentable {
     var pioneerCountries: [PioneerQuest.Country] = []
     /// 개척 비콘 탭 → 국가 코드 전달(호출부가 퀘스트 안내 표시).
     var onTapPioneer: ((String) -> Void)? = nil
+    /// 줌 버튼(+/−) 요청 — nonce 가 바뀔 때 delta 만큼 애니메이션 줌. (Android zoomBy(±1) 대응)
+    var zoomRequest: (delta: Double, nonce: Int) = (0, 0)
+    /// "내 위치로" 요청 — nonce 가 바뀔 때 현재 위치로 줌 15 이동. (Android recenterToMyLocation 대응)
+    var recenterNonce: Int = 0
 
     /// 3D 글로브 "지구 보기" 버튼 노출 줌 / 지도 최소 줌.
     /// (Android DiaryMap GLOBE_BUTTON_ZOOM/MAP_MIN_ZOOM 패리티)
@@ -85,6 +89,18 @@ struct MapLibreView: UIViewRepresentable {
             let target = userLocation ?? CLLocationCoordinate2D(latitude: req.lat, longitude: req.lng)
             mapView.setCenter(target, zoomLevel: 15, animated: true)
         }
+        // 줌 +/− 버튼 (Android 좌상단 줌 버튼 대응).
+        if zoomRequest.nonce != context.coordinator.lastZoomNonce {
+            context.coordinator.lastZoomNonce = zoomRequest.nonce
+            mapView.setZoomLevel(mapView.zoomLevel + zoomRequest.delta, animated: true)
+        }
+        // "내 위치로" 버튼 — 실제 fix 가 있을 때만(Android recenterToMyLocation 과 동일 게이팅).
+        if recenterNonce != context.coordinator.lastRecenterNonce {
+            context.coordinator.lastRecenterNonce = recenterNonce
+            if let me = userLocation {
+                mapView.setCenter(me, zoomLevel: 15, animated: true)
+            }
+        }
         if let existing = mapView.annotations { mapView.removeAnnotations(existing) }
         // 30m 지오 머지 — 겹치는 별은 대표 하나로 합치고, 크기는 멤버 합산으로 키운다.
         // (Android DiaryMap.mergeByProximity 패리티. 탭하면 멤버가 2개 이상일 때 카드 뷰어로.)
@@ -105,6 +121,9 @@ struct MapLibreView: UIViewRepresentable {
         var lastFocus: CLLocationCoordinate2D?
         /// 마지막으로 처리한 글로브 복귀 요청 nonce.
         var lastGlobeReturnNonce: Int = -1
+        /// 마지막으로 처리한 줌 버튼/내 위치 버튼 요청 nonce.
+        var lastZoomNonce: Int = 0
+        var lastRecenterNonce: Int = 0
         init(_ parent: MapLibreView) { self.parent = parent }
 
         /// 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음).
