@@ -378,7 +378,11 @@ private struct ConstellationBackgroundView: View {
                     let pulse = 0.5 + 0.5 * sin(t + phase)
                     let magN = min(max((mag - 1.0) / 1.2, 0), 1)
 
-                    let haloR = CGFloat((7 + 16 * mag) * (0.8 + 0.35 * pulse) * (0.85 + 0.25 * f))
+                    let magnitudePart = 7.0 + (16.0 * CGFloat(mag))
+                    let pulsePart = 0.8 + (0.35 * CGFloat(pulse))
+                    let frequencyPart = 0.85 + (0.25 * CGFloat(f))
+
+                    let haloR = magnitudePart * pulsePart * frequencyPart
                     let haloA = (0.08 + 0.34 * pulse) * (0.45 + 0.55 * magN) * f
                     let grad = Gradient(colors: [color.opacity(min(haloA, 1)), .clear])
                     ctx.fill(
@@ -386,7 +390,10 @@ private struct ConstellationBackgroundView: View {
                                                width: haloR * 2, height: haloR * 2)),
                         with: .radialGradient(grad, center: c, startRadius: 0, endRadius: haloR)
                     )
-                    let coreR = CGFloat((1.0 + 1.8 * mag) * (0.88 + 0.2 * pulse))
+                    let coreMagnitudePart = 1.0 + (1.8 * CGFloat(mag))
+                    let corePulsePart = 0.88 + (0.2 * CGFloat(pulse))
+
+                    let coreR = coreMagnitudePart * corePulsePart
                     ctx.fill(
                         Path(ellipseIn: CGRect(x: c.x - coreR, y: c.y - coreR,
                                                width: coreR * 2, height: coreR * 2)),

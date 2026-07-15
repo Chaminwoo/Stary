@@ -8,68 +8,373 @@ import Foundation
 ///  - private 다이어리는 클라이언트에서 필터.
 @MainActor
 final class DiaryRepository {
+
     private let col = FirestoreService.diaries
     private var listeners: [ListenerRegistration] = []
 
-    deinit { listeners.forEach { $0.remove() } }
-
-    /// 전체 공개 + (내) 다이어리 구독. private 는 본인 것만 통과.
-    func observeAll(currentUid: String?, onChange: @escaping ([Diary]) -> Void) {
-        let reg = col
-            .order(by: "createdAt", descending: true)
-            .limit(to: 500)
-            .addSnapshotListener { snapshot, _ in
-                let all = snapshot?.documents.compactMap { try? $0.data(as: Diary.self) } ?? []
-                let visible = all.filter { d in
-                    d.visibilityType != "private" || d.userId == currentUid
-                }
-                onChange(visible)
-            }
-        listeners.append(reg)
-    }
-
-    /// 내 다이어리 구독(서버는 userId 필터만, 정렬은 클라이언트).
-    func observeMine(userId: String, onChange: @escaping ([Diary]) -> Void) {
-        let reg = col
-            .whereField("userId", isEqualTo: userId)
-            .addSnapshotListener { snapshot, _ in
-                let mine = (snapshot?.documents.compactMap { try? $0.data(as: Diary.self) } ?? [])
-                    .sorted { $0.createdAt > $1.createdAt }
-                onChange(mine)
-            }
-        listeners.append(reg)
-    }
-
-    /// 저장 후 문서 ID 반환(친구 알림 등 후속 처리에 사용).
-    @discardableResult
-    func save(_ diary: Diary) async throws -> String {
-        var d = diary
-        if d.createdAt == 0 { d.createdAt = FirestoreService.nowMillis }
-        if let id = d.id, !id.isEmpty {
-            try col.document(id).setData(from: d, merge: true)
-            return id
-        } else {
-            d.id = nil
-            let ref = try col.addDocument(from: d)
-            return ref.documentID
+    deinit {
+        listeners.forEach {
+            $0.remove()
         }
     }
 
-    func delete(_ diaryId: String) async throws {
-        try await col.document(diaryId).delete()
+    /// 전체 공개 + 내 다이어리 구독.
+    /// private 다이어리는 본인 것만 표시.
+    func observeAll(
+        currentUid: String?,
+        onChange: @escaping ([Diary]) -> Void
+    ) {
+
+        print("")
+        print("🚀 전체 다이어리 구독 시작")
+        print("👤 현재 UID:", currentUid ?? "로그인 UID 없음")
+        print("📂 Firestore 컬렉션:", col.path)
+
+        let reg = col
+            .order(
+                by: "createdAt",
+                descending: true
+            )
+            .limit(to: 500)
+            .addSnapshotListener { snapshot, error in
+
+                // Firestore 조회 오류
+                if let error {
+
+                    print("")
+                    print("❌ 전체 다이어리 Firestore 조회 실패")
+                    print("⚠️ 오류:", error)
+                    print("⚠️ 오류 내용:", error.localizedDescription)
+
+                    onChange([])
+
+                    return
+                }
+
+                // Snapshot 없음
+                guard let snapshot else {
+
+                    print("")
+                    print("❌ Firestore snapshot이 nil입니다.")
+
+                    onChange([])
+
+                    return
+                }
+
+                print("")
+                print("🔥 Firestore 원본 문서 개수:", snapshot.documents.count)
+
+                var decodedDiaries: [Diary] = []
+
+                // 문서별로 직접 디코딩
+                for document in snapshot.documents {
+
+                    do {
+
+                        let diary = try document.data(
+                            as: Diary.self
+                        )
+
+                        decodedDiaries.append(diary)
+
+                        print("")
+                        print("✅ Diary 변환 성공")
+                        print("📄 ID:", document.documentID)
+                        print("⭐ 제목:", diary.title)
+                        print("👤 작성자:", diary.userName)
+                        print("🕐 createdAt:", diary.createdAt)
+                        print("🔒 공개 범위:", diary.visibilityType)
+
+                    } catch {
+
+                        print("")
+                        print("❌ Diary 변환 실패")
+                        print("📄 문서 ID:", document.documentID)
+
+                        print(
+                            "📦 Firestore 원본 데이터:",
+                            document.data()
+                        )
+
+                        print(
+                            "⚠️ 디코딩 오류:",
+                            error
+                        )
+                    }
+                }
+
+                print("")
+                print(
+                    "⭐ Diary 변환 성공 개수:",
+                    decodedDiaries.count
+                )
+
+                // private는 작성자 본인만 표시
+                let visible = decodedDiaries.filter { diary in
+
+                    diary.visibilityType != "private"
+                    || diary.userId == currentUid
+                }
+
+                print(
+                    "👁️ 공개 범위 필터 후:",
+                    visible.count
+                )
+
+                onChange(visible)
+            }
+
+        listeners.append(reg)
     }
 
-    func diary(by id: String) async throws -> Diary? {
-        try await col.document(id).getDocument().data(as: Diary.self)
+    /// 내 다이어리 구독.
+    /// Firestore에서는 userId만 필터하고,
+    /// 최신순 정렬은 iOS에서 수행.
+    func observeMine(
+        userId: String,
+        onChange: @escaping ([Diary]) -> Void
+    ) {
+
+        print("")
+        print("🚀 내 다이어리 구독 시작")
+        print("👤 사용자 UID:", userId)
+        print("📂 Firestore 컬렉션:", col.path)
+
+        let reg = col
+            .whereField(
+                "userId",
+                isEqualTo: userId
+            )
+            .addSnapshotListener { snapshot, error in
+
+                // Firestore 오류
+                if let error {
+
+                    print("")
+                    print("❌ 내 다이어리 Firestore 조회 실패")
+                    print("⚠️ 오류:", error)
+                    print("⚠️ 오류 내용:", error.localizedDescription)
+
+                    onChange([])
+
+                    return
+                }
+
+                guard let snapshot else {
+
+                    print("")
+                    print("❌ 내 다이어리 snapshot이 nil입니다.")
+
+                    onChange([])
+
+                    return
+                }
+
+                print("")
+                print(
+                    "🔥 내 다이어리 원본 문서:",
+                    snapshot.documents.count
+                )
+
+                var decodedDiaries: [Diary] = []
+
+                for document in snapshot.documents {
+
+                    do {
+
+                        let diary = try document.data(
+                            as: Diary.self
+                        )
+
+                        decodedDiaries.append(diary)
+
+                        print("")
+                        print("✅ 내 Diary 변환 성공")
+                        print("📄 ID:", document.documentID)
+                        print("⭐ 제목:", diary.title)
+
+                    } catch {
+
+                        print("")
+                        print("❌ 내 Diary 변환 실패")
+                        print("📄 문서 ID:", document.documentID)
+
+                        print(
+                            "📦 원본 데이터:",
+                            document.data()
+                        )
+
+                        print(
+                            "⚠️ 디코딩 오류:",
+                            error
+                        )
+                    }
+                }
+
+                let mine = decodedDiaries.sorted {
+                    $0.createdAt > $1.createdAt
+                }
+
+                print("")
+                print(
+                    "⭐ 최종 내 다이어리 개수:",
+                    mine.count
+                )
+
+                onChange(mine)
+            }
+
+        listeners.append(reg)
     }
 
-    /// 조회수 +1 (본인 제외는 호출부에서 판단).
-    func incrementViewCount(_ diaryId: String) async {
-        try? await col.document(diaryId).updateData(["viewCount": FieldValue.increment(Int64(1))])
+    /// 저장 후 문서 ID 반환.
+    @discardableResult
+    func save(
+        _ diary: Diary
+    ) async throws -> String {
+
+        var diary = diary
+
+        if diary.createdAt == 0 {
+
+            diary.createdAt =
+                FirestoreService.nowMillis
+        }
+
+        if let id = diary.id,
+           !id.isEmpty {
+
+            try col
+                .document(id)
+                .setData(
+                    from: diary,
+                    merge: true
+                )
+
+            print("✅ Diary 수정 성공:", id)
+
+            return id
+
+        } else {
+
+            diary.id = nil
+
+            let reference =
+                try col.addDocument(
+                    from: diary
+                )
+
+            print(
+                "✅ Diary 저장 성공:",
+                reference.documentID
+            )
+
+            return reference.documentID
+        }
     }
 
+    /// 다이어리 삭제.
+    func delete(
+        _ diaryId: String
+    ) async throws {
+
+        try await col
+            .document(diaryId)
+            .delete()
+
+        print(
+            "🗑️ Diary 삭제 성공:",
+            diaryId
+        )
+    }
+
+    /// ID로 다이어리 조회.
+    func diary(
+        by id: String
+    ) async throws -> Diary? {
+
+        let document = try await col
+            .document(id)
+            .getDocument()
+
+        guard document.exists else {
+
+            print(
+                "⚠️ Diary 문서 없음:",
+                id
+            )
+
+            return nil
+        }
+
+        do {
+
+            let diary = try document.data(
+                as: Diary.self
+            )
+
+            print(
+                "✅ Diary 단일 조회 성공:",
+                id
+            )
+
+            return diary
+
+        } catch {
+
+            print("")
+            print("❌ Diary 단일 조회 변환 실패")
+            print("📄 문서 ID:", id)
+            print("📦 데이터:", document.data() ?? [:])
+            print("⚠️ 오류:", error)
+
+            throw error
+        }
+    }
+
+    /// 조회수 +1.
+    /// 본인 제외 여부는 호출부에서 판단.
+    func incrementViewCount(
+        _ diaryId: String
+    ) async {
+
+        do {
+
+            try await col
+                .document(diaryId)
+                .updateData([
+                    "viewCount":
+                        FieldValue.increment(
+                            Int64(1)
+                        )
+                ])
+
+            print(
+                "👁️ 조회수 증가 성공:",
+                diaryId
+            )
+
+        } catch {
+
+            print("")
+            print("❌ 조회수 증가 실패")
+            print("📄 Diary ID:", diaryId)
+            print("⚠️ 오류:", error)
+        }
+    }
+
+    /// 모든 Firestore 실시간 구독 중지.
     func stopAll() {
-        listeners.forEach { $0.remove() }
+
+        listeners.forEach {
+            $0.remove()
+        }
+
         listeners.removeAll()
+
+        print(
+            "🛑 Diary Firestore 구독 종료"
+        )
     }
 }

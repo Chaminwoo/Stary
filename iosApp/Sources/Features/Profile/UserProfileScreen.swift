@@ -152,22 +152,35 @@ struct UserProfileScreen: View {
         .padding(.top, 8)
     }
 
+    /// 내 프로필(ProfileScreen)과 동일한 톤 — 민트 후광 + 민트→블루 그라데이션 테두리(#15).
     private var avatar: some View {
-        Group {
-            if let url = profileImageUrl, !url.isEmpty {
-                AsyncImage(url: URL(string: url)) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: { Theme.surfaceAlt }
-            } else {
-                Theme.surfaceAlt.overlay(
-                    Text(String((userName.isEmpty ? "?" : userName).prefix(1)))
-                        .font(.poorStory(34))
-                        .foregroundStyle(Theme.mint)
-                )
+        ZStack {
+            Circle()
+                .fill(RadialGradient(colors: [Theme.mint.opacity(0.28), .clear],
+                                     center: .center, startRadius: 0, endRadius: 90))
+                .frame(width: 140, height: 140)
+            Group {
+                if let url = profileImageUrl, !url.isEmpty {
+                    AsyncImage(url: URL(string: url)) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: { Theme.surfaceAlt }
+                } else {
+                    Theme.surfaceAlt.overlay(
+                        Text(String((userName.isEmpty ? "?" : userName).prefix(1)))
+                            .font(.poorStory(40))
+                            .foregroundStyle(Theme.mint)
+                    )
+                }
             }
+            .frame(width: 96, height: 96)
+            .clipShape(Circle())
+            .overlay(
+                Circle().strokeBorder(
+                    LinearGradient(colors: [Theme.mint, Theme.mintBlue],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 3)
+            )
         }
-        .frame(width: 84, height: 84)
-        .clipShape(Circle())
     }
 
     @ViewBuilder

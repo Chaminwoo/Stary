@@ -91,12 +91,18 @@ private struct MusicConstellationView: View {
                     let c = pos(s)
                     let phase = s.x * 11 + s.y * 7
                     let pulse = 0.5 + 0.5 * sin(t * 1.8 + phase)
-                    let haloR = CGFloat((7 + 16 * s.mag) * (0.8 + 0.35 * pulse)) * 0.5
+                    let magnitudeScale: CGFloat = 7.0 + (16.0 * s.mag)
+                    let pulseScale: CGFloat = 0.8 + (0.35 * pulse)
+
+                    let haloR: CGFloat = magnitudeScale * pulseScale * 0.5
                     gc.fill(
                         Path(ellipseIn: CGRect(x: c.x - haloR, y: c.y - haloR, width: haloR * 2, height: haloR * 2)),
                         with: .color(color.opacity(0.08 + 0.22 * pulse))
                     )
-                    let coreR = CGFloat((1.0 + 1.8 * s.mag) * (0.88 + 0.2 * pulse))
+                    let coreMagnitudePart = 1.0 + (1.8 * CGFloat(s.mag))
+                    let corePulsePart = 0.88 + (0.2 * CGFloat(pulse))
+
+                    let coreR = coreMagnitudePart * corePulsePart
                     gc.fill(
                         Path(ellipseIn: CGRect(x: c.x - coreR, y: c.y - coreR, width: coreR * 2, height: coreR * 2)),
                         with: .color(.white.opacity(0.45 + 0.40 * pulse))

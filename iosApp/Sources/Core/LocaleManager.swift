@@ -104,7 +104,7 @@ enum L10n: String {
     // 주간 개척 퀘스트(체크리스트 32).
     case pioneerCondition
     // 30m 안에서 겹쳐진 별 무리(카드 뷰어).
-    case clusterHeader, clusterHint, clusterOpen
+    case clusterHeader, clusterHint
     // 친구 목록(메신저형 행).
     case friendNoChatYet
     // 근처 미조회 별 발견 알림(체크리스트 33).
@@ -131,6 +131,8 @@ enum L10n: String {
     case loginGoogle, loginBrowse, notifEmpty
     // 업적 화면(장착 버튼/히든 달성 알림).
     case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
+    // 업적 목록 구분 헤더(Android AchievementsScreen 섹션 대응).
+    case achSectionTitles, achSectionShapesColors, achSectionPioneer
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -274,7 +276,7 @@ enum L10n: String {
         case .clusterHint:          return ("좌우로 넘겨 별을 살펴보세요",
                                             "Swipe left or right to browse the stars",
                                             "左右にスワイプして星を見てみましょう")
-        case .clusterOpen:          return ("탭해서 들여다보기", "Tap to open", "タップして開く")
+
         case .nearbyStarTitle:      return ("근처에 아직 안 본 별이 있어요 ✦",
                                             "There's an unseen star nearby ✦",
                                             "近くにまだ見ていない星があります ✦")
@@ -364,6 +366,9 @@ enum L10n: String {
                                             "Only one in the whole app — you're the first",
                                             "アプリでただ一人 — あなたが最初です")
         case .commonOk:             return ("확인", "OK", "OK")
+        case .achSectionTitles:     return ("칭호", "Titles", "称号")
+        case .achSectionShapesColors: return ("별 모양 · 색", "Star shapes & colors", "星の形・色")
+        case .achSectionPioneer:    return ("개척 칭호", "Pioneer titles", "開拓称号")
         }
     }
 

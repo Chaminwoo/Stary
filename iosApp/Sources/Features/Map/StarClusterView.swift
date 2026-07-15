@@ -60,17 +60,20 @@ struct StarClusterView: View {
                 .padding(.vertical, 18)
             }
 
-            // 뒤로가기 — 좌상단
+            // 뒤로가기(X) — 좌상단. 화면 밖으로 나가지 않게 안쪽 여백을 준다(#16).
             VStack {
                 HStack {
                     Button(action: onClose) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 40, height: 40)
+                            .background(Color.black.opacity(0.35), in: Circle())
                     }
                     Spacer()
                 }
+                .padding(.leading, 16)
+                .padding(.top, 8)
                 Spacer()
             }
         }
@@ -138,14 +141,16 @@ private struct ClusterCard: View {
             HStack(spacing: 8) {
                 StarView(type: diary.starType, colorIndex: diary.starColor, size: 18, glow: false)
                 Text(diary.title.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : diary.title)
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.poorStory(17))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
             }
+            .padding(.leading, 4)
             Spacer().frame(height: 6)
             Text("#\(rank) · \(dateText)")
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
+                .padding(.leading, 4)
 
             Spacer().frame(height: 12)
 
@@ -164,10 +169,6 @@ private struct ClusterCard: View {
                 Text("\(diary.commentCount)")
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.textPrimary)
-                Spacer()
-                Text(LocaleManager.shared.t(.clusterOpen))
-                    .font(.caption)
-                    .foregroundStyle(accent.opacity(0.9))
             }
         }
         .padding(14)

@@ -169,23 +169,22 @@ struct UploadScreen: View {
     private var starPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             label(LocaleManager.shared.t(.uploadStarShape))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(0..<StarStyle.typeCount, id: \.self) { t in
-                        let lockedAch = StarUnlocks.lockedShapeAch(t, unlocked)
-                        ZStack {
-                            StarView(type: t, colorIndex: starColor, size: 34, glow: false)
-                                .opacity(lockedAch == nil ? 1 : 0.25)
-                            if lockedAch != nil {
-                                Image(systemName: "lock.fill").font(.caption2).foregroundStyle(Theme.textSecondary)
-                            }
-                        }
-                        .padding(8)
-                        .background(starType == t ? Theme.mint.opacity(0.2) : Color.clear, in: Circle())
-                        .onTapGesture {
-                            if let a = lockedAch { showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name)) }
-                            else { starType = t }
-                        }
+            WheelPicker(
+                count: StarStyle.typeCount,
+                selection: $starType,
+                itemSize: 40,
+                isLocked: { StarUnlocks.lockedShapeAch($0, unlocked) != nil },
+                onLocked: { t in
+                    if let a = StarUnlocks.lockedShapeAch(t, unlocked) {
+                        showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name))
+                    }
+                }
+            ) { t in
+                ZStack {
+                    StarView(type: t, colorIndex: starColor, size: 40, glow: false)
+                        .opacity(StarUnlocks.lockedShapeAch(t, unlocked) == nil ? 1 : 0.25)
+                    if StarUnlocks.lockedShapeAch(t, unlocked) != nil {
+                        Image(systemName: "lock.fill").font(.caption2).foregroundStyle(Theme.textSecondary)
                     }
                 }
             }
@@ -195,24 +194,24 @@ struct UploadScreen: View {
     private var colorPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             label(LocaleManager.shared.t(.uploadStarColor))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(0..<StarStyle.colorCount, id: \.self) { c in
-                        let lockedAch = StarUnlocks.lockedColorAch(c, unlocked)
-                        ZStack {
-                            Circle()
-                                .fill(StarStyle.fill(c))
-                                .frame(width: 28, height: 28)
-                                .opacity(lockedAch == nil ? 1 : 0.25)
-                                .overlay(Circle().stroke(Theme.mint, lineWidth: starColor == c ? 3 : 0))
-                            if lockedAch != nil {
-                                Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(Theme.textPrimary)
-                            }
-                        }
-                        .onTapGesture {
-                            if let a = lockedAch { showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name)) }
-                            else { starColor = c }
-                        }
+            WheelPicker(
+                count: StarStyle.colorCount,
+                selection: $starColor,
+                itemSize: 32,
+                isLocked: { StarUnlocks.lockedColorAch($0, unlocked) != nil },
+                onLocked: { c in
+                    if let a = StarUnlocks.lockedColorAch(c, unlocked) {
+                        showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name))
+                    }
+                }
+            ) { c in
+                ZStack {
+                    Circle()
+                        .fill(StarStyle.fill(c))
+                        .frame(width: 32, height: 32)
+                        .opacity(StarUnlocks.lockedColorAch(c, unlocked) == nil ? 1 : 0.25)
+                    if StarUnlocks.lockedColorAch(c, unlocked) != nil {
+                        Image(systemName: "lock.fill").font(.system(size: 11)).foregroundStyle(Theme.textPrimary)
                     }
                 }
             }
@@ -341,6 +340,68 @@ struct UploadScreen: View {
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                 .foregroundStyle(Theme.textPrimary)
         }
+    }
+}
+
+/// 별 모양/색 선택용 무한 회전 휠(#13) — 선택 항목이 항상 정중앙, 좌우로 5개 정도 노출,
+/// 끝까지 돌리면 멈추지 않고 처음 항목이 다시 나온다(modulo 순환). (Android 미참고, iOS 자체 설계)
+private struct WheelPicker<Content: View>: View {
+    let count: Int
+    @Binding var selection: Int
+    let itemSize: CGFloat
+    var isLocked: (Int) -> Bool = { _ in false }
+    var onLocked: (Int) -> Void = { _ in }
+    @ViewBuilder let item: (Int) -> Content
+
+    /// 슬롯 간격 — 5개(중앙 ±2)가 보이도록 넉넉히.
+    private var slot: CGFloat { itemSize + 28 }
+    @State private var drag: CGFloat = 0
+
+    private func wrap(_ i: Int) -> Int { ((i % count) + count) % count }
+
+    var body: some View {
+        ZStack {
+            // 중앙 강조 링(선택 자리).
+            Circle()
+                .stroke(Theme.mint.opacity(0.9), lineWidth: 2)
+                .frame(width: itemSize + 18, height: itemSize + 18)
+
+            // 중앙 ±2 슬롯만 그린다(무한 순환은 wrap 으로).
+            ForEach(-2...2, id: \.self) { off in
+                let idx = wrap(selection + off)
+                let x = CGFloat(off) * slot + drag
+                let dist = abs(x)
+                let scale = max(0.55, 1.25 - dist / slot * 0.35)
+                item(idx)
+                    .scaleEffect(scale)
+                    .opacity(Double(max(0.3, 1 - dist / (slot * 2.2))))
+                    .offset(x: x)
+                    .onTapGesture { tapSelect(idx) }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: itemSize * 1.7)
+        .contentShape(Rectangle())
+        .clipped()
+        .gesture(
+            DragGesture()
+                .onChanged { drag = $0.translation.width }
+                .onEnded { v in
+                    let steps = Int((-v.translation.width / slot).rounded())
+                    let target = wrap(selection + steps)
+                    if steps != 0, isLocked(target) {
+                        onLocked(target)
+                        withAnimation(.easeOut(duration: 0.2)) { drag = 0 }
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) { selection = target; drag = 0 }
+                    }
+                }
+        )
+    }
+
+    private func tapSelect(_ idx: Int) {
+        if isLocked(idx) { onLocked(idx) }
+        else { withAnimation(.easeOut(duration: 0.2)) { selection = idx } }
     }
 }
 

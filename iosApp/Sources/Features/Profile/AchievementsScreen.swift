@@ -101,17 +101,43 @@ struct AchievementsScreen: View {
                     .font(.caption).foregroundStyle(Theme.mint)
             }
             .frame(height: 52)
-            ForEach(Achievements.all) { ach in
-                achievementRow(ach)
+
+            // Android 처럼 보상 종류로 섹션을 나눈다: 칭호 / 별 모양·색.
+            let titleAch = Achievements.all.filter { if case .title = $0.reward { return true }; return false }
+            let shapeColorAch = Achievements.all.filter {
+                switch $0.reward { case .shape, .color: return true; default: return false }
+            }
+
+            if !titleAch.isEmpty {
+                sectionHeader(locale.t(.achSectionTitles))
+                ForEach(titleAch) { achievementRow($0) }
+            }
+            if !shapeColorAch.isEmpty {
+                sectionHeader(locale.t(.achSectionShapesColors))
+                ForEach(shapeColorAch) { achievementRow($0) }
             }
             // 개척 칭호(체크리스트 32) — 내가 개척한 나라만 노출, 장착 가능.
-            ForEach(myPioneerCodes, id: \.self) { code in
-                pioneerRow(code)
+            if !myPioneerCodes.isEmpty {
+                sectionHeader(locale.t(.achSectionPioneer))
+                ForEach(myPioneerCodes, id: \.self) { code in
+                    pioneerRow(code)
+                }
             }
-            AboutView()
-                .padding(.top, 12)
         }
         .padding(16)
+    }
+
+    /// 업적 구분 헤더 행(Android 섹션 제목 대응).
+    private func sectionHeader(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            Text(text)
+                .font(.poorStory(15))
+                .foregroundStyle(Theme.mint)
+            Rectangle()
+                .fill(Theme.mint.opacity(0.25))
+                .frame(height: 1)
+        }
+        .padding(.top, 6)
     }
 
     /// 개척 칭호 행 — 항상 달성 상태, 탭으로 장착/해제. (Android NormalTab 개척 섹션 패리티)

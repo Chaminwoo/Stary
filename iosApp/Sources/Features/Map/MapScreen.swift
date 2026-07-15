@@ -426,6 +426,7 @@ struct MapScreen: View {
     /// 지도 줌아웃 → 글로브 진입. 검정 디졸브로 지도 ↔ SceneKit 교체를 가린다.
     private func enterGlobe(lat: Double, lng: Double) {
         guard globeCenter == nil else { return }
+        MapChromeState.shared.hidden = true   // 글로브에서는 상단바·글쓰기 FAB 숨김(#12)
         withAnimation(.easeInOut(duration: 0.17)) { globeScrim = 1 }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             globeCenter = GlobeCenter(lat: lat, lng: lng)
@@ -435,6 +436,7 @@ struct MapScreen: View {
 
     /// 글로브 핀치-인 → 지금 정면 지점의 지도(줌 4)로 복귀.
     private func exitGlobe(lat: Double, lng: Double) {
+        MapChromeState.shared.hidden = false  // 지도 복귀 시 크롬 다시 표시
         withAnimation(.easeInOut(duration: 0.17)) { globeScrim = 1 }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             globeReturn = GlobeReturnCamera(lat: lat, lng: lng, zoom: 4.0,

@@ -2,47 +2,319 @@ import FirebaseFirestore
 import Foundation
 
 /// Firestore <-> 도메인 모델 (Swift Codable).
-/// KMP `shared` commonMain 모델 + Android Firebase 리포지토리와 **필드명/컬렉션이 동일**해야
+/// KMP `shared` commonMain 모델 + Android Firebase 리포지토리와 필드명/컬렉션이 동일해야
 /// 양 플랫폼이 같은 DB(stary-db)를 공유할 수 있다.
 /// createdAt 은 epoch millis(Int64).
-
 struct Diary: Identifiable, Codable, Hashable {
-    // @DocumentID 의 Hashable/Equatable 합성에 의존하지 않도록 id 기반으로 직접 구현.
-    static func == (lhs: Diary, rhs: Diary) -> Bool {
-        lhs.id == rhs.id && lhs.createdAt == rhs.createdAt && lhs.viewCount == rhs.viewCount
-    }
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 
     @DocumentID var id: String?
+
     var userId: String = ""
     var userName: String = ""
+
+    /// 앱 내부에서는 Bool로 사용.
+    /// Firestore에서는 Android와 동일하게 `anonymous: 0 또는 1`로 저장.
     var isAnonymous: Bool = false
+
     var title: String = ""
     var content: String = ""
     var imageUrl: String = ""
-    /// 3초 이내 짧은 영상 URL(Storage). 비어 있으면 영상 없음 — imageUrl 과 배타적. (Android Diary.videoUrl 패리티)
+
+    /// 3초 이내 짧은 영상 URL(Storage).
+    /// 비어 있으면 영상 없음 — imageUrl과 배타적.
     var videoUrl: String = ""
+
     var latitude: Double = 0
     var longitude: Double = 0
+
     var createdAt: Int64 = 0
+
     var likeCount: Int = 0
     var commentCount: Int = 0
     var viewCount: Int = 0
+
     var starType: Int = 0
     var starColor: Int = 0
+
     var visibilityType: String = "public"
 
-    enum CodingKeys: String, CodingKey {
-        case id, userId, userName, isAnonymous, title, content, imageUrl, videoUrl
-        case latitude, longitude, createdAt, likeCount, commentCount, viewCount
-        case starType, starColor, visibilityType
+    // MARK: - 기본 생성자
+
+    init(
+        id: String? = nil,
+        userId: String = "",
+        userName: String = "",
+        isAnonymous: Bool = false,
+        title: String = "",
+        content: String = "",
+        imageUrl: String = "",
+        videoUrl: String = "",
+        latitude: Double = 0,
+        longitude: Double = 0,
+        createdAt: Int64 = 0,
+        likeCount: Int = 0,
+        commentCount: Int = 0,
+        viewCount: Int = 0,
+        starType: Int = 0,
+        starColor: Int = 0,
+        visibilityType: String = "public"
+    ) {
+        self.id = id
+        self.userId = userId
+        self.userName = userName
+        self.isAnonymous = isAnonymous
+        self.title = title
+        self.content = content
+        self.imageUrl = imageUrl
+        self.videoUrl = videoUrl
+        self.latitude = latitude
+        self.longitude = longitude
+        self.createdAt = createdAt
+        self.likeCount = likeCount
+        self.commentCount = commentCount
+        self.viewCount = viewCount
+        self.starType = starType
+        self.starColor = starColor
+        self.visibilityType = visibilityType
     }
 
-    var createdDate: Date { Date(timeIntervalSince1970: Double(createdAt) / 1000) }
+    // MARK: - Firestore 키
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId
+        case userName
+
+        // Android Firestore 필드명
+        case anonymous
+
+        case title
+        case content
+        case imageUrl
+        case videoUrl
+
+        case latitude
+        case longitude
+
+        case createdAt
+
+        case likeCount
+        case commentCount
+        case viewCount
+
+        case starType
+        case starColor
+
+        case visibilityType
+    }
+
+    // MARK: - Firestore → Swift
+
+    init(from decoder: Decoder) throws {
+
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+
+        // ⚠️ Android/iOS 가 같은 DB(stary-db)를 공유하므로 필드 타입이 문서마다 미묘하게
+        // 다를 수 있다(Long/Int/Double/Timestamp/문자열 등). 한 필드라도 타입이 어긋나면
+        // decodeIfPresent 가 throw 되어 문서 전체가 누락되므로, 모든 필드를 방어적으로 디코딩한다.
+
+        /// 문자열(숫자로 저장돼 있어도 문자열화).
+        func str(_ k: CodingKeys) -> String? {
+            if let v = try? c.decodeIfPresent(String.self, forKey: k) { return v }
+            if let v = try? c.decodeIfPresent(Int64.self, forKey: k) { return String(v) }
+            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return String(v) }
+            return nil
+        }
+        /// 정수(Int/Int64/Double/문자열 혼용 허용).
+        func int(_ k: CodingKeys) -> Int? {
+            if let v = try? c.decodeIfPresent(Int.self, forKey: k) { return v }
+            if let v = try? c.decodeIfPresent(Int64.self, forKey: k) { return Int(v) }
+            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return Int(v) }
+            if let v = try? c.decodeIfPresent(String.self, forKey: k) { return Int(v) }
+            return nil
+        }
+        /// 실수(Double/Int 혼용 허용).
+        func dbl(_ k: CodingKeys) -> Double? {
+            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return v }
+            if let v = try? c.decodeIfPresent(Int64.self, forKey: k) { return Double(v) }
+            if let v = try? c.decodeIfPresent(String.self, forKey: k) { return Double(v) }
+            return nil
+        }
+        /// epoch millis(Int64) — Long/Double 또는 Firestore Timestamp 모두 허용.
+        func millis(_ k: CodingKeys) -> Int64? {
+            if let v = try? c.decodeIfPresent(Int64.self, forKey: k) { return v }
+            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return Int64(v) }
+            if let ts = try? c.decodeIfPresent(Timestamp.self, forKey: k) {
+                return Int64(ts.seconds) * 1000 + Int64(ts.nanoseconds) / 1_000_000
+            }
+            return nil
+        }
+
+        id = try? c.decodeIfPresent(String.self, forKey: .id)
+
+        userId = str(.userId) ?? ""
+        userName = str(.userName) ?? ""
+
+        // anonymous: 0/1(Int) 또는 true/false(Bool) 모두 호환.
+        if let v = try? c.decodeIfPresent(Int.self, forKey: .anonymous) {
+            isAnonymous = v != 0
+        } else if let v = try? c.decodeIfPresent(Bool.self, forKey: .anonymous) {
+            isAnonymous = v
+        } else {
+            isAnonymous = false
+        }
+
+        title = str(.title) ?? ""
+        content = str(.content) ?? ""
+        imageUrl = str(.imageUrl) ?? ""
+        videoUrl = str(.videoUrl) ?? ""
+
+        latitude = dbl(.latitude) ?? 0
+        longitude = dbl(.longitude) ?? 0
+
+        createdAt = millis(.createdAt) ?? 0
+
+        likeCount = int(.likeCount) ?? 0
+        commentCount = int(.commentCount) ?? 0
+        viewCount = int(.viewCount) ?? 0
+
+        starType = int(.starType) ?? 0
+        starColor = int(.starColor) ?? 0
+
+        visibilityType = str(.visibilityType) ?? "public"
+    }
+
+    // MARK: - Swift → Firestore
+
+    func encode(to encoder: Encoder) throws {
+
+        var container = encoder.container(
+            keyedBy: CodingKeys.self
+        )
+
+        /*
+         @DocumentID는 Firestore 문서 ID로 관리되므로
+         문서 내부 필드에는 저장하지 않는다.
+         */
+
+        try container.encode(
+            userId,
+            forKey: .userId
+        )
+
+        try container.encode(
+            userName,
+            forKey: .userName
+        )
+
+        // Android와 동일한 형식:
+        // false → 0
+        // true → 1
+        try container.encode(
+            isAnonymous ? 1 : 0,
+            forKey: .anonymous
+        )
+
+        try container.encode(
+            title,
+            forKey: .title
+        )
+
+        try container.encode(
+            content,
+            forKey: .content
+        )
+
+        try container.encode(
+            imageUrl,
+            forKey: .imageUrl
+        )
+
+        try container.encode(
+            videoUrl,
+            forKey: .videoUrl
+        )
+
+        try container.encode(
+            latitude,
+            forKey: .latitude
+        )
+
+        try container.encode(
+            longitude,
+            forKey: .longitude
+        )
+
+        try container.encode(
+            createdAt,
+            forKey: .createdAt
+        )
+
+        try container.encode(
+            likeCount,
+            forKey: .likeCount
+        )
+
+        try container.encode(
+            commentCount,
+            forKey: .commentCount
+        )
+
+        try container.encode(
+            viewCount,
+            forKey: .viewCount
+        )
+
+        try container.encode(
+            starType,
+            forKey: .starType
+        )
+
+        try container.encode(
+            starColor,
+            forKey: .starColor
+        )
+
+        try container.encode(
+            visibilityType,
+            forKey: .visibilityType
+        )
+    }
+
+    // MARK: - Hashable / Equatable
+
+    static func == (
+        lhs: Diary,
+        rhs: Diary
+    ) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.createdAt == rhs.createdAt &&
+        lhs.viewCount == rhs.viewCount
+    }
+
+    func hash(
+        into hasher: inout Hasher
+    ) {
+        hasher.combine(id)
+    }
+
+    // MARK: - 날짜
+
+    var createdDate: Date {
+        Date(
+            timeIntervalSince1970:
+                Double(createdAt) / 1000
+        )
+    }
 }
 
+
+// MARK: - 댓글
+
 struct Comment: Identifiable, Codable {
+
     @DocumentID var id: String?
+
     var diaryId: String = ""
     var userId: String = ""
     var userName: String = ""
@@ -50,79 +322,214 @@ struct Comment: Identifiable, Codable {
     var createdAt: Int64 = 0
 }
 
-/// 인앱 알림. 컬렉션: notifications (최상위). 수신자 = diaryOwnerId.
-/// ⚠️ 읽음 필드는 Kotlin `isRead` 직렬화 규칙상 Firestore 엔 `read` 로 저장된다 → Swift 도 `read`.
+
+// MARK: - 인앱 알림
+
+/// 컬렉션: notifications (최상위).
+/// 수신자 = diaryOwnerId.
+///
+/// Kotlin `isRead` 직렬화 규칙상
+/// Firestore에는 `read`로 저장된다.
 struct AppNotification: Identifiable, Codable {
+
     @DocumentID var id: String?
-    var type: String = "LIKE"           // LIKE | COMMENT | FRIEND_POST
+
+    // LIKE | COMMENT | FRIEND_POST
+    var type: String = "LIKE"
+
     var diaryId: String = ""
     var diaryTitle: String = ""
-    var diaryOwnerId: String = ""       // 수신자
+
+    // 알림 수신자
+    var diaryOwnerId: String = ""
+
     var actorId: String = ""
     var actorName: String = ""
+
     var content: String = ""
+
     var createdAt: Int64 = 0
+
     var read: Bool = false
 
     var displayText: String {
+
         switch type {
-        case "COMMENT": return "\(actorName)님이 댓글을 남겼어요"
-        case "FRIEND_POST": return "\(actorName)님이 새 별을 남겼어요"
-        default: return "\(actorName)님이 좋아요를 눌렀어요"
+
+        case "COMMENT":
+            return "\(actorName)님이 댓글을 남겼어요"
+
+        case "FRIEND_POST":
+            return "\(actorName)님이 새 별을 남겼어요"
+
+        default:
+            return "\(actorName)님이 좋아요를 눌렀어요"
         }
     }
 }
 
-/// 수락된 친구. users/{uid}/friends/{friendUid} (문서 id = 상대 uid).
+
+// MARK: - 친구
+
+/// 수락된 친구.
+/// users/{uid}/friends/{friendUid}
+///
+/// 문서 ID = 상대 UID.
 struct Friend: Identifiable, Codable {
+
     @DocumentID var id: String?
+
     var userId: String = ""
     var userName: String = ""
     var photoUrl: String = ""
+
     var createdAt: Int64 = 0
+
+    enum CodingKeys: String, CodingKey { case id, userId, userName, photoUrl, profileImageUrl, createdAt }
+
+    init(id: String? = nil, userId: String = "", userName: String = "", photoUrl: String = "", createdAt: Int64 = 0) {
+        self.id = id; self.userId = userId; self.userName = userName; self.photoUrl = photoUrl; self.createdAt = createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        userId = c.flexString(.userId) ?? ""
+        userName = c.flexString(.userName) ?? ""
+        // Android 가 photoUrl / profileImageUrl 중 무엇으로 저장해도 받는다.
+        photoUrl = c.flexString(.photoUrl) ?? c.flexString(.profileImageUrl) ?? ""
+        createdAt = c.flexMillis(.createdAt) ?? 0
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(userId, forKey: .userId)
+        try c.encode(userName, forKey: .userName)
+        try c.encode(photoUrl, forKey: .photoUrl)
+        try c.encode(createdAt, forKey: .createdAt)
+    }
 }
 
-/// 친구 요청. friendRequests/{id} (pending 만).
+
+// MARK: - 친구 요청
+
+/// friendRequests/{id}
+///
+/// pending 요청만 저장.
 struct FriendRequest: Identifiable, Codable {
+
     @DocumentID var id: String?
+
     var fromId: String = ""
     var fromName: String = ""
     var fromPhotoUrl: String = ""
+
     var toId: String = ""
     var toName: String = ""
+
     var createdAt: Int64 = 0
+
+    enum CodingKeys: String, CodingKey {
+        case id, fromId, fromName, fromPhotoUrl, toId, toName, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        fromId = c.flexString(.fromId) ?? ""
+        fromName = c.flexString(.fromName) ?? ""
+        fromPhotoUrl = c.flexString(.fromPhotoUrl) ?? ""
+        toId = c.flexString(.toId) ?? ""
+        toName = c.flexString(.toName) ?? ""
+        createdAt = c.flexMillis(.createdAt) ?? 0
+    }
 }
 
-/// 공개 프로필. users/{uid}.
-/// profileImageUrl/equippedTitle 은 문서에 없을 수 있어(Android 부분 upsert) Optional —
-/// Firestore Codable 은 누락 비옵셔널 필드에서 throw 하므로 디코딩 실패 방지.
+
+// MARK: - 사용자 프로필
+
+/// 공개 프로필.
+/// users/{uid}.
+///
+/// profileImageUrl 및 equippedTitle은
+/// Android 부분 upsert 때문에 문서에 없을 수 있다.
 struct UserProfile: Identifiable, Codable {
+
     @DocumentID var id: String?
+
     var userId: String = ""
     var userName: String = ""
+
     var profileImageUrl: String? = nil
     var equippedTitle: String? = nil
 }
 
-/// 1:1 채팅 메시지. chats/{chatId}/messages/{id}.
+
+// MARK: - 채팅 메시지
+
+/// chats/{chatId}/messages/{id}
 struct ChatMessage: Identifiable, Codable {
+
     @DocumentID var id: String?
+
     var senderId: String = ""
     var senderName: String = ""
+
     var text: String = ""
+
     var createdAt: Int64 = 0
 }
 
+
+// MARK: - 공개 범위
+
 enum Visibility: String, CaseIterable {
+
     case publicAll = "public"
     case friends = "friends"
     case privateOnly = "private"
 
     var label: String {
+
         switch self {
-        case .publicAll: return "전체 공개"
-        case .friends: return "친구만"
-        case .privateOnly: return "나만 보기"
+
+        case .publicAll:
+            return "전체 공개"
+
+        case .friends:
+            return "친구만"
+
+        case .privateOnly:
+            return "나만 보기"
         }
+    }
+}
+
+
+// MARK: - 유연 디코딩 헬퍼
+
+/// Firestore 문서의 필드 타입이 Android/iOS/버전별로 미묘하게 달라도(문자열/Int/Long/Double/Timestamp)
+/// 문서가 통째로 누락되지 않도록 관대하게 읽는다. (Diary/Friend/FriendRequest 등 공유)
+extension KeyedDecodingContainer {
+    func flexString(_ k: Key) -> String? {
+        if let v = try? decodeIfPresent(String.self, forKey: k) { return v }
+        if let v = try? decodeIfPresent(Int64.self, forKey: k) { return String(v) }
+        if let v = try? decodeIfPresent(Double.self, forKey: k) { return String(v) }
+        return nil
+    }
+    func flexInt(_ k: Key) -> Int? {
+        if let v = try? decodeIfPresent(Int.self, forKey: k) { return v }
+        if let v = try? decodeIfPresent(Int64.self, forKey: k) { return Int(v) }
+        if let v = try? decodeIfPresent(Double.self, forKey: k) { return Int(v) }
+        if let v = try? decodeIfPresent(String.self, forKey: k) { return Int(v) }
+        return nil
+    }
+    func flexMillis(_ k: Key) -> Int64? {
+        if let v = try? decodeIfPresent(Int64.self, forKey: k) { return v }
+        if let v = try? decodeIfPresent(Double.self, forKey: k) { return Int64(v) }
+        if let ts = try? decodeIfPresent(Timestamp.self, forKey: k) {
+            return Int64(ts.seconds) * 1000 + Int64(ts.nanoseconds) / 1_000_000
+        }
+        return nil
     }
 }

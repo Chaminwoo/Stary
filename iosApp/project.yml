@@ -36,6 +36,7 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      - path: AppDelegate.swift
     info:
       path: Sources/Info.plist
       properties:

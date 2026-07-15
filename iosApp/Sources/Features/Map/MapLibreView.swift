@@ -53,8 +53,18 @@ struct MapLibreView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+    /// 단일 지도 인스턴스 캐시 — 다른 화면으로 push 했다가 돌아와도 같은 MLNMapView 를 재사용해
+    /// 카메라/타일 로드 상태가 유지된다(재생성으로 지도가 "끊기는" 현상 방지, #14).
+    private static var cachedMapView: MLNMapView?
+
     func makeUIView(context: Context) -> MLNMapView {
+        // 이미 만들어 둔 지도가 있으면 재사용(델리게이트만 새 coordinator 로 교체).
+        if let cached = Self.cachedMapView {
+            cached.delegate = context.coordinator
+            return cached
+        }
         let mapView = MLNMapView(frame: .zero)
+        Self.cachedMapView = mapView
         // 야경 커스텀 스타일 — Android `res/raw/maplibre_style.json` 과 같은 파일을 번들에서 로드해
         // `__MAPTILER_KEY__` 를 주입한다. 키 미설정/로드 실패 시 데모 스타일로 폴백(지도는 항상 뜬다).
         mapView.styleURL = Self.staryStyleURL
@@ -64,7 +74,7 @@ struct MapLibreView: UIViewRepresentable {
         // 크게 점프하는 간격을 줄인다(체크리스트 29). 실제 fix 가 들어오면 재센터.
         let fallback = LocationManager.lastSavedCoordinate
             ?? CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
-        mapView.setCenter(userLocation ?? fallback, zoomLevel: 13, animated: false)
+        mapView.setCenter(userLocation ?? fallback, zoomLevel: 15, animated: false)
         mapView.showsUserLocation = true
         mapView.minimumZoomLevel = Self.mapMinZoom // 이 밑은 3D 글로브가 담당
         return mapView
@@ -75,7 +85,7 @@ struct MapLibreView: UIViewRepresentable {
         // 최초 진입 시 실제 위치 fix 가 들어오면 그 위치로 1회만 부드럽게 이동(Android didAutoCenter 패리티).
         if !context.coordinator.didAutoCenter, let me = userLocation {
             context.coordinator.didAutoCenter = true
-            mapView.setCenter(me, zoomLevel: 14, animated: true)
+            mapView.setCenter(me, zoomLevel: 15, animated: true)
         }
         // 포커스 요청(친구 별/알림) — 대상 좌표가 바뀌면 그 위치로 1회 카메라 이동.
         if let target = focusTarget, !context.coordinator.sameAsLastFocus(target) {

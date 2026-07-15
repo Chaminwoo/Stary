@@ -49,6 +49,8 @@ struct MainTabView: View {
     @StateObject private var notifications = NotificationsViewModel()
     @ObservedObject private var router = TabRouter.shared
     @ObservedObject private var focus = MapFocusStore.shared
+    // 글로브/몰입 진입 시 상단바·FAB 를 숨긴다(#12).
+    @ObservedObject private var chrome = MapChromeState.shared
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var drawerOpen = false
@@ -60,12 +62,12 @@ struct MainTabView: View {
         NavigationStack(path: $path) {
             ZStack {
                 VStack(spacing: 0) {
-                    topBar
+                    if !chrome.hidden { topBar }
                     MapScreen()
                 }
                 .background(Theme.background.ignoresSafeArea())
 
-                fab
+                if !chrome.hidden { fab }
 
                 drawerLayer
 

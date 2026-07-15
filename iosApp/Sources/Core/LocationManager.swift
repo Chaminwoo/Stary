@@ -52,9 +52,15 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     /// 시뮬레이션(Xcode 위치 조작 등)/외장 액세서리가 만든 위치인지. iOS 15 미만은 판별 불가 → 통과.
+    /// ⚠️ 시뮬레이터에서는 모든 위치가 소프트웨어 시뮬레이션이라 무조건 mock → 개발 중 내 위치가
+    ///    아예 안 잡힌다. 시뮬레이터 빌드에서는 mock 판정을 끄고 좌표를 그대로 사용한다(실기기만 차단).
     private nonisolated static func isMock(_ loc: CLLocation) -> Bool {
+        #if targetEnvironment(simulator)
+        return false
+        #else
         guard let info = loc.sourceInformation else { return false }
         return info.isSimulatedBySoftware || info.isProducedByAccessory
+        #endif
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
