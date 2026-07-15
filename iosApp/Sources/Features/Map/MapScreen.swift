@@ -1,4 +1,5 @@
 import CoreLocation
+import FirebaseFirestore
 import SwiftUI
 
 /// 지도 탭 — 별 마커 + 탭 시 상세로 이동. "미조회만" 필터로 아직 열지 않은 별만 표시.
@@ -22,6 +23,14 @@ struct MapScreen: View {
     @State private var pioneerMessage: String?
     // 기간별 보기 — nil=전체 기간, 0=오늘(자정 이후), 그 외 N=최근 N일. (Android 기간 필터 패리티)
     @State private var periodDays: Int?
+    // 친구만/나만보기/친구선택 필터(Android MainListScreen 필터 패리티).
+    @EnvironmentObject var auth: AuthManager
+    @State private var friendsOnly = false
+    @State private var myOnly = false
+    @State private var selectedFriendIds: Set<String> = []
+    @State private var showFriendPicker = false
+    /// 내 친구 목록 — 친구만/친구선택 필터용 1회 로드.
+    @State private var myFriends: [Friend] = []
     // 좌하단 필터 스피드 다이얼 펼침(Android speedDialExpanded 대응) + 기간 선택 다이얼로그.
     @State private var speedDialExpanded = false
     @State private var showPeriodPicker = false
@@ -61,10 +70,16 @@ struct MapScreen: View {
         return Int64((Date().timeIntervalSince1970 - Double(d) * 86_400) * 1000)
     }
 
-    /// 미조회/기간 필터 적용된 표시 대상.
+    /// 미조회/친구/나만/친구선택/기간 필터 적용된 표시 대상. (Android MainListScreen 필터 파이프라인 대응)
     private var shownDiaries: [Diary] {
         var list = store.diaries
         if unviewedOnly { list = list.filter { !viewed.viewedIds.contains($0.id ?? "") } }
+        if friendsOnly {
+            let ids = Set(myFriends.map { $0.userId })
+            list = list.filter { ids.contains($0.userId) }
+        }
+        if myOnly { list = list.filter { $0.userId == auth.uid } }
+        if !selectedFriendIds.isEmpty { list = list.filter { selectedFriendIds.contains($0.userId) } }
         if let cutoff = periodCutoffMs { list = list.filter { $0.createdAt >= cutoff } }
         return list
     }
@@ -91,19 +106,40 @@ struct MapScreen: View {
         }
     }
 
+    /// 필터가 하나라도 켜져 있는가(메인 FAB 민트 강조 — Android anyActive).
+    private var anyFilterActive: Bool {
+        unviewedOnly || friendsOnly || myOnly || !selectedFriendIds.isEmpty || periodDays != nil
+    }
+
     /// 좌하단 필터 스피드 다이얼 — Android MainListScreen 대응.
-    /// 메인 원형 버튼(나침반) 탭 → 위로 알약 옵션(전체보기/미조회만/기간별)이 펼쳐진다.
-    /// (친구만/나만보기/친구선택 필터는 iOS 미이식 — 후속.)
+    /// 메인 원형 버튼(나침반) 탭 → 위로 알약 옵션(전체보기/미조회만/친구만/나만보기/친구선택/기간별).
+    /// 상호배타 로직도 Android 동일(나만보기 ↔ 친구만/친구선택 등).
     private var filterSpeedDial: some View {
-        let anyActive = unviewedOnly || periodDays != nil
-        let pillBg = Color(hex: 0x111120).opacity(0.93)
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             if speedDialExpanded {
-                filterPill(locale.t(.filterAll), icon: "globe.asia.australia", active: !anyActive) {
-                    unviewedOnly = false; periodDays = nil; speedDialExpanded = false
+                filterPill(locale.t(.filterAll), icon: "globe.asia.australia", active: !anyFilterActive) {
+                    unviewedOnly = false; friendsOnly = false; myOnly = false
+                    selectedFriendIds = []; periodDays = nil; speedDialExpanded = false
                 }
                 filterPill(locale.t(.filterUnviewed), icon: "sparkles", active: unviewedOnly) {
-                    unviewedOnly.toggle()
+                    unviewedOnly.toggle(); if unviewedOnly { myOnly = false }
+                }
+                filterPill(locale.t(.filterFriends), icon: "person.2", active: friendsOnly) {
+                    friendsOnly.toggle(); if friendsOnly { myOnly = false }
+                }
+                filterPill(locale.t(.filterMine), icon: "lock", active: myOnly) {
+                    myOnly.toggle()
+                    if myOnly { friendsOnly = false; selectedFriendIds = [] }
+                }
+                // 친구 선택 — 비활성이면 선택 시트, 활성이면 재탭으로 해제(Android 동일 패턴).
+                filterPill(
+                    selectedFriendIds.isEmpty
+                        ? locale.t(.filterPickFriends)
+                        : String(format: locale.t(.filterFriendsN), selectedFriendIds.count),
+                    icon: "person.badge.plus", active: !selectedFriendIds.isEmpty
+                ) {
+                    if selectedFriendIds.isEmpty { showFriendPicker = true }
+                    else { selectedFriendIds = [] }
                 }
                 filterPill(
                     periodDays == nil ? locale.t(.filterPeriod) : periodName(periodDays),
@@ -117,11 +153,11 @@ struct MapScreen: View {
             } label: {
                 Image(systemName: "safari")
                     .font(.system(size: 22))
-                    .foregroundStyle(anyActive ? Theme.mint : .white.opacity(0.75))
+                    .foregroundStyle(anyFilterActive ? Theme.mint : .white.opacity(0.75))
                     .frame(width: 48, height: 48)
-                    .background(pillBg, in: Circle())
+                    .background(Color(hex: 0x111120).opacity(0.93), in: Circle())
                     .overlay(Circle().strokeBorder(
-                        anyActive ? Theme.mint : Color.white.opacity(0.18), lineWidth: 1.5))
+                        anyFilterActive ? Theme.mint : Color.white.opacity(0.18), lineWidth: 1.5))
             }
         }
         .confirmationDialog(locale.t(.filterPeriod), isPresented: $showPeriodPicker, titleVisibility: .visible) {
@@ -129,6 +165,18 @@ struct MapScreen: View {
             Button(locale.t(.periodWeek)) { periodDays = 7 }
             Button(locale.t(.periodMonth)) { periodDays = 30 }
             Button(locale.t(.periodYear)) { periodDays = 365 }
+        }
+        .sheet(isPresented: $showFriendPicker) {
+            FriendFilterPicker(friends: myFriends, initial: selectedFriendIds) { ids in
+                selectedFriendIds = ids
+                if !ids.isEmpty { myOnly = false }
+            }
+        }
+        .task(id: auth.uid) {
+            // 친구만/친구선택 필터용 친구 목록 1회 로드(uid 바뀌면 재로드).
+            guard let uid = auth.uid else { myFriends = []; return }
+            let snap = try? await FirestoreService.friends(of: uid).getDocuments()
+            myFriends = snap?.documents.compactMap { try? $0.data(as: Friend.self) } ?? []
         }
     }
 
@@ -462,5 +510,69 @@ private struct MapWarpOverlay: View {
             progress = 0
             withAnimation(.easeOut(duration: 1.0)) { progress = 1 }
         }
+    }
+}
+
+/// 친구 선택 필터 시트 — 체크 토글 후 저장. (Android 친구 선택 다이얼로그 대응)
+private struct FriendFilterPicker: View {
+    let friends: [Friend]
+    let initial: Set<String>
+    let onConfirm: (Set<String>) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var locale = LocaleManager.shared
+    @State private var selected: Set<String>
+
+    init(friends: [Friend], initial: Set<String>, onConfirm: @escaping (Set<String>) -> Void) {
+        self.friends = friends
+        self.initial = initial
+        self.onConfirm = onConfirm
+        _selected = State(initialValue: initial)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: 8) {
+                        ForEach(friends) { f in
+                            row(f)
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+            .navigationTitle(locale.t(.filterPickFriends))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(locale.t(.commonCancel)) { dismiss() }.tint(Theme.textSecondary)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(locale.t(.commonSave)) { onConfirm(selected); dismiss() }.tint(Theme.mint)
+                }
+            }
+        }
+    }
+
+    private func row(_ f: Friend) -> some View {
+        let isSel = selected.contains(f.userId)
+        return Button {
+            if isSel { selected.remove(f.userId) } else { selected.insert(f.userId) }
+        } label: {
+            HStack(spacing: 12) {
+                Text(f.userName)
+                    .font(.poorStory(15))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                Spacer()
+                if isSel { Image(systemName: "checkmark").foregroundStyle(Theme.mint) }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(isSel ? Theme.mint.opacity(0.14) : Color.white.opacity(0.04),
+                        in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 }

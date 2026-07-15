@@ -113,7 +113,7 @@ enum L10n: String {
     case navMap, navMyDiary, navMusic, navNotification, navUpload, navDetail, navStarCluster
     case drawerList, drawerLogout, drawerLogin
     // 지도 필터 스피드 다이얼(Android MainListScreen 대응).
-    case filterAll
+    case filterAll, filterFriends, filterMine, filterPickFriends, filterFriendsN
     // 상세 화면(Android DetailScreen 대응).
     case commonEdit, commonAnonymous, detailCommentsCount, commentPlaceholder, detailLocating, mapOpenRange
 
@@ -281,6 +281,11 @@ enum L10n: String {
         case .drawerLogout:         return ("로그아웃", "Sign out", "ログアウト")
         case .drawerLogin:          return ("로그인", "Sign in", "ログイン")
         case .filterAll:            return ("전체보기", "Show all", "すべて表示")
+        case .filterFriends:        return ("친구만", "Friends only", "友達のみ")
+        case .filterMine:           return ("나만보기", "Only mine", "自分のみ")
+        case .filterPickFriends:    return ("친구 선택", "Pick friends", "友達を選択")
+        // ⚠️ filterFriendsN 은 %d(선택한 친구 수)를 format 으로 채운다.
+        case .filterFriendsN:       return ("친구 %d명", "%d friends", "友達%d人")
         case .commonEdit:           return ("수정", "Edit", "編集")
         case .commonAnonymous:      return ("익명", "Anonymous", "匿名")
         // ⚠️ detailCommentsCount 는 %d(댓글 수), mapOpenRange 는 %1$d(반경)/%2$d(현재 거리)를 format 으로 채운다.
