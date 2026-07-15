@@ -21,6 +21,14 @@ struct DetailScreen: View {
     @State private var showLoginRequired = false
     /// 사진/움짤/영상 전체화면 보기.
     @State private var showFullMedia = false
+    // 내 글 수정/삭제(Android 인라인 수정·삭제 대응). 수정 결과는 로컬 오버라이드로 즉시 반영.
+    @Environment(\.dismiss) private var dismiss
+    @State private var showEditDialog = false
+    @State private var showDeleteConfirm = false
+    @State private var editTitle = ""
+    @State private var editContent = ""
+    @State private var editedTitle: String?
+    @State private var editedContent: String?
 
     init(diary: Diary) {
         self.diary = diary
@@ -57,73 +65,32 @@ struct DetailScreen: View {
         ZStack {
             Theme.background.ignoresSafeArea()
             ScrollView {
-                VStack(spacing: 18) {
-                    StarView(type: diary.starType, colorIndex: diary.starColor, size: 84)
-                        .padding(.top, 12)
-                    Text(diary.title.isEmpty ? "(제목 없음)" : diary.title)
-                        .font(.poorStory(22))
-                        .foregroundStyle(Theme.textPrimary)
-                    if diary.isAnonymous || diary.userId.isEmpty {
-                        Text("익명")
-                            .font(.poorStory(15))
-                            .foregroundStyle(Theme.textSecondary)
-                    } else {
-                        let authorName = directory.name(diary.userId, fallback: diary.userName)
-                        Button { openProfile(diary.userId, authorName) } label: {
-                            HStack(spacing: 4) {
-                                Text(authorName)
-                                // 히든 업적 달성자 전용 크리스탈 배지(34-4) — 익명 분기가 아니므로 안전.
-                                HiddenStarBadges(userId: diary.userId, size: 12)
-                                Image(systemName: "chevron.right").font(.caption2)
-                            }
-                            .font(.poorStory(15))
-                            .foregroundStyle(Theme.textSecondary)
-                        }
-                        .buttonStyle(.plain)
-                        .task(id: diary.userId) { directory.ensureWatching(diary.userId) }
-                    }
+                VStack(spacing: 0) {
+                    // ── 헤더: 4:3 미디어(없으면 image_frame) + 하단 스크림 + 별/작성자/날짜 오버레이 ──
+                    // (Android DetailScreen 헤더와 동일 구조 — 제목은 본문 영역으로 분리)
+                    heroHeader
 
-                    // 사진/움짤/영상 모두 탭하면 전체화면으로 크게 볼 수 있다(Android 패리티).
-                    if canOpen, !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
-                        // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 는 아래 플레이어 유지)
-                        RemoteGifView(urlString: diary.videoUrl)
-                            .frame(height: 220)
-                            .frame(maxWidth: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .contentShape(Rectangle())
-                            .onTapGesture { showFullMedia = true }
-                    } else if canOpen, !diary.videoUrl.isEmpty, let vurl = URL(string: diary.videoUrl) {
-                        // 짧은 영상(3초 이내) 음소거 루프 재생.
-                        LoopingVideoPlayer(url: vurl, muted: true)
-                            .frame(height: 220)
-                            .frame(maxWidth: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .contentShape(Rectangle())
-                            .onTapGesture { showFullMedia = true }
-                    } else if canOpen, !diary.imageUrl.isEmpty {
-                        AsyncImage(url: URL(string: diary.imageUrl)) { image in
-                            image.resizable().scaledToFit()
-                        } placeholder: {
-                            RoundedRectangle(cornerRadius: 14).fill(Theme.surfaceAlt).frame(height: 200)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Spacer().frame(height: 18)
+                        Text({ let t = editedTitle ?? diary.title
+                               return t.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : t }())
+                            .font(.poorStory(24))
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer().frame(height: 16)
+                        bodyCard
+                        Spacer().frame(height: 20)
+                        if canOpen {
+                            interactionRow
+                            Divider().overlay(Theme.outline)
+                            Spacer().frame(height: 16)
+                            commentsSection
+                        } else {
+                            lockedNotice
                         }
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .contentShape(Rectangle())
-                        .onTapGesture { showFullMedia = true }
-                    } else if canOpen, let frame = BundleImage.named("image_frame") {
-                        // 사진/영상이 없으면 템플릿 이미지(image_frame) — Android DetailScreen 패리티.
-                        Image(uiImage: frame)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(height: 200)
-                            .frame(maxWidth: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                        Spacer().frame(height: 40)
                     }
-                    bodyCard
-                    likeBar
-                    if canOpen { commentsSection }
+                    .padding(.horizontal, 20)
                 }
-                .padding(16)
             }
 
             // 열람의 여운(34-2) — 파장(별 열람 연출)이 남긴 잔향처럼 화면 상단에
@@ -139,29 +106,7 @@ struct DetailScreen: View {
         }
         .navigationTitle(LocaleManager.shared.t(.navDetail))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // 공유 — 밤하늘 카드 이미지 + 웹 랜딩 링크를 공유 시트로(체크리스트 30, Android 패리티).
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    Task { await ShareCard.share(diary: diary) }
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .tint(Theme.mint)
-            }
-            if !isOwner, !diary.userId.isEmpty, auth.uid != nil {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(role: .destructive) { showReportDialog = true } label: {
-                            Label(LocaleManager.shared.t(.reportDiary), systemImage: "exclamationmark.bubble")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                    }
-                    .tint(Theme.mint)
-                }
-            }
-        }
+        // (공유/신고/수정/삭제는 Android 처럼 좋아요 행 인라인 버튼 — 탑바 액션 없음)
         .reportDialog(title: LocaleManager.shared.t(.reportDiary), isPresented: $showReportDialog) { reason in
             guard let myUid = auth.uid, let id = diary.id else { return }
             Task {
@@ -219,54 +164,213 @@ struct DetailScreen: View {
             guard let uid = auth.uid, let id = diary.id else { return }
             await ViewedRepository.markViewed(uid: uid, diaryId: id)
         }
+        // 내 글 수정 — 제목/내용(글자수 제한 선차단). (Android 수정 다이얼로그 대응)
+        .alert(LocaleManager.shared.t(.commonEdit), isPresented: $showEditDialog) {
+            TextField("", text: $editTitle)
+            TextField("", text: $editContent)
+            Button(LocaleManager.shared.t(.commonSave)) {
+                let t = String(editTitle.prefix(AppConfig.diaryTitleMaxLen))
+                let c = String(editContent.prefix(AppConfig.diaryContentMaxLen))
+                var d = diary
+                d.title = t
+                d.content = c
+                editedTitle = t
+                editedContent = c
+                Task { try? await store.save(d) }
+            }
+            Button(LocaleManager.shared.t(.commonCancel), role: .cancel) {}
+        }
+        // 내 글 삭제 — 확인 후 삭제하고 pop. (Android 삭제 다이얼로그 대응)
+        .alert(LocaleManager.shared.t(.commonDelete), isPresented: $showDeleteConfirm) {
+            Button(LocaleManager.shared.t(.commonDelete), role: .destructive) {
+                guard let id = diary.id else { return }
+                Task {
+                    try? await store.delete(id)
+                    dismiss()
+                }
+            }
+            Button(LocaleManager.shared.t(.commonCancel), role: .cancel) {}
+        }
     }
+
+    /// 별색(그라데이션이면 시작색) — 본문 카드 테두리/전송 버튼 강조에 사용(Android accent).
+    private var accent: Color { StarStyle.color(diary.starColor) }
+
+    private static let createdFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy.MM.dd HH:mm"
+        return f
+    }()
+
+    // ── 헤더: 4:3 미디어 + 하단 스크림 + 별/작성자/날짜 오버레이 (Android 헤더 Box 대응) ──
+
+    private var heroHeader: some View {
+        Color.clear
+            .aspectRatio(4.0 / 3.0, contentMode: .fit)
+            .overlay { headerMedia }
+            .clipped()
+            .overlay(
+                // 하단 가독성 스크림(Android verticalGradient 동일 스톱).
+                LinearGradient(stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black.opacity(0.4), location: 0.55),
+                    .init(color: Theme.background, location: 1),
+                ], startPoint: .top, endPoint: .bottom)
+            )
+            .overlay(alignment: .bottomLeading) {
+                headerOverlay.padding(20)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // 미디어가 있고 열람 가능할 때만 전체화면 뷰어.
+                if canOpen, !(diary.imageUrl.isEmpty && diary.videoUrl.isEmpty) { showFullMedia = true }
+            }
+    }
+
+    @ViewBuilder
+    private var headerMedia: some View {
+        if canOpen, !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
+            // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 는 아래 플레이어)
+            RemoteGifView(urlString: diary.videoUrl)
+        } else if canOpen, !diary.videoUrl.isEmpty, let vurl = URL(string: diary.videoUrl) {
+            LoopingVideoPlayer(url: vurl, muted: true)
+        } else if canOpen, !diary.imageUrl.isEmpty {
+            AsyncImage(url: URL(string: diary.imageUrl)) { image in
+                image.resizable().scaledToFill()
+            } placeholder: { Theme.surfaceAlt }
+        } else if let frame = BundleImage.named("image_frame") {
+            // 사진/영상이 없으면(또는 잠금) 템플릿 이미지 — Android image_frame 대응.
+            Image(uiImage: frame).resizable().scaledToFill()
+        } else {
+            Theme.surfaceAlt
+        }
+    }
+
+    private var headerOverlay: some View {
+        let canOpenProfile = !diary.isAnonymous && !diary.userId.isEmpty
+        let authorName = canOpenProfile
+            ? directory.name(diary.userId, fallback: diary.userName)
+            : diary.userName
+        return HStack(spacing: 0) {
+            Button {
+                if canOpenProfile { openProfile(diary.userId, authorName) }
+            } label: {
+                HStack(spacing: 0) {
+                    StarView(type: diary.starType, colorIndex: diary.starColor, size: 18, glow: false)
+                    Spacer().frame(width: 8)
+                    Text(authorName.isEmpty ? LocaleManager.shared.t(.commonAnonymous) : authorName)
+                        .font(.poorStory(13))
+                        .foregroundStyle(Theme.textPrimary.opacity(0.85))
+                    if canOpenProfile {
+                        // 히든 업적 배지 — 익명 글에는 붙이지 않는다(작성자 은닉 유지).
+                        HiddenStarBadges(userId: diary.userId, size: 13)
+                            .padding(.leading, 5)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textPrimary.opacity(0.6))
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(!canOpenProfile)
+            Text("  ·  ").font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+            Text(Self.createdFmt.string(from: diary.createdDate))
+                .font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+        }
+        .task(id: diary.userId) {
+            if canOpenProfile { directory.ensureWatching(diary.userId) }
+        }
+    }
+
+    // ── 본문 카드 — Android: 0xCC14181C 배경 + accent 그라데이션 테두리 ──
 
     private var bodyCard: some View {
-        VStack(spacing: 10) {
-            if canOpen {
-                Text(diary.content.isEmpty ? "내용이 없어요." : diary.content)
-                    .font(.poorStory(17))
-                    .foregroundStyle(Theme.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                Image(systemName: "lock.fill").foregroundStyle(Theme.textFaint)
-                Text("이 별 가까이(\(Int(AppConfig.diaryOpenRadiusM))m)로 가면 열람할 수 있어요.")
-                    .font(.poorStory(15))
-                    .foregroundStyle(Theme.textSecondary)
-                    .multilineTextAlignment(.center)
-                Text("현재 약 \(distanceLabel(distanceM)) 떨어져 있어요.")
-                    .font(.poorStory(12))
-                    .foregroundStyle(Theme.textFaint)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
+        Text(editedContent ?? diary.content)
+            .font(.poorStory(16))
+            .lineSpacing(8)
+            .foregroundStyle(Theme.textPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
+            .background(Color(hex: 0x14181C).opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16).strokeBorder(
+                    LinearGradient(colors: [accent.opacity(0.45), accent.opacity(0.15)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 1
+                )
+            )
     }
 
-    private var likeBar: some View {
-        HStack(spacing: 20) {
+    // ── 좋아요/공유 + (내 글) 수정·삭제 / (남의 글) 신고 — Android 인라인 행 대응 ──
+
+    private var interactionRow: some View {
+        HStack(spacing: 2) {
             Button {
                 // 비로그인 시 좋아요 잠금 — 로그인 안내만.
                 guard auth.uid != nil else { showLoginRequired = true; return }
                 Task { await vm.toggleLike(uid: auth.uid, userName: auth.displayName) }
             } label: {
-                Label("\(vm.likeCount)", systemImage: vm.isLiked ? "heart.fill" : "heart")
-                    .foregroundStyle(vm.isLiked ? .pink : Theme.textSecondary)
+                Image(systemName: vm.isLiked ? "heart.fill" : "heart")
+                    .font(.system(size: 20))
+                    .foregroundStyle(vm.isLiked ? Theme.accentRed : Theme.textSecondary)
+                    .frame(width: 40, height: 40)
             }
-            Label("\(visibleComments.count)", systemImage: "bubble.right.fill")
-                .foregroundStyle(Theme.textSecondary)
-            Label("\(diary.viewCount)", systemImage: "eye.fill")
-                .foregroundStyle(Theme.textSecondary)
+            Text("\(vm.likeCount)")
+                .font(.poorStory(14)).foregroundStyle(Theme.textSecondary)
+            // 공유 — 밤하늘 카드 이미지 + 웹 랜딩 링크(체크리스트 30). Android 위치(좋아요 옆) 동일.
+            Button {
+                Task { await ShareCard.share(diary: diary) }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: 40, height: 40)
+            }
             Spacer()
+            if isOwner {
+                Button(LocaleManager.shared.t(.commonEdit)) {
+                    editTitle = editedTitle ?? diary.title
+                    editContent = editedContent ?? diary.content
+                    showEditDialog = true
+                }
+                .font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+                Spacer().frame(width: 12)
+                Button(LocaleManager.shared.t(.commonDelete)) { showDeleteConfirm = true }
+                    .font(.poorStory(13)).foregroundStyle(Theme.accentRed)
+            } else {
+                Button(LocaleManager.shared.t(.reportDiary)) {
+                    if auth.uid == nil { showLoginRequired = true } else { showReportDialog = true }
+                }
+                .font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+            }
         }
-        .font(.poorStory(17))
+        .padding(.bottom, 8)
+    }
+
+    /// 100m 밖 상호작용 잠금 안내 — Android 잠금 pill 대응.
+    private var lockedNotice: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "location")
+                .font(.system(size: 15)).foregroundStyle(Theme.textSecondary)
+            Text(location.coordinate == nil
+                 ? LocaleManager.shared.t(.detailLocating)
+                 : String(format: LocaleManager.shared.t(.mapOpenRange),
+                          Int(AppConfig.diaryOpenRadiusM), Int(distanceM)))
+                .font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(14)
+        .background(Theme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var commentsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // "댓글 N" 헤더 — Android detail_comments_count 대응.
+            Text(String(format: LocaleManager.shared.t(.detailCommentsCount), visibleComments.count))
+                .font(.poorStory(14))
+                .foregroundStyle(Theme.textPrimary)
             HStack {
-                TextField("댓글 달기…", text: $commentText, axis: .vertical)
+                TextField(LocaleManager.shared.t(.commentPlaceholder), text: $commentText, axis: .vertical)
                     .lineLimit(1...4)
                     .onChange(of: commentText) { v in
                         if v.count > AppConfig.commentMaxLen { commentText = String(v.prefix(AppConfig.commentMaxLen)) }
@@ -327,8 +431,9 @@ struct DetailScreen: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                .padding(.vertical, 4)
+                // 카드 대신 구분선 — Android 댓글 목록(HorizontalDivider 구분) 대응.
+                Divider().overlay(Theme.outline).padding(.vertical, 8)
             }
         }
     }

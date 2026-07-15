@@ -114,6 +114,8 @@ enum L10n: String {
     case drawerList, drawerLogout, drawerLogin
     // 지도 필터 스피드 다이얼(Android MainListScreen 대응).
     case filterAll
+    // 상세 화면(Android DetailScreen 대응).
+    case commonEdit, commonAnonymous, detailCommentsCount, commentPlaceholder, detailLocating, mapOpenRange
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -279,6 +281,15 @@ enum L10n: String {
         case .drawerLogout:         return ("로그아웃", "Sign out", "ログアウト")
         case .drawerLogin:          return ("로그인", "Sign in", "ログイン")
         case .filterAll:            return ("전체보기", "Show all", "すべて表示")
+        case .commonEdit:           return ("수정", "Edit", "編集")
+        case .commonAnonymous:      return ("익명", "Anonymous", "匿名")
+        // ⚠️ detailCommentsCount 는 %d(댓글 수), mapOpenRange 는 %1$d(반경)/%2$d(현재 거리)를 format 으로 채운다.
+        case .detailCommentsCount:  return ("댓글 %d", "Comments %d", "コメント %d")
+        case .commentPlaceholder:   return ("댓글을 입력하세요", "Write a comment", "コメントを入力")
+        case .detailLocating:       return ("위치를 확인하는 중이에요…", "Checking your location…", "位置を確認しています…")
+        case .mapOpenRange:         return ("%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)",
+                                            "Get within %1$dm to open (now %2$dm)",
+                                            "%1$dm以内で開けます（現在%2$dm）")
         }
     }
 
