@@ -10,7 +10,7 @@ struct NotificationsScreen: View {
         ZStack {
             Theme.background.ignoresSafeArea()
             if vm.items.isEmpty {
-                ContentUnavailableCompat(text: "알림이 없어요.")
+                ContentUnavailableCompat(text: LocaleManager.shared.t(.notifEmpty))
             } else {
                 List {
                     ForEach(vm.items) { n in

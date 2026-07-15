@@ -215,13 +215,13 @@ struct ProfileScreen: View {
                     nicknameDraft = String(v.prefix(AppConfig.nicknameMaxLen))
                 }
             }
-            .alert("히든 업적 달성!",
+            .alert(locale.t(.hiddenWonTitle),
                    isPresented: Binding(get: { hiddenAlert != nil },
                                         set: { if !$0 { hiddenAlert = nil } })) {
-                Button("확인", role: .cancel) { hiddenAlert = nil }
+                Button(locale.t(.commonOk), role: .cancel) { hiddenAlert = nil }
             } message: {
                 if let a = hiddenAlert {
-                    Text("\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n앱에서 단 한 명 — 당신이 처음입니다")
+                    Text("\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n\(locale.t(.hiddenWonFirst))")
                 }
             }
         }

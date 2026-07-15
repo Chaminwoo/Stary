@@ -119,6 +119,18 @@ enum L10n: String {
     // 내 다이어리 별자리 보드(Android MyDiaryScreen 대응).
     case sortLatest, sortPopular, sortDistance, mydiarySortCount, mydiaryEmpty
     case mydiaryViewList, mydiaryViewStars, commonUntitled
+    // 업로드 화면(Android UploadScreen 대응).
+    case fieldTitle, uploadContentLabel, uploadPhotoSection, uploadAddPhoto, uploadCaptureBoomerang
+    case uploadStarShape, uploadStarColor, uploadVisibility, uploadAnonymous
+    case uploadVisPublic, uploadVisFriends, uploadVisPrivate
+    case uploadDailyLimit, toastUnlockAchievement, toastImageUploadFailed, uploadDone, uploadPreview
+    // 친구/채팅/로그인/알림 화면.
+    case friendSearchPlaceholder, friendAdd, friendAccept, friendDecline
+    case friendRequests, friendMyFriends, friendEmpty, friendNoName, commonSearch
+    case chatInputPlaceholder, commonFriend
+    case loginGoogle, loginBrowse, notifEmpty
+    // 업적 화면(장착 버튼/히든 달성 알림).
+    case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -307,6 +319,51 @@ enum L10n: String {
         case .mydiaryViewList:      return ("목록으로 보기", "View as list", "リストで表示")
         case .mydiaryViewStars:     return ("별로 보기", "View as stars", "星で表示")
         case .commonUntitled:       return ("(제목 없음)", "(Untitled)", "(タイトルなし)")
+        case .fieldTitle:           return ("제목", "Title", "タイトル")
+        case .uploadContentLabel:   return ("이 장소의 기억을 남겨주세요", "Leave a memory of this place", "この場所の思い出を残してください")
+        case .uploadPhotoSection:   return ("사진 · 움짤 (선택)", "Photo · GIF (optional)", "写真・GIF（任意）")
+        case .uploadAddPhoto:       return ("사진 추가", "Add photo", "写真を追加")
+        case .uploadCaptureBoomerang: return ("3초 영상 촬영", "3-second clip", "3秒動画を撮影")
+        case .uploadStarShape:      return ("별 모양", "Star shape", "星の形")
+        case .uploadStarColor:      return ("별 색상", "Star color", "星の色")
+        case .uploadVisibility:     return ("공개 범위", "Visibility", "公開範囲")
+        case .uploadAnonymous:      return ("익명으로 올리기", "Post anonymously", "匿名で投稿")
+        case .uploadVisPublic:      return ("전체공개", "Public", "全体公開")
+        case .uploadVisFriends:     return ("친구만", "Friends only", "友達のみ")
+        case .uploadVisPrivate:     return ("나만보기", "Only me", "自分のみ")
+        // ⚠️ uploadDailyLimit 은 %d(개수), toastUnlockAchievement/toastImageUploadFailed 는 %@ 를 format 으로 채운다.
+        case .uploadDailyLimit:     return ("오늘 올릴 수 있는 별 %d개를 모두 사용했어요",
+                                            "You've used all %d stars you can post today",
+                                            "本日投稿できる星 %d個をすべて使いました")
+        case .toastUnlockAchievement: return ("‘%@’ 업적을 달성하여 해금하세요!",
+                                              "Unlock by earning the “%@” achievement!",
+                                              "「%@」の実績を達成して解放しましょう！")
+        case .toastImageUploadFailed: return ("이미지 업로드 실패: %@", "Image upload failed: %@", "画像のアップロードに失敗: %@")
+        case .uploadDone:           return ("별을 남겼어요 ✨", "Star saved ✨", "星を残しました ✨")
+        case .uploadPreview:        return ("미리보기", "Preview", "プレビュー")
+        case .friendSearchPlaceholder: return ("이름으로 친구 찾기", "Find friends by name", "名前で友達を探す")
+        case .friendAdd:            return ("추가", "Add", "追加")
+        case .friendAccept:         return ("수락", "Accept", "承認")
+        case .friendDecline:        return ("거절", "Decline", "拒否")
+        case .friendRequests:       return ("받은 친구 요청", "Friend requests", "受け取ったリクエスト")
+        case .friendMyFriends:      return ("내 친구", "My friends", "友達一覧")
+        case .friendEmpty:          return ("아직 친구가 없어요.\n이름으로 검색해 친구를 추가해보세요!",
+                                            "No friends yet.\nSearch by name to add some!",
+                                            "まだ友達がいません。\n名前で検索して追加しましょう！")
+        case .friendNoName:         return ("(이름 없음)", "(No name)", "(名前なし)")
+        case .commonSearch:         return ("검색", "Search", "検索")
+        case .chatInputPlaceholder: return ("메시지 입력", "Message", "メッセージを入力")
+        case .commonFriend:         return ("친구", "Friend", "友達")
+        case .loginGoogle:          return ("Google 계정으로 로그인", "Sign in with Google", "Googleでログイン")
+        case .loginBrowse:          return ("로그인 없이 둘러보기", "Browse without signing in", "ログインせずに見る")
+        case .notifEmpty:           return ("알림이 없어요", "No notifications", "通知はありません")
+        case .achEquip:             return ("장착", "Equip", "装着")
+        case .achEquipped:          return ("장착됨", "Equipped", "装着中")
+        case .hiddenWonTitle:       return ("히든 업적 달성!", "Hidden achievement unlocked!", "隠し実績を達成！")
+        case .hiddenWonFirst:       return ("앱에서 단 한 명 — 당신이 처음입니다",
+                                            "Only one in the whole app — you're the first",
+                                            "アプリでただ一人 — あなたが最初です")
+        case .commonOk:             return ("확인", "OK", "OK")
         }
     }
 

@@ -74,14 +74,14 @@ struct LoginView: View {
 
             // 하단 버튼 영역.
             VStack(spacing: 8) {
-                StarDiaryButton(text: "Google 계정으로 로그인") {
+                StarDiaryButton(text: LocaleManager.shared.t(.loginGoogle)) {
                     Task { await auth.signInWithGoogle() }
                 }
 
                 Button {
                     Task { await auth.signInAnonymously() }
                 } label: {
-                    Text("로그인 없이 둘러보기")
+                    Text(LocaleManager.shared.t(.loginBrowse))
                         .font(.poorStory(14))
                         .foregroundStyle(Theme.mint)
                         .frame(maxWidth: .infinity)

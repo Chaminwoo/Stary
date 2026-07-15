@@ -39,13 +39,13 @@ struct UploadScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     preview
-                    field("제목") {
+                    field(LocaleManager.shared.t(.fieldTitle)) {
                         TextField("", text: $title).textFieldStyle(.plain)
                             .onChange(of: title) { v in
                                 if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
                             }
                     }
-                    field("내용") {
+                    field(LocaleManager.shared.t(.uploadContentLabel)) {
                         TextField("", text: $content, axis: .vertical)
                             .lineLimit(4...8)
                             .onChange(of: content) { v in
@@ -56,7 +56,7 @@ struct UploadScreen: View {
                     starPicker
                     colorPicker
                     visibilityPicker
-                    Toggle("익명으로 남기기", isOn: $isAnonymous)
+                    Toggle(LocaleManager.shared.t(.uploadAnonymous), isOn: $isAnonymous)
                         .tint(Theme.mint)
                         .foregroundStyle(Theme.textSecondary)
                     saveButton
@@ -98,7 +98,7 @@ struct UploadScreen: View {
             Spacer()
             VStack(spacing: 8) {
                 StarView(type: starType, colorIndex: starColor, size: 72)
-                Text("미리보기").font(.poorStory(11)).foregroundStyle(Theme.textFaint)
+                Text(LocaleManager.shared.t(.uploadPreview)).font(.poorStory(11)).foregroundStyle(Theme.textFaint)
             }
             Spacer()
         }
@@ -107,7 +107,7 @@ struct UploadScreen: View {
 
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            label("사진 · 움짤 (선택)")
+            label(LocaleManager.shared.t(.uploadPhotoSection))
             if let boomerangGif {
                 ZStack(alignment: .topTrailing) {
                     GifImageView(data: boomerangGif)
@@ -129,11 +129,13 @@ struct UploadScreen: View {
             } else {
                 HStack(spacing: 10) {
                     PhotosPicker(selection: $photoItem, matching: .images) {
-                        mediaAddLabel(icon: "photo.on.rectangle.angled", text: "사진 추가")
+                        mediaAddLabel(icon: "photo.on.rectangle.angled",
+                                      text: LocaleManager.shared.t(.uploadAddPhoto))
                     }
                     // 파일 선택 대신 커스텀 촬영 화면으로(부메랑 3초 움짤)
                     Button { showBoomerangCapture = true } label: {
-                        mediaAddLabel(icon: "infinity", text: "3초 영상 촬영")
+                        mediaAddLabel(icon: "infinity",
+                                      text: LocaleManager.shared.t(.uploadCaptureBoomerang))
                     }
                 }
             }
@@ -166,7 +168,7 @@ struct UploadScreen: View {
 
     private var starPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            label("모양")
+            label(LocaleManager.shared.t(.uploadStarShape))
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                     ForEach(0..<StarStyle.typeCount, id: \.self) { t in
@@ -181,7 +183,7 @@ struct UploadScreen: View {
                         .padding(8)
                         .background(starType == t ? Theme.mint.opacity(0.2) : Color.clear, in: Circle())
                         .onTapGesture {
-                            if let a = lockedAch { showToast("‘\(a.name)’ 업적으로 해금돼요") }
+                            if let a = lockedAch { showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name)) }
                             else { starType = t }
                         }
                     }
@@ -192,7 +194,7 @@ struct UploadScreen: View {
 
     private var colorPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            label("색")
+            label(LocaleManager.shared.t(.uploadStarColor))
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(0..<StarStyle.colorCount, id: \.self) { c in
@@ -208,7 +210,7 @@ struct UploadScreen: View {
                             }
                         }
                         .onTapGesture {
-                            if let a = lockedAch { showToast("‘\(a.name)’ 업적으로 해금돼요") }
+                            if let a = lockedAch { showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name)) }
                             else { starColor = c }
                         }
                     }
@@ -219,11 +221,20 @@ struct UploadScreen: View {
 
     private var visibilityPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            label("공개 범위")
+            label(LocaleManager.shared.t(.uploadVisibility))
             Picker("", selection: $visibility) {
-                ForEach(Visibility.allCases, id: \.self) { Text($0.label).tag($0) }
+                ForEach(Visibility.allCases, id: \.self) { Text(visLabel($0)).tag($0) }
             }
             .pickerStyle(.segmented)
+        }
+    }
+
+    /// 공개 범위 라벨(현재 언어) — Android upload_vis_* 대응.
+    private func visLabel(_ v: Visibility) -> String {
+        switch v {
+        case .publicAll: return LocaleManager.shared.t(.uploadVisPublic)
+        case .friends: return LocaleManager.shared.t(.uploadVisFriends)
+        case .privateOnly: return LocaleManager.shared.t(.uploadVisPrivate)
         }
     }
 
@@ -231,12 +242,18 @@ struct UploadScreen: View {
         Button {
             Task { await save() }
         } label: {
-            Text(saving ? "남기는 중…" : "이 자리에 별 남기기")
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Theme.mint, in: RoundedRectangle(cornerRadius: 14))
-                .foregroundStyle(Color.black)
-                .font(.poorStory(17))
+            Group {
+                if saving {
+                    StarLoadingView(size: 20, color: .black)
+                } else {
+                    Text(LocaleManager.shared.t(.commonSave))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(Theme.mint, in: RoundedRectangle(cornerRadius: 14))
+            .foregroundStyle(Color.black)
+            .font(.poorStory(17))
         }
         .disabled(saving || title.isEmpty)
         .opacity(title.isEmpty ? 0.5 : 1)
@@ -248,7 +265,7 @@ struct UploadScreen: View {
         let startOfDay = Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
         let todayCount = store.mine(uid: uid).filter { $0.createdAt >= startOfDay }.count
         if todayCount >= AppConfig.dailyUploadLimit {
-            showToast("오늘 올릴 수 있는 별 \(AppConfig.dailyUploadLimit)개를 모두 사용했어요")
+            showToast(String(format: LocaleManager.shared.t(.uploadDailyLimit), AppConfig.dailyUploadLimit))
             return
         }
         saving = true
@@ -259,10 +276,10 @@ struct UploadScreen: View {
         var videoUrl = ""
         if let boomerangGif {
             do { videoUrl = try await ImageUploader.uploadGif(boomerangGif) }
-            catch { showToast("움짤 업로드 실패: \(error.localizedDescription)"); return }
+            catch { showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
         } else if let imageData {
             do { imageUrl = try await ImageUploader.upload(imageData) }
-            catch { showToast("사진 업로드 실패: \(error.localizedDescription)"); return }
+            catch { showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
         }
 
         let coord = location.coordinateOrDefault
@@ -288,7 +305,7 @@ struct UploadScreen: View {
                 await store.notifyFriends(uid: uid, name: auth.displayName, diaryId: newId, title: title)
             }
             title = ""; content = ""; clearMedia()
-            showToast("별을 남겼어요 ✨")
+            showToast(LocaleManager.shared.t(.uploadDone))
             // 별 탄생 연출(34-8) — 지도 탭으로 돌아가 방금 심은 별이 태어나는 연출을 지도 위에서 재생.
             // (Android 는 업로드 화면이 pop 되며 지도 위에서 재생 — 같은 동선.) 실패 경로에선 호출하지 않는다.
             StarBirthStore.shared.trigger(starType: starType, starColor: starColor)
@@ -301,7 +318,7 @@ struct UploadScreen: View {
                 )
             }
         } catch {
-            showToast("저장 실패: \(error.localizedDescription)")
+            showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription))
         }
     }
 

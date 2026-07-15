@@ -120,7 +120,7 @@ struct ChatScreen: View {
 
     private var inputBar: some View {
         HStack(spacing: 10) {
-            TextField("메시지", text: $text, axis: .vertical)
+            TextField(LocaleManager.shared.t(.chatInputPlaceholder), text: $text, axis: .vertical)
                 .lineLimit(1...4)
                 .onChange(of: text) { v in
                     if v.count > AppConfig.chatMessageMaxLen { text = String(v.prefix(AppConfig.chatMessageMaxLen)) }

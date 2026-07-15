@@ -78,13 +78,13 @@ struct AchievementsScreen: View {
         }
         .onChange(of: hidden.loaded) { _ in runHiddenClaims() }
         .onChange(of: friendsCount) { _ in runHiddenClaims() }
-        .alert("히든 업적 달성!",
+        .alert(locale.t(.hiddenWonTitle),
                isPresented: Binding(get: { hiddenAlert != nil },
                                     set: { if !$0 { hiddenAlert = nil } })) {
-            Button("확인", role: .cancel) { hiddenAlert = nil }
+            Button(locale.t(.commonOk), role: .cancel) { hiddenAlert = nil }
         } message: {
             if let a = hiddenAlert {
-                Text("\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n앱에서 단 한 명 — 당신이 처음입니다")
+                Text("\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n\(locale.t(.hiddenWonFirst))")
             }
         }
         .firstVisitInfo(key: "achievements", systemImage: "trophy.fill",
@@ -126,7 +126,7 @@ struct AchievementsScreen: View {
                     .font(.caption2).foregroundStyle(Theme.textSecondary)
             }
             Spacer()
-            Button(equippedTitleId == titleId ? "장착됨" : "장착") {
+            Button(equippedTitleId == titleId ? locale.t(.achEquipped) : locale.t(.achEquip)) {
                 equipTitle(equippedTitleId == titleId ? nil : titleId)
             }
             .font(.caption2).tint(Theme.mint)
@@ -149,7 +149,7 @@ struct AchievementsScreen: View {
             }
             Spacer()
             if case .title = ach.reward, done {
-                Button(equippedTitleId == ach.id ? "장착됨" : "장착") {
+                Button(equippedTitleId == ach.id ? locale.t(.achEquipped) : locale.t(.achEquip)) {
                     equipTitle(equippedTitleId == ach.id ? nil : ach.id)
                 }
                 .font(.caption2).tint(Theme.mint)
@@ -217,7 +217,7 @@ struct AchievementsScreen: View {
             }
             Spacer()
             if mineClaim {
-                Button(equippedTitleId == ach.id ? "장착됨" : "장착") {
+                Button(equippedTitleId == ach.id ? locale.t(.achEquipped) : locale.t(.achEquip)) {
                     equipTitle(equippedTitleId == ach.id ? nil : ach.id)
                 }
                 .font(.caption2).tint(Color(hex: 0xFFD86F))

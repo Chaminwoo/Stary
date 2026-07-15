@@ -40,12 +40,12 @@ struct FriendsScreen: View {
     private var searchSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                TextField("이름으로 친구 찾기", text: $query)
+                TextField(LocaleManager.shared.t(.friendSearchPlaceholder), text: $query)
                     .padding(10)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                     .foregroundStyle(Theme.textPrimary)
                     .onSubmit { runSearch() }
-                Button("검색") { runSearch() }
+                Button(LocaleManager.shared.t(.commonSearch)) { runSearch() }
                     .tint(Theme.mint)
             }
             if vm.searching { StarLoadingView(size: 26) }
@@ -55,7 +55,7 @@ struct FriendsScreen: View {
                     Text(user.userName).foregroundStyle(Theme.textPrimary)
                     HiddenStarBadges(userId: user.userId, size: 11)
                     Spacer()
-                    Button("추가") {
+                    Button(LocaleManager.shared.t(.friendAdd)) {
                         guard let uid = auth.uid else { return }
                         Task { await vm.sendRequest(fromId: uid, fromName: auth.displayName, to: user) }
                     }
@@ -97,18 +97,18 @@ struct FriendsScreen: View {
 
     private var requestsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("받은 요청").font(.poorStory(17)).foregroundStyle(Theme.textPrimary)
+            Text(LocaleManager.shared.t(.friendRequests)).font(.poorStory(17)).foregroundStyle(Theme.textPrimary)
             ForEach(vm.requests) { req in
                 HStack {
                     avatar(req.fromName, photoUrl: req.fromPhotoUrl, userId: req.fromId)
                     Text(req.fromName).foregroundStyle(Theme.textPrimary)
                     Spacer()
-                    Button("수락") {
+                    Button(LocaleManager.shared.t(.friendAccept)) {
                         guard let uid = auth.uid else { return }
                         Task { await vm.accept(req, myUid: uid, myName: auth.displayName) }
                     }
                     .font(.poorStory(12)).tint(Theme.mint)
-                    Button("거절") { Task { await vm.decline(req) } }
+                    Button(LocaleManager.shared.t(.friendDecline)) { Task { await vm.decline(req) } }
                         .font(.poorStory(12)).tint(.red)
                 }
                 .padding(10)
@@ -122,9 +122,9 @@ struct FriendsScreen: View {
     /// 최근 별을 탭하면 지도로 가서 그 별까지 도보 길찾기(프로필 핀 별과 동일 동선).
     private var friendsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("친구 \(vm.friends.count)").font(.poorStory(17)).foregroundStyle(Theme.textPrimary)
+            Text("\(LocaleManager.shared.t(.friendMyFriends)) \(vm.friends.count)").font(.poorStory(17)).foregroundStyle(Theme.textPrimary)
             if vm.friends.isEmpty {
-                Text("아직 친구가 없어요. 위에서 찾아 추가해보세요.")
+                Text(LocaleManager.shared.t(.friendEmpty))
                     .font(.poorStory(15)).foregroundStyle(Theme.textSecondary)
             } else {
                 ForEach(vm.friends) { friend in
@@ -173,7 +173,7 @@ struct FriendsScreen: View {
             FriendAvatar(name: friend.userName, photoUrl: friend.photoUrl, userId: friend.userId, size: 52)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
-                    Text(friend.userName.isEmpty ? "(이름 없음)" : friend.userName)
+                    Text(friend.userName.isEmpty ? LocaleManager.shared.t(.friendNoName) : friend.userName)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)

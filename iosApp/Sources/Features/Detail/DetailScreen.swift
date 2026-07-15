@@ -72,8 +72,7 @@ struct DetailScreen: View {
 
                     VStack(alignment: .leading, spacing: 0) {
                         Spacer().frame(height: 18)
-                        Text({ let t = editedTitle ?? diary.title
-                               return t.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : t }())
+                        Text(displayTitle)
                             .font(.poorStory(24))
                             .foregroundStyle(Theme.textPrimary)
                         Spacer().frame(height: 16)
@@ -195,6 +194,12 @@ struct DetailScreen: View {
 
     /// 별색(그라데이션이면 시작색) — 본문 카드 테두리/전송 버튼 강조에 사용(Android accent).
     private var accent: Color { StarStyle.color(diary.starColor) }
+
+    /// 표시 제목 — 수정 결과 로컬 오버라이드 우선, 비면 "(제목 없음)".
+    private var displayTitle: String {
+        let t = editedTitle ?? diary.title
+        return t.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : t
+    }
 
     private static let createdFmt: DateFormatter = {
         let f = DateFormatter()

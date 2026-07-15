@@ -71,16 +71,25 @@ jobs:
       - name: Generate Xcode project
         run: cd iosApp && xcodegen generate
 
+      # 실패 시 Swift 컴파일 에러를 ::error:: 어노테이션으로 노출 — 로그 다운로드 권한 없이도
+      # check-runs annotations API(공개)로 에러 줄을 읽을 수 있다.
       - name: Build for iOS Simulator
         run: |
-          xcodebuild \
+          set -o pipefail
+          if ! xcodebuild \
             -project iosApp/Stary.xcodeproj \
             -scheme Stary \
             -configuration Debug \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
-            build
+            build 2>&1 | tee build.log | tail -60; then
+            echo "── Swift 컴파일 에러 ──"
+            grep -E " error: " build.log | head -40 | sort -u | while IFS= read -r l; do
+              echo "::error::${l}"
+            done
+            exit 65
+          fi
 
   deploy:
     name: TestFlight 업로드 + IPA 아티팩트
