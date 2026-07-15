@@ -28,6 +28,7 @@ final class MusicManager: ObservableObject {
     // 효과음
     private var openPlayer: AVAudioPlayer?
     private let openBaseVolume: Float = 0.35
+    private var windPlayer: AVAudioPlayer?
     private var dialPlayer: AVAudioPlayer?
     private var dialDelegate: DialDelegate?
     private var dialTurning = false
@@ -130,6 +131,14 @@ final class MusicManager: ObservableObject {
         guard enabled, let p = makePlayer("open_diary") else { return }
         p.volume = openBaseVolume * sfxVolume
         openPlayer = p
+        p.play()
+    }
+
+    /// 바람 효과음 — 내 다이어리 정렬 다이얼 선택 시(Android MusicManager.playWind 대응).
+    func playWind() {
+        guard enabled, let p = makePlayer("wind") else { return }
+        p.volume = openBaseVolume * sfxVolume
+        windPlayer = p
         p.play()
     }
 

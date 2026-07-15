@@ -116,6 +116,9 @@ enum L10n: String {
     case filterAll, filterFriends, filterMine, filterPickFriends, filterFriendsN
     // 상세 화면(Android DetailScreen 대응).
     case commonEdit, commonAnonymous, detailCommentsCount, commentPlaceholder, detailLocating, mapOpenRange
+    // 내 다이어리 별자리 보드(Android MyDiaryScreen 대응).
+    case sortLatest, sortPopular, sortDistance, mydiarySortCount, mydiaryEmpty
+    case mydiaryViewList, mydiaryViewStars, commonUntitled
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -295,6 +298,15 @@ enum L10n: String {
         case .mapOpenRange:         return ("%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)",
                                             "Get within %1$dm to open (now %2$dm)",
                                             "%1$dm以内で開けます（現在%2$dm）")
+        case .sortLatest:           return ("최신순", "Latest", "新着順")
+        case .sortPopular:          return ("인기순", "Popular", "人気順")
+        case .sortDistance:         return ("거리순", "Nearest", "距離順")
+        // ⚠️ mydiarySortCount 는 %@(정렬 라벨)/%d(개수)를 format 으로 채운다.
+        case .mydiarySortCount:     return ("%@ · %d개", "%@ · %d", "%@ · %d件")
+        case .mydiaryEmpty:         return ("아직 기록한 다이어리가 없어요", "No diaries yet", "まだ記録した日記がありません")
+        case .mydiaryViewList:      return ("목록으로 보기", "View as list", "リストで表示")
+        case .mydiaryViewStars:     return ("별로 보기", "View as stars", "星で表示")
+        case .commonUntitled:       return ("(제목 없음)", "(Untitled)", "(タイトルなし)")
         }
     }
 
