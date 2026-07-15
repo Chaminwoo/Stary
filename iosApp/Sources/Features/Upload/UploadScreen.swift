@@ -31,64 +31,64 @@ struct UploadScreen: View {
         )
     }
 
+    // 루트(MainTabView)의 단일 NavigationStack 에 push 되므로 자체 스택은 두지 않는다(Android 단일 NavHost 대응).
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        preview
-                        field("제목") {
-                            TextField("", text: $title).textFieldStyle(.plain)
-                                .onChange(of: title) { v in
-                                    if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
-                                }
-                        }
-                        field("내용") {
-                            TextField("", text: $content, axis: .vertical)
-                                .lineLimit(4...8)
-                                .onChange(of: content) { v in
-                                    if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
-                                }
-                        }
-                        photoSection
-                        starPicker
-                        colorPicker
-                        visibilityPicker
-                        Toggle("익명으로 남기기", isOn: $isAnonymous)
-                            .tint(Theme.mint)
-                            .foregroundStyle(Theme.textSecondary)
-                        saveButton
+        ZStack {
+            // 업로드 화면 배경 — Android upload_bg 이미지 + 검정 0.82 틴트 대응.
+            ScreenBackground(name: "upload_bg", darken: 0.82)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    preview
+                    field("제목") {
+                        TextField("", text: $title).textFieldStyle(.plain)
+                            .onChange(of: title) { v in
+                                if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
+                            }
                     }
-                    .padding(16)
-                }
-            }
-            .navigationTitle("별 남기기")
-            .navigationBarTitleDisplayMode(.inline)
-            .overlay(alignment: .bottom) {
-                if let toast { ToastView(text: toast) }
-            }
-            .onChange(of: photoItem) { item in
-                Task {
-                    if let data = try? await item?.loadTransferable(type: Data.self) {
-                        imageData = data
-                        boomerangGif = nil // 이미지 선택 시 움짤과 배타
+                    field("내용") {
+                        TextField("", text: $content, axis: .vertical)
+                            .lineLimit(4...8)
+                            .onChange(of: content) { v in
+                                if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
+                            }
                     }
+                    photoSection
+                    starPicker
+                    colorPicker
+                    visibilityPicker
+                    Toggle("익명으로 남기기", isOn: $isAnonymous)
+                        .tint(Theme.mint)
+                        .foregroundStyle(Theme.textSecondary)
+                    saveButton
+                }
+                .padding(16)
+            }
+        }
+        .navigationTitle(LocaleManager.shared.t(.navUpload))
+        .navigationBarTitleDisplayMode(.inline)
+        .overlay(alignment: .bottom) {
+            if let toast { ToastView(text: toast) }
+        }
+        .onChange(of: photoItem) { item in
+            Task {
+                if let data = try? await item?.loadTransferable(type: Data.self) {
+                    imageData = data
+                    boomerangGif = nil // 이미지 선택 시 움짤과 배타
                 }
             }
-            // 부메랑(3초 움짤) 커스텀 촬영 — 전체 화면
-            .fullScreenCover(isPresented: $showBoomerangCapture) {
-                BoomerangCaptureView { data in
-                    boomerangGif = data
-                    imageData = nil; photoItem = nil // 이미지와 배타
-                    showBoomerangCapture = false
-                }
+        }
+        // 부메랑(3초 움짤) 커스텀 촬영 — 전체 화면
+        .fullScreenCover(isPresented: $showBoomerangCapture) {
+            BoomerangCaptureView { data in
+                boomerangGif = data
+                imageData = nil; photoItem = nil // 이미지와 배타
+                showBoomerangCapture = false
             }
-            .task {
-                if let uid = auth.uid {
-                    let snap = try? await FirestoreService.friends(of: uid).getDocuments()
-                    friendsCount = snap?.documents.count ?? 0
-                }
+        }
+        .task {
+            if let uid = auth.uid {
+                let snap = try? await FirestoreService.friends(of: uid).getDocuments()
+                friendsCount = snap?.documents.count ?? 0
             }
         }
     }

@@ -10,31 +10,31 @@ struct FriendsScreen: View {
     @ObservedObject private var readStore = ChatReadStore.shared
     @State private var query = ""
 
+    // 루트(MainTabView)의 단일 NavigationStack 에 push 되므로 자체 스택은 두지 않는다(Android 단일 NavHost 대응).
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        searchSection
-                        inviteSection
-                        if !vm.requests.isEmpty { requestsSection }
-                        friendsSection
-                    }
-                    .padding(16)
+        ZStack {
+            // Android FriendScreen 배경 — mydiary_bg + 검정 0.82 틴트.
+            ScreenBackground(name: "mydiary_bg", darken: 0.82)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    searchSection
+                    inviteSection
+                    if !vm.requests.isEmpty { requestsSection }
+                    friendsSection
                 }
+                .padding(16)
             }
-            .navigationTitle("친구")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: Friend.self) { friend in
-                ChatScreen(friend: friend, myUid: auth.uid ?? "")
-            }
-            .onAppear { if let uid = auth.uid { vm.start(uid: uid) } }
-            .onDisappear { vm.stop() }
-            .firstVisitInfo(key: "friends", systemImage: "person.2.fill",
-                            title: LocaleManager.shared.t(.onbFriendsTitle),
-                            message: LocaleManager.shared.t(.onbFriendsMsg))
         }
+        .navigationTitle(LocaleManager.shared.t(.tabFriends))
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: Friend.self) { friend in
+            ChatScreen(friend: friend, myUid: auth.uid ?? "")
+        }
+        .onAppear { if let uid = auth.uid { vm.start(uid: uid) } }
+        .onDisappear { vm.stop() }
+        .firstVisitInfo(key: "friends", systemImage: "person.2.fill",
+                        title: LocaleManager.shared.t(.onbFriendsTitle),
+                        message: LocaleManager.shared.t(.onbFriendsMsg))
     }
 
     private var searchSection: some View {

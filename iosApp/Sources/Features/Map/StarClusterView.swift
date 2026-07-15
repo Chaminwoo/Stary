@@ -31,7 +31,8 @@ struct StarClusterView: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            // Android StarClusterScreen 배경 — 친구 스크린과 동일(mydiary_bg + 검정 0.82 틴트).
+            ScreenBackground(name: "mydiary_bg", darken: 0.82)
 
             VStack(spacing: 0) {
                 header

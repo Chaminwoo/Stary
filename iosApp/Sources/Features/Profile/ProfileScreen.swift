@@ -18,13 +18,13 @@ struct ProfileScreen: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var pinnedIds: [String] = []
     @State private var showPinPicker = false
-    @State private var path = NavigationPath()
+    // 루트 스택 push 로 전환(Android 단일 NavHost 대응) — 자체 NavigationPath 대신 목적지별 bool.
+    @State private var showAchievements = false
+    @State private var showMyStars = false
     @State private var showNicknameEditor = false
     @State private var nicknameDraft = ""
     @ObservedObject private var hidden = HiddenAchievementStore.shared
     @State private var hiddenAlert: HiddenAchievement?
-
-    private enum ProfileRoute: Hashable { case achievements, myStars }
 
     private var mine: [Diary] { store.mine(uid: auth.uid).sorted { $0.createdAt > $1.createdAt } }
     private var othersViewedCount: Int {
@@ -92,10 +92,12 @@ struct ProfileScreen: View {
         return arr
     }
 
+    // 루트(MainTabView)의 단일 NavigationStack 에 push 되므로 자체 스택은 두지 않는다(Android 단일 NavHost 대응).
     var body: some View {
-        NavigationStack(path: $path) {
+        Group {
             ZStack {
-                Theme.background.ignoresSafeArea()
+                // Android ProfileScreen 배경 — mydiary_bg + 검정 0.82 틴트.
+                ScreenBackground(name: "mydiary_bg", darken: 0.82)
 
                 // 중앙: 아바타 + 이름 + 칭호 (화면 가운데보다 살짝 위)
                 VStack(spacing: 14) {
@@ -103,7 +105,7 @@ struct ProfileScreen: View {
                     // 닉네임 — 누르면 변경(기본=구글 닉네임). 레이아웃은 그대로.
                     HStack(spacing: 6) {
                         Text(auth.displayName.isEmpty ? "Stargazer" : auth.displayName)
-                            .font(.system(size: 26, weight: .bold))
+                            .font(.poorStory(26))
                             .foregroundStyle(Theme.textPrimary)
                             .onTapGesture {
                                 nicknameDraft = auth.displayName
@@ -112,9 +114,9 @@ struct ProfileScreen: View {
                         // 내가 달성한 히든 업적 전용 크리스탈 배지(34-4).
                         HiddenStarBadges(userId: auth.uid ?? "", size: 13)
                     }
-                    Button { path.append(ProfileRoute.achievements) } label: {
+                    Button { showAchievements = true } label: {
                         Text(titleDisplayText)
-                            .font(.system(size: 15, weight: equippedTitleIsHidden ? .bold : .semibold))
+                            .font(.poorStory(15))
                             .foregroundStyle(titleDisplayColor)
                             .shadow(color: (equippedTitle == nil ? .clear : titleDisplayColor).opacity(0.9),
                                     radius: equippedTitleIsHidden ? 16 : 12)
@@ -133,9 +135,9 @@ struct ProfileScreen: View {
                     Button(role: .destructive) { auth.signOut() } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
-                            Text("로그아웃")
+                            Text(locale.t(.drawerLogout))
                         }
-                        .font(.subheadline.weight(.medium))
+                        .font(.poorStory(15))
                         .foregroundStyle(Color(hex: 0xFF6B6B))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
@@ -149,25 +151,19 @@ struct ProfileScreen: View {
             }
             .navigationTitle(locale.t(.tabProfile))
             .navigationBarTitleDisplayMode(.inline)
+            // Android 프로필 탑바 = 뒤로가기 + "프로필" + 우측 "+"(핀 별 고르기)만.
+            // (배경음악/설정/알림 진입점은 드로어와 지도 상단 하트로 이동 — Android MainScreen 대응.)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    NavigationLink { MusicScreen() } label: { Image(systemName: "music.note") }
-                        .tint(Theme.mint)
-                }
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showPinPicker = true } label: { Image(systemName: "plus") }
-                        .tint(Theme.mint)
-                    NavigationLink { SettingsScreen() } label: { Image(systemName: "gearshape") }
-                        .tint(Theme.mint)
-                    NavigationLink { NotificationsScreen() } label: { Image(systemName: "bell") }
-                        .tint(Theme.mint)
+                        .tint(Theme.textPrimary)
                 }
             }
-            .navigationDestination(for: ProfileRoute.self) { route in
-                switch route {
-                case .achievements: AchievementsScreen(equippedTitleId: $equippedTitleId)
-                case .myStars: MyStarsScreen()
-                }
+            .navigationDestination(isPresented: $showAchievements) {
+                AchievementsScreen(equippedTitleId: $equippedTitleId)
+            }
+            .navigationDestination(isPresented: $showMyStars) {
+                MyStarsScreen()
             }
             .navigationDestination(for: Diary.self) { DetailScreen(diary: $0) }
             .sheet(isPresented: $showPinPicker) {
@@ -247,8 +243,8 @@ struct ProfileScreen: View {
     private func handleBubbleTap(_ idx: Int) {
         switch idx {
         case 1: TabRouter.shared.go(TabRouter.friends)
-        case 2: path.append(ProfileRoute.myStars)
-        case 3: path.append(ProfileRoute.achievements)
+        case 2: showMyStars = true
+        case 3: showAchievements = true
         default:
             // 핀한 별 탭 → 지도로 가서 파동(물결) 후 그 별까지 도보 길찾기. 그 뒤 인덱스는 히든 아이콘 → 업적 화면.
             let p = pinnedDiaries
@@ -256,7 +252,7 @@ struct ProfileScreen: View {
             if idx >= 4, idx < hiddenStart, let id = p[idx - 4].id {
                 MapFocusStore.shared.request(diaryId: id, withRoute: true)
             } else if idx >= hiddenStart {
-                path.append(ProfileRoute.achievements)
+                showAchievements = true
             }
         }
     }
@@ -325,12 +321,13 @@ struct MyStarsScreen: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            // Android MyDiaryScreen 배경 — mydiary_bg + 검정 0.82 틴트.
+            ScreenBackground(name: "mydiary_bg", darken: 0.82)
             ScrollView {
                 VStack(spacing: compactList ? 8 : 12) {
                     if mine.isEmpty {
                         Text(locale.t(.profileEmptyStars))
-                            .font(.subheadline).foregroundStyle(Theme.textSecondary)
+                            .font(.poorStory(15)).foregroundStyle(Theme.textSecondary)
                             .padding(.top, 40)
                     } else {
                         ForEach(mine) { d in
@@ -344,7 +341,7 @@ struct MyStarsScreen: View {
                 .padding(16)
             }
         }
-        .navigationTitle(locale.t(.profileMyStars))
+        .navigationTitle(locale.t(.navMyDiary))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -364,12 +361,12 @@ struct MyStarsScreen: View {
         HStack(spacing: 12) {
             StarView(type: d.starType, colorIndex: d.starColor, size: 24)
             Text(d.title.isEmpty ? locale.t(.profileMyStars) : d.title)
-                .font(.subheadline).fontWeight(.medium)
+                .font(.poorStory(15))
                 .foregroundStyle(Theme.textPrimary)
                 .lineLimit(1)
             Spacer()
             Text(Self.dateFmt.string(from: d.createdDate))
-                .font(.caption)
+                .font(.poorStory(12))
                 .foregroundStyle(Theme.textSecondary)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)

@@ -252,7 +252,8 @@ struct MusicScreen: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            // Android MusicScreen 배경 — mydiary_bg + 검정 0.82 틴트.
+            ScreenBackground(name: "mydiary_bg", darken: 0.82)
             VStack(spacing: 14) {
                 ZStack {
                     MusicConstellationView(trackId: selected.id, color: selected.color)
@@ -278,7 +279,7 @@ struct MusicScreen: View {
             }
             .padding(.top, 16)
         }
-        .navigationTitle("배경음악")
+        .navigationTitle(LocaleManager.shared.t(.navMusic))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             guard let uid = auth.uid else { return }

@@ -38,7 +38,7 @@ struct NotificationsScreen: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .navigationTitle("알림")
+        .navigationTitle(LocaleManager.shared.t(.navNotification))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { if let uid = auth.uid { vm.start(ownerId: uid) } }
         .onDisappear { vm.stop() }

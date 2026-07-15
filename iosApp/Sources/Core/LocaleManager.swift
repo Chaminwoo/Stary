@@ -109,6 +109,9 @@ enum L10n: String {
     case friendNoChatYet
     // 근처 미조회 별 발견 알림(체크리스트 33).
     case nearbyStarTitle, nearbyStarBody
+    // 드로어(좌측 메뉴) 내비 — Android MainScreen 대응.
+    case navMap, navMyDiary, navMusic, navNotification, navUpload, navDetail, navStarCluster
+    case drawerList, drawerLogout, drawerLogin
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -263,6 +266,16 @@ enum L10n: String {
         case .friendNoChatYet:      return ("아직 대화가 없어요 — 탭해서 시작해 보세요",
                                             "No messages yet — tap to start",
                                             "まだメッセージがありません — タップして始めましょう")
+        case .navMap:               return ("지도", "Map", "マップ")
+        case .navMyDiary:           return ("내 다이어리", "My Diary", "マイ日記")
+        case .navMusic:             return ("배경음악", "Music", "BGM")
+        case .navNotification:      return ("알림", "Notifications", "通知")
+        case .navUpload:            return ("새 다이어리 기록", "New Diary", "新しい日記")
+        case .navDetail:            return ("별 들여다보기", "Look into the Star", "星をのぞく")
+        case .navStarCluster:       return ("겹쳐진 별", "Merged Stars", "重なった星")
+        case .drawerList:           return ("목록", "Menu", "メニュー")
+        case .drawerLogout:         return ("로그아웃", "Sign out", "ログアウト")
+        case .drawerLogin:          return ("로그인", "Sign in", "ログイン")
         }
     }
 

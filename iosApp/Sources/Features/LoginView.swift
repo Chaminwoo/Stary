@@ -41,7 +41,7 @@ struct LoginView: View {
             }
 
             if auth.isBusy {
-                ProgressView().tint(Theme.mint)
+                StarLoadingView(size: 40)   // 앱 공용 크리스탈 별 로딩(34-9)
             }
         }
         .onAppear {

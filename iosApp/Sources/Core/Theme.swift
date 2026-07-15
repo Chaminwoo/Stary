@@ -1,13 +1,16 @@
 import SwiftUI
 
-/// 밤하늘 톤 디자인 토큰. (Android designsystem 의 Color 대응 최소본)
+/// 디자인 토큰. (Android `Color.kt` 와 값 1:1 동기화 — 한쪽 바꾸면 반대쪽도)
 enum Theme {
-    static let background = Color(hex: 0x0B0E1A)
-    static let surface = Color(hex: 0x161A2B)
-    static let surfaceAlt = Color(hex: 0x1F2440)
-    static let mint = Color(hex: 0x6EE7B7)        // 앱 포인트
-    static let textPrimary = Color.white
-    static let textSecondary = Color.white.opacity(0.65)
+    static let background = Color(hex: 0x0D0D0D)     // Bg
+    static let surface = Color(hex: 0x1A1A1A)        // Surface1
+    static let surfaceAlt = Color(hex: 0x242424)     // Surface2
+    static let outline = Color(hex: 0x2E2E2E)        // Outline
+    static let mint = Color(hex: 0x6EE7B7)           // Mint(브랜드 강조)
+    static let mintBlue = Color(hex: 0x3B82F6)       // MintBlue(민트→블루 그라데이션 짝)
+    static let accentRed = Color(hex: 0xFF4F4F)      // AccentRed
+    static let textPrimary = Color(hex: 0xF0F0F0)    // TextPrimary
+    static let textSecondary = Color(hex: 0x8A8A8A)  // TextSub
     static let textFaint = Color.white.opacity(0.4)
 }
 

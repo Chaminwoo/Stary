@@ -1,0 +1,158 @@
+{
+  "version": 8,
+  "name": "stary-dark",
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "https://api.maptiler.com/tiles/v3/tiles.json?key=__MAPTILER_KEY__"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+          "background-color": ["interpolate", ["linear"], ["zoom"], 6, "#000000", 16, "#0B0B0D"]
+      }
+    },
+    {
+      "id": "landcover-wood",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "landcover",
+      "filter": ["in", "class", "wood", "forest"],
+      "paint": {
+        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#020503", 16, "#0D1810"],
+        "fill-antialias": false
+      }
+    },
+    {
+      "id": "landcover-grass",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "landcover",
+      "filter": ["in", "class", "grass", "farmland", "meadow"],
+      "paint": {
+        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#020402", 16, "#0C1409"],
+        "fill-antialias": false
+      }
+    },
+    {
+      "id": "landuse-urban",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "landuse",
+      "filter": ["in", "class", "residential", "suburb", "neighbourhood", "commercial", "industrial", "retail"],
+      "paint": {
+        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#040302", 16, "#181207"],
+        "fill-antialias": false
+      }
+    },
+    {
+      "id": "park",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "park",
+      "paint": {
+        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#030603", 16, "#0E1D12"],
+        "fill-antialias": false
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": ["interpolate", ["linear"], ["zoom"], 6, "#080617", 16, "#142229"]
+      }
+    },
+    {
+      "id": "road-minor",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 13,
+      "filter": ["in", "class", "minor", "service"],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": ["interpolate", ["linear"], ["zoom"], 13, "#161310", 17, "#2E2822"],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 13, 0.6, 15, 1.8, 17, 4.5],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 13, 0, 14, 0.8]
+      }
+    },
+    {
+      "id": "road-mid",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 10,
+      "filter": ["in", "class", "secondary", "tertiary"],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": ["interpolate", ["linear"], ["zoom"], 10, "#1C150C", 16, "#6E5230"],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.8, 13, 1.8, 15, 3.0, 17, 5.5],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0, 11, 0.8]
+      }
+    },
+    {
+      "id": "road-major-glow",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 7,
+      "filter": ["in", "class", "motorway", "trunk", "primary"],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": "#FFB25E",
+        "line-blur": ["interpolate", ["linear"], ["zoom"], 8, 3, 14, 7, 17, 14],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 7, 2.5, 11, 5.5, 14, 11, 17, 20],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, 0, 10, 0.09, 16, 0.13]
+      }
+    },
+    {
+      "id": "road-major",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 7,
+      "filter": ["in", "class", "motorway", "trunk", "primary"],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": ["interpolate", ["linear"], ["zoom"], 8, "#46351A", 12, "#7E5D31", 16, "#B08A50"],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.6, 11, 1.5, 14, 3.2, 17, 6.5],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, 0, 10, 0.8]
+      }
+    },
+    {
+      "id": "road-highlight",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 10,
+      "filter": ["in", "class", "motorway", "trunk", "primary"],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": "#FFE9C8",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.4, 14, 0.9, 17, 1.8],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0, 11, 0.26, 16, 0.38]
+      }
+    },
+    {
+      "id": "road-glint",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 13,
+      "filter": ["in", "class", "motorway", "trunk", "primary"],
+      "layout": { "line-join": "round" },
+      "paint": {
+        "line-color": "#FFF6E0",
+        "line-blur": 1,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.6, 14, 2.6, 17, 4.2],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 13, 0, 15, 0.55, 17, 0.7],
+        "line-dasharray": [0.9, 34]
+      }
+    }
+  ]
+}

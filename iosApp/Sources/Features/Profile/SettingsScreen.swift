@@ -14,7 +14,8 @@ struct SettingsScreen: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            // Android SettingsScreen 배경 — mydiary_bg + 검정 0.84 틴트.
+            ScreenBackground(name: "mydiary_bg", darken: 0.84)
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     // ── 사운드 ──

@@ -39,7 +39,8 @@ struct AchievementsScreen: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            // Android AchievementsScreen 배경 — mydiary_bg + 검정 0.82 틴트.
+            ScreenBackground(name: "mydiary_bg", darken: 0.82)
             VStack(spacing: 0) {
                 Picker("", selection: $tab) {
                     Text(locale.t(.achTabNormal)).tag(0)

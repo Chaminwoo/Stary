@@ -32,12 +32,29 @@ struct MapLibreView: UIViewRepresentable {
     static let globeButtonZoom = 3.0
     static let mapMinZoom = 2.4
 
+    /// 야경 커스텀 스타일 URL — 번들 `maplibre_style.json` 의 `__MAPTILER_KEY__` 를 Info.plist 의
+    /// `MAPTILER_KEY`(빌드 설정 주입, 하드코딩 금지)로 치환해 임시 파일로 저장한 뒤 그 URL 을 쓴다.
+    /// 키가 비어 있으면 nil(호출부가 데모 스타일 폴백). Android `DiaryMap` 의 스타일 로드와 동일 계약.
+    static let staryStyleURL: URL? = {
+        guard let key = Bundle.main.object(forInfoDictionaryKey: "MAPTILER_KEY") as? String,
+              !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let srcURL = Bundle.main.url(forResource: "maplibre_style", withExtension: "json"),
+              let raw = try? String(contentsOf: srcURL, encoding: .utf8) else { return nil }
+        let json = raw.replacingOccurrences(of: "__MAPTILER_KEY__",
+                                            with: key.trimmingCharacters(in: .whitespacesAndNewlines))
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent("stary_style.json")
+        guard (try? json.write(to: dest, atomically: true, encoding: .utf8)) != nil else { return nil }
+        return dest
+    }()
+
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> MLNMapView {
         let mapView = MLNMapView(frame: .zero)
-        // 키 불필요한 데모 벡터 스타일(추후 자체 스타일/키로 교체).
-        mapView.styleURL = URL(string: "https://demotiles.maplibre.org/style.json")
+        // 야경 커스텀 스타일 — Android `res/raw/maplibre_style.json` 과 같은 파일을 번들에서 로드해
+        // `__MAPTILER_KEY__` 를 주입한다. 키 미설정/로드 실패 시 데모 스타일로 폴백(지도는 항상 뜬다).
+        mapView.styleURL = Self.staryStyleURL
+            ?? URL(string: "https://demotiles.maplibre.org/style.json")
         mapView.delegate = context.coordinator
         // 위치 fix 전엔 "지난 세션 마지막 위치"(없으면 기본 좌표)로 시작 — 기본좌표에서 내 위치로
         // 크게 점프하는 간격을 줄인다(체크리스트 29). 실제 fix 가 들어오면 재센터.

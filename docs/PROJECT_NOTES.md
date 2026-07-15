@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 로컬 커밋만, push 전(2026-07-15) — 아래 8.41 참고.
+> 최종 갱신: **8.42 iOS UI 전면 패리티 1차 — 드로어 내비/상단바/FAB + 야경 지도 스타일 + 배경 이미지 + 테마 토큰** — 진행 중(2026-07-15) — 아래 8.42 참고.
+> 이전: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 아래 8.41 참고.
 > 이전: **8.40 마감 라운드(1.3.1) + 전환 잔상 삭제 + iOS 패리티 일괄(33·34 라운드)** — Android BUILD SUCCESSFUL(2026-07-14), iOS 는 push 후 CI 검증 — 아래 8.40 참고.
 > 이전: **8.38-iOS 패리티**(크리스탈 별 / 30m 머지·겹친별 카드 / 친구 메신저형 행 / 이미지 캐시) — **CI(macOS) BUILD SUCCESS `a173f7e`** — 아래 8.38-iOS 참고.
 > 이전: **8.38 크리스탈 별 렌더·스파클(궤도·개수·위성)·공유카드 편집 확장·겹친별 배경·이미지 고속화·친구 스크린 개편** — Android **테스트 완료·push(`fbf7470`)** — 아래 8.38 참고.
@@ -31,6 +32,34 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.42 iOS UI 전면 패리티 1차 — 드로어 내비 + 지도 스타일 + 배경/테마 (진행 중, 2026-07-15)
+사용자 지시: **"Android UI 와 iOS UI 를 모든 스크린에서 최대한 완전히 같게"**. 1차분(구조/토대):
+
+- **테마 토큰 동기화**: `Theme.swift` 를 Android `Color.kt` 와 1:1 로(Bg 0x0D0D0D / Surface1 0x1A1A1A /
+  Surface2 0x242424 / Outline / Mint / MintBlue / AccentRed / TextPrimary 0xF0F0F0 / TextSub 0x8A8A8A).
+- **내비 구조 전환(핵심)**: 5-탭 TabView 폐기 → Android MainScreen 과 동일한
+  **지도 루트 + 상단바(햄버거 · "지도" · 알림 하트+빨간점) + 좌측 드로어(0x111111, 우측 라운드 24,
+  내다이어리/프로필/업적/배경음악/친구/설정/로그아웃) + 민트→블루 그라데이션 글쓰기 FAB**.
+  하위 화면은 **루트 단일 NavigationStack push**(Android 단일 NavHost 대응) — Friends/Upload/Profile 의
+  내부 NavigationStack 제거, ProfileScreen 은 path → `navigationDestination(isPresented:)` bool 로 전환,
+  프로필 탑바는 Android 처럼 "+"(핀)만 남기고 음악/설정/알림 진입점은 드로어/하트로 이동.
+  상세/겹친별/타인 프로필도 시트 → push(NavRoute.Detail/StarCluster/UserProfile 대응).
+  `TabRouter` 는 (tab, nonce) 요청 라우터로 개편(호출부 시그니처 유지 — map=pop-to-root, 그 외=push).
+  push 화면 공통 탑바 톤은 `StaryApp.configureNavigationBarAppearance()`(0x0D0D0D 불투명/PoorStory 20/0xF0F0F0).
+- **야경 지도 스타일**: Android `res/raw/maplibre_style.json` 을 iOS 번들로 복사,
+  `MapLibreView.staryStyleURL` 이 `__MAPTILER_KEY__` 를 Info.plist `MAPTILER_KEY`(project.yml 주입, 빈 값 허용)로
+  치환해 임시 파일 URL 로 로드. 키 없으면 demotiles 폴백. ⚠️ 실기기에서 야경 스타일 보려면
+  Xcode 빌드 설정(또는 CI)에 MAPTILER_KEY 채울 것(Android secrets.properties 와 같은 값).
+- **배경 이미지 이식**: mydiary_bg/mypage_bg/upload_bg/image_frame(.webp) + wind.mp3 번들 복사,
+  `Core/BundleImage.swift`(NSCache 로더) + `ScreenBackground(name:darken:)` 신설.
+  적용(다크 틴트 Android 값 그대로): Upload=upload_bg 0.82, Friends/Profile/MyStars/Achievements/Music/
+  UserProfile/StarCluster=mydiary_bg 0.82, Settings 0.84, Chat 0.85.
+- L10n: navMap/navMyDiary/navMusic/navNotification/navUpload/navDetail/navStarCluster/drawerList/drawerLogout/drawerLogin.
+- **남은 것(후속)**: 지도 화면 크롬(내위치/필터 스피드다이얼/지도만보기 FAB 배치), MyDiary 별자리 보드,
+  화면별 세부 레이아웃(업로드 피커 캐러셀, 상세 카드 구성, 설정 별 thumb 슬라이더 등), 하드코딩 한국어 문자열 L10n 이관.
 
 ---
 

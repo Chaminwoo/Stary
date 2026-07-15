@@ -200,20 +200,28 @@ struct MapScreen: View {
                     .allowsHitTesting(false)
             }
         }
-        .sheet(item: $selected) { diary in
-            NavigationStack { DetailScreen(diary: diary) }
+        // 별 상세 — Android 처럼 전체 화면 push(NavRoute.Detail 대응).
+        .navigationDestination(isPresented: Binding(
+            get: { selected != nil }, set: { if !$0 { selected = nil } }
+        )) {
+            if let d = selected { DetailScreen(diary: d) }
         }
-        // 겹친 별 카드 뷰어 — 카드 탭 → 그 별의 상세로 이어서 연다.
-        .sheet(item: $cluster) { selection in
-            StarClusterView(
-                diaries: selection.members,
-                onOpenDiary: { diary in
-                    cluster = nil
-                    // 시트 교체가 겹치지 않도록 한 틱 뒤에 상세를 연다.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { selected = diary }
-                },
-                onClose: { cluster = nil }
-            )
+        // 겹친 별 카드 뷰어 — 전체 화면 push(NavRoute.StarCluster 대응). 카드 탭 → 그 별의 상세로 이어서.
+        .navigationDestination(isPresented: Binding(
+            get: { cluster != nil }, set: { if !$0 { cluster = nil } }
+        )) {
+            if let selection = cluster {
+                StarClusterView(
+                    diaries: selection.members,
+                    onOpenDiary: { diary in
+                        cluster = nil
+                        // pop 애니메이션과 겹치지 않도록 한 틱 뒤에 상세를 연다.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { selected = diary }
+                    },
+                    onClose: { cluster = nil }
+                )
+                .toolbar(.hidden, for: .navigationBar) // 자체 뒤로가기 버튼 사용(전체 화면 연출)
+            }
         }
         // 이미 지도 탭일 때(핀/친구 길찾기로 값이 바뀌면) 즉시 처리.
         .onChange(of: focus.pendingDiaryId) { id in

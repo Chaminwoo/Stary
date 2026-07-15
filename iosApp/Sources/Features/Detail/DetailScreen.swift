@@ -129,7 +129,7 @@ struct DetailScreen: View {
                 isVideo: !diary.videoUrl.isEmpty && !isGifUrl(diary.videoUrl)
             )
         }
-        .navigationTitle("별")
+        .navigationTitle(LocaleManager.shared.t(.navDetail))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 공유 — 밤하늘 카드 이미지 + 웹 랜딩 링크를 공유 시트로(체크리스트 30, Android 패리티).
@@ -183,13 +183,14 @@ struct DetailScreen: View {
                 blockedIds = Set(snap.documents.map { $0.documentID })
             }
         }
-        .sheet(item: $profileTarget) { t in
-            NavigationStack {
+        // 타인 프로필 — Android 처럼 전체 화면 push(NavRoute.UserProfile 대응).
+        // DetailScreen 은 항상 루트 NavigationStack 안에서 push 되므로 스택 push 가 가능하다.
+        .navigationDestination(isPresented: Binding(
+            get: { profileTarget != nil }, set: { if !$0 { profileTarget = nil } }
+        )) {
+            if let t = profileTarget {
                 UserProfileScreen(userId: t.userId, userName: t.userName)
             }
-            .environmentObject(auth)
-            .environmentObject(store)
-            .environmentObject(location) // UserProfile → 별 상세 푸시 시 필요
         }
         // 친구 프로필에서 "길찾기"를 누르면 이 상세/프로필 시트를 닫고 지도로 보낸다.
         .onChange(of: focus.pendingDiaryId) { id in

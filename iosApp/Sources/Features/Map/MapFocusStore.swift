@@ -29,8 +29,9 @@ final class MapFocusStore: ObservableObject {
     }
 }
 
-/// 5-탭(지도/목록/올리기/친구/프로필) 선택을 전역에서 전환하기 위한 라우터.
-/// (프로필의 떠다니는 아이콘 탭이나 길찾기 요청이 지도/친구 탭으로 점프할 때 사용.)
+/// 전역 화면 전환 라우터 — 탭바 시절의 `go(tab)` 호출부(딥링크/업로드 성공/프로필 버블)를 유지하면서,
+/// 드로어 내비 구조(Android MainScreen 대응)에서는 "map = 루트로 pop, 그 외 = 해당 화면 push" 로 해석한다.
+/// 같은 목적지를 연속 호출해도 nonce 가 증가해 매번 발화한다(MainTabView 가 onChange 로 소비).
 final class TabRouter: ObservableObject {
     static let shared = TabRouter()
     private init() {}
@@ -41,7 +42,7 @@ final class TabRouter: ObservableObject {
     static let friends = 3
     static let profile = 4
 
-    @Published var selected = TabRouter.map
+    @Published private(set) var request: (tab: Int, nonce: Int) = (TabRouter.map, 0)
 
-    func go(_ tab: Int) { selected = tab }
+    func go(_ tab: Int) { request = (tab, request.nonce + 1) }
 }

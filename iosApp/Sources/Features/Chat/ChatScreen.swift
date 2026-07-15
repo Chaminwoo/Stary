@@ -23,7 +23,8 @@ struct ChatScreen: View {
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            // Android ChatScreen 배경 — mydiary_bg + 검정 0.85 틴트.
+            ScreenBackground(name: "mydiary_bg", darken: 0.85)
             // 별가루(34-7) — 메시지 뒤 배경에서 아주 옅게 떠다닌다(장식, 히트테스트 없음).
             ChatStardust()
                 .ignoresSafeArea()

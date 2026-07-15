@@ -1,6 +1,7 @@
 import FirebaseCore
 import GoogleSignIn
 import SwiftUI
+import UIKit
 
 /// iOS 앱 진입점.
 /// Firebase 초기화 + 구글 로그인 콜백 처리 후 인증 게이트(RootView)를 표시한다.
@@ -13,6 +14,24 @@ struct StaryApp: App {
         if Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist") != nil {
             FirebaseApp.configure()
         }
+        Self.configureNavigationBarAppearance()
+    }
+
+    /// push 된 모든 화면의 시스템 내비바를 Android CenterAlignedTopAppBar 톤으로 통일 —
+    /// 배경 0x0D0D0D 불투명 + 구분선 없음 + 제목 PoorStory 20/0xF0F0F0 + 뒤로가기 틴트 0xF0F0F0.
+    private static func configureNavigationBarAppearance() {
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor(red: 0x0D / 255.0, green: 0x0D / 255.0, blue: 0x0D / 255.0, alpha: 1)
+        appearance.shadowColor = .clear
+        let titleColor = UIColor(red: 0xF0 / 255.0, green: 0xF0 / 255.0, blue: 0xF0 / 255.0, alpha: 1)
+        let titleFont = UIFont(name: AppFont.body, size: 20) ?? .systemFont(ofSize: 20)
+        appearance.titleTextAttributes = [.foregroundColor: titleColor, .font: titleFont]
+        appearance.largeTitleTextAttributes = [.foregroundColor: titleColor]
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        UINavigationBar.appearance().compactAppearance = appearance
+        UINavigationBar.appearance().tintColor = titleColor
     }
 
     var body: some Scene {
