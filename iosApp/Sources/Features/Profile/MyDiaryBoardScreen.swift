@@ -370,13 +370,15 @@ private struct ConstellationBackgroundView: View {
                     ctx.stroke(line, with: .color(color.opacity(min(0.20 * f, 1))), lineWidth: 1.4)
                 }
                 // 별 + 후광(펄스) — mag 클수록 크고 밝게(Android 수식 동일).
+                // CGFloat(mag)·Double(pulse/f) 혼합은 '+' 모호성 에러 → Double 로 통일 후 마지막에 CGFloat.
                 for s in constel.stars {
                     let c = pos(s)
+                    let mag = Double(s.mag)
                     let phase = Double(s.x * 11 + s.y * 7)
                     let pulse = 0.5 + 0.5 * sin(t + phase)
-                    let magN = min(max((s.mag - 1.0) / 1.2, 0), 1)
+                    let magN = min(max((mag - 1.0) / 1.2, 0), 1)
 
-                    let haloR = (7 + 16 * s.mag) * (0.8 + 0.35 * pulse) * (0.85 + 0.25 * f)
+                    let haloR = CGFloat((7 + 16 * mag) * (0.8 + 0.35 * pulse) * (0.85 + 0.25 * f))
                     let haloA = (0.08 + 0.34 * pulse) * (0.45 + 0.55 * magN) * f
                     let grad = Gradient(colors: [color.opacity(min(haloA, 1)), .clear])
                     ctx.fill(
@@ -384,7 +386,7 @@ private struct ConstellationBackgroundView: View {
                                                width: haloR * 2, height: haloR * 2)),
                         with: .radialGradient(grad, center: c, startRadius: 0, endRadius: haloR)
                     )
-                    let coreR = (1.0 + 1.8 * s.mag) * (0.88 + 0.2 * pulse)
+                    let coreR = CGFloat((1.0 + 1.8 * mag) * (0.88 + 0.2 * pulse))
                     ctx.fill(
                         Path(ellipseIn: CGRect(x: c.x - coreR, y: c.y - coreR,
                                                width: coreR * 2, height: coreR * 2)),
