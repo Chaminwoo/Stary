@@ -110,6 +110,14 @@ struct DetailScreen: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .contentShape(Rectangle())
                         .onTapGesture { showFullMedia = true }
+                    } else if canOpen, let frame = BundleImage.named("image_frame") {
+                        // 사진/영상이 없으면 템플릿 이미지(image_frame) — Android DetailScreen 패리티.
+                        Image(uiImage: frame)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 200)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                     bodyCard
                     likeBar
