@@ -14,6 +14,9 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 
     private static let lastLatKey = "stary_last_lat"
     private static let lastLngKey = "stary_last_lng"
+    private static let camLatKey = "stary_cam_lat"
+    private static let camLngKey = "stary_cam_lng"
+    private static let camZoomKey = "stary_cam_zoom"
 
     override init() {
         super.init()
@@ -49,6 +52,24 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         return CLLocationCoordinate2D(latitude: d.double(forKey: lastLatKey), longitude: d.double(forKey: lastLngKey))
     }
 
+    /// 지난 세션에서 마지막으로 보던 지도 카메라(중심+줌) — 앱 시작 시 초기 카메라가
+    /// "마지막으로 앱을 종료한 위치"에서 시작하게 복원한다. (Android LocationHelper.lastCameraState 패리티)
+    nonisolated static var lastCameraState: (coordinate: CLLocationCoordinate2D, zoom: Double)? {
+        let d = UserDefaults.standard
+        guard d.object(forKey: camLatKey) != nil, d.object(forKey: camLngKey) != nil else { return nil }
+        let zoom = d.object(forKey: camZoomKey) != nil ? d.double(forKey: camZoomKey) : 15
+        return (CLLocationCoordinate2D(latitude: d.double(forKey: camLatKey),
+                                       longitude: d.double(forKey: camLngKey)), zoom)
+    }
+
+    /// 카메라 idle 마다 호출(지도 델리게이트 = 비격리 컨텍스트) — 다음 실행의 초기 카메라 복원용.
+    nonisolated static func persistCameraState(_ coord: CLLocationCoordinate2D, zoom: Double) {
+        let d = UserDefaults.standard
+        d.set(coord.latitude, forKey: camLatKey)
+        d.set(coord.longitude, forKey: camLngKey)
+        d.set(zoom, forKey: camZoomKey)
+    }
+
     private func persistLastLocation(_ coord: CLLocationCoordinate2D) {
         let now = Date().timeIntervalSince1970
         guard now - lastPersistMs >= 10 else { return } // 업데이트마다 디스크에 쓰지 않게 스로틀
@@ -71,6 +92,11 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        #if targetEnvironment(simulator)
+        // 컴퓨터(시뮬레이터)의 기본 시뮬레이션 위치는 미국(쿠퍼티노)이라 서울 폴백을 덮어쓴다 →
+        // 시뮬레이터에서는 위치 업데이트를 무시하고 start() 의 서울 기본 좌표를 유지한다.
+        return
+        #else
         guard let loc = locations.last else { return }
         let mock = Self.isMock(loc)
         Task { @MainActor in
@@ -82,6 +108,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             self.coordinate = loc.coordinate
             self.persistLastLocation(loc.coordinate)
         }
+        #endif
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

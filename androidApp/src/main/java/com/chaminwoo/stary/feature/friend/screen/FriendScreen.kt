@@ -105,6 +105,7 @@ fun FriendScreen(
     val vm: FriendViewModel = viewModel(factory = FriendViewModel.factory(me))
     val friends by vm.friends.collectAsState()
     val requests by vm.incomingRequests.collectAsState()
+    val outgoing by vm.outgoingRequests.collectAsState()
     val results by vm.searchResults.collectAsState()
     val isSearching by vm.isSearching.collectAsState()
     // 채팅방 메타(마지막 메시지/시각) — 친구 행의 미리보기·미읽음 점에 사용.
@@ -193,6 +194,7 @@ fun FriendScreen(
                 item { SectionHeader(stringResource(R.string.friend_search_results), results.size) }
                 items(results, key = { "search_${it.userId}" }) { user ->
                     val alreadyFriend = friends.any { it.userId == user.userId }
+                    val alreadyRequested = outgoing.any { it.toId == user.userId }
                     PersonCard(
                         name = user.userName,
                         photoUrl = user.profileImageUrl,
@@ -201,6 +203,9 @@ fun FriendScreen(
                     ) {
                         if (alreadyFriend) {
                             StatusChip(stringResource(R.string.friend_status_friend))
+                        } else if (alreadyRequested) {
+                            // 이미 보낸 pending 요청 — 다시 못 누르게 상태 칩으로 교체.
+                            StatusChip(stringResource(R.string.friend_status_requested))
                         } else {
                             Pill(stringResource(R.string.friend_add), Icons.Filled.PersonAdd, Green.copy(alpha = 0.16f), Green) {
                                 vm.sendRequest(user)

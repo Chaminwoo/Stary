@@ -65,6 +65,9 @@ interface NotificationRepository {
 interface FriendRepository {
     fun observeFriends(userId: String): Flow<List<Friend>>
     fun observeIncomingRequests(userId: String): Flow<List<FriendRequest>>
+
+    /** 내가 보낸 pending 요청 — 검색 결과의 "요청됨" 상태 표시용. */
+    fun observeOutgoingRequests(userId: String): Flow<List<FriendRequest>>
     suspend fun searchUsers(query: String, excludeUserId: String): List<UserProfile>
     suspend fun sendRequest(from: UserProfile, to: UserProfile): Boolean
     suspend fun acceptRequest(request: FriendRequest): Boolean

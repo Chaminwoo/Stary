@@ -139,6 +139,12 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private val meteorSparks = ArrayList<FloatArray>()
     private var sparkEmitCarry = 0f         // 프레임 간 방출량 이월(초당 방출률 적분)
     private var lastMeteorU = 0f            // 직전 프레임의 진행도(방출 구간 보간용)
+    // 유성 스프라이트 빌더 재사용 버퍼(매 프레임 List<Float> 박싱/직접버퍼 재할당 방지)
+    private var meteorArr = FloatArray(4096)
+    private var meteorFloatCount = 0
+    private var meteorFloatBuf: FloatBuffer? = null
+    private val meteorWakePos = FloatArray(3)   // 잔류 파장 위치 스크래치
+    private val sunDirScratch = FloatArray(3)   // sunDirection() 스크래치(프레임당 2~3회 호출)
 
     // ── 행렬 ──
     private val proj = FloatArray(16)
@@ -152,11 +158,24 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var lastFrameNs = 0L
     private val startMs = SystemClock.uptimeMillis()
 
+    // uniform/attrib 위치 캐시 — 이름 기반 glGet*Location(드라이버 호출)을 매 프레임 반복하지 않는다.
+    // 서피스 재생성 시(프로그램 재빌드) onSurfaceCreated 에서 비운다.
+    private val uniformLocCache = HashMap<Int, HashMap<String, Int>>()
+    private val attribLocCache = HashMap<Int, HashMap<String, Int>>()
+    private fun uLoc(program: Int, name: String): Int =
+        uniformLocCache.getOrPut(program) { HashMap() }
+            .getOrPut(name) { GLES20.glGetUniformLocation(program, name) }
+    private fun aLoc(program: Int, name: String): Int =
+        attribLocCache.getOrPut(program) { HashMap() }
+            .getOrPut(name) { GLES20.glGetAttribLocation(program, name) }
+
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         GLES20.glDisable(GLES20.GL_CULL_FACE)
 
+        uniformLocCache.clear()
+        attribLocCache.clear()
         earthProgram = buildProgram(EARTH_VS, EARTH_FS)
         spriteProgram = buildProgram(SPRITE_VS, SPRITE_FS)
         ringProgram = buildProgram(RING_VS, RING_FS)
@@ -282,18 +301,18 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     private fun drawEarth() {
         GLES20.glUseProgram(earthProgram)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(earthProgram, "uMVP"), 1, false, mvp, 0)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(earthProgram, "uFade"), fade)
+        GLES20.glUniformMatrix4fv(uLoc(earthProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniform1f(uLoc(earthProgram, "uFade"), fade)
         // 태양 방향 — 지구 좌표계 벡터라 구를 드래그로 돌려도 "지금 실제로 낮인 지역"이 항상 밝다.
         val sun = sunDirection()
-        GLES20.glUniform3f(GLES20.glGetUniformLocation(earthProgram, "uSunDir"), sun[0], sun[1], sun[2])
+        GLES20.glUniform3f(uLoc(earthProgram, "uSunDir"), sun[0], sun[1], sun[2])
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, earthTex)
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(earthProgram, "uTex"), 0)
+        GLES20.glUniform1i(uLoc(earthProgram, "uTex"), 0)
 
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, earthVbo)
-        val aPos = GLES20.glGetAttribLocation(earthProgram, "aPos")
-        val aUV = GLES20.glGetAttribLocation(earthProgram, "aUV")
+        val aPos = aLoc(earthProgram, "aPos")
+        val aUV = aLoc(earthProgram, "aUV")
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 20, 0)
         GLES20.glEnableVertexAttribArray(aUV)
@@ -310,17 +329,17 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private fun drawTrail(tr: Trail, t: Float) {
         if (tr.vbo == 0 || tr.count == 0) return
         GLES20.glUseProgram(ringProgram)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(ringProgram, "uMVP"), 1, false, mvp, 0)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uTime"), t)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uSpeed"), tr.speed)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uPhase"), tr.phase)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uIntensity"), tr.intensity)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(ringProgram, "uFade"), fade)
-        GLES20.glUniform3fv(GLES20.glGetUniformLocation(ringProgram, "uColorA"), 1, tr.colorA, 0)
-        GLES20.glUniform3fv(GLES20.glGetUniformLocation(ringProgram, "uColorB"), 1, tr.colorB, 0)
+        GLES20.glUniformMatrix4fv(uLoc(ringProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniform1f(uLoc(ringProgram, "uTime"), t)
+        GLES20.glUniform1f(uLoc(ringProgram, "uSpeed"), tr.speed)
+        GLES20.glUniform1f(uLoc(ringProgram, "uPhase"), tr.phase)
+        GLES20.glUniform1f(uLoc(ringProgram, "uIntensity"), tr.intensity)
+        GLES20.glUniform1f(uLoc(ringProgram, "uFade"), fade)
+        GLES20.glUniform3fv(uLoc(ringProgram, "uColorA"), 1, tr.colorA, 0)
+        GLES20.glUniform3fv(uLoc(ringProgram, "uColorB"), 1, tr.colorB, 0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, tr.vbo)
-        val aPos = GLES20.glGetAttribLocation(ringProgram, "aPos")
-        val aUV = GLES20.glGetAttribLocation(ringProgram, "aUV")
+        val aPos = aLoc(ringProgram, "aPos")
+        val aUV = aLoc(ringProgram, "aUV")
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 20, 0)
         GLES20.glEnableVertexAttribArray(aUV)
@@ -344,18 +363,18 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glDepthMask(false)
         GLES20.glUseProgram(cloudProgram)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(cloudProgram, "uMVP"), 1, false, mvp, 0)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(cloudProgram, "uFade"), fade)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(cloudProgram, "uAlpha"), zoomAlpha)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(cloudProgram, "uShift"), t * CLOUD_DRIFT)
+        GLES20.glUniformMatrix4fv(uLoc(cloudProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniform1f(uLoc(cloudProgram, "uFade"), fade)
+        GLES20.glUniform1f(uLoc(cloudProgram, "uAlpha"), zoomAlpha)
+        GLES20.glUniform1f(uLoc(cloudProgram, "uShift"), t * CLOUD_DRIFT)
         val sun = sunDirection()
-        GLES20.glUniform3f(GLES20.glGetUniformLocation(cloudProgram, "uSunDir"), sun[0], sun[1], sun[2])
+        GLES20.glUniform3f(uLoc(cloudProgram, "uSunDir"), sun[0], sun[1], sun[2])
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, cloudTex)
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(cloudProgram, "uTex"), 0)
+        GLES20.glUniform1i(uLoc(cloudProgram, "uTex"), 0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, earthVbo)
-        val aPos = GLES20.glGetAttribLocation(cloudProgram, "aPos")
-        val aUV = GLES20.glGetAttribLocation(cloudProgram, "aUV")
+        val aPos = aLoc(cloudProgram, "aPos")
+        val aUV = aLoc(cloudProgram, "aUV")
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 20, 0)
         GLES20.glEnableVertexAttribArray(aUV)
@@ -370,10 +389,15 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glDisable(GLES20.GL_BLEND)
     }
 
-    /** 태양 방향(지구 좌표계 단위벡터) — UTC 기준 하루에 360도 회전(적도 상공, UTC 정오에 경도 0 상공). */
+    /** 태양 방향(지구 좌표계 단위벡터) — UTC 기준 하루에 360도 회전(적도 상공, UTC 정오에 경도 0 상공).
+     *  프레임당 2~3회 호출되므로 스크래치 배열을 재사용한다(호출부는 즉시 소비만 함). */
     private fun sunDirection(): FloatArray {
         val dayFrac = (System.currentTimeMillis() % 86_400_000L) / 86_400_000f
-        return latLngToXyz(0.0, 180.0 - dayFrac * 360.0, 1f)
+        val lam = Math.toRadians(180.0 - dayFrac * 360.0)
+        sunDirScratch[0] = sin(lam).toFloat()
+        sunDirScratch[1] = 0f
+        sunDirScratch[2] = cos(lam).toFloat()
+        return sunDirScratch
     }
 
     /** 태양 — 광원 방향 하늘(SUN_DIST)에 떠 있는 해: 전용 텍스처(원반+코로나 합성, 색은
@@ -462,7 +486,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
         }
 
-        val list = ArrayList<Float>((meteorSparks.size + METEOR_SPRITES) * 6 * SPRITE_FLOATS)
+        meteorFloatCount = 0
 
         // ── 잔류 파장(wake) — 경로 양옆으로 천천히 벌어지며(보트 물결), 물결처럼 일렁이다
         //    5~10초에 걸쳐 사그라든다. 수명이 다한 것만 제거. ──
@@ -478,9 +502,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 // 물결 — 경로를 따라 흐르는 파동(waveArg = 경로 위치 기반 위상)
                 val wave = 0.55f + 0.45f * sin(s[12] - t * 2.2f)
                 val k = fadeS * wave
-                addSprite(
-                    list,
-                    floatArrayOf(s[0] + s[3] * age, s[1] + s[4] * age, s[2] + s[5] * age),
+                meteorWakePos[0] = s[0] + s[3] * age
+                meteorWakePos[1] = s[1] + s[4] * age
+                meteorWakePos[2] = s[2] + s[5] * age
+                meteorAddSprite(
+                    meteorWakePos,
                     r = s[6] * k, g = s[7] * k, b = s[8] * k, a = 1f,
                     size = s[9] * (0.7f + 0.6f * (1f - f)), // 퍼지며 조금씩 잘아진다
                     phase = s[12] * 0.159f, mode = 1f,      // 트윙클 — 물결 위 반짝임
@@ -511,8 +537,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     val cr = tint[0] + (tint2[0] - tint[0]) * mixT
                     val cg = tint[1] + (tint2[1] - tint[1]) * mixT
                     val cb = tint[2] + (tint2[2] - tint[2]) * mixT
-                    addSprite(
-                        list, floatArrayOf(pos[0], pos[1], pos[2]),
+                    meteorAddSprite(
+                        pos,
                         r = bright * (0.72f + 0.28f * fall) * cr,
                         g = bright * (0.80f + 0.20f * fall) * cg,
                         b = bright * cb,
@@ -528,10 +554,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
         }
 
-        if (list.isEmpty()) return
-        uploadBuffer(meteorVbo, toFloatBuffer(list))
+        if (meteorFloatCount == 0) return
+        uploadMeteorSprites()
         drawSprites(
-            meteorVbo, list.size / SPRITE_FLOATS, glowTex, camPos, t,
+            meteorVbo, meteorFloatCount / SPRITE_FLOATS, glowTex, camPos, t,
             depthTest = false, modelM = identityM,
         )
     }
@@ -635,26 +661,26 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (vbo == 0 || count == 0) return
         if (depthTest) GLES20.glEnable(GLES20.GL_DEPTH_TEST) else GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glUseProgram(spriteProgram)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(spriteProgram, "uVP"), 1, false, vp, 0)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(spriteProgram, "uModel"), 1, false, modelM, 0)
-        GLES20.glUniform3fv(GLES20.glGetUniformLocation(spriteProgram, "uCamPos"), 1, camPos, 0)
+        GLES20.glUniformMatrix4fv(uLoc(spriteProgram, "uVP"), 1, false, vp, 0)
+        GLES20.glUniformMatrix4fv(uLoc(spriteProgram, "uModel"), 1, false, modelM, 0)
+        GLES20.glUniform3fv(uLoc(spriteProgram, "uCamPos"), 1, camPos, 0)
         // 카메라 고정이므로 right/up 도 고정
-        GLES20.glUniform3f(GLES20.glGetUniformLocation(spriteProgram, "uCamRight"), 1f, 0f, 0f)
-        GLES20.glUniform3f(GLES20.glGetUniformLocation(spriteProgram, "uCamUp"), 0f, 1f, 0f)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(spriteProgram, "uTime"), t)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(spriteProgram, "uFade"), fade)
+        GLES20.glUniform3f(uLoc(spriteProgram, "uCamRight"), 1f, 0f, 0f)
+        GLES20.glUniform3f(uLoc(spriteProgram, "uCamUp"), 0f, 1f, 0f)
+        GLES20.glUniform1f(uLoc(spriteProgram, "uTime"), t)
+        GLES20.glUniform1f(uLoc(spriteProgram, "uFade"), fade)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex)
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(spriteProgram, "uTex"), 0)
+        GLES20.glUniform1i(uLoc(spriteProgram, "uTex"), 0)
 
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         val stride = SPRITE_FLOATS * 4
-        val aCenter = GLES20.glGetAttribLocation(spriteProgram, "aCenter")
-        val aCorner = GLES20.glGetAttribLocation(spriteProgram, "aCorner")
-        val aColor = GLES20.glGetAttribLocation(spriteProgram, "aColor")
-        val aSize = GLES20.glGetAttribLocation(spriteProgram, "aSize")
-        val aPhase = GLES20.glGetAttribLocation(spriteProgram, "aPhase")
-        val aMode = GLES20.glGetAttribLocation(spriteProgram, "aMode")
+        val aCenter = aLoc(spriteProgram, "aCenter")
+        val aCorner = aLoc(spriteProgram, "aCorner")
+        val aColor = aLoc(spriteProgram, "aColor")
+        val aSize = aLoc(spriteProgram, "aSize")
+        val aPhase = aLoc(spriteProgram, "aPhase")
+        val aMode = aLoc(spriteProgram, "aMode")
         GLES20.glEnableVertexAttribArray(aCenter)
         GLES20.glVertexAttribPointer(aCenter, 3, GLES20.GL_FLOAT, false, stride, 0)
         GLES20.glEnableVertexAttribArray(aCorner)
@@ -1111,12 +1137,12 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private fun drawConstellationLines() {
         if (constLineVbo == 0 || constLineVertexCount == 0) return
         GLES20.glUseProgram(lineProgram)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(lineProgram, "uMVP"), 1, false, mvp, 0)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(lineProgram, "uFade"), fade)
+        GLES20.glUniformMatrix4fv(uLoc(lineProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniform1f(uLoc(lineProgram, "uFade"), fade)
         GLES20.glLineWidth(2f)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, constLineVbo)
-        val aPos = GLES20.glGetAttribLocation(lineProgram, "aPos")
-        val aColor = GLES20.glGetAttribLocation(lineProgram, "aColor")
+        val aPos = aLoc(lineProgram, "aPos")
+        val aColor = aLoc(lineProgram, "aColor")
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glEnableVertexAttribArray(aColor)
         GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 24, 0)
@@ -1145,13 +1171,50 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         r: Float, g: Float, b: Float, a: Float,
         size: Float, phase: Float, mode: Float,
     ) {
-        val corners = floatArrayOf(-1f, -1f, 1f, -1f, 1f, 1f, -1f, -1f, 1f, 1f, -1f, 1f)
         for (c in 0 until 6) {
             out.add(p[0]); out.add(p[1]); out.add(p[2])
-            out.add(corners[c * 2]); out.add(corners[c * 2 + 1])
+            out.add(SPRITE_CORNERS[c * 2]); out.add(SPRITE_CORNERS[c * 2 + 1])
             out.add(r); out.add(g); out.add(b); out.add(a)
             out.add(size); out.add(phase); out.add(mode)
         }
+    }
+
+    /** [addSprite] 의 유성 전용 무박싱 버전 — 매 프레임 도는 경로라 FloatArray 에 직접 쓴다. */
+    private fun meteorAddSprite(
+        p: FloatArray, r: Float, g: Float, b: Float, a: Float,
+        size: Float, phase: Float, mode: Float,
+    ) {
+        var arr = meteorArr
+        val need = meteorFloatCount + 6 * SPRITE_FLOATS
+        if (arr.size < need) {
+            arr = arr.copyOf(maxOf(arr.size * 2, need))
+            meteorArr = arr
+        }
+        var i = meteorFloatCount
+        for (c in 0 until 6) {
+            arr[i++] = p[0]; arr[i++] = p[1]; arr[i++] = p[2]
+            arr[i++] = SPRITE_CORNERS[c * 2]; arr[i++] = SPRITE_CORNERS[c * 2 + 1]
+            arr[i++] = r; arr[i++] = g; arr[i++] = b; arr[i++] = a
+            arr[i++] = size; arr[i++] = phase; arr[i++] = mode
+        }
+        meteorFloatCount = i
+    }
+
+    /** 유성 스프라이트 업로드 — 직접 버퍼를 재사용(모자라면 확장)해 매 프레임 재할당을 피한다. */
+    private fun uploadMeteorSprites() {
+        val bytes = meteorFloatCount * 4
+        var fb = meteorFloatBuf
+        if (fb == null || fb.capacity() < meteorFloatCount) {
+            fb = ByteBuffer.allocateDirect(maxOf(bytes, 8192))
+                .order(ByteOrder.nativeOrder()).asFloatBuffer()
+            meteorFloatBuf = fb
+        }
+        fb.clear()
+        fb.put(meteorArr, 0, meteorFloatCount)
+        fb.position(0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, meteorVbo)
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, bytes, fb, GLES20.GL_DYNAMIC_DRAW)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
     }
 
     // ────────────────────────── 메쉬/텍스처 빌드 ──────────────────────────
@@ -1418,6 +1481,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         const val MAX_DIST = 9.5f     // 카메라 최대 거리(지구가 작아 보일 만큼 멀리)
 
         private const val SPRITE_FLOATS = 12
+        /** 스프라이트 쿼드 코너(2삼각형×3꼭짓점) — 호출마다 재할당하지 않게 공유. */
+        private val SPRITE_CORNERS = floatArrayOf(-1f, -1f, 1f, -1f, 1f, 1f, -1f, -1f, 1f, 1f, -1f, 1f)
         private const val FLARE_MIN_LIKES = 100 // 이 이상 좋아요 → 별 플레어, 미만 → 노란 점광
         private const val FLARE_MAX = 500
         private const val FLARE_RADIUS = 1.045f // 구 표면에서 살짝 띄워 렌더(박힘 방지)

@@ -38,6 +38,8 @@ struct MapLibreView: UIViewRepresentable {
     /// (Android DiaryMap GLOBE_BUTTON_ZOOM/MAP_MIN_ZOOM 패리티)
     static let globeButtonZoom = 3.0
     static let mapMinZoom = 2.4
+    /// 지도 기본 기울기(도) — 살짝 눕혀 입체감. (Android BASE_TILT_DEG=25 패리티)
+    static let baseTiltDeg: CGFloat = 25
 
     /// 야경 커스텀 스타일 URL — 번들 `maplibre_style.json` 의 `__MAPTILER_KEY__` 를 Info.plist 의
     /// `MAPTILER_KEY`(빌드 설정 주입, 하드코딩 금지)로 치환해 임시 파일로 저장한 뒤 그 URL 을 쓴다.
@@ -63,10 +65,23 @@ struct MapLibreView: UIViewRepresentable {
         mapView.styleURL = Self.staryStyleURL
             ?? URL(string: "https://demotiles.maplibre.org/style.json")
         mapView.delegate = context.coordinator
-        // 위치 fix 전엔 "지난 세션 마지막 위치"(없으면 기본 좌표=건국대)로 시작. 실제 fix 가 들어오면 재센터.
-        let fallback = LocationManager.lastSavedCoordinate
-            ?? CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
-        mapView.setCenter(userLocation ?? fallback, zoomLevel: 15, animated: false)
+        // 초기 카메라 = 지난 세션에서 마지막으로 보던 카메라(중심+줌) → 없으면
+        // "지난 세션 마지막 위치"(없으면 기본 좌표=건국대). 실제 fix 가 들어오면 재센터.
+        // (Android DiaryMap lastCameraState 복원과 동일)
+        if let cam = LocationManager.lastCameraState, userLocation == nil {
+            mapView.setCenter(cam.coordinate, zoomLevel: cam.zoom, animated: false)
+        } else {
+            let fallback = LocationManager.lastSavedCoordinate
+                ?? CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
+            mapView.setCenter(userLocation ?? fallback, zoomLevel: 15, animated: false)
+        }
+        // 살짝 기울인 카메라(입체감) — Android BASE_TILT_DEG(25°) 패리티.
+        let camera = mapView.camera
+        camera.pitch = Self.baseTiltDeg
+        mapView.setCamera(camera, animated: false)
+        // 회전/기울기 제스처 잠금 — 기본 틸트를 사용자 조작이 흐트러뜨리지 않게(Android uiSettings 동일).
+        mapView.allowsRotating = false
+        mapView.allowsTilting = false
         mapView.showsUserLocation = true
         mapView.minimumZoomLevel = Self.mapMinZoom // 이 밑은 3D 글로브가 담당
         return mapView
@@ -201,6 +216,8 @@ struct MapLibreView: UIViewRepresentable {
             applyStyleEffectZoom(mapView)
             // 카메라 idle → 별자리 라인 재계산(90ms 디바운스, Android 동일).
             requestConstellationRebuild(mapView)
+            // 마지막 카메라(중심+줌) 저장 — 다음 실행의 초기 카메라가 "마지막으로 보던 곳"이 되게.
+            LocationManager.persistCameraState(mapView.centerCoordinate, zoom: mapView.zoomLevel)
         }
 
         /// 직전 포커스와 (거의) 같은 좌표인지 — 같은 별 재요청 시 카메라를 다시 옮기지 않게.

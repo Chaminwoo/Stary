@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.43 iOS 패리티 라운드2 (R2-1~R2-3 + 마무리 5건)** — anonymous 디코딩/줌 별크기/후광·파티클/100m 게이팅/미디어/열람 애니메이션/몰입·별자리 버튼/친구 db + 프로필 아이콘 크리스탈화/음악 별자리 보드 스타일/글로브 지구 복원/미번역 전수 + Android 업로드 휠 피커 — **CI(macOS) BUILD SUCCESS `f6428d2`**(2026-07-16) — 아래 8.43 참고.
+> 최종 갱신: **8.44 iOS 패리티 라운드3(버그 7건 + 미완 6건)** — **계정 통일(uid=Google sub)**/시뮬레이터 서울 고정/달·행성 boolean 모양/친구 요청됨+토스트/후광 2겹 별색/타인 프로필 핀 별만/틸트 25°/마지막 카메라 복원/채팅 별가루 삭제 — Android BUILD SUCCESSFUL(2026-07-16), iOS CI 검증 대기 — 아래 8.44 참고.
+> 이전: **8.43 iOS 패리티 라운드2 (R2-1~R2-3 + 마무리 5건)** — anonymous 디코딩/줌 별크기/후광·파티클/100m 게이팅/미디어/열람 애니메이션/몰입·별자리 버튼/친구 db + 프로필 아이콘 크리스탈화/음악 별자리 보드 스타일/글로브 지구 복원/미번역 전수 + Android 업로드 휠 피커 — **CI(macOS) BUILD SUCCESS `f6428d2`**(2026-07-16) — 아래 8.43 참고.
 > 이전: **8.42 iOS UI 전면 패리티(1~7차 완료)** — 드로어 내비/테마/야경 지도/지도 크롬/상세 재구성/필터 확장/별자리 보드/L10n — **CI(macOS) BUILD SUCCESS `9cd867b`**(2026-07-15) — 아래 8.42 참고.
 > 이전: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 아래 8.41 참고.
 > 이전: **8.40 마감 라운드(1.3.1) + 전환 잔상 삭제 + iOS 패리티 일괄(33·34 라운드)** — Android BUILD SUCCESSFUL(2026-07-14), iOS 는 push 후 CI 검증 — 아래 8.40 참고.
@@ -33,6 +34,60 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.44 iOS 패리티 라운드3 — 계정 통일 + 버그/미완 일괄 (Android BUILD SUCCESSFUL 2026-07-16, iOS CI 검증 대기)
+
+사용자 보고 버그 7건 + 미완료 6건. 브랜치 `feat/ios-parity-round2` 이어서 작업.
+
+**⚠️ 최우선 사용자 액션 — "DiaryWarpData 선언 없음"(#1)**: `DiaryWarpData` 는
+`iosApp/Sources/Features/Map/DiaryOpenWarpView.swift:7` 에 있고 CI(f6428d2)도 그린이었다.
+Mac 의 `.xcodeproj` 가 옛 파일 목록(신규 파일 미포함)이라 나는 에러 —
+**`cd iosApp && xcodegen generate` 재실행 후 빌드**하면 해결(신규 Swift 파일이 생길 때마다 필요).
+"별 후광/파티클 미완"(R2-3 구현됨)·"글로브 미완"(8.43 지구 복원)도 같은 원인(옛 빌드)일 가능성이 큼 —
+재생성 빌드로 확인 후 남는 차이만 후속.
+
+**#7 같은 구글 계정 = 같은 유저(근본 수정, iOS)**: Android 는 userId=**Google sub**(JWT subject),
+iOS 는 FirebaseAuth uid 를 쓰고 있었음 → 같은 구글 계정이 OS 별로 다른 계정으로 갈라짐.
+`AuthManager.appUserId(of:)` 신설(= providerData google.com 의 uid, 익명은 FirebaseAuth uid 폴백 —
+Android `restoreSession` 규칙 동일) → 상태 리스너/ensureProfile/requestDeletion(문서 id=sub,
+authUid=FirebaseAuth uid 기록)/InviteStore 전부 이 값 사용. users 문서에 authUid 병행 기록.
+⚠️ **기존 iOS 계정(FirebaseAuth uid 문서)의 데이터는 새 uid 로 승계되지 않음**(테스트 데이터라 정리 대상).
+- 이 수정으로 #5(맵 미표시)·#6(댓글/하트 먹통)의 핵심 원인도 해소: uid 불일치로 내 글이 isOwner=false 가 되고,
+  시뮬레이터 미국 위치(아래 #3) 때문에 100m 게이팅에 걸려 상호작용이 잠겨 있었음.
+
+**#3 시뮬레이터 위치 = 서울 고정(iOS)**: 시뮬레이터 기본 시뮬레이션 위치(쿠퍼티노)가 서울 폴백을
+덮어씀 → `LocationManager.didUpdateLocations` 를 시뮬레이터 빌드에서 무시(서울=건국대 유지).
+업로드 좌표(`coordinateOrDefault`)도 서울이 되므로 "방금 만든 다이어리가 맵에 안 보임"(#5) 해결.
+
+**#2 달·행성(+꽃·보석) 모양(iOS)**: even-odd 근사 → **진짜 boolean 연산**(iOS16 `Path.subtracting/union`,
+Android `Path.Op` 패리티). 초승달=차집합(삐져나온 안쪽 원 채움 제거), 행성=본체∪고리 밴드(겹침 구멍 제거),
+꽃=꽃잎 합집합−가운데 원, 보석=실루엣−패싯 컷 라인(`strokedPath`, Android gemPath 세그먼트 동일).
+
+**#4 친구 요청 피드백(Android+iOS)**: 검색 결과에 "요청됨" 상태 칩 —
+shared `FriendRepository.observeOutgoingRequests`(fromId==나) 신설 + Android `FriendViewModel.outgoingRequests`
++ `friend_status_requested`(ko/en/ja). iOS `FriendsViewModel.outgoingIds` 리스너 + 상태 칩(친구/요청됨)
++ **전송 토스트**(`friendRequestSent`/`friendRequestFail` — Android StaryToast 문구 패리티).
+
+**미완 항목**:
+- **후광 업그레이드(iOS)**: 단일 민트 CircleLayer → Android 패리티 2겹(**별색** `auraColor`) —
+  바닥광(반경 0.6→7×sizeMult, blur 1.4, y+8) + 오오라(반경 2→26×sizeMult, 불투명도 sizeMult 1→0/1.4→0.12/3→0.42).
+  데이터 주도 색/줌 보간은 `NSExpression(mlnJSONObject:)` JSON 표현식 사용(⚠️ CI 로 API 명 검증 필요).
+  레이어 순서 파티클→별자리→바닥광→오오라(Android 동일).
+- **타인 프로필 = 핀 별만(iOS)**: `UserProfileScreen` 부유 별을 전체 공개 다이어리(10개) →
+  `users/{uid}.pinnedDiaries` 핀 별만(Android 동일). 내 프로필 핀 피커는 기존 구현 유지.
+- **친구 행 사진 탭=프로필(iOS)**: 행 탭=채팅 유지, 아바타 위 투명 버튼 오버레이 → `UserProfileScreen` push.
+  검색 결과/받은 요청 행 아바타도 동일(Android PersonCard onClick 패리티).
+- **지도 틸트(iOS)**: `MapLibreView.baseTiltDeg=25`(Android BASE_TILT_DEG) — 초기 카메라 pitch 25° +
+  회전/틸트 제스처 잠금(Android uiSettings 동일).
+- **마지막 카메라 복원(Android+iOS)**: 카메라 idle 마다 중심+줌 저장(Android `LocationHelper.persistCameraState`
+  2s 스로틀 / iOS `LocationManager.persistCameraState`) → 앱 시작 초기 카메라 = 마지막 본 곳(fix 오면 기존
+  didAutoCenter 가 내 위치로 1회 이동하는 동작은 유지).
+- **채팅 별가루 삭제(Android+iOS)**: `ChatStardust` 호출+정의 양쪽 제거(사용자 지시 — 떠다니는 원).
+
+**남은 것(후속)**: 사용자 Mac xcodegen 재생성 후 실빌드 확인(글로브/파티클 실측), iOS 계정 통일 후
+구 uid 데이터 정리, MyDiaryBoard 드래그 물리(8.42 잔여).
 
 ---
 

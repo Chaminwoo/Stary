@@ -6,7 +6,7 @@ import UIKit
 // 지도 스타일 이펙트 — Android DiaryMap/DiaryMapMarkers 패리티(#3, #7).
 //  · 별가루 파티클: 시작 위치 반경 20km 에 400개(시드 42, 위상 4그룹) + 트윙클 루프
 //  · 별자리 라인: 뷰포트의 대표 별들을 최근접 2개와 잇는 3겹(후광/글로우/밝은 선) 라인
-//  · 별 후광: 대표 별 밑 민트 빛 웅덩이(CircleLayer — 어노테이션 뷰 아래에 깔린다)
+//  · 별 후광: 별색 바닥광 + 인기 별 오오라 2겹 CircleLayer(어노테이션 뷰 아래에 깔린다)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Android DiaryMapMarkers 상수 패리티.
@@ -31,8 +31,10 @@ private enum StyleFx {
 
     static let auraSourceID = "diary-aura-src"
     static let auraLayerID = "diary-aura"
-    /// 바닥 빛 웅덩이 불투명도(Android GROUND_LIGHT_OPACITY).
-    static let auraOpacity = 0.30
+    static let groundLightLayerID = "diary-ground-light"
+    /// 바닥 빛 웅덩이 불투명도(Android GROUND_LIGHT_OPACITY) + 지면 쪽 오프셋(GROUND_LIGHT_OFFSET_Y).
+    static let groundLightOpacity = 0.30
+    static let groundLightOffsetY = 8.0
 
     static let mint = UIColor(red: 0x6E / 255.0, green: 0xE7 / 255.0, blue: 0xB7 / 255.0, alpha: 1)
     static let brightLine = UIColor(red: 0xE6 / 255.0, green: 1.0, blue: 0xF4 / 255.0, alpha: 1)
@@ -88,17 +90,8 @@ extension MapLibreView.Coordinator {
             style.addLayer(layer)
         }
 
-        // ── 별 후광(바닥 빛 웅덩이) — 대표 별 아래 민트 글로우. 소스는 마커 갱신 때 채운다 ──
-        let auraSource = MLNShapeSource(identifier: StyleFx.auraSourceID, features: [], options: nil)
-        style.addSource(auraSource)
-        let aura = MLNCircleStyleLayer(identifier: StyleFx.auraLayerID, source: auraSource)
-        aura.circleColor = NSExpression(forConstantValue: StyleFx.mint)
-        aura.circleOpacity = NSExpression(forConstantValue: StyleFx.auraOpacity)
-        aura.circleBlur = NSExpression(forConstantValue: 1.0)
-        aura.circleRadius = Self.auraRadiusExpression(zoom: mapView.zoomLevel)
-        style.addLayer(aura)
-
         // ── 별자리 라인 — 후광/글로우/밝은 선 3겹, 초기 불투명도 0(토글 시 페이드) ──
+        // (Android 레이어 순서: 파티클 → 별자리 → 바닥광 → 오오라 — 라인이 빛 웅덩이 밑에 깔린다)
         let cSource = MLNShapeSource(identifier: StyleFx.constellationSourceID, features: [], options: nil)
         style.addSource(cSource)
         func lineLayer(_ id: String, color: UIColor, width: Double, blur: Double) -> MLNLineStyleLayer {
@@ -114,6 +107,37 @@ extension MapLibreView.Coordinator {
         style.addLayer(lineLayer(StyleFx.constellationHaloID, color: StyleFx.mint, width: 16, blur: 16))
         style.addLayer(lineLayer(StyleFx.constellationGlowID, color: StyleFx.mint, width: 8, blur: 8))
         style.addLayer(lineLayer(StyleFx.constellationLineID, color: StyleFx.brightLine, width: 1.7, blur: 0.6))
+
+        // ── 별 후광 — Android 바닥광+오오라 2겹 패리티(별색, 줌 보간 스톱 동일) ──
+        //  · 바닥 빛 웅덩이: 모든 별 밑에 은은하게(반경 0.6→7 × sizeMult, 지면 쪽 +8pt).
+        //  · 오오라: 인기(큰) 별만 발광(불투명도 sizeMult 1→0 / 1.4→0.12 / 3→0.42, 반경 2→26 × sizeMult).
+        // 색은 feature 의 auraColor(그 별의 팔레트 색) — 데이터 주도 표현식은 JSON 으로 만든다.
+        let auraSource = MLNShapeSource(identifier: StyleFx.auraSourceID, features: [], options: nil)
+        style.addSource(auraSource)
+        let auraColorExpr = NSExpression(mlnJSONObject: ["to-color", ["get", "auraColor"]] as [Any])
+        func radiusExpr(_ stops: [Double: Double]) -> NSExpression {
+            var json: [Any] = ["interpolate", ["linear"], ["zoom"]]
+            for zoom in stops.keys.sorted() {
+                json.append(zoom)
+                json.append(["*", stops[zoom]!, ["get", "sizeMult"] as [Any]] as [Any])
+            }
+            return NSExpression(mlnJSONObject: json)
+        }
+        let ground = MLNCircleStyleLayer(identifier: StyleFx.groundLightLayerID, source: auraSource)
+        ground.circleColor = auraColorExpr
+        ground.circleRadius = radiusExpr([6: 0.6, 10: 2, 13: 4.5, 15: 7])
+        ground.circleOpacity = NSExpression(forConstantValue: StyleFx.groundLightOpacity)
+        ground.circleBlur = NSExpression(forConstantValue: 1.4)
+        ground.circleTranslation = NSExpression(forConstantValue:
+            NSValue(cgVector: CGVector(dx: 0, dy: StyleFx.groundLightOffsetY)))
+        style.addLayer(ground)
+        let aura = MLNCircleStyleLayer(identifier: StyleFx.auraLayerID, source: auraSource)
+        aura.circleColor = auraColorExpr
+        aura.circleRadius = radiusExpr([6: 2, 10: 6, 13: 14, 15: 26])
+        aura.circleOpacity = NSExpression(mlnJSONObject:
+            ["interpolate", ["linear"], ["get", "sizeMult"], 1, 0, 1.4, 0.12, 3, 0.42] as [Any])
+        aura.circleBlur = NSExpression(forConstantValue: 1.0)
+        style.addLayer(aura)
 
         refreshAuraFeatures(mapView)
         startTwinkleLoop()
@@ -188,16 +212,8 @@ extension MapLibreView.Coordinator {
         ])
     }
 
-    /// 후광 반지름 — 별 크기 배율(sizeMult) × 줌 스케일(별 아이콘과 같은 스톱).
-    private static func auraRadiusExpression(zoom: Double) -> NSExpression {
-        let base = 14.0 * Double(starScale(forZoom: zoom))
-        return NSExpression(forFunction: "multiply:by:", arguments: [
-            NSExpression(forConstantValue: base),
-            NSExpression(forKeyPath: "sizeMult"),
-        ])
-    }
-
-    /// 카메라 이동 중/후 — 파티클·후광 크기를 현재 줌에 맞춰 갱신(변화 있을 때만).
+    /// 카메라 이동 중/후 — 파티클 크기를 현재 줌에 맞춰 갱신(변화 있을 때만).
+    /// (후광/오오라 반경은 줌 interpolate 표현식이라 갱신 불필요)
     func applyStyleEffectZoom(_ mapView: MLNMapView) {
         guard let style = styleRef else { return }
         let zoom = mapView.zoomLevel
@@ -208,12 +224,17 @@ extension MapLibreView.Coordinator {
                 withIdentifier: StyleFx.particleLayerID(g)) as? MLNSymbolStyleLayer else { continue }
             layer.iconScale = Self.particleScaleExpression(zoom: zoom)
         }
-        if let aura = style.layer(withIdentifier: StyleFx.auraLayerID) as? MLNCircleStyleLayer {
-            aura.circleRadius = Self.auraRadiusExpression(zoom: zoom)
-        }
     }
 
-    /// 후광 소스 갱신 — 현재 대표 별(머지 결과) 좌표 + sizeMult. 마커 갱신 시 함께 호출.
+    /// 팔레트 색 → "#RRGGBB"(오오라 CircleLayer 색상용). (Android starColorHex 패리티)
+    private static func starColorHex(_ colorIndex: Int) -> String {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(StarStyle.color(colorIndex)).getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "#%02X%02X%02X",
+                      Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
+    }
+
+    /// 후광 소스 갱신 — 현재 대표 별(머지 결과) 좌표 + sizeMult + 별색. 마커 갱신 시 함께 호출.
     func refreshAuraFeatures(_ mapView: MLNMapView) {
         guard let style = styleRef,
               let src = style.source(withIdentifier: StyleFx.auraSourceID) as? MLNShapeSource
@@ -223,7 +244,10 @@ extension MapLibreView.Coordinator {
             .map { a in
                 let f = MLNPointFeature()
                 f.coordinate = a.coordinate
-                f.attributes = ["sizeMult": min(max(a.sizeMult, 1.0), 2.5)]
+                f.attributes = [
+                    "sizeMult": max(a.sizeMult, 1.0),
+                    "auraColor": Self.starColorHex(a.diary.starColor),
+                ]
                 return f
             }
         src.shape = MLNShapeCollectionFeature(shapes: features)

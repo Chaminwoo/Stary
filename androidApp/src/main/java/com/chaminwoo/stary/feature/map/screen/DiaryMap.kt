@@ -235,6 +235,12 @@ fun DiaryMap(
                 map.addOnCameraIdleListener {
                     isCameraMoving.value = false
                     cameraIdleTick++
+                    // 마지막 카메라(중심+줌) 저장 — 다음 실행의 초기 카메라가 "마지막으로 보던 곳"이 되게.
+                    map.cameraPosition.target?.let { c ->
+                        LocationHelper.persistCameraState(
+                            context, c.latitude, c.longitude, map.cameraPosition.zoom
+                        )
+                    }
                 }
                 // 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음)
                 map.addOnCameraMoveListener {
@@ -528,9 +534,11 @@ fun DiaryMap(
 
                     val target = LocationHelper.cameraTarget
                     if (target == null) {
+                        // 초기 카메라 = 지난 세션에서 마지막으로 보던 카메라(없으면 마지막 위치/기본좌표).
+                        val savedCam = LocationHelper.lastCameraState(context)
                         map.cameraPosition = CameraPosition.Builder()
-                            .target(start.toMl())
-                            .zoom(DEFAULT_ZOOM)
+                            .target(savedCam?.let { MlLatLng(it.latitude, it.longitude) } ?: start.toMl())
+                            .zoom(savedCam?.zoom ?: DEFAULT_ZOOM)
                             .tilt(BASE_TILT_DEG)
                             .build()
                     } else {
@@ -876,12 +884,32 @@ fun DiaryMap(
     // ⚠️ 카메라 이동 중엔 스타일 변경을 멈춰 팬/줌 끊김을 방지한다.
     LaunchedEffect(styleRef) {
         val style = styleRef ?: return@LaunchedEffect
+        // 레이어는 스타일 초기화 때 전부 추가되고 제거되지 않으므로(styleRef 는 그 뒤 설정)
+        // 참조를 1회만 조회해 재사용 — 매 틱 문자열 getLayer(JNI) 조회 제거.
+        val diaryLayers = Array(PHASE_GROUPS) { style.getLayer(diaryLayerId(it)) as? SymbolLayer }
+        val auraLayers = Array(PHASE_GROUPS) { style.getLayer(auraLayerId(it)) as? CircleLayer }
+        val groundLayers = Array(PHASE_GROUPS) { style.getLayer(groundLightLayerId(it)) as? CircleLayer }
+        val sparkleLayers = Array(SPARKLE_SETS) { s -> Array(PHASE_GROUPS) { g -> style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer } }
+        val orbitLayers = Array(MAX_ORBIT_STARS) { i -> Array(PHASE_GROUPS) { g -> style.getLayer(orbitLayerId(i, g)) as? SymbolLayer } }
+        val particleLayers = Array(PHASE_GROUPS) { style.getLayer(particleLayerId(it)) as? SymbolLayer }
+        val roadGlintLayer = style.getLayer(ROAD_GLINT_LAYER) as? LineLayer
+        // 값이 연속 변하는 표현식은 양자화해 캐시(눈에 안 보이는 1/64 단위) — 매 틱 트리 재생성 방지.
+        val sizeExprCache = HashMap<Int, Expression>()
+        val groundExprCache = HashMap<Int, Expression>()
+        val sparkleOpExprCache = HashMap<Int, Expression>()
+        val particleOpExprCache = HashMap<Int, Expression>()
+        fun quant(v: Float) = (v * 64f).toInt()
         var t = 0f
         var lastDashOffset = -1f
         var lastGlintEnvelope = -1f
         while (isActive) {
             if (isCameraMoving.value) {
                 delay(100)
+                continue
+            }
+            // 앱이 후면이면 스타일 갱신을 멈춰 배터리를 아낀다(전면 복귀 시 자동 재개).
+            if (!com.chaminwoo.stary.core.util.AppForeground.isForeground) {
+                delay(300)
                 continue
             }
             val zoom = (mapRef?.cameraPosition?.zoom ?: 13.0).toFloat()
@@ -894,27 +922,32 @@ fun DiaryMap(
             t += 0.05f
             val zoomAmp = ((zoom - 6f) / (15f - 6f)).coerceIn(0.1f, 1f)
             for (g in 0 until PHASE_GROUPS) {
-                val layer = style.getLayer(diaryLayerId(g)) as? SymbolLayer ?: continue
+                val layer = diaryLayers[g] ?: continue
                 val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
                 val wave = sin(t * 1.6f + phase) // -1(위)..1(아래)
                 val floatDy = wave * 4f * zoomAmp // 최대 -4..4 dp, 줌 작으면 축소
                 val pulse = 1f + 0.20f * ((sin(t * 3.2f + phase) + 1f) / 2f) // 1.0..1.2 맥동
                 layer.setProperties(
                     PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                    PropertyFactory.iconSize(starSizeExpression(pulse)),
+                    PropertyFactory.iconSize(
+                        sizeExprCache.getOrPut(quant(pulse)) { starSizeExpression(quant(pulse) / 64f) }
+                    ),
                 )
                 // 후광도 같은 float 적용 → 별과 함께 떠오른다
-                (style.getLayer(auraLayerId(g)) as? CircleLayer)?.setProperties(
+                auraLayers[g]?.setProperties(
                     PropertyFactory.circleTranslate(arrayOf(0f, floatDy))
                 )
                 // 바닥 빛 웅덩이는 지점 고정(시차의 기준점). 별이 내려와 가까워질수록 살짝 밝게.
                 val downFrac = (wave + 1f) / 2f // 0(위)..1(아래)
-                (style.getLayer(groundLightLayerId(g)) as? CircleLayer)?.setProperties(
+                val groundOp = GROUND_LIGHT_OPACITY * (0.7f + 0.3f * downFrac)
+                groundLayers[g]?.setProperties(
                     PropertyFactory.circleOpacity(
-                        Expression.product(
-                            Expression.literal(GROUND_LIGHT_OPACITY * (0.7f + 0.3f * downFrac)),
-                            Expression.get("alpha")
-                        )
+                        groundExprCache.getOrPut(quant(groundOp)) {
+                            Expression.product(
+                                Expression.literal(quant(groundOp) / 64f),
+                                Expression.get("alpha")
+                            )
+                        }
                     )
                 )
                 // 스파클 — 타원 궤도(icon-offset) + 별 부유 동기(iconTranslate) + 개수 게이트(opacity).
@@ -929,7 +962,7 @@ fun DiaryMap(
                     val satUy = sin(satAng) * 0.55f
 
                     for (s in 0 until SPARKLE_SETS) {
-                        val sl = style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer ?: continue
+                        val sl = sparkleLayers[s][g] ?: continue
                         val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
                         // 세트별 목표 오프셋(dp) — 위성은 부모 파티클 위치 + 주전원(그 파티클을 공전).
                         val dpAt: (Float) -> Pair<Float, Float> = when (s) {
@@ -949,7 +982,11 @@ fun DiaryMap(
                                 sparkleOffsetExpression(s, sparkleZoom, screenDensity, dpAt)
                             ),
                             PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                            PropertyFactory.iconOpacity(sparkleOpacityExpression(s, op)),
+                            PropertyFactory.iconOpacity(
+                                sparkleOpExprCache.getOrPut(s * 100_000 + quant(op)) {
+                                    sparkleOpacityExpression(s, quant(op) / 64f)
+                                }
+                            ),
                         )
                     }
                 }
@@ -958,7 +995,7 @@ fun DiaryMap(
                 // 함께** 오르내린다(같은 phaseGroup 레이어라 가능).
                 if (zoom > 11.1f) {
                     for (i in 0 until MAX_ORBIT_STARS) {
-                        val ol = style.getLayer(orbitLayerId(i, g)) as? SymbolLayer ?: continue
+                        val ol = orbitLayers[i][g] ?: continue
                         val driftX = sin(t * (0.7f + 0.14f * i) + i * 2.1f) * 0.8f
                         val driftY = sin(t * (1.15f + 0.18f * i) + i * 1.4f) * 1.0f
                         val op = orbitFade.value * (0.88f + 0.12f * sin(t * 1.7f + i * 1.3f))
@@ -972,12 +1009,14 @@ fun DiaryMap(
             }
             // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신 (GeoJSON 재생성 없음)
             for (g in 0 until PHASE_GROUPS) {
-                val layer = style.getLayer(particleLayerId(g)) as? SymbolLayer ?: continue
+                val layer = particleLayers[g] ?: continue
                 val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
                 val speed = 2.0f + g * 0.4f // 그룹마다 다른 주기 → 덜 기계적인 반짝임
                 val twinkle = 0.25f + 0.75f * ((sin(t * speed + phase) + 1f) / 2f)
                 layer.setProperties(
-                    PropertyFactory.iconOpacity(particleOpacityExpression(twinkle))
+                    PropertyFactory.iconOpacity(
+                        particleOpExprCache.getOrPut(quant(twinkle)) { particleOpacityExpression(quant(twinkle) / 64f) }
+                    )
                 )
             }
             // 도로 글린트: 대시 위상을 흘려 빛 알갱이가 도로를 따라 흐른다.
@@ -987,7 +1026,7 @@ fun DiaryMap(
                 .toFloat() / ROAD_GLINT_STEPS * ROAD_GLINT_GAP
             if (q != lastDashOffset) {
                 lastDashOffset = q
-                (style.getLayer(ROAD_GLINT_LAYER) as? LineLayer)?.setProperties(
+                roadGlintLayer?.setProperties(
                     PropertyFactory.lineDasharray(
                         arrayOf(0f, q, ROAD_GLINT_DASH, ROAD_GLINT_GAP - q)
                     )
@@ -1004,7 +1043,7 @@ fun DiaryMap(
             }.coerceIn(0f, 1f)
             if (envelope != lastGlintEnvelope) {
                 lastGlintEnvelope = envelope
-                (style.getLayer(ROAD_GLINT_LAYER) as? LineLayer)?.setProperties(
+                roadGlintLayer?.setProperties(
                     PropertyFactory.lineOpacity(roadGlintOpacityExpression(envelope))
                 )
             }

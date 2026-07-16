@@ -9,6 +9,16 @@ struct FriendsScreen: View {
     /// 읽음 기록 — 채팅 화면과 공유(행 탭 시 markRead).
     @ObservedObject private var readStore = ChatReadStore.shared
     @State private var query = ""
+    /// 하단 토스트(Android StaryToast 대응) — 친구 요청 전송/실패 피드백.
+    @State private var toast: String?
+    /// 프로필 사진 탭 → 타인 프로필 push(Android 사진 탭=프로필 패리티).
+    @State private var profileTarget: FriendProfileTarget?
+
+    struct FriendProfileTarget: Identifiable {
+        let userId: String
+        let userName: String
+        var id: String { userId }
+    }
 
     // 루트(MainTabView)의 단일 NavigationStack 에 push 되므로 자체 스택은 두지 않는다(Android 단일 NavHost 대응).
     var body: some View {
@@ -24,11 +34,24 @@ struct FriendsScreen: View {
                 }
                 .padding(16)
             }
+            if let t = toast {
+                ToastView(text: t)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
+            }
         }
         .navigationTitle(LocaleManager.shared.t(.tabFriends))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Friend.self) { friend in
             ChatScreen(friend: friend, myUid: auth.uid ?? "")
+        }
+        // 사진 탭 → 타인 프로필 push(Android onOpenProfile 대응).
+        .navigationDestination(isPresented: Binding(
+            get: { profileTarget != nil }, set: { if !$0 { profileTarget = nil } }
+        )) {
+            if let t = profileTarget {
+                UserProfileScreen(userId: t.userId, userName: t.userName)
+            }
         }
         .onAppear { if let uid = auth.uid { vm.start(uid: uid) } }
         .onDisappear { vm.stop() }
@@ -51,19 +74,52 @@ struct FriendsScreen: View {
             if vm.searching { StarLoadingView(size: 26) }
             ForEach(vm.results) { user in
                 HStack {
-                    avatar(user.userName, photoUrl: user.profileImageUrl ?? "", userId: user.userId)
+                    Button { profileTarget = FriendProfileTarget(userId: user.userId, userName: user.userName) } label: {
+                        avatar(user.userName, photoUrl: user.profileImageUrl ?? "", userId: user.userId)
+                    }
+                    .buttonStyle(.plain)
                     Text(user.userName).foregroundStyle(Theme.textPrimary)
                     HiddenStarBadges(userId: user.userId, size: 11)
                     Spacer()
-                    Button(LocaleManager.shared.t(.friendAdd)) {
-                        guard let uid = auth.uid else { return }
-                        Task { await vm.sendRequest(fromId: uid, fromName: auth.displayName, to: user) }
+                    // 이미 친구/요청 보냄 → 상태 칩, 아니면 추가 버튼. (Android StatusChip 패리티)
+                    if vm.friends.contains(where: { $0.userId == user.userId }) {
+                        statusChip(LocaleManager.shared.t(.friendStatusFriend))
+                    } else if vm.outgoingIds.contains(user.userId) {
+                        statusChip(LocaleManager.shared.t(.friendStatusRequested))
+                    } else {
+                        Button(LocaleManager.shared.t(.friendAdd)) {
+                            guard let uid = auth.uid else { return }
+                            Task {
+                                let ok = await vm.sendRequest(fromId: uid, fromName: auth.displayName, to: user)
+                                showToast(ok
+                                    ? String(format: LocaleManager.shared.t(.friendRequestSent), user.userName)
+                                    : LocaleManager.shared.t(.friendRequestFail))
+                            }
+                        }
+                        .font(.poorStory(12)).tint(Theme.mint)
                     }
-                    .font(.poorStory(12)).tint(Theme.mint)
                 }
                 .padding(10)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
             }
+        }
+    }
+
+    /// 상태 칩(친구/요청됨) — Android StatusChip(민트 알약) 대응.
+    private func statusChip(_ text: String) -> some View {
+        Text(text)
+            .font(.poorStory(12))
+            .foregroundStyle(Theme.mint)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Theme.mint.opacity(0.10), in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.25), lineWidth: 1))
+    }
+
+    private func showToast(_ text: String) {
+        toast = text
+        Task {
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            toast = nil
         }
     }
 
@@ -100,7 +156,10 @@ struct FriendsScreen: View {
             Text(LocaleManager.shared.t(.friendRequests)).font(.poorStory(17)).foregroundStyle(Theme.textPrimary)
             ForEach(vm.requests) { req in
                 HStack {
-                    avatar(req.fromName, photoUrl: req.fromPhotoUrl, userId: req.fromId)
+                    Button { profileTarget = FriendProfileTarget(userId: req.fromId, userName: req.fromName) } label: {
+                        avatar(req.fromName, photoUrl: req.fromPhotoUrl, userId: req.fromId)
+                    }
+                    .buttonStyle(.plain)
                     Text(req.fromName).foregroundStyle(Theme.textPrimary)
                     Spacer()
                     Button(LocaleManager.shared.t(.friendAccept)) {
@@ -139,6 +198,17 @@ struct FriendsScreen: View {
                                 ChatReadStore.shared.markRead(AppConfig.chatId(uid, friend.userId))
                             }
                         })
+                        // 사진 탭 = 프로필 — 행(채팅)보다 먼저 탭을 받게 겹쳐 둔다(Android 사진 탭 패리티).
+                        Button {
+                            profileTarget = FriendProfileTarget(userId: friend.userId, userName: friend.userName)
+                        } label: {
+                            Color.clear
+                                .frame(width: 52, height: 52)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.leading, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         // 최근 별 버튼은 행 위에 겹쳐 둔다 — 행(채팅)보다 먼저 탭을 받는다.
                         if let star = latestStar(of: friend.userId), let id = star.id {
                             Button {

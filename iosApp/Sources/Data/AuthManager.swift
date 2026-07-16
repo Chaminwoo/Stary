@@ -19,10 +19,11 @@ final class AuthManager: ObservableObject {
     init() {
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
-                self?.uid = user?.uid
+                self?.uid = Self.appUserId(of: user)
                 if let user {
+                    let appUid = Self.appUserId(of: user) ?? user.uid
                     // 캐시된 커스텀 닉네임이 있으면 즉시 반영(기본=구글 이름). Firestore 값으로 ensureProfile 에서 확정.
-                    let cached = UserDefaults.standard.string(forKey: "nickname_\(user.uid)")
+                    let cached = UserDefaults.standard.string(forKey: "nickname_\(appUid)")
                     self?.displayName = cached ?? user.displayName ?? user.email ?? "익명의 별"
                     await self?.ensureProfile(user)
                 } else {
@@ -30,6 +31,18 @@ final class AuthManager: ObservableObject {
                 }
             }
         }
+    }
+
+    /// 앱 데이터 식별자(userId) — **Google sub**(providerData google.com 의 uid), 없으면(익명) FirebaseAuth uid.
+    /// Android `GoogleAuthHelper` 가 userId = Google sub 를 쓰므로, 같은 구글 계정이 OS 와 무관하게
+    /// 같은 계정으로 묶이려면 iOS 도 같은 값을 써야 한다(FirebaseAuth uid 는 프로젝트별 발급이라 별개 값).
+    nonisolated static func appUserId(of user: User?) -> String? {
+        guard let user else { return nil }
+        if let sub = user.providerData.first(where: { $0.providerID == "google.com" })?.uid,
+           !sub.isEmpty {
+            return sub
+        }
+        return user.uid
     }
 
     var isSignedIn: Bool { uid != nil }
@@ -71,18 +84,18 @@ final class AuthManager: ObservableObject {
     }
 
     /// 계정 삭제 "예약"(soft) — 7일 유예. (Android `GoogleAuthHelper.requestDeletion` 패리티)
-    /// 즉시 지우지 않고 users/{uid}.deletionRequestedAt 에 요청 시각을, authUid 에 uid 를 기록한 뒤 로그아웃한다.
+    /// 즉시 지우지 않고 users/{uid}.deletionRequestedAt 에 요청 시각을, authUid 에 FirebaseAuth uid 를 기록한 뒤 로그아웃한다.
     /// 유예 동안 다시 로그인하면 [cancelPendingDeletion] 으로 취소되고,
     /// 끝까지 로그인하지 않으면 서버 자정 스케줄 함수가 데이터/Storage/Auth 를 완전 삭제한다.
-    /// (iOS 는 uid = FirebaseAuth uid = userId 라 authUid 도 uid 와 같다.)
+    /// (userId=Google sub ≠ FirebaseAuth uid 라, 서버가 Auth 계정을 지우려면 authUid 가 필요 — Android 동일.)
     func requestDeletion() async -> Bool {
-        guard let uid = Auth.auth().currentUser?.uid else { return false }
+        guard let user = Auth.auth().currentUser, let uid = Self.appUserId(of: user) else { return false }
         isBusy = true
         defer { isBusy = false }
         do {
             try await FirestoreService.users.document(uid).setData([
                 "deletionRequestedAt": FirestoreService.nowMillis,
-                "authUid": uid,
+                "authUid": user.uid,
             ], merge: true)
             signOut()
             return true
@@ -110,23 +123,25 @@ final class AuthManager: ObservableObject {
         catch { errorMessage = error.localizedDescription }
     }
 
-    /// users/{uid} 프로필 문서를 생성/갱신(없으면 만든다).
+    /// users/{uid} 프로필 문서를 생성/갱신(없으면 만든다). uid = [appUserId](Google sub) 기준.
     private func ensureProfile(_ user: User) async {
-        let ref = FirestoreService.users.document(user.uid)
+        let appUid = Self.appUserId(of: user) ?? user.uid
+        let ref = FirestoreService.users.document(appUid)
         // 이미 정해둔 닉네임(커스텀 포함)이 있으면 우선 — 구글 이름으로 덮어쓰지 않는다(재로그인 유지).
         let existing = (try? await ref.getDocument())?.get("userName") as? String
         let name = (existing?.isEmpty == false) ? existing! : (user.displayName ?? user.email ?? "익명의 별")
         displayName = name
-        UserDefaults.standard.set(name, forKey: "nickname_\(user.uid)")
-        // Android upsertProfile 과 동일한 3필드(검색 가능하도록).
+        UserDefaults.standard.set(name, forKey: "nickname_\(appUid)")
+        // Android upsertProfile 과 동일한 3필드(검색 가능하도록) + 서버 계정삭제용 authUid.
         let data: [String: Any] = [
-            "userId": user.uid,
+            "userId": appUid,
             "userName": name,
-            "profileImageUrl": user.photoURL?.absoluteString ?? ""
+            "profileImageUrl": user.photoURL?.absoluteString ?? "",
+            "authUid": user.uid,
         ]
         try? await ref.setData(data, merge: true)
         // 로그인 → 삭제 예약이 있으면 취소(7일 유예 정책).
-        await Self.cancelPendingDeletion(uid: user.uid)
+        await Self.cancelPendingDeletion(uid: appUid)
     }
 
     /// 닉네임 변경 — 표시명(@Published)·검색용 `users/{uid}.userName`·로컬 캐시를 함께 갱신.

@@ -26,6 +26,10 @@ class FriendViewModel(
     val incomingRequests = repository.observeIncomingRequests(me.userId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 내가 보낸 pending 요청 — 검색 결과의 "요청됨" 상태 칩 표시용. */
+    val outgoingRequests = repository.observeOutgoingRequests(me.userId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _searchResults = MutableStateFlow<List<UserProfile>>(emptyList())
     val searchResults = _searchResults.asStateFlow()
 
