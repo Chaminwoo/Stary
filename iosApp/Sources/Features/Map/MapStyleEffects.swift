@@ -114,14 +114,14 @@ extension MapLibreView.Coordinator {
         // 색은 feature 의 auraColor(그 별의 팔레트 색) — 데이터 주도 표현식은 JSON 으로 만든다.
         let auraSource = MLNShapeSource(identifier: StyleFx.auraSourceID, features: [], options: nil)
         style.addSource(auraSource)
-        let auraColorExpr = NSExpression(mlnJSONObject: ["to-color", ["get", "auraColor"]] as [Any])
+        let auraColorExpr = NSExpression(mglJSONObject: ["to-color", ["get", "auraColor"]] as [Any])
         func radiusExpr(_ stops: [Double: Double]) -> NSExpression {
             var json: [Any] = ["interpolate", ["linear"], ["zoom"]]
             for zoom in stops.keys.sorted() {
                 json.append(zoom)
                 json.append(["*", stops[zoom]!, ["get", "sizeMult"] as [Any]] as [Any])
             }
-            return NSExpression(mlnJSONObject: json)
+            return NSExpression(mglJSONObject: json)
         }
         let ground = MLNCircleStyleLayer(identifier: StyleFx.groundLightLayerID, source: auraSource)
         ground.circleColor = auraColorExpr
@@ -134,7 +134,7 @@ extension MapLibreView.Coordinator {
         let aura = MLNCircleStyleLayer(identifier: StyleFx.auraLayerID, source: auraSource)
         aura.circleColor = auraColorExpr
         aura.circleRadius = radiusExpr([6: 2, 10: 6, 13: 14, 15: 26])
-        aura.circleOpacity = NSExpression(mlnJSONObject:
+        aura.circleOpacity = NSExpression(mglJSONObject:
             ["interpolate", ["linear"], ["get", "sizeMult"], 1, 0, 1.4, 0.12, 3, 0.42] as [Any])
         aura.circleBlur = NSExpression(forConstantValue: 1.0)
         style.addLayer(aura)
