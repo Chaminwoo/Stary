@@ -42,7 +42,8 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 
     /// 지난 세션에서 저장한 마지막 실제 위치 — 앱 시작 시 초기 카메라용(없으면 nil).
     /// 100m 열람 게이팅에는 쓰지 않는다(게이팅은 실제 fix 인 `coordinate` 만). (Android lastSavedLatLng 패리티)
-    static var lastSavedCoordinate: CLLocationCoordinate2D? {
+    /// UserDefaults 만 읽으므로 비격리 컨텍스트(지도 델리게이트 콜백)에서도 안전하다.
+    nonisolated static var lastSavedCoordinate: CLLocationCoordinate2D? {
         let d = UserDefaults.standard
         guard d.object(forKey: lastLatKey) != nil, d.object(forKey: lastLngKey) != nil else { return nil }
         return CLLocationCoordinate2D(latitude: d.double(forKey: lastLatKey), longitude: d.double(forKey: lastLngKey))

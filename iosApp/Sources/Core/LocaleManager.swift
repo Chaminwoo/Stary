@@ -131,8 +131,20 @@ enum L10n: String {
     case loginGoogle, loginBrowse, notifEmpty
     // 업적 화면(장착 버튼/히든 달성 알림).
     case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
+    // 알림 행 문구(Android notif_* 대응 — %@ = 다이어리 제목).
+    case notifLikeRow, notifCommentRow, notifFriendPostRow
+    // 지도 열람 게이팅(Android map_waiting_fix 대응).
+    case mapWaitingFix
+    // 지도 우하단 버튼(Android map_constellation/map_only 대응).
+    case mapConstellation, mapOnlyMode
     // 업적 목록 구분 헤더(Android AchievementsScreen 섹션 대응).
     case achSectionTitles, achSectionShapesColors, achSectionPioneer
+    // 배경음악 화면(Android music_drag_hint/music_locked_hint/common_secret 대응).
+    case musicDragHint, musicLockedHint, commonSecret
+    // 부메랑(3초 움짤) 촬영(Android boomer_retake/boomer_use 대응).
+    case boomerRetake, boomerUse
+    // 별 목록 화면(iOS 전용 화면 — 빈 상태/가까운순 정렬).
+    case listEmptyUnviewed, listEmpty, listSortNearby
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -366,9 +378,26 @@ enum L10n: String {
                                             "Only one in the whole app — you're the first",
                                             "アプリでただ一人 — あなたが最初です")
         case .commonOk:             return ("확인", "OK", "OK")
+        // ⚠️ notif*Row 는 %@(다이어리 제목)를 format 으로 채운다.
+        case .notifLikeRow:         return ("\"%@\"를 좋아해요", "Liked \"%@\"", "「%@」にいいねしました")
+        case .notifCommentRow:      return ("\"%@\"에 댓글을 남겼어요", "Commented on \"%@\"", "「%@」にコメントしました")
+        case .notifFriendPostRow:   return ("새 다이어리 \"%@\"를 남겼어요", "Posted a new diary \"%@\"", "新しい日記「%@」を投稿しました")
+        case .mapWaitingFix:        return ("현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요",
+                                            "Locating you… please try again in a moment",
+                                            "現在地を確認しています。しばらくしてからお試しください")
+        case .mapConstellation:     return ("별자리", "Constellations", "星座")
+        case .mapOnlyMode:          return ("지도만 보기", "Map only", "地図のみ表示")
         case .achSectionTitles:     return ("칭호", "Titles", "称号")
         case .achSectionShapesColors: return ("별 모양 · 색", "Star shapes & colors", "星の形・色")
         case .achSectionPioneer:    return ("개척 칭호", "Pioneer titles", "開拓称号")
+        case .musicDragHint:        return ("좌우로 드래그해 음악을 골라보세요", "Drag left or right to pick music", "左右にドラッグして音楽を選びましょう")
+        case .musicLockedHint:      return ("🔒 ‘%@’ 달성 시 해금", "🔒 Unlocks at “%@”", "🔒「%@」達成で解放")
+        case .commonSecret:         return ("비밀", "Secret", "秘密")
+        case .boomerRetake:         return ("다시 찍기", "Retake", "撮り直す")
+        case .boomerUse:            return ("자르기 완료", "Crop done", "切り抜き完了")
+        case .listEmptyUnviewed:    return ("안 본 별이 없어요. 모두 둘러봤네요!", "No unviewed stars — you've seen them all!", "未読の星はありません。全部見ましたね！")
+        case .listEmpty:            return ("아직 별이 없어요. 첫 별을 남겨보세요.", "No stars yet. Leave your first one.", "まだ星がありません。最初の星を残しましょう。")
+        case .listSortNearby:       return ("가까운순", "Nearest", "近い順")
         }
     }
 

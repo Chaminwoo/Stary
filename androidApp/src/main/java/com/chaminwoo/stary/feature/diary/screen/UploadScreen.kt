@@ -10,12 +10,16 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,8 +28,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,12 +55,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -81,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaminwoo.stary.R
+import com.chaminwoo.stary.core.designsystem.Mint
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
@@ -96,7 +101,8 @@ import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.absoluteValue
+import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -107,10 +113,6 @@ private val VisibilityOptions = listOf(
     Triple("private", R.string.upload_vis_private, Icons.Filled.Lock),
 )
 
-private const val INFINITE_PAGES = 10_000
-
-/** 페이지 오프셋(0=중앙) → 0..1 보간 */
-private fun lerp(start: Float, stop: Float, fraction: Float) = start + (stop - start) * fraction.coerceIn(0f, 1f)
 
 @Composable
 fun UploadScreen(
@@ -150,17 +152,9 @@ fun UploadScreen(
         }
     }
 
-    // 무한 캐러셀 — 초기 페이지를 중간값으로 설정
-    val shapePagerState = rememberPagerState(
-        initialPage = INFINITE_PAGES / 2 - (INFINITE_PAGES / 2 % StarStyle.TYPE_COUNT),
-        pageCount = { INFINITE_PAGES }
-    )
-    val colorPagerState = rememberPagerState(
-        initialPage = INFINITE_PAGES / 2 - (INFINITE_PAGES / 2 % StarStyle.COLOR_COUNT),
-        pageCount = { INFINITE_PAGES }
-    )
-    val starType = shapePagerState.currentPage % StarStyle.TYPE_COUNT
-    val starColor = colorPagerState.currentPage % StarStyle.COLOR_COUNT
+    // 별 모양/색 — iOS UploadScreen 의 무한 회전 휠(WheelPicker) 구조 패리티(선택 = 항상 정중앙).
+    var starType by remember { mutableIntStateOf(0) }
+    var starColor by remember { mutableIntStateOf(0) }
 
     // 업적 해금 상태 — 잠긴 별 모양/색 판정에 사용 (비로그인 시 기본 항목만)
     val unlockedIds: Set<String> =
@@ -327,139 +321,72 @@ fun UploadScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // ── 별 모양 캐러셀 ────────────────────────────────────────────
+            // ── 별 모양 휠 — iOS WheelPicker 패리티(중앙 선택·민트 링·무한 순환) ──
             Text(stringResource(R.string.upload_star_shape), color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(10.dp))
 
-            HorizontalPager(
-                state = shapePagerState,
-                contentPadding = PaddingValues(horizontal = 96.dp),
-//                pageSpacing = 6.dp,
-                beyondViewportPageCount = 1,
-                modifier = Modifier.fillMaxWidth().height(96.dp)
-            ) { page ->
-                val type = page % StarStyle.TYPE_COUNT
-                val rawOffset = (shapePagerState.currentPage - page).toFloat() + shapePagerState.currentPageOffsetFraction
-                val absOffset = rawOffset.absoluteValue
-                val scale = lerp(0.70f, 1f, 1f - absOffset.coerceIn(0f, 1f))
-                val alpha = lerp(0.35f, 1f, 1f - absOffset.coerceIn(0f, 1f))
-                val isSelected = type == starType
-                val lockAch = StarUnlocks.lockedShapeAch(type, unlockedIds)
-                val locked = lockAch != null
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(if (isSelected && !locked) Color.White.copy(alpha = 0.12f) else Color(0xFF14141F))
-                            .border(
-                                width = if (isSelected && !locked) 2.dp else 1.dp,
-                                color = when {
-                                    locked -> Color.White.copy(0.10f)
-                                    isSelected -> StarStyle.colorOf(starColor)
-                                    else -> Color.White.copy(0.12f)
-                                },
-                                shape = RoundedCornerShape(18.dp)
-                            )
-                            .clickable {
-                                if (locked) {
-                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, lockAch!!.name))
-                                } else {
-                                    coroutineScope.launch { shapePagerState.animateScrollToPage(page) }
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (locked) {
-                            StarShapeIcon(type = type, color = Color.White.copy(0.20f), modifier = Modifier.size(44.dp))
-                        } else {
-                            StarShapeIcon(type = type, colorIndex = starColor, modifier = Modifier.size(44.dp))
-                        }
-                        if (locked) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(6.dp)
-                                    .size(18.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.6f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
-                                    tint = Color.White.copy(0.85f), modifier = Modifier.size(11.dp))
-                            }
-                        }
+            StarWheelPicker(
+                count = StarStyle.TYPE_COUNT,
+                selection = starType,
+                onSelect = { starType = it },
+                itemSize = 40.dp,
+                onLanded = { t ->
+                    StarUnlocks.lockedShapeAch(t, unlockedIds)?.let {
+                        com.chaminwoo.stary.core.ui.StaryToast.show(
+                            context.getString(R.string.toast_unlock_achievement, it.name)
+                        )
+                    }
+                }
+            ) { type ->
+                val locked = StarUnlocks.lockedShapeAch(type, unlockedIds) != null
+                Box(contentAlignment = Alignment.Center) {
+                    StarShapeIcon(
+                        type = type, colorIndex = starColor,
+                        modifier = Modifier.size(40.dp).alpha(if (locked) 0.25f else 1f)
+                    )
+                    if (locked) {
+                        Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
+                            tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(14.dp))
                     }
                 }
             }
 
             Spacer(Modifier.height(20.dp))
 
-            // ── 별 색상 캐러셀 ────────────────────────────────────────────
+            // ── 별 색상 휠 — iOS WheelPicker 패리티 ──
             Text(stringResource(R.string.upload_star_color), color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(10.dp))
 
-            HorizontalPager(
-                state = colorPagerState,
-                contentPadding = PaddingValues(horizontal = 104.dp),
-//                pageSpacing = 7.dp,
-                beyondViewportPageCount = 2,
-                modifier = Modifier.fillMaxWidth().height(72.dp)
-            ) { page ->
-                val colorIdx = page % StarStyle.COLOR_COUNT
-                val rawOffset = (colorPagerState.currentPage - page).toFloat() + colorPagerState.currentPageOffsetFraction
-                val absOffset = rawOffset.absoluteValue
-                val scale = lerp(0.65f, 1f, 1f - absOffset.coerceIn(0f, 1f))
-                val alpha = lerp(0.3f, 1f, 1f - absOffset.coerceIn(0f, 1f))
-                val isSelected = colorIdx == starColor
+            StarWheelPicker(
+                count = StarStyle.COLOR_COUNT,
+                selection = starColor,
+                onSelect = { starColor = it },
+                itemSize = 32.dp,
+                onLanded = { c ->
+                    StarUnlocks.lockedColorAch(c, unlockedIds)?.let {
+                        com.chaminwoo.stary.core.ui.StaryToast.show(
+                            context.getString(R.string.toast_unlock_achievement, it.name)
+                        )
+                    }
+                }
+            ) { colorIdx ->
+                val locked = StarUnlocks.lockedColorAch(colorIdx, unlockedIds) != null
                 val colorList = StarStyle.colorsOf(colorIdx)
                 val colorBrush = if (colorList.size > 1) androidx.compose.ui.graphics.Brush.linearGradient(colorList)
                                  else androidx.compose.ui.graphics.SolidColor(colorList[0])
-                val lockAch = StarUnlocks.lockedColorAch(colorIdx, unlockedIds)
-                val locked = lockAch != null
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha },
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(contentAlignment = Alignment.Center) {
                     Box(
-                        modifier = Modifier
-                            .size(56.dp)
+                        Modifier
+                            .size(32.dp)
+                            .alpha(if (locked) 0.25f else 1f)
                             .clip(CircleShape)
                             .background(colorBrush)
-                            .border(
-                                width = if (isSelected && !locked) 3.dp else 1.5.dp,
-                                color = when {
-                                    locked -> Color.White.copy(0.15f)
-                                    isSelected -> Color.White
-                                    else -> Color.White.copy(0.2f)
-                                },
-                                shape = CircleShape
-                            )
-                            .clickable {
-                                if (locked) {
-                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, lockAch!!.name))
-                                } else {
-                                    coroutineScope.launch { colorPagerState.animateScrollToPage(page) }
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (locked) {
-                            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.5f)))
-                            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
-                                tint = Color.White.copy(0.9f), modifier = Modifier.size(20.dp))
-                        }
+                    )
+                    if (locked) {
+                        Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
+                            tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(12.dp))
                     }
                 }
             }
@@ -673,6 +600,103 @@ private fun ImageCropFrame(controller: CropController, modifier: Modifier) {
             drawLine(guide, Offset(fw * 2f / 3f, 0f), Offset(fw * 2f / 3f, fh), sw)
             drawLine(guide, Offset(0f, fh / 3f), Offset(fw, fh / 3f), sw)
             drawLine(guide, Offset(0f, fh * 2f / 3f), Offset(fw, fh * 2f / 3f), sw)
+        }
+    }
+}
+
+/**
+ * 별 모양/색 선택용 무한 회전 휠 — iOS `UploadScreen.WheelPicker` 구조 패리티.
+ * 선택 항목이 항상 정중앙(민트 링), 좌우로 5개 정도 노출, 끝까지 돌리면 처음 항목이 다시 나온다(modulo 순환).
+ * 놓은/탭한 지점의 항목을 놓은 자리에서 그대로 중앙으로 스냅하고, 스냅이 끝난 뒤 selection 을 한 번에 갱신
+ * (좌표 불연속으로 되돌아가는 현상 방지). 잠긴 항목도 중앙 고정되며, 저장 차단은 호출부가 담당한다.
+ */
+@Composable
+private fun StarWheelPicker(
+    count: Int,
+    selection: Int,
+    onSelect: (Int) -> Unit,
+    itemSize: androidx.compose.ui.unit.Dp,
+    onLanded: (Int) -> Unit,
+    item: @Composable (Int) -> Unit,
+) {
+    val density = LocalContext.current.resources.displayMetrics.density
+    val slotPx = (itemSize.value + 28f) * density   // 슬롯 간격(중앙 ±2 노출)
+    val coroutineScope = rememberCoroutineScope()
+
+    val drag = remember { Animatable(0f) }
+    var settling by remember { mutableStateOf(false) }
+
+    fun wrap(i: Int): Int = ((i % count) + count) % count
+
+    // 놓은(또는 탭한) 지점의 항목을 놓은 자리에서 중앙으로 스냅 → 끝난 뒤 selection 갱신(시각적 점프 없음).
+    fun commit(steps: Int) {
+        if (steps == 0) return
+        settling = true
+        val target = wrap(selection + steps)
+        coroutineScope.launch {
+            drag.animateTo(-steps * slotPx, tween(240, easing = FastOutSlowInEasing))
+            onSelect(target)      // off=steps 였던 항목이 이제 off=0
+            drag.snapTo(0f)       // 좌표 동일 → 시각적 점프 없음
+            settling = false
+            onLanded(target)
+        }
+    }
+
+    // 화면에 그릴 슬롯 반경 — 기본 3(±3) + 현재 드래그 이동량만큼 여유(많이 돌려도 빈칸 없이 채움).
+    val visibleSpan = 3 + ceil(abs(drag.value) / slotPx).toInt()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(itemSize * 1.7f)
+            .clipToBounds()
+            .pointerInput(count, selection) {
+                detectHorizontalDragGestures(
+                    onDragStart = { },
+                    onHorizontalDrag = { _, delta ->
+                        if (!settling) coroutineScope.launch { drag.snapTo(drag.value + delta) }
+                    },
+                    onDragEnd = {
+                        val steps = (-drag.value / slotPx).roundToInt()
+                        commit(steps)
+                    },
+                    onDragCancel = {
+                        val steps = (-drag.value / slotPx).roundToInt()
+                        commit(steps)
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        // 중앙 강조 링(선택 자리).
+        Box(
+            Modifier
+                .size(itemSize + 18.dp)
+                .clip(CircleShape)
+                .border(2.dp, Mint.copy(alpha = 0.9f), CircleShape)
+        )
+
+        for (off in -visibleSpan..visibleSpan) {
+            val idx = wrap(selection + off)
+            val x = off * slotPx + drag.value
+            val dist = abs(x)
+            val scale = max(0.55f, 1.25f - dist / slotPx * 0.35f)
+            val itemAlpha = max(0.3f, 1f - dist / (slotPx * 2.2f))
+            Box(
+                modifier = Modifier
+                    .graphicsLayer {
+                        translationX = x
+                        scaleX = scale; scaleY = scale
+                        alpha = itemAlpha
+                    }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { commit(off) },
+                contentAlignment = Alignment.Center
+            ) {
+                item(idx)
+            }
         }
     }
 }

@@ -9,9 +9,10 @@ struct MapLibreView: UIViewRepresentable {
     let diaries: [Diary]
     /// 실제 위치 fix(없으면 nil) — 처음 들어오면 그 위치로 1회 카메라 이동.
     let userLocation: CLLocationCoordinate2D?
-    /// 별 마커 탭 — 30m 안에서 합쳐진 멤버 전체(우선순위 정렬)를 넘긴다.
-    /// 1개면 바로 상세, 2개 이상이면 겹친 별 카드 뷰어를 여는 것이 호출부의 책임.
-    var onTapStar: ([Diary]) -> Void
+    /// 별 마커 탭 — 30m 안에서 합쳐진 멤버 전체(우선순위 정렬) + 탭한 별의 화면상 위치(0..1) +
+    /// 지도 스냅샷을 넘긴다. 100m 게이팅/파장(warp) 연출/상세 진입은 호출부(MapScreen)의 책임.
+    /// (Android DiaryMap 마커 클릭 → snapshot + DiaryOpenWarpData 흐름 대응)
+    var onTapStar: (_ members: [Diary], _ originUnit: CGPoint, _ snapshot: UIImage?) -> Void
     /// 도보 길찾기 경로(비었으면 표시 안 함). (Android DiaryMap ROUTE_LAYER 패리티)
     var route: [CLLocationCoordinate2D] = []
     /// 외부(알림/친구 별 탭)에서 "이 좌표로 카메라 이동" 요청. 값이 바뀔 때 1회 애니메이션 이동.
@@ -30,6 +31,8 @@ struct MapLibreView: UIViewRepresentable {
     var zoomRequest: (delta: Double, nonce: Int) = (0, 0)
     /// "내 위치로" 요청 — nonce 가 바뀔 때 현재 위치로 줌 15 이동. (Android recenterToMyLocation 대응)
     var recenterNonce: Int = 0
+    /// 별자리 라인 토글(Android constellationEnabled 대응) — 켜면 뷰포트 별들을 잇는 3겹 라인 페이드 인.
+    var constellationEnabled: Bool = false
 
     /// 3D 글로브 "지구 보기" 버튼 노출 줌 / 지도 최소 줌.
     /// (Android DiaryMap GLOBE_BUTTON_ZOOM/MAP_MIN_ZOOM 패리티)
@@ -111,6 +114,15 @@ struct MapLibreView: UIViewRepresentable {
             toAdd.append(MLNPolyline(coordinates: route, count: UInt(route.count)))
         }
         mapView.addAnnotations(toAdd)
+        // 스타일 이펙트 동기화 — 별 후광 소스 갱신 + 별자리 토글/재계산(MapStyleEffects.swift).
+        context.coordinator.refreshAuraFeatures(mapView)
+        context.coordinator.setConstellation(enabled: constellationEnabled, mapView: mapView)
+        context.coordinator.requestConstellationRebuild(mapView)
+    }
+
+    /// 뷰 해체 — 트윙클 타이머/페이드 태스크 정리(유령 갱신 방지).
+    static func dismantleUIView(_ uiView: MLNMapView, coordinator: Coordinator) {
+        coordinator.teardownStyleEffects()
     }
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
@@ -123,6 +135,24 @@ struct MapLibreView: UIViewRepresentable {
         /// 마지막으로 처리한 줌 버튼/내 위치 버튼 요청 nonce.
         var lastZoomNonce: Int = 0
         var lastRecenterNonce: Int = 0
+        /// 현재 적용 중인 줌 기반 별 크기 배율(Android iconSize 줌 보간 대응).
+        var starZoomScale: CGFloat = 1
+
+        // ── 스타일 이펙트(별가루/별자리/후광) 상태 — 로직은 MapStyleEffects.swift 확장에 ──
+        weak var styleRef: MLNStyle?
+        weak var mapRef: MLNMapView?
+        var twinkleTimer: Timer?
+        var twinkleT: Double = 0
+        /// 카메라 이동 중엔 스타일 갱신을 멈춰 팬/줌 끊김을 방지(Android isCameraMoving 대응).
+        var isCameraMoving = false
+        var constellationOn = false
+        var constellationFadeTask: Task<Void, Never>?
+        var constellationRebuildTask: Task<Void, Never>?
+        /// 마지막으로 파티클/후광 크기를 갱신한 줌(불필요한 expression 재설정 방지).
+        var lastEffectZoom: Double = -1
+        /// 파티클 저줌 게이트가 0(전부 숨김)으로 이미 적용됐는지 — 꺼진 동안 루프 갱신 스킵.
+        var lastGateZero = false
+
         init(_ parent: MapLibreView) { self.parent = parent }
 
         /// 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음).
@@ -132,12 +162,45 @@ struct MapLibreView: UIViewRepresentable {
             cb(c.latitude, c.longitude, mapView.zoomLevel <= MapLibreView.globeButtonZoom)
         }
 
+        /// 줌 레벨 → 별 크기 배율. Android SymbolLayer iconSize 줌 보간과 동일 스톱:
+        /// 8 → 0.3x, 12 → 0.55x, 15 → 1.0x (사이 구간 선형).
+        static func starScale(forZoom zoom: Double) -> CGFloat {
+            let s: Double
+            switch zoom {
+            case ..<8: s = 0.3
+            case ..<12: s = 0.3 + (zoom - 8) / 4 * 0.25
+            case ..<15: s = 0.55 + (zoom - 12) / 3 * 0.45
+            default: s = 1.0
+            }
+            return CGFloat(s)
+        }
+
+        /// 현재 줌에 맞춰 모든 별 어노테이션 뷰의 스케일을 갱신 — 줌아웃 시 자연스럽게 작아진다(#2).
+        func applyStarZoomScale(_ mapView: MLNMapView) {
+            let s = Self.starScale(forZoom: mapView.zoomLevel)
+            guard abs(s - starZoomScale) > 0.015 else { return }
+            starZoomScale = s
+            for annotation in mapView.annotations ?? [] {
+                guard annotation is DiaryAnnotation,
+                      let v = mapView.view(for: annotation) else { continue }
+                v.transform = CGAffineTransform(scaleX: s, y: s)
+            }
+        }
+
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+            isCameraMoving = true
             reportGlobeAvailability(mapView)
+            applyStarZoomScale(mapView)
+            applyStyleEffectZoom(mapView)
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            isCameraMoving = false
             reportGlobeAvailability(mapView)
+            applyStarZoomScale(mapView)
+            applyStyleEffectZoom(mapView)
+            // 카메라 idle → 별자리 라인 재계산(90ms 디바운스, Android 동일).
+            requestConstellationRebuild(mapView)
         }
 
         /// 직전 포커스와 (거의) 같은 좌표인지 — 같은 별 재요청 시 카메라를 다시 옮기지 않게.
@@ -151,12 +214,21 @@ struct MapLibreView: UIViewRepresentable {
         /// 겹친 별은 위성 부유 뷰, 단일 별은 단순 이미지 뷰. 비콘(PioneerAnnotation)은 nil→imageFor.
         func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
             guard let d = annotation as? DiaryAnnotation else { return nil }
-            if d.members.count > 1 { return MergedStarAnnotationView(annotation: d) }
+            // 생성/재사용 시점에도 현재 줌 배율을 적용(#2 — 줌아웃 상태에서 추가되는 별도 작게).
+            let scale = CGAffineTransform(scaleX: starZoomScale, y: starZoomScale)
+            if d.members.count > 1 {
+                let v = MergedStarAnnotationView(annotation: d)
+                v.transform = scale
+                return v
+            }
             let id = "single-\(d.imageKey)"
             if let reused = mapView.dequeueReusableAnnotationView(withIdentifier: id) {
+                reused.transform = scale
                 return reused
             }
-            return SingleStarAnnotationView(annotation: d, reuseIdentifier: id)
+            let v = SingleStarAnnotationView(annotation: d, reuseIdentifier: id)
+            v.transform = scale
+            return v
         }
 
         func mapView(_ mapView: MLNMapView, imageFor annotation: MLNAnnotation) -> MLNAnnotationImage? {
@@ -178,8 +250,19 @@ struct MapLibreView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {
-            // 겹친 별(멤버 2개 이상)이면 카드 뷰어로, 하나면 바로 상세로.
-            if let d = annotation as? DiaryAnnotation { parent.onTapStar(d.members) }
+            if let d = annotation as? DiaryAnnotation {
+                // 파장 중심 = 이 별의 화면상 위치(0..1) — Android toScreenLocation 대응.
+                let sp = mapView.convert(d.coordinate, toPointTo: mapView)
+                let w = max(mapView.bounds.width, 1)
+                let h = max(mapView.bounds.height, 1)
+                let origin = CGPoint(x: min(max(sp.x / w, 0), 1), y: min(max(sp.y / h, 0), 1))
+                // 지도 스냅샷 — 파장(warp) 연출의 배경(Android map.snapshot 대응).
+                // Metal 레이어 캡처가 실패해도(빈 이미지) 링/버스트 연출은 그대로 재생된다.
+                let snapshot = UIGraphicsImageRenderer(bounds: mapView.bounds).image { _ in
+                    mapView.drawHierarchy(in: mapView.bounds, afterScreenUpdates: false)
+                }
+                parent.onTapStar(d.members, origin, snapshot)
+            }
             if let p = annotation as? PioneerAnnotation { parent.onTapPioneer?(p.country.code) }
             mapView.deselectAnnotation(annotation, animated: false)
         }

@@ -37,6 +37,9 @@ struct MapScreen: View {
     // 줌 +/− / 내 위치 버튼 → MapLibreView 커맨드(nonce 로 반복 요청 허용).
     @State private var zoomRequest: (delta: Double, nonce: Int) = (0, 0)
     @State private var recenterNonce = 0
+    // 별자리 라인 토글(Android constellationEnabled) + 몰입(지도만 보기) 크롬 상태.
+    @State private var constellationOn = false
+    @ObservedObject private var chrome = MapChromeState.shared
 
     // 도보 길찾기 상태.
     @State private var focusTarget: CLLocationCoordinate2D?
@@ -47,6 +50,10 @@ struct MapScreen: View {
     @State private var showWarp = false
     @State private var warpColor: Color = .white
     @State private var warpId = 0
+
+    // 다이어리 열람 파장(warp) + 게이팅 토스트(Android DiaryOpenWarp/StaryToast 대응).
+    @State private var openWarp: DiaryWarpData?
+    @State private var toast: String?
 
     // 3D 행성(글로브) 뷰 상태 — 줌을 충분히 빼면 하단 버튼이 뜨고, 눌러야 진입.
     @State private var globeCenter: GlobeCenter?
@@ -95,11 +102,13 @@ struct MapScreen: View {
     }
 
     /// 지도 위 원형 버튼 공통(Android FloatingActionButton 0x1A1A1A 대응).
-    private func mapCircleButton(_ icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+    private func mapCircleButton(
+        _ icon: String, size: CGFloat, tint: Color = .white, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: size * 0.42, weight: .medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(tint)
                 .frame(width: size, height: size)
                 .background(Color(hex: 0x1A1A1A), in: Circle())
                 .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
@@ -205,18 +214,41 @@ struct MapScreen: View {
         return MapScreen.partialRouteFrom(full: fullRoute, me: me)
     }
 
+    /// 별 탭 — Android DiaryMap 마커 클릭과 동일한 100m 게이팅:
+    /// 위치 불명 → 안내 토스트 / 100m 밖 → 거리 토스트 / 이내 → 파장(warp) 후 상세·카드 진입.
+    private func handleStarTap(members: [Diary], origin: CGPoint, snapshot: UIImage?) {
+        guard let rep = members.first else { return }
+        guard openWarp == nil else { return } // 파장 재생 중 중복 탭 무시
+        guard let me = location.coordinate else {
+            showToast(locale.t(.mapWaitingFix))
+            return
+        }
+        let dist = Geo.distanceMeters(lat1: me.latitude, lng1: me.longitude,
+                                      lat2: rep.latitude, lng2: rep.longitude)
+        guard dist <= AppConfig.diaryOpenRadiusM else {
+            showToast(String(format: locale.t(.mapOpenRange),
+                             Int(AppConfig.diaryOpenRadiusM), Int(dist)))
+            return
+        }
+        MusicManager.shared.playOpenDiary() // Android: 파장 시작과 함께 열람 효과음
+        openWarp = DiaryWarpData(snapshot: snapshot, origin: origin, members: members)
+    }
+
+    private func showToast(_ text: String) {
+        toast = text
+        Task {
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            toast = nil
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             MapLibreView(
                 diaries: shownDiaries,
                 userLocation: location.coordinate,
-                onTapStar: { members in
-                    // 30m 안에서 겹친 별이면 카드 뷰어로, 하나면 바로 상세로.
-                    if members.count > 1 {
-                        cluster = ClusterSelection(members: members)
-                    } else if let one = members.first {
-                        selected = one
-                    }
+                onTapStar: { members, origin, snapshot in
+                    handleStarTap(members: members, origin: origin, snapshot: snapshot)
                 },
                 route: partialRoute,
                 focusTarget: focusTarget,
@@ -227,7 +259,8 @@ struct MapScreen: View {
                 pioneerCountries: pioneer.featured,
                 onTapPioneer: { code in pioneerMessage = LocalizedNames.pioneerQuestMessage(code) },
                 zoomRequest: zoomRequest,
-                recenterNonce: recenterNonce
+                recenterNonce: recenterNonce,
+                constellationEnabled: constellationOn
             )
             .ignoresSafeArea()
 
@@ -244,6 +277,28 @@ struct MapScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
+            // 다이어리 열람 파장(warp) — 지도 스냅샷 굴절 + 파장 링 + (겹친 별) 버스트.
+            // 끝나면 멤버 수에 따라 상세/겹친 별 카드로 진입(Android DiaryOpenWarp 흐름 동일).
+            if let w = openWarp {
+                DiaryOpenWarpView(data: w) {
+                    openWarp = nil
+                    if w.members.count > 1 {
+                        cluster = ClusterSelection(members: w.members)
+                    } else if let one = w.members.first {
+                        selected = one
+                    }
+                }
+            }
+
+            // 하단 토스트(Android StaryToast 대응) — 100m 게이팅/위치 확인 안내.
+            if let t = toast {
+                ToastView(text: t)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
+            }
+
+            // 몰입(지도만 보기)에선 지도 위 모든 버튼을 숨긴다(Android MapUiState.mapOnly 대응).
+            if !chrome.mapOnly {
             // ── 좌상단 줌 버튼(+/−) — Android DiaryMap 대응(44pt, 0x1A1A1A 원형) ──
             VStack(spacing: 10) {
                 mapCircleButton("plus", size: 44) {
@@ -257,10 +312,23 @@ struct MapScreen: View {
             .padding(.top, 16)
             .padding(.leading, 16)
 
-            // ── 우하단: 내 위치 버튼 — Android DiaryMap 우하단 열 대응.
+            // ── 우하단 열: 내 위치 → 별자리 토글 → 몰입 — Android DiaryMap 우하단 열 순서 동일.
             // (생성 FAB(56pt)은 MainTabView 소유라 그 위(16+56+12)에 얹는다 — Android 세로 나열과 동일한 시각 배치.)
-            mapCircleButton("location.north.fill", size: 48) {
-                recenterNonce += 1
+            VStack(spacing: 12) {
+                mapCircleButton("location.north.fill", size: 48) {
+                    recenterNonce += 1
+                }
+                // 별자리 토글 — 활성 시 민트(Android AutoAwesome tint 동일).
+                mapCircleButton("sparkles", size: 48,
+                                tint: constellationOn ? Theme.mint : .white) {
+                    constellationOn.toggle()
+                }
+                .accessibilityLabel(locale.t(.mapConstellation))
+                // 몰입(지도만 보기) — 탑바/필터/버튼을 모두 숨기고 지도에 집중.
+                mapCircleButton("eye", size: 48) {
+                    chrome.mapOnly = true
+                }
+                .accessibilityLabel(locale.t(.mapOnlyMode))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .padding(.trailing, 16)
@@ -271,6 +339,12 @@ struct MapScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .padding(.leading, 16)
                 .padding(.bottom, 20)
+            } // if !chrome.mapOnly
+
+            // 몰입 종료 — 하단 중앙 X(3초 뒤 자동 숨김, 재탭으로 다시 표시). (Android MapOnlyOverlay 대응)
+            if chrome.mapOnly {
+                MapOnlyExitOverlay { chrome.mapOnly = false }
+            }
 
             // 길찾기 활성 시: 하단 요약 + 취소(X)
             if !fullRoute.isEmpty {
@@ -280,7 +354,7 @@ struct MapScreen: View {
 
             // ── 하단 "지구 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
             // (Android: 0xEE111120 알약 + 민트 0.5 테두리)
-            if let entry = globeButtonCenter, globeCenter == nil {
+            if let entry = globeButtonCenter, globeCenter == nil, !chrome.mapOnly {
                 Button {
                     enterGlobe(lat: entry.lat, lng: entry.lng)
                 } label: {
@@ -477,6 +551,44 @@ struct MapScreen: View {
             out.append(contentsOf: full[(bestK + 1)...])
         }
         return out
+    }
+}
+
+/// 몰입(지도만 보기) 종료 오버레이 — 하단 중앙 X 버튼. 3초 뒤 자동 숨김, 그 자리를 다시
+/// 탭하면 X 가 재등장한다(지도 조작은 그대로 통과). (Android MapOnlyOverlay 대응)
+private struct MapOnlyExitOverlay: View {
+    let onExit: () -> Void
+    @State private var xVisible = true
+    /// 값이 바뀔 때마다 X 를 다시 보이고 3초 자동 숨김 타이머를 재시작.
+    @State private var poke = 0
+
+    var body: some View {
+        Button {
+            if xVisible { onExit() } else { poke += 1 }
+        } label: {
+            ZStack {
+                if xVisible {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Color(hex: 0x141414).opacity(0.8), in: Circle())
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+                        .transition(.opacity.combined(with: .scale(scale: 0.7)))
+                }
+            }
+            .frame(width: 64, height: 64)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .padding(.bottom, 24)
+        .task(id: poke) {
+            withAnimation(.easeOut(duration: 0.18)) { xVisible = true }
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.25)) { xVisible = false }
+        }
     }
 }
 

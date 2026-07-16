@@ -150,7 +150,7 @@ struct DetailScreen: View {
         }
         .onAppear {
             vm.start(uid: auth.uid)
-            MusicManager.shared.playOpenDiary() // 별(다이어리) 열람 효과음
+            // (열람 효과음은 Android 처럼 지도 파장(warp) 시작 시 재생 — 여기서 또 울리면 중복)
         }
         .onDisappear { vm.stop() }
         .task {
@@ -249,17 +249,19 @@ struct DetailScreen: View {
 
     @ViewBuilder
     private var headerMedia: some View {
-        if canOpen, !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
+        // ⚠️ 미디어는 게이팅 없이 표시(Android 헤더 동일) — 100m 게이트는 지도 탭 진입에서,
+        // 본문/상호작용 게이트는 canOpen 으로 각각 적용된다.
+        if !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
             // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 는 아래 플레이어)
             RemoteGifView(urlString: diary.videoUrl)
-        } else if canOpen, !diary.videoUrl.isEmpty, let vurl = URL(string: diary.videoUrl) {
+        } else if !diary.videoUrl.isEmpty, let vurl = URL(string: diary.videoUrl) {
             LoopingVideoPlayer(url: vurl, muted: true)
-        } else if canOpen, !diary.imageUrl.isEmpty {
+        } else if !diary.imageUrl.isEmpty {
             AsyncImage(url: URL(string: diary.imageUrl)) { image in
                 image.resizable().scaledToFill()
             } placeholder: { Theme.surfaceAlt }
         } else if let frame = BundleImage.named("image_frame") {
-            // 사진/영상이 없으면(또는 잠금) 템플릿 이미지 — Android image_frame 대응.
+            // 사진/영상이 없으면 템플릿 이미지 — Android image_frame 대응.
             Image(uiImage: frame).resizable().scaledToFill()
         } else {
             Theme.surfaceAlt

@@ -14,19 +14,32 @@ struct NotificationsScreen: View {
             } else {
                 List {
                     ForEach(vm.items) { n in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(n.displayText)
-                                .font(.poorStory(15))
-                                .foregroundStyle(Theme.textPrimary)
-                            if !n.diaryTitle.isEmpty {
-                                Text("‘\(n.diaryTitle)’")
-                                    .font(.poorStory(12))
+                        // Android NotificationItem 행 구조: [이모지] [이름 · 시간 / 문구 / (댓글 내용)]
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(n.type == "FRIEND_POST" ? "⭐" : (n.type == "COMMENT" ? "💬" : "❤️"))
+                                .font(.system(size: 20))
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text(n.actorName)
+                                        .font(.poorStory(14))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Spacer()
+                                    Text(RelativeTime.string(fromMillis: n.createdAt))
+                                        .font(.poorStory(11))
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                                Text(n.displayText)
+                                    .font(.poorStory(13))
                                     .foregroundStyle(Theme.textSecondary)
+                                if n.type == "COMMENT", !n.content.isEmpty {
+                                    Text("\"\(n.content)\"")
+                                        .font(.poorStory(13))
+                                        .foregroundStyle(Theme.textPrimary)
+                                        .padding(.top, 2)
+                                }
                             }
-                            Text(RelativeTime.string(fromMillis: n.createdAt))
-                                .font(.poorStory(11))
-                                .foregroundStyle(Theme.textFaint)
                         }
+                        .padding(.vertical, 4)
                         .listRowBackground(n.read ? Theme.background : Theme.surface)
                     }
                     .onDelete { idx in

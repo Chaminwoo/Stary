@@ -67,16 +67,30 @@ private let musicConstellations: [String: MConstel] = [
     ),
 ]
 
-/// 원 안쪽 중앙에 그려지는 트랙별 별자리(은은한 반짝임).
+/// 원 안쪽 중앙에 그려지는 트랙별 별자리 — 내 다이어리 별자리 보드와 같은 렌더링
+/// (선택 플래시 1.7→0.78, 그라데이션 후광, mag 가중 밝기 — Android MusicConstellationBackground 패리티).
 private struct MusicConstellationView: View {
     let trackId: String
     let color: Color
+    /// 선택할 때마다 바뀌는 키 — 바뀌면 전체가 번쩍 → 0.9s 에 걸쳐 가라앉음.
+    let flashKey: Int
+
+    @State private var flashStart = Date()
 
     var body: some View {
-        TimelineView(.animation) { ctx in
-            let t = ctx.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation) { tl in
             Canvas { gc, size in
                 guard let con = musicConstellations[trackId] else { return }
+                let now = tl.date
+
+                // flash 1.7 → 0.78 (easeOut 0.9s) — Android FastOutSlowIn 근사.
+                let e = min(max(now.timeIntervalSince(flashStart) / 0.9, 0), 1)
+                let ease = 1 - pow(1 - e, 3)
+                let f = 1.7 - (1.7 - 0.78) * ease
+                // 트윙클 위상(3.4s 주기 0..2π) — Android InfiniteTransition 동일.
+                let t = (now.timeIntervalSinceReferenceDate / 3.4)
+                    .truncatingRemainder(dividingBy: 1) * 2 * .pi
+
                 let padX = size.width * 0.13, padY = size.height * 0.10
                 let w = size.width - padX * 2, h = size.height - padY * 2
                 func pos(_ s: MStar) -> CGPoint { CGPoint(x: padX + CGFloat(s.x) * w, y: padY + CGFloat(s.y) * h) }
@@ -85,31 +99,33 @@ private struct MusicConstellationView: View {
                     var path = Path()
                     path.move(to: pos(con.stars[a]))
                     path.addLine(to: pos(con.stars[b]))
-                    gc.stroke(path, with: .color(color.opacity(0.20)), lineWidth: 1.4)
+                    gc.stroke(path, with: .color(color.opacity(min(0.20 * f, 1))), lineWidth: 1.4)
                 }
+                // ⚠️ CGFloat·Double 혼합 '+' 는 모호성 에러 — Double 로 계산 후 마지막에 CGFloat.
                 for s in con.stars {
                     let c = pos(s)
                     let phase = s.x * 11 + s.y * 7
-                    let pulse = 0.5 + 0.5 * sin(t * 1.8 + phase)
-                    let magnitudeScale: CGFloat = 7.0 + (16.0 * s.mag)
-                    let pulseScale: CGFloat = 0.8 + (0.35 * pulse)
+                    let pulse = 0.5 + 0.5 * sin(t + phase)
+                    let magN = min(max((s.mag - 1.0) / 1.2, 0), 1)
 
-                    let haloR: CGFloat = magnitudeScale * pulseScale * 0.5
+                    let haloR = CGFloat((7.0 + 16.0 * s.mag) * (0.8 + 0.35 * pulse) * (0.85 + 0.25 * f))
+                    let haloA = (0.08 + 0.34 * pulse) * (0.45 + 0.55 * magN) * f
+                    let grad = Gradient(colors: [color.opacity(min(haloA, 1)), .clear])
                     gc.fill(
                         Path(ellipseIn: CGRect(x: c.x - haloR, y: c.y - haloR, width: haloR * 2, height: haloR * 2)),
-                        with: .color(color.opacity(0.08 + 0.22 * pulse))
+                        with: .radialGradient(grad, center: c, startRadius: 0, endRadius: haloR)
                     )
-                    let coreMagnitudePart = 1.0 + (1.8 * CGFloat(s.mag))
-                    let corePulsePart = 0.88 + (0.2 * CGFloat(pulse))
-
-                    let coreR = coreMagnitudePart * corePulsePart
+                    let coreR = CGFloat((1.0 + 1.8 * s.mag) * (0.88 + 0.2 * pulse))
                     gc.fill(
                         Path(ellipseIn: CGRect(x: c.x - coreR, y: c.y - coreR, width: coreR * 2, height: coreR * 2)),
-                        with: .color(.white.opacity(0.45 + 0.40 * pulse))
+                        with: .color(.white.opacity(min((0.45 + 0.40 * pulse) * f, 1)))
                     )
                 }
             }
         }
+        .allowsHitTesting(false)
+        .onChange(of: flashKey) { _ in flashStart = Date() }
+        .onChange(of: trackId) { _ in flashStart = Date() }
     }
 }
 
@@ -249,11 +265,12 @@ struct MusicScreen: View {
     private var selected: MusicCatalog.Track { tracks[selectedIndex] }
 
     private var subtitle: String {
-        if isUnlocked(selected) { return "좌우로 드래그해 음악을 골라보세요" }
+        if isUnlocked(selected) { return LocaleManager.shared.t(.musicDragHint) }
         // 해금 업적명은 언어 전환에 맞춰 표시(로케일 해석)
         let ach = Achievements.byId(selected.unlockAchievementId)
-        let name = ach.flatMap { LocalizedNames.title($0.id, fallback: $0.name) } ?? "비밀"
-        return "🔒 ‘\(name)’ 달성 시 해금"
+        let name = ach.flatMap { LocalizedNames.title($0.id, fallback: $0.name) }
+            ?? LocaleManager.shared.t(.commonSecret)
+        return String(format: LocaleManager.shared.t(.musicLockedHint), name)
     }
 
     var body: some View {
@@ -262,7 +279,7 @@ struct MusicScreen: View {
             ScreenBackground(name: "mydiary_bg", darken: 0.82)
             VStack(spacing: 14) {
                 ZStack {
-                    MusicConstellationView(trackId: selected.id, color: selected.color)
+                    MusicConstellationView(trackId: selected.id, color: selected.color, flashKey: selectedIndex)
                         .frame(width: 186, height: 186)
                     MusicDial(
                         tracks: tracks,
