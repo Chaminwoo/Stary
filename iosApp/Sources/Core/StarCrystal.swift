@@ -41,14 +41,52 @@ enum StarCrystal {
         let left = rect.midX - size / 2
         let top = rect.midY - size / 2
         let square = CGRect(x: left, y: top, width: size, height: size)
+        drawMesh(
+            in: cg, salt: t,
+            silhouette: StarShape(type: t).path(in: square).cgPath,
+            colors: colors, square: square, alpha: alpha
+        )
+    }
+
+    /// 실루엣 없이 정사각형 전체를 파편으로 채운다 — 아이콘 알파 마스크(SRC_IN) 위에 얹는 용도.
+    /// (Android `StarStyle.drawCrystalFacets(silhouette = null)` 패리티 — [seed] 는 아이콘 인덱스.)
+    static func drawFacets(
+        in cg: CGContext,
+        seed: Int,
+        colors: [UIColor],
+        rect: CGRect,
+        alpha: CGFloat = 1
+    ) {
+        let size = min(rect.width, rect.height)
+        guard size > 0, !colors.isEmpty, alpha > 0 else { return }
+        let square = CGRect(x: rect.midX - size / 2, y: rect.midY - size / 2, width: size, height: size)
+        drawMesh(in: cg, salt: max(seed, 0), silhouette: nil, colors: colors, square: square, alpha: alpha)
+    }
+
+    /// 파편 메시 본체 — [salt] 는 해시 솔트(별 = 모양 타입, 아이콘 = 인덱스. Android 와 동일 계약).
+    private static func drawMesh(
+        in cg: CGContext,
+        salt t: Int,
+        silhouette: CGPath?,
+        colors: [UIColor],
+        square: CGRect,
+        alpha: CGFloat
+    ) {
+        let size = square.width
+        let left = square.minX
+        let top = square.minY
         let cx = square.midX
         let cy = square.midY
         let n = facetDensity(t)
 
         cg.saveGState()
-        // 실루엣 clip — 바깥 형태는 절대 건드리지 않는다(even-odd = 꽃/초승달/행성의 빈 공간 유지).
-        cg.addPath(StarShape(type: t).path(in: square).cgPath)
-        cg.clip(using: .evenOdd)
+        if let silhouette {
+            // 실루엣 clip — 바깥 형태는 절대 건드리지 않는다(even-odd = 꽃/초승달/행성의 빈 공간 유지).
+            cg.addPath(silhouette)
+            cg.clip(using: .evenOdd)
+        } else {
+            cg.clip(to: square)
+        }
 
         // ── 링 3겹 꼭짓점(어긋난 각도 + 지터) ─────────────────────────
         let step = 2 * Double.pi / Double(n)
@@ -190,6 +228,35 @@ enum StarCrystal {
     }
 
     private static let imageCache = NSCache<NSString, UIImage>()
+
+    /// SF Symbol 실루엣을 크리스탈 파편으로 채운 아이콘을 굽는다 — Android `bakeCrystalIcon` 패리티.
+    /// 아이콘을 먼저 그려 알파 마스크로 쓰고, 그 위에 파편 사각형을 `sourceIn` 으로 얹어
+    /// 아이콘 모양 안에만 파편이 남는다. 무늬는 정적이므로 1회만 굽고 캐시한다.
+    static func iconImage(systemName: String, color: UIColor, seed: Int, size: CGFloat) -> UIImage {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let key = "icon-\(systemName)-\(seed)-\(Int(size.rounded()))-" +
+            "\(Int(r * 255))-\(Int(g * 255))-\(Int(b * 255))" as NSString
+        if let hit = imageCache.object(forKey: key) { return hit }
+
+        let rect = CGRect(x: 0, y: 0, width: size, height: size)
+        let facets = UIGraphicsImageRenderer(size: rect.size).image { ctx in
+            drawFacets(in: ctx.cgContext, seed: seed, colors: [color], rect: rect)
+        }
+        let cfg = UIImage.SymbolConfiguration(pointSize: size, weight: .regular)
+        let symbol = UIImage(systemName: systemName, withConfiguration: cfg)?
+            .withTintColor(.white, renderingMode: .alwaysOriginal)
+        let img = UIGraphicsImageRenderer(size: rect.size).image { _ in
+            guard let symbol, symbol.size.width > 0, symbol.size.height > 0 else { return }
+            let s = min(rect.width / symbol.size.width, rect.height / symbol.size.height)
+            let w = symbol.size.width * s
+            let h = symbol.size.height * s
+            symbol.draw(in: CGRect(x: (rect.width - w) / 2, y: (rect.height - h) / 2, width: w, height: h))
+            facets.draw(in: rect, blendMode: .sourceIn, alpha: 1)
+        }
+        imageCache.setObject(img, forKey: key)
+        return img
+    }
 
     // MARK: - 메시 파라미터
 

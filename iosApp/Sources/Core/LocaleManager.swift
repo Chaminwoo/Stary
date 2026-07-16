@@ -139,6 +139,12 @@ enum L10n: String {
     case mapConstellation, mapOnlyMode
     // 업적 목록 구분 헤더(Android AchievementsScreen 섹션 대응).
     case achSectionTitles, achSectionShapesColors, achSectionPioneer
+    // 배경음악 화면(Android music_drag_hint/music_locked_hint/common_secret 대응).
+    case musicDragHint, musicLockedHint, commonSecret
+    // 부메랑(3초 움짤) 촬영(Android boomer_retake/boomer_use 대응).
+    case boomerRetake, boomerUse
+    // 별 목록 화면(iOS 전용 화면 — 빈 상태/가까운순 정렬).
+    case listEmptyUnviewed, listEmpty, listSortNearby
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -384,6 +390,14 @@ enum L10n: String {
         case .achSectionTitles:     return ("칭호", "Titles", "称号")
         case .achSectionShapesColors: return ("별 모양 · 색", "Star shapes & colors", "星の形・色")
         case .achSectionPioneer:    return ("개척 칭호", "Pioneer titles", "開拓称号")
+        case .musicDragHint:        return ("좌우로 드래그해 음악을 골라보세요", "Drag left or right to pick music", "左右にドラッグして音楽を選びましょう")
+        case .musicLockedHint:      return ("🔒 ‘%@’ 달성 시 해금", "🔒 Unlocks at “%@”", "🔒「%@」達成で解放")
+        case .commonSecret:         return ("비밀", "Secret", "秘密")
+        case .boomerRetake:         return ("다시 찍기", "Retake", "撮り直す")
+        case .boomerUse:            return ("자르기 완료", "Crop done", "切り抜き完了")
+        case .listEmptyUnviewed:    return ("안 본 별이 없어요. 모두 둘러봤네요!", "No unviewed stars — you've seen them all!", "未読の星はありません。全部見ましたね！")
+        case .listEmpty:            return ("아직 별이 없어요. 첫 별을 남겨보세요.", "No stars yet. Leave your first one.", "まだ星がありません。最初の星を残しましょう。")
+        case .listSortNearby:       return ("가까운순", "Nearest", "近い順")
         }
     }
 

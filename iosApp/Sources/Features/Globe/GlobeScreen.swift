@@ -371,7 +371,7 @@ private enum GlobeBuilder {
     // MARK: 지구
 
     /// 지구 노드: 수동 UV 구체 메쉬(경도 -180 → u=0, [latLngToXyz] 와 동일 규약)에
-    /// "원본 3/4 밝기" 디퓨즈 + "노란 도시 야경 점광" 이미션 텍스처.
+    /// "원본 × 0.45 밝기" 디퓨즈 + "노란 도시 야경 점광" 이미션 텍스처.
     /// 낮/밤 반구(Android EARTH_FS 패리티): uSunDir 쪽 반구는 기준 밝기 그대로,
     /// 반대 반구는 30% 감광, 터미네이터는 smoothstep — uSunDir 는 Coordinator 가
     /// 매 프레임 월드(=뷰) 공간으로 갱신한다. 모디파이어 컴파일 실패 시 균일 밝기 폴백.
@@ -410,21 +410,28 @@ private enum GlobeBuilder {
     }
 
     /// UV 를 직접 제어하는 구체 메쉬(u: λ=-180→180, v: 북극→남극) — 텍스처/좌표 정합 보장.
+    /// ⚠️ 법선(단위구 방향 벡터 = Android EARTH_VS 의 `vN = aPos`)을 반드시 포함해야 한다 —
+    ///    법선 없는 커스텀 메쉬에 `_surface.normal` 셰이더 모디파이어를 얹으면 파이프라인이
+    ///    컴파일되지 않아 지구/구름 노드가 통째로 사라진다(#12 지구 안 보임의 원인).
     private static func sphereGeometry(radius: Float, stacks: Int, slices: Int) -> SCNGeometry {
         var vertices: [SCNVector3] = []
+        var normals: [SCNVector3] = []
         var uvs: [CGPoint] = []
         vertices.reserveCapacity((stacks + 1) * (slices + 1))
+        normals.reserveCapacity((stacks + 1) * (slices + 1))
         for i in 0...stacks {
             let v = Double(i) / Double(stacks)
             let phi = (90 - 180 * v) * .pi / 180 // 북극 → 남극
             for j in 0...slices {
                 let u = Double(j) / Double(slices)
                 let lam = (-180 + 360 * u) * .pi / 180
-                vertices.append(SCNVector3(
-                    Float(cos(phi) * sin(lam)) * radius,
-                    Float(sin(phi)) * radius,
-                    Float(cos(phi) * cos(lam)) * radius
-                ))
+                let n = SCNVector3(
+                    Float(cos(phi) * sin(lam)),
+                    Float(sin(phi)),
+                    Float(cos(phi) * cos(lam))
+                )
+                normals.append(n)
+                vertices.append(SCNVector3(n.x * radius, n.y * radius, n.z * radius))
                 uvs.append(CGPoint(x: u, y: v))
             }
         }
@@ -438,12 +445,16 @@ private enum GlobeBuilder {
             }
         }
         return SCNGeometry(
-            sources: [SCNGeometrySource(vertices: vertices), SCNGeometrySource(textureCoordinates: uvs)],
+            sources: [
+                SCNGeometrySource(vertices: vertices),
+                SCNGeometrySource(normals: normals),
+                SCNGeometrySource(textureCoordinates: uvs),
+            ],
             elements: [SCNGeometryElement(indices: indices, primitiveType: .triangles)]
         )
     }
 
-    /// 지구 디퓨즈(원본의 3/4 밝기 균일 — 별 근처 지형 밝힘 없음)
+    /// 지구 디퓨즈(원본 × 0.45 균일 감광 — Android EARTH_BRIGHTNESS 동일)
     /// + 노란 작은 점광(인류의 도시 야경) 이미션 생성. Android EARTH_FS/글로 스프라이트 패리티.
     private static func earthTextures(diaries: [Diary]) -> (night: UIImage, lit: UIImage) {
         let base = loadEarthImage()
@@ -452,10 +463,10 @@ private enum GlobeBuilder {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
 
-        // 1) 지구: 원본 × 0.75
+        // 1) 지구: 원본 × 0.45 (Android EARTH_BRIGHTNESS = 0.45f — 낮/밤 광원은 셰이더가 따로 곱한다)
         let night = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
             base.draw(in: CGRect(origin: .zero, size: size))
-            UIColor.black.withAlphaComponent(0.25).setFill()
+            UIColor.black.withAlphaComponent(0.55).setFill()
             ctx.fill(CGRect(origin: .zero, size: size))
         }
 
@@ -1114,6 +1125,7 @@ private enum GlobeBuilder {
     ) -> SCNNode {
         let segs = 96
         var vertices: [SCNVector3] = []
+        var normals: [SCNVector3] = []
         var uvs: [CGPoint] = []
         for s in 0...segs {
             let u = Float(s) / Float(segs)
@@ -1133,12 +1145,20 @@ private enum GlobeBuilder {
                     p1.y * sin(tiltX) + p1.z * cos(tiltX)
                 )
                 vertices.append(p2)
+                // 법선 = 방사 방향(원점 밖 스트립이라 0 벡터 없음) — 조명은 .constant 라 값 자체는
+                // 안 쓰지만, 법선 없는 메쉬 + 셰이더 모디파이어 조합은 파이프라인 컴파일에 실패한다.
+                let len = max(sqrt(p2.x * p2.x + p2.y * p2.y + p2.z * p2.z), 0.001)
+                normals.append(SCNVector3(p2.x / len, p2.y / len, p2.z / len))
                 uvs.append(CGPoint(x: CGFloat(u), y: CGFloat(k)))
             }
         }
         let indices: [Int32] = Array(0..<Int32(vertices.count))
         let geometry = SCNGeometry(
-            sources: [SCNGeometrySource(vertices: vertices), SCNGeometrySource(textureCoordinates: uvs)],
+            sources: [
+                SCNGeometrySource(vertices: vertices),
+                SCNGeometrySource(normals: normals),
+                SCNGeometrySource(textureCoordinates: uvs),
+            ],
             elements: [SCNGeometryElement(indices: indices, primitiveType: .triangleStrip)]
         )
         let material = SCNMaterial()

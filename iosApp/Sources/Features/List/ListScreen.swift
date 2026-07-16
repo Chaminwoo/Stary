@@ -50,7 +50,7 @@ struct ListScreen: View {
                 if store.loading {
                     StarLoadingView(size: 40)
                 } else if rows.isEmpty {
-                    ContentUnavailableCompat(text: unviewedOnly ? "안 본 별이 없어요. 모두 둘러봤네요!" : "아직 별이 없어요. 첫 별을 남겨보세요.")
+                    ContentUnavailableCompat(text: locale.t(unviewedOnly ? .listEmptyUnviewed : .listEmpty))
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
@@ -65,7 +65,7 @@ struct ListScreen: View {
                     }
                 }
             }
-            .navigationTitle("별 목록")
+            .navigationTitle(locale.t(.userStarsHeader))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -97,7 +97,7 @@ struct ListScreen: View {
                     .tint(periodDays != nil ? Theme.mint : Theme.textSecondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(nearbyFirst ? "가까운순" : "최신순") { nearbyFirst.toggle() }
+                    Button(locale.t(nearbyFirst ? .listSortNearby : .sortLatest)) { nearbyFirst.toggle() }
                         .tint(Theme.mint)
                 }
             }
@@ -120,11 +120,11 @@ struct DiaryCard: View {
         HStack(spacing: 14) {
             StarView(type: diary.starType, colorIndex: diary.starColor, size: 36)
             VStack(alignment: .leading, spacing: 4) {
-                Text(diary.title.isEmpty ? "(제목 없음)" : diary.title)
+                Text(diary.title.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : diary.title)
                     .font(.poorStory(17))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
-                Text(diary.isAnonymous ? "익명" : diary.userName)
+                Text(diary.isAnonymous ? LocaleManager.shared.t(.commonAnonymous) : diary.userName)
                     .font(.poorStory(12))
                     .foregroundStyle(Theme.textSecondary)
             }

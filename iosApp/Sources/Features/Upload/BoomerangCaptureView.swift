@@ -168,7 +168,7 @@ struct BoomerangCaptureView: View {
                     fitApplied = false
                     stage = .live
                 } label: {
-                    Text("다시 찍기")
+                    Text(LocaleManager.shared.t(.boomerRetake))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .foregroundStyle(.white)
@@ -182,7 +182,7 @@ struct BoomerangCaptureView: View {
                         if stage == .encoding {
                             StarLoadingView(size: 20, color: .black)
                         } else {
-                            Text("자르기 완료").bold()
+                            Text(LocaleManager.shared.t(.boomerUse)).bold()
                         }
                     }
                     .frame(maxWidth: .infinity)
