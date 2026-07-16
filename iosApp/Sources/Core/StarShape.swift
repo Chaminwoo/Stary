@@ -83,10 +83,10 @@ struct StarShape: Shape {
             let a = (Double(i) * 60.0 - 90.0) * .pi / 180
             let pc = CGPoint(x: c.x + ring * CGFloat(cos(a)), y: c.y + ring * CGFloat(sin(a)))
             let circle = Path(ellipseIn: CGRect(x: pc.x - petal, y: pc.y - petal, width: petal * 2, height: petal * 2))
-            body = i == 0 ? circle : body.union(circle)
+            body = i == 0 ? circle : body.unionCompat(circle)
         }
         let hole = s * 0.135
-        return body.subtracting(Path(ellipseIn: CGRect(x: c.x - hole, y: c.y - hole, width: hole * 2, height: hole * 2)))
+        return body.subtractingCompat(Path(ellipseIn: CGRect(x: c.x - hole, y: c.y - hole, width: hole * 2, height: hole * 2)))
     }
 
     private func gem(_ s: CGFloat) -> Path {
@@ -118,7 +118,7 @@ struct StarShape: Shape {
         seg((0.29, 0.40), (0.50, 0.95)); seg((0.71, 0.40), (0.50, 0.95)) // 파빌리온 → 컬릿
 
         let lineFill = lines.strokedPath(StrokeStyle(lineWidth: s * 0.03, lineJoin: .miter))
-        return outline.subtracting(lineFill)
+        return outline.subtractingCompat(lineFill)
     }
 
     private func crescent(_ s: CGFloat) -> Path {
@@ -132,7 +132,7 @@ struct StarShape: Shape {
         let ic = CGPoint(x: c.x + s * 0.16, y: c.y - s * 0.04)
         let inner = Path(ellipseIn: CGRect(x: ic.x - innerR, y: ic.y - innerR, width: innerR * 2, height: innerR * 2))
         // 누운 초승달(반시계 22°).
-        return outer.subtracting(inner)
+        return outer.subtractingCompat(inner)
             .applying(CGAffineTransform(rotationAngle: -22 * .pi / 180).rotated(around: c))
     }
 
@@ -144,14 +144,21 @@ struct StarShape: Shape {
         let body = Path(ellipseIn: CGRect(x: c.x - bodyR, y: c.y - bodyR, width: bodyR * 2, height: bodyR * 2))
         let ringOuter = Path(ellipseIn: CGRect(x: c.x - s * 0.46, y: c.y - s * 0.15, width: s * 0.92, height: s * 0.30))
         let ringInner = Path(ellipseIn: CGRect(x: c.x - s * 0.37, y: c.y - s * 0.105, width: s * 0.74, height: s * 0.21))
-        let band = ringOuter.subtracting(ringInner)
+        let band = ringOuter.subtractingCompat(ringInner)
             .applying(CGAffineTransform(rotationAngle: -20 * .pi / 180).rotated(around: c))
-        return body.union(band)
+        return body.unionCompat(band)
     }
 }
 
 private extension Int {
     func clamped(_ lo: Int, _ hi: Int) -> Int { Swift.min(Swift.max(self, lo), hi) }
+}
+
+private extension Path {
+    /// iOS 16 호환 boolean 연산 — SwiftUI `Path.union/subtracting` 은 iOS 17+ 라
+    /// 같은 기능의 CGPath 연산(iOS 16+)으로 우회한다(결과는 동일한 정규화 경로).
+    func unionCompat(_ other: Path) -> Path { Path(cgPath.union(other.cgPath)) }
+    func subtractingCompat(_ other: Path) -> Path { Path(cgPath.subtracting(other.cgPath)) }
 }
 
 private extension CGAffineTransform {
