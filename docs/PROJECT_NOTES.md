@@ -2,7 +2,7 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.44 iOS 패리티 라운드3(버그 7건 + 미완 6건)** — **계정 통일(uid=Google sub)**/시뮬레이터 서울 고정/달·행성 boolean 모양/친구 요청됨+토스트/후광 2겹 별색/타인 프로필 핀 별만/틸트 25°/마지막 카메라 복원/채팅 별가루 삭제 — Android BUILD SUCCESSFUL(2026-07-16), iOS CI 검증 대기 — 아래 8.44 참고.
+> 최종 갱신: **8.44 iOS 패리티 라운드3(버그 7건 + 미완 6건)** — **계정 통일(uid=Google sub)**/**@DocumentID id=nil 버그(7모델)**/구독 최신순 1000/시뮬레이터 서울 고정/달·행성 boolean 모양/친구 요청됨+토스트/후광 2겹 별색/타인 프로필 핀 별만/틸트 25°/마지막 카메라 복원/채팅 별가루 삭제 — Android BUILD SUCCESSFUL, **iOS CI(macOS) BUILD SUCCESS `003b2b3`**(2026-07-16) — 아래 8.44 참고.
 > 이전: **8.43 iOS 패리티 라운드2 (R2-1~R2-3 + 마무리 5건)** — anonymous 디코딩/줌 별크기/후광·파티클/100m 게이팅/미디어/열람 애니메이션/몰입·별자리 버튼/친구 db + 프로필 아이콘 크리스탈화/음악 별자리 보드 스타일/글로브 지구 복원/미번역 전수 + Android 업로드 휠 피커 — **CI(macOS) BUILD SUCCESS `f6428d2`**(2026-07-16) — 아래 8.43 참고.
 > 이전: **8.42 iOS UI 전면 패리티(1~7차 완료)** — 드로어 내비/테마/야경 지도/지도 크롬/상세 재구성/필터 확장/별자리 보드/L10n — **CI(macOS) BUILD SUCCESS `9cd867b`**(2026-07-15) — 아래 8.42 참고.
 > 이전: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 아래 8.41 참고.
@@ -37,7 +37,11 @@
 
 ---
 
-## 8.44 iOS 패리티 라운드3 — 계정 통일 + 버그/미완 일괄 (Android BUILD SUCCESSFUL 2026-07-16, iOS CI 검증 대기)
+## 8.44 iOS 패리티 라운드3 — 계정 통일 + 버그/미완 일괄 (Android BUILD SUCCESSFUL, iOS CI BUILD SUCCESS `003b2b3`, 2026-07-16)
+
+**CI 시행착오 2건(다음에 반복 금지)**: ① MapLibre 6.x 에서도 NSExpression JSON 초기화 라벨은
+**`mglJSONObject:`**(MGL 접두사 유지 — `mlnJSONObject` 아님). ② SwiftUI `Path.union/subtracting` 은
+**iOS 17+** — 배포 타깃 16 에선 `CGPath.union/subtracting`(iOS 16+)으로 우회(`unionCompat`/`subtractingCompat`).
 
 사용자 보고 버그 7건 + 미완료 6건. 브랜치 `feat/ios-parity-round2` 이어서 작업.
 
