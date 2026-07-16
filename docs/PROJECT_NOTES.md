@@ -86,6 +86,19 @@ shared `FriendRepository.observeOutgoingRequests`(fromId==나) 신설 + Android 
   didAutoCenter 가 내 위치로 1회 이동하는 동작은 유지).
 - **채팅 별가루 삭제(Android+iOS)**: `ChatStardust` 호출+정의 양쪽 제거(사용자 지시 — 떠다니는 원).
 
+**후속 수정(사용자 재현: "미국 카메라에서도 새 별 안 보임") — #5/#6 의 진짜 원인 2건**:
+- **⚠️ 전 모델 id 디코딩 버그(치명)**: R2-1 커스텀 `init(from:)` 이 `@DocumentID` 합성 주입을
+  **대체**하면서 문서 안 "id" **필드**만 읽었다 → id 필드를 저장하지 않는 **iOS 생성 문서 전부 id=nil**
+  (Android 는 id 필드를 함께 저장 + 읽을 때 doc.id 로 덮어써서 무증상). 영향: Diary/Comment/
+  AppNotification/Friend/FriendRequest/UserProfile/ChatMessage 7종 — 좋아요·댓글·공유·상세 리스너·
+  요청 수락·메시지 삭제가 전부 `guard let id` 에서 **조용히** 실패(#6), Friend Hashable 충돌 등.
+  수정: 7곳 모두 `_id = (try? c.decode(DocumentID<String>.self, forKey: .id)) ?? 필드 폴백` —
+  합성 디코더와 동일하게 문서 참조에서 id 주입(기존 id 없는 문서도 소급 정상화).
+  ⚠️ **교훈: @DocumentID 모델에 커스텀 init(from:) 을 쓰면 _id 를 반드시 명시 디코드할 것.**
+- **observeAll 쿼리**: 정렬 없는 `limit(500)` = 문서 ID 오름차순 임의 500개 → 새 문서가 창 밖으로
+  밀려 지도에 안 뜰 수 있음(#5). Android observeAllDiaries 와 동일하게 **createdAt DESC limit 1000**
+  + 에러 시 빈 배열 덮어쓰기 제거(기존 목록 유지 — Android 동일).
+
 **남은 것(후속)**: 사용자 Mac xcodegen 재생성 후 실빌드 확인(글로브/파티클 실측), iOS 계정 통일 후
 구 uid 데이터 정리, MyDiaryBoard 드래그 물리(8.42 잔여).
 

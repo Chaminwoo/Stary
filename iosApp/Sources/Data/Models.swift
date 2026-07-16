@@ -150,7 +150,12 @@ struct Diary: Identifiable, Codable, Hashable {
             return nil
         }
 
-        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        // 문서 id = **Firestore 문서 ID** — 커스텀 init(from:) 은 @DocumentID 합성 주입을 대체하므로
+        // 합성 디코더와 동일하게 명시 디코드한다(문서 안에 "id" 필드가 없어도 문서 참조에서 채워진다).
+        // ⚠️ 구 코드는 "id" **필드**만 읽어서, id 필드를 저장하지 않는 iOS 생성 문서가 전부 id=nil 로
+        // 풀렸다(→ 좋아요/댓글/공유/수락 등 guard let id 가 조용히 실패). 비 Firestore 디코더는 필드 폴백.
+        _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
+            ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
 
         userId = str(.userId) ?? ""
         userName = str(.userName) ?? ""
@@ -332,7 +337,12 @@ struct Comment: Identifiable, Codable {
     // 타입 드리프트(문자열/숫자/Timestamp)로 문서가 통째로 누락되지 않게 방어 디코딩(Diary 와 동일 정책).
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        // 문서 id = **Firestore 문서 ID** — 커스텀 init(from:) 은 @DocumentID 합성 주입을 대체하므로
+        // 합성 디코더와 동일하게 명시 디코드한다(문서 안에 "id" 필드가 없어도 문서 참조에서 채워진다).
+        // ⚠️ 구 코드는 "id" **필드**만 읽어서, id 필드를 저장하지 않는 iOS 생성 문서가 전부 id=nil 로
+        // 풀렸다(→ 좋아요/댓글/공유/수락 등 guard let id 가 조용히 실패). 비 Firestore 디코더는 필드 폴백.
+        _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
+            ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         diaryId = c.flexString(.diaryId) ?? ""
         userId = c.flexString(.userId) ?? ""
         userName = c.flexString(.userName) ?? ""
@@ -395,7 +405,12 @@ struct AppNotification: Identifiable, Codable {
     // 타입 드리프트로 문서가 통째로 누락되지 않게 방어 디코딩(read 는 Bool/0·1 모두 허용).
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        // 문서 id = **Firestore 문서 ID** — 커스텀 init(from:) 은 @DocumentID 합성 주입을 대체하므로
+        // 합성 디코더와 동일하게 명시 디코드한다(문서 안에 "id" 필드가 없어도 문서 참조에서 채워진다).
+        // ⚠️ 구 코드는 "id" **필드**만 읽어서, id 필드를 저장하지 않는 iOS 생성 문서가 전부 id=nil 로
+        // 풀렸다(→ 좋아요/댓글/공유/수락 등 guard let id 가 조용히 실패). 비 Firestore 디코더는 필드 폴백.
+        _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
+            ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         type = c.flexString(.type) ?? "LIKE"
         diaryId = c.flexString(.diaryId) ?? ""
         diaryTitle = c.flexString(.diaryTitle) ?? ""
@@ -464,7 +479,12 @@ struct Friend: Identifiable, Codable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        // 문서 id = **Firestore 문서 ID** — 커스텀 init(from:) 은 @DocumentID 합성 주입을 대체하므로
+        // 합성 디코더와 동일하게 명시 디코드한다(문서 안에 "id" 필드가 없어도 문서 참조에서 채워진다).
+        // ⚠️ 구 코드는 "id" **필드**만 읽어서, id 필드를 저장하지 않는 iOS 생성 문서가 전부 id=nil 로
+        // 풀렸다(→ 좋아요/댓글/공유/수락 등 guard let id 가 조용히 실패). 비 Firestore 디코더는 필드 폴백.
+        _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
+            ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         userId = c.flexString(.userId) ?? ""
         userName = c.flexString(.userName) ?? ""
         // Android 가 photoUrl / profileImageUrl 중 무엇으로 저장해도 받는다.
@@ -506,7 +526,12 @@ struct FriendRequest: Identifiable, Codable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        // 문서 id = **Firestore 문서 ID** — 커스텀 init(from:) 은 @DocumentID 합성 주입을 대체하므로
+        // 합성 디코더와 동일하게 명시 디코드한다(문서 안에 "id" 필드가 없어도 문서 참조에서 채워진다).
+        // ⚠️ 구 코드는 "id" **필드**만 읽어서, id 필드를 저장하지 않는 iOS 생성 문서가 전부 id=nil 로
+        // 풀렸다(→ 좋아요/댓글/공유/수락 등 guard let id 가 조용히 실패). 비 Firestore 디코더는 필드 폴백.
+        _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
+            ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         fromId = c.flexString(.fromId) ?? ""
         fromName = c.flexString(.fromName) ?? ""
         fromPhotoUrl = c.flexString(.fromPhotoUrl) ?? ""
@@ -545,7 +570,12 @@ struct UserProfile: Identifiable, Codable {
     // userId/userName 이 없는 옛 문서도 검색 결과에서 누락되지 않게 방어 디코딩.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        // 문서 id = **Firestore 문서 ID** — 커스텀 init(from:) 은 @DocumentID 합성 주입을 대체하므로
+        // 합성 디코더와 동일하게 명시 디코드한다(문서 안에 "id" 필드가 없어도 문서 참조에서 채워진다).
+        // ⚠️ 구 코드는 "id" **필드**만 읽어서, id 필드를 저장하지 않는 iOS 생성 문서가 전부 id=nil 로
+        // 풀렸다(→ 좋아요/댓글/공유/수락 등 guard let id 가 조용히 실패). 비 Firestore 디코더는 필드 폴백.
+        _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
+            ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         userId = c.flexString(.userId) ?? ""
         userName = c.flexString(.userName) ?? ""
         profileImageUrl = c.flexString(.profileImageUrl)
@@ -579,7 +609,12 @@ struct ChatMessage: Identifiable, Codable {
     // 타입 드리프트로 메시지가 누락되지 않게 방어 디코딩.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        // 문서 id = **Firestore 문서 ID** — 커스텀 init(from:) 은 @DocumentID 합성 주입을 대체하므로
+        // 합성 디코더와 동일하게 명시 디코드한다(문서 안에 "id" 필드가 없어도 문서 참조에서 채워진다).
+        // ⚠️ 구 코드는 "id" **필드**만 읽어서, id 필드를 저장하지 않는 iOS 생성 문서가 전부 id=nil 로
+        // 풀렸다(→ 좋아요/댓글/공유/수락 등 guard let id 가 조용히 실패). 비 Firestore 디코더는 필드 폴백.
+        _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
+            ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         senderId = c.flexString(.senderId) ?? ""
         senderName = c.flexString(.senderName) ?? ""
         text = c.flexString(.text) ?? ""
