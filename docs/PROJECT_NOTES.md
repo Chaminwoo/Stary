@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.42 iOS UI 전면 패리티(1~7차 완료)** — 드로어 내비/테마/야경 지도/지도 크롬/상세 재구성/필터 확장/별자리 보드/L10n — **CI(macOS) BUILD SUCCESS `9cd867b`**(2026-07-15) — 아래 8.42 참고.
+> 최종 갱신: **8.43 iOS 패리티 라운드2 (R2-1~R2-3 + 마무리 5건)** — anonymous 디코딩/줌 별크기/후광·파티클/100m 게이팅/미디어/열람 애니메이션/몰입·별자리 버튼/친구 db + 프로필 아이콘 크리스탈화/음악 별자리 보드 스타일/글로브 지구 복원/미번역 전수 + Android 업로드 휠 피커 — **CI(macOS) BUILD SUCCESS `f6428d2`**(2026-07-16) — 아래 8.43 참고.
+> 이전: **8.42 iOS UI 전면 패리티(1~7차 완료)** — 드로어 내비/테마/야경 지도/지도 크롬/상세 재구성/필터 확장/별자리 보드/L10n — **CI(macOS) BUILD SUCCESS `9cd867b`**(2026-07-15) — 아래 8.42 참고.
 > 이전: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 아래 8.41 참고.
 > 이전: **8.40 마감 라운드(1.3.1) + 전환 잔상 삭제 + iOS 패리티 일괄(33·34 라운드)** — Android BUILD SUCCESSFUL(2026-07-14), iOS 는 push 후 CI 검증 — 아래 8.40 참고.
 > 이전: **8.38-iOS 패리티**(크리스탈 별 / 30m 머지·겹친별 카드 / 친구 메신저형 행 / 이미지 캐시) — **CI(macOS) BUILD SUCCESS `a173f7e`** — 아래 8.38-iOS 참고.
@@ -34,6 +35,52 @@
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
 
 ---
+
+## 8.43 iOS 패리티 라운드2 — 데이터 연동/연출/글로브 + Android 업로드 휠 (CI BUILD SUCCESS `f6428d2`, 2026-07-16)
+
+사용자 지시: **"Android UI 와 동일하게, 항목별 완벽 완성"** 14건 + Android 변경 1건. 브랜치 `feat/ios-parity-round2`.
+이전 세션 로컬 커밋(R2-1~R2-3)은 미push 상태였음 → push 시 첫 CI 컴파일 에러 1건 수정 후 그린. 이후 마무리 5건 추가.
+
+**첫 CI 수정** (`73193ff`): `LocationManager.lastSavedCoordinate` 가 `@MainActor` 격리인데 지도 델리게이트
+(비격리 autoclosure)에서 참조 → 컴파일 에러. UserDefaults 만 읽으므로 `nonisolated static var` 로 변경.
+
+**R2-1~R2-3 (이전 세션 커밋, 이번에 push·검증):**
+- **R2-1** 전 모델 방어 디코딩 확장(Comment/AppNotification/ChatMessage/UserProfile 에 flexString/flexMillis —
+  타입 드리프트로 문서 통째 누락 방지, Diary/Friend 와 동일 정책) + 알림 행 Android NotificationItem 구조/문구 패리티.
+- **R2-2** 100m 열람 게이팅+토스트(위치불명=map_waiting_fix / 밖=map_open_range 반경·현재거리 / 이내만 열림),
+  `DiaryOpenWarpView`(지도 스냅샷 CIBumpDistortion 굴절+파장 링+겹친별 버스트, Android DiaryOpenWarp 1.3s 대응),
+  줌 별 크기(iconSize 보간 8→0.3/12→0.55/15→1.0 을 어노테이션 뷰 transform 으로), 미디어 항상 표시.
+- **R2-3** 별가루 파티클(`MapStyleEffects.swift`, 400개/20km/시드42/트윙클 4위상)+별 후광 레이어(민트 CircleLayer)+
+  별자리 3겹 라인 토글(halo/glow/line 페이드)+몰입(지도만 보기) 모드(우하단 내위치→별자리→몰입 버튼, 하단 X 종료).
+
+**마무리 5건 (이번 세션):**
+- **#8 프로필 아이콘 크리스탈화**: `FloatingStatBox` 의 비-별 아이콘(하트/친구/조회/업적)을 SF Symbol 틴트 →
+  별과 같은 크리스탈 파편 채움. `StarCrystal.iconImage(systemName:color:seed:size:)` 신설 —
+  심볼을 흰색으로 그려 알파 마스크로 쓰고 `drawFacets`(실루엣 없는 사각형 파편)를 `.sourceIn` 으로 얹어
+  아이콘 모양 안에만 파편. 무늬 정적 → NSCache 1회 베이크(2배 해상도). Android `bakeCrystalIcon` 패리티.
+  - ⚠️ `StarCrystal.draw` 를 `drawMesh(salt:silhouette:...)` 로 리팩터 — 별(실루엣=StarShape)과 아이콘(실루엣 nil)
+    이 같은 파편 로직 공유. `salt` = 해시 솔트(별=모양타입 / 아이콘=인덱스).
+- **#9 음악 별자리 = 내 다이어리 보드 스타일**: `MusicConstellationView` 를 `ConstellationBackgroundView` 와
+  동일 렌더로 — 선택 플래시 1.7→0.78(easeOut 0.9s), 그라데이션 후광(radialGradient), mag 가중 밝기·트윙클(3.4s),
+  `flashKey`(=selectedIndex) 로 곡 변경 시 번쩍. Android `MusicConstellationBackground` 패리티.
+  - ⚠️ Canvas 수식 CGFloat·Double 혼합 '+' 모호성 → Double 로 계산 후 마지막에 CGFloat(8.42 7차와 같은 함정).
+- **#12 글로브 지구 안 보임(구름만) — 근본 원인 수정**: 커스텀 UV 구체(`sphereGeometry`)·트레일(`trailNode`) 메쉬에
+  **법선(normals) 소스 누락**. 지구/구름 재질이 `_surface.normal` 을 쓰는 셰이더 모디파이어(낮/밤 반구)를 얹는데,
+  **법선 없는 메쉬 + 셰이더 모디파이어 = 파이프라인 컴파일 실패 → 노드 통째 소멸**. 두 메쉬에 방사방향 단위법선 추가로 복원.
+  지구 감광도 원본×0.25 → **원본×0.45 감광(Android EARTH_BRIGHTNESS=0.45f 동일)**. (별밭/은하수/유성은 원래 정상)
+- **#14 미번역 전수**: `L10n` 8키 추가(ko/en/ja, Android strings.xml 값) —
+  musicDragHint/musicLockedHint/commonSecret(music_*), boomerRetake/boomerUse(boomer_*),
+  listEmptyUnviewed/listEmpty/listSortNearby(ListScreen). MusicScreen 부제·BoomerangCaptureView 버튼·ListScreen
+  빈상태/정렬/제목·익명 하드코딩 제거. (DiaryCard 제목=shareCardUntitled, 익명=commonAnonymous 재사용)
+
+**Android 변경(사용자 지시): 업로드 별 모양/색 피커를 iOS 휠 구조로** (`7f1c69b`, `:androidApp:compileDebugKotlin` BUILD SUCCESSFUL):
+- `UploadScreen.kt` 의 `HorizontalPager` 무한 캐러셀 2개 → **`StarWheelPicker`**(파일 하단 신설, iOS `WheelPicker` 이식):
+  선택 항목 항상 정중앙(민트 링), 좌우 5개 노출, modulo 순환. 놓은/탭한 지점 항목을 **놓은 자리에서 중앙으로 스냅 →
+  스냅 끝난 뒤 selection 일괄 갱신**(좌표 불연속 되돌아감 방지). `Animatable`(drag)+`detectHorizontalDragGestures`.
+  잠긴 항목 흐림(alpha 0.25)+자물쇠+토스트, 저장 차단은 기존대로 호출부.
+- `starType`/`starColor` 를 pagerState 파생값 → `mutableIntStateOf` 로 단순화. INFINITE_PAGES/lerp 상수 제거.
+
+**남은 것(후속)**: 실기기 실제 동작 확인(지구본 텍스처·크리스탈 아이콘·휠 피커 촉감), MyDiaryBoard 드래그 물리(8.42 5차 잔여).
 
 ## 8.42 iOS UI 전면 패리티 1~7차 (CI BUILD SUCCESS `9cd867b`, 2026-07-15)
 
