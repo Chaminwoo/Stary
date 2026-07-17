@@ -259,7 +259,6 @@ fun UserProfileScreen(
                             modifier = Modifier
                                 .size(124.dp)
                                 .clip(CircleShape)
-                                .border(2.5.dp, AccentBrush, CircleShape)
                                 .background(Color(0xFF0D0D0D), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
@@ -307,8 +306,7 @@ fun UserProfileScreen(
                     Text(
                         text = when {
                             equippedTitleName == null -> stringResource(R.string.user_no_title)
-                            isHiddenTitle -> "『$equippedTitleName』"
-                            else -> equippedTitleName
+                            else -> "『$equippedTitleName』"
                         },
                         color = titleColor,
                         fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.SemiBold else FontWeight.Light,

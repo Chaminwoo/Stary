@@ -69,7 +69,7 @@ struct FriendsScreen: View {
                     .foregroundStyle(Theme.textPrimary)
                     .onSubmit { runSearch() }
                 Button(LocaleManager.shared.t(.commonSearch)) { runSearch() }
-                    .tint(Theme.mint)
+                    .tint(Theme.navyAccent)
             }
             if vm.searching { StarLoadingView(size: 26) }
             ForEach(vm.results) { user in
@@ -96,7 +96,7 @@ struct FriendsScreen: View {
                                     : LocaleManager.shared.t(.friendRequestFail))
                             }
                         }
-                        .font(.poorStory(12)).tint(Theme.mint)
+                        .font(.poorStory(12)).tint(Theme.navyAccent)
                     }
                 }
                 .padding(10)
@@ -109,10 +109,10 @@ struct FriendsScreen: View {
     private func statusChip(_ text: String) -> some View {
         Text(text)
             .font(.poorStory(12))
-            .foregroundStyle(Theme.mint)
+            .foregroundStyle(Theme.navyAccent)
             .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(Theme.mint.opacity(0.10), in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.25), lineWidth: 1))
+            .background(Theme.navyAccent.opacity(0.10), in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.navyAccent.opacity(0.25), lineWidth: 1))
     }
 
     private func showToast(_ text: String) {
@@ -130,9 +130,9 @@ struct FriendsScreen: View {
                 ShareLink(item: LocaleManager.shared.t(.inviteShareText) + "\n" + AppConfig.inviteLink(inviterUid: uid)) {
                     HStack(spacing: 12) {
                         Image(systemName: "person.badge.plus")
-                            .foregroundStyle(Theme.mint)
+                            .foregroundStyle(Theme.navyAccent)
                             .frame(width: 40, height: 40)
-                            .background(Theme.mint.opacity(0.14), in: Circle())
+                            .background(Theme.navyAccent.opacity(0.14), in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
                             Text(LocaleManager.shared.t(.inviteFriends))
                                 .font(.subheadline).fontWeight(.medium)
@@ -166,7 +166,7 @@ struct FriendsScreen: View {
                         guard let uid = auth.uid else { return }
                         Task { await vm.accept(req, myUid: uid, myName: auth.displayName) }
                     }
-                    .font(.poorStory(12)).tint(Theme.mint)
+                    .font(.poorStory(12)).tint(Theme.navyAccent)
                     Button(LocaleManager.shared.t(.friendDecline)) { Task { await vm.decline(req) } }
                         .font(.poorStory(12)).tint(.red)
                 }
@@ -310,13 +310,12 @@ private struct FriendAvatar: View {
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(String(name.prefix(1)).uppercased())
-                        .foregroundStyle(Theme.mint).fontWeight(.medium)
+                        .foregroundStyle(Theme.navyAccent).fontWeight(.medium)
                 )
             }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .overlay(Circle().stroke(Theme.mint.opacity(0.30), lineWidth: 1))
         .task(id: userId) {
             if photoUrl.isEmpty, !userId.isEmpty {
                 resolved = await ProfileImageCache.shared.url(for: userId)

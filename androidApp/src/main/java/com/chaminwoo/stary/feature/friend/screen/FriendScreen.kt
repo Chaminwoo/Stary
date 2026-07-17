@@ -71,7 +71,7 @@ import com.chaminwoo.stary.core.model.UserProfile
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.friend.FriendViewModel
 
-private val Green = com.chaminwoo.stary.core.designsystem.Mint
+private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val SoftRed = Color(0xFFFF6B6B)
 
 @Composable
@@ -207,7 +207,7 @@ fun FriendScreen(
                             // 이미 보낸 pending 요청 — 다시 못 누르게 상태 칩으로 교체.
                             StatusChip(stringResource(R.string.friend_status_requested))
                         } else {
-                            Pill(stringResource(R.string.friend_add), Icons.Filled.PersonAdd, Green.copy(alpha = 0.16f), Green) {
+                            Pill(stringResource(R.string.friend_add), Icons.Filled.PersonAdd, Accent.copy(alpha = 0.16f), Accent) {
                                 vm.sendRequest(user)
                             }
                         }
@@ -236,7 +236,7 @@ fun FriendScreen(
                         onClick = { onOpenProfile(req.fromId, req.fromName) }
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Pill(stringResource(R.string.friend_accept), Icons.Filled.Check, Green.copy(alpha = 0.16f), Green) { vm.accept(req) }
+                            Pill(stringResource(R.string.friend_accept), Icons.Filled.Check, Accent.copy(alpha = 0.16f), Accent) { vm.accept(req) }
                             Pill(stringResource(R.string.friend_decline), Icons.Filled.Close, Color.White.copy(alpha = 0.06f), SoftRed) { vm.decline(req) }
                         }
                     }
@@ -300,11 +300,11 @@ private fun InviteCard(onClick: () -> Unit) {
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Green.copy(alpha = 0.14f))
-                .border(1.dp, Green.copy(alpha = 0.30f), CircleShape),
+                .background(Accent.copy(alpha = 0.14f))
+                .border(1.dp, Accent.copy(alpha = 0.30f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = Green, modifier = Modifier.size(20.dp))
+            Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = Accent, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -337,9 +337,9 @@ private fun SearchField(query: String, onValueChange: (String) -> Unit, onSearch
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = CardBgTop.copy(alpha = 0.85f),
             unfocusedContainerColor = CardBgTop.copy(alpha = 0.6f),
-            focusedBorderColor = Green.copy(alpha = 0.55f),
+            focusedBorderColor = Accent.copy(alpha = 0.55f),
             unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
-            cursorColor = Green,
+            cursorColor = Accent,
             focusedTextColor = TextMain,
             unfocusedTextColor = TextMain,
         )
@@ -352,18 +352,16 @@ private fun SectionHeader(title: String, count: Int) {
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(6.dp).clip(CircleShape).background(Green))
-        Spacer(Modifier.width(8.dp))
         Text(title, color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.Light)
         Spacer(Modifier.width(8.dp))
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
-                .background(Green.copy(alpha = 0.14f))
-                .border(1.dp, Green.copy(alpha = 0.30f), RoundedCornerShape(50))
+                .background(Accent.copy(alpha = 0.14f))
+                .border(1.dp, Accent.copy(alpha = 0.30f), RoundedCornerShape(50))
                 .padding(horizontal = 8.dp, vertical = 1.dp)
         ) {
-            Text("$count", color = Green, fontSize = 12.sp, fontWeight = FontWeight.Light)
+            Text("$count", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Light)
         }
     }
 }
@@ -517,7 +515,6 @@ private fun Avatar(
             .size(size)
             .clip(CircleShape)
             .background(CardBgTop)
-            .border(1.5.dp, Green.copy(alpha = 0.30f), CircleShape)
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         contentAlignment = Alignment.Center
     ) {
@@ -532,7 +529,7 @@ private fun Avatar(
         } else {
             Text(
                 name.take(1).uppercase().ifBlank { "?" },
-                color = Green, fontSize = 16.sp, fontWeight = FontWeight.Light
+                color = Accent, fontSize = 16.sp, fontWeight = FontWeight.Light
             )
         }
     }
@@ -567,10 +564,10 @@ private fun StatusChip(text: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Green.copy(alpha = 0.10f))
-            .border(1.dp, Green.copy(alpha = 0.25f), RoundedCornerShape(50))
+            .background(Accent.copy(alpha = 0.10f))
+            .border(1.dp, Accent.copy(alpha = 0.25f), RoundedCornerShape(50))
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
-        Text(text, color = Green, fontSize = 12.5.sp, fontWeight = FontWeight.Light)
+        Text(text, color = Accent, fontSize = 12.5.sp, fontWeight = FontWeight.Light)
     }
 }

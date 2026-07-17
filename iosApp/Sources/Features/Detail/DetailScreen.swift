@@ -568,7 +568,6 @@ private struct CommentAvatar: View {
         }
         .frame(width: 32, height: 32)
         .clipShape(Circle())
-        .overlay(Circle().stroke(Theme.mint.opacity(0.30), lineWidth: 1))
         .task(id: userId) { directory.ensureWatching(userId) }
         .task(id: directory.photoUrl(userId)) {
             if let url = directory.photoUrl(userId), !url.isEmpty {

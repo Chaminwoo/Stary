@@ -361,7 +361,7 @@ fun MainScreen(
                             }
                             // 타인 프로필: 우측에 친구 액션 — 사람+(친구추가) / 사람✓(친구, 누르면 취소 확인)
                             if (currentRoute is NavRoute.UserProfile && UserProfileActionState.visible) {
-                                val mint = Color(0xFF6EE7B7)
+                                val mint = Color(0xFF9FB3E8)
                                 IconButton(onClick = { UserProfileActionState.onClick() }, modifier = Modifier.clickBounce()) {
                                     when {
                                         UserProfileActionState.isFriend ->
@@ -537,7 +537,7 @@ private fun DrawerItem(
 ) {
     val color = when {
         danger -> Color(0xFFFF6B6B)
-        selected || alwaysAccent -> Color(0xFF6EE7B7)
+        selected || alwaysAccent -> Color(0xFF9FB3E8)
         else -> Color(0xFFF0F0F0)
     }
     NavigationDrawerItem(
@@ -546,7 +546,7 @@ private fun DrawerItem(
         selected = selected,
         onClick = onClick,
         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
-            selectedContainerColor = Color(0xFF6EE7B7).copy(alpha = 0.10f),
+            selectedContainerColor = Color(0xFF9FB3E8).copy(alpha = 0.10f),
             unselectedContainerColor = Color.Transparent
         )
     )

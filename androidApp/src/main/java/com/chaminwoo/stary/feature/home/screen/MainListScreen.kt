@@ -237,7 +237,7 @@ fun MainListScreen(
                                 selected = periodDays == d,
                                 onClick = { periodDays = d; showPeriodPicker = false },
                                 colors = RadioButtonDefaults.colors(
-                                    selectedColor = Color(0xFF6EE7B7),
+                                    selectedColor = Color(0xFF9FB3E8),
                                     unselectedColor = Color(0xFF8A8A8A)
                                 )
                             )
@@ -280,7 +280,7 @@ fun MainListScreen(
                                         else tempSelected - friend.userId
                                     },
                                     colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFF6EE7B7),
+                                        checkedColor = Color(0xFF9FB3E8),
                                         uncheckedColor = Color(0xFF8A8A8A)
                                     )
                                 )
@@ -295,7 +295,7 @@ fun MainListScreen(
             },
             confirmButton = {
                 TextButton(onClick = { selectedFriendIds = tempSelected; showFriendPicker = false }) {
-                    Text(stringResource(R.string.filter_apply), color = Color(0xFF6EE7B7))
+                    Text(stringResource(R.string.filter_apply), color = Color(0xFF9FB3E8))
                 }
             },
             dismissButton = {
@@ -405,7 +405,7 @@ fun MainListScreen(
         // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)
         if (userId != null && !MapUiState.mapOnly) {
             val anyActive = unviewedOnly || friendsOnly || myOnly || selectedFriendIds.isNotEmpty() || periodDays != null
-            val mint = Color(0xFF6EE7B7)
+            val mint = Color(0xFF9FB3E8)
             val pillBg = Color(0xEE111120)
 
             // "전체보기"는 기본 상태(필터 없음)와 같아 목록에서 제외 — 각 필터 재탭으로 해제.
@@ -522,7 +522,7 @@ fun MainListScreen(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(Color(0xEE111120))
-                    .border(1.dp, Color(0xFF6EE7B7).copy(alpha = 0.5f), RoundedCornerShape(50))
+                    .border(1.dp, Color(0xFF9FB3E8).copy(alpha = 0.5f), RoundedCornerShape(50))
                     .clickable {
                         val (lat, lng) = globeButtonCenter ?: return@clickable
                         if (globeCenter == null) {
@@ -539,7 +539,7 @@ fun MainListScreen(
                 Icon(
                     imageVector = Icons.Filled.Public,
                     contentDescription = null,
-                    tint = Color(0xFF6EE7B7),
+                    tint = Color(0xFF9FB3E8),
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(8.dp))

@@ -101,7 +101,6 @@ private val Gold = Color(0xFFFFD86F) // 히든 칭호 색
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 private val CardBg = Color(0xCC14181C)
-private val AccentBrush get() = Brush.linearGradient(listOf(Blue, Navy))
 
 @Composable
 fun ProfileScreen(
@@ -229,7 +228,6 @@ fun ProfileScreen(
                     modifier = Modifier
                         .size(154.dp)
                         .clip(CircleShape)
-                        .border(2.5.dp, AccentBrush, CircleShape)
                         .background(Color(0xFF0D0D0D), CircleShape)
                         .clickable { galleryLauncher.launch("image/*") },
                     contentAlignment = Alignment.Center

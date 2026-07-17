@@ -735,7 +735,6 @@ private fun CommentItem(
                 .size(32.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(1.dp, accent.copy(alpha = 0.30f), CircleShape)
                 .clickable { onOpenProfile() },
             contentAlignment = Alignment.Center
         ) {

@@ -204,14 +204,9 @@ struct UserProfileScreen: View {
                     )
                 }
             }
+            // 프로필 사진 바깥 링(테두리)은 제거 — 후광만 남긴다(2026-07-17 사용자 지시).
             .frame(width: 96, height: 96)
             .clipShape(Circle())
-            .overlay(
-                Circle().strokeBorder(
-                    LinearGradient(colors: [Theme.mintBlue, Theme.navyDeep],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: 3)
-            )
         }
     }
 

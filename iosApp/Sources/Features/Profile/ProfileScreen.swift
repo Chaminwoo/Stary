@@ -272,15 +272,10 @@ struct ProfileScreen: View {
                     .fill(RadialGradient(colors: [Theme.navyAccent.opacity(0.28), .clear],
                                          center: .center, startRadius: 0, endRadius: 130))
                     .frame(width: 200, height: 200)
+                // 프로필 사진 바깥 링(테두리)은 제거 — 후광만 남긴다(2026-07-17 사용자 지시).
                 avatarImage
                     .frame(width: 150, height: 150)
                     .clipShape(Circle())
-                    .overlay(
-                        Circle().strokeBorder(
-                            LinearGradient(colors: [Color(hex: 0x3B82F6), Theme.navyDeep],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing),
-                            lineWidth: 3)
-                    )
             }
         }
         .buttonStyle(.plain)

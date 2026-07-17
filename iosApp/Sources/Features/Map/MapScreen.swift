@@ -167,11 +167,11 @@ struct MapScreen: View {
             } label: {
                 Image(systemName: "safari")
                     .font(.system(size: 22))
-                    .foregroundStyle(anyFilterActive ? Theme.mint : .white.opacity(0.75))
+                    .foregroundStyle(anyFilterActive ? Theme.navyAccent : .white.opacity(0.75))
                     .frame(width: 48, height: 48)
                     .background(Color(hex: 0x111120).opacity(0.93), in: Circle())
                     .overlay(Circle().strokeBorder(
-                        anyFilterActive ? Theme.mint : Color.white.opacity(0.18), lineWidth: 1.5))
+                        anyFilterActive ? Theme.navyAccent : Color.white.opacity(0.18), lineWidth: 1.5))
             }
         }
         .confirmationDialog(locale.t(.filterPeriod), isPresented: $showPeriodPicker, titleVisibility: .visible) {
@@ -200,15 +200,15 @@ struct MapScreen: View {
             HStack(spacing: 8) {
                 Image(systemName: icon)
                     .font(.system(size: 14))
-                    .foregroundStyle(active ? Theme.mint : .white.opacity(0.7))
+                    .foregroundStyle(active ? Theme.navyAccent : .white.opacity(0.7))
                 Text(label)
                     .font(.poorStory(13))
-                    .foregroundStyle(active ? Theme.mint : .white.opacity(0.85))
+                    .foregroundStyle(active ? Theme.navyAccent : .white.opacity(0.85))
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
-            .background(active ? Theme.mint.opacity(0.18) : Color(hex: 0x111120).opacity(0.93), in: Capsule())
+            .background(active ? Theme.navyAccent.opacity(0.18) : Color(hex: 0x111120).opacity(0.93), in: Capsule())
             .overlay(Capsule().strokeBorder(
-                active ? Theme.mint : Color.white.opacity(0.12), lineWidth: active ? 1.5 : 1))
+                active ? Theme.navyAccent : Color.white.opacity(0.12), lineWidth: active ? 1.5 : 1))
         }
     }
 
@@ -379,7 +379,7 @@ struct MapScreen: View {
                         .padding(.horizontal, 18).padding(.vertical, 11)
                         .background(Color(hex: 0x111120).opacity(0.93), in: Capsule())
                         .foregroundStyle(Theme.textPrimary)
-                        .overlay(Capsule().strokeBorder(Theme.mint.opacity(0.5), lineWidth: 1))
+                        .overlay(Capsule().strokeBorder(Theme.navyAccent.opacity(0.5), lineWidth: 1))
                         .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -703,7 +703,7 @@ private struct FriendFilterPicker: View {
                     Button(locale.t(.commonCancel)) { dismiss() }.tint(Theme.textSecondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(locale.t(.commonSave)) { onConfirm(selected); dismiss() }.tint(Theme.mint)
+                    Button(locale.t(.commonSave)) { onConfirm(selected); dismiss() }.tint(Theme.navyAccent)
                 }
             }
         }
@@ -720,10 +720,10 @@ private struct FriendFilterPicker: View {
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 Spacer()
-                if isSel { Image(systemName: "checkmark").foregroundStyle(Theme.mint) }
+                if isSel { Image(systemName: "checkmark").foregroundStyle(Theme.navyAccent) }
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(isSel ? Theme.mint.opacity(0.14) : Color.white.opacity(0.04),
+            .background(isSel ? Theme.navyAccent.opacity(0.14) : Color.white.opacity(0.04),
                         in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
