@@ -16,7 +16,7 @@ enum InviteStore {
     static func handleDeepLink(inviterId: String) {
         guard !inviterId.isEmpty else { return }
         pendingInviterId = inviterId
-        Task { await redeemPendingIfPossible(uid: Auth.auth().currentUser?.uid) }
+        Task { await redeemPendingIfPossible(uid: AuthManager.appUserId(of: Auth.auth().currentUser)) }
     }
 
     /// 보관된 초대를 리딤(로그인 상태일 때만 소비). 실패는 조용히 무시.

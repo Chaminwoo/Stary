@@ -127,6 +127,8 @@ enum L10n: String {
     // 친구/채팅/로그인/알림 화면.
     case friendSearchPlaceholder, friendAdd, friendAccept, friendDecline
     case friendRequests, friendMyFriends, friendEmpty, friendNoName, commonSearch
+    // 친구 요청 상태/토스트(Android friend_status_* + FriendViewModel 토스트 대응 — %@ = 상대 이름).
+    case friendStatusFriend, friendStatusRequested, friendRequestSent, friendRequestFail
     case chatInputPlaceholder, commonFriend
     case loginGoogle, loginBrowse, notifEmpty
     // 업적 화면(장착 버튼/히든 달성 알림).
@@ -365,6 +367,10 @@ enum L10n: String {
                                             "No friends yet.\nSearch by name to add some!",
                                             "まだ友達がいません。\n名前で検索して追加しましょう！")
         case .friendNoName:         return ("(이름 없음)", "(No name)", "(名前なし)")
+        case .friendStatusFriend:   return ("친구", "Friend", "友達")
+        case .friendStatusRequested: return ("요청됨", "Requested", "リクエスト済み")
+        case .friendRequestSent:    return ("%@님에게 친구 요청을 보냈어요", "Friend request sent to %@", "%@さんに友達リクエストを送りました")
+        case .friendRequestFail:    return ("요청 실패", "Request failed", "リクエストに失敗しました")
         case .commonSearch:         return ("검색", "Search", "検索")
         case .chatInputPlaceholder: return ("메시지 입력", "Message", "メッセージを入力")
         case .commonFriend:         return ("친구", "Friend", "友達")

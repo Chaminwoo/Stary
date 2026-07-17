@@ -42,12 +42,17 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -60,6 +65,8 @@ import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Diary
+import com.chaminwoo.stary.core.ui.clickBounce
+import com.chaminwoo.stary.core.ui.raisedCosmicBorder
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapUiState
 import com.chaminwoo.stary.feature.map.OrsRouting
@@ -175,6 +182,18 @@ fun DiaryMap(
 
     // 다이어리 진입 직전 "지도 왜곡" 연출 — 스냅샷을 파장+울렁시킨 뒤 상세로([DiaryOpenWarp]).
     val warpState = remember { mutableStateOf<DiaryOpenWarpData?>(null) }
+    // 업로드 버튼 탭 연출용 — 파장 중심을 버튼 위치로 잡기 위한 좌표(루트 기준).
+    var mapBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
+    var createFabCenterInRoot by remember { mutableStateOf<Offset?>(null) }
+    // 업로드 버튼 바운스 — 파장 시작(warpState 세팅, 탭 즉시)과 같은 프레임에 구동.
+    val createFabScale = remember { Animatable(1f) }
+    LaunchedEffect(warpState.value) {
+        val wd = warpState.value
+        if (wd?.openCreate != true) return@LaunchedEffect
+        createFabScale.snapTo(1f)
+        createFabScale.animateTo(1.12f, tween(110, easing = FastOutSlowInEasing))
+        createFabScale.animateTo(1f, tween(180, easing = FastOutSlowInEasing))
+    }
 
     val onDiaryClickRef = rememberUpdatedState(onDiaryClick)
     val onClusterClickRef = rememberUpdatedState(onClusterClick)
@@ -216,7 +235,28 @@ fun DiaryMap(
     }
     val requestRouteRef = rememberUpdatedState(requestRoute)
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // 파장 연출 종료 후 분기 — 업로드/별 열람/알림 포커스 공용(연출 그리는 위치가 달라 분리).
+    val onWarpFinished: (DiaryOpenWarpData) -> Unit = { wd ->
+        warpState.value = null
+        when {
+            // 업로드 버튼 탭 → 파장 후 다이어리 작성 화면으로
+            wd.openCreate -> onCreateClick()
+            wd.navigateAfter -> {
+                // 별 탭(100m 이내) → 파장 후 세부 화면으로 (합쳐진 별이면 카드 뷰어로)
+                MapUiState.exitMapOnly()
+                if (wd.clusterIds.size > 1) onClusterClickRef.value(wd.clusterIds)
+                else onDiaryClickRef.value(wd.id)
+            }
+            // 알림 포커스 → 파장만 내고 지도에 머문다
+            else -> onFocusHandledRef.value()
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onGloballyPositioned { mapBoundsInRoot = it.boundsInRoot() }
+    ) {
         AndroidView(
             factory = { mapView },
             modifier = Modifier.fillMaxSize(),
@@ -235,6 +275,12 @@ fun DiaryMap(
                 map.addOnCameraIdleListener {
                     isCameraMoving.value = false
                     cameraIdleTick++
+                    // 마지막 카메라(중심+줌) 저장 — 다음 실행의 초기 카메라가 "마지막으로 보던 곳"이 되게.
+                    map.cameraPosition.target?.let { c ->
+                        LocationHelper.persistCameraState(
+                            context, c.latitude, c.longitude, map.cameraPosition.zoom
+                        )
+                    }
                 }
                 // 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음)
                 map.addOnCameraMoveListener {
@@ -528,9 +574,11 @@ fun DiaryMap(
 
                     val target = LocationHelper.cameraTarget
                     if (target == null) {
+                        // 초기 카메라 = 지난 세션에서 마지막으로 보던 카메라(없으면 마지막 위치/기본좌표).
+                        val savedCam = LocationHelper.lastCameraState(context)
                         map.cameraPosition = CameraPosition.Builder()
-                            .target(start.toMl())
-                            .zoom(DEFAULT_ZOOM)
+                            .target(savedCam?.let { MlLatLng(it.latitude, it.longitude) } ?: start.toMl())
+                            .zoom(savedCam?.zoom ?: DEFAULT_ZOOM)
                             .tilt(BASE_TILT_DEG)
                             .build()
                     } else {
@@ -580,6 +628,11 @@ fun DiaryMap(
             }
         }
 
+        // 업로드 버튼 파장 연출 — 버튼들이 연출 내내 그대로 보여야 하므로 버튼보다 아래(먼저) 그린다.
+        warpState.value?.let { wd ->
+            if (wd.openCreate) DiaryOpenWarp(wd) { onWarpFinished(wd) }
+        }
+
         // 지도만 보기 모드에선 모든 버튼(좌상단 줌 + 우하단 FAB)을 숨긴다.
         if (!MapUiState.mapOnly) {
         // 좌상단 줌 버튼 (+/-) — 버튼 1탭당 한 단계, 부드럽게 애니메이션 줌.
@@ -595,7 +648,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier.size(44.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Add, stringResource(R.string.cd_zoom_in), tint = Color.White, modifier = Modifier.size(20.dp))
             }
@@ -604,7 +657,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier.size(44.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Remove, stringResource(R.string.cd_zoom_out), tint = Color.White, modifier = Modifier.size(20.dp))
             }
@@ -623,7 +676,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Navigation, stringResource(R.string.cd_my_location), tint = Color.White, modifier = Modifier.size(20.dp))
             }
@@ -634,7 +687,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(
                     Icons.Filled.AutoAwesome,
@@ -650,7 +703,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(
                     Icons.Filled.Visibility,
@@ -660,24 +713,49 @@ fun DiaryMap(
                 )
             }
 
-            // 다이어리 생성 (로그인 상태에서만 노출)
+            // 다이어리 생성 (로그인 상태에서만 노출) — 탭하면 별 열람과 같은 파장 연출 후 작성 화면으로.
             if (showCreate) {
                 FloatingActionButton(
-                    onClick = onCreateClick,
+                    onClick = {
+                        if (warpState.value != null) return@FloatingActionButton // 연출 중 중복 탭 무시
+                        val map = mapRef
+                        val bounds = mapBoundsInRoot
+                        val fabCenter = createFabCenterInRoot
+                        if (map != null && bounds != null && fabCenter != null &&
+                            bounds.width > 0f && bounds.height > 0f
+                        ) {
+                            // 파장 중심 = 업로드 버튼 위치(0..1)
+                            val ox = ((fabCenter.x - bounds.left) / bounds.width).coerceIn(0f, 1f)
+                            val oy = ((fabCenter.y - bounds.top) / bounds.height).coerceIn(0f, 1f)
+                            // 스냅샷을 기다리지 않고 탭 즉시 파장 시작 — 그동안은 라이브 지도 위에
+                            // 링만 퍼지고, 스냅샷이 도착하면 같은 진행도에서 왜곡 메시로 이어진다.
+                            com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
+                            val wd = DiaryOpenWarpData(
+                                null, ox, oy, id = "", colorIndex = 13, // 코발트 — 남색 버튼과 동계열 파장
+                                navigateAfter = false, openCreate = true,
+                            )
+                            warpState.value = wd
+                            map.snapshot { bmp -> wd.bitmap = bmp }
+                        } else onCreateClick() // 지도 준비 전이면 연출 없이 바로 이동
+                    },
                     shape = CircleShape,
                     elevation = FloatingActionButtonDefaults.elevation(0.dp),
                     containerColor = Color.Transparent,
+                    modifier = Modifier
+                        .onGloballyPositioned { createFabCenterInRoot = it.boundsInRoot().center }
+                        .graphicsLayer { scaleX = createFabScale.value; scaleY = createFabScale.value },
                 ) {
                     Box(
                         modifier = Modifier
                             .size(56.dp)
                             .background(
                                 Brush.linearGradient(
-                                    colors = listOf(Color(0xFF6EE7B7), Color(0xFF3B82F6)),
+                                    colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
                                     start = Offset(0f, 0f), end = Offset(80f, 80f)
                                 ),
                                 CircleShape
-                            ),
+                            )
+                            .raisedCosmicBorder(),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Filled.Add, stringResource(R.string.cd_create_diary), tint = Color.White, modifier = Modifier.size(24.dp))
@@ -691,6 +769,7 @@ fun DiaryMap(
         if (savedRoute != null) {
             FloatingActionButton(
                 onClick = { savedRoute = null },
+                shape = CircleShape,
                 containerColor = Color(0xFF0E1520),
                 contentColor = Color(0xFF86EFAC),
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
@@ -698,25 +777,30 @@ fun DiaryMap(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 30.dp)
                     .size(52.dp)
+                    .clickBounce()
+                    .raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Close, contentDescription = context.getString(R.string.map_route_cancel))
             }
         }
 
-        // 지도 왜곡 연출 — 스냅샷 이미지를 1초간 파장+울렁시킨 뒤 세부 화면으로 이동(세부는 멀쩡).
+        // 지도 왜곡 연출(별 열람/알림 포커스) — 스냅샷 이미지를 1초간 파장+울렁시킨 뒤 이동(세부는 멀쩡).
+        // 업로드 연출과 달리 버튼까지 덮는 몰입 연출이라 버튼 위에 그린다.
         warpState.value?.let { wd ->
-            DiaryOpenWarp(wd) {
-                warpState.value = null
-                if (wd.navigateAfter) {
-                    // 별 탭(100m 이내) → 파장 후 세부 화면으로 (합쳐진 별이면 카드 뷰어로)
-                    MapUiState.exitMapOnly()
-                    if (wd.clusterIds.size > 1) onClusterClickRef.value(wd.clusterIds)
-                    else onDiaryClickRef.value(wd.id)
-                } else {
-                    // 알림 포커스 → 파장만 내고 지도에 머문다
-                    onFocusHandledRef.value()
-                }
-            }
+            if (!wd.openCreate) DiaryOpenWarp(wd) { onWarpFinished(wd) }
+        }
+
+        // 연출 중 입력 차단 — 파장이 끝날 때까지 지도/버튼 탭을 전부 무시(끝나면 자동 해제).
+        if (warpState.value != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                        }
+                    }
+            )
         }
     }
 
@@ -876,12 +960,32 @@ fun DiaryMap(
     // ⚠️ 카메라 이동 중엔 스타일 변경을 멈춰 팬/줌 끊김을 방지한다.
     LaunchedEffect(styleRef) {
         val style = styleRef ?: return@LaunchedEffect
+        // 레이어는 스타일 초기화 때 전부 추가되고 제거되지 않으므로(styleRef 는 그 뒤 설정)
+        // 참조를 1회만 조회해 재사용 — 매 틱 문자열 getLayer(JNI) 조회 제거.
+        val diaryLayers = Array(PHASE_GROUPS) { style.getLayer(diaryLayerId(it)) as? SymbolLayer }
+        val auraLayers = Array(PHASE_GROUPS) { style.getLayer(auraLayerId(it)) as? CircleLayer }
+        val groundLayers = Array(PHASE_GROUPS) { style.getLayer(groundLightLayerId(it)) as? CircleLayer }
+        val sparkleLayers = Array(SPARKLE_SETS) { s -> Array(PHASE_GROUPS) { g -> style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer } }
+        val orbitLayers = Array(MAX_ORBIT_STARS) { i -> Array(PHASE_GROUPS) { g -> style.getLayer(orbitLayerId(i, g)) as? SymbolLayer } }
+        val particleLayers = Array(PHASE_GROUPS) { style.getLayer(particleLayerId(it)) as? SymbolLayer }
+        val roadGlintLayer = style.getLayer(ROAD_GLINT_LAYER) as? LineLayer
+        // 값이 연속 변하는 표현식은 양자화해 캐시(눈에 안 보이는 1/64 단위) — 매 틱 트리 재생성 방지.
+        val sizeExprCache = HashMap<Int, Expression>()
+        val groundExprCache = HashMap<Int, Expression>()
+        val sparkleOpExprCache = HashMap<Int, Expression>()
+        val particleOpExprCache = HashMap<Int, Expression>()
+        fun quant(v: Float) = (v * 64f).toInt()
         var t = 0f
         var lastDashOffset = -1f
         var lastGlintEnvelope = -1f
         while (isActive) {
             if (isCameraMoving.value) {
                 delay(100)
+                continue
+            }
+            // 앱이 후면이면 스타일 갱신을 멈춰 배터리를 아낀다(전면 복귀 시 자동 재개).
+            if (!com.chaminwoo.stary.core.util.AppForeground.isForeground) {
+                delay(300)
                 continue
             }
             val zoom = (mapRef?.cameraPosition?.zoom ?: 13.0).toFloat()
@@ -894,27 +998,32 @@ fun DiaryMap(
             t += 0.05f
             val zoomAmp = ((zoom - 6f) / (15f - 6f)).coerceIn(0.1f, 1f)
             for (g in 0 until PHASE_GROUPS) {
-                val layer = style.getLayer(diaryLayerId(g)) as? SymbolLayer ?: continue
+                val layer = diaryLayers[g] ?: continue
                 val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
                 val wave = sin(t * 1.6f + phase) // -1(위)..1(아래)
                 val floatDy = wave * 4f * zoomAmp // 최대 -4..4 dp, 줌 작으면 축소
                 val pulse = 1f + 0.20f * ((sin(t * 3.2f + phase) + 1f) / 2f) // 1.0..1.2 맥동
                 layer.setProperties(
                     PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                    PropertyFactory.iconSize(starSizeExpression(pulse)),
+                    PropertyFactory.iconSize(
+                        sizeExprCache.getOrPut(quant(pulse)) { starSizeExpression(quant(pulse) / 64f) }
+                    ),
                 )
                 // 후광도 같은 float 적용 → 별과 함께 떠오른다
-                (style.getLayer(auraLayerId(g)) as? CircleLayer)?.setProperties(
+                auraLayers[g]?.setProperties(
                     PropertyFactory.circleTranslate(arrayOf(0f, floatDy))
                 )
                 // 바닥 빛 웅덩이는 지점 고정(시차의 기준점). 별이 내려와 가까워질수록 살짝 밝게.
                 val downFrac = (wave + 1f) / 2f // 0(위)..1(아래)
-                (style.getLayer(groundLightLayerId(g)) as? CircleLayer)?.setProperties(
+                val groundOp = GROUND_LIGHT_OPACITY * (0.7f + 0.3f * downFrac)
+                groundLayers[g]?.setProperties(
                     PropertyFactory.circleOpacity(
-                        Expression.product(
-                            Expression.literal(GROUND_LIGHT_OPACITY * (0.7f + 0.3f * downFrac)),
-                            Expression.get("alpha")
-                        )
+                        groundExprCache.getOrPut(quant(groundOp)) {
+                            Expression.product(
+                                Expression.literal(quant(groundOp) / 64f),
+                                Expression.get("alpha")
+                            )
+                        }
                     )
                 )
                 // 스파클 — 타원 궤도(icon-offset) + 별 부유 동기(iconTranslate) + 개수 게이트(opacity).
@@ -929,7 +1038,7 @@ fun DiaryMap(
                     val satUy = sin(satAng) * 0.55f
 
                     for (s in 0 until SPARKLE_SETS) {
-                        val sl = style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer ?: continue
+                        val sl = sparkleLayers[s][g] ?: continue
                         val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
                         // 세트별 목표 오프셋(dp) — 위성은 부모 파티클 위치 + 주전원(그 파티클을 공전).
                         val dpAt: (Float) -> Pair<Float, Float> = when (s) {
@@ -949,7 +1058,11 @@ fun DiaryMap(
                                 sparkleOffsetExpression(s, sparkleZoom, screenDensity, dpAt)
                             ),
                             PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                            PropertyFactory.iconOpacity(sparkleOpacityExpression(s, op)),
+                            PropertyFactory.iconOpacity(
+                                sparkleOpExprCache.getOrPut(s * 100_000 + quant(op)) {
+                                    sparkleOpacityExpression(s, quant(op) / 64f)
+                                }
+                            ),
                         )
                     }
                 }
@@ -958,7 +1071,7 @@ fun DiaryMap(
                 // 함께** 오르내린다(같은 phaseGroup 레이어라 가능).
                 if (zoom > 11.1f) {
                     for (i in 0 until MAX_ORBIT_STARS) {
-                        val ol = style.getLayer(orbitLayerId(i, g)) as? SymbolLayer ?: continue
+                        val ol = orbitLayers[i][g] ?: continue
                         val driftX = sin(t * (0.7f + 0.14f * i) + i * 2.1f) * 0.8f
                         val driftY = sin(t * (1.15f + 0.18f * i) + i * 1.4f) * 1.0f
                         val op = orbitFade.value * (0.88f + 0.12f * sin(t * 1.7f + i * 1.3f))
@@ -972,12 +1085,14 @@ fun DiaryMap(
             }
             // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신 (GeoJSON 재생성 없음)
             for (g in 0 until PHASE_GROUPS) {
-                val layer = style.getLayer(particleLayerId(g)) as? SymbolLayer ?: continue
+                val layer = particleLayers[g] ?: continue
                 val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
                 val speed = 2.0f + g * 0.4f // 그룹마다 다른 주기 → 덜 기계적인 반짝임
                 val twinkle = 0.25f + 0.75f * ((sin(t * speed + phase) + 1f) / 2f)
                 layer.setProperties(
-                    PropertyFactory.iconOpacity(particleOpacityExpression(twinkle))
+                    PropertyFactory.iconOpacity(
+                        particleOpExprCache.getOrPut(quant(twinkle)) { particleOpacityExpression(quant(twinkle) / 64f) }
+                    )
                 )
             }
             // 도로 글린트: 대시 위상을 흘려 빛 알갱이가 도로를 따라 흐른다.
@@ -987,7 +1102,7 @@ fun DiaryMap(
                 .toFloat() / ROAD_GLINT_STEPS * ROAD_GLINT_GAP
             if (q != lastDashOffset) {
                 lastDashOffset = q
-                (style.getLayer(ROAD_GLINT_LAYER) as? LineLayer)?.setProperties(
+                roadGlintLayer?.setProperties(
                     PropertyFactory.lineDasharray(
                         arrayOf(0f, q, ROAD_GLINT_DASH, ROAD_GLINT_GAP - q)
                     )
@@ -1004,7 +1119,7 @@ fun DiaryMap(
             }.coerceIn(0f, 1f)
             if (envelope != lastGlintEnvelope) {
                 lastGlintEnvelope = envelope
-                (style.getLayer(ROAD_GLINT_LAYER) as? LineLayer)?.setProperties(
+                roadGlintLayer?.setProperties(
                     PropertyFactory.lineOpacity(roadGlintOpacityExpression(envelope))
                 )
             }

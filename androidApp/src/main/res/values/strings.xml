@@ -121,6 +121,7 @@
     <string name="friend_searching">검색 중...</string>
     <string name="friend_search_results">검색 결과</string>
     <string name="friend_status_friend">친구</string>
+    <string name="friend_status_requested">요청됨</string>
     <string name="friend_add">추가</string>
     <string name="friend_no_results">\'%1$s\' 검색 결과가 없어요</string>
     <string name="friend_requests">받은 친구 요청</string>

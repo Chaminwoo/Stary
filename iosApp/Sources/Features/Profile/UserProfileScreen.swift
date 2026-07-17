@@ -22,6 +22,8 @@ struct UserProfileScreen: View {
     @State private var showReportedConfirm = false
     @State private var friendsCount = 0
     @State private var openDiary: Diary?
+    /// 그 사람이 프로필에 띄우기로 선택(핀)한 다이어리 id — 타인 프로필엔 이 별들만 뜬다.
+    @State private var pinnedIds: [String] = []
     @ObservedObject private var hidden = HiddenAchievementStore.shared
 
     private var isMe: Bool { userId == auth.uid }
@@ -129,6 +131,7 @@ struct UserProfileScreen: View {
             if let doc = try? await FirestoreService.users.document(userId).getDocument() {
                 profileImageUrl = doc.get("profileImageUrl") as? String
                 equippedTitleId = doc.get("equippedTitle") as? String
+                pinnedIds = (doc.get("pinnedDiaries") as? [String]) ?? []
             }
             // 떠다니는 통계용 친구 수(#6).
             let fsnap = try? await FirestoreService.friends(of: userId).getDocuments()
@@ -257,7 +260,10 @@ struct UserProfileScreen: View {
                                 color: Color(hex: 0xF7E067), label: locale.t(.profileDiaries)))
         items.append(StatBubble(systemImage: "eye.fill", count: totalViews,
                                 color: Theme.mint, label: locale.t(.statViews)))
-        for d in visibleDiaries.prefix(10) {
+        // 그 사람이 "프로필에 띄우기"로 선택(핀)한 별만 — 전체 다이어리를 다 띄우지 않는다.
+        // (Android UserProfileScreen pinnedDiaries 패리티. 공개 범위 필터는 visibleDiaries 가 이미 적용.)
+        let pinned = pinnedIds.compactMap { id in visibleDiaries.first { $0.id == id } }
+        for d in pinned {
             diaryAt[items.count] = d
             items.append(StatBubble(
                 systemImage: "star.fill", count: 0, color: StarStyle.color(d.starColor),

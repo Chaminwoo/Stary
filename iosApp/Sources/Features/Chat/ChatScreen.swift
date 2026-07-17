@@ -25,9 +25,6 @@ struct ChatScreen: View {
         ZStack {
             // Android ChatScreen 배경 — mydiary_bg + 검정 0.85 틴트.
             ScreenBackground(name: "mydiary_bg", darken: 0.85)
-            // 별가루(34-7) — 메시지 뒤 배경에서 아주 옅게 떠다닌다(장식, 히트테스트 없음).
-            ChatStardust()
-                .ignoresSafeArea()
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -143,40 +140,3 @@ struct ChatScreen: View {
     }
 }
 
-/// 채팅방 배경 별가루(34-7) — 미세한 입자 12개가 아주 느리게 떠다니며 반짝인다.
-/// 배치는 인덱스 기반 고정 시드라 리컴포지션마다 흔들리지 않고, 히트테스트에 참여하지 않아
-/// 메시지 롱프레스/입력창 조작을 방해하지 않는다. (Android ChatStardust 패리티 — 시드/주기/알파 동일)
-private struct ChatStardust: View {
-    private static let count = 12
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30)) { tl in
-            // 24s 주기 위상(0..2π) — Android InfiniteTransition Restart 대응.
-            let t = (tl.date.timeIntervalSinceReferenceDate / 24).truncatingRemainder(dividingBy: 1) * 6.28318
-            Canvas { ctx, size in
-                let w = size.width
-                let h = size.height
-                for i in 0..<Self.count {
-                    let fx = Double(i * 37 % 100) / 100
-                    let fy = Double(i * 71 % 100) / 100
-                    let phase = Double(i) * 0.7
-                    // 아주 느린 표류(가로 sin, 세로 cos — 서로 다른 주기로 겹치지 않게)
-                    let px = w * (0.05 + 0.90 * fx) + sin(t * 0.6 + phase) * 10
-                    let py = h * (0.06 + 0.88 * fy) + cos(t * 0.45 + phase * 1.3) * 14
-                    let twinkle = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * 2.1 + phase * 2))
-                    let r = 1.5 + Double(i % 3) * 0.75
-                    ctx.fill(
-                        Path(ellipseIn: CGRect(x: px - r * 2.2, y: py - r * 2.2,
-                                               width: r * 4.4, height: r * 4.4)),
-                        with: .color(.white.opacity(0.10 * twinkle))
-                    )
-                    ctx.fill(
-                        Path(ellipseIn: CGRect(x: px - r, y: py - r, width: r * 2, height: r * 2)),
-                        with: .color(.white.opacity(0.35 * twinkle))
-                    )
-                }
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}

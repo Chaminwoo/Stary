@@ -75,7 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chaminwoo.stary.R
-import com.chaminwoo.stary.core.designsystem.PoorStory
+import com.chaminwoo.stary.core.designsystem.MinSans
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.AppSettings
 import com.chaminwoo.stary.core.util.LocaleManager
@@ -191,8 +191,8 @@ fun SettingsScreen(
                     ) { Icon(Icons.Filled.DeleteForever, null, tint = SoftRed, modifier = Modifier.size(20.dp)) }
                     Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_delete_account), color = SoftRed, fontFamily = PoorStory, fontSize = 17.sp)
-                        Text(stringResource(R.string.settings_delete_account_desc), color = TextMuted, fontFamily = PoorStory, fontSize = 12.sp, lineHeight = 16.sp)
+                        Text(stringResource(R.string.settings_delete_account), color = SoftRed, fontFamily = MinSans, fontSize = 17.sp)
+                        Text(stringResource(R.string.settings_delete_account_desc), color = TextMuted, fontFamily = MinSans, fontSize = 12.sp, lineHeight = 16.sp)
                     }
                     if (deleting) com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 20.dp, color = SoftRed)
                 }
@@ -202,7 +202,7 @@ fun SettingsScreen(
             Text(
                 stringResource(R.string.settings_autosave),
                 color = TextMuted.copy(alpha = 0.7f),
-                fontFamily = PoorStory,
+                fontFamily = MinSans,
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 textAlign = TextAlign.Center
@@ -230,8 +230,8 @@ fun SettingsScreen(
                 containerColor = Color(0xFF14181C),
                 titleContentColor = Color(0xFFF0F0F0),
                 textContentColor = TextMuted,
-                title = { Text(stringResource(R.string.settings_delete_account), fontFamily = PoorStory) },
-                text = { Text(stringResource(R.string.settings_delete_confirm_msg), fontFamily = PoorStory) },
+                title = { Text(stringResource(R.string.settings_delete_account), fontFamily = MinSans) },
+                text = { Text(stringResource(R.string.settings_delete_confirm_msg), fontFamily = MinSans) },
                 confirmButton = {
                     TextButton(
                         enabled = !deleting,
@@ -249,11 +249,11 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                    ) { Text(stringResource(R.string.common_delete), color = SoftRed, fontFamily = PoorStory) }
+                    ) { Text(stringResource(R.string.common_delete), color = SoftRed, fontFamily = MinSans) }
                 },
                 dismissButton = {
                     TextButton(enabled = !deleting, onClick = { showDeleteDialog = false }) {
-                        Text(stringResource(R.string.common_cancel), color = Mint, fontFamily = PoorStory)
+                        Text(stringResource(R.string.common_cancel), color = Mint, fontFamily = MinSans)
                     }
                 }
             )
@@ -283,7 +283,7 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (St
         ) {
             Text(
                 stringResource(R.string.language_dialog_title),
-                color = TextMain, fontFamily = PoorStory, fontSize = 17.sp,
+                color = TextMain, fontFamily = MinSans, fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 16.dp, bottom = 10.dp)
             )
@@ -300,7 +300,7 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (St
                     Text(
                         languageLabel(tag),
                         color = if (selected) Mint else TextMain,
-                        fontFamily = PoorStory, fontSize = 16.sp,
+                        fontFamily = MinSans, fontSize = 16.sp,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         modifier = Modifier.weight(1f)
                     )
@@ -333,7 +333,7 @@ private fun SectionLabel(text: String, icon: ImageVector) {
         Icon(icon, contentDescription = null, tint = Mint, modifier = Modifier.size(15.dp))
         Spacer(Modifier.width(7.dp))
         Text(
-            text, color = Mint, fontFamily = PoorStory,
+            text, color = Mint, fontFamily = MinSans,
             fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp
         )
     }
@@ -401,10 +401,10 @@ private fun ToggleRow(
         IconBadge(icon, active = checked)
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = TextMain, fontFamily = PoorStory, fontSize = 17.sp)
+            Text(label, color = TextMain, fontFamily = MinSans, fontSize = 17.sp)
             if (description != null) {
                 Spacer(Modifier.height(2.dp))
-                Text(description, color = TextMuted, fontFamily = PoorStory, fontSize = 12.sp, lineHeight = 16.sp)
+                Text(description, color = TextMuted, fontFamily = MinSans, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
         Spacer(Modifier.width(10.dp))
@@ -446,14 +446,14 @@ private fun NavRow(
         IconBadge(icon)
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = TextMain, fontFamily = PoorStory, fontSize = 17.sp)
+            Text(label, color = TextMain, fontFamily = MinSans, fontSize = 17.sp)
             if (description != null) {
                 Spacer(Modifier.height(2.dp))
-                Text(description, color = TextMuted, fontFamily = PoorStory, fontSize = 12.sp, lineHeight = 16.sp)
+                Text(description, color = TextMuted, fontFamily = MinSans, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
         Spacer(Modifier.width(8.dp))
-        Text(value, color = Mint, fontFamily = PoorStory, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(value, color = Mint, fontFamily = MinSans, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
     }
 }
@@ -476,7 +476,7 @@ private fun VolumeRow(
             Text(
                 label,
                 color = if (enabled) TextMain else Color(0xFF5A5A5A),
-                fontFamily = PoorStory, fontSize = 17.sp,
+                fontFamily = MinSans, fontSize = 17.sp,
                 modifier = Modifier.weight(1f)
             )
             // % 칩
@@ -489,7 +489,7 @@ private fun VolumeRow(
                 Text(
                     "${(value * 100).toInt()}%",
                     color = if (enabled) Mint else Color(0xFF666666),
-                    fontFamily = PoorStory, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                    fontFamily = MinSans, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
                 )
             }
         }

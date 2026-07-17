@@ -35,7 +35,11 @@ object LocationHelper {
     private const val PREFS = "stary_location"
     private const val KEY_LAST_LAT = "last_lat_bits"
     private const val KEY_LAST_LNG = "last_lng_bits"
+    private const val KEY_CAM_LAT = "cam_lat_bits"
+    private const val KEY_CAM_LNG = "cam_lng_bits"
+    private const val KEY_CAM_ZOOM = "cam_zoom_bits"
     private var lastPersistMs = 0L
+    private var lastCamPersistMs = 0L
 
     private var continuousCallback: LocationCallback? = null
 
@@ -57,6 +61,35 @@ object LocationHelper {
             Double.fromBits(p.getLong(KEY_LAST_LAT, 0L)),
             Double.fromBits(p.getLong(KEY_LAST_LNG, 0L))
         )
+    }
+
+    /** 마지막으로 보던 지도 카메라(중심+줌) — 앱 재시작 시 초기 카메라 복원용. */
+    data class CameraState(val latitude: Double, val longitude: Double, val zoom: Double)
+
+    /**
+     * 지난 세션에서 마지막으로 보던 카메라(중심+줌) — 앱 시작 시 초기 카메라가 "마지막으로
+     * 앱을 종료한 위치"에서 시작하도록 복원한다(없으면 null → 마지막 위치/기본좌표 폴백).
+     */
+    fun lastCameraState(context: Context): CameraState? {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!p.contains(KEY_CAM_LAT) || !p.contains(KEY_CAM_LNG)) return null
+        return CameraState(
+            Double.fromBits(p.getLong(KEY_CAM_LAT, 0L)),
+            Double.fromBits(p.getLong(KEY_CAM_LNG, 0L)),
+            Double.fromBits(p.getLong(KEY_CAM_ZOOM, 15.0.toRawBits()))
+        )
+    }
+
+    /** 카메라 idle 마다 호출 — 2초 스로틀로 디스크 쓰기를 아낀다(프로세스 킬에도 최신값 유지). */
+    fun persistCameraState(context: Context, latitude: Double, longitude: Double, zoom: Double) {
+        val now = System.currentTimeMillis()
+        if (now - lastCamPersistMs < 2_000) return
+        lastCamPersistMs = now
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_CAM_LAT, latitude.toRawBits())
+            .putLong(KEY_CAM_LNG, longitude.toRawBits())
+            .putLong(KEY_CAM_ZOOM, zoom.toRawBits())
+            .apply()
     }
 
     private fun persistLastLocation(context: Context, latLng: LatLng) {

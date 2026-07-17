@@ -78,6 +78,8 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.chaminwoo.stary.core.ui.clickBounce
+import com.chaminwoo.stary.core.ui.raisedCosmicBorder
 import com.chaminwoo.stary.core.util.MapUiState
 import com.chaminwoo.stary.core.util.ProfilePinState
 import com.chaminwoo.stary.core.util.UserProfileActionState
@@ -254,11 +256,13 @@ fun MainScreen(
                     ) {
                         Text(
                             stringResource(R.string.drawer_list),
-                            fontSize = 20.sp,
+                            fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
                             color = Color(0xFF8A8A8A),
                             modifier = Modifier.weight(1f)
                         )
-                        IconButton(onClick = { coroutineScope.launch { drawerState.close() } }) {
+                        IconButton(onClick = { coroutineScope.launch { drawerState.close() } }, modifier = Modifier.clickBounce()) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_close), tint = Color(0xFFF0F0F0))
                         }
                     }
@@ -305,7 +309,9 @@ fun MainScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = localizedTitle(currentRoute),
-                                    fontSize = 20.sp,
+                                    fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color(0xFFF0F0F0)
                                 )
@@ -318,18 +324,18 @@ fun MainScreen(
                         },
                         navigationIcon = {
                             if (currentRoute.isRoot) {
-                                IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
+                                IconButton(onClick = { coroutineScope.launch { drawerState.open() } }, modifier = Modifier.clickBounce()) {
                                     Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.cd_menu), tint = Color(0xFFF0F0F0))
                                 }
                             } else {
-                                IconButton(onClick = { navController.navigateUp() }) {
+                                IconButton(onClick = { navController.navigateUp() }, modifier = Modifier.clickBounce()) {
                                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back), tint = Color(0xFFF0F0F0))
                                 }
                             }
                         },
                         actions = {
                             if (currentRoute is NavRoute.Main) {
-                                IconButton(onClick = { navController.navigate(NavRoute.Notification) }) {
+                                IconButton(onClick = { navController.navigate(NavRoute.Notification) }, modifier = Modifier.clickBounce()) {
                                     BadgedBox(
                                         badge = {
                                             // 미열람 알림이 있으면 하트 우측 상단에 빨간 동그라미(알림 점)
@@ -349,14 +355,14 @@ fun MainScreen(
                             }
                             // 내 프로필: 우측 + 버튼 — 프로필에 띄울 별(다이어리) 고르기
                             if (currentRoute is NavRoute.Profile && ProfilePinState.visible) {
-                                IconButton(onClick = { ProfilePinState.onOpen() }) {
+                                IconButton(onClick = { ProfilePinState.onOpen() }, modifier = Modifier.clickBounce()) {
                                     Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.profile_pin_diaries), tint = Color(0xFFF0F0F0))
                                 }
                             }
                             // 타인 프로필: 우측에 친구 액션 — 사람+(친구추가) / 사람✓(친구, 누르면 취소 확인)
                             if (currentRoute is NavRoute.UserProfile && UserProfileActionState.visible) {
                                 val mint = Color(0xFF6EE7B7)
-                                IconButton(onClick = { UserProfileActionState.onClick() }) {
+                                IconButton(onClick = { UserProfileActionState.onClick() }, modifier = Modifier.clickBounce()) {
                                     when {
                                         UserProfileActionState.isFriend ->
                                             Icon(Icons.Filled.HowToReg, contentDescription = stringResource(R.string.friend_status_friend), tint = mint)
@@ -369,7 +375,7 @@ fun MainScreen(
                                 // 더보기(⋮) — 신고 / 차단·차단해제
                                 var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                                 Box {
-                                    IconButton(onClick = { menuOpen = true }) {
+                                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.clickBounce()) {
                                         Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.cd_more), tint = Color(0xFFF0F0F0))
                                     }
                                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -395,19 +401,21 @@ fun MainScreen(
                         onClick = { navController.navigate(NavRoute.Upload) },
                         shape = CircleShape,
                         elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                        containerColor = Color.Transparent
+                        containerColor = Color.Transparent,
+                        modifier = Modifier.clickBounce()
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(56.dp)
                                 .background(
                                     Brush.linearGradient(
-                                        colors = listOf(Color(0xFF6EE7B7), Color(0xFF3B82F6)),
+                                        colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
                                         start = Offset(0f, 0f),
                                         end = Offset(80f, 80f)
                                     ),
                                     CircleShape
-                                ),
+                                )
+                                .raisedCosmicBorder(),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(Icons.Default.Add, contentDescription = "글쓰기", tint = Color.White, modifier = Modifier.size(24.dp))
@@ -534,7 +542,7 @@ private fun DrawerItem(
     }
     NavigationDrawerItem(
         icon = { Icon(icon, null, tint = color, modifier = Modifier.size(22.dp)) },
-        label = { Text(label, fontSize = 18.sp, color = color) },
+        label = { Text(label, fontFamily = com.chaminwoo.stary.core.designsystem.MinSans, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = color) },
         selected = selected,
         onClick = onClick,
         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(

@@ -33,12 +33,11 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import com.chaminwoo.stary.core.designsystem.StarStyle
+import com.chaminwoo.stary.core.ui.bakeCrystalIcon
 import com.chaminwoo.stary.feature.profile.ParticleEffect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.VectorPainter
@@ -145,6 +144,12 @@ fun FloatingStatBox(
     val crystalIcons: List<ImageBitmap> = painters.mapIndexed { i, painter ->
         val color = items[i].color
         remember(painter, color, bakePx) { bakeCrystalIcon(painter, color, seed = i, sizePx = bakePx, layoutDirection = layoutDirection) }
+    }
+    // 핀 다이어리 별도 같은 이유로 비트맵 1회 베이크(매 프레임 크리스탈 파편 재생성 방지)
+    val starIcons: List<ImageBitmap?> = items.map { item ->
+        remember(item.starType, item.starColorIndex, bakePx) {
+            if (item.starType >= 0) bakeCrystalStar(item.starType, item.starColorIndex, bakePx) else null
+        }
     }
     val n = items.size
     // 물리 루프(재시작 안 함)에서도 최신 count 를 읽어 화려함(크기)에 반영.
@@ -399,9 +404,9 @@ fun FloatingStatBox(
                 val scaled = scaledIdx
                 for (i in 0 until n) {
                     if (i == scaled) continue
-                    drawOne(items[i], crystalIcons[i], bodies[i].pos, iconPx * richness(items[i].count), bodies[i].rot, 1f)
+                    drawOne(items[i], crystalIcons[i], starIcons[i], bodies[i].pos, iconPx * richness(items[i].count), bodies[i].rot, 1f)
                 }
-                scaled?.let { drawOne(items[it], crystalIcons[it], bodies[it].pos, iconPx * richness(items[it].count), bodies[it].rot, grabScale.value) }
+                scaled?.let { drawOne(items[it], crystalIcons[it], starIcons[it], bodies[it].pos, iconPx * richness(items[it].count), bodies[it].rot, grabScale.value) }
             }
         }
 
@@ -481,32 +486,6 @@ private fun collide(a: Body, b: Body, aGrab: Boolean, bGrab: Boolean, grabbedVel
     }
 }
 
-/**
- * 벡터 아이콘 실루엣을 [StarStyle] 크리스탈 파편으로 채운 비트맵을 굽는다(별과 같은 재질).
- * 아이콘을 먼저 그려 알파 마스크로 쓰고, SRC_IN 레이어에 파편을 그려 아이콘 모양 안에만 남긴다.
- */
-private fun bakeCrystalIcon(
-    painter: VectorPainter,
-    color: Color,
-    seed: Int,
-    sizePx: Int,
-    layoutDirection: LayoutDirection,
-): ImageBitmap {
-    val image = ImageBitmap(sizePx, sizePx)
-    val size = Size(sizePx.toFloat(), sizePx.toFloat())
-    CanvasDrawScope().draw(Density(1f), layoutDirection, androidx.compose.ui.graphics.Canvas(image), size) {
-        with(painter) { draw(size) }
-    }
-    val canvas = android.graphics.Canvas(image.asAndroidBitmap())
-    val maskPaint = android.graphics.Paint().apply {
-        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
-    }
-    val layer = canvas.saveLayer(0f, 0f, size.width, size.height, maskPaint)
-    StarStyle.drawCrystalFacets(canvas, silhouette = null, seed = seed, colors = listOf(color.toArgb()), left = 0f, top = 0f, sizePx = size.width)
-    canvas.restoreToCount(layer)
-    return image
-}
-
 /** 후광 + 크리스탈 아이콘 한 개를 [pos] 중심에 [scale] 확대 · [rotationDeg] 회전해 그린다. */
 private fun DrawScope.drawBubble(
     icon: ImageBitmap,
@@ -543,15 +522,23 @@ private fun DrawScope.drawBubble(
 
 /** 별 모양(핀 다이어리) 또는 크리스탈 아이콘을 골라 그린다. */
 private fun DrawScope.drawOne(
-    item: StatBubble, icon: ImageBitmap, pos: Offset, iconPx: Float, rotationDeg: Float, scale: Float,
+    item: StatBubble, icon: ImageBitmap, starIcon: ImageBitmap?, pos: Offset, iconPx: Float, rotationDeg: Float, scale: Float,
 ) {
-    if (item.starType >= 0) drawStarBubble(item.starType, item.starColorIndex, item.color, pos, iconPx, rotationDeg, scale)
+    if (item.starType >= 0 && starIcon != null) drawStarBubble(starIcon, item.color, pos, iconPx, rotationDeg, scale)
     else drawBubble(icon, item.color, pos, iconPx, rotationDeg, scale)
 }
 
-/** 후광 + StarStyle 별(핀 다이어리). 지도 마커/내 다이어리와 동일 모양. */
+/** StarStyle 별(핀 다이어리) 크리스탈 채움을 1회 굽는다 — 지도 마커/내 다이어리와 동일 무늬. */
+private fun bakeCrystalStar(type: Int, colorIndex: Int, sizePx: Int): ImageBitmap {
+    val image = ImageBitmap(sizePx, sizePx)
+    val canvas = android.graphics.Canvas(image.asAndroidBitmap())
+    StarStyle.drawCrystalFill(canvas, type, colorIndex, 0f, 0f, sizePx.toFloat())
+    return image
+}
+
+/** 후광 + 구운 별 비트맵(핀 다이어리). */
 private fun DrawScope.drawStarBubble(
-    type: Int, colorIndex: Int, color: Color, pos: Offset, iconPx: Float, rotationDeg: Float, scale: Float,
+    icon: ImageBitmap, color: Color, pos: Offset, iconPx: Float, rotationDeg: Float, scale: Float,
 ) {
     val r = (iconPx / 2f) * scale
     val glowAlpha = (0.34f * scale).coerceAtMost(0.62f)
@@ -559,14 +546,14 @@ private fun DrawScope.drawStarBubble(
         brush = Brush.radialGradient(listOf(color.copy(alpha = glowAlpha), Color.Transparent), center = pos, radius = r * 2.6f),
         radius = r * 2.6f, center = pos
     )
-    val sizePx = r * 2f
-    drawIntoCanvas { canvas ->
-        val nc = canvas.nativeCanvas
-        val save = nc.save()
-        nc.rotate(rotationDeg, pos.x, pos.y)
-        // 수정 결정(크리스탈) 패싯 채움 — 지도 마커/내 다이어리와 동일
-        StarStyle.drawCrystalFill(nc, type, colorIndex, pos.x - r, pos.y - r, sizePx)
-        nc.restoreToCount(save)
+    val sz = r * 2f
+    if (sz < 1f) return
+    rotate(rotationDeg, pivot = pos) {
+        drawImage(
+            image = icon,
+            dstOffset = IntOffset((pos.x - r).roundToInt(), (pos.y - r).roundToInt()),
+            dstSize = IntSize(sz.roundToInt(), sz.roundToInt()),
+        )
     }
 }
 

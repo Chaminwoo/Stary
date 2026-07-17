@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.43 iOS 패리티 라운드2 (R2-1~R2-3 + 마무리 5건)** — anonymous 디코딩/줌 별크기/후광·파티클/100m 게이팅/미디어/열람 애니메이션/몰입·별자리 버튼/친구 db + 프로필 아이콘 크리스탈화/음악 별자리 보드 스타일/글로브 지구 복원/미번역 전수 + Android 업로드 휠 피커 — **CI(macOS) BUILD SUCCESS `f6428d2`**(2026-07-16) — 아래 8.43 참고.
+> 최종 갱신: **8.44 iOS 패리티 라운드3(버그 7건 + 미완 6건)** — **계정 통일(uid=Google sub)**/**@DocumentID id=nil 버그(7모델)**/구독 최신순 1000/시뮬레이터 서울 고정/달·행성 boolean 모양/친구 요청됨+토스트/후광 2겹 별색/타인 프로필 핀 별만/틸트 25°/마지막 카메라 복원/채팅 별가루 삭제 — Android BUILD SUCCESSFUL, **iOS CI(macOS) BUILD SUCCESS `003b2b3`**(2026-07-16) — 아래 8.44 참고.
+> 이전: **8.43 iOS 패리티 라운드2 (R2-1~R2-3 + 마무리 5건)** — anonymous 디코딩/줌 별크기/후광·파티클/100m 게이팅/미디어/열람 애니메이션/몰입·별자리 버튼/친구 db + 프로필 아이콘 크리스탈화/음악 별자리 보드 스타일/글로브 지구 복원/미번역 전수 + Android 업로드 휠 피커 — **CI(macOS) BUILD SUCCESS `f6428d2`**(2026-07-16) — 아래 8.43 참고.
 > 이전: **8.42 iOS UI 전면 패리티(1~7차 완료)** — 드로어 내비/테마/야경 지도/지도 크롬/상세 재구성/필터 확장/별자리 보드/L10n — **CI(macOS) BUILD SUCCESS `9cd867b`**(2026-07-15) — 아래 8.42 참고.
 > 이전: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 아래 8.41 참고.
 > 이전: **8.40 마감 라운드(1.3.1) + 전환 잔상 삭제 + iOS 패리티 일괄(33·34 라운드)** — Android BUILD SUCCESSFUL(2026-07-14), iOS 는 push 후 CI 검증 — 아래 8.40 참고.
@@ -33,6 +34,77 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.44 iOS 패리티 라운드3 — 계정 통일 + 버그/미완 일괄 (Android BUILD SUCCESSFUL, iOS CI BUILD SUCCESS `003b2b3`, 2026-07-16)
+
+**CI 시행착오 2건(다음에 반복 금지)**: ① MapLibre 6.x 에서도 NSExpression JSON 초기화 라벨은
+**`mglJSONObject:`**(MGL 접두사 유지 — `mlnJSONObject` 아님). ② SwiftUI `Path.union/subtracting` 은
+**iOS 17+** — 배포 타깃 16 에선 `CGPath.union/subtracting`(iOS 16+)으로 우회(`unionCompat`/`subtractingCompat`).
+
+사용자 보고 버그 7건 + 미완료 6건. 브랜치 `feat/ios-parity-round2` 이어서 작업.
+
+**⚠️ 최우선 사용자 액션 — "DiaryWarpData 선언 없음"(#1)**: `DiaryWarpData` 는
+`iosApp/Sources/Features/Map/DiaryOpenWarpView.swift:7` 에 있고 CI(f6428d2)도 그린이었다.
+Mac 의 `.xcodeproj` 가 옛 파일 목록(신규 파일 미포함)이라 나는 에러 —
+**`cd iosApp && xcodegen generate` 재실행 후 빌드**하면 해결(신규 Swift 파일이 생길 때마다 필요).
+"별 후광/파티클 미완"(R2-3 구현됨)·"글로브 미완"(8.43 지구 복원)도 같은 원인(옛 빌드)일 가능성이 큼 —
+재생성 빌드로 확인 후 남는 차이만 후속.
+
+**#7 같은 구글 계정 = 같은 유저(근본 수정, iOS)**: Android 는 userId=**Google sub**(JWT subject),
+iOS 는 FirebaseAuth uid 를 쓰고 있었음 → 같은 구글 계정이 OS 별로 다른 계정으로 갈라짐.
+`AuthManager.appUserId(of:)` 신설(= providerData google.com 의 uid, 익명은 FirebaseAuth uid 폴백 —
+Android `restoreSession` 규칙 동일) → 상태 리스너/ensureProfile/requestDeletion(문서 id=sub,
+authUid=FirebaseAuth uid 기록)/InviteStore 전부 이 값 사용. users 문서에 authUid 병행 기록.
+⚠️ **기존 iOS 계정(FirebaseAuth uid 문서)의 데이터는 새 uid 로 승계되지 않음**(테스트 데이터라 정리 대상).
+- 이 수정으로 #5(맵 미표시)·#6(댓글/하트 먹통)의 핵심 원인도 해소: uid 불일치로 내 글이 isOwner=false 가 되고,
+  시뮬레이터 미국 위치(아래 #3) 때문에 100m 게이팅에 걸려 상호작용이 잠겨 있었음.
+
+**#3 시뮬레이터 위치 = 서울 고정(iOS)**: 시뮬레이터 기본 시뮬레이션 위치(쿠퍼티노)가 서울 폴백을
+덮어씀 → `LocationManager.didUpdateLocations` 를 시뮬레이터 빌드에서 무시(서울=건국대 유지).
+업로드 좌표(`coordinateOrDefault`)도 서울이 되므로 "방금 만든 다이어리가 맵에 안 보임"(#5) 해결.
+
+**#2 달·행성(+꽃·보석) 모양(iOS)**: even-odd 근사 → **진짜 boolean 연산**(iOS16 `Path.subtracting/union`,
+Android `Path.Op` 패리티). 초승달=차집합(삐져나온 안쪽 원 채움 제거), 행성=본체∪고리 밴드(겹침 구멍 제거),
+꽃=꽃잎 합집합−가운데 원, 보석=실루엣−패싯 컷 라인(`strokedPath`, Android gemPath 세그먼트 동일).
+
+**#4 친구 요청 피드백(Android+iOS)**: 검색 결과에 "요청됨" 상태 칩 —
+shared `FriendRepository.observeOutgoingRequests`(fromId==나) 신설 + Android `FriendViewModel.outgoingRequests`
++ `friend_status_requested`(ko/en/ja). iOS `FriendsViewModel.outgoingIds` 리스너 + 상태 칩(친구/요청됨)
++ **전송 토스트**(`friendRequestSent`/`friendRequestFail` — Android StaryToast 문구 패리티).
+
+**미완 항목**:
+- **후광 업그레이드(iOS)**: 단일 민트 CircleLayer → Android 패리티 2겹(**별색** `auraColor`) —
+  바닥광(반경 0.6→7×sizeMult, blur 1.4, y+8) + 오오라(반경 2→26×sizeMult, 불투명도 sizeMult 1→0/1.4→0.12/3→0.42).
+  데이터 주도 색/줌 보간은 `NSExpression(mlnJSONObject:)` JSON 표현식 사용(⚠️ CI 로 API 명 검증 필요).
+  레이어 순서 파티클→별자리→바닥광→오오라(Android 동일).
+- **타인 프로필 = 핀 별만(iOS)**: `UserProfileScreen` 부유 별을 전체 공개 다이어리(10개) →
+  `users/{uid}.pinnedDiaries` 핀 별만(Android 동일). 내 프로필 핀 피커는 기존 구현 유지.
+- **친구 행 사진 탭=프로필(iOS)**: 행 탭=채팅 유지, 아바타 위 투명 버튼 오버레이 → `UserProfileScreen` push.
+  검색 결과/받은 요청 행 아바타도 동일(Android PersonCard onClick 패리티).
+- **지도 틸트(iOS)**: `MapLibreView.baseTiltDeg=25`(Android BASE_TILT_DEG) — 초기 카메라 pitch 25° +
+  회전/틸트 제스처 잠금(Android uiSettings 동일).
+- **마지막 카메라 복원(Android+iOS)**: 카메라 idle 마다 중심+줌 저장(Android `LocationHelper.persistCameraState`
+  2s 스로틀 / iOS `LocationManager.persistCameraState`) → 앱 시작 초기 카메라 = 마지막 본 곳(fix 오면 기존
+  didAutoCenter 가 내 위치로 1회 이동하는 동작은 유지).
+- **채팅 별가루 삭제(Android+iOS)**: `ChatStardust` 호출+정의 양쪽 제거(사용자 지시 — 떠다니는 원).
+
+**후속 수정(사용자 재현: "미국 카메라에서도 새 별 안 보임") — #5/#6 의 진짜 원인 2건**:
+- **⚠️ 전 모델 id 디코딩 버그(치명)**: R2-1 커스텀 `init(from:)` 이 `@DocumentID` 합성 주입을
+  **대체**하면서 문서 안 "id" **필드**만 읽었다 → id 필드를 저장하지 않는 **iOS 생성 문서 전부 id=nil**
+  (Android 는 id 필드를 함께 저장 + 읽을 때 doc.id 로 덮어써서 무증상). 영향: Diary/Comment/
+  AppNotification/Friend/FriendRequest/UserProfile/ChatMessage 7종 — 좋아요·댓글·공유·상세 리스너·
+  요청 수락·메시지 삭제가 전부 `guard let id` 에서 **조용히** 실패(#6), Friend Hashable 충돌 등.
+  수정: 7곳 모두 `_id = (try? c.decode(DocumentID<String>.self, forKey: .id)) ?? 필드 폴백` —
+  합성 디코더와 동일하게 문서 참조에서 id 주입(기존 id 없는 문서도 소급 정상화).
+  ⚠️ **교훈: @DocumentID 모델에 커스텀 init(from:) 을 쓰면 _id 를 반드시 명시 디코드할 것.**
+- **observeAll 쿼리**: 정렬 없는 `limit(500)` = 문서 ID 오름차순 임의 500개 → 새 문서가 창 밖으로
+  밀려 지도에 안 뜰 수 있음(#5). Android observeAllDiaries 와 동일하게 **createdAt DESC limit 1000**
+  + 에러 시 빈 배열 덮어쓰기 제거(기존 목록 유지 — Android 동일).
+
+**남은 것(후속)**: 사용자 Mac xcodegen 재생성 후 실빌드 확인(글로브/파티클 실측), iOS 계정 통일 후
+구 uid 데이터 정리, MyDiaryBoard 드래그 물리(8.42 잔여).
 
 ---
 

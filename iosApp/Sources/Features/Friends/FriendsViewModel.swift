@@ -8,6 +8,8 @@ final class FriendsViewModel: ObservableObject {
     @Published var requests: [FriendRequest] = []
     @Published var results: [UserProfile] = []
     @Published var searching = false
+    /// 내가 보낸 pending 요청의 상대 uid — 검색 결과의 "요청됨" 상태 칩 표시용. (Android observeOutgoingRequests 패리티)
+    @Published var outgoingIds: Set<String> = []
     /// 친구 uid → 그 친구와의 채팅방 메타(마지막 메시지/시각) — 친구 행 미리보기·미읽음 점.
     @Published var chatSummaries: [String: ChatSummary] = [:]
     private var regs: [ListenerRegistration] = []
@@ -69,6 +71,13 @@ final class FriendsViewModel: ObservableObject {
                     self?.requests = snap?.documents.compactMap { try? $0.data(as: FriendRequest.self) } ?? []
                 }
         )
+        // 내가 보낸 pending 요청 — "요청됨" 칩(검색 결과)용.
+        regs.append(
+            FirestoreService.friendRequests.whereField("fromId", isEqualTo: uid)
+                .addSnapshotListener { [weak self] snap, _ in
+                    self?.outgoingIds = Set(snap?.documents.compactMap { $0.get("toId") as? String } ?? [])
+                }
+        )
     }
 
     func search(query: String, excluding uid: String) async {
@@ -106,13 +115,15 @@ final class FriendsViewModel: ObservableObject {
         return Set(snap.documents.map { $0.documentID })
     }
 
-    func sendRequest(fromId: String, fromName: String, to: UserProfile) async {
+    /// 친구 요청 전송 — 성공(중복 포함) true / 실패 false. (Android sendRequest 반환값 패리티 — 토스트용)
+    @discardableResult
+    func sendRequest(fromId: String, fromName: String, to: UserProfile) async -> Bool {
         do {
             let dup = try await FirestoreService.friendRequests
                 .whereField("fromId", isEqualTo: fromId)
                 .whereField("toId", isEqualTo: to.userId)
                 .getDocuments()
-            guard dup.documents.isEmpty else { return }
+            guard dup.documents.isEmpty else { return true }
             // 보낸 사람 사진을 채워 빈 값으로 저장하지 않는다(상대 친구목록 아바타에 보이도록).
             let myPhoto = ((try? await FirestoreService.users.document(fromId).getDocument())?
                 .get("profileImageUrl") as? String) ?? ""
@@ -123,7 +134,10 @@ final class FriendsViewModel: ObservableObject {
                 "toId": to.userId, "toName": to.userName,
                 "createdAt": FirestoreService.nowMillis,
             ])
-        } catch {}
+            return true
+        } catch {
+            return false
+        }
     }
 
     func accept(_ r: FriendRequest, myUid: String, myName: String) async {

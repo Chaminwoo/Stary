@@ -119,6 +119,7 @@
     <string name="friend_searching">検索中...</string>
     <string name="friend_search_results">検索結果</string>
     <string name="friend_status_friend">友達</string>
+    <string name="friend_status_requested">リクエスト済み</string>
     <string name="friend_add">追加</string>
     <string name="friend_no_results">「%1$s」の検索結果がありません</string>
     <string name="friend_requests">受け取ったリクエスト</string>

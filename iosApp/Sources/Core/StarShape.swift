@@ -5,8 +5,8 @@ import SwiftUI
 /// 0: 4꼭지 스파클 / 1: 5꼭지 별 / 2: 6꼭지 별 / 3: 8꼭지 가는 스파클 / 4: 다이아 스파클 /
 /// 5: 꽃 / 6: 보석 / 7: 초승달 / 8: 행성
 ///
-/// 채우기는 짝수-홀수(even-odd) 규칙을 전제로 한다(꽃·초승달·행성의 빈 공간 표현).
-/// ⚠️ 5~8 의 일부 형태는 boolean path 연산 대신 even-odd 근사다(추후 정교화 가능).
+/// 5~8 형태는 Android `Path.Op` 와 동일한 boolean 연산(`union`/`subtracting`)으로 만든다 —
+/// 결과 경로는 정규화되어 even-odd/non-zero 어느 채움 규칙에서도 같은 모양이다.
 struct StarShape: Shape {
     let type: Int
 
@@ -72,67 +72,93 @@ struct StarShape: Shape {
     // MARK: - 5~8 창의적 형태 (even-odd 근사)
 
     private func flower(_ s: CGFloat) -> Path {
+        // Android flowerPath 와 동일: 꽃잎 6장 합집합 − 가운데 원.
+        // (even-odd 로는 꽃잎끼리 겹치는 부분이 구멍으로 뚫려 모양이 깨졌다.)
         let c = CGPoint(x: s / 2, y: s / 2)
         let scale: CGFloat = 0.8
         let ring = s * 0.255 * scale
         let petal = s * 0.225 * scale
-        var path = Path()
+        var body = Path()
         for i in 0..<6 {
             let a = (Double(i) * 60.0 - 90.0) * .pi / 180
             let pc = CGPoint(x: c.x + ring * CGFloat(cos(a)), y: c.y + ring * CGFloat(sin(a)))
-            path.addEllipse(in: CGRect(x: pc.x - petal, y: pc.y - petal, width: petal * 2, height: petal * 2))
+            let circle = Path(ellipseIn: CGRect(x: pc.x - petal, y: pc.y - petal, width: petal * 2, height: petal * 2))
+            body = i == 0 ? circle : body.unionCompat(circle)
         }
-        // 가운데 빈 원(even-odd 로 구멍).
         let hole = s * 0.135
-        path.addEllipse(in: CGRect(x: c.x - hole, y: c.y - hole, width: hole * 2, height: hole * 2))
-        return path
+        return body.subtractingCompat(Path(ellipseIn: CGRect(x: c.x - hole, y: c.y - hole, width: hole * 2, height: hole * 2)))
     }
 
     private func gem(_ s: CGFloat) -> Path {
+        // Android gemPath 와 동일: 컷 다이아몬드 실루엣 − 패싯(컷) 라인(스트로크를 채움 경로로 변환해 뺌).
         func p(_ fx: CGFloat, _ fy: CGFloat) -> CGPoint { CGPoint(x: fx * s, y: fy * s) }
         let pts: [(CGFloat, CGFloat)] = [
             (0.31, 0.11), (0.69, 0.11), (0.84, 0.14), (0.97, 0.40),
             (0.50, 0.95), (0.03, 0.40), (0.16, 0.14),
         ]
-        var path = Path()
+        var outline = Path()
         for (i, f) in pts.enumerated() {
             let pt = p(f.0, f.1)
-            if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+            if i == 0 { outline.move(to: pt) } else { outline.addLine(to: pt) }
         }
-        path.closeSubpath()
-        return path
+        outline.closeSubpath()
+
+        // 패싯 라인 — Android 와 같은 세그먼트(크라운 X자 + 거들 + 파빌리온).
+        var lines = Path()
+        func seg(_ a: (CGFloat, CGFloat), _ b: (CGFloat, CGFloat)) {
+            lines.move(to: p(a.0, a.1)); lines.addLine(to: p(b.0, b.1))
+        }
+        let a: (CGFloat, CGFloat) = (0.50, 0.22)     // 크라운 중앙 수렴점
+        seg((0.03, 0.40), (0.97, 0.40))              // 거들(가로)
+        seg((0.31, 0.11), (0.69, 0.11))              // 테이블 윗변
+        seg((0.31, 0.11), a); seg((0.69, 0.11), a)   // 테이블 양끝 → 중앙점 A
+        seg(a, (0.40, 0.40)); seg(a, (0.60, 0.40))   // A → 거들 중앙 두 점
+        seg((0.31, 0.11), (0.29, 0.40)); seg((0.69, 0.11), (0.71, 0.40)) // 테이블 모서리 → 중간 거들점
+        seg((0.16, 0.14), (0.29, 0.40)); seg((0.84, 0.14), (0.71, 0.40)) // 어깨 → 중간 거들점
+        seg((0.29, 0.40), (0.50, 0.95)); seg((0.71, 0.40), (0.50, 0.95)) // 파빌리온 → 컬릿
+
+        let lineFill = lines.strokedPath(StrokeStyle(lineWidth: s * 0.03, lineJoin: .miter))
+        return outline.subtractingCompat(lineFill)
     }
 
     private func crescent(_ s: CGFloat) -> Path {
+        // Android crescentPath 와 동일: 진짜 boolean 차집합(outer − inner).
+        // (구 even-odd 근사는 안쪽 원이 바깥 원 밖으로 삐져나온 부분까지 채워져 모양이 깨졌다.)
         let c = CGPoint(x: s / 2, y: s / 2)
-        var path = Path()
         let outerR = s * 0.42
         let oc = CGPoint(x: c.x - s * 0.05, y: c.y)
-        path.addEllipse(in: CGRect(x: oc.x - outerR, y: oc.y - outerR, width: outerR * 2, height: outerR * 2))
+        let outer = Path(ellipseIn: CGRect(x: oc.x - outerR, y: oc.y - outerR, width: outerR * 2, height: outerR * 2))
         let innerR = s * 0.37
         let ic = CGPoint(x: c.x + s * 0.16, y: c.y - s * 0.04)
-        path.addEllipse(in: CGRect(x: ic.x - innerR, y: ic.y - innerR, width: innerR * 2, height: innerR * 2))
+        let inner = Path(ellipseIn: CGRect(x: ic.x - innerR, y: ic.y - innerR, width: innerR * 2, height: innerR * 2))
         // 누운 초승달(반시계 22°).
-        return path.applying(CGAffineTransform(rotationAngle: -22 * .pi / 180).rotated(around: c))
+        return outer.subtractingCompat(inner)
+            .applying(CGAffineTransform(rotationAngle: -22 * .pi / 180).rotated(around: c))
     }
 
     private func planet(_ s: CGFloat) -> Path {
+        // Android planetPath 와 동일: 본체 ∪ (고리 밴드 = 바깥 타원 − 안쪽 타원).
+        // (구 even-odd 근사는 본체와 고리가 겹치는 부분이 구멍으로 뚫렸다.)
         let c = CGPoint(x: s / 2, y: s * 0.52)
-        var path = Path()
         let bodyR = s * 0.26
-        path.addEllipse(in: CGRect(x: c.x - bodyR, y: c.y - bodyR, width: bodyR * 2, height: bodyR * 2))
-        // 고리(밴드) = 바깥 타원 − 안쪽 타원, 살짝 기울임.
-        var ring = Path()
-        ring.addEllipse(in: CGRect(x: c.x - s * 0.46, y: c.y - s * 0.15, width: s * 0.92, height: s * 0.30))
-        ring.addEllipse(in: CGRect(x: c.x - s * 0.37, y: c.y - s * 0.105, width: s * 0.74, height: s * 0.21))
-        ring = ring.applying(CGAffineTransform(rotationAngle: -20 * .pi / 180).rotated(around: c))
-        path.addPath(ring)
-        return path
+        let body = Path(ellipseIn: CGRect(x: c.x - bodyR, y: c.y - bodyR, width: bodyR * 2, height: bodyR * 2))
+        let ringOuter = Path(ellipseIn: CGRect(x: c.x - s * 0.46, y: c.y - s * 0.15, width: s * 0.92, height: s * 0.30))
+        let ringInner = Path(ellipseIn: CGRect(x: c.x - s * 0.37, y: c.y - s * 0.105, width: s * 0.74, height: s * 0.21))
+        let band = ringOuter.subtractingCompat(ringInner)
+            .applying(CGAffineTransform(rotationAngle: -20 * .pi / 180).rotated(around: c))
+        return body.unionCompat(band)
     }
 }
 
 private extension Int {
     func clamped(_ lo: Int, _ hi: Int) -> Int { Swift.min(Swift.max(self, lo), hi) }
+}
+
+private extension Path {
+    /// iOS 16 호환 boolean 연산 — SwiftUI `Path.union/subtracting` 은 iOS 17+ 라
+    /// 같은 기능의 CGPath 연산(iOS 16+)으로 우회한다(결과는 동일한 정규화 경로).
+    func unionCompat(_ other: Path) -> Path { Path(cgPath.union(other.cgPath)) }
+    func subtractingCompat(_ other: Path) -> Path { Path(cgPath.subtracting(other.cgPath)) }
 }
 
 private extension CGAffineTransform {

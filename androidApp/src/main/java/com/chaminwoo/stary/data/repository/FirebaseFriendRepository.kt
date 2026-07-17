@@ -140,6 +140,18 @@ class FirebaseFriendRepository : FriendRepository {
         awaitClose { listener.remove() }
     }
 
+    override fun observeOutgoingRequests(userId: String): Flow<List<FriendRequest>> = callbackFlow {
+        val listener = requests.whereEqualTo("fromId", userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
+                val list = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(FriendRequest::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
     override suspend fun searchUsers(query: String, excludeUserId: String): List<UserProfile> {
         if (query.isBlank()) return emptyList()
         return try {

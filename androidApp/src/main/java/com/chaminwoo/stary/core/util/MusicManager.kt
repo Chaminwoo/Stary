@@ -32,6 +32,10 @@ object MusicManager {
     private var playingId: String? = null     // 현재 player 가 들고 있는 트랙 id
     private var initialized = false
     private var appContext: Context? = null
+    // 비동기 준비(prepareAsync) 무효화 토큰 — playTrack/release 가 올리면 이전 준비 콜백은 폐기된다.
+    private var prepareGen = 0
+    // 재생 의사 — resume()=true / pause()=false. 준비가 끝나기 전에 pause 되면 시작하지 않기 위함.
+    private var wantPlaying = false
 
     // 효과음(SFX) — 짧은 UI 효과음은 SoundPool 로 미리 로드해 즉시·중복 재생(지연/묵음 방지)
     private var soundPool: SoundPool? = null
@@ -201,24 +205,52 @@ object MusicManager {
             ?.edit()?.putFloat(KEY_SFX_VOL, v)?.apply()
     }
 
+    /** MediaPlayer 를 비동기 준비(prepareAsync)해 [onReady] 로 넘긴다 — 동기 create()의
+     *  디코더 초기화+파일 읽기가 메인 스레드를 멈추지 않게. 콜백은 메인 루퍼에서 온다. */
+    private fun createAsync(ctx: Context, resId: Int, onReady: (MediaPlayer) -> Unit) {
+        val mp = MediaPlayer()
+        try {
+            ctx.resources.openRawResourceFd(resId).use { afd ->
+                mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            }
+        } catch (_: Exception) {
+            mp.release()
+            return
+        }
+        mp.setOnPreparedListener { onReady(it) }
+        mp.setOnErrorListener { p, _, _ -> p.release(); true }
+        mp.prepareAsync()
+    }
+
     /** 앱 전면 복귀 or 켜짐 → 현재 트랙을 마지막 위치에서 재생. */
     fun resume() {
         if (!enabled) return
         val ctx = appContext ?: return
+        wantPlaying = true
         val id = playingId ?: selectedTrackId
-        if (player == null) {
-            val res = resIdFor(id)
-            if (res == 0) return
-            player = MediaPlayer.create(ctx, res)?.apply { isLooping = true }
-            player?.setVolume(musicVolume, musicVolume)
-            player?.seekTo(positionMs)
-            playingId = id
+        val existing = player
+        if (existing != null) {
+            if (!existing.isPlaying) existing.start()
+            return
         }
-        player?.let { if (!it.isPlaying) it.start() }
+        val res = resIdFor(id)
+        if (res == 0) return
+        val gen = prepareGen
+        createAsync(ctx, res) { mp ->
+            // 준비되는 사이 트랙 교체/해제됐거나 이미 다른 player 가 붙었으면 폐기
+            if (gen != prepareGen || player != null) { mp.release(); return@createAsync }
+            mp.isLooping = true
+            mp.setVolume(musicVolume, musicVolume)
+            mp.seekTo(positionMs)
+            player = mp
+            playingId = id
+            if (enabled && wantPlaying) mp.start()
+        }
     }
 
     /** 일시정지 — 현재 위치 보존. */
     fun pause() {
+        wantPlaying = false
         player?.let {
             if (it.isPlaying) {
                 positionMs = it.currentPosition
@@ -226,10 +258,6 @@ object MusicManager {
             }
         }
     }
-
-    /** 현재 재생 위치(ms). 일시정지 상태면 보존된 위치. */
-    fun currentPositionMs(): Int =
-        player?.let { if (it.isPlaying) it.currentPosition else positionMs } ?: positionMs
 
     /**
      * 지정 트랙을 [positionMs0] 위치부터 즉시 재생(기존 player 교체). 미리듣기/복원 공용.
@@ -239,9 +267,13 @@ object MusicManager {
         val ctx = appContext ?: return
         val res = resIdFor(id)
         if (res == 0) return
+        val gen = ++prepareGen
         player?.release()
-        val mp = MediaPlayer.create(ctx, res)
-        if (mp != null) {
+        player = null
+        playingId = id
+        wantPlaying = true
+        createAsync(ctx, res) { mp ->
+            if (gen != prepareGen) { mp.release(); return@createAsync }
             mp.isLooping = true
             mp.setVolume(musicVolume, musicVolume)
             // 이어 듣기용으로 넘어온 위치가 새 트랙 길이를 넘으면 안으로 보정.
@@ -249,11 +281,10 @@ object MusicManager {
             val pos = if (dur > 0) positionMs0.coerceIn(0, (dur - 200).coerceAtLeast(0))
                       else positionMs0.coerceAtLeast(0)
             mp.seekTo(pos)
-            if (enabled) mp.start()
+            if (enabled && wantPlaying) mp.start()
             positionMs = pos
+            player = mp
         }
-        player = mp
-        playingId = id
     }
 
     /** 영구 선택 트랙 확정(저장). 재생 자체는 이미 [playTrack] 으로 진행 중이다. */
@@ -267,6 +298,8 @@ object MusicManager {
     /** 앱 종료/재생성 — 위치 보존 후 해제. 다음 [init] 이 SoundPool 등을 다시 로드하도록 [initialized] 도 리셋
      *  (언어 변경 등으로 액티비티가 recreate 되면 dispose→release→init 사이클이 도므로, 안 풀면 효과음이 깨진다). */
     fun release() {
+        prepareGen++ // 진행 중인 비동기 준비 무효화
+        wantPlaying = false
         player?.let {
             positionMs = it.currentPosition
             it.release()

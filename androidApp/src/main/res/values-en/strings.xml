@@ -119,6 +119,7 @@
     <string name="friend_searching">Searching...</string>
     <string name="friend_search_results">Search results</string>
     <string name="friend_status_friend">Friend</string>
+    <string name="friend_status_requested">Requested</string>
     <string name="friend_add">Add</string>
     <string name="friend_no_results">No results for \'%1$s\'</string>
     <string name="friend_requests">Friend requests</string>

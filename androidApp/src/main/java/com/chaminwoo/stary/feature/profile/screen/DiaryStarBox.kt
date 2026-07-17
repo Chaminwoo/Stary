@@ -87,7 +87,12 @@ private class StarBody(
     var startY: Float = 0f,
     var targetX: Float = 0f,
     var targetY: Float = 0f,
-)
+) {
+    // 성능: 블러 후광+크리스탈 패싯은 비싸서 매 프레임 재생성하지 않고 비트맵으로 1회 굽는다.
+    var bitmap: android.graphics.Bitmap? = null
+    var bitmapCenter: Float = 0f
+    var glowPaint: android.graphics.Paint? = null
+}
 
 private const val CELL_H_DP = 92
 
@@ -146,6 +151,19 @@ fun DiaryStarBox(
                     baseX = sx, baseY = sy
                 )
             }
+        }
+
+        // 별 비트맵/후광 페인트 1회 베이크(같은 모양·색·크기는 공유) — 매 프레임 크리스탈 재생성 방지
+        remember(bodies) {
+            val cache = HashMap<Int, android.graphics.Bitmap>()
+            for (b in bodies) {
+                val sizePx = (b.r * 2f).toInt().coerceAtLeast(4) // 양자화(1px) — 같은 키는 같은 비트맵 공유
+                val key = (b.type shl 24) or (b.colorIndex shl 16) or sizePx.coerceAtMost(0xFFFF)
+                b.bitmap = cache.getOrPut(key) { bakeStarBody(b.type, b.colorIndex, b.color.toArgb(), sizePx.toFloat()) }
+                b.bitmapCenter = sizePx * 0.9f // r + margin(0.8r)
+                b.glowPaint = makeGlowPaint(b.color, b.r)
+            }
+            bodies
         }
 
         // 현재 위치(거리순용). 캐시가 비어 있으면(아직 측정 전) 비동기로 한 번 가져와 채운다.
@@ -280,13 +298,17 @@ fun DiaryStarBox(
         ) {
             if (tick >= 0) {
                 val active = activeBody
-                for (b in bodies) {
-                    if (b === active) continue
-                    val dx = sin(floatT * b.floatSpeed + b.phase) * b.floatAmp
-                    val dy = cos(floatT * b.floatSpeed * 0.8f + b.phase) * b.floatAmp * 0.7f
-                    drawStar(b, b.baseX + dx, b.baseY + dy, rotationDeg = b.rotPhase + floatT * b.rotSpeed)
+                drawIntoCanvas { canvas ->
+                    val nc = canvas.nativeCanvas
+                    for (b in bodies) {
+                        if (b === active) continue
+                        val dx = sin(floatT * b.floatSpeed + b.phase) * b.floatAmp
+                        val dy = cos(floatT * b.floatSpeed * 0.8f + b.phase) * b.floatAmp * 0.7f
+                        drawStarBaked(nc, b, b.baseX + dx, b.baseY + dy, rotationDeg = b.rotPhase + floatT * b.rotSpeed)
+                    }
                 }
                 // 잡은 별은 손가락 위치에서 확대해 맨 위에 그림 — 회전은 그대로 이어져 놓을 때도 자연스럽게 돈다
+                // (확대 중엔 비트맵 업스케일로 파편이 뭉개지지 않게 이 별 하나만 라이브 렌더)
                 active?.let { drawStar(it, dragPos.x, dragPos.y, grabScale.value, it.rotPhase + floatT * it.rotSpeed) }
             }
         }
@@ -320,6 +342,51 @@ fun DiaryStarBox(
 private fun easeOutCubic(t: Float): Float {
     val u = 1f - t
     return 1f - u * u * u
+}
+
+/** 별 본체(블러 후광+크리스탈)를 비트맵으로 1회 굽는다. 여백 = 0.8r(블러 번짐 수용). */
+private fun bakeStarBody(type: Int, colorIndex: Int, fallbackColor: Int, sizePx: Float): android.graphics.Bitmap {
+    val r = sizePx / 2f
+    val margin = r * 0.8f
+    val side = ceil(sizePx + margin * 2f).toInt().coerceAtLeast(8)
+    val bmp = android.graphics.Bitmap.createBitmap(side, side, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bmp)
+    val path = android.graphics.Path(StarStyle.starPath(type, sizePx)).apply { offset(margin, margin) }
+    val shader = StarStyle.fillShader(colorIndex, margin, margin, sizePx)
+    canvas.drawPath(
+        path,
+        android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            if (shader != null) this.shader = shader else this.color = fallbackColor
+            maskFilter = android.graphics.BlurMaskFilter(r * 0.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        }
+    )
+    StarStyle.drawCrystalFill(canvas, type, colorIndex, margin, margin, sizePx)
+    return bmp
+}
+
+/** 원형 후광 페인트(중심 (0,0) 기준 RadialGradient) — 별마다 1회 생성 후 재사용. */
+private fun makeGlowPaint(color: Color, r: Float): android.graphics.Paint =
+    android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        shader = android.graphics.RadialGradient(
+            0f, 0f, r * 2.4f,
+            color.copy(alpha = 0.42f).toArgb(), android.graphics.Color.TRANSPARENT,
+            android.graphics.Shader.TileMode.CLAMP
+        )
+    }
+
+private val starBitmapPaint = android.graphics.Paint(
+    android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG
+)
+
+/** 구운 비트맵으로 별 1개 그리기 — 후광(원형, 회전 무관) + 본체(회전). */
+private fun drawStarBaked(nc: android.graphics.Canvas, b: StarBody, cx: Float, cy: Float, rotationDeg: Float) {
+    val bmp = b.bitmap ?: return
+    val save = nc.save()
+    nc.translate(cx, cy)
+    b.glowPaint?.let { nc.drawCircle(0f, 0f, b.r * 2.4f, it) }
+    nc.rotate(rotationDeg)
+    nc.drawBitmap(bmp, -b.bitmapCenter, -b.bitmapCenter, starBitmapPaint)
+    nc.restoreToCount(save)
 }
 
 /** 별 한 개 그리기 — 후광(radial glow) + StarStyle 별 모양. [scale] 확대, [rotationDeg] 회전(자유 회전). */

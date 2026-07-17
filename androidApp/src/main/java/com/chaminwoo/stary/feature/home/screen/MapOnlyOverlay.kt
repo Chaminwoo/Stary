@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -29,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.chaminwoo.stary.core.ui.clickBounce
+import com.chaminwoo.stary.core.ui.raisedCosmicBorder
 import kotlinx.coroutines.delay
 
 /**
@@ -70,8 +71,9 @@ fun MapOnlyOverlay(onExit: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(56.dp)
+                        .clickBounce()
                         .background(Color(0xCC141414), CircleShape)
-                        .border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape),
+                        .raisedCosmicBorder(),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

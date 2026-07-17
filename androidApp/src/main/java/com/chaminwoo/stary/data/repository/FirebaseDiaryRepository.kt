@@ -10,7 +10,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +36,15 @@ class FirebaseDiaryRepository : DiaryRepository {
          * 최신순 상한으로 잘라 가드(필요 시 추후 뷰포트/지오해시 쿼리로 대체).
          */
         private const val MAX_OBSERVED_DIARIES = 1000L
+
+        /**
+         * 스냅샷 콜백 전용 백그라운드 실행자.
+         * executor 없이 등록하면 콜백이 메인 스레드에서 돌아, 변경 1건에도 최대 1000건
+         * 리플렉션 매핑(toObject)이 메인 스레드를 막는다. trySend 는 스레드 안전.
+         */
+        private val listenerExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "diary-snapshots").apply { isDaemon = true }
+        }
     }
 
     // 전체 다이어리 실시간 조회
@@ -52,7 +60,7 @@ class FirebaseDiaryRepository : DiaryRepository {
             registration = diaries
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .limit(MAX_OBSERVED_DIARIES)
-                .addSnapshotListener { snapshot: QuerySnapshot?, error: Exception? ->
+                .addSnapshotListener(listenerExecutor) { snapshot, error ->
                     if (error != null) return@addSnapshotListener
                     val currentUid = GoogleAuthHelper.currentUserId
                     val list = snapshot?.documents?.mapNotNull { doc ->
@@ -139,7 +147,7 @@ class FirebaseDiaryRepository : DiaryRepository {
         // (userId + createdAt 복합 인덱스를 새 DB 에 따로 만들 필요 없게 — 내 글은 소량이라 부담 없음)
         val listener = diaries
             .whereEqualTo("userId", userId)
-            .addSnapshotListener { snapshot, error ->
+            .addSnapshotListener(listenerExecutor) { snapshot, error ->
                 if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
                 val list = snapshot?.documents?.mapNotNull { doc ->
                     doc.toObject(Diary::class.java)?.copy(id = doc.id)

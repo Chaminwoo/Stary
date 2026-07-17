@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -50,6 +52,20 @@ fun Modifier.appCard(radius: Dp = 16.dp): Modifier = this
     .clip(RoundedCornerShape(radius))
     .background(Brush.verticalGradient(listOf(CardBgTop.copy(alpha = 0.85f), CardBg.copy(alpha = 0.85f))))
     .border(1.dp, CardBorder, RoundedCornerShape(radius))
+
+/**
+ * 지도 원형 버튼용 볼록(엠보스) 테두리 — 위쪽 밝은 하이라이트에서 아래로 갈수록 짙은 남색으로
+ * 떨어지는 그라데이션이라, 위에서 빛을 받아 살짝 튀어나온 듯한 우주 느낌을 준다.
+ */
+fun Modifier.raisedCosmicBorder(width: Dp = 0.75.dp, shape: Shape = CircleShape): Modifier = this.border(
+    width = width,
+    brush = Brush.verticalGradient(
+        0.00f to Color(0xFF9FB3E8).copy(alpha = 0.45f), // 상단 하이라이트(은은한 청백)
+        0.45f to Color(0xFF3A4570).copy(alpha = 0.35f), // 중간 남색
+        1.00f to Color(0xFF10142B).copy(alpha = 0.30f), // 하단 짙은 남색(그림자 쪽)
+    ),
+    shape = shape,
+)
 
 /** UploadScreen 피커와 DiaryCard에서 공통으로 쓰는 별 모양 아이콘. StarStyle 경로와 동일. */
 @Composable

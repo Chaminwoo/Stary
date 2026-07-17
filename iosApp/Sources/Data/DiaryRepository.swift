@@ -30,22 +30,23 @@ final class DiaryRepository {
         print("👤 현재 UID:", currentUid ?? "로그인 UID 없음")
         print("📂 Firestore 컬렉션:", col.path)
 
-        // ⚠️ 서버 order(by: createdAt) 를 쓰면 createdAt 필드가 없거나 타입이 다른 문서가
-        // 결과에서 통째로 제외된다(→ 다이어리가 안 뜸). 정렬은 클라이언트에서 하고, 서버는
-        // 전량(상한 500) 구독만 한다(#3). (observeMine 도 동일하게 클라 정렬)
+        // Android observeAllDiaries 와 동일: **최신순(createdAt DESC) 상한 1000** 구독.
+        // ⚠️ 정렬 없는 limit 는 문서 ID 순 "임의의 N개"라 방금 만든 다이어리가 창 밖으로
+        // 밀려날 수 있다(→ 지도에 새 별이 안 뜸). createdAt 없는 문서는 제외되지만 이는
+        // Android 도 동일한 트레이드오프(모든 앱 저장분은 createdAt 을 쓴다).
         let reg = col
-            .limit(to: 500)
+            .order(by: "createdAt", descending: true)
+            .limit(to: 1000)
             .addSnapshotListener { snapshot, error in
 
-                // Firestore 조회 오류
+                // Firestore 조회 오류 — Android 와 동일하게 기존 목록을 유지한 채 무시한다.
+                // (빈 배열로 덮으면 일시 오류에도 지도의 별이 전부 사라진다)
                 if let error {
 
                     print("")
                     print("❌ 전체 다이어리 Firestore 조회 실패")
                     print("⚠️ 오류:", error)
                     print("⚠️ 오류 내용:", error.localizedDescription)
-
-                    onChange([])
 
                     return
                 }
