@@ -324,7 +324,7 @@ private fun NormalTab(
                 ) {
                     Text(
                         stringResource(R.string.ach_progress, unlockedCount, Achievements.all.size),
-                        color = Green, fontSize = 13.sp, fontWeight = FontWeight.Medium
+                        color = Green, fontSize = 13.sp, fontWeight = FontWeight.Light
                     )
                 }
             }
@@ -447,7 +447,7 @@ private fun HiddenAchievementRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.title)!!,
-                    color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Medium
+                    color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Light
                 )
                 Spacer(Modifier.width(6.dp))
                 com.chaminwoo.stary.core.ui.HiddenStarBadge(
@@ -472,13 +472,13 @@ private fun HiddenAchievementRow(
                 Text(
                     if (mine) stringResource(R.string.ach_hidden_by_me)
                     else stringResource(R.string.ach_hidden_achiever, achieverName),
-                    color = if (mine) Gold else Green, fontSize = 12.sp, fontWeight = FontWeight.Medium
+                    color = if (mine) Gold else Green, fontSize = 12.sp, fontWeight = FontWeight.Light
                 )
             }
         }
         Spacer(Modifier.width(10.dp))
         when {
-            equipped -> Text(stringResource(R.string.ach_equipped), color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            equipped -> Text(stringResource(R.string.ach_equipped), color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Light)
             mine -> Text(stringResource(R.string.ach_equip), color = TextMain, fontSize = 12.sp)
             claimed -> Icon(Icons.Filled.Lock, null, tint = TextMuted, modifier = Modifier.size(16.dp))
             else -> Text(stringResource(R.string.ach_hidden_unclaimed), color = TextMuted, fontSize = 11.sp)
@@ -529,7 +529,7 @@ private fun TitleAchievementRow(
         unlocked = unlocked,
         trailing = {
             when {
-                equipped -> Text(stringResource(R.string.ach_equipped), color = Green, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                equipped -> Text(stringResource(R.string.ach_equipped), color = Green, fontSize = 12.sp, fontWeight = FontWeight.Light)
                 unlocked -> Text(stringResource(R.string.ach_equip), color = TextMain, fontSize = 12.sp)
                 else -> Text(stringResource(R.string.cd_locked), color = TextMuted, fontSize = 12.sp)
             }
@@ -548,7 +548,7 @@ private fun RewardAchievementRow(ach: Achievement, unlocked: Boolean) {
         subtitle = ach.condition,
         unlocked = unlocked,
         trailing = {
-            if (unlocked) Text(stringResource(R.string.ach_obtained), color = Green, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            if (unlocked) Text(stringResource(R.string.ach_obtained), color = Green, fontSize = 12.sp, fontWeight = FontWeight.Light)
             else Text(stringResource(R.string.cd_locked), color = TextMuted, fontSize = 12.sp)
         }
     )
@@ -627,7 +627,7 @@ private fun AchievementRowFrame(
         leading()
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = if (unlocked) TextMain else TextMuted, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Text(title, color = if (unlocked) TextMain else TextMuted, fontSize = 16.sp, fontWeight = FontWeight.Light)
             Spacer(Modifier.height(2.dp))
             Text(subtitle, color = TextMuted, fontSize = 12.sp)
         }

@@ -310,7 +310,7 @@ private fun InviteCard(onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 stringResource(R.string.invite_friends),
-                color = TextMain, fontSize = 14.5.sp, fontWeight = FontWeight.Medium
+                color = TextMain, fontSize = 14.5.sp, fontWeight = FontWeight.Light
             )
             Text(
                 stringResource(R.string.invite_friends_desc),
@@ -354,7 +354,7 @@ private fun SectionHeader(title: String, count: Int) {
     ) {
         Box(Modifier.size(6.dp).clip(CircleShape).background(Green))
         Spacer(Modifier.width(8.dp))
-        Text(title, color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        Text(title, color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.Light)
         Spacer(Modifier.width(8.dp))
         Box(
             modifier = Modifier
@@ -363,7 +363,7 @@ private fun SectionHeader(title: String, count: Int) {
                 .border(1.dp, Green.copy(alpha = 0.30f), RoundedCornerShape(50))
                 .padding(horizontal = 8.dp, vertical = 1.dp)
         ) {
-            Text("$count", color = Green, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text("$count", color = Green, fontSize = 12.sp, fontWeight = FontWeight.Light)
         }
     }
 }
@@ -449,7 +449,7 @@ private fun FriendRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     name.ifBlank { stringResource(R.string.friend_no_name) },
-                    color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                    color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.Light,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
@@ -532,7 +532,7 @@ private fun Avatar(
         } else {
             Text(
                 name.take(1).uppercase().ifBlank { "?" },
-                color = Green, fontSize = 16.sp, fontWeight = FontWeight.Medium
+                color = Green, fontSize = 16.sp, fontWeight = FontWeight.Light
             )
         }
     }
@@ -558,7 +558,7 @@ private fun Pill(
             Icon(icon, contentDescription = text, tint = contentColor, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(4.dp))
         }
-        Text(text, color = contentColor, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = contentColor, fontSize = 12.5.sp, fontWeight = FontWeight.Light)
     }
 }
 
@@ -571,6 +571,6 @@ private fun StatusChip(text: String) {
             .border(1.dp, Green.copy(alpha = 0.25f), RoundedCornerShape(50))
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
-        Text(text, color = Green, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = Green, fontSize = 12.5.sp, fontWeight = FontWeight.Light)
     }
 }

@@ -233,7 +233,7 @@ struct AchievementsScreen: View {
                     let name = directory.name(claim?.achieverId ?? "", fallback: snapshot)
                     Text(mineClaim ? locale.t(.achHiddenByMe)
                                    : String(format: locale.t(.achHiddenAchiever), name))
-                        .font(.caption2).fontWeight(.semibold)
+                        .font(.caption2).fontWeight(.medium)
                         .foregroundStyle(mineClaim ? Color(hex: 0xFFD86F) : Theme.mint)
                 }
             }

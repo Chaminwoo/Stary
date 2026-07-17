@@ -230,7 +230,7 @@ fun MyScreen(
                         text = "${myDiaries.size}",
                         fontSize = 12.sp,
                         color = Green,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Light
                     )
                 }
             }
@@ -257,7 +257,7 @@ fun MyScreen(
                                 text = mode.label,
                                 fontSize = 12.sp,
                                 color = if (selected) Green else TextMuted,
-                                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
+                                fontWeight = if (selected) FontWeight.Light else FontWeight.Normal
                             )
                         }
                     }

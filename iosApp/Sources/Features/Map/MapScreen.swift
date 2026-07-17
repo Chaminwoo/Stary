@@ -472,7 +472,7 @@ struct MapScreen: View {
         VStack(spacing: 10) {
             if let s = routeSummary {
                 Text(s)
-                    .font(.caption.weight(.semibold))
+                    .font(.caption.weight(.medium))
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .background(Theme.surface.opacity(0.95), in: Capsule())
                     .foregroundStyle(Color(red: 0.525, green: 0.937, blue: 0.675))

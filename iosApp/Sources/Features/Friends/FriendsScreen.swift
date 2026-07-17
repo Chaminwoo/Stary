@@ -135,7 +135,7 @@ struct FriendsScreen: View {
                             .background(Theme.mint.opacity(0.14), in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
                             Text(LocaleManager.shared.t(.inviteFriends))
-                                .font(.subheadline).fontWeight(.semibold)
+                                .font(.subheadline).fontWeight(.medium)
                                 .foregroundStyle(Theme.textPrimary)
                             Text(LocaleManager.shared.t(.inviteFriendsDesc))
                                 .font(.caption)
@@ -244,7 +244,7 @@ struct FriendsScreen: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     Text(friend.userName.isEmpty ? LocaleManager.shared.t(.friendNoName) : friend.userName)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     // 히든 업적 달성자 전용 크리스탈 배지(34-4).
@@ -310,7 +310,7 @@ private struct FriendAvatar: View {
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(String(name.prefix(1)).uppercased())
-                        .foregroundStyle(Theme.mint).fontWeight(.semibold)
+                        .foregroundStyle(Theme.mint).fontWeight(.medium)
                 )
             }
         }

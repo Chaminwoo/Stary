@@ -24,13 +24,14 @@ private fun minSans(weight: FontWeight, wght: Int) = Font(
     variationSettings = FontVariation.Settings(FontVariation.weight(wght)),
 )
 
+// ⚠️ 이 테이블은 "요청 굵기 → 실제 wght 축" 매핑이라 굵기 하향 일괄 치환 대상이 아니다.
+//    같은 FontWeight 를 두 번 등록하면 어느 wght 가 걸릴지 모호해진다 — 항상 단조 증가 1:1 유지.
 val MinSans = FontFamily(
     minSans(FontWeight.Light, 300),
     minSans(FontWeight.Normal, 400),
-    minSans(FontWeight.Normal, 450),
-    minSans(FontWeight.Medium, 500),
-    minSans(FontWeight.SemiBold, 550),
-    minSans(FontWeight.Bold, 620),
+    minSans(FontWeight.Medium, 450),
+    minSans(FontWeight.SemiBold, 500),
+    minSans(FontWeight.Bold, 550),
 )
 
 val Typography = Typography(

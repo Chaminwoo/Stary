@@ -106,7 +106,7 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
             ) {
                 Icon(Icons.Filled.EmojiEvents, null, tint = Mint, modifier = Modifier.size(58.dp))
                 Spacer(Modifier.height(14.dp))
-                Text("업적 달성!", color = Mint, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text("업적 달성!", color = Mint, fontSize = 15.sp, fontWeight = FontWeight.Light)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     achievement.name, color = Color.White, fontSize = 22.sp,

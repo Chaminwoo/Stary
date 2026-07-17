@@ -199,7 +199,7 @@ fun StarClusterScreen(
             Text(
                 stringResource(R.string.cluster_header, diaries.size),
                 color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 17.sp, fontWeight = FontWeight.Medium,
+                fontSize = 17.sp, fontWeight = FontWeight.Light,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             Spacer(Modifier.height(4.dp))

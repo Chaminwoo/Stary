@@ -263,7 +263,7 @@ fun ProfileScreen(
             }
 
             // 장착 칭호 — 글씨만 + 후광. 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             val isHiddenTitle = HiddenAchievements.byId(equippedStigmaId) != null
             val titleColor = when {
                 equippedStigma == null -> TextMuted
@@ -273,11 +273,10 @@ fun ProfileScreen(
             Text(
                 text = when {
                     equippedStigma == null -> stringResource(R.string.profile_no_title)
-                    isHiddenTitle -> "『$equippedStigma』"
-                    else -> equippedStigma
+                    else ->  "『$equippedStigma』"
                 },
                 color = titleColor,
-                fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.SemiBold else FontWeight.Medium,
+                fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.SemiBold else FontWeight.Light,
                 style = LocalTextStyle.current.merge(
                     TextStyle(shadow = Shadow(titleColor.copy(alpha = 0.95f), blurRadius = if (isHiddenTitle) 32f else 24f))
                 ),

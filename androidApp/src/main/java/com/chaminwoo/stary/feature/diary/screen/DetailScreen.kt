@@ -482,7 +482,7 @@ fun DetailScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        stringResource(R.string.detail_comments_count, comments.size), fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                        stringResource(R.string.detail_comments_count, comments.size), fontSize = 14.sp, fontWeight = FontWeight.Light,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -754,7 +754,7 @@ private fun CommentItem(
             } else {
                 Text(
                     displayName.take(1).uppercase().ifBlank { "?" },
-                    color = accent, fontSize = 13.sp, fontWeight = FontWeight.Medium
+                    color = accent, fontSize = 13.sp, fontWeight = FontWeight.Light
                 )
             }
         }
@@ -762,7 +762,7 @@ private fun CommentItem(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    displayName, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    displayName, fontSize = 13.sp, fontWeight = FontWeight.Light,
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))

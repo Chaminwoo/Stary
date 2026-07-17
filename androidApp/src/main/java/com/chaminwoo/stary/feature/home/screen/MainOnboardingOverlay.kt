@@ -205,7 +205,7 @@ private fun CoachPill(text: String, modifier: Modifier = Modifier, big: Boolean 
             color = Color.White,
             fontSize = if (big) 17.sp else 14.sp,
             lineHeight = if (big) 25.sp else 19.sp,
-            fontWeight = if (big) FontWeight.Medium else FontWeight.Normal,
+            fontWeight = if (big) FontWeight.Light else FontWeight.Normal,
             textAlign = TextAlign.Center
         )
     }

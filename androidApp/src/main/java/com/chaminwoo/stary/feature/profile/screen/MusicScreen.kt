@@ -184,7 +184,7 @@ fun MusicScreen(modifier: Modifier = Modifier) {
             Text(
                 text = com.chaminwoo.stary.core.util.LocalizedNames.music(musicCtx, selected.id, selected.displayName),
                 color = if (selectedUnlocked) selectedColor else MusicTextMuted,
-                fontSize = 18.sp, fontWeight = FontWeight.Medium,
+                fontSize = 18.sp, fontWeight = FontWeight.Light,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 textAlign = TextAlign.Center
             )

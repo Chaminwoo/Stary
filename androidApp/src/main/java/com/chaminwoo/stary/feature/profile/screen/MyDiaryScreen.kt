@@ -176,7 +176,7 @@ fun DiaryStarsBoard(
         Box(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
             Text(
                 text = stringResource(R.string.mydiary_sort_count, sortLabel(sortMode), diaries.size),
-                color = sortColor(sortMode), fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                color = sortColor(sortMode), fontSize = 14.sp, fontWeight = FontWeight.Light,
                 modifier = Modifier.align(Alignment.Center),
                 textAlign = TextAlign.Center
             )

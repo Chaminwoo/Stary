@@ -139,7 +139,7 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                     HiddenIconWithEffect(achievement, size = 46.dp)
                 }
                 Spacer(Modifier.height(14.dp))
-                Text("히든 업적 달성!", color = HiddenGold, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text("히든 업적 달성!", color = HiddenGold, fontSize = 15.sp, fontWeight = FontWeight.Light)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     com.chaminwoo.stary.core.util.LocalizedNames.title(

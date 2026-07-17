@@ -310,7 +310,7 @@ fun UserProfileScreen(
                             else -> equippedTitleName
                         },
                         color = titleColor,
-                        fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.SemiBold else FontWeight.Medium,
+                        fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.SemiBold else FontWeight.Light,
                         style = LocalTextStyle.current.merge(
                             TextStyle(
                                 shadow = Shadow(
@@ -479,7 +479,7 @@ private fun StatusChip(text: String, icon: ImageVector? = null) {
             Icon(icon, contentDescription = null, tint = Mint, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
-        Text(text, color = Mint, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = Mint, fontSize = 14.sp, fontWeight = FontWeight.Light)
     }
 }
 
