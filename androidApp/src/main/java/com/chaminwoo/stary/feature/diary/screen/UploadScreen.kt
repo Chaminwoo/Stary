@@ -85,7 +85,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaminwoo.stary.R
-import com.chaminwoo.stary.core.designsystem.Mint
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
@@ -405,7 +404,7 @@ fun UploadScreen(
                             .background(if (selected) Color.White.copy(alpha = 0.15f) else Color.Transparent)
                             .border(
                                 if (selected) 2.dp else 1.dp,
-                                if (selected) Color(0xFF6EE7B7) else MaterialTheme.colorScheme.outline,
+                                if (selected) Color(0xFF9FB3E8) else MaterialTheme.colorScheme.outline,
                                 RoundedCornerShape(10.dp)
                             )
                             .clickable { visibilityType = key }
@@ -413,8 +412,8 @@ fun UploadScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(icon, null, tint = if (selected) Color(0xFF6EE7B7) else MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
-                            Text(stringResource(labelRes), fontSize = 12.sp, color = if (selected) Color(0xFF6EE7B7) else MaterialTheme.colorScheme.secondary)
+                            Icon(icon, null, tint = if (selected) Color(0xFF9FB3E8) else MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+                            Text(stringResource(labelRes), fontSize = 12.sp, color = if (selected) Color(0xFF9FB3E8) else MaterialTheme.colorScheme.secondary)
                         }
                     }
                 }
@@ -673,7 +672,7 @@ private fun StarWheelPicker(
             Modifier
                 .size(itemSize + 18.dp)
                 .clip(CircleShape)
-                .border(2.dp, Mint.copy(alpha = 0.9f), CircleShape)
+                .border(2.dp, Color(0xFF9FB3E8).copy(alpha = 0.9f), CircleShape)
         )
 
         for (off in -visibleSpan..visibleSpan) {

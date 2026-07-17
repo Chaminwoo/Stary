@@ -78,7 +78,7 @@ struct BoomerangCaptureView: View {
                 Spacer()
                 if stage == .capturing {
                     ProgressView(value: Double(camera.progress), total: Double(BoomerangConfig.captureFrames))
-                        .tint(Theme.mint)
+                        .tint(Theme.navyAccent)
                         .frame(width: 180)
                 }
 
@@ -104,10 +104,10 @@ struct BoomerangCaptureView: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .strokeBorder(stage == .capturing ? Theme.mint : .white, lineWidth: 3)
+                                .strokeBorder(stage == .capturing ? Theme.navyAccent : .white, lineWidth: 3)
                                 .frame(width: 78, height: 78)
                             Circle()
-                                .fill(stage == .capturing ? Theme.mint.opacity(0.5) : .white)
+                                .fill(stage == .capturing ? Theme.navyAccent.opacity(0.5) : .white)
                                 .frame(width: 62, height: 62)
                             Image(systemName: "infinity")
                                 .font(.system(size: 24, weight: .semibold))
@@ -187,7 +187,7 @@ struct BoomerangCaptureView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(Theme.mint, in: RoundedRectangle(cornerRadius: 14))
+                    .background(Theme.navyAccent, in: RoundedRectangle(cornerRadius: 14))
                     .foregroundStyle(.black)
                 }
                 .disabled(stage == .encoding)

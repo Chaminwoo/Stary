@@ -242,7 +242,7 @@ fun BoomerangCaptureScreen(
         }
     }
 
-    val mint = Color(0xFF6EE7B7)
+    val mint = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
     Box(
         modifier = Modifier
             .fillMaxSize()

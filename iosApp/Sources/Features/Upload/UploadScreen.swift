@@ -57,7 +57,7 @@ struct UploadScreen: View {
                     colorPicker
                     visibilityPicker
                     Toggle(LocaleManager.shared.t(.uploadAnonymous), isOn: $isAnonymous)
-                        .tint(Theme.mint)
+                        .tint(Theme.navyAccent)
                         .foregroundStyle(Theme.textSecondary)
                     saveButton
                 }
@@ -250,7 +250,7 @@ struct UploadScreen: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(Theme.mint, in: RoundedRectangle(cornerRadius: 14))
+            .background(Theme.navyAccent, in: RoundedRectangle(cornerRadius: 14))
             .foregroundStyle(Color.black)
             .font(.poorStory(17))
         }
@@ -374,7 +374,7 @@ private struct WheelPicker<Content: View>: View {
         ZStack {
             // 중앙 강조 링(선택 자리).
             Circle()
-                .stroke(Theme.mint.opacity(0.9), lineWidth: 2)
+                .stroke(Theme.navyAccent.opacity(0.9), lineWidth: 2)
                 .frame(width: itemSize + 18, height: itemSize + 18)
 
             // 많이 드래그해도 빈 공간이 안 생기도록, 현재 드래그 양만큼 슬롯 수를 늘려 그린다.
