@@ -57,12 +57,12 @@ fun Modifier.appCard(radius: Dp = 16.dp): Modifier = this
  * 지도 원형 버튼용 볼록(엠보스) 테두리 — 위쪽 밝은 하이라이트에서 아래로 갈수록 짙은 남색으로
  * 떨어지는 그라데이션이라, 위에서 빛을 받아 살짝 튀어나온 듯한 우주 느낌을 준다.
  */
-fun Modifier.raisedCosmicBorder(width: Dp = 1.5.dp, shape: Shape = CircleShape): Modifier = this.border(
+fun Modifier.raisedCosmicBorder(width: Dp = 0.75.dp, shape: Shape = CircleShape): Modifier = this.border(
     width = width,
     brush = Brush.verticalGradient(
-        0.00f to Color(0xFFCBD8F7), // 상단 하이라이트(밝은 청백)
-        0.40f to Color(0xFF56659E), // 중간 남색
-        1.00f to Color(0xFF141C3D), // 하단 짙은 남색(그림자 쪽)
+        0.00f to Color(0xFF9FB3E8).copy(alpha = 0.45f), // 상단 하이라이트(은은한 청백)
+        0.45f to Color(0xFF3A4570).copy(alpha = 0.35f), // 중간 남색
+        1.00f to Color(0xFF10142B).copy(alpha = 0.30f), // 하단 짙은 남색(그림자 쪽)
     ),
     shape = shape,
 )
