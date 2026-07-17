@@ -58,7 +58,7 @@ struct SettingsScreen: View {
                                 }
                                 Spacer()
                                 Text(languageLabel(locale.language))
-                                    .font(.poorStory(15)).foregroundStyle(Theme.mint)
+                                    .font(.poorStory(15)).foregroundStyle(Theme.navyAccent)
                                 Image(systemName: "chevron.right")
                                     .font(.caption).foregroundStyle(Theme.textFaint)
                             }
@@ -140,8 +140,8 @@ struct SettingsScreen: View {
 
     private func sectionLabel(_ text: String, _ icon: String) -> some View {
         HStack(spacing: 7) {
-            Image(systemName: icon).font(.system(size: 13)).foregroundStyle(Theme.mint)
-            Text(text).font(.poorStory(15)).foregroundStyle(Theme.mint)
+            Image(systemName: icon).font(.system(size: 13)).foregroundStyle(Theme.navyAccent)
+            Text(text).font(.poorStory(15)).foregroundStyle(Theme.navyAccent)
         }
     }
 
@@ -152,7 +152,7 @@ struct SettingsScreen: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .strokeBorder(
-                        LinearGradient(colors: [Theme.mint.opacity(0.5), Color.blue.opacity(0.4)],
+                        LinearGradient(colors: [Color.blue.opacity(0.5), Theme.navyDeep.opacity(0.4)],
                                        startPoint: .topLeading, endPoint: .bottomTrailing),
                         lineWidth: 1)
             )
@@ -165,10 +165,10 @@ struct SettingsScreen: View {
     private func iconBadge(_ icon: String, active: Bool) -> some View {
         Image(systemName: icon)
             .font(.system(size: 18))
-            .foregroundStyle(active ? Theme.mint : Theme.textFaint)
+            .foregroundStyle(active ? Theme.navyAccent : Theme.textFaint)
             .frame(width: 40, height: 40)
-            .background(active ? Theme.mint.opacity(0.14) : Color.white.opacity(0.05), in: Circle())
-            .overlay(Circle().strokeBorder(active ? Theme.mint.opacity(0.35) : Color.white.opacity(0.08), lineWidth: 1))
+            .background(active ? Theme.navyAccent.opacity(0.14) : Color.white.opacity(0.05), in: Circle())
+            .overlay(Circle().strokeBorder(active ? Theme.navyAccent.opacity(0.35) : Color.white.opacity(0.08), lineWidth: 1))
     }
 
     private func toggleRow(icon: String, label: String, description: String? = nil,
@@ -184,7 +184,7 @@ struct SettingsScreen: View {
             Spacer()
             Toggle("", isOn: Binding(get: { isOn }, set: { onChange($0) }))
                 .labelsHidden()
-                .tint(Theme.mint)
+                .tint(Theme.navyAccent)
         }
         .padding(.vertical, 14)
     }
@@ -200,12 +200,12 @@ struct SettingsScreen: View {
                 Spacer()
                 Text("\(Int(value * 100))%")
                     .font(.poorStory(12))
-                    .foregroundStyle(enabled ? Theme.mint : Theme.textFaint)
+                    .foregroundStyle(enabled ? Theme.navyAccent : Theme.textFaint)
                     .padding(.horizontal, 12).padding(.vertical, 4)
-                    .background(enabled ? Theme.mint.opacity(0.14) : Color.white.opacity(0.05), in: Capsule())
+                    .background(enabled ? Theme.navyAccent.opacity(0.14) : Color.white.opacity(0.05), in: Capsule())
             }
             Slider(value: Binding(get: { Double(value) }, set: { onChange(Float($0)) }), in: 0...1)
-                .tint(Theme.mint)
+                .tint(Theme.navyAccent)
                 .disabled(!enabled)
         }
         .padding(.vertical, 12)

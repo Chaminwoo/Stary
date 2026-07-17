@@ -9,6 +9,9 @@ enum Theme {
     static let mint = Color(hex: 0x6EE7B7)           // Mint(브랜드 강조)
     static let mintBlue = Color(hex: 0x3B82F6)       // MintBlue(민트→블루 그라데이션 짝)
     static let accentRed = Color(hex: 0xFF4F4F)      // AccentRed
+    // 프로필/설정 강조 — 남색 계열(Android profile Accent/Navy 와 값 동기).
+    static let navyAccent = Color(hex: 0x9FB3E8)     // 라이트 남색(글씨/틴트, 구 민트 대체)
+    static let navyDeep = Color(hex: 0x1E3A8A)       // 그라데이션 짝(파랑→남색)
     static let textPrimary = Color(hex: 0xF0F0F0)    // TextPrimary
     static let textSecondary = Color(hex: 0x8A8A8A)  // TextSub
     static let textFaint = Color.white.opacity(0.4)

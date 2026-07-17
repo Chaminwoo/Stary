@@ -72,7 +72,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.chaminwoo.stary.R
-import com.chaminwoo.stary.core.designsystem.Mint
 import com.chaminwoo.stary.core.designsystem.MintBlue
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
@@ -93,7 +92,9 @@ import com.chaminwoo.stary.feature.profile.rememberUserStats
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 private val CardBg = Color(0xCC14181C)
-private val AccentBrush get() = Brush.linearGradient(listOf(Mint, MintBlue))
+private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
+private val Navy = Color(0xFF1E3A8A) // 그라데이션 짝(파랑→남색)
+private val AccentBrush get() = Brush.linearGradient(listOf(MintBlue, Navy))
 
 /**
  * 타인(또는 본인) 공개 프로필 화면 — 내 프로필과 동일한 정보 구성.
@@ -247,7 +248,7 @@ fun UserProfileScreen(
                             Modifier.size(150.dp).background(
                                 Brush.radialGradient(
                                     listOf(
-                                        Mint.copy(alpha = 0.28f),
+                                        Accent.copy(alpha = 0.28f),
                                         Color.Transparent
                                     ), radius = 210f
                                 ),
@@ -301,7 +302,7 @@ fun UserProfileScreen(
                     val titleColor = when {
                         equippedTitleName == null -> TextMuted
                         isHiddenTitle -> Color(0xFFFFD86F)
-                        else -> Mint
+                        else -> Accent
                     }
                     Text(
                         text = when {
@@ -338,7 +339,7 @@ fun UserProfileScreen(
         FloatingStatBox(
             items = listOf(
                 StatBubble(Icons.Filled.Favorite, stats.likesReceived, Color(0xFFE7556B), stringResource(R.string.profile_stat_likes), burstOnTap = true),
-                StatBubble(Icons.Filled.Person, stats.friends, Color(0xFF6EE7B7), stringResource(R.string.common_friend)),
+                StatBubble(Icons.Filled.Person, stats.friends, Accent, stringResource(R.string.common_friend)),
                 StatBubble(Icons.AutoMirrored.Filled.MenuBook, stats.diariesCreated, Color(0xFFF7E067), stringResource(R.string.profile_stat_diaries)),
                 StatBubble(Icons.Filled.Email, 0, MintBlue, stringResource(R.string.user_chat_action), showCount = false), // 파란 편지=채팅
                 StatBubble(Icons.Filled.EmojiEvents, unlockedCount, Color(0xFFF2C94C), stringResource(R.string.nav_achievements), burstOnTap = true), // 업적(누르면 버스트)
@@ -386,7 +387,7 @@ fun UserProfileScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showCancelDialog = false }) {
-                        Text(stringResource(R.string.user_unfriend_no), color = Mint)
+                        Text(stringResource(R.string.user_unfriend_no), color = Accent)
                     }
                 }
             )
@@ -417,7 +418,7 @@ private fun DiaryRow(d: Diary, onClick: () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(CardBg)
-            .border(1.dp, Brush.linearGradient(listOf(Mint.copy(alpha = 0.30f), MintBlue.copy(alpha = 0.20f))), RoundedCornerShape(14.dp))
+            .border(1.dp, Brush.linearGradient(listOf(MintBlue.copy(alpha = 0.30f), Navy.copy(alpha = 0.20f))), RoundedCornerShape(14.dp))
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -470,16 +471,16 @@ private fun StatusChip(text: String, icon: ImageVector? = null) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Mint.copy(alpha = 0.12f))
-            .border(1.dp, Mint.copy(alpha = 0.4f), RoundedCornerShape(50))
+            .background(Accent.copy(alpha = 0.12f))
+            .border(1.dp, Accent.copy(alpha = 0.4f), RoundedCornerShape(50))
             .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = Mint, modifier = Modifier.size(16.dp))
+            Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
-        Text(text, color = Mint, fontSize = 14.sp, fontWeight = FontWeight.Light)
+        Text(text, color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Light)
     }
 }
 
@@ -490,7 +491,7 @@ private fun GradientCard(content: @Composable () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(CardBg)
-            .border(1.dp, Brush.linearGradient(listOf(Mint.copy(alpha = 0.55f), MintBlue.copy(alpha = 0.45f))), RoundedCornerShape(18.dp))
+            .border(1.dp, Brush.linearGradient(listOf(MintBlue.copy(alpha = 0.55f), Navy.copy(alpha = 0.45f))), RoundedCornerShape(18.dp))
     ) { content() }
 }
 

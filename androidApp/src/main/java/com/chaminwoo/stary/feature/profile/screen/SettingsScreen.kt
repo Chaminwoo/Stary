@@ -81,13 +81,14 @@ import com.chaminwoo.stary.core.util.AppSettings
 import com.chaminwoo.stary.core.util.LocaleManager
 import com.chaminwoo.stary.core.util.MusicManager
 
-private val Mint = Color(0xFF6EE7B7)
+private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val SoftRed = Color(0xFFFF6B6B)
 private val Blue = Color(0xFF3B82F6)
+private val Navy = Color(0xFF1E3A8A) // 그라데이션 짝(파랑→남색)
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 private val CardBg = Color(0xCC121821)
-private val AccentBrush = Brush.linearGradient(listOf(Mint, Blue))
+private val AccentBrush = Brush.linearGradient(listOf(Blue, Navy))
 
 /**
  * 설정 화면 — 배경음악/효과음 볼륨, 알림 팝업 on/off, 언어 변경.
@@ -253,7 +254,7 @@ fun SettingsScreen(
                 },
                 dismissButton = {
                     TextButton(enabled = !deleting, onClick = { showDeleteDialog = false }) {
-                        Text(stringResource(R.string.common_cancel), color = Mint, fontFamily = MinSans)
+                        Text(stringResource(R.string.common_cancel), color = Accent, fontFamily = MinSans)
                     }
                 }
             )
@@ -278,7 +279,7 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (St
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
                 .background(Color(0xFF121821))
-                .border(1.dp, Brush.linearGradient(listOf(Mint.copy(alpha = 0.5f), Blue.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
+                .border(1.dp, Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
                 .padding(vertical = 18.dp, horizontal = 8.dp)
         ) {
             Text(
@@ -299,13 +300,13 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (St
                 ) {
                     Text(
                         languageLabel(tag),
-                        color = if (selected) Mint else TextMain,
+                        color = if (selected) Accent else TextMain,
                         fontFamily = MinSans, fontSize = 16.sp,
                         fontWeight = if (selected) FontWeight.Light else FontWeight.Normal,
                         modifier = Modifier.weight(1f)
                     )
                     if (selected) {
-                        Icon(Icons.Filled.Check, contentDescription = null, tint = Mint, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = Accent, modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -330,10 +331,10 @@ private fun SectionLabel(text: String, icon: ImageVector) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(start = 4.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = Mint, modifier = Modifier.size(15.dp))
+        Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size(15.dp))
         Spacer(Modifier.width(7.dp))
         Text(
-            text, color = Mint, fontFamily = MinSans,
+            text, color = Accent, fontFamily = MinSans,
             fontSize = 14.sp, fontWeight = FontWeight.Light, letterSpacing = 1.sp
         )
     }
@@ -350,7 +351,7 @@ private fun GlassCard(content: @Composable () -> Unit) {
             .background(CardBg)
             .border(
                 1.dp,
-                Brush.linearGradient(listOf(Mint.copy(alpha = 0.5f), Blue.copy(alpha = 0.4f))),
+                Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))),
                 RoundedCornerShape(20.dp)
             )
             .padding(horizontal = 16.dp, vertical = 4.dp)
@@ -374,13 +375,13 @@ private fun IconBadge(icon: ImageVector, active: Boolean = true) {
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
-            .background(if (active) Mint.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.05f))
-            .border(1.dp, if (active) Mint.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f), CircleShape),
+            .background(if (active) Accent.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.05f))
+            .border(1.dp, if (active) Accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             icon, contentDescription = null,
-            tint = if (active) Mint else Color(0xFF666666),
+            tint = if (active) Accent else Color(0xFF666666),
             modifier = Modifier.size(20.dp)
         )
     }
@@ -416,8 +417,8 @@ private fun ToggleRow(
             } else null,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color(0xFF0D1117),
-                checkedTrackColor = Mint,
-                checkedBorderColor = Mint,
+                checkedTrackColor = Accent,
+                checkedBorderColor = Accent,
                 uncheckedThumbColor = Color(0xFF8A8A8A),
                 uncheckedTrackColor = Color(0xFF1C232E),
                 uncheckedBorderColor = Color(0xFF3A434F),
@@ -453,7 +454,7 @@ private fun NavRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        Text(value, color = Mint, fontFamily = MinSans, fontSize = 14.sp, fontWeight = FontWeight.Normal)
+        Text(value, color = Accent, fontFamily = MinSans, fontSize = 14.sp, fontWeight = FontWeight.Normal)
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
     }
 }
@@ -483,12 +484,12 @@ private fun VolumeRow(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(if (enabled) Mint.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.05f))
+                    .background(if (enabled) Accent.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.05f))
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text(
                     "${(value * 100).toInt()}%",
-                    color = if (enabled) Mint else Color(0xFF666666),
+                    color = if (enabled) Accent else Color(0xFF666666),
                     fontFamily = MinSans, fontSize = 13.sp, fontWeight = FontWeight.Light
                 )
             }
@@ -502,8 +503,8 @@ private fun VolumeRow(
             enabled = enabled,
             interactionSource = interaction,
             colors = SliderDefaults.colors(
-                thumbColor = Mint,
-                activeTrackColor = Mint,
+                thumbColor = Accent,
+                activeTrackColor = Accent,
                 inactiveTrackColor = Color(0xFF1C232E),
                 disabledThumbColor = Color(0xFF555555),
                 disabledActiveTrackColor = Color(0xFF3A434F),
@@ -556,7 +557,7 @@ private fun StarThumb(enabled: Boolean, interactionSource: MutableInteractionSou
         },
         label = "thumbGlow"
     )
-    val starColor = if (enabled) Mint else Color(0xFF555555)
+    val starColor = if (enabled) Accent else Color(0xFF555555)
 
     Box(
         modifier = Modifier
@@ -567,8 +568,8 @@ private fun StarThumb(enabled: Boolean, interactionSource: MutableInteractionSou
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Mint.copy(alpha = glowAlpha),
-                            Mint.copy(alpha = glowAlpha * 0.35f),
+                            Accent.copy(alpha = glowAlpha),
+                            Accent.copy(alpha = glowAlpha * 0.35f),
                             Color.Transparent
                         ),
                         center = center,

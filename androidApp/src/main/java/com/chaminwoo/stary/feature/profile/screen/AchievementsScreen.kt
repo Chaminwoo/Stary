@@ -69,7 +69,7 @@ import com.chaminwoo.stary.feature.profile.StigmaStore
 import com.chaminwoo.stary.feature.profile.rememberUserStats
 import kotlinx.coroutines.launch
 
-private val Green = Color(0xFF6EE7B7)
+private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val Gold = Color(0xFFFFD86F)
 private val Purple = Color(0xFFB388FF)
 private val TextMain = Color(0xFFF0F0F0)
@@ -182,7 +182,7 @@ private fun TabBar(tab: Int, onSelect: (Int) -> Unit) {
             .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        TabChip(stringResource(R.string.ach_tab_normal), selected = tab == 0, accent = Green) { onSelect(0) }
+        TabChip(stringResource(R.string.ach_tab_normal), selected = tab == 0, accent = Accent) { onSelect(0) }
         TabChip(stringResource(R.string.ach_tab_hidden), selected = tab == 1, accent = Gold) { onSelect(1) }
     }
 }
@@ -248,13 +248,13 @@ private fun NebulaProgress(
 
                 // 성운 blob — 채움 경계를 넘어갈수록 옅어진다(부드러운 채움).
                 val blobs = listOf(
-                    Triple(0.06f, 0.55f, Green),
+                    Triple(0.06f, 0.55f, Accent),
                     Triple(0.20f, 0.30f, Purple),
-                    Triple(0.34f, 0.68f, Green),
+                    Triple(0.34f, 0.68f, Accent),
                     Triple(0.48f, 0.36f, Purple),
-                    Triple(0.62f, 0.60f, Green),
+                    Triple(0.62f, 0.60f, Accent),
                     Triple(0.76f, 0.32f, Purple),
-                    Triple(0.90f, 0.58f, Green),
+                    Triple(0.90f, 0.58f, Accent),
                 )
                 blobs.forEach { (px, py, color) ->
                     val cx = w * px
@@ -324,7 +324,7 @@ private fun NormalTab(
                 ) {
                     Text(
                         stringResource(R.string.ach_progress, unlockedCount, Achievements.all.size),
-                        color = Green, fontSize = 13.sp, fontWeight = FontWeight.Light
+                        color = Accent, fontSize = 13.sp, fontWeight = FontWeight.Light
                     )
                 }
             }
@@ -472,7 +472,7 @@ private fun HiddenAchievementRow(
                 Text(
                     if (mine) stringResource(R.string.ach_hidden_by_me)
                     else stringResource(R.string.ach_hidden_achiever, achieverName),
-                    color = if (mine) Gold else Green, fontSize = 12.sp, fontWeight = FontWeight.Light
+                    color = if (mine) Gold else Accent, fontSize = 12.sp, fontWeight = FontWeight.Light
                 )
             }
         }
@@ -513,13 +513,13 @@ private fun TitleAchievementRow(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(if (unlocked) Green.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.05f)),
+                    .background(if (unlocked) Accent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.05f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (unlocked) Icons.Filled.Star else Icons.Filled.Lock,
                     contentDescription = null,
-                    tint = if (unlocked) Green else TextMuted,
+                    tint = if (unlocked) Accent else TextMuted,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -529,7 +529,7 @@ private fun TitleAchievementRow(
         unlocked = unlocked,
         trailing = {
             when {
-                equipped -> Text(stringResource(R.string.ach_equipped), color = Green, fontSize = 12.sp, fontWeight = FontWeight.Light)
+                equipped -> Text(stringResource(R.string.ach_equipped), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Light)
                 unlocked -> Text(stringResource(R.string.ach_equip), color = TextMain, fontSize = 12.sp)
                 else -> Text(stringResource(R.string.cd_locked), color = TextMuted, fontSize = 12.sp)
             }
@@ -548,7 +548,7 @@ private fun RewardAchievementRow(ach: Achievement, unlocked: Boolean) {
         subtitle = ach.condition,
         unlocked = unlocked,
         trailing = {
-            if (unlocked) Text(stringResource(R.string.ach_obtained), color = Green, fontSize = 12.sp, fontWeight = FontWeight.Light)
+            if (unlocked) Text(stringResource(R.string.ach_obtained), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Light)
             else Text(stringResource(R.string.cd_locked), color = TextMuted, fontSize = 12.sp)
         }
     )
@@ -582,7 +582,7 @@ private fun RewardPreview(reward: Reward, unlocked: Boolean) {
                         .then(if (unlocked) Modifier else Modifier.background(Color.Black.copy(alpha = 0.45f)))
                 )
             }
-            else -> Icon(Icons.Filled.Star, null, tint = Green, modifier = Modifier.size(22.dp))
+            else -> Icon(Icons.Filled.Star, null, tint = Accent, modifier = Modifier.size(22.dp))
         }
         if (!unlocked) {
             Box(
@@ -617,7 +617,7 @@ private fun AchievementRowFrame(
             .background(CardBg)
             .border(
                 width = if (equipped) 1.5.dp else 1.dp,
-                color = if (equipped) Green else Color.White.copy(alpha = 0.06f),
+                color = if (equipped) Accent else Color.White.copy(alpha = 0.06f),
                 shape = RoundedCornerShape(16.dp)
             )
             .clickable(enabled = clickEnabled) { onClick() }

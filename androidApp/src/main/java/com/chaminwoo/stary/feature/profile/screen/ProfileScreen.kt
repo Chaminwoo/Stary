@@ -94,13 +94,14 @@ import androidx.compose.ui.graphics.SolidColor
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import kotlinx.coroutines.launch
 
-private val Green = Color(0xFF6EE7B7)
+private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val Blue = Color(0xFF3B82F6)
+private val Navy = Color(0xFF1E3A8A) // 그라데이션 짝(파랑→남색)
 private val Gold = Color(0xFFFFD86F) // 히든 칭호 색
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 private val CardBg = Color(0xCC14181C)
-private val AccentBrush get() = Brush.linearGradient(listOf(Green, Blue))
+private val AccentBrush get() = Brush.linearGradient(listOf(Blue, Navy))
 
 @Composable
 fun ProfileScreen(
@@ -217,7 +218,7 @@ fun ProfileScreen(
                         .size(188.dp)
                         .background(
                             Brush.radialGradient(
-                                listOf(Green.copy(alpha = 0.28f), Color.Transparent),
+                                listOf(Accent.copy(alpha = 0.28f), Color.Transparent),
                                 radius = 270f
                             ),
                             CircleShape
@@ -234,7 +235,7 @@ fun ProfileScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     when {
-                        isUploading -> com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 28.dp, color = Green)
+                        isUploading -> com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 28.dp, color = Accent)
                         profileImageUrl != null -> com.chaminwoo.stary.core.ui.ThumbAsyncImage(profileImageUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), sizePx = 384)
                         GoogleAuthHelper.currentUserPhotoUrl != null -> com.chaminwoo.stary.core.ui.ThumbAsyncImage(GoogleAuthHelper.currentUserPhotoUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), sizePx = 384)
                         else -> Icon(Icons.Filled.AccountCircle, stringResource(R.string.cd_default_profile), tint = Color(0xFF555555), modifier = Modifier.fillMaxSize())
@@ -268,7 +269,7 @@ fun ProfileScreen(
             val titleColor = when {
                 equippedStigma == null -> TextMuted
                 isHiddenTitle -> Gold
-                else -> Green
+                else -> Accent
             }
             Text(
                 text = when {
@@ -317,7 +318,7 @@ fun ProfileScreen(
         FloatingStatBox(
             items = listOf(
                 StatBubble(Icons.Filled.Favorite, stats.likesReceived, Color(0xFFE7556B), stringResource(R.string.profile_stat_likes), burstOnTap = true),
-                StatBubble(Icons.Filled.Person, stats.friends, Green, stringResource(R.string.nav_friends)),
+                StatBubble(Icons.Filled.Person, stats.friends, Accent, stringResource(R.string.nav_friends)),
                 StatBubble(Icons.AutoMirrored.Filled.MenuBook, stats.diariesCreated, Color(0xFFF7E067), stringResource(R.string.profile_stat_diaries)),
                 StatBubble(Icons.Filled.EmojiEvents, unlockedCount, Color(0xFFF2C94C), stringResource(R.string.nav_achievements), burstOnTap = true), // 업적 — 누르면 버스트+보기
             ) + pinnedDiaries.map { d ->
@@ -391,7 +392,7 @@ private fun NicknameEditDialog(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
                 .background(Color(0xFF121821))
-                .border(1.dp, Brush.linearGradient(listOf(Green.copy(alpha = 0.5f), Blue.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
+                .border(1.dp, Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
                 .padding(20.dp)
         ) {
             Text(stringResource(R.string.profile_edit_nickname), color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
@@ -401,7 +402,7 @@ private fun NicknameEditDialog(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.White.copy(alpha = 0.06f))
-                    .border(1.dp, Green.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                    .border(1.dp, Accent.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -415,7 +416,7 @@ private fun NicknameEditDialog(
                     },
                     singleLine = true,
                     textStyle = TextStyle(color = TextMain, fontSize = 15.sp),
-                    cursorBrush = SolidColor(Green),
+                    cursorBrush = SolidColor(Accent),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -423,7 +424,7 @@ private fun NicknameEditDialog(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = TextMuted) }
                 Spacer(Modifier.width(4.dp))
-                TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.common_save), color = Green) }
+                TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.common_save), color = Accent) }
             }
         }
     }
@@ -444,7 +445,7 @@ private fun PinDiaryPicker(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
                 .background(Color(0xFF121821))
-                .border(1.dp, Brush.linearGradient(listOf(Green.copy(alpha = 0.5f), Blue.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
+                .border(1.dp, Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
                 .padding(16.dp)
         ) {
             Text(stringResource(R.string.profile_pin_picker_title), color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
@@ -462,7 +463,7 @@ private fun PinDiaryPicker(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(if (isSel) Green.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f))
+                                .background(if (isSel) Accent.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f))
                                 .clickable {
                                     selected = when {
                                         isSel -> selected - d.id
@@ -480,7 +481,7 @@ private fun PinDiaryPicker(
                                 color = TextMain, fontSize = 14.sp, maxLines = 1,
                                 overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
                             )
-                            if (isSel) Icon(Icons.Filled.Check, null, tint = Green, modifier = Modifier.size(18.dp))
+                            if (isSel) Icon(Icons.Filled.Check, null, tint = Accent, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -489,7 +490,7 @@ private fun PinDiaryPicker(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = TextMuted) }
                 Spacer(Modifier.width(4.dp))
-                TextButton(onClick = { onConfirm(selected.toList()) }) { Text(stringResource(R.string.common_save), color = Green) }
+                TextButton(onClick = { onConfirm(selected.toList()) }) { Text(stringResource(R.string.common_save), color = Accent) }
             }
         }
     }
@@ -504,7 +505,7 @@ private fun GradientCard(
     content: @Composable () -> Unit,
 ) {
     val border = if (danger) Brush.linearGradient(listOf(Color(0xFFFF6B6B).copy(alpha = 0.5f), Color(0xFFFF6B6B).copy(alpha = 0.2f)))
-    else Brush.linearGradient(listOf(Green.copy(alpha = 0.55f), Blue.copy(alpha = 0.45f)))
+    else Brush.linearGradient(listOf(Blue.copy(alpha = 0.55f), Navy.copy(alpha = 0.45f)))
     Box(
         modifier = modifier
             .fillMaxWidth()

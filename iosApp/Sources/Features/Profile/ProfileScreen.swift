@@ -45,7 +45,7 @@ struct ProfileScreen: View {
     }
     private var titleDisplayColor: Color {
         if equippedTitle == nil { return Theme.textSecondary }
-        return equippedTitleIsHidden ? Color(hex: 0xFFD86F) : Theme.mint
+        return equippedTitleIsHidden ? Color(hex: 0xFFD86F) : Theme.navyAccent
     }
 
     /// 내가 달성한 히든 업적 id.
@@ -68,7 +68,7 @@ struct ProfileScreen: View {
             StatBubble(systemImage: "heart.fill", count: stats.likesReceived,
                        color: Color(hex: 0xE7556B), label: locale.t(.statLikes), burstOnTap: true),
             StatBubble(systemImage: "person.fill", count: stats.friends,
-                       color: Theme.mint, label: locale.t(.profileFriends)),
+                       color: Theme.navyAccent, label: locale.t(.profileFriends)),
             StatBubble(systemImage: "book.fill", count: stats.diariesCreated,
                        color: Color(hex: 0xF7E067), label: locale.t(.profileDiaries)),
             StatBubble(systemImage: "trophy.fill", count: unlockedCount,
@@ -269,7 +269,7 @@ struct ProfileScreen: View {
         PhotosPicker(selection: $photoItem, matching: .images) {
             ZStack {
                 Circle()
-                    .fill(RadialGradient(colors: [Theme.mint.opacity(0.28), .clear],
+                    .fill(RadialGradient(colors: [Theme.navyAccent.opacity(0.28), .clear],
                                          center: .center, startRadius: 0, endRadius: 130))
                     .frame(width: 200, height: 200)
                 avatarImage
@@ -277,7 +277,7 @@ struct ProfileScreen: View {
                     .clipShape(Circle())
                     .overlay(
                         Circle().strokeBorder(
-                            LinearGradient(colors: [Theme.mint, Color(hex: 0x3B82F6)],
+                            LinearGradient(colors: [Color(hex: 0x3B82F6), Theme.navyDeep],
                                            startPoint: .topLeading, endPoint: .bottomTrailing),
                             lineWidth: 3)
                     )
@@ -349,7 +349,7 @@ private struct PinDiaryPicker: View {
                     Button(locale.t(.commonCancel)) { dismiss() }.tint(Theme.textSecondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(locale.t(.commonSave)) { onConfirm(Array(selected)); dismiss() }.tint(Theme.mint)
+                    Button(locale.t(.commonSave)) { onConfirm(Array(selected)); dismiss() }.tint(Theme.navyAccent)
                 }
             }
         }
@@ -368,10 +368,10 @@ private struct PinDiaryPicker: View {
                     .font(.subheadline).foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 Spacer()
-                if isSel { Image(systemName: "checkmark").foregroundStyle(Theme.mint) }
+                if isSel { Image(systemName: "checkmark").foregroundStyle(Theme.navyAccent) }
             }
             .padding(.horizontal, 12).padding(.vertical, 10)
-            .background(isSel ? Theme.mint.opacity(0.14) : Color.white.opacity(0.04),
+            .background(isSel ? Theme.navyAccent.opacity(0.14) : Color.white.opacity(0.04),
                         in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)

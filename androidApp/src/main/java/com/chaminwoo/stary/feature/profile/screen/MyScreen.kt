@@ -52,7 +52,7 @@ import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.profile.ProfileViewModel
 
-private val Green = Color(0xFF6EE7B7)
+private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 // DiarySort 는 DiaryStarBox.kt 로 이동(공용)
@@ -127,7 +127,7 @@ fun MyScreen(
                                         .background(Color(0xFF2A2A2A), CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 28.dp, color = Green)
+                                    com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 28.dp, color = Accent)
                                 }
                             }
 
@@ -223,13 +223,13 @@ fun MyScreen(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Green.copy(alpha = 0.15f))
+                        .background(Accent.copy(alpha = 0.15f))
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = "${myDiaries.size}",
                         fontSize = 12.sp,
-                        color = Green,
+                        color = Accent,
                         fontWeight = FontWeight.Light
                     )
                 }
@@ -249,14 +249,14 @@ fun MyScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(if (selected) Green.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
+                                .background(if (selected) Accent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
                                 .clickable { sortMode = mode }
                                 .padding(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = mode.label,
                                 fontSize = 12.sp,
-                                color = if (selected) Green else TextMuted,
+                                color = if (selected) Accent else TextMuted,
                                 fontWeight = if (selected) FontWeight.Light else FontWeight.Normal
                             )
                         }

@@ -98,7 +98,7 @@ struct AchievementsScreen: View {
             // 진행도 = 막대 대신 **성운이 차오르는 밴드**(34-5). 달성할수록 성운이 오른쪽으로 짙어진다.
             NebulaProgressBand(fraction: Double(unlocked.count) / Double(Swift.max(Achievements.all.count, 1))) {
                 Text("\(unlocked.count) / \(Achievements.all.count)")
-                    .font(.caption).foregroundStyle(Theme.mint)
+                    .font(.caption).foregroundStyle(Theme.navyAccent)
             }
             .frame(height: 52)
 
@@ -131,7 +131,7 @@ struct AchievementsScreen: View {
     private func sectionHeader(_ text: String) -> some View {
         Text(text)
             .font(.poorStory(15))
-            .foregroundStyle(Theme.mint)
+            .foregroundStyle(Theme.navyAccent)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 6)
     }
@@ -141,7 +141,7 @@ struct AchievementsScreen: View {
         let titleId = PioneerQuest.titleId(code)
         let display = LocalizedNames.pioneerTitle(titleId) ?? LocalizedNames.countryName(code)
         return HStack(spacing: 10) {
-            Image(systemName: "flag.fill").foregroundStyle(Theme.mint)
+            Image(systemName: "flag.fill").foregroundStyle(Theme.navyAccent)
             VStack(alignment: .leading, spacing: 2) {
                 Text(display).font(.subheadline).foregroundStyle(Theme.textPrimary)
                 Text(locale.t(.pioneerCondition))
@@ -151,7 +151,7 @@ struct AchievementsScreen: View {
             Button(equippedTitleId == titleId ? locale.t(.achEquipped) : locale.t(.achEquip)) {
                 equipTitle(equippedTitleId == titleId ? nil : titleId)
             }
-            .font(.caption2).tint(Theme.mint)
+            .font(.caption2).tint(Theme.navyAccent)
         }
         .padding(10)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
@@ -161,7 +161,7 @@ struct AchievementsScreen: View {
         let done = unlocked.contains(ach.id)
         return HStack(spacing: 10) {
             Image(systemName: done ? "checkmark.seal.fill" : "lock.fill")
-                .foregroundStyle(done ? Theme.mint : Theme.textFaint)
+                .foregroundStyle(done ? Theme.navyAccent : Theme.textFaint)
             VStack(alignment: .leading, spacing: 2) {
                 // 칭호 업적명(=칭호)은 언어 전환에 맞춰 표시(보상 업적은 매핑 밖 → 원문)
                 Text(LocalizedNames.title(ach.id, fallback: ach.name) ?? ach.name)
@@ -174,7 +174,7 @@ struct AchievementsScreen: View {
                 Button(equippedTitleId == ach.id ? locale.t(.achEquipped) : locale.t(.achEquip)) {
                     equipTitle(equippedTitleId == ach.id ? nil : ach.id)
                 }
-                .font(.caption2).tint(Theme.mint)
+                .font(.caption2).tint(Theme.navyAccent)
             } else {
                 rewardBadge(ach.reward)
             }
@@ -234,7 +234,7 @@ struct AchievementsScreen: View {
                     Text(mineClaim ? locale.t(.achHiddenByMe)
                                    : String(format: locale.t(.achHiddenAchiever), name))
                         .font(.caption2).fontWeight(.medium)
-                        .foregroundStyle(mineClaim ? Color(hex: 0xFFD86F) : Theme.mint)
+                        .foregroundStyle(mineClaim ? Color(hex: 0xFFD86F) : Theme.navyAccent)
                 }
             }
             Spacer()
@@ -311,7 +311,7 @@ private struct NebulaCanvas: View, Animatable {
         set { filled = newValue }
     }
 
-    private static let green = Color(hex: 0x6EE7B7)
+    private static let green = Color(hex: 0x9FB3E8) // 남색 계열 라이트(구 민트)
     private static let purple = Color(hex: 0xB388FF)
     /// (x비율, y비율, 색) — Android 와 동일 배치.
     private static let blobs: [(Double, Double, Color)] = [

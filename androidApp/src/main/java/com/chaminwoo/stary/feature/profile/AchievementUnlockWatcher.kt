@@ -38,8 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
-private val Mint = Color(0xFF6EE7B7)
+private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val Blue = Color(0xFF3B82F6)
+private val Navy = Color(0xFF1E3A8A) // 그라데이션 짝(파랑→남색)
 
 /**
  * 업적 해금 감시기 — 사용자 통계가 바뀌어 새 업적이 달성되면 팝업을 띄운다.
@@ -97,16 +98,16 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
                 .graphicsLayer { scaleX = pop; scaleY = pop; alpha = pop }
                 .widthIn(max = 330.dp)
                 .background(Color(0xFF14181C), RoundedCornerShape(24.dp))
-                .border(1.5.dp, Brush.linearGradient(listOf(Mint, Blue)), RoundedCornerShape(24.dp))
+                .border(1.5.dp, Brush.linearGradient(listOf(Blue, Navy)), RoundedCornerShape(24.dp))
                 .padding(horizontal = 26.dp, vertical = 30.dp)
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Filled.EmojiEvents, null, tint = Mint, modifier = Modifier.size(58.dp))
+                Icon(Icons.Filled.EmojiEvents, null, tint = Accent, modifier = Modifier.size(58.dp))
                 Spacer(Modifier.height(14.dp))
-                Text("업적 달성!", color = Mint, fontSize = 15.sp, fontWeight = FontWeight.Light)
+                Text("업적 달성!", color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Light)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     achievement.name, color = Color.White, fontSize = 22.sp,
@@ -120,18 +121,18 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
                 Spacer(Modifier.height(16.dp))
                 Box(
                     modifier = Modifier
-                        .background(Mint.copy(alpha = 0.12f), RoundedCornerShape(50))
-                        .border(1.dp, Mint.copy(alpha = 0.4f), RoundedCornerShape(50))
+                        .background(Accent.copy(alpha = 0.12f), RoundedCornerShape(50))
+                        .border(1.dp, Accent.copy(alpha = 0.4f), RoundedCornerShape(50))
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Text(rewardText, color = Mint, fontSize = 13.sp, fontWeight = FontWeight.Normal)
+                    Text(rewardText, color = Accent, fontSize = 13.sp, fontWeight = FontWeight.Normal)
                 }
                 Spacer(Modifier.height(22.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Brush.linearGradient(listOf(Mint, Blue)))
+                        .background(Brush.linearGradient(listOf(Blue, Navy)))
                         .clickable { onDismiss() }
                         .padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center

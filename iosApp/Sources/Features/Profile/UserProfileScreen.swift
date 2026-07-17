@@ -66,7 +66,7 @@ struct UserProfileScreen: View {
                 }
                 if let title = LocalizedNames.equippedTitle(equippedTitleId) {
                     let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
-                    let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.mint
+                    let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.navyAccent
                     Text(hiddenT ? "『\(title)』" : title)
                         .font(.poorStory(15))
                         .foregroundStyle(titleColor)
@@ -103,7 +103,7 @@ struct UserProfileScreen: View {
                     } label: {
                         Image(systemName: "ellipsis")
                     }
-                    .tint(Theme.mint)
+                    .tint(Theme.navyAccent)
                 }
             }
         }
@@ -173,7 +173,7 @@ struct UserProfileScreen: View {
             if let title = LocalizedNames.equippedTitle(equippedTitleId) {
                 // 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.
                 let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
-                let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.mint
+                let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.navyAccent
                 Text(hiddenT ? "『\(title)』" : title)
                     .font(.poorStory(12))
                     .padding(.horizontal, 12).padding(.vertical, 5)
@@ -188,7 +188,7 @@ struct UserProfileScreen: View {
     private var avatar: some View {
         ZStack {
             Circle()
-                .fill(RadialGradient(colors: [Theme.mint.opacity(0.28), .clear],
+                .fill(RadialGradient(colors: [Theme.navyAccent.opacity(0.28), .clear],
                                      center: .center, startRadius: 0, endRadius: 90))
                 .frame(width: 140, height: 140)
             Group {
@@ -200,7 +200,7 @@ struct UserProfileScreen: View {
                     Theme.surfaceAlt.overlay(
                         Text(String((userName.isEmpty ? "?" : userName).prefix(1)))
                             .font(.poorStory(40))
-                            .foregroundStyle(Theme.mint)
+                            .foregroundStyle(Theme.navyAccent)
                     )
                 }
             }
@@ -208,7 +208,7 @@ struct UserProfileScreen: View {
             .clipShape(Circle())
             .overlay(
                 Circle().strokeBorder(
-                    LinearGradient(colors: [Theme.mint, Theme.mintBlue],
+                    LinearGradient(colors: [Theme.mintBlue, Theme.navyDeep],
                                    startPoint: .topLeading, endPoint: .bottomTrailing),
                     lineWidth: 3)
             )
@@ -223,13 +223,13 @@ struct UserProfileScreen: View {
         } else if isFriend {
             HStack(spacing: 12) {
                 Label(locale.t(.userStatusFriend), systemImage: "checkmark.seal.fill")
-                    .font(.poorStory(15)).foregroundStyle(Theme.mint)
+                    .font(.poorStory(15)).foregroundStyle(Theme.navyAccent)
                 Button { openChat = true } label: {
                     Label(locale.t(.userChatAction), systemImage: "bubble.left.fill")
                         .font(.poorStory(15))
                         .padding(.horizontal, 16).padding(.vertical, 8)
-                        .background(Theme.mint.opacity(0.18), in: Capsule())
-                        .foregroundStyle(Theme.mint)
+                        .background(Theme.navyAccent.opacity(0.18), in: Capsule())
+                        .foregroundStyle(Theme.navyAccent)
                 }
             }
         } else {
@@ -240,8 +240,8 @@ struct UserProfileScreen: View {
                       systemImage: requested ? "checkmark" : "person.badge.plus")
                     .font(.poorStory(15))
                     .padding(.horizontal, 18).padding(.vertical, 9)
-                    .background((requested ? Theme.textFaint : Theme.mint).opacity(0.18), in: Capsule())
-                    .foregroundStyle(requested ? Theme.textSecondary : Theme.mint)
+                    .background((requested ? Theme.textFaint : Theme.navyAccent).opacity(0.18), in: Capsule())
+                    .foregroundStyle(requested ? Theme.textSecondary : Theme.navyAccent)
             }
             .disabled(requested)
         }
@@ -255,11 +255,11 @@ struct UserProfileScreen: View {
         items.append(StatBubble(systemImage: "heart.fill", count: totalLikes,
                                 color: Color(hex: 0xE7556B), label: locale.t(.statLikes), burstOnTap: true))
         items.append(StatBubble(systemImage: "person.fill", count: friendsCount,
-                                color: Theme.mint, label: locale.t(.profileFriends)))
+                                color: Theme.navyAccent, label: locale.t(.profileFriends)))
         items.append(StatBubble(systemImage: "book.fill", count: visibleDiaries.count,
                                 color: Color(hex: 0xF7E067), label: locale.t(.profileDiaries)))
         items.append(StatBubble(systemImage: "eye.fill", count: totalViews,
-                                color: Theme.mint, label: locale.t(.statViews)))
+                                color: Theme.navyAccent, label: locale.t(.statViews)))
         // 그 사람이 "프로필에 띄우기"로 선택(핀)한 별만 — 전체 다이어리를 다 띄우지 않는다.
         // (Android UserProfileScreen pinnedDiaries 패리티. 공개 범위 필터는 visibleDiaries 가 이미 적용.)
         let pinned = pinnedIds.compactMap { id in visibleDiaries.first { $0.id == id } }
