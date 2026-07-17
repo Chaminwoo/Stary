@@ -746,15 +746,16 @@ fun DiaryMap(
                     Box(
                         modifier = Modifier
                             .size(56.dp)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
+                                    start = Offset(0f, 0f), end = Offset(80f, 80f)
+                                ),
+                                CircleShape
+                            )
                             .raisedCosmicBorder(),
                         contentAlignment = Alignment.Center
                     ) {
-                        // 버튼 몸체 전체 = 남색 그라데이션 크리스탈 결정 — 언뜻 단색, 자세히 보면 파편.
-                        com.chaminwoo.stary.core.ui.CrystalCircle(
-                            size = 56.dp,
-                            colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
-                            seed = 4,
-                        )
                         Icon(Icons.Filled.Add, stringResource(R.string.cd_create_diary), tint = Color.White, modifier = Modifier.size(24.dp))
                     }
                 }

@@ -257,7 +257,7 @@ fun MainScreen(
                         Text(
                             stringResource(R.string.drawer_list),
                             fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
-                            fontSize = 15.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF8A8A8A),
                             modifier = Modifier.weight(1f)
@@ -310,8 +310,8 @@ fun MainScreen(
                                 Text(
                                     text = localizedTitle(currentRoute),
                                     fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color(0xFFF0F0F0)
                                 )
@@ -407,15 +407,17 @@ fun MainScreen(
                         Box(
                             modifier = Modifier
                                 .size(56.dp)
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
+                                        start = Offset(0f, 0f),
+                                        end = Offset(80f, 80f)
+                                    ),
+                                    CircleShape
+                                )
                                 .raisedCosmicBorder(),
                             contentAlignment = Alignment.Center
                         ) {
-                            // 지도 업로드 버튼과 동일한 남색 크리스탈 몸체(같은 seed = 같은 무늬)
-                            com.chaminwoo.stary.core.ui.CrystalCircle(
-                                size = 56.dp,
-                                colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
-                                seed = 4,
-                            )
                             Icon(Icons.Default.Add, contentDescription = "글쓰기", tint = Color.White, modifier = Modifier.size(24.dp))
                         }
                     }
