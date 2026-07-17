@@ -164,7 +164,7 @@ fun MainOnboardingOverlay(onDismiss: () -> Unit) {
                             Modifier.align(Alignment.BottomEnd).padding(end = 72.dp, bottom = 18.dp)
                         )
                         5 -> CoachPill(
-                            "내 다이어리 · 프로필 · 업적 · 친구를 여기서 관리해요",
+                            "내 다이어리 · 프로필 · 업적 · 친구 등\n여러 설정을 여기서 관리해요",
                             Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 66.dp)
                         )
                         6 -> CoachPill(

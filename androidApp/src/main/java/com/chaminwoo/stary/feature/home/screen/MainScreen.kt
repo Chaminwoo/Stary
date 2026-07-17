@@ -257,7 +257,7 @@ fun MainScreen(
                         Text(
                             stringResource(R.string.drawer_list),
                             fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
-                            fontSize = 20.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF8A8A8A),
                             modifier = Modifier.weight(1f)
