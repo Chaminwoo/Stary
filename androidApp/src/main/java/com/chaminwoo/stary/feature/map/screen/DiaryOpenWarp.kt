@@ -98,7 +98,8 @@ import org.maplibre.android.geometry.LatLng as MlLatLng
  * [navigateAfter] true 면 파장 후 세부 화면으로(별 탭), false 면 파장만 내고 지도에 머문다(알림 포커스).
  */
 internal class DiaryOpenWarpData(
-    val bitmap: Bitmap,
+    /** 지도 스냅샷. null 이면 아직 캡처 중 — 라이브 지도 위에 파장 링만 그리고, 도착하면 메시 왜곡으로 이어진다. */
+    var bitmap: Bitmap?,
     val ox: Float,
     val oy: Float,
     val id: String,
@@ -140,32 +141,35 @@ internal fun DiaryOpenWarp(data: DiaryOpenWarpData, onFinished: () -> Unit) {
         val front = p * maxR
         val amp = 46f * (1f - p) // 파면이 퍼질수록 약해져 잔잔해짐
 
-        // 스냅샷을 메시 격자로 그려 별 위치에서 방사형으로 굴절
-        val mw = 14
-        val mh = 14
-        val verts = FloatArray((mw + 1) * (mh + 1) * 2)
-        var i = 0
-        for (row in 0..mh) {
-            for (col in 0..mw) {
-                val x = w * col / mw
-                val y = h * row / mh
-                val dx = x - cx
-                val dy = y - cy
-                val dist = hypot(dx, dy)
-                val delta = dist - front
-                val env = exp(-(delta * delta) / (220f * 220f)) // 넓은 밴드
-                val disp = sin(delta * 0.045f) * env * amp
-                if (dist > 0.001f) {
-                    verts[i++] = x + dx / dist * disp
-                    verts[i++] = y + dy / dist * disp
-                } else {
-                    verts[i++] = x
-                    verts[i++] = y
+        // 스냅샷을 메시 격자로 그려 별 위치에서 방사형으로 굴절.
+        // (스냅샷이 아직 없으면 이 단계만 건너뛴다 — 밑에 라이브 지도가 그대로 보인다.)
+        data.bitmap?.let { bmp ->
+            val mw = 14
+            val mh = 14
+            val verts = FloatArray((mw + 1) * (mh + 1) * 2)
+            var i = 0
+            for (row in 0..mh) {
+                for (col in 0..mw) {
+                    val x = w * col / mw
+                    val y = h * row / mh
+                    val dx = x - cx
+                    val dy = y - cy
+                    val dist = hypot(dx, dy)
+                    val delta = dist - front
+                    val env = exp(-(delta * delta) / (220f * 220f)) // 넓은 밴드
+                    val disp = sin(delta * 0.045f) * env * amp
+                    if (dist > 0.001f) {
+                        verts[i++] = x + dx / dist * disp
+                        verts[i++] = y + dy / dist * disp
+                    } else {
+                        verts[i++] = x
+                        verts[i++] = y
+                    }
                 }
             }
-        }
-        drawIntoCanvas { c ->
-            c.nativeCanvas.drawBitmapMesh(data.bitmap, mw, mh, verts, 0, null, 0, meshPaint)
+            drawIntoCanvas { c ->
+                c.nativeCanvas.drawBitmapMesh(bmp, mw, mh, verts, 0, null, 0, meshPaint)
+            }
         }
 
         // 합쳐진 별 파티클 — 파장 중심(별 위치)에서 각 멤버의 모양/색이 작은 별로 퍼져 나간다.

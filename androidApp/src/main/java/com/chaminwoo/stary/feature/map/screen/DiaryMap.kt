@@ -185,7 +185,7 @@ fun DiaryMap(
     // 업로드 버튼 탭 연출용 — 파장 중심을 버튼 위치로 잡기 위한 좌표(루트 기준).
     var mapBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
     var createFabCenterInRoot by remember { mutableStateOf<Offset?>(null) }
-    // 업로드 버튼 바운스 — 탭 즉시가 아니라 스냅샷이 도착해 파장이 시작되는 프레임과 동시에 구동.
+    // 업로드 버튼 바운스 — 파장 시작(warpState 세팅, 탭 즉시)과 같은 프레임에 구동.
     val createFabScale = remember { Animatable(1f) }
     LaunchedEffect(warpState.value) {
         val wd = warpState.value
@@ -727,13 +727,15 @@ fun DiaryMap(
                             // 파장 중심 = 업로드 버튼 위치(0..1)
                             val ox = ((fabCenter.x - bounds.left) / bounds.width).coerceIn(0f, 1f)
                             val oy = ((fabCenter.y - bounds.top) / bounds.height).coerceIn(0f, 1f)
-                            map.snapshot { bmp ->
-                                com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
-                                warpState.value = DiaryOpenWarpData(
-                                    bmp, ox, oy, id = "", colorIndex = 13, // 코발트 — 남색 버튼과 동계열 파장
-                                    navigateAfter = false, openCreate = true,
-                                )
-                            }
+                            // 스냅샷을 기다리지 않고 탭 즉시 파장 시작 — 그동안은 라이브 지도 위에
+                            // 링만 퍼지고, 스냅샷이 도착하면 같은 진행도에서 왜곡 메시로 이어진다.
+                            com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
+                            val wd = DiaryOpenWarpData(
+                                null, ox, oy, id = "", colorIndex = 13, // 코발트 — 남색 버튼과 동계열 파장
+                                navigateAfter = false, openCreate = true,
+                            )
+                            warpState.value = wd
+                            map.snapshot { bmp -> wd.bitmap = bmp }
                         } else onCreateClick() // 지도 준비 전이면 연출 없이 바로 이동
                     },
                     shape = CircleShape,
