@@ -305,7 +305,7 @@ object ShareCardHelper {
         val out = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         val accent = StarStyle.colorOf(diary.starColor).toArgb()
-        val handFont = runCatching { ResourcesCompat.getFont(context, R.font.poor_story_regular) }.getOrNull()
+        val handFont = runCatching { ResourcesCompat.getFont(context, R.font.min_sans) }.getOrNull()
         val locationHint = assets.locationHint
         val regionMap = assets.regionMap?.takeIf { options.showMap && !it.isRecycled }
 

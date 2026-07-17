@@ -32,7 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.chaminwoo.stary.core.designsystem.PoorStory
+import com.chaminwoo.stary.core.designsystem.MinSans
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,7 +44,7 @@ import kotlinx.coroutines.flow.StateFlow
  * Compose 오버레이로 직접 그린다. [StaryToastHost] 를 화면 최상단(모든 콘텐츠 위)에
  * 한 번 배치해두면, 어디서든 [StaryToast.show] 만 호출하면 된다.
  *
- * 남색 배경 + 본문 폰트(PoorStory) + 밝은 글씨.
+ * 남색 배경 + 본문 폰트(MinSans) + 밝은 글씨.
  */
 object StaryToast {
     data class Event(val message: String, val id: Long)
@@ -104,7 +104,7 @@ fun StaryToastHost(modifier: Modifier = Modifier) {
                     Text(
                         text = shownMessage,
                         color = Color(0xFFF3F5FF),
-                        fontFamily = PoorStory,
+                        fontFamily = MinSans,
                         fontSize = 15.sp,
                         lineHeight = 21.sp,
                         textAlign = TextAlign.Center,

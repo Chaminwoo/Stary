@@ -40,7 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Text
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.chaminwoo.stary.core.designsystem.PoorStory
+import com.chaminwoo.stary.core.designsystem.MinSans
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -150,12 +150,12 @@ fun InAppBannerHost(modifier: Modifier = Modifier) {
                     Column(modifier = Modifier.padding(start = 12.dp)) {
                         Text(
                             e.title.ifBlank { "새 알림" },
-                            color = Color(0xFFF3F5FF), fontFamily = PoorStory,
+                            color = Color(0xFFF3F5FF), fontFamily = MinSans,
                             fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1
                         )
                         if (e.body.isNotBlank()) {
                             Text(
-                                e.body, color = Color(0xFFC7CCE6), fontFamily = PoorStory,
+                                e.body, color = Color(0xFFC7CCE6), fontFamily = MinSans,
                                 fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2
                             )
                         }
