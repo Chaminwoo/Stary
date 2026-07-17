@@ -429,18 +429,18 @@ fun FloatingStatBox(
                         item.count.toString(),
                         color = item.color,
                         fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         style = LocalTextStyle.current.merge(
                             TextStyle(shadow = Shadow(item.color.copy(alpha = 0.95f), blurRadius = 28f))
                         )
                     )
-                    Text(item.label, color = item.color.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(item.label, color = item.color.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Normal)
                 } else {
                     Text(
                         item.label,
                         color = item.color,
                         fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         style = LocalTextStyle.current.merge(
                             TextStyle(shadow = Shadow(item.color.copy(alpha = 0.95f), blurRadius = 26f))
                         )

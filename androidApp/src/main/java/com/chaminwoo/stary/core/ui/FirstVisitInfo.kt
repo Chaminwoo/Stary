@@ -89,7 +89,7 @@ fun FirstVisitInfo(
                 Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
             }
             Spacer(Modifier.height(16.dp))
-            Text(title, color = Color(0xFFF0F0F0), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = Color(0xFFF0F0F0), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             Text(
                 message,
@@ -112,7 +112,7 @@ fun FirstVisitInfo(
                     stringResource(R.string.onb_button),
                     color = Color(0xFF06121E),
                     fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }

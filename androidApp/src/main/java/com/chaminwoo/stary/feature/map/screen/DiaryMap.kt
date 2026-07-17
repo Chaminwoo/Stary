@@ -3,6 +3,7 @@ package com.chaminwoo.stary.feature.map.screen
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.PointF
 import android.view.View
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
@@ -284,6 +285,28 @@ fun DiaryMap(
                 }
                 // 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음)
                 map.addOnCameraMoveListener {
+                    // 지도(웹메르카토르) 상하 끝 밖의 빈 공간이 화면에 들어오면 그만큼 카메라를
+                    // 되돌려 지도 끝에서 딱 멈추게 한다. moveCamera 가 리스너를 재호출하지만
+                    // 두 번째 호출에선 빈 공간이 없어 바로 빠져나온다(수렴).
+                    val h = mv.height.toFloat()
+                    val center = map.cameraPosition.target
+                    if (h > 0f && center != null) {
+                        val proj = map.projection
+                        val topY = proj.toScreenLocation(MlLatLng(MERCATOR_MAX_LAT, center.longitude)).y
+                        val bottomY = proj.toScreenLocation(MlLatLng(-MERCATOR_MAX_LAT, center.longitude)).y
+                        val cx = mv.width / 2f
+                        // 위쪽 빈 공간(북쪽 끝이 화면 안으로 내려옴) ↔ 아래쪽 빈 공간 — 동시에 뚫린
+                        // 초저줌에선 양쪽을 다 만족시킬 수 없어 건드리지 않는다(글로브 구간).
+                        if (topY > 0f && bottomY >= h) {
+                            map.moveCamera(CameraUpdateFactory.newLatLng(
+                                proj.fromScreenLocation(PointF(cx, h / 2f + topY))
+                            ))
+                        } else if (bottomY < h && topY <= 0f) {
+                            map.moveCamera(CameraUpdateFactory.newLatLng(
+                                proj.fromScreenLocation(PointF(cx, h / 2f - (h - bottomY)))
+                            ))
+                        }
+                    }
                     val z = map.cameraPosition.zoom
                     // 대기 헤이즈: 알파가 실제로 변할 때만 state 갱신(팬 중 불필요한 리컴포지션 방지)
                     val a = ((HAZE_START_ZOOM - z) / (HAZE_START_ZOOM - MAP_MIN_ZOOM))
@@ -416,14 +439,36 @@ fun DiaryMap(
                     )
                     constellationSource = cSrc
 
-                    // 도보 길찾기 경로 — 초기 빈 상태, 길찾기 요청 시 채워진다.
+                    // 도보 길찾기 경로 — 별자리 라인과 동일한 3겹(후광/글로우/얇은 밝은 선) 스타일.
+                    // 초기 빈 상태, 길찾기 요청 시 채워진다.
                     val rSrc = GeoJsonSource(ROUTE_SOURCE, FeatureCollection.fromFeatures(emptyList()))
                     style.addSource(rSrc)
                     style.addLayer(
+                        LineLayer(ROUTE_HALO_LAYER, ROUTE_SOURCE).withProperties(
+                            PropertyFactory.lineColor("#6EE7B7"),
+                            PropertyFactory.lineWidth(16f),
+                            PropertyFactory.lineBlur(16f),
+                            PropertyFactory.lineOpacity(CONSTELLATION_HALO_OPACITY),
+                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+                        )
+                    )
+                    style.addLayer(
+                        LineLayer(ROUTE_GLOW_LAYER, ROUTE_SOURCE).withProperties(
+                            PropertyFactory.lineColor("#6EE7B7"),
+                            PropertyFactory.lineWidth(8f),
+                            PropertyFactory.lineBlur(8f),
+                            PropertyFactory.lineOpacity(CONSTELLATION_GLOW_OPACITY),
+                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+                        )
+                    )
+                    style.addLayer(
                         LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
-                            PropertyFactory.lineColor("#86EFAC"),   // 연한 초록 실선(후광 없음)
-                            PropertyFactory.lineWidth(5f),
-                            PropertyFactory.lineOpacity(0.95f),
+                            PropertyFactory.lineColor("#E6FFF4"),
+                            PropertyFactory.lineWidth(1.7f),
+                            PropertyFactory.lineBlur(0.6f),
+                            PropertyFactory.lineOpacity(CONSTELLATION_LINE_OPACITY),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
                         )
@@ -647,7 +692,7 @@ fun DiaryMap(
                 onClick = { mapRef?.animateCamera(CameraUpdateFactory.zoomBy(1.0), 220) },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = Color(0xFF1A1A1A),
+                containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
                 modifier = Modifier.size(44.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Add, stringResource(R.string.cd_zoom_in), tint = Color.White, modifier = Modifier.size(20.dp))
@@ -656,7 +701,7 @@ fun DiaryMap(
                 onClick = { mapRef?.animateCamera(CameraUpdateFactory.zoomBy(-1.0), 220) },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = Color(0xFF1A1A1A),
+                containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
                 modifier = Modifier.size(44.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Remove, stringResource(R.string.cd_zoom_out), tint = Color.White, modifier = Modifier.size(20.dp))
@@ -675,7 +720,7 @@ fun DiaryMap(
                 onClick = { recenterToMyLocation() },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = Color(0xFF1A1A1A),
+                containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
                 modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Navigation, stringResource(R.string.cd_my_location), tint = Color.White, modifier = Modifier.size(20.dp))
@@ -686,7 +731,7 @@ fun DiaryMap(
                 onClick = { constellationEnabled = !constellationEnabled },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = Color(0xFF1A1A1A),
+                containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
                 modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(
@@ -702,7 +747,7 @@ fun DiaryMap(
                 onClick = { MapUiState.enterMapOnly() },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = Color(0xFF1A1A1A),
+                containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
                 modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(
@@ -743,7 +788,9 @@ fun DiaryMap(
                     containerColor = Color.Transparent,
                     modifier = Modifier
                         .onGloballyPositioned { createFabCenterInRoot = it.boundsInRoot().center }
-                        .graphicsLayer { scaleX = createFabScale.value; scaleY = createFabScale.value },
+                        .graphicsLayer { scaleX = createFabScale.value; scaleY = createFabScale.value }
+                        // 테두리는 다른 지도 버튼들처럼 FAB 바깥 modifier 에 — 내부(클리핑 안쪽)에 두면 잘려 안 보인다.
+                        .raisedCosmicBorder(),
                 ) {
                     Box(
                         modifier = Modifier
@@ -754,8 +801,7 @@ fun DiaryMap(
                                     start = Offset(0f, 0f), end = Offset(80f, 80f)
                                 ),
                                 CircleShape
-                            )
-                            .raisedCosmicBorder(),
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Filled.Add, stringResource(R.string.cd_create_diary), tint = Color.White, modifier = Modifier.size(24.dp))
@@ -924,36 +970,51 @@ fun DiaryMap(
         settleOrbits()
     }
 
-    // 별자리 라인 GeoJSON — 켜져 있을 때만 "지금 화면에 보이는 별"로 다시 계산해 채운다.
-    // (끌 때는 비우지 않고 아래 페이드 효과가 사라진 뒤 비워 — 부드럽게 사라지도록)
+    // 별자리 라인 — 켜져 있을 때만 "지금 화면에 보이는 별"로 다시 계산해 채운다.
+    // 토글로 켤 때뿐 아니라 줌/이동(idle)으로 선 구성이 갱신될 때도 잠깐 사라졌다가
+    // 새 구성으로 페이드 인 — 즉시 스냅으로 바뀌는 어색함을 없앤다.
+    val constellationFade = remember { Animatable(0f) }
+    var lastConstellationJson by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(diaries, styleRef, constellationEnabled, cameraIdleTick) {
+        val style = styleRef ?: return@LaunchedEffect
         val source = constellationSource ?: return@LaunchedEffect
         val map = mapRef ?: return@LaunchedEffect
-        if (constellationEnabled) {
-            delay(90) // 클러스터링과 동일하게 idle 디바운스(O(n²) 별자리 재계산 빈도 완화)
-            source.setGeoJson(buildConstellationFeatures(map, diaries, clusterRadiusPx, constellationMaxLinkPx))
+        if (!constellationEnabled) return@LaunchedEffect
+        delay(90) // 클러스터링과 동일하게 idle 디바운스(O(n²) 별자리 재계산 빈도 완화)
+        val features = buildConstellationFeatures(map, diaries, clusterRadiusPx, constellationMaxLinkPx)
+        val json = features.toJson()
+        if (json == lastConstellationJson) return@LaunchedEffect // 선 구성 그대로면 페이드 불필요
+        lastConstellationJson = json
+        val halo = style.getLayer(CONSTELLATION_HALO_LAYER) as? LineLayer
+        val glow = style.getLayer(CONSTELLATION_GLOW_LAYER) as? LineLayer
+        val line = style.getLayer(CONSTELLATION_LAYER) as? LineLayer
+        fun apply(v: Float) {
+            halo?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_HALO_OPACITY * v))
+            glow?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_GLOW_OPACITY * v))
+            line?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_LINE_OPACITY * v))
         }
+        // 이미 보이던 중의 갱신이면 짧게 페이드 아웃한 뒤 새 구성으로 교체.
+        if (constellationFade.value > 0f) {
+            constellationFade.animateTo(0f, tween(160, easing = FastOutSlowInEasing)) { apply(value) }
+        }
+        source.setGeoJson(features)
+        constellationFade.animateTo(1f, tween(550, easing = FastOutSlowInEasing)) { apply(value) }
     }
 
-    // 별자리 페이드 인/아웃 — 토글 시 후광·글로우·선 불투명도를 0↔target 으로 부드럽게.
-    val constellationFade = remember { Animatable(0f) }
+    // 별자리 끄기 — 페이드 아웃이 끝난 뒤 GeoJSON 을 비운다(부드럽게 사라지도록).
     LaunchedEffect(constellationEnabled, styleRef) {
+        if (constellationEnabled) return@LaunchedEffect
         val style = styleRef ?: return@LaunchedEffect
         val halo = style.getLayer(CONSTELLATION_HALO_LAYER) as? LineLayer
         val glow = style.getLayer(CONSTELLATION_GLOW_LAYER) as? LineLayer
         val line = style.getLayer(CONSTELLATION_LAYER) as? LineLayer
-        constellationFade.animateTo(
-            targetValue = if (constellationEnabled) 1f else 0f,
-            animationSpec = tween(if (constellationEnabled) 550 else 380, easing = FastOutSlowInEasing),
-        ) {
+        constellationFade.animateTo(0f, tween(380, easing = FastOutSlowInEasing)) {
             halo?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_HALO_OPACITY * value))
             glow?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_GLOW_OPACITY * value))
             line?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_LINE_OPACITY * value))
         }
-        // 완전히 꺼졌으면 GeoJSON 비우기
-        if (!constellationEnabled) {
-            constellationSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-        }
+        constellationSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        lastConstellationJson = null
     }
 
     // 마커 애니메이션 루프(20fps): float 부유 + pulse + 스파클 궤도 + 위성 공전 + 파티클 트윙클.

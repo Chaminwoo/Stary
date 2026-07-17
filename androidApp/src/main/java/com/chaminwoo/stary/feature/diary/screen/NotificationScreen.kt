@@ -231,7 +231,7 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
                 Text(
                     text = notif.actorName,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(dateStr, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)

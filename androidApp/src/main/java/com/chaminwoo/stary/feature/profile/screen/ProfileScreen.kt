@@ -249,7 +249,7 @@ fun ProfileScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = displayName,
-                    fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextMain,
+                    fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = TextMain,
                     modifier = Modifier.clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -277,7 +277,7 @@ fun ProfileScreen(
                     else -> equippedStigma
                 },
                 color = titleColor,
-                fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.Bold else FontWeight.SemiBold,
+                fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.SemiBold else FontWeight.Medium,
                 style = LocalTextStyle.current.merge(
                     TextStyle(shadow = Shadow(titleColor.copy(alpha = 0.95f), blurRadius = if (isHiddenTitle) 32f else 24f))
                 ),
@@ -304,7 +304,7 @@ fun ProfileScreen(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Logout, null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text(stringResource(R.string.drawer_logout), color = Color(0xFFFF6B6B), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.drawer_logout), color = Color(0xFFFF6B6B), fontSize = 15.sp, fontWeight = FontWeight.Normal)
                 }
             }
         }
@@ -395,7 +395,7 @@ private fun NicknameEditDialog(
                 .border(1.dp, Brush.linearGradient(listOf(Green.copy(alpha = 0.5f), Blue.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
                 .padding(20.dp)
         ) {
-            Text(stringResource(R.string.profile_edit_nickname), color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.profile_edit_nickname), color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(14.dp))
             Box(
                 modifier = Modifier
@@ -448,7 +448,7 @@ private fun PinDiaryPicker(
                 .border(1.dp, Brush.linearGradient(listOf(Green.copy(alpha = 0.5f), Blue.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
                 .padding(16.dp)
         ) {
-            Text(stringResource(R.string.profile_pin_picker_title), color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.profile_pin_picker_title), color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             if (diaries.isEmpty()) {
                 Text(stringResource(R.string.mydiary_empty), color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 20.dp))

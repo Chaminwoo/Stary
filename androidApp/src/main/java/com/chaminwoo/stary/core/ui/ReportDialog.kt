@@ -73,7 +73,7 @@ fun ReportDialog(
                 )
                 .padding(18.dp)
         ) {
-            Text(title, color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.size(12.dp))
             REPORT_REASONS.forEach { (key, resId) ->
                 val isSel = selected == key
@@ -102,7 +102,7 @@ fun ReportDialog(
                 TextButton(
                     enabled = selected != null,
                     onClick = { selected?.let(onSubmit) }
-                ) { Text(stringResource(R.string.report_submit), color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold) }
+                ) { Text(stringResource(R.string.report_submit), color = Color(0xFFFF6B6B), fontWeight = FontWeight.SemiBold) }
             }
         }
     }

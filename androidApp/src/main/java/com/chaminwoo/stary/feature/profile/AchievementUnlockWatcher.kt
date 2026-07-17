@@ -106,11 +106,11 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
             ) {
                 Icon(Icons.Filled.EmojiEvents, null, tint = Mint, modifier = Modifier.size(58.dp))
                 Spacer(Modifier.height(14.dp))
-                Text("업적 달성!", color = Mint, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("업적 달성!", color = Mint, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     achievement.name, color = Color.White, fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold, textAlign = TextAlign.Center
+                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -124,7 +124,7 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
                         .border(1.dp, Mint.copy(alpha = 0.4f), RoundedCornerShape(50))
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Text(rewardText, color = Mint, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(rewardText, color = Mint, fontSize = 13.sp, fontWeight = FontWeight.Normal)
                 }
                 Spacer(Modifier.height(22.dp))
                 Box(
@@ -136,7 +136,7 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
                         .padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("확인", color = Color(0xFF0D0D0D), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("확인", color = Color(0xFF0D0D0D), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

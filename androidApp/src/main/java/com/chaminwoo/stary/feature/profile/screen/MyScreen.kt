@@ -165,7 +165,7 @@ fun MyScreen(
                     Text(
                         text = GoogleAuthHelper.currentUserName ?: userId.take(12),
                         fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         color = TextMain,
                         letterSpacing = (-0.5).sp
                     )
@@ -218,7 +218,7 @@ fun MyScreen(
                     .padding(top = 24.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("내 다이어리", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextMain)
+                Text("내 다이어리", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
                 Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
@@ -230,7 +230,7 @@ fun MyScreen(
                         text = "${myDiaries.size}",
                         fontSize = 12.sp,
                         color = Green,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -257,7 +257,7 @@ fun MyScreen(
                                 text = mode.label,
                                 fontSize = 12.sp,
                                 color = if (selected) Green else TextMuted,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
                             )
                         }
                     }

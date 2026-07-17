@@ -377,7 +377,7 @@ fun DetailScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 authorName.ifEmpty { stringResource(R.string.common_anonymous) },
-                                fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp, fontWeight = FontWeight.Normal,
                                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f)
                             )
                             // 히든 업적 배지 — 익명 글에는 붙이지 않는다(작성자 은닉 유지).
@@ -415,7 +415,7 @@ fun DetailScreen(
 
                 // 제목(사진 밖으로 분리)
                 Text(
-                    currentDiary.title, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                    currentDiary.title, fontSize = 24.sp, fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground, lineHeight = 30.sp
                 )
 
@@ -482,7 +482,7 @@ fun DetailScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        stringResource(R.string.detail_comments_count, comments.size), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        stringResource(R.string.detail_comments_count, comments.size), fontSize = 14.sp, fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -754,7 +754,7 @@ private fun CommentItem(
             } else {
                 Text(
                     displayName.take(1).uppercase().ifBlank { "?" },
-                    color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                    color = accent, fontSize = 13.sp, fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -762,7 +762,7 @@ private fun CommentItem(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    displayName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    displayName, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))

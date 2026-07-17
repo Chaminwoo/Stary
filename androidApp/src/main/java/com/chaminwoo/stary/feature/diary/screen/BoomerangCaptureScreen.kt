@@ -501,7 +501,7 @@ private fun BoomerangAdjustUi(
                     Text(
                         stringResource(R.string.boomer_use),
                         color = Color(0xFF0D0D0D),
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                     )
                 }
             }

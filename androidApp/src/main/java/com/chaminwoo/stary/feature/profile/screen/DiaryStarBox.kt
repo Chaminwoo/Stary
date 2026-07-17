@@ -321,7 +321,7 @@ fun DiaryStarBox(
                 text = titleText,
                 color = titleColor,
                 fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = LocalTextStyle.current.merge(

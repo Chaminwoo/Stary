@@ -104,6 +104,8 @@ internal const val CONSTELLATION_GLOW_LAYER = "constellation-glow-layer"
 internal const val CONSTELLATION_HALO_LAYER = "constellation-halo-layer"
 internal const val ROUTE_SOURCE = "walking-route"
 internal const val ROUTE_LAYER = "walking-route-layer"
+internal const val ROUTE_GLOW_LAYER = "walking-route-glow-layer"
+internal const val ROUTE_HALO_LAYER = "walking-route-halo-layer"
 // 도로 글린트 — 대시 위상을 흘려 빛이 도로를 따라 흐른다.
 // ⚠️ dash/gap 값(선 두께 배수)은 maplibre_style.json 의 line-dasharray 와 일치해야 한다.
 internal const val ROAD_GLINT_LAYER = "road-glint"
@@ -156,6 +158,8 @@ internal const val PIONEER_ICON_ID = "pioneer-icon"
 /** 3D 글로브 "지구 보기" 버튼 노출 줌(이하로 줌아웃하면 버튼 표시 — 자동 전환 없음) / 지도 최소 줌. */
 internal const val GLOBE_BUTTON_ZOOM = 3.0
 internal const val MAP_MIN_ZOOM = 2.4
+/** 웹메르카토르 타일이 존재하는 위도 한계 — 이 밖은 지도가 없어 빈 공간이 보인다(카메라 클램프 기준). */
+internal const val MERCATOR_MAX_LAT = 85.05112877980659
 /** 대기 헤이즈 시작 줌 — 이 줌부터 [MAP_MIN_ZOOM] 까지 내려갈수록 파란 대기가 차올라 글로브 장면과 이어진다. */
 internal const val HAZE_START_ZOOM = 4.4
 

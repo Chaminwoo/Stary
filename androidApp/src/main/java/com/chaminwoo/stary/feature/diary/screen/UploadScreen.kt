@@ -515,7 +515,7 @@ fun UploadScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onBackground, contentColor = MaterialTheme.colorScheme.background)
             ) {
                 if (isUploading) com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 22.dp, color = MaterialTheme.colorScheme.background)
-                else Text(stringResource(R.string.common_save), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                else Text(stringResource(R.string.common_save), fontWeight = FontWeight.Medium, fontSize = 15.sp)
             }
 
             Spacer(Modifier.height(32.dp))

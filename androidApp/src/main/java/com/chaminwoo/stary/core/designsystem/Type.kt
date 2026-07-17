@@ -27,10 +27,10 @@ private fun minSans(weight: FontWeight, wght: Int) = Font(
 val MinSans = FontFamily(
     minSans(FontWeight.Light, 300),
     minSans(FontWeight.Normal, 400),
-    minSans(FontWeight.Medium, 450),
-    minSans(FontWeight.SemiBold, 500),
-    minSans(FontWeight.Bold, 550),
-    minSans(FontWeight.ExtraBold, 620),
+    minSans(FontWeight.Normal, 450),
+    minSans(FontWeight.Medium, 500),
+    minSans(FontWeight.SemiBold, 550),
+    minSans(FontWeight.Bold, 620),
 )
 
 val Typography = Typography(

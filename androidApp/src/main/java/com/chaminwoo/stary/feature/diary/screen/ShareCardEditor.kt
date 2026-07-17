@@ -161,7 +161,7 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     stringResource(R.string.share_edit_title),
-                    color = Color(0xFFF0F0F0), fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF0F0F0), fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { if (!busy) onDismiss() }) {
@@ -380,7 +380,7 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color(0xFF0B0F18))
                 ) {
                     if (busy) com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 18.dp, color = Color(0xFF0B0F18))
-                    else Text(stringResource(R.string.share_to_story), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    else Text(stringResource(R.string.share_to_story), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
                 Button(
                     onClick = {
@@ -398,7 +398,7 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
                         containerColor = Color.White.copy(alpha = 0.10f), contentColor = Color(0xFFF0F0F0)
                     )
                 ) {
-                    Text(stringResource(R.string.share_as_image), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.share_as_image), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
             }
 
@@ -419,7 +419,7 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
             ) {
                 Text(
                     stringResource(R.string.share_edit_pick_star),
-                    color = Color(0xFFF0F0F0), fontSize = 15.sp, fontWeight = FontWeight.SemiBold
+                    color = Color(0xFFF0F0F0), fontSize = 15.sp, fontWeight = FontWeight.Medium
                 )
                 Spacer(Modifier.height(12.dp))
                 val stars = myStars

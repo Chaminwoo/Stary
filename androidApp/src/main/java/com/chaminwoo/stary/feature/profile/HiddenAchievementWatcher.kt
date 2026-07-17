@@ -139,14 +139,14 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                     HiddenIconWithEffect(achievement, size = 46.dp)
                 }
                 Spacer(Modifier.height(14.dp))
-                Text("히든 업적 달성!", color = HiddenGold, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("히든 업적 달성!", color = HiddenGold, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     com.chaminwoo.stary.core.util.LocalizedNames.title(
                         androidx.compose.ui.platform.LocalContext.current, achievement.id, achievement.title
                     )!!,
                     color = Color.White, fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold, textAlign = TextAlign.Center
+                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -156,7 +156,7 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                 Spacer(Modifier.height(14.dp))
                 Text(
                     "앱에서 단 한 명 — 당신이 처음입니다",
-                    color = HiddenPurple, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                    color = HiddenPurple, fontSize = 12.sp, fontWeight = FontWeight.Normal,
                     textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(20.dp))
@@ -169,7 +169,7 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                         .padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("확인", color = Color(0xFF0D0D0D), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("확인", color = Color(0xFF0D0D0D), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

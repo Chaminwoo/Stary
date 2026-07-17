@@ -284,7 +284,7 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (St
             Text(
                 stringResource(R.string.language_dialog_title),
                 color = TextMain, fontFamily = MinSans, fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(start = 16.dp, bottom = 10.dp)
             )
             LocaleManager.SUPPORTED.forEach { tag ->
@@ -301,7 +301,7 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (St
                         languageLabel(tag),
                         color = if (selected) Mint else TextMain,
                         fontFamily = MinSans, fontSize = 16.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
                         modifier = Modifier.weight(1f)
                     )
                     if (selected) {
@@ -334,7 +334,7 @@ private fun SectionLabel(text: String, icon: ImageVector) {
         Spacer(Modifier.width(7.dp))
         Text(
             text, color = Mint, fontFamily = MinSans,
-            fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp
+            fontSize = 14.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp
         )
     }
 }
@@ -453,7 +453,7 @@ private fun NavRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        Text(value, color = Mint, fontFamily = MinSans, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(value, color = Mint, fontFamily = MinSans, fontSize = 14.sp, fontWeight = FontWeight.Normal)
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
     }
 }
@@ -489,7 +489,7 @@ private fun VolumeRow(
                 Text(
                     "${(value * 100).toInt()}%",
                     color = if (enabled) Mint else Color(0xFF666666),
-                    fontFamily = MinSans, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                    fontFamily = MinSans, fontSize = 13.sp, fontWeight = FontWeight.Medium
                 )
             }
         }

@@ -199,7 +199,7 @@ fun StarClusterScreen(
             Text(
                 stringResource(R.string.cluster_header, diaries.size),
                 color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                fontSize = 17.sp, fontWeight = FontWeight.Medium,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             Spacer(Modifier.height(4.dp))
@@ -333,7 +333,7 @@ private fun ClusterDiaryCard(
             Text(
                 diary.title.ifBlank { stringResource(R.string.common_untitled) },
                 color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
         }

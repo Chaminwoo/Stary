@@ -408,11 +408,8 @@ fun MainListScreen(
             val mint = Color(0xFF6EE7B7)
             val pillBg = Color(0xEE111120)
 
+            // "전체보기"는 기본 상태(필터 없음)와 같아 목록에서 제외 — 각 필터 재탭으로 해제.
             val filterOpts = listOf(
-                FilterOpt(stringResource(R.string.filter_all), Icons.Filled.Public, !anyActive) {
-                    unviewedOnly = false; friendsOnly = false; myOnly = false
-                    selectedFriendIds = emptySet(); periodDays = null; speedDialExpanded = false
-                },
                 FilterOpt(stringResource(R.string.filter_unviewed), Icons.Filled.FiberNew, unviewedOnly) {
                     unviewedOnly = !unviewedOnly; if (unviewedOnly) myOnly = false
                 },

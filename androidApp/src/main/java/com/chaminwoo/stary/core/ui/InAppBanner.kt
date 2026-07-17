@@ -151,7 +151,7 @@ fun InAppBannerHost(modifier: Modifier = Modifier) {
                         Text(
                             e.title.ifBlank { "새 알림" },
                             color = Color(0xFFF3F5FF), fontFamily = MinSans,
-                            fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1
+                            fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
                         )
                         if (e.body.isNotBlank()) {
                             Text(

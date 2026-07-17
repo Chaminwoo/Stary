@@ -286,7 +286,7 @@ fun UserProfileScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = resolvedName.ifBlank { stringResource(R.string.friend_no_name) },
-                            fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextMain
+                            fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = TextMain
                         )
                         com.chaminwoo.stary.core.ui.HiddenStarBadges(
                             userId = userId,
@@ -310,7 +310,7 @@ fun UserProfileScreen(
                             else -> equippedTitleName
                         },
                         color = titleColor,
-                        fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.Bold else FontWeight.SemiBold,
+                        fontSize = 15.sp, fontWeight = if (isHiddenTitle) FontWeight.SemiBold else FontWeight.Medium,
                         style = LocalTextStyle.current.merge(
                             TextStyle(
                                 shadow = Shadow(
@@ -427,7 +427,7 @@ private fun DiaryRow(d: Diary, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 d.title.ifBlank { stringResource(R.string.common_untitled) },
-                color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Normal,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(3.dp))
@@ -461,7 +461,7 @@ private fun ActionButton(text: String, icon: ImageVector, onClick: () -> Unit) {
     ) {
         Icon(icon, contentDescription = null, tint = Color(0xFF0D0D0D), modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
-        Text(text, color = Color(0xFF0D0D0D), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = Color(0xFF0D0D0D), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -479,7 +479,7 @@ private fun StatusChip(text: String, icon: ImageVector? = null) {
             Icon(icon, contentDescription = null, tint = Mint, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
-        Text(text, color = Mint, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(text, color = Mint, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -501,7 +501,7 @@ private fun StatCell(label: String, value: String, iconTint: Color, icon: ImageV
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextMain)
+        Text(value, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Icon(icon, null, tint = iconTint, modifier = Modifier.size(13.dp))
             Text(label, fontSize = 12.sp, color = TextMuted)

@@ -127,7 +127,7 @@ fun StarDiaryButton(
                 text = text,
                 color = charcoal,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Medium
             )
         }
     }
@@ -152,7 +152,7 @@ fun StyleButton(
         Text(
             text = text,
             fontSize = 20.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Normal,
             letterSpacing = 0.2.sp,
             color = textColor
         )
@@ -176,7 +176,7 @@ fun StatCard(
         Text(
             text = value,
             fontSize = 25.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Medium,
             color = TextMain
         )
         Row(
@@ -218,7 +218,7 @@ fun DiaryCard(
         Text(
             text = diary.title,
             fontSize = 25.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Medium,
             color = TextMain,
             maxLines = 2,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
