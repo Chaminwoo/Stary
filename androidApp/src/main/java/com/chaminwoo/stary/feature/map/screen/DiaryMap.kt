@@ -64,6 +64,7 @@ import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Diary
+import com.chaminwoo.stary.core.ui.clickBounce
 import com.chaminwoo.stary.core.ui.raisedCosmicBorder
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapUiState
@@ -637,7 +638,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(44.dp).raisedCosmicBorder()
+                modifier = Modifier.size(44.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Add, stringResource(R.string.cd_zoom_in), tint = Color.White, modifier = Modifier.size(20.dp))
             }
@@ -646,7 +647,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(44.dp).raisedCosmicBorder()
+                modifier = Modifier.size(44.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Remove, stringResource(R.string.cd_zoom_out), tint = Color.White, modifier = Modifier.size(20.dp))
             }
@@ -665,7 +666,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(48.dp).raisedCosmicBorder()
+                modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Navigation, stringResource(R.string.cd_my_location), tint = Color.White, modifier = Modifier.size(20.dp))
             }
@@ -676,7 +677,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(48.dp).raisedCosmicBorder()
+                modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(
                     Icons.Filled.AutoAwesome,
@@ -692,7 +693,7 @@ fun DiaryMap(
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xFF1A1A1A),
-                modifier = Modifier.size(48.dp).raisedCosmicBorder()
+                modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
             ) {
                 Icon(
                     Icons.Filled.Visibility,
@@ -728,9 +729,9 @@ fun DiaryMap(
                     shape = CircleShape,
                     elevation = FloatingActionButtonDefaults.elevation(0.dp),
                     containerColor = Color.Transparent,
-                    modifier = Modifier.onGloballyPositioned {
-                        createFabCenterInRoot = it.boundsInRoot().center
-                    },
+                    modifier = Modifier
+                        .onGloballyPositioned { createFabCenterInRoot = it.boundsInRoot().center }
+                        .clickBounce(),
                 ) {
                     Box(
                         modifier = Modifier
@@ -771,6 +772,7 @@ fun DiaryMap(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 30.dp)
                     .size(52.dp)
+                    .clickBounce()
                     .raisedCosmicBorder()
             ) {
                 Icon(Icons.Filled.Close, contentDescription = context.getString(R.string.map_route_cancel))

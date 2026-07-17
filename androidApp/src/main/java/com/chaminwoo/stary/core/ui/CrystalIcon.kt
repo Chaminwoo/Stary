@@ -32,6 +32,7 @@ fun bakeCrystalIcon(
     seed: Int,
     sizePx: Int,
     layoutDirection: LayoutDirection,
+    contrast: Float = 1f,
 ): ImageBitmap {
     val image = ImageBitmap(sizePx, sizePx)
     val size = Size(sizePx.toFloat(), sizePx.toFloat())
@@ -43,7 +44,7 @@ fun bakeCrystalIcon(
         xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
     }
     val layer = canvas.saveLayer(0f, 0f, size.width, size.height, maskPaint)
-    StarStyle.drawCrystalFacets(canvas, silhouette = null, seed = seed, colors = listOf(color.toArgb()), left = 0f, top = 0f, sizePx = size.width)
+    StarStyle.drawCrystalFacets(canvas, silhouette = null, seed = seed, colors = listOf(color.toArgb()), left = 0f, top = 0f, sizePx = size.width, contrast = contrast)
     canvas.restoreToCount(layer)
     return image
 }
@@ -60,13 +61,15 @@ fun CrystalIcon(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     seed: Int = 0,
+    /** 명도 단차 강도 — 아이콘은 크기가 작아 별보다 무늬가 묻히기 쉬워 기본값을 높여 뒀다. */
+    contrast: Float = 2.2f,
 ) {
     val painter = rememberVectorPainter(imageVector)
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val bakePx = with(density) { (size * 2).toPx() }.roundToInt().coerceIn(32, 320)
-    val bitmap = remember(painter, color, seed, bakePx) {
-        bakeCrystalIcon(painter, color, seed, bakePx, layoutDirection)
+    val bitmap = remember(painter, color, seed, bakePx, contrast) {
+        bakeCrystalIcon(painter, color, seed, bakePx, layoutDirection, contrast)
     }
     Image(bitmap, contentDescription, modifier.size(size))
 }

@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.chaminwoo.stary.core.ui.clickBounce
 import com.chaminwoo.stary.core.ui.raisedCosmicBorder
 import kotlinx.coroutines.delay
 
@@ -70,6 +71,7 @@ fun MapOnlyOverlay(onExit: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(56.dp)
+                        .clickBounce()
                         .background(Color(0xCC141414), CircleShape)
                         .raisedCosmicBorder(),
                     contentAlignment = Alignment.Center
