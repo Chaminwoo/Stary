@@ -282,8 +282,14 @@ fun DiaryMap(
                     if (h <= 0f) return
                     val c = m.cameraPosition.target ?: return
                     val proj = m.projection
-                    val topY = proj.toScreenLocation(MlLatLng(MERCATOR_MAX_LAT, c.longitude)).y.coerceIn(0f, h)
-                    val bottomY = proj.toScreenLocation(MlLatLng(-MERCATOR_MAX_LAT, c.longitude)).y.coerceIn(0f, h)
+                    val cy = h / 2f
+                    val topRaw = proj.toScreenLocation(MlLatLng(MERCATOR_MAX_LAT, c.longitude)).y
+                    val bottomRaw = proj.toScreenLocation(MlLatLng(-MERCATOR_MAX_LAT, c.longitude)).y
+                    // 카메라 중심(화면 중앙)은 항상 세계 안 → 북쪽 끝은 중앙보다 위, 남쪽 끝은 중앙보다
+                    // 아래에 있어야 정상. 기울임(tilt) 시 지평선 뒤로 넘어간 좌표가 화면 안쪽 값으로
+                    // 뒤집혀 튀면(화면 전체를 덮는 버그) 그 값은 무시한다.
+                    val topY = if (topRaw > 0f && topRaw < cy) topRaw else 0f
+                    val bottomY = if (bottomRaw < h && bottomRaw > cy) bottomRaw else Float.MAX_VALUE
                     // 빈 공간이 안 보이면 고정 센티널(팬/줌 내내 불필요한 리컴포지션 방지), 줌은 1/4 단위 양자화.
                     val next = if (topY > 0f || bottomY < h) {
                         Triple(topY, bottomY, (m.cameraPosition.zoom * 4).toInt() / 4f)
