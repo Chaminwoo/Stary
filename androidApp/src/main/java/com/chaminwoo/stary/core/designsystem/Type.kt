@@ -18,6 +18,11 @@ val PoorStory = FontFamily(
     Font(R.font.poor_story_regular, FontWeight.Normal),
 )
 
+// 상단 바 타이틀 + 드로어 목록용
+val HSHwalkongSerif = FontFamily(
+    Font(R.font.hs_hwalkong_serif_regular, FontWeight.Normal),
+)
+
 val Typography = Typography(
     // ── 영문 위주 대형 표시 텍스트 ──────────────────────────────
     displayLarge  = TextStyle(fontFamily = PoetsenOne, fontWeight = FontWeight.Normal, fontSize = 57.sp, lineHeight = 64.sp, letterSpacing = (-0.25).sp),

@@ -254,6 +254,7 @@ fun MainScreen(
                     ) {
                         Text(
                             stringResource(R.string.drawer_list),
+                            fontFamily = com.chaminwoo.stary.core.designsystem.HSHwalkongSerif,
                             fontSize = 20.sp,
                             color = Color(0xFF8A8A8A),
                             modifier = Modifier.weight(1f)
@@ -305,6 +306,7 @@ fun MainScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = localizedTitle(currentRoute),
+                                    fontFamily = com.chaminwoo.stary.core.designsystem.HSHwalkongSerif,
                                     fontSize = 20.sp,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color(0xFFF0F0F0)
@@ -534,7 +536,7 @@ private fun DrawerItem(
     }
     NavigationDrawerItem(
         icon = { Icon(icon, null, tint = color, modifier = Modifier.size(22.dp)) },
-        label = { Text(label, fontSize = 18.sp, color = color) },
+        label = { Text(label, fontFamily = com.chaminwoo.stary.core.designsystem.HSHwalkongSerif, fontSize = 18.sp, color = color) },
         selected = selected,
         onClick = onClick,
         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
