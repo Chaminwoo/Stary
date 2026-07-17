@@ -12,7 +12,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.ColorUtils
 import kotlin.math.cos
 import kotlin.math.floor
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -190,8 +189,6 @@ object StarStyle {
         top: Float,
         sizePx: Float,
         alpha: Int = 255,
-        /** 명도 단차(파편 경계) 강도 배수 — 1f 가 별과 동일한 기본값, 올릴수록 무늬가 또렷해진다. */
-        contrast: Float = 1f,
     ) {
         if (sizePx <= 0f || colors.isEmpty() || alpha <= 0) return
         val t = seed
@@ -245,7 +242,7 @@ object StarStyle {
             ColorUtils.colorToHSL(base, hsl)
             hsl[0] = (hsl[0] + (h1 - 0.5f) * 48f + 360f) % 360f
             hsl[1] = (hsl[1] * (0.80f + 0.40f * h2)).coerceIn(0f, 1f)
-            hsl[2] = (hsl[2] + (ringBias + (h1 - 0.5f) * 0.18f) * contrast).coerceIn(0.05f, 0.97f)
+            hsl[2] = (hsl[2] + ringBias + (h1 - 0.5f) * 0.18f).coerceIn(0.05f, 0.97f)
             return ColorUtils.HSLToColor(hsl)
         }
 
@@ -286,7 +283,7 @@ object StarStyle {
             style = Paint.Style.STROKE
             strokeWidth = (sizePx * 0.011f).coerceAtLeast(0.7f)
             color = android.graphics.Color.WHITE
-            this.alpha = (40 * contrast).roundToInt().coerceIn(0, 255) * alpha / 255
+            this.alpha = 40 * alpha / 255
         })
 
         // ── 볼록 돔 셰이딩 ──
@@ -294,7 +291,7 @@ object StarStyle {
         canvas.drawRect(left, top, left + sizePx, top + sizePx, Paint().apply {
             shader = RadialGradient(
                 cx - sizePx * 0.10f, cy - sizePx * 0.12f, sizePx * 0.45f,
-                android.graphics.Color.argb((85 * contrast).roundToInt().coerceIn(0, 255) * alpha / 255, 255, 255, 255),
+                android.graphics.Color.argb(85 * alpha / 255, 255, 255, 255),
                 android.graphics.Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
@@ -306,7 +303,7 @@ object StarStyle {
                 intArrayOf(
                     android.graphics.Color.TRANSPARENT,
                     android.graphics.Color.TRANSPARENT,
-                    android.graphics.Color.argb((70 * contrast).roundToInt().coerceIn(0, 255) * alpha / 255, 0, 0, 20)
+                    android.graphics.Color.argb(70 * alpha / 255, 0, 0, 20)
                 ),
                 floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP
             )

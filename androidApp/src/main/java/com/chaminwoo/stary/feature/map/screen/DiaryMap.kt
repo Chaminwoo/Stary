@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -184,6 +185,15 @@ fun DiaryMap(
     // 업로드 버튼 탭 연출용 — 파장 중심을 버튼 위치로 잡기 위한 좌표(루트 기준).
     var mapBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
     var createFabCenterInRoot by remember { mutableStateOf<Offset?>(null) }
+    // 업로드 버튼 바운스 — 탭 즉시가 아니라 스냅샷이 도착해 파장이 시작되는 프레임과 동시에 구동.
+    val createFabScale = remember { Animatable(1f) }
+    LaunchedEffect(warpState.value) {
+        val wd = warpState.value
+        if (wd?.openCreate != true) return@LaunchedEffect
+        createFabScale.snapTo(1f)
+        createFabScale.animateTo(1.12f, tween(110, easing = FastOutSlowInEasing))
+        createFabScale.animateTo(1f, tween(180, easing = FastOutSlowInEasing))
+    }
 
     val onDiaryClickRef = rememberUpdatedState(onDiaryClick)
     val onClusterClickRef = rememberUpdatedState(onClusterClick)
@@ -731,29 +741,21 @@ fun DiaryMap(
                     containerColor = Color.Transparent,
                     modifier = Modifier
                         .onGloballyPositioned { createFabCenterInRoot = it.boundsInRoot().center }
-                        .clickBounce(),
+                        .graphicsLayer { scaleX = createFabScale.value; scaleY = createFabScale.value },
                 ) {
                     Box(
                         modifier = Modifier
                             .size(56.dp)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
-                                    start = Offset(0f, 0f), end = Offset(80f, 80f)
-                                ),
-                                CircleShape
-                            )
                             .raisedCosmicBorder(),
                         contentAlignment = Alignment.Center
                     ) {
-                        // 언뜻 보면 흰 + 아이콘, 자세히 보면 별과 같은 크리스탈 결정 재질(얼음빛).
-                        com.chaminwoo.stary.core.ui.CrystalIcon(
-                            Icons.Filled.Add,
-                            color = Color(0xFFDCE6FA),
-                            size = 24.dp,
-                            contentDescription = stringResource(R.string.cd_create_diary),
+                        // 버튼 몸체 전체 = 남색 그라데이션 크리스탈 결정 — 언뜻 단색, 자세히 보면 파편.
+                        com.chaminwoo.stary.core.ui.CrystalCircle(
+                            size = 56.dp,
+                            colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
                             seed = 4,
                         )
+                        Icon(Icons.Filled.Add, stringResource(R.string.cd_create_diary), tint = Color.White, modifier = Modifier.size(24.dp))
                     }
                 }
             }

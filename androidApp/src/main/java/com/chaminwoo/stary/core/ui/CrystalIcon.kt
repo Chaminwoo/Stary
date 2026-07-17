@@ -11,11 +11,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.VectorPainter
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -32,7 +29,6 @@ fun bakeCrystalIcon(
     seed: Int,
     sizePx: Int,
     layoutDirection: LayoutDirection,
-    contrast: Float = 1f,
 ): ImageBitmap {
     val image = ImageBitmap(sizePx, sizePx)
     val size = Size(sizePx.toFloat(), sizePx.toFloat())
@@ -44,32 +40,36 @@ fun bakeCrystalIcon(
         xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
     }
     val layer = canvas.saveLayer(0f, 0f, size.width, size.height, maskPaint)
-    StarStyle.drawCrystalFacets(canvas, silhouette = null, seed = seed, colors = listOf(color.toArgb()), left = 0f, top = 0f, sizePx = size.width, contrast = contrast)
+    StarStyle.drawCrystalFacets(canvas, silhouette = null, seed = seed, colors = listOf(color.toArgb()), left = 0f, top = 0f, sizePx = size.width)
     canvas.restoreToCount(layer)
     return image
 }
 
 /**
- * 크리스탈 파편으로 채운 아이콘 — 언뜻 보면 단색 아이콘, 자세히 보면 별과 같은 결정 재질.
+ * 크리스탈 결정 재질의 원판 — 원형 버튼 몸체 전체를 별과 같은 파편으로 채운다.
+ * 언뜻 보면 그라데이션 단색 버튼, 자세히 보면 결정 무늬가 드러난다.
  * 무늬는 정적이므로 2배 해상도로 1회만 구워 두고 매 프레임엔 그리기만 한다.
+ *
+ * @param colors 1색(단색) 또는 2색(그라데이션) — 파편이 위치에 따라 두 색 사이를 오간다.
  */
 @Composable
-fun CrystalIcon(
-    imageVector: ImageVector,
-    color: Color,
+fun CrystalCircle(
     size: Dp,
-    contentDescription: String?,
+    colors: List<Color>,
     modifier: Modifier = Modifier,
-    seed: Int = 0,
-    /** 명도 단차 강도 — 아이콘은 크기가 작아 별보다 무늬가 묻히기 쉬워 기본값을 높여 뒀다. */
-    contrast: Float = 2.2f,
+    seed: Int = 4,
 ) {
-    val painter = rememberVectorPainter(imageVector)
     val density = LocalDensity.current
-    val layoutDirection = LocalLayoutDirection.current
-    val bakePx = with(density) { (size * 2).toPx() }.roundToInt().coerceIn(32, 320)
-    val bitmap = remember(painter, color, seed, bakePx, contrast) {
-        bakeCrystalIcon(painter, color, seed, bakePx, layoutDirection, contrast)
+    val bakePx = with(density) { (size * 2).toPx() }.roundToInt().coerceIn(48, 512)
+    val bitmap = remember(colors, seed, bakePx) {
+        val image = ImageBitmap(bakePx, bakePx)
+        val canvas = android.graphics.Canvas(image.asAndroidBitmap())
+        val s = bakePx.toFloat()
+        val silhouette = android.graphics.Path().apply {
+            addCircle(s / 2f, s / 2f, s / 2f, android.graphics.Path.Direction.CW)
+        }
+        StarStyle.drawCrystalFacets(canvas, silhouette, seed, colors.map { it.toArgb() }, 0f, 0f, s)
+        image
     }
-    Image(bitmap, contentDescription, modifier.size(size))
+    Image(bitmap, contentDescription = null, modifier = modifier.size(size))
 }
