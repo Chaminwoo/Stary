@@ -95,7 +95,7 @@ struct ShareCardView: View {
 
                 // 4) 제목 + 작성자·날짜 + 장소 힌트
                 Text(diary.title.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : diary.title)
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -107,7 +107,7 @@ struct ShareCardView: View {
                 if let locationHint {
                     Spacer().frame(height: 12)
                     Text("✦ \(locationHint)")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(accent)
                 }
 
@@ -119,7 +119,7 @@ struct ShareCardView: View {
                     .foregroundStyle(.white.opacity(0.8))
                 Spacer().frame(height: 10)
                 Text("STARY")
-                    .font(.system(size: 19, weight: .bold))
+                    .font(.system(size: 19, weight: .semibold))
                     .kerning(6)
                     .foregroundStyle(.white)
                 Spacer().frame(height: 70)

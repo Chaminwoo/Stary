@@ -1,5 +1,8 @@
 # iOS 부트스트랩 — 클라우드 Mac에서 "빈 화면 + shared 연결"까지
 
+> ⚠️ **이 문서는 초기 실험 기록(구식)** — 지금은 `iosApp/project.yml` + XcodeGen 방식이라
+> 수동 프로젝트 생성이 필요 없다. **클론 후 시뮬레이터 실행 절차는 [IOS_SETUP.md](IOS_SETUP.md) 를 볼 것.**
+
 > 목표: 맥을 사지 않고 **클라우드 Mac**에서 이 레포를 받아, `iosApp` Xcode 프로젝트를 만들고
 > **시뮬레이터에 빈 SwiftUI 화면을 띄우되 `shared`(Kotlin) 코드를 한 줄 호출**해 KMP 브리지가 동작함을 확인한다.
 > (전체 출시 로드맵은 [IOS_RELEASE_CHECKLIST.md](IOS_RELEASE_CHECKLIST.md) 참고. 이 문서는 그 첫 발자국.)

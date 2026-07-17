@@ -201,7 +201,7 @@ struct MainTabView: View {
         .background(Theme.background)
     }
 
-    // MARK: - 글쓰기 FAB (Android: 민트→블루 그라데이션 56dp 원형, 우하단)
+    // MARK: - 글쓰기 FAB (Android: 남색 그라데이션 56dp 원형 + 엠보스 테두리, 우하단)
 
     private var fab: some View {
         VStack {
@@ -216,10 +216,11 @@ struct MainTabView: View {
                         .foregroundStyle(.white)
                         .frame(width: 56, height: 56)
                         .background(
-                            LinearGradient(colors: [Theme.mint, Theme.mintBlue],
+                            LinearGradient(colors: [Color(hex: 0x3A4676), Color(hex: 0x111936)],
                                            startPoint: .topLeading, endPoint: .bottomTrailing),
                             in: Circle()
                         )
+                        .raisedCosmicBorder()
                 }
                 .padding(.trailing, 16)
                 .padding(.bottom, 16)

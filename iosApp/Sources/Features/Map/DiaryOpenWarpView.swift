@@ -4,7 +4,7 @@ import SwiftUI
 import UIKit
 
 /// 다이어리 진입 직전 파장 연출 데이터 — Android `DiaryOpenWarpData` 대응.
-struct DiaryWarpData: Identifiable {
+struct DiaryOpenWarpData: Identifiable {
     let id = UUID()
     /// 탭 순간의 지도 스냅샷(캡처 실패 시 nil — 링/버스트만 재생).
     let snapshot: UIImage?
@@ -28,7 +28,7 @@ private let warpDuration: Double = 1.3
 /// 파장 링(후광+굴절 띠+가장자리 선)과 합쳐진 별 버스트 파티클을 얹는다.
 /// (Android `DiaryOpenWarp`(drawBitmapMesh) 대응 — iOS 는 CIBumpDistortion 으로 근사.)
 struct DiaryOpenWarpView: View {
-    let data: DiaryWarpData
+    let data: DiaryOpenWarpData
     let onFinished: () -> Void
 
     /// CI 렌더 컨텍스트 — 프레임마다 재생성하지 않는다.

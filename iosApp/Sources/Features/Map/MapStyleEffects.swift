@@ -29,6 +29,12 @@ private enum StyleFx {
     /// 별 하나가 이어지는 최근접 이웃 수(Android CONSTELLATION_NEIGHBORS).
     static let constellationNeighbors = 2
 
+    /// 도보 길찾기 경로 — 별자리 선과 동일한 3겹(후광/글로우/얇은 밝은 선) 스타일(Android ROUTE_* 패리티).
+    static let routeSourceID = "walking-route"
+    static let routeHaloID = "walking-route-halo"
+    static let routeGlowID = "walking-route-glow"
+    static let routeLineID = "walking-route-line"
+
     static let auraSourceID = "diary-aura-src"
     static let auraLayerID = "diary-aura"
     static let groundLightLayerID = "diary-ground-light"
@@ -108,6 +114,27 @@ extension MapLibreView.Coordinator {
         style.addLayer(lineLayer(StyleFx.constellationGlowID, color: StyleFx.mint, width: 8, blur: 8))
         style.addLayer(lineLayer(StyleFx.constellationLineID, color: StyleFx.brightLine, width: 1.7, blur: 0.6))
 
+        // ── 도보 길찾기 경로 — 별자리 선과 동일한 3겹, 불투명도는 고정(경로 유무는 소스가 결정) ──
+        // (Android ROUTE_HALO/GLOW/LINE 레이어 패리티 — 별자리 위, 바닥광 아래.)
+        let rSource = MLNShapeSource(identifier: StyleFx.routeSourceID, features: [], options: nil)
+        style.addSource(rSource)
+        func routeLayer(_ id: String, color: UIColor, width: Double, blur: Double, opacity: Double) -> MLNLineStyleLayer {
+            let l = MLNLineStyleLayer(identifier: id, source: rSource)
+            l.lineColor = NSExpression(forConstantValue: color)
+            l.lineWidth = NSExpression(forConstantValue: width)
+            l.lineBlur = NSExpression(forConstantValue: blur)
+            l.lineOpacity = NSExpression(forConstantValue: opacity)
+            l.lineCap = NSExpression(forConstantValue: NSValue(mlnLineCap: .round))
+            l.lineJoin = NSExpression(forConstantValue: NSValue(mlnLineJoin: .round))
+            return l
+        }
+        style.addLayer(routeLayer(StyleFx.routeHaloID, color: StyleFx.mint, width: 16, blur: 16,
+                                  opacity: StyleFx.constellationHaloOpacity))
+        style.addLayer(routeLayer(StyleFx.routeGlowID, color: StyleFx.mint, width: 8, blur: 8,
+                                  opacity: StyleFx.constellationGlowOpacity))
+        style.addLayer(routeLayer(StyleFx.routeLineID, color: StyleFx.brightLine, width: 1.7, blur: 0.6,
+                                  opacity: StyleFx.constellationLineOpacity))
+
         // ── 별 후광 — Android 바닥광+오오라 2겹 패리티(별색, 줌 보간 스톱 동일) ──
         //  · 바닥 빛 웅덩이: 모든 별 밑에 은은하게(반경 0.6→7 × sizeMult, 지면 쪽 +8pt).
         //  · 오오라: 인기(큰) 별만 발광(불투명도 sizeMult 1→0 / 1.4→0.12 / 3→0.42, 반경 2→26 × sizeMult).
@@ -140,7 +167,23 @@ extension MapLibreView.Coordinator {
         style.addLayer(aura)
 
         refreshAuraFeatures(mapView)
+        updateRouteShape()
+        reportWorldVoid(mapView)
         startTwinkleLoop()
+    }
+
+    /// 도보 경로 소스 갱신 — parent.route(최근접점→목적지 부분 경로)를 그대로 반영.
+    /// 비어 있으면 소스를 비워 레이어가 그리지 않는다(불투명도는 항상 고정).
+    func updateRouteShape() {
+        guard let style = styleRef,
+              let src = style.source(withIdentifier: StyleFx.routeSourceID) as? MLNShapeSource
+        else { return }
+        var coords = parent.route
+        guard coords.count >= 2 else {
+            src.shape = MLNShapeCollectionFeature(shapes: [])
+            return
+        }
+        src.shape = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
     }
 
     /// 뷰 해체 시 타이머/태스크 정리(순환 참조·유령 갱신 방지).
@@ -286,32 +329,36 @@ extension MapLibreView.Coordinator {
 
     // MARK: 별자리 라인
 
-    /// 별자리 토글 — 켜면 라인 재계산 후 페이드 인(550ms), 끄면 페이드 아웃(380ms) 후 소스 비움.
-    /// (Android constellationFade Animatable 대응.)
+    /// 별자리 토글 — 켜면 재계산이 페이드 인까지 담당(rebuildConstellation),
+    /// 끄면 페이드 아웃(380ms) 후 소스를 비운다. (Android constellationFade Animatable 대응.)
     func setConstellation(enabled: Bool, mapView: MLNMapView) {
         guard enabled != constellationOn else { return }
         constellationOn = enabled
-        if enabled { rebuildConstellation(mapView) }
+        if enabled {
+            rebuildConstellation(mapView)
+            return
+        }
+        lastConstellationKey = nil
+        constellationRebuildTask?.cancel()
         constellationFadeTask?.cancel()
         constellationFadeTask = Task { @MainActor [weak self] in
             let steps = 12
-            let duration = enabled ? 0.55 : 0.38
+            let start = self?.constellationFadeValue ?? 1
             for s in 1...steps {
                 guard let self, !Task.isCancelled else { return }
-                let f = enabled ? Double(s) / Double(steps) : 1 - Double(s) / Double(steps)
-                self.applyConstellationOpacity(f)
-                try? await Task.sleep(nanoseconds: UInt64(duration / Double(steps) * 1_000_000_000))
+                self.applyConstellationOpacity(start * (1 - Double(s) / Double(steps)))
+                try? await Task.sleep(nanoseconds: UInt64(0.38 / Double(steps) * 1_000_000_000))
             }
-            guard let self, !Task.isCancelled else { return }
-            if !enabled, let style = self.styleRef,
-               let src = style.source(withIdentifier: StyleFx.constellationSourceID) as? MLNShapeSource {
-                src.shape = MLNShapeCollectionFeature(shapes: [])
-            }
+            guard let self, !Task.isCancelled, let style = self.styleRef,
+                  let src = style.source(withIdentifier: StyleFx.constellationSourceID) as? MLNShapeSource
+            else { return }
+            src.shape = MLNShapeCollectionFeature(shapes: [])
         }
     }
 
     private func applyConstellationOpacity(_ f: Double) {
         guard let style = styleRef else { return }
+        constellationFadeValue = f
         let sets: [(String, Double)] = [
             (StyleFx.constellationHaloID, StyleFx.constellationHaloOpacity),
             (StyleFx.constellationGlowID, StyleFx.constellationGlowOpacity),
@@ -335,9 +382,11 @@ extension MapLibreView.Coordinator {
     }
 
     /// 뷰포트에 보이는 대표 별들을 화면거리 최근접 2개와 잇는다(중복 간선 제거).
+    /// 선 구성이 바뀌면 짧게 페이드 아웃(160ms) 후 새 구성으로 페이드 인(550ms) —
+    /// 줌/이동 후 갱신이 즉시 스냅으로 바뀌는 어색함을 없앤다(Android 동일).
     /// (Android buildConstellationFeatures 대응 — maxLink = min(화면 변)×0.55.)
     private func rebuildConstellation(_ mapView: MLNMapView) {
-        guard let style = styleRef,
+        guard constellationOn, let style = styleRef,
               let src = style.source(withIdentifier: StyleFx.constellationSourceID) as? MLNShapeSource
         else { return }
         let w = mapView.bounds.width
@@ -349,6 +398,7 @@ extension MapLibreView.Coordinator {
             if p.x >= 0, p.x <= w, p.y >= 0, p.y <= h { pts.append((p, a.coordinate)) }
         }
         guard pts.count >= 2 else {
+            lastConstellationKey = ""
             src.shape = MLNShapeCollectionFeature(shapes: [])
             return
         }
@@ -356,6 +406,7 @@ extension MapLibreView.Coordinator {
         let maxLink2 = maxLink * maxLink
         var edges = Set<Int>() // i<j 를 i*N+j 로 인코딩해 중복 제거(Android 동일)
         var lines: [MLNPolylineFeature] = []
+        var key = ""
         for i in pts.indices {
             let nearest = pts.indices
                 .filter { $0 != i }
@@ -373,8 +424,34 @@ extension MapLibreView.Coordinator {
                 guard edges.insert(lo * pts.count + hi).inserted else { continue }
                 var coords = [pts[lo].coord, pts[hi].coord]
                 lines.append(MLNPolylineFeature(coordinates: &coords, count: 2))
+                key += String(format: "%.6f,%.6f-%.6f,%.6f;",
+                              coords[0].latitude, coords[0].longitude,
+                              coords[1].latitude, coords[1].longitude)
             }
         }
-        src.shape = MLNShapeCollectionFeature(shapes: lines)
+        guard key != lastConstellationKey else { return } // 선 구성 그대로면 페이드 불필요
+        lastConstellationKey = key
+        constellationFadeTask?.cancel()
+        constellationFadeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            // 이미 보이던 중의 갱신이면 짧게 사라진 뒤 새 구성으로 교체.
+            if self.constellationFadeValue > 0.01 {
+                let outSteps = 6
+                let start = self.constellationFadeValue
+                for s in 1...outSteps {
+                    guard !Task.isCancelled else { return }
+                    self.applyConstellationOpacity(start * (1 - Double(s) / Double(outSteps)))
+                    try? await Task.sleep(nanoseconds: UInt64(0.16 / Double(outSteps) * 1_000_000_000))
+                }
+            }
+            guard !Task.isCancelled else { return }
+            src.shape = MLNShapeCollectionFeature(shapes: lines)
+            let inSteps = 12
+            for s in 1...inSteps {
+                guard !Task.isCancelled else { return }
+                self.applyConstellationOpacity(Double(s) / Double(inSteps))
+                try? await Task.sleep(nanoseconds: UInt64(0.55 / Double(inSteps) * 1_000_000_000))
+            }
+        }
     }
 }

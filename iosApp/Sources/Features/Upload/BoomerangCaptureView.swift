@@ -182,7 +182,7 @@ struct BoomerangCaptureView: View {
                         if stage == .encoding {
                             StarLoadingView(size: 20, color: .black)
                         } else {
-                            Text(LocaleManager.shared.t(.boomerUse)).bold()
+                            Text(LocaleManager.shared.t(.boomerUse)).fontWeight(.semibold)
                         }
                     }
                     .frame(maxWidth: .infinity)

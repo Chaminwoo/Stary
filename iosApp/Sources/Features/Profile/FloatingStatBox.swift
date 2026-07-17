@@ -110,15 +110,15 @@ struct FloatingStatBox: View {
         VStack(spacing: 1) {
             if item.showCount {
                 Text("\(item.count)")
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.system(size: 26, weight: .semibold))
                     .foregroundStyle(item.color)
                     .shadow(color: item.color.opacity(0.95), radius: 14)
                 Text(item.label)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(item.color.opacity(0.85))
             } else {
                 Text(item.label)
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(item.color)
                     .shadow(color: item.color.opacity(0.95), radius: 13)
             }

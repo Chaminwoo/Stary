@@ -33,6 +33,10 @@ struct MapLibreView: UIViewRepresentable {
     var recenterNonce: Int = 0
     /// 별자리 라인 토글(Android constellationEnabled 대응) — 켜면 뷰포트 별들을 잇는 3겹 라인 페이드 인.
     var constellationEnabled: Bool = false
+    /// 세계(웹메르카토르) 상하 타일 한계 밖 "빈 공간"의 화면 경계 보고 —
+    /// (위쪽 빈 공간 끝 y, 아래쪽 빈 공간 시작 y, 현재 줌). 호출부가 바다색 오버레이로 덮는다.
+    /// (Android worldVoid 오버레이 패리티)
+    var onWorldVoid: ((_ topY: CGFloat, _ bottomY: CGFloat, _ zoom: Double) -> Void)? = nil
 
     /// 3D 글로브 "지구 보기" 버튼 노출 줌 / 지도 최소 줌.
     /// (Android DiaryMap GLOBE_BUTTON_ZOOM/MAP_MIN_ZOOM 패리티)
@@ -124,13 +128,11 @@ struct MapLibreView: UIViewRepresentable {
         var toAdd: [MLNAnnotation] = StarMerge.merge(diaries).map { DiaryAnnotation(merged: $0) }
         // 개척 퀘스트 비콘(체크리스트 32) — 미개척 대상국 중심좌표에 금색 스파클.
         toAdd.append(contentsOf: pioneerCountries.map { PioneerAnnotation(country: $0) })
-        // 도보 경로 폴리라인(있으면) — 별 마커와 함께 한 번에 추가.
-        if route.count >= 2 {
-            toAdd.append(MLNPolyline(coordinates: route, count: UInt(route.count)))
-        }
         mapView.addAnnotations(toAdd)
-        // 스타일 이펙트 동기화 — 별 후광 소스 갱신 + 별자리 토글/재계산(MapStyleEffects.swift).
+        // 스타일 이펙트 동기화 — 별 후광 소스 + 도보 경로(별자리 스타일 3겹 레이어) +
+        // 별자리 토글/재계산(MapStyleEffects.swift).
         context.coordinator.refreshAuraFeatures(mapView)
+        context.coordinator.updateRouteShape()
         context.coordinator.setConstellation(enabled: constellationEnabled, mapView: mapView)
         context.coordinator.requestConstellationRebuild(mapView)
     }
@@ -163,6 +165,12 @@ struct MapLibreView: UIViewRepresentable {
         var constellationOn = false
         var constellationFadeTask: Task<Void, Never>?
         var constellationRebuildTask: Task<Void, Never>?
+        /// 현재 별자리 라인 불투명도 진행도(0..1) — 갱신 페이드의 시작점으로 쓴다.
+        var constellationFadeValue: Double = 0
+        /// 마지막으로 적용한 별자리 선 구성 키 — 같으면 페이드/재설정 생략(Android lastConstellationJson).
+        var lastConstellationKey: String?
+        /// 마지막으로 보고한 세계 끝 빈 공간 경계(불필요한 상태 갱신 방지).
+        var lastVoid: (top: CGFloat, bottom: CGFloat) = (0, .greatestFiniteMagnitude)
         /// 마지막으로 파티클/후광 크기를 갱신한 줌(불필요한 expression 재설정 방지).
         var lastEffectZoom: Double = -1
         /// 파티클 저줌 게이트가 0(전부 숨김)으로 이미 적용됐는지 — 꺼진 동안 루프 갱신 스킵.
@@ -202,11 +210,33 @@ struct MapLibreView: UIViewRepresentable {
             }
         }
 
+        /// 세계 상하 끝(웹메르카토르 타일 한계 ±85.05°) 밖 빈 공간의 화면 경계를 계산해 보고.
+        /// 카메라 중심(화면 중앙)은 항상 세계 안 → 북쪽 끝은 중앙 위, 남쪽 끝은 중앙 아래여야 정상.
+        /// tilt 시 지평선 뒤 좌표가 화면 안쪽 값으로 뒤집혀 튀면 그 값은 무시한다(Android 동일 가드).
+        func reportWorldVoid(_ mapView: MLNMapView) {
+            guard let cb = parent.onWorldVoid else { return }
+            let h = mapView.bounds.height
+            guard h > 0 else { return }
+            let cy = h / 2
+            let maxLat = 85.05112877980659
+            let lng = mapView.centerCoordinate.longitude
+            let topRaw = mapView.convert(
+                CLLocationCoordinate2D(latitude: maxLat, longitude: lng), toPointTo: mapView).y
+            let bottomRaw = mapView.convert(
+                CLLocationCoordinate2D(latitude: -maxLat, longitude: lng), toPointTo: mapView).y
+            let top: CGFloat = (topRaw > 0 && topRaw < cy) ? topRaw : 0
+            let bottom: CGFloat = (bottomRaw < h && bottomRaw > cy) ? bottomRaw : .greatestFiniteMagnitude
+            guard top != lastVoid.top || bottom != lastVoid.bottom else { return }
+            lastVoid = (top, bottom)
+            cb(top, bottom, mapView.zoomLevel)
+        }
+
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
             isCameraMoving = true
             reportGlobeAvailability(mapView)
             applyStarZoomScale(mapView)
             applyStyleEffectZoom(mapView)
+            reportWorldVoid(mapView)
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
@@ -214,6 +244,7 @@ struct MapLibreView: UIViewRepresentable {
             reportGlobeAvailability(mapView)
             applyStarZoomScale(mapView)
             applyStyleEffectZoom(mapView)
+            reportWorldVoid(mapView)
             // 카메라 idle → 별자리 라인 재계산(90ms 디바운스, Android 동일).
             requestConstellationRebuild(mapView)
             // 마지막 카메라(중심+줌) 저장 — 다음 실행의 초기 카메라가 "마지막으로 보던 곳"이 되게.
@@ -284,12 +315,7 @@ struct MapLibreView: UIViewRepresentable {
             mapView.deselectAnnotation(annotation, animated: false)
         }
 
-        // 경로 폴리라인 스타일 — 연한 초록 실선(Android ROUTE_LAYER #86EFAC 와 동일).
-        func mapView(_ mapView: MLNMapView, strokeColorForShapeAnnotation annotation: MLNShape) -> UIColor {
-            UIColor(red: 0.525, green: 0.937, blue: 0.675, alpha: 1) // #86EFAC
-        }
-        func mapView(_ mapView: MLNMapView, lineWidthForPolylineAnnotation annotation: MLNPolyline) -> CGFloat { 5 }
-        func mapView(_ mapView: MLNMapView, alphaForShapeAnnotation annotation: MLNShape) -> CGFloat { 0.95 }
+        // (도보 경로는 어노테이션 폴리라인 대신 스타일 레이어 3겹으로 그린다 — MapStyleEffects.swift)
     }
 }
 

@@ -52,8 +52,14 @@ struct MapScreen: View {
     @State private var warpId = 0
 
     // 다이어리 열람 파장(warp) + 게이팅 토스트(Android DiaryOpenWarp/StaryToast 대응).
-    @State private var openWarp: DiaryWarpData?
+    @State private var openWarp: DiaryOpenWarpData?
     @State private var toast: String?
+
+    // 세계(웹메르카토르) 상하 타일 한계 밖 "빈 공간" 오버레이 상태 — (위쪽 끝 y, 아래쪽 시작 y, 줌).
+    // 빈 공간이 화면에 없으면 (0, ∞) 센티널 유지(Android worldVoid 패리티).
+    @State private var voidTopY: CGFloat = 0
+    @State private var voidBottomY: CGFloat = .greatestFiniteMagnitude
+    @State private var voidZoom: Double = 0
 
     // 3D 행성(글로브) 뷰 상태 — 줌을 충분히 빼면 하단 버튼이 뜨고, 눌러야 진입.
     @State private var globeCenter: GlobeCenter?
@@ -101,7 +107,8 @@ struct MapScreen: View {
         }
     }
 
-    /// 지도 위 원형 버튼 공통(Android FloatingActionButton 0x1A1A1A 대응).
+    /// 지도 위 원형 버튼 공통 — 필터 버튼과 같은 남색빛 검정 + 엠보스 테두리.
+    /// (Android FloatingActionButton 0xEE111120 + raisedCosmicBorder 대응)
     private func mapCircleButton(
         _ icon: String, size: CGFloat, tint: Color = .white, action: @escaping () -> Void
     ) -> some View {
@@ -110,7 +117,8 @@ struct MapScreen: View {
                 .font(.system(size: size * 0.42, weight: .medium))
                 .foregroundStyle(tint)
                 .frame(width: size, height: size)
-                .background(Color(hex: 0x1A1A1A), in: Circle())
+                .background(Color(hex: 0x111120).opacity(0.93), in: Circle())
+                .raisedCosmicBorder()
                 .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
         }
     }
@@ -121,15 +129,12 @@ struct MapScreen: View {
     }
 
     /// 좌하단 필터 스피드 다이얼 — Android MainListScreen 대응.
-    /// 메인 원형 버튼(나침반) 탭 → 위로 알약 옵션(전체보기/미조회만/친구만/나만보기/친구선택/기간별).
+    /// 메인 원형 버튼(나침반) 탭 → 위로 알약 옵션(미조회만/친구만/나만보기/친구선택/기간별).
     /// 상호배타 로직도 Android 동일(나만보기 ↔ 친구만/친구선택 등).
     private var filterSpeedDial: some View {
         VStack(alignment: .leading, spacing: 8) {
             if speedDialExpanded {
-                filterPill(locale.t(.filterAll), icon: "globe.asia.australia", active: !anyFilterActive) {
-                    unviewedOnly = false; friendsOnly = false; myOnly = false
-                    selectedFriendIds = []; periodDays = nil; speedDialExpanded = false
-                }
+                // "전체보기"는 기본 상태(필터 없음)와 같아 목록에서 제외 — 각 필터 재탭으로 해제(Android 동일).
                 filterPill(locale.t(.filterUnviewed), icon: "sparkles", active: unviewedOnly) {
                     unviewedOnly.toggle(); if unviewedOnly { myOnly = false }
                 }
@@ -231,7 +236,7 @@ struct MapScreen: View {
             return
         }
         MusicManager.shared.playOpenDiary() // Android: 파장 시작과 함께 열람 효과음
-        openWarp = DiaryWarpData(snapshot: snapshot, origin: origin, members: members)
+        openWarp = DiaryOpenWarpData(snapshot: snapshot, origin: origin, members: members)
     }
 
     private func showToast(_ text: String) {
@@ -260,9 +265,20 @@ struct MapScreen: View {
                 onTapPioneer: { code in pioneerMessage = LocalizedNames.pioneerQuestMessage(code) },
                 zoomRequest: zoomRequest,
                 recenterNonce: recenterNonce,
-                constellationEnabled: constellationOn
+                constellationEnabled: constellationOn,
+                onWorldVoid: { top, bottom, zoom in
+                    voidTopY = top
+                    voidBottomY = bottom
+                    voidZoom = zoom
+                }
             )
             .ignoresSafeArea()
+
+            // 세계 상하 끝(타일 한계) 밖 빈 공간 — 물 레이어와 같은 색(줌 보간)으로 덮어
+            // 바다가 이어진 것처럼 보이게 한다(Android 비네트 Canvas 의 바다색 덮기 패리티).
+            worldVoidOverlay
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
 
             if store.loading {
                 StarLoadingView(size: 40)
@@ -299,7 +315,7 @@ struct MapScreen: View {
 
             // 몰입(지도만 보기)에선 지도 위 모든 버튼을 숨긴다(Android MapUiState.mapOnly 대응).
             if !chrome.mapOnly {
-            // ── 좌상단 줌 버튼(+/−) — Android DiaryMap 대응(44pt, 0x1A1A1A 원형) ──
+            // ── 좌상단 줌 버튼(+/−) — Android DiaryMap 대응(44pt, 남색빛 검정 원형) ──
             VStack(spacing: 10) {
                 mapCircleButton("plus", size: 44) {
                     zoomRequest = (1, zoomRequest.nonce + 1)
@@ -429,12 +445,34 @@ struct MapScreen: View {
         }
     }
 
+    /// 세계 상하 끝 밖 빈 공간을 덮는 바다색 사각형(위/아래) — 물 레이어 색과 같은 줌 보간.
+    /// (스타일 레이어는 타일 밖을 못 그리므로 SwiftUI 오버레이로 덮는다 — Android 동일 접근)
+    private var worldVoidOverlay: some View {
+        GeometryReader { geo in
+            let h = geo.size.height
+            if voidTopY > 0 || voidBottomY < h {
+                let f = min(max((voidZoom - 6) / 10, 0), 1)
+                let sea = Color(hex: 0x080617).blended(with: Color(hex: 0x142229), fraction: f)
+                ZStack(alignment: .top) {
+                    if voidTopY > 0 {
+                        sea.frame(height: min(voidTopY, h))
+                            .frame(maxHeight: .infinity, alignment: .top)
+                    }
+                    if voidBottomY < h {
+                        sea.frame(height: h - max(voidBottomY, 0))
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+                    }
+                }
+            }
+        }
+    }
+
     /// 하단 길찾기 컨트롤 — 요약 칩 + 취소 버튼.
     private var routeControls: some View {
         VStack(spacing: 10) {
             if let s = routeSummary {
                 Text(s)
-                    .font(.caption.bold())
+                    .font(.caption.weight(.semibold))
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .background(Theme.surface.opacity(0.95), in: Capsule())
                     .foregroundStyle(Color(red: 0.525, green: 0.937, blue: 0.675))
@@ -447,6 +485,7 @@ struct MapScreen: View {
                     .font(.title3.bold())
                     .frame(width: 52, height: 52)
                     .background(Color(hex: 0x0E1520), in: Circle())
+                    .raisedCosmicBorder()
                     .foregroundStyle(Color(red: 0.525, green: 0.937, blue: 0.675))
             }
             .accessibilityLabel(locale.t(.routeCancel))

@@ -135,7 +135,7 @@ struct FriendsScreen: View {
                             .background(Theme.mint.opacity(0.14), in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
                             Text(LocaleManager.shared.t(.inviteFriends))
-                                .font(.subheadline).bold()
+                                .font(.subheadline).fontWeight(.semibold)
                                 .foregroundStyle(Theme.textPrimary)
                             Text(LocaleManager.shared.t(.inviteFriendsDesc))
                                 .font(.caption)
@@ -310,7 +310,7 @@ private struct FriendAvatar: View {
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(String(name.prefix(1)).uppercased())
-                        .foregroundStyle(Theme.mint).bold()
+                        .foregroundStyle(Theme.mint).fontWeight(.semibold)
                 )
             }
         }

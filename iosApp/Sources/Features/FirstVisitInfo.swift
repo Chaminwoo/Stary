@@ -56,7 +56,7 @@ private struct FirstVisitInfoCard: View {
                         .foregroundStyle(.white)
                 }
                 Text(title)
-                    .font(.title2.bold())
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(message)
                     .font(.system(size: 14))
@@ -66,7 +66,7 @@ private struct FirstVisitInfoCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Button(action: onDismiss) {
                     Text(LocaleManager.shared.t(.onbButton))
-                        .font(.subheadline.bold())
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color(hex: 0x06121E))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
