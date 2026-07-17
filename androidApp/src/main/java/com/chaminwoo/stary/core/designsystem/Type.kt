@@ -4,6 +4,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.R
@@ -13,9 +14,23 @@ val PoetsenOne = FontFamily(
     Font(R.font.poetsen_one_regular, FontWeight.Normal),
 )
 
-// 한글 본문·UI용 (한글 + 영문 혼용 영역, 상단 바 타이틀 + 드로어 목록 포함)
+// 한글 본문·UI용 (한글 + 영문 혼용 영역, 상단 바 타이틀 + 드로어 목록 포함).
+// MinSans 는 가변 폰트(wght 100~900) — 단일 등록이면 굵은 글씨가 시스템 가짜 볼드(faux bold)로
+// 뭉툭해지므로, 굵기 단계를 실제 wght 축의 한 단계 얇은 값으로 매핑해 등록한다(전체적으로 얇게).
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+private fun minSans(weight: FontWeight, wght: Int) = Font(
+    R.font.min_sans,
+    weight = weight,
+    variationSettings = FontVariation.Settings(FontVariation.weight(wght)),
+)
+
 val MinSans = FontFamily(
-    Font(R.font.min_sans, FontWeight.Normal),
+    minSans(FontWeight.Light, 300),
+    minSans(FontWeight.Normal, 400),
+    minSans(FontWeight.Medium, 450),
+    minSans(FontWeight.SemiBold, 500),
+    minSans(FontWeight.Bold, 550),
+    minSans(FontWeight.ExtraBold, 620),
 )
 
 val Typography = Typography(

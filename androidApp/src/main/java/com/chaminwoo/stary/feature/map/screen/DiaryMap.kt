@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -222,6 +223,23 @@ fun DiaryMap(
         }
     }
     val requestRouteRef = rememberUpdatedState(requestRoute)
+
+    // 파장 연출 종료 후 분기 — 업로드/별 열람/알림 포커스 공용(연출 그리는 위치가 달라 분리).
+    val onWarpFinished: (DiaryOpenWarpData) -> Unit = { wd ->
+        warpState.value = null
+        when {
+            // 업로드 버튼 탭 → 파장 후 다이어리 작성 화면으로
+            wd.openCreate -> onCreateClick()
+            wd.navigateAfter -> {
+                // 별 탭(100m 이내) → 파장 후 세부 화면으로 (합쳐진 별이면 카드 뷰어로)
+                MapUiState.exitMapOnly()
+                if (wd.clusterIds.size > 1) onClusterClickRef.value(wd.clusterIds)
+                else onDiaryClickRef.value(wd.id)
+            }
+            // 알림 포커스 → 파장만 내고 지도에 머문다
+            else -> onFocusHandledRef.value()
+        }
+    }
 
     Box(
         modifier = modifier
@@ -599,6 +617,11 @@ fun DiaryMap(
             }
         }
 
+        // 업로드 버튼 파장 연출 — 버튼들이 연출 내내 그대로 보여야 하므로 버튼보다 아래(먼저) 그린다.
+        warpState.value?.let { wd ->
+            if (wd.openCreate) DiaryOpenWarp(wd) { onWarpFinished(wd) }
+        }
+
         // 지도만 보기 모드에선 모든 버튼(좌상단 줌 + 우하단 FAB)을 숨긴다.
         if (!MapUiState.mapOnly) {
         // 좌상단 줌 버튼 (+/-) — 버튼 1탭당 한 단계, 부드럽게 애니메이션 줌.
@@ -722,7 +745,14 @@ fun DiaryMap(
                             .raisedCosmicBorder(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.Add, stringResource(R.string.cd_create_diary), tint = Color.White, modifier = Modifier.size(24.dp))
+                        // 언뜻 보면 흰 + 아이콘, 자세히 보면 별과 같은 크리스탈 결정 재질(얼음빛).
+                        com.chaminwoo.stary.core.ui.CrystalIcon(
+                            Icons.Filled.Add,
+                            color = Color(0xFFDCE6FA),
+                            size = 24.dp,
+                            contentDescription = stringResource(R.string.cd_create_diary),
+                            seed = 4,
+                        )
                     }
                 }
             }
@@ -747,23 +777,23 @@ fun DiaryMap(
             }
         }
 
-        // 지도 왜곡 연출 — 스냅샷 이미지를 1초간 파장+울렁시킨 뒤 세부 화면으로 이동(세부는 멀쩡).
+        // 지도 왜곡 연출(별 열람/알림 포커스) — 스냅샷 이미지를 1초간 파장+울렁시킨 뒤 이동(세부는 멀쩡).
+        // 업로드 연출과 달리 버튼까지 덮는 몰입 연출이라 버튼 위에 그린다.
         warpState.value?.let { wd ->
-            DiaryOpenWarp(wd) {
-                warpState.value = null
-                when {
-                    // 업로드 버튼 탭 → 파장 후 다이어리 작성 화면으로
-                    wd.openCreate -> onCreateClick()
-                    wd.navigateAfter -> {
-                        // 별 탭(100m 이내) → 파장 후 세부 화면으로 (합쳐진 별이면 카드 뷰어로)
-                        MapUiState.exitMapOnly()
-                        if (wd.clusterIds.size > 1) onClusterClickRef.value(wd.clusterIds)
-                        else onDiaryClickRef.value(wd.id)
+            if (!wd.openCreate) DiaryOpenWarp(wd) { onWarpFinished(wd) }
+        }
+
+        // 연출 중 입력 차단 — 파장이 끝날 때까지 지도/버튼 탭을 전부 무시(끝나면 자동 해제).
+        if (warpState.value != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                        }
                     }
-                    // 알림 포커스 → 파장만 내고 지도에 머문다
-                    else -> onFocusHandledRef.value()
-                }
-            }
+            )
         }
     }
 

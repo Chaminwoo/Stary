@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import com.chaminwoo.stary.core.designsystem.StarStyle
+import com.chaminwoo.stary.core.ui.bakeCrystalIcon
 import com.chaminwoo.stary.feature.profile.ParticleEffect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.VectorPainter
@@ -483,32 +484,6 @@ private fun collide(a: Body, b: Body, aGrab: Boolean, bGrab: Boolean, grabbedVel
             }
         }
     }
-}
-
-/**
- * 벡터 아이콘 실루엣을 [StarStyle] 크리스탈 파편으로 채운 비트맵을 굽는다(별과 같은 재질).
- * 아이콘을 먼저 그려 알파 마스크로 쓰고, SRC_IN 레이어에 파편을 그려 아이콘 모양 안에만 남긴다.
- */
-private fun bakeCrystalIcon(
-    painter: VectorPainter,
-    color: Color,
-    seed: Int,
-    sizePx: Int,
-    layoutDirection: LayoutDirection,
-): ImageBitmap {
-    val image = ImageBitmap(sizePx, sizePx)
-    val size = Size(sizePx.toFloat(), sizePx.toFloat())
-    CanvasDrawScope().draw(Density(1f), layoutDirection, androidx.compose.ui.graphics.Canvas(image), size) {
-        with(painter) { draw(size) }
-    }
-    val canvas = android.graphics.Canvas(image.asAndroidBitmap())
-    val maskPaint = android.graphics.Paint().apply {
-        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
-    }
-    val layer = canvas.saveLayer(0f, 0f, size.width, size.height, maskPaint)
-    StarStyle.drawCrystalFacets(canvas, silhouette = null, seed = seed, colors = listOf(color.toArgb()), left = 0f, top = 0f, sizePx = size.width)
-    canvas.restoreToCount(layer)
-    return image
 }
 
 /** 후광 + 크리스탈 아이콘 한 개를 [pos] 중심에 [scale] 확대 · [rotationDeg] 회전해 그린다. */
