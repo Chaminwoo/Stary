@@ -108,6 +108,8 @@ internal class DiaryOpenWarpData(
     val burstStars: List<Pair<Int, Int>> = emptyList(),
     /** 합쳐진 멤버 다이어리 id(우선순위 정렬) — 2개 이상이면 파장 후 카드 뷰어로 이동. */
     val clusterIds: List<String> = emptyList(),
+    /** true 면 파장 후 다이어리 작성(업로드) 화면으로 — 업로드 버튼 탭 연출. */
+    val openCreate: Boolean = false,
 )
 
 /**

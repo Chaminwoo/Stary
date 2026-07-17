@@ -42,12 +42,15 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -176,6 +179,9 @@ fun DiaryMap(
 
     // 다이어리 진입 직전 "지도 왜곡" 연출 — 스냅샷을 파장+울렁시킨 뒤 상세로([DiaryOpenWarp]).
     val warpState = remember { mutableStateOf<DiaryOpenWarpData?>(null) }
+    // 업로드 버튼 탭 연출용 — 파장 중심을 버튼 위치로 잡기 위한 좌표(루트 기준).
+    var mapBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
+    var createFabCenterInRoot by remember { mutableStateOf<Offset?>(null) }
 
     val onDiaryClickRef = rememberUpdatedState(onDiaryClick)
     val onClusterClickRef = rememberUpdatedState(onClusterClick)
@@ -217,7 +223,11 @@ fun DiaryMap(
     }
     val requestRouteRef = rememberUpdatedState(requestRoute)
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onGloballyPositioned { mapBoundsInRoot = it.boundsInRoot() }
+    ) {
         AndroidView(
             factory = { mapView },
             modifier = Modifier.fillMaxSize(),
@@ -669,20 +679,42 @@ fun DiaryMap(
                 )
             }
 
-            // 다이어리 생성 (로그인 상태에서만 노출)
+            // 다이어리 생성 (로그인 상태에서만 노출) — 탭하면 별 열람과 같은 파장 연출 후 작성 화면으로.
             if (showCreate) {
                 FloatingActionButton(
-                    onClick = onCreateClick,
+                    onClick = {
+                        if (warpState.value != null) return@FloatingActionButton // 연출 중 중복 탭 무시
+                        val map = mapRef
+                        val bounds = mapBoundsInRoot
+                        val fabCenter = createFabCenterInRoot
+                        if (map != null && bounds != null && fabCenter != null &&
+                            bounds.width > 0f && bounds.height > 0f
+                        ) {
+                            // 파장 중심 = 업로드 버튼 위치(0..1)
+                            val ox = ((fabCenter.x - bounds.left) / bounds.width).coerceIn(0f, 1f)
+                            val oy = ((fabCenter.y - bounds.top) / bounds.height).coerceIn(0f, 1f)
+                            map.snapshot { bmp ->
+                                com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
+                                warpState.value = DiaryOpenWarpData(
+                                    bmp, ox, oy, id = "", colorIndex = 13, // 코발트 — 남색 버튼과 동계열 파장
+                                    navigateAfter = false, openCreate = true,
+                                )
+                            }
+                        } else onCreateClick() // 지도 준비 전이면 연출 없이 바로 이동
+                    },
                     shape = CircleShape,
                     elevation = FloatingActionButtonDefaults.elevation(0.dp),
                     containerColor = Color.Transparent,
+                    modifier = Modifier.onGloballyPositioned {
+                        createFabCenterInRoot = it.boundsInRoot().center
+                    },
                 ) {
                     Box(
                         modifier = Modifier
                             .size(56.dp)
                             .background(
                                 Brush.linearGradient(
-                                    colors = listOf(Color(0xFF6EE7B7), Color(0xFF3B82F6)),
+                                    colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
                                     start = Offset(0f, 0f), end = Offset(80f, 80f)
                                 ),
                                 CircleShape
@@ -719,14 +751,17 @@ fun DiaryMap(
         warpState.value?.let { wd ->
             DiaryOpenWarp(wd) {
                 warpState.value = null
-                if (wd.navigateAfter) {
-                    // 별 탭(100m 이내) → 파장 후 세부 화면으로 (합쳐진 별이면 카드 뷰어로)
-                    MapUiState.exitMapOnly()
-                    if (wd.clusterIds.size > 1) onClusterClickRef.value(wd.clusterIds)
-                    else onDiaryClickRef.value(wd.id)
-                } else {
+                when {
+                    // 업로드 버튼 탭 → 파장 후 다이어리 작성 화면으로
+                    wd.openCreate -> onCreateClick()
+                    wd.navigateAfter -> {
+                        // 별 탭(100m 이내) → 파장 후 세부 화면으로 (합쳐진 별이면 카드 뷰어로)
+                        MapUiState.exitMapOnly()
+                        if (wd.clusterIds.size > 1) onClusterClickRef.value(wd.clusterIds)
+                        else onDiaryClickRef.value(wd.id)
+                    }
                     // 알림 포커스 → 파장만 내고 지도에 머문다
-                    onFocusHandledRef.value()
+                    else -> onFocusHandledRef.value()
                 }
             }
         }
