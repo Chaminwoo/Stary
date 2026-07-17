@@ -3,7 +3,6 @@ package com.chaminwoo.stary.feature.map.screen
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.PointF
 import android.view.View
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
@@ -44,11 +43,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -171,6 +172,9 @@ fun DiaryMap(
     val isCameraMoving = remember { mutableStateOf(false) }
     // 저줌 대기 헤이즈 강도(0..1) — 줌이 HAZE_START_ZOOM 밑으로 내려갈수록 1에 접근.
     val hazeAlpha = remember { mutableStateOf(0f) }
+    // 세계(웹메르카토르) 상하 타일 한계 밖 "빈 공간" 오버레이 상태 — (위쪽 빈 공간 끝 y,
+    // 아래쪽 빈 공간 시작 y, 색 보간용 줌). 빈 공간이 안 보일 땐 고정 센티널로 리컴포지션 억제.
+    val worldVoid = remember { mutableStateOf(Triple(0f, Float.MAX_VALUE, 0f)) }
     // 카메라가 멈출 때마다 증가 → 줌/이동에 따라 화면 클러스터링 재계산 트리거
     var cameraIdleTick by remember { mutableStateOf(0) }
     val clusterRadiusPx = remember { CLUSTER_RADIUS_DP * context.resources.displayMetrics.density }
@@ -272,10 +276,25 @@ fun DiaryMap(
                     isAttributionEnabled = false
                 }
                 map.setMinZoomPreference(MAP_MIN_ZOOM) // 이 밑은 3D 글로브가 담당
+                // 세계 상하 끝(타일 한계) 밖 빈 공간의 화면상 경계 계산 — 오버레이가 바다색으로 덮는다.
+                fun updateWorldVoid(m: MapLibreMap) {
+                    val h = mv.height.toFloat()
+                    if (h <= 0f) return
+                    val c = m.cameraPosition.target ?: return
+                    val proj = m.projection
+                    val topY = proj.toScreenLocation(MlLatLng(MERCATOR_MAX_LAT, c.longitude)).y.coerceIn(0f, h)
+                    val bottomY = proj.toScreenLocation(MlLatLng(-MERCATOR_MAX_LAT, c.longitude)).y.coerceIn(0f, h)
+                    // 빈 공간이 안 보이면 고정 센티널(팬/줌 내내 불필요한 리컴포지션 방지), 줌은 1/4 단위 양자화.
+                    val next = if (topY > 0f || bottomY < h) {
+                        Triple(topY, bottomY, (m.cameraPosition.zoom * 4).toInt() / 4f)
+                    } else Triple(0f, Float.MAX_VALUE, 0f)
+                    if (next != worldVoid.value) worldVoid.value = next
+                }
                 map.addOnCameraMoveStartedListener { isCameraMoving.value = true }
                 map.addOnCameraIdleListener {
                     isCameraMoving.value = false
                     cameraIdleTick++
+                    updateWorldVoid(map)
                     // 마지막 카메라(중심+줌) 저장 — 다음 실행의 초기 카메라가 "마지막으로 보던 곳"이 되게.
                     map.cameraPosition.target?.let { c ->
                         LocationHelper.persistCameraState(
@@ -285,28 +304,7 @@ fun DiaryMap(
                 }
                 // 줌 상태 보고 → 호출부가 하단 "지구 보기" 버튼 노출을 결정(자동 전환 없음)
                 map.addOnCameraMoveListener {
-                    // 지도(웹메르카토르) 상하 끝 밖의 빈 공간이 화면에 들어오면 그만큼 카메라를
-                    // 되돌려 지도 끝에서 딱 멈추게 한다. moveCamera 가 리스너를 재호출하지만
-                    // 두 번째 호출에선 빈 공간이 없어 바로 빠져나온다(수렴).
-                    val h = mv.height.toFloat()
-                    val center = map.cameraPosition.target
-                    if (h > 0f && center != null) {
-                        val proj = map.projection
-                        val topY = proj.toScreenLocation(MlLatLng(MERCATOR_MAX_LAT, center.longitude)).y
-                        val bottomY = proj.toScreenLocation(MlLatLng(-MERCATOR_MAX_LAT, center.longitude)).y
-                        val cx = mv.width / 2f
-                        // 위쪽 빈 공간(북쪽 끝이 화면 안으로 내려옴) ↔ 아래쪽 빈 공간 — 동시에 뚫린
-                        // 초저줌에선 양쪽을 다 만족시킬 수 없어 건드리지 않는다(글로브 구간).
-                        if (topY > 0f && bottomY >= h) {
-                            map.moveCamera(CameraUpdateFactory.newLatLng(
-                                proj.fromScreenLocation(PointF(cx, h / 2f + topY))
-                            ))
-                        } else if (bottomY < h && topY <= 0f) {
-                            map.moveCamera(CameraUpdateFactory.newLatLng(
-                                proj.fromScreenLocation(PointF(cx, h / 2f - (h - bottomY)))
-                            ))
-                        }
-                    }
+                    updateWorldVoid(map)
                     val z = map.cameraPosition.zoom
                     // 대기 헤이즈: 알파가 실제로 변할 때만 state 갱신(팬 중 불필요한 리컴포지션 방지)
                     val a = ((HAZE_START_ZOOM - z) / (HAZE_START_ZOOM - MAP_MIN_ZOOM))
@@ -636,6 +634,7 @@ fun DiaryMap(
                         map.cameraPosition = CameraPosition.Builder(map.cameraPosition)
                             .tilt(BASE_TILT_DEG).build()
                     }
+                    updateWorldVoid(map) // 초기 카메라가 세계 끝 근처면 첫 프레임부터 덮는다
                     styleRef = style
                     mapRef = map
                 }
@@ -646,6 +645,19 @@ fun DiaryMap(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val r = hypot(size.width, size.height) / 2f
             if (r <= 0f) return@Canvas
+            // 0) 세계 상하 끝(타일 한계) 밖 빈 공간 — 스타일 레이어가 못 그리는 영역이라
+            //    물 레이어와 같은 색(줌 보간)으로 덮어 바다가 이어진 것처럼 보이게 한다.
+            val (voidTop, voidBottom, voidZoom) = worldVoid.value
+            if (voidTop > 0f || voidBottom < size.height) {
+                val f = ((voidZoom - 6f) / 10f).coerceIn(0f, 1f)
+                val sea = lerp(Color(0xFF080617), Color(0xFF142229), f)
+                if (voidTop > 0f) drawRect(sea, size = Size(size.width, voidTop))
+                if (voidBottom < size.height) drawRect(
+                    sea,
+                    topLeft = Offset(0f, voidBottom),
+                    size = Size(size.width, size.height - voidBottom),
+                )
+            }
             // 1) 상시 비네트: 가장자리를 살짝 어둡게 눌러 화면에 깊이감을 준다
             drawRect(
                 brush = Brush.radialGradient(
