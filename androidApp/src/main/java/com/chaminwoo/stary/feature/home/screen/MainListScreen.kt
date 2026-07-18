@@ -316,6 +316,16 @@ fun MainListScreen(
     // 지도(SurfaceView) ↔ 글로브(GLSurfaceView) 교체를 가리는 검정 디졸브 스크림
     val globeScrim = remember { Animatable(0f) }
 
+    // 다른 화면으로 나가면(지도 숨김) 글로브를 닫는다 — 이 화면이 NavHost 밖 상시 렌더로 바뀌어
+    // 이탈해도 파괴되지 않으므로, 가려진 GLSurfaceView 가 계속 도는 낭비를 막고
+    // "복귀하면 지도"라는 기존 동작(예전엔 이탈 시 통째로 파괴돼 글로브도 닫혔음)을 유지한다.
+    LaunchedEffect(MapUiState.mapVisible) {
+        if (!MapUiState.mapVisible && globeCenter != null) {
+            globeCenter = null
+            globeScrim.snapTo(0f)
+        }
+    }
+
     // 권한 요청은 MainActivity 가 앱 시작 즉시 수행. 여기서는 "허용되어 있으면" 위치 추적을 시작하고
     // 현재 위치로 카메라를 맞춘다. 권한 다이얼로그가 닫히며 액티비티가 ON_RESUME 될 때도 재시도해
     // 허용 직후 곧바로 위치가 반영되도록 한다(예전엔 허용해도 시작 코드가 없어 기본 좌표에 멈춰 있었음).

@@ -87,7 +87,11 @@ private val Blue = Color(0xFF3B82F6)
 private val Navy = Color(0xFF1E3A8A) // 그라데이션 짝(파랑→남색)
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
-private val CardBg = Color(0xCC121821)
+// 카드/트랙 배경 — 검정에 가까운 어두운 남색(기존 0x121821 계열이 탁해 보여 하향, 2026-07-18).
+private val CardBg = Color(0xE6080D1A)
+private val DialogBg = Color(0xFF0A0F1D)
+private val TrackBg = Color(0xFF111726)
+private val TrackBgDisabled = Color(0xFF0D1220)
 private val AccentBrush = Brush.linearGradient(listOf(Blue, Navy))
 
 /**
@@ -228,7 +232,7 @@ fun SettingsScreen(
         if (showDeleteDialog) {
             AlertDialog(
                 onDismissRequest = { if (!deleting) showDeleteDialog = false },
-                containerColor = Color(0xFF14181C),
+                containerColor = DialogBg,
                 titleContentColor = Color(0xFFF0F0F0),
                 textContentColor = TextMuted,
                 title = { Text(stringResource(R.string.settings_delete_account), fontFamily = MinSans) },
@@ -278,7 +282,7 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (St
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF121821))
+                .background(DialogBg)
                 .border(1.dp, Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
                 .padding(vertical = 18.dp, horizontal = 8.dp)
         ) {
@@ -420,7 +424,7 @@ private fun ToggleRow(
                 checkedTrackColor = Accent,
                 checkedBorderColor = Accent,
                 uncheckedThumbColor = Color(0xFF8A8A8A),
-                uncheckedTrackColor = Color(0xFF1C232E),
+                uncheckedTrackColor = TrackBg,
                 uncheckedBorderColor = Color(0xFF3A434F),
             )
         )
@@ -505,10 +509,10 @@ private fun VolumeRow(
             colors = SliderDefaults.colors(
                 thumbColor = Accent,
                 activeTrackColor = Accent,
-                inactiveTrackColor = Color(0xFF1C232E),
+                inactiveTrackColor = TrackBg,
                 disabledThumbColor = Color(0xFF555555),
                 disabledActiveTrackColor = Color(0xFF3A434F),
-                disabledInactiveTrackColor = Color(0xFF181D25),
+                disabledInactiveTrackColor = TrackBgDisabled,
             ),
             // 핸들(thumb)을 원형 대신 별 모양 + 후광으로 — 앱 테마(별)에 맞춤. 누르면 확대·발광.
             thumb = { StarThumb(enabled = enabled, interactionSource = interaction) },
@@ -520,7 +524,7 @@ private fun VolumeRow(
                         .fillMaxWidth()
                         .height(6.dp)
                         .clip(RoundedCornerShape(50))
-                        .background(if (enabled) Color(0xFF1C232E) else Color(0xFF181D25))
+                        .background(if (enabled) TrackBg else TrackBgDisabled)
                 ) {
                     if (frac > 0f) {
                         Box(

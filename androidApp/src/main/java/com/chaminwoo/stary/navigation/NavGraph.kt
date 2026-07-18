@@ -19,7 +19,6 @@ import com.chaminwoo.stary.feature.diary.screen.NotificationScreen
 import com.chaminwoo.stary.feature.diary.screen.UploadScreen
 import com.chaminwoo.stary.feature.chat.screen.ChatScreen
 import com.chaminwoo.stary.feature.friend.screen.FriendScreen
-import com.chaminwoo.stary.feature.home.screen.MainListScreen
 import com.chaminwoo.stary.feature.profile.screen.AchievementsScreen
 import com.chaminwoo.stary.feature.profile.screen.MusicScreen
 import com.chaminwoo.stary.feature.profile.screen.MyDiaryScreen
@@ -42,7 +41,8 @@ fun NavGraph(
     modifier: Modifier = Modifier
 ) {
     // 로그인은 별도 라우트가 아니라 MainScreen 의 오버레이로 표시된다.
-    // (지도를 로그인 화면 뒤에서 미리 렌더링해 로그인 직후 바로 보이게 하기 위함)
+    // 지도(MainListScreen)도 라우트가 아니라 MainScreen 이 NavHost 뒤에 상시 렌더한다
+    // (로그인 직후 바로 보이고, 화면 전환에도 재생성되지 않도록).
     NavHost(
         navController = navController,
         startDestination = NavRoute.Main,
@@ -66,18 +66,9 @@ fun NavGraph(
         }
     ) {
         composable<NavRoute.Main> {
-            MainListScreen(
-                onItemClick = { diaryId ->
-                    navController.navigateToDetail(diaryId)
-                },
-                onOpenCluster = { ids ->
-                    // 30m 안에서 합쳐진 별 무리 → 좌우 스와이프 카드 뷰어
-                    navController.navigate(NavRoute.StarCluster(ids = ids.joinToString(",")))
-                },
-                onCreateClick = {
-                    navController.navigate(NavRoute.Upload)
-                }
-            )
+            // 지도(MainListScreen)는 MainScreen 이 NavHost "뒤"에 상시 렌더한다 — 화면 전환마다
+            // 지도가 재생성/리로드되며 별이 깜빡이던 문제 방지. 이 라우트는 "지도가 보이는 상태"를
+            // 나타내는 빈 투명 레이어(터치는 아래 지도로 통과).
         }
 
         composable<NavRoute.StarCluster> { backStackEntry ->
@@ -197,8 +188,9 @@ fun NavGraph(
                 userId = args.userId,
                 userName = args.userName,
                 onOpenDiary = { diaryId ->
-                    // 상세로 바로 열지 않고, 지도로 가서 그 위치로 카메라 이동 + 파장 연출(알림 포커스와 동일).
-                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId)
+                    // 타인 프로필의 핀 별 탭 → 지도로 가서 카메라 + 파장 후 그 별까지
+                    // 도보 길찾기(내 프로필 핀 별/친구 행 별 탭과 동일).
+                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId, withRoute = true)
                     navController.navigate(NavRoute.Main) {
                         popUpTo<NavRoute.Main> { inclusive = true }
                     }

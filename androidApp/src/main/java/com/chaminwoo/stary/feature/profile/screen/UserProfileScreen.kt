@@ -135,7 +135,7 @@ fun UserProfileScreen(
     val unlockedCount = remember(stats) { Achievements.unlockedIds(stats).size }
     val totalCount = Achievements.all.size
 
-    // 그 사람이 프로필에 띄운(핀) 다이어리 — 별로 떠 있고 탭하면 위치(지도)로.
+    // 그 사람이 프로필에 띄운(핀) 다이어리 — 별로 떠 있고 탭하면 지도로 가서 도보 길찾기.
     var pinnedIds by remember(userId) { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(userId) { pinnedIds = FirebaseFriendRepository().getPinnedDiaries(userId) }
     val pinnedDiaries = remember(theirDiaries, pinnedIds) {
@@ -331,13 +331,13 @@ fun UserProfileScreen(
             // (업적·칭호는 통계의 트로피 아이콘으로, 다이어리는 '다이어리' 아이콘 탭으로 — 카드 없음)
         }
 
-        // ── 떠다니는 통계 오버레이 — 하트=버스트 / 친구 / 다이어리→별 / 편지=채팅 / 핀 별=위치 ──
+        // ── 떠다니는 통계 오버레이 — 하트·친구=버스트 / 다이어리→별 / 편지=채팅 / 핀 별=지도 길찾기 ──
         val chatNeedFriendMsg = stringResource(R.string.chat_need_friend)
         val untitled = stringResource(R.string.common_untitled)
         FloatingStatBox(
             items = listOf(
                 StatBubble(Icons.Filled.Favorite, stats.likesReceived, Color(0xFFE7556B), stringResource(R.string.profile_stat_likes), burstOnTap = true),
-                StatBubble(Icons.Filled.Person, stats.friends, Accent, stringResource(R.string.common_friend)),
+                StatBubble(Icons.Filled.Person, stats.friends, Accent, stringResource(R.string.common_friend), burstOnTap = true),
                 StatBubble(Icons.AutoMirrored.Filled.MenuBook, stats.diariesCreated, Color(0xFFF7E067), stringResource(R.string.profile_stat_diaries)),
                 StatBubble(Icons.Filled.Email, 0, MintBlue, stringResource(R.string.user_chat_action), showCount = false), // 파란 편지=채팅
                 StatBubble(Icons.Filled.EmojiEvents, unlockedCount, Color(0xFFF2C94C), stringResource(R.string.nav_achievements), burstOnTap = true), // 업적(누르면 버스트)

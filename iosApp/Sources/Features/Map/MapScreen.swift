@@ -37,6 +37,8 @@ struct MapScreen: View {
     // 줌 +/− / 내 위치 버튼 → MapLibreView 커맨드(nonce 로 반복 요청 허용).
     @State private var zoomRequest: (delta: Double, nonce: Int) = (0, 0)
     @State private var recenterNonce = 0
+    /// 최초 onAppear 를 구분 — 이후의 onAppear = 하위 화면에서 지도(루트)로 복귀.
+    @State private var rootAppearedOnce = false
     // 별자리 라인 토글(Android constellationEnabled) + 몰입(지도만 보기) 크롬 상태.
     @State private var constellationOn = false
     @ObservedObject private var chrome = MapChromeState.shared
@@ -433,6 +435,14 @@ struct MapScreen: View {
         }
         // 다른 탭에서 길찾기 요청 → 지도 탭으로 전환되며 나타날 때 처리(숨김 동안 onChange 미수신 대비).
         .onAppear {
+            // 하위 화면 → 지도(루트) 복귀: NavigationStack 루트는 파괴되지 않으므로(지도 유지)
+            // 카메라만 내 위치로 옮긴다. 최초 진입, 포커스/길찾기 요청 대기(아래 handleFocus 가
+            // 카메라를 다룸 — 반드시 이 검사보다 뒤에 소비), 도보 경로 진행 중엔 건너뛴다.
+            // (Android MainScreen 라우트 전환 재센터 패리티)
+            if rootAppearedOnce, focus.pendingDiaryId == nil, fullRoute.isEmpty {
+                recenterNonce += 1
+            }
+            rootAppearedOnce = true
             handleFocus(focus.pendingDiaryId)
             pioneer.start() // 개척 퀘스트 현황 구독(체크리스트 32)
         }

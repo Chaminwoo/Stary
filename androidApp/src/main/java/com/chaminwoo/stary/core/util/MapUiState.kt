@@ -14,6 +14,25 @@ object MapUiState {
 
     fun enterMapOnly() { mapOnly = true }
     fun exitMapOnly() { mapOnly = false }
+
+    /**
+     * 지도(Main 라우트)가 현재 화면에 보이는지 — MainScreen 이 라우트 전환에 맞춰 갱신.
+     * 지도는 NavHost 밖에서 상시 렌더되므로(재생성 방지), 다른 화면에 가려진 동안엔
+     * 이 값으로 마커 애니메이션 루프를 휴면시켜 GPU/배터리를 아낀다.
+     */
+    var mapVisible by mutableStateOf(true)
+
+    /** 도보 길찾기 경로가 활성인지(DiaryMap 이 갱신) — 활성 중엔 지도 복귀 재센터를 건너뛴다. */
+    var routeActive by mutableStateOf(false)
+
+    /**
+     * 지도 복귀 시 "카메라만 내 위치로" 요청 nonce(0=요청 없음) — 다른 화면에서 지도로
+     * 돌아올 때 MainScreen 이 발급하고 DiaryMap 이 소비한다(포커스/길찾기 요청 시엔 발급 안 함).
+     */
+    var recenterNonce by mutableStateOf(0L)
+        private set
+
+    fun requestRecenter() { recenterNonce++ }
 }
 
 /**

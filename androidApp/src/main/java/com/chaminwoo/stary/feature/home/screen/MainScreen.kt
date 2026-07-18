@@ -151,6 +151,24 @@ fun MainScreen(
     // 건너뛰고 바로 지도로 진입한다("한 번 로그인하면 다음부터 바로 지도").
     val alreadyLoggedIn = remember { GoogleAuthHelper.currentUserId != null }
 
+    // 지도(MainListScreen)는 NavHost "밖" 하단 레이어로 상시 렌더된다 — 다른 화면으로 이동해도
+    // 파괴되지 않아 복귀 시 지도 리로드/별 깜빡임이 없다. 여기서 라우트 전환을 감시해
+    // ① 가려짐 여부(mapVisible)를 갱신하고 ② 지도로 돌아올 때 "카메라만 내 위치로"를 요청한다.
+    //    단 포커스/길찾기 요청(MapFocusState)이 대기 중이거나 도보 경로를 따라가는 중이면
+    //    그 로직이 카메라를 다루므로 재센터를 건너뛴다.
+    val isMapRoute = currentRoute is NavRoute.Main
+    var wasMapRoute by remember { mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(isMapRoute) {
+        MapUiState.mapVisible = isMapRoute
+        if (isMapRoute && !wasMapRoute &&
+            com.chaminwoo.stary.core.util.MapFocusState.pendingDiaryId == null &&
+            !MapUiState.routeActive
+        ) {
+            MapUiState.requestRecenter()
+        }
+        wasMapRoute = isMapRoute
+    }
+
     // 로그인은 라우트가 아니라 오버레이 — 뒤에서 지도가 미리 렌더링되어
     // 로그인 직후 바로 지도가 보인다. 로그아웃 시 다시 true.
     // (푸시 딥링크로 진입했거나 이미 로그인 상태면 오버레이 생략)
@@ -425,12 +443,23 @@ fun MainScreen(
             }
         ) { paddingValues ->
             // 영상이 시작된 뒤(contentReady)부터 지도를 로드 — 영상 우선.
+            // 지도(MainListScreen)는 NavHost 뒤 상시 레이어 — NavRoute.Main 은 빈 투명 화면이라
+            // 지도 위 터치가 그대로 통과하고, 다른 화면을 밀어 올려도 지도는 파괴되지 않는다.
             if (contentReady) {
-                NavGraph(
-                    navController = navController,
-                    onLogout = onLogout,
-                    modifier = modifier.padding(paddingValues)
-                )
+                Box(modifier = modifier.padding(paddingValues)) {
+                    MainListScreen(
+                        onItemClick = { diaryId -> navController.navigateToDetail(diaryId) },
+                        onOpenCluster = { ids ->
+                            navController.navigate(NavRoute.StarCluster(ids = ids.joinToString(",")))
+                        },
+                        onCreateClick = { navController.navigate(NavRoute.Upload) },
+                    )
+                    NavGraph(
+                        navController = navController,
+                        onLogout = onLogout,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }

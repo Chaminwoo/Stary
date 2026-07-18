@@ -226,6 +226,17 @@ fun DiaryMap(
         recenterToMyLocation()
     }
 
+    // 다른 화면 → 지도 복귀 시 "내 위치로" — 지도는 NavHost 밖 상시 렌더라 재생성되지 않으므로
+    // MainScreen 이 라우트 전환 때 nonce 를 발급하면 카메라만 옮긴다(포커스/길찾기 중엔 발급 안 됨).
+    // 초기값을 현재 nonce 로 잡아, 액티비티 재생성(언어 변경 등) 후 남은 옛 요청은 무시한다.
+    var lastRecenterNonce by remember { mutableStateOf(MapUiState.recenterNonce) }
+    LaunchedEffect(MapUiState.recenterNonce, mapRef) {
+        if (MapUiState.recenterNonce == lastRecenterNonce) return@LaunchedEffect
+        mapRef ?: return@LaunchedEffect
+        lastRecenterNonce = MapUiState.recenterNonce
+        recenterToMyLocation()
+    }
+
     // 도보 길찾기 — 전체 경로를 savedRoute 에 저장(X 취소까지 유지). ORS 실패 시 조용히 무시.
     val requestRoute: (Double, Double) -> Unit = { destLat, destLng ->
         val cur = currentLatLngRef.value
@@ -239,6 +250,9 @@ fun DiaryMap(
         }
     }
     val requestRouteRef = rememberUpdatedState(requestRoute)
+
+    // 길찾기 활성 여부를 전역에 알린다 — 경로를 따라가는 중엔 지도 복귀 재센터를 건너뛴다(MainScreen).
+    LaunchedEffect(savedRoute) { MapUiState.routeActive = savedRoute != null }
 
     // 파장 연출 종료 후 분기 — 업로드/별 열람/알림 포커스 공용(연출 그리는 위치가 달라 분리).
     val onWarpFinished: (DiaryOpenWarpData) -> Unit = { wd ->
@@ -1064,6 +1078,12 @@ fun DiaryMap(
             }
             // 앱이 후면이면 스타일 갱신을 멈춰 배터리를 아낀다(전면 복귀 시 자동 재개).
             if (!com.chaminwoo.stary.core.util.AppForeground.isForeground) {
+                delay(300)
+                continue
+            }
+            // 다른 화면이 지도를 덮고 있으면(내비 이동) 갱신을 멈춰 GPU/배터리를 아낀다.
+            // 지도가 NavHost 밖 상시 렌더로 바뀌어 가려져 있어도 살아 있기 때문(복귀 시 자동 재개).
+            if (!MapUiState.mapVisible) {
                 delay(300)
                 continue
             }

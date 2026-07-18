@@ -126,6 +126,8 @@ struct SettingsScreen: View {
     }
 
     private let SoftRed = Color(red: 1.0, green: 0.42, blue: 0.42) // 0xFFFF6B6B
+    /// 카드 배경 — 검정에 가까운 어두운 남색(Android SettingsScreen CardBg 0xE6080D1A 패리티, 2026-07-18).
+    private let cardBg = Color(hex: 0x080D1A).opacity(0.9)
 
     private func languageLabel(_ tag: String) -> String {
         switch tag {
@@ -148,7 +150,7 @@ struct SettingsScreen: View {
     private func glassCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing: 0) { content() }
             .padding(.horizontal, 16)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 20))
+            .background(cardBg, in: RoundedRectangle(cornerRadius: 20))
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .strokeBorder(

@@ -21,7 +21,6 @@ struct UserProfileScreen: View {
     @State private var showReportDialog = false
     @State private var showReportedConfirm = false
     @State private var friendsCount = 0
-    @State private var openDiary: Diary?
     /// 그 사람이 프로필에 띄우기로 선택(핀)한 다이어리 id — 타인 프로필엔 이 별들만 뜬다.
     @State private var pinnedIds: [String] = []
     @ObservedObject private var hidden = HiddenAchievementStore.shared
@@ -109,11 +108,6 @@ struct UserProfileScreen: View {
         }
         .navigationDestination(isPresented: $openChat) {
             ChatScreen(friendId: userId, friendName: userName, myUid: auth.uid ?? "")
-        }
-        .navigationDestination(isPresented: Binding(
-            get: { openDiary != nil }, set: { if !$0 { openDiary = nil } }
-        )) {
-            if let d = openDiary { DetailScreen(diary: d) }
         }
         .reportDialog(title: locale.t(.reportUser), isPresented: $showReportDialog) { reason in
             guard let myUid = auth.uid else { return }
@@ -243,14 +237,14 @@ struct UserProfileScreen: View {
     }
 
     /// 떠다니는 통계/별 버블 — 내 프로필(ProfileScreen)과 동일 구성(#6).
-    /// 통계(좋아요·친구·별 수·조회) + 그 사람의 별(탭 → 상세) + 달성한 히든 업적 아이콘.
+    /// 통계(좋아요·친구·별 수·조회) + 그 사람의 핀 별(탭 → 지도 길찾기) + 달성한 히든 업적 아이콘.
     private var bubbleData: (items: [StatBubble], diaryAt: [Int: Diary]) {
         var items: [StatBubble] = []
         var diaryAt: [Int: Diary] = [:]
         items.append(StatBubble(systemImage: "heart.fill", count: totalLikes,
                                 color: Color(hex: 0xE7556B), label: locale.t(.statLikes), burstOnTap: true))
         items.append(StatBubble(systemImage: "person.fill", count: friendsCount,
-                                color: Theme.navyAccent, label: locale.t(.profileFriends)))
+                                color: Theme.navyAccent, label: locale.t(.profileFriends), burstOnTap: true))
         items.append(StatBubble(systemImage: "book.fill", count: visibleDiaries.count,
                                 color: Color(hex: 0xF7E067), label: locale.t(.profileDiaries)))
         items.append(StatBubble(systemImage: "eye.fill", count: totalViews,
@@ -276,9 +270,13 @@ struct UserProfileScreen: View {
         return (items, diaryAt)
     }
 
-    /// 별 버블을 빠르게 탭하면 그 다이어리 상세로. (통계 버블은 동작 없음)
+    /// 핀 별 버블을 빠르게 탭하면 지도(루트)로 나가 그 별 위치로 카메라 + 파동 후 도보 길찾기.
+    /// (Android NavGraph UserProfileScreen.onOpenDiary = MapFocusState.request(withRoute) 패리티.
+    ///  통계 버블은 동작 없음 — 하트/친구/업적은 버스트만.)
     private func handleBubbleTap(_ idx: Int) {
-        if let d = bubbleData.diaryAt[idx] { openDiary = d }
+        if let d = bubbleData.diaryAt[idx], let id = d.id {
+            MapFocusStore.shared.request(diaryId: id, withRoute: true)
+        }
     }
 
     /// 친구 요청 전송(중복 방지) — FriendsViewModel.sendRequest 와 동일 스키마.
