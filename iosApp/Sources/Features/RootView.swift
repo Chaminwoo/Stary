@@ -57,6 +57,10 @@ struct MainTabView: View {
     @State private var path = NavigationPath()
     @State private var chatTarget: ChatTarget?
     @State private var diaryTarget: Diary?
+    // 일반 업적 해금 축하 팝업(Android AchievementUnlockWatcher 대응) — 큐 + 친구 수(스탯 계산용).
+    @State private var friendsCount = 0
+    @State private var friendsCountLoaded = false
+    @State private var achievementQueue: [Achievement] = []
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -74,6 +78,12 @@ struct MainTabView: View {
                 InAppBannerHost()
                 // 별 탄생 연출(34-8) — 업로드 성공 직후 지도 위에서 재생된다(터치 통과).
                 StarBirthHost()
+
+                if let ach = achievementQueue.first {
+                    AchievementUnlockOverlay(achievement: ach) {
+                        if !achievementQueue.isEmpty { achievementQueue.removeFirst() }
+                    }
+                }
             }
             // 루트(지도)는 커스텀 상단바를 쓰므로 시스템 내비바 숨김 — push 된 화면들은 시스템 내비바 사용
             // (전역 UINavigationBarAppearance 로 Android CenterAlignedTopAppBar 톤을 맞춘다 — StaryApp 참고).
@@ -134,6 +144,8 @@ struct MainTabView: View {
             }
             MusicManager.shared.resume() // 로그인 후 메인 진입 시 배경음악 시작
             startWatcher()
+            loadFriendsCount()
+
         }
         .onChange(of: auth.uid) { newUid in
             store.startIfNeeded(uid: newUid)
@@ -144,9 +156,15 @@ struct MainTabView: View {
                 viewed.stop(); blocks.stop(); notifications.stop()
             }
             startWatcher()
+            friendsCountLoaded = false
+            loadFriendsCount()
+
             // 로그인 전에 들어온 친구 초대 딥링크가 있으면 이제 리딤(체크리스트 31).
             Task { await InviteStore.redeemPendingIfPossible(uid: newUid) }
         }
+        // 업적 해금 감시 — 내 통계(작성/좋아요/조회/친구/열람) 변화마다 재계산(내 것만 반영하는 Int 시그니처).
+        .onChange(of: achievementSignature) { _ in syncAchievements() }
+        .onChange(of: store.loading) { _ in syncAchievements() }
         .onChange(of: scenePhase) { phase in
             // 앱 백그라운드/복귀에 맞춰 배경음악 정지/이어재생(위치 보존)
             switch phase {
@@ -350,6 +368,55 @@ struct MainTabView: View {
             }
         )
     }
+
+    // MARK: - 업적 해금 감시 (Android AchievementUnlockWatcher 대응)
+
+    /// 내 통계 변화 감지용 경량 시그니처 — 내 다이어리 수·좋아요·조회 합 + 친구 수 + 열람 수.
+    /// (남의 다이어리 변경엔 반응하지 않고, 스탯에 영향 주는 값만 바뀌면 갱신)
+    private var achievementSignature: Int {
+        guard let uid = auth.uid else { return 0 }
+        let mine = store.mine(uid: uid)
+        var h = Hasher()
+        h.combine(mine.count)
+        h.combine(mine.reduce(0) { $0 + $1.likeCount })
+        h.combine(mine.reduce(0) { $0 + $1.viewCount })
+        h.combine(friendsCount)
+        h.combine(viewed.viewedIds.count)
+        return h.finalize()
+    }
+
+    private func loadFriendsCount() {
+        guard let uid = auth.uid else { return }
+        Task {
+            let snap = try? await FirestoreService.friends(of: uid).getDocuments()
+            friendsCount = snap?.documents.count ?? 0
+            friendsCountLoaded = true
+            syncAchievements()
+        }
+    }
+
+    /// 현재 통계로 해금된 업적을 계산해, 저장된 기준선에 없던 새 업적만 큐에 넣어 팝업으로 보여준다.
+    /// 최초 1회는 팝업 없이 기준선만 저장(이미 달성한 업적 제외). ⚠️ 데이터(다이어리+친구 수) 로드 후에만 실행해 오탐 방지.
+    private func syncAchievements() {
+        guard let uid = auth.uid, !store.loading, friendsCountLoaded else { return }
+        let myDiaries = store.mine(uid: uid)
+        let myIds = Set(myDiaries.compactMap { $0.id })
+        let othersViewed = viewed.viewedIds.subtracting(myIds).count
+        let stats = Achievements.computeStats(diaries: myDiaries, friendsCount: friendsCount, viewedCount: othersViewed)
+        let unlocked = Achievements.unlockedIds(stats)
+        let key = "ach_announced_\(uid)"
+        let defaults = UserDefaults.standard
+        guard let stored = defaults.stringArray(forKey: key) else {
+            defaults.set(Array(unlocked), forKey: key)   // 최초 기준선 — 팝업 없음
+            return
+        }
+        let newIds = unlocked.subtracting(Set(stored))
+        guard !newIds.isEmpty else { return }
+        let queuedIds = Set(achievementQueue.map { $0.id })
+        let newAch = Achievements.all.filter { newIds.contains($0.id) && !queuedIds.contains($0.id) }
+        achievementQueue.append(contentsOf: newAch)
+        defaults.set(Array(Set(stored).union(unlocked)), forKey: key)
+    }
 }
 
 /// 드로어에서 업적 화면 직접 진입용 — 장착 칭호 상태를 자체 보유(AchievementsScreen 이 서버에서 로드).
@@ -357,5 +424,64 @@ private struct AchievementsEntry: View {
     @State private var equippedTitleId: String?
     var body: some View {
         AchievementsScreen(equippedTitleId: $equippedTitleId)
+    }
+}
+
+/// 일반 업적 해금 축하 팝업 — Android `AchievementUnlockDialog` 패리티(트로피 + 스프링 팝 + 보상 pill).
+private struct AchievementUnlockOverlay: View {
+    let achievement: Achievement
+    let onDismiss: () -> Void
+    @ObservedObject private var locale = LocaleManager.shared
+    @State private var pop: CGFloat = 0.6
+
+    private var displayName: String {
+        LocalizedNames.title(achievement.id, fallback: achievement.name) ?? achievement.name
+    }
+    private var rewardText: String {
+        switch achievement.reward {
+        case .title(let n): return "칭호 «\(n)» 획득"
+        case .shape:        return "새 별 모양 해금"
+        case .color:        return "새 별 색 해금"
+        }
+    }
+    private var grad: LinearGradient {
+        LinearGradient(colors: [Color(hex: 0x3B82F6), Color(hex: 0x1E3A8A)],
+                       startPoint: .leading, endPoint: .trailing)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.55).ignoresSafeArea().onTapGesture { onDismiss() }
+            VStack(spacing: 0) {
+                Image(systemName: "trophy.fill").font(.system(size: 46)).foregroundStyle(Theme.navyAccent)
+                Spacer().frame(height: 14)
+                Text("업적 달성!").font(.poorStory(15)).foregroundStyle(Theme.navyAccent)
+                Spacer().frame(height: 8)
+                Text(displayName).font(.poorStory(22)).foregroundStyle(Theme.textPrimary)
+                    .multilineTextAlignment(.center)
+                Spacer().frame(height: 6)
+                Text(achievement.condition).font(.poorStory(13))
+                    .foregroundStyle(Theme.textPrimary.opacity(0.6)).multilineTextAlignment(.center)
+                Spacer().frame(height: 16)
+                Text(rewardText).font(.poorStory(13)).foregroundStyle(Theme.navyAccent)
+                    .padding(.horizontal, 16).padding(.vertical, 8)
+                    .background(Theme.navyAccent.opacity(0.12), in: Capsule())
+                    .overlay(Capsule().stroke(Theme.navyAccent.opacity(0.4), lineWidth: 1))
+                Spacer().frame(height: 22)
+                Button(action: onDismiss) {
+                    Text(locale.t(.commonOk)).font(.poorStory(15)).foregroundStyle(Color(hex: 0x0D0D0D))
+                        .frame(maxWidth: .infinity).padding(.vertical, 13)
+                        .background(grad, in: RoundedRectangle(cornerRadius: 14))
+                }
+            }
+            .padding(.horizontal, 26).padding(.vertical, 30)
+            .frame(maxWidth: 330)
+            .background(Color(hex: 0x14181C), in: RoundedRectangle(cornerRadius: 24))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(grad, lineWidth: 1.5))
+            .padding(.horizontal, 32)
+            .scaleEffect(pop)
+            .opacity(Double(min(pop / 0.6, 1)))
+        }
+        .onAppear { withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { pop = 1 } }
     }
 }

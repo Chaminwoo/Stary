@@ -4,7 +4,7 @@ import UIKit
 // ─── 내 다이어리 — 별자리 배경 + 바나나 다이얼 + 떠다니는 별 보드 ───
 // Android `MyDiaryScreen.kt`(DiaryStarsBoard/BananaDial/ConstellationBackground) 이식.
 // 별자리 좌표/연결선·다이얼 기하(포물선)·색은 Android 와 동일 값.
-// ⚠️ Android DiaryStarBox 의 드래그 물리(잡기·관성)는 후속 — 여기선 부유+탭만.
+// 별: 부유 + 탭(상세) + 드래그 물리(잡아끌면 따라오고 놓으면 탄성 복귀 — Android DiaryStarBox 대응).
 
 /// 정렬 모드 — 최신/인기/거리. (Android DiarySort 대응)
 enum DiarySort: CaseIterable {
@@ -409,7 +409,7 @@ private struct ConstellationBackgroundView: View {
 }
 
 // ─── 떠다니는 별 보드(간이) — Android DiaryStarBox 의 시각 대응 ───
-// 결정론적 배치(id 해시 지터) + 개별 위상 부유 + 탭 → 상세. 드래그 물리는 후속.
+// 결정론적 배치(id 해시 지터) + 개별 위상 부유 + 탭 → 상세 + 드래그 물리(잡기·관성·탄성 복귀).
 
 private struct FloatingStarBoard: View {
     let diaries: [Diary]
@@ -459,20 +459,46 @@ private struct FloatingStarBoard: View {
     }
 }
 
-/// 부유하는 별 1개 — 개별 주기의 상하 float(Android 부유 별 대응).
+/// 부유하는 별 1개 — 개별 주기의 상하 float + **드래그 물리**(잡아끌면 따라오고, 놓으면 탄성으로 제자리 복귀).
+/// (Android DiaryStarBox 드래그 대응. 탭은 상위 NavigationLink 가 상세로 — 10pt 미만 이동이면 드래그 미발동.)
 private struct FloatingStarItem: View {
     let diary: Diary
     let size: CGFloat
     let duration: Double
 
     @State private var up = false
+    @State private var drag: CGSize = .zero
+    @State private var dragging = false
 
     var body: some View {
         StarView(type: diary.starType, colorIndex: diary.starColor, size: size)
             .frame(width: 54, height: 54)
             .contentShape(Rectangle())
+            .scaleEffect(dragging ? 1.18 : 1)      // 잡는 순간 살짝 커져 "들어올린" 느낌
             .offset(y: up ? -4 : 4)
+            .offset(drag)
+            .zIndex(dragging ? 1 : 0)
             .animation(.easeInOut(duration: duration).repeatForever(autoreverses: true), value: up)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: dragging)
             .onAppear { up = true }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 10)
+                    .onChanged { v in
+                        dragging = true
+                        drag = v.translation
+                    }
+                    .onEnded { v in
+                        dragging = false
+                        // 놓은 방향으로 관성만큼 살짝 더 밀렸다가, 낮은 damping 스프링으로 오버슈트하며 제자리 복귀.
+                        let fling = CGSize(
+                            width: v.translation.width + (v.predictedEndTranslation.width - v.translation.width) * 0.18,
+                            height: v.translation.height + (v.predictedEndTranslation.height - v.translation.height) * 0.18
+                        )
+                        drag = fling
+                        withAnimation(.interpolatingSpring(stiffness: 140, damping: 8)) {
+                            drag = .zero
+                        }
+                    }
+            )
     }
 }

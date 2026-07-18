@@ -339,15 +339,7 @@ struct DetailScreen: View {
             }
             Text("\(vm.likeCount)")
                 .font(.poorStory(14)).foregroundStyle(Theme.textSecondary)
-            // 공유 — 밤하늘 카드 이미지 + 웹 랜딩 링크(체크리스트 30). Android 위치(좋아요 옆) 동일.
-            Button {
-                Task { await ShareCard.share(diary: diary) }
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 18))
-                    .foregroundStyle(Theme.textSecondary)
-                    .frame(width: 40, height: 40)
-            }
+            // (공유 기능은 iOS 에서 제거됨 — 사용자 지시)
             Spacer()
             if isOwner {
                 Button(LocaleManager.shared.t(.commonEdit)) {
