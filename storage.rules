@@ -1,19 +1,34 @@
 rules_version = '2';
 
 // Stary Storage 보안 규칙
-// - 읽기: 누구나(다이어리/프로필 이미지는 다른 사용자에게도 보여야 함).
-// - 쓰기: 로그인(익명 포함) 세션이 있어야 하고, 이미지 + 용량 제한.
 //
-// ⚠️ 경로의 userId 는 Google sub(JWT subject)라 Firebase Auth uid 와 다르다.
-//    따라서 profile_images 쓰기에 request.auth.uid == userId 를 쓰면 항상 거부된다.
-//    여기서는 "로그인된 세션이면 허용"으로 둔다.
+// ─────────────────────────────────────────────────────────────────────────────
+// [보안 모델 — firestore.rules 와 동일]
+//  - 로그인은 Google 또는 익명. "request.auth != null" 만으로는 게이팅이 안 된다(누구나 익명 로그인 가능).
+//  - profile_images 경로는 profile_images/{appUserId}.jpg 로 고정(Android UserRepository / iOS ImageUploader 동일).
+//    appUserId = Google sub(구글) 또는 FirebaseAuth uid(익명). 규칙에서 위조 불가하게 읽어 **본인 경로에만 쓰기** 허용.
+//    (예전 규칙은 누구나 남의 프로필 사진을 덮어쓸 수 있었음.)
+//  - 읽기는 로그인 세션이면 허용(익명 둘러보기 포함). 앱은 항상 토큰이 붙은 다운로드 URL 로 이미지를 불러오므로
+//    이 게이팅이 정상 표시를 막지 않는다. (예전 `read: if true` 는 인증 없는 임의 경로 열람 + 예측 가능한
+//    profile_images/{id}.jpg 경로 열거를 허용했음.)
 //
 // 배포: firebase deploy --only storage
+// ─────────────────────────────────────────────────────────────────────────────
 service firebase.storage {
   match /b/{bucket}/o {
 
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    // profile_images/{appUserId}.jpg 경로가 "내 것"인지 — 익명(FirebaseAuth uid)과 Google(sub) 를 모두 인정.
+    // ⚠️ 정규식 split 대신 정확한 문자열 결합 비교(sub/uid 에 '.' 없음)로 오탐을 피한다.
+    function isMyProfilePath(imageId) {
+      return request.auth != null && (
+        imageId == request.auth.uid + '.jpg'
+        || (request.auth.token.firebase.sign_in_provider == 'google.com'
+            && imageId == request.auth.token.firebase.identities['google.com'][0] + '.jpg')
+      );
     }
 
     function isValidImage() {
@@ -27,19 +42,21 @@ service firebase.storage {
           && request.resource.contentType.matches('video/.*');
     }
 
+    // 다이어리 이미지/영상: 파일명이 무작위 UUID 라 소유자 귀속이 불가 → 로그인 세션 + 타입/용량 제한.
     match /diary_images/{imageId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow write: if isSignedIn() && isValidImage();
     }
 
     match /diary_videos/{videoId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow write: if isSignedIn() && isValidVideo();
     }
 
+    // 프로필 사진: profile_images/{appUserId}.jpg → 본인 경로에만 쓰기(남의 프로필 사진 변조 차단).
     match /profile_images/{imageId} {
-      allow read: if true;
-      allow write: if isSignedIn() && isValidImage();
+      allow read: if isSignedIn();
+      allow write: if isValidImage() && isMyProfilePath(imageId);
     }
 
     // 그 외 경로는 모두 거부

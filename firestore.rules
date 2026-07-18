@@ -2,16 +2,27 @@ rules_version = '2';
 
 // Stary Firestore 보안 규칙 (named DB: stary-db)
 //
-// 원칙(Storage 규칙과 동일):
-//  - 읽기/쓰기는 "로그인(익명 포함) 세션"이 있어야 한다 → request.auth != null.
-//  - ⚠️ 앱의 userId 는 Google sub(JWT subject)라 Firebase Auth uid 와 다르다.
-//    따라서 request.auth.uid == userId 로 소유자를 강제할 수 없다(항상 거부됨).
-//    소유권 검증은 클라이언트 + 함수 레벨에서 처리하고, 규칙은 "세션 보유"로 게이팅한다.
+// ─────────────────────────────────────────────────────────────────────────────
+// [보안 모델 — 편집 전 반드시 읽을 것]
+//  1) 로그인은 Google 로그인 또는 **익명 로그인**(둘러보기)이다. 익명 세션도 request.auth != null
+//     이므로, "request.auth != null" 만으로 게이팅하면 **아무나 익명 로그인 후 전 DB 를 읽고 쓸 수 있다.**
+//     (예전 규칙이 그랬음 — 채팅 열람/타인 프로필·fcmToken 조작/대량 삭제 트리거가 가능했다.)
+//  2) 앱의 userId(= "appUserId")는 다음 규칙으로 정해진다(Android GoogleAuthHelper / iOS AuthManager 동일):
+//       - Google 로그인: **Google sub**(JWT subject)  = request.auth.token.firebase.identities['google.com'][0]
+//       - 익명(둘러보기): **FirebaseAuth uid**          = request.auth.uid
+//     이 값은 모두 규칙 안에서 **위조 불가능한** 토큰 클레임으로 읽을 수 있다.
+//     → 소유가 필요한 쓰기는 isMe(문서의 소유자 필드) 로 "이 값이 나 자신인지"를 강제한다.
+//     ⚠️ isMe() 는 두 provider 를 모두 인정한다(익명 사용자가 자기 열람기록·좋아요 등 **자기 문서**를 쓰는 정상
+//        동작을 막지 않기 위함). 핵심은 **다른 사용자 문서에 쓰기(교차 사용자 공격)를 차단**하는 것이고 그건 유지된다.
 //
-// ⚠️ 이 파일은 앱이 쓰는 "모든" 컬렉션을 포함한다. 배포하면 콘솔의 기존 규칙을
-//    전부 대체하므로, 콘솔에 별도 커스텀 규칙이 있었다면 먼저 대조할 것.
+// [의도적 잔여 한계(규칙만으로는 못 막음 — 서버/스키마 개선 필요, PROJECT_NOTES / SECURITY_AUDIT 참고)]
+//  - diaries 읽기는 로그인 세션 전체에 열려 있다(지도에 남의 별 표시 + 정렬·limit 쿼리 특성상 문서별
+//    가시성 필터가 쿼리를 깨뜨림). private/friends 다이어리 기밀은 클라이언트가 필터한다.
+//  - users 문서 읽기가 로그인 세션 전체에 열려 있어 fcmToken 등도 읽힌다(쓰기는 본인만 — 탈취는 불가).
+//  - 친구 수락은 수락자가 상대 friends 하위에 자신을 넣는 구조라, "요청 없이 나를 남의 친구로 추가"가 가능하다.
 //
 // 배포(named DB 지정 필수): firebase deploy --only firestore:rules
+// ─────────────────────────────────────────────────────────────────────────────
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -19,84 +30,148 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // 다이어리 + 하위(댓글/좋아요)
+    // 주어진 appUserId 가 "나 자신"인지 — 익명(FirebaseAuth uid)과 Google(sub) 를 모두 인정.
+    // ⚠️ '||' 단락 평가로 익명 세션에서 google identity 접근 에러를 피한다(google 절은 provider 가 google 일 때만 평가).
+    function isMe(appId) {
+      return request.auth != null && (
+        appId == request.auth.uid
+        || (request.auth.token.firebase.sign_in_provider == 'google.com'
+            && appId == request.auth.token.firebase.identities['google.com'][0])
+      );
+    }
+
+    // 채팅방(chatId = 두 appUserId 를 정렬·'_' 결합)의 참여자인지.
+    function isChatMember(chatId) {
+      return request.auth != null && (
+        (request.auth.uid in chatId.split('_'))
+        || (request.auth.token.firebase.sign_in_provider == 'google.com'
+            && (request.auth.token.firebase.identities['google.com'][0] in chatId.split('_')))
+      );
+    }
+
+    // ── 다이어리 ────────────────────────────────────────────────────────────
+    //  읽기 : 로그인 세션(익명 포함) — 지도에 남의 별 표시.
+    //  생성 : userId 는 반드시 나 자신(남 명의 글 생성 금지).
+    //  수정 : 소유자=전체 수정 / 비소유자=카운터(좋아요·댓글·조회수)만(증가 트랜잭션 허용, 그 외 필드 변경 불가).
+    //  삭제 : 소유자만(신고 조치 삭제는 서버 Admin SDK 가 규칙을 우회한다).
     match /diaries/{diaryId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isMe(request.resource.data.userId);
+      allow update: if isMe(resource.data.userId)
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['likeCount', 'commentCount', 'viewCount']));
+      allow delete: if isMe(resource.data.userId);
 
+      // 댓글: 작성자(userId)만 생성, 삭제는 작성자 또는 글주인.
       match /comments/{commentId} {
-        allow read, write: if isSignedIn();
+        allow read: if isSignedIn();
+        allow create: if isMe(request.resource.data.userId);
+        allow update: if false;
+        allow delete: if isMe(resource.data.userId)
+          || isMe(get(/databases/$(database)/documents/diaries/$(diaryId)).data.userId);
       }
-      match /likes/{userId} {
-        allow read, write: if isSignedIn();
+
+      // 좋아요: 문서 id = 좋아요 누른 사람 appUserId → 본인 것만 생성/삭제.
+      match /likes/{likeUserId} {
+        allow read: if isSignedIn();
+        allow write: if isMe(likeUserId);
       }
     }
 
-    // 알림 (diaryOwnerId 로 조회, read 플래그 갱신)
+    // ── 알림 ────────────────────────────────────────────────────────────────
+    //  생성 : 행위자(actorId) 본인만(남 명의 알림 위조 금지).
+    //  읽기/수정/삭제 : 수신자(diaryOwnerId) 본인만(남의 알림 열람/조작 금지).
     match /notifications/{notificationId} {
-      allow read, write: if isSignedIn();
+      allow read:   if isMe(resource.data.diaryOwnerId);
+      allow create: if isMe(request.resource.data.actorId);
+      allow update: if isMe(resource.data.diaryOwnerId);
+      allow delete: if isMe(resource.data.diaryOwnerId);
     }
 
-    // 사용자 공개 프로필 + 하위(친구 목록/열람 기록)
+    // ── 사용자 공개 프로필 ──────────────────────────────────────────────────
+    //  읽기 : 로그인 세션(이름/사진 검색·표시).
+    //  쓰기 : 본인 문서만 → fcmToken/authUid/deletionRequestedAt/닉네임/핀 등 민감 필드를 남이 못 바꾸게.
+    //         (예전엔 누구나 남의 fcmToken 을 덮어 알림을 가로채거나 deletionRequestedAt 를 심어 계정 삭제를 유발할 수 있었음.)
     match /users/{userId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isMe(userId);
 
+      // 친구(수락된 양방향 문서): 내 목록이거나(userId==나), 내가 상대 목록에 나를 추가/삭제할 때만(friendId==나).
       match /friends/{friendId} {
-        allow read, write: if isSignedIn();
+        allow read: if isSignedIn();
+        allow write: if isMe(userId) || isMe(friendId);
       }
-      match /viewedDiaries/{diaryId} {
-        allow read, write: if isSignedIn();
+
+      // 열람 기록·차단 목록: 본인 것만.
+      match /viewedDiaries/{viewedId} {
+        allow read, write: if isMe(userId);
       }
-      // 내가 차단한 사용자(문서 id = 상대 userId)
       match /blocked/{blockedId} {
-        allow read, write: if isSignedIn();
+        allow read, write: if isMe(userId);
       }
     }
 
-    // 친구 요청(pending)
+    // ── 친구 요청(pending) ──────────────────────────────────────────────────
+    //  생성 : 보낸 사람(fromId) 본인만. 읽기/삭제 : 당사자(from/to)만. 수정 없음.
     match /friendRequests/{requestId} {
-      allow read, write: if isSignedIn();
+      allow read: if isMe(resource.data.fromId) || isMe(resource.data.toId);
+      allow create: if isMe(request.resource.data.fromId);
+      allow update: if false;
+      allow delete: if isMe(resource.data.fromId) || isMe(resource.data.toId);
     }
 
-    // 신고 — 작성(create)만 허용. 내용은 비공개(서버/관리자만 조회).
+    // ── 신고 ────────────────────────────────────────────────────────────────
+    //  생성만 허용. 내용은 비공개(서버/관리자 Console 에서만 조회·처리 — onReportAction).
     match /reports/{reportId} {
       allow create: if isSignedIn();
       allow read, update, delete: if false;
     }
 
-    // 1:1 친구 채팅: chats/{chatId}/messages/{messageId}
-    //  - chatId = 두 userId 정렬·결합(StaryConfig.chatId). 클라이언트가 결정.
-    //  - 방 메타 문서(chats/{chatId})와 메시지 읽기/작성/수정은 로그인 세션이면 허용.
-    //  - 삭제는 "전송 후 1분 이내(createdAt 기준)"만 허용해 임의 시점 삭제를 막는다.
-    //    ⚠️ 앱 userId 는 Google sub 라 request.auth.uid 와 달라 senderId 소유권은 규칙에서 강제 불가 →
-    //    "보낸 본인만"은 클라이언트(ChatViewModel.canDelete)가 게이팅하고, 규칙은 시간창(1분)만 강제한다.
+    // ── 1:1 채팅 ────────────────────────────────────────────────────────────
+    //  방 메타·메시지 모두 두 참여자(chatId 안의 두 appUserId)만 접근.
+    //  메시지 생성 : 보낸 본인(senderId==나). 삭제 : 보낸 본인 + 전송 1분 이내.
+    //  (예전엔 로그인만 하면 아무나 모든 1:1 대화를 읽을 수 있었음.)
     match /chats/{chatId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isChatMember(chatId);
 
       match /messages/{messageId} {
-        allow read, create, update: if isSignedIn();
-        allow delete: if isSignedIn()
+        allow read:   if isChatMember(chatId);
+        allow create: if isChatMember(chatId)
+          && isMe(request.resource.data.senderId);
+        allow update: if false;
+        allow delete: if isChatMember(chatId)
+          && isMe(resource.data.senderId)
           && request.time.toMillis() - resource.data.createdAt < 60000;
       }
     }
 
-    // 히든 업적 선점(문서 id = 업적 id, 앱 전체 1명) — 클라 트랜잭션이 read+create 를 쓴다.
-    // (기존 파일에 누락돼 있었음 — 배포 시 히든 업적 선점이 깨지지 않도록 추가, 2026-07-10)
+    // ── 히든 업적 선점(앱 전체 1명) ─────────────────────────────────────────
+    //  생성 : 본인 명의(achieverId==나)로만(거짓 귀속 방지).
+    //  수정 : 불가(도용/덮어쓰기 방지 — 선착순 트랜잭션은 read+create 만 사용).
+    //  삭제 : 본인 선점만(어드민이 자기 선점을 풀어 슬롯을 되돌리는 자가치유 — releaseOwnedBy).
     match /hiddenAchievements/{achievementId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isMe(request.resource.data.achieverId);
+      allow update: if false;
+      allow delete: if isMe(resource.data.achieverId);
     }
 
-    // 주간 개척 퀘스트 선점(문서 id = 국가 코드, 전 세계 1명 — 체크리스트 32)
-    //  - 클라 트랜잭션이 read+create 를 쓴다. 이미 있으면 create 실패 → 선착순 서버 강제.
+    // ── 주간 개척 퀘스트 선점(전 세계 1명) ──────────────────────────────────
+    //  생성만(선착순, 이미 있으면 create 실패 = 서버 강제) + 본인 명의. 수정/삭제 불가.
     match /pioneerClaims/{countryCode} {
-      allow read, create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isMe(request.resource.data.userId);
       allow update, delete: if false;
     }
 
-    // 친구 초대 리딤(문서 id = 리딤한 사람 uid → 계정당 1회, 체크리스트 31)
-    //  - 생성만 허용 + 이미 있으면 create 자체가 실패 → 중복 리딤 서버 강제.
-    //  - 수정/삭제 불가(초대 기록 조작 방지). 읽기는 업적 카운트 조회용.
+    // ── 친구 초대 리딤(문서 id = 리딤한 사람 appUserId, 계정당 1회) ──────────
+    //  생성만. 문서 id·redeemerId = 나 자신이어야 하고, 자기 자신 초대(inviterId==나)는 금지.
     match /invites/{redeemerId} {
-      allow read, create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isMe(redeemerId)
+        && request.resource.data.redeemerId == redeemerId
+        && !isMe(request.resource.data.inviterId);
       allow update, delete: if false;
     }
 
