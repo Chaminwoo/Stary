@@ -18,8 +18,9 @@ enum Theme {
 }
 
 extension View {
-    /// 지도 원형 버튼용 볼록(엠보스) 테두리 — 위쪽 밝은 하이라이트에서 아래로 갈수록 짙은 남색.
-    /// (Android `Modifier.raisedCosmicBorder()` 패리티 — 색/알파/두께 동일)
+    /// 지도 원형 버튼용 볼록(엠보스) 테두리 — 좌상단 밝은 하이라이트에서 우하단으로 갈수록 짙은
+    /// 남색(사선 — 정수리 일직선 하이라이트가 어색하다는 피드백, 2026-07-18).
+    /// (Android `Modifier.raisedCosmicBorder()` 패리티 — 색/알파/두께/방향 동일)
     func raisedCosmicBorder(lineWidth: CGFloat = 0.75) -> some View {
         overlay(
             Circle().strokeBorder(
@@ -27,7 +28,7 @@ extension View {
                     .init(color: Color(hex: 0x9FB3E8).opacity(0.45), location: 0.00),
                     .init(color: Color(hex: 0x3A4570).opacity(0.35), location: 0.45),
                     .init(color: Color(hex: 0x10142B).opacity(0.30), location: 1.00),
-                ], startPoint: .top, endPoint: .bottom),
+                ], startPoint: .topLeading, endPoint: .bottomTrailing),
                 lineWidth: lineWidth
             )
         )
