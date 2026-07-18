@@ -269,7 +269,7 @@ struct DetailScreen: View {
     }
 
     private var headerOverlay: some View {
-        let canOpenProfile = !diary.isAnonymous && !diary.userId.isEmpty
+        let canOpenProfile = !diary.userId.isEmpty
         let authorName = canOpenProfile
             ? directory.name(diary.userId, fallback: diary.userName)
             : diary.userName

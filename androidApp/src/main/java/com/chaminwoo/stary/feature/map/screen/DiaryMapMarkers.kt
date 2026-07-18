@@ -453,9 +453,9 @@ internal fun sparkleSetMinSize(set: Int): Float = when (set) {
 
 /** 스파클 iconSize 기본 배율(세트별). 위성(set 2)은 부모보다 확실히 작아야 "달"로 읽힌다. */
 internal fun sparkleSizeBase(set: Int) = when (set) {
-    0 -> 0.90f
-    1 -> 0.68f
-    else -> 0.42f
+    0 -> 0.64f
+    1 -> 0.50f
+    else -> 0.32f
 }
 
 /** 마커 곁 스파클 비트맵 — 작은 4꼭지 별(글로우+본체). 작은/보통 별 곁에서 쓰는 기본 반짝이. */

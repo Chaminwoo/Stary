@@ -12,7 +12,7 @@ struct Diary: Identifiable, Codable, Hashable {
     var userId: String = ""
     var userName: String = ""
 
-    /// 앱 내부에서는 Bool로 사용.
+    /// (사용 안 함) 익명 게시 기능은 제거됨. 옛 문서 디코딩 하위호환 + Android 모델 패리티용으로만 남겨둠 — 항상 false.
     /// Firestore에서는 Android와 동일하게 `anonymous: 0 또는 1`로 저장.
     var isAnonymous: Bool = false
 

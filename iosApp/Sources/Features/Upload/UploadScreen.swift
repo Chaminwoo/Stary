@@ -10,7 +10,6 @@ struct UploadScreen: View {
 
     @State private var title = ""
     @State private var content = ""
-    @State private var isAnonymous = false
     @State private var visibility: Visibility = .publicAll
     @State private var starType = 1
     @State private var starColor = 9
@@ -56,9 +55,6 @@ struct UploadScreen: View {
                     starPicker
                     colorPicker
                     visibilityPicker
-                    Toggle(LocaleManager.shared.t(.uploadAnonymous), isOn: $isAnonymous)
-                        .tint(Theme.navyAccent)
-                        .foregroundStyle(Theme.textSecondary)
                     saveButton
                 }
                 .padding(16)
@@ -292,7 +288,6 @@ struct UploadScreen: View {
         let diary = Diary(
             userId: uid,
             userName: auth.displayName,
-            isAnonymous: isAnonymous,
             title: title,
             content: content,
             imageUrl: imageUrl,

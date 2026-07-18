@@ -127,7 +127,6 @@ fun UploadScreen(
     var boomerangFile by remember { mutableStateOf<java.io.File?>(null) }
     var showBoomerangCapture by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
-    var isAnonymous by remember { mutableStateOf(false) }
     var showImageSourceDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val cameraUri = remember { mutableStateOf<Uri?>(null) }
@@ -419,17 +418,6 @@ fun UploadScreen(
                 }
             }
 
-            if (isLoggedIn) {
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { isAnonymous = !isAnonymous }) {
-                    Checkbox(
-                        checked = isAnonymous, onCheckedChange = { isAnonymous = it },
-                        colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.onBackground, uncheckedColor = MaterialTheme.colorScheme.secondary)
-                    )
-                    Text(stringResource(R.string.upload_anonymous), fontSize = 14.sp, color = MaterialTheme.colorScheme.secondary)
-                }
-            }
-
             Spacer(Modifier.height(20.dp))
 
             Button(
@@ -493,13 +481,13 @@ fun UploadScreen(
                                 imageUrl = result.url!!
                             }
                         }
-                        val uName = when { !isLoggedIn -> "익명"; isAnonymous -> "익명"; else -> GoogleAuthHelper.currentUserName ?: "알 수 없음" }
+                        val uName = if (!isLoggedIn) "익명" else GoogleAuthHelper.currentUserName ?: "알 수 없음"
                         pioneerClaimTarget = lat to lng // 저장 성공 이벤트에서 개척 선점 시도(체크리스트 32)
                         diaryViewModel.saveDiary(
                             Diary(
                                 title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
                                 userId = GoogleAuthHelper.currentUserId ?: "",
-                                userName = uName, isAnonymous = isAnonymous || !isLoggedIn,
+                                userName = uName,
                                 latitude = lat, longitude = lng,
                                 starType = starType, starColor = starColor,
                                 visibilityType = visibilityType

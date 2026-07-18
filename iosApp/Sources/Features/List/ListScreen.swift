@@ -124,7 +124,7 @@ struct DiaryCard: View {
                     .font(.poorStory(17))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
-                Text(diary.isAnonymous ? LocaleManager.shared.t(.commonAnonymous) : diary.userName)
+                Text(diary.userName.isEmpty ? LocaleManager.shared.t(.commonAnonymous) : diary.userName)
                     .font(.poorStory(12))
                     .foregroundStyle(Theme.textSecondary)
             }

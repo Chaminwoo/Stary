@@ -355,9 +355,9 @@ fun DetailScreen(
                 // 오버레이 내용
                 Column(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // 익명이 아니고 작성자 id 가 있으면 작성자 영역을 탭해 프로필로 진입할 수 있다.
-                        val canOpenProfile = !currentDiary.isAnonymous && currentDiary.userId.isNotBlank()
-                        // 작성자 이름은 저장 시점 스냅샷이 아니라 users/{uid} 의 "현재" 닉네임으로 표시(익명 제외).
+                        // 작성자 id 가 있으면 작성자 영역을 탭해 프로필로 진입할 수 있다.
+                        val canOpenProfile = currentDiary.userId.isNotBlank()
+                        // 작성자 이름은 저장 시점 스냅샷이 아니라 users/{uid} 의 "현재" 닉네임으로 표시.
                         val authorName =
                             if (canOpenProfile) rememberCurrentUserName(currentDiary.userId, currentDiary.userName)
                             else currentDiary.userName

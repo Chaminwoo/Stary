@@ -1127,6 +1127,10 @@ fun DiaryMap(
                 )
                 // 스파클 — 타원 궤도(icon-offset) + 별 부유 동기(iconTranslate) + 개수 게이트(opacity).
                 val sparkleZoom = sparkleZoomFactor(zoom)
+                // 궤도 반경도 줌에 따라 함께 줄인다 — 줌 아웃 시 별이 작아지는데 궤도가 dp 로 고정이면
+                // 파티클이 별에서 너무 멀어 보인다. sparkleZoom(줌 배율)에 비례시켜 별 크기와 함께 궤도를 좁힌다.
+                // (줌 인 최대(sparkleZoom=1)에서는 ×1.0 이라 기존의 '자연스러운' 근접 배치를 그대로 유지.)
+                val orbitZoomScale = 0.4f + 0.6f * sparkleZoom
                 if (sparkleZoom > 0.01f) { // 숨김 줌에서는 갱신 자체를 건너뛴다
                     // 부모(set 1) 궤도 각 — 위성(set 2)이 이 위치를 중심으로 주전원 공전한다.
                     val parentAng = t * -0.8f + phase + 1.9f
@@ -1142,13 +1146,13 @@ fun DiaryMap(
                         // 세트별 목표 오프셋(dp) — 위성은 부모 파티클 위치 + 주전원(그 파티클을 공전).
                         val dpAt: (Float) -> Pair<Float, Float> = when (s) {
                             SPARKLE_SATELLITE_SET -> { tier ->
-                                val pr = orbitTargetDp(1, tier)
-                                val sr = satelliteOrbitDp(tier)
+                                val pr = orbitTargetDp(1, tier) * orbitZoomScale
+                                val sr = satelliteOrbitDp(tier) * orbitZoomScale
                                 (parentUx * pr + satUx * sr) to (parentUy * pr + satUy * sr)
                             }
                             else -> { tier ->
                                 val ang = t * (if (s == 0) 1.1f else -0.8f) + phase + s * 1.9f
-                                val r = orbitTargetDp(s, tier)
+                                val r = orbitTargetDp(s, tier) * orbitZoomScale
                                 (kotlin.math.cos(ang) * r) to (sin(ang) * 0.55f * r)
                             }
                         }

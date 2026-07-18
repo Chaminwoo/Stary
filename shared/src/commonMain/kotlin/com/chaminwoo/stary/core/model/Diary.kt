@@ -11,6 +11,7 @@ data class Diary(
     val id: String = "",
     val userId: String = "",
     val userName: String = "",
+    // (사용 안 함) 익명 게시 기능은 제거됨. 옛 문서 디코딩 하위호환 + iOS 모델 패리티용으로만 남겨둠 — 항상 false.
     val isAnonymous: Boolean = false,
     val title: String = "",
     val content: String = "",

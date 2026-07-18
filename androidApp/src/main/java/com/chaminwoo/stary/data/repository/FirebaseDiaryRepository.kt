@@ -115,7 +115,7 @@ class FirebaseDiaryRepository : DiaryRepository {
                 .documents.map { it.id }
             FirebaseNotificationRepository().notifyFriendPost(
                 actorId = diary.userId,
-                actorName = if (diary.isAnonymous) "익명" else diary.userName,
+                actorName = diary.userName,
                 diaryId = diary.id,
                 diaryTitle = diary.title,
                 friendIds = friendIds
@@ -175,7 +175,7 @@ class FirebaseDiaryRepository : DiaryRepository {
             awaitClose { }
             return@callbackFlow
         }
-        fun visible(d: Diary): Boolean = d.visibilityType != "private" && !d.isAnonymous
+        fun visible(d: Diary): Boolean = d.visibilityType != "private"
 
         var fallback: ListenerRegistration? = null
         // 최신 몇 개만 받아 그중 "보이는" 첫 별을 고른다(맨 앞이 private/익명일 수 있어 여유분).

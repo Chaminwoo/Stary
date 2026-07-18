@@ -78,9 +78,7 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
       return;
     }
 
-    const senderName = diary.isAnonymous
-      ? "누군가"
-      : (diary.userName || "친구");
+    const senderName = diary.userName || "친구";
     const data = {
       diaryId,
       title: `${senderName}님의 새 별`,

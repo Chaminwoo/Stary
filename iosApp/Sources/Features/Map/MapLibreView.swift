@@ -185,14 +185,15 @@ struct MapLibreView: UIViewRepresentable {
             cb(c.latitude, c.longitude, mapView.zoomLevel <= MapLibreView.globeButtonZoom)
         }
 
-        /// 줌 레벨 → 별 크기 배율. Android SymbolLayer iconSize 줌 보간과 동일 스톱:
-        /// 8 → 0.3x, 12 → 0.55x, 15 → 1.0x (사이 구간 선형).
+        /// 줌 레벨 → 별 크기 배율. Android `starSizeExpression` 줌 보간과 **동일 스톱**:
+        /// 6 → 0.06x, 10 → 0.2x, 13 → 0.5x, 15 → 1.0x (사이 구간 선형). (이전 iOS 값은 중간 줌에서 별이 더 컸음)
         static func starScale(forZoom zoom: Double) -> CGFloat {
             let s: Double
             switch zoom {
-            case ..<8: s = 0.3
-            case ..<12: s = 0.3 + (zoom - 8) / 4 * 0.25
-            case ..<15: s = 0.55 + (zoom - 12) / 3 * 0.45
+            case ..<6: s = 0.06
+            case ..<10: s = 0.06 + (zoom - 6) / 4 * (0.2 - 0.06)
+            case ..<13: s = 0.2 + (zoom - 10) / 3 * (0.5 - 0.2)
+            case ..<15: s = 0.5 + (zoom - 13) / 2 * (1.0 - 0.5)
             default: s = 1.0
             }
             return CGFloat(s)
@@ -341,6 +342,90 @@ final class PioneerAnnotation: NSObject, MLNAnnotation {
     }
 }
 
+/// 별 마커 곁을 도는 스파클 파티클(공전) — Android `DiaryMap` 스파클(sl 레이어) 패리티.
+/// iOS 는 마커가 어노테이션 뷰라, GPU 표현식 대신 **서브뷰 + 타원 궤도 CAKeyframeAnimation** 으로 구현한다.
+/// 컨테이너(어노테이션 뷰)가 줌 배율(`applyStarZoomScale`)로 함께 스케일되므로,
+/// **줌아웃 시 궤도도 자연스럽게 작아진다**(Android orbitZoomScale 효과가 뷰 스케일로 자동 반영).
+enum MapSparkle {
+    /// 큰 별(이 배율 이상)이면 흰 4꼭지 대신 그 별의 모양/색 미니 크리스탈. (Android SPARKLE_BIG_STAR_THRESHOLD)
+    static let bigStarThreshold: Double = 1.75
+    /// 궤도가 별 밖으로 나가는 최대 반경(markerSize 대비) — 어노테이션 뷰 프레임 크기 산정에 공용.
+    static let maxOrbitExtentRatio: CGFloat = 0.62 + 0.16 // 최대 궤도 반경 + 파티클 반경
+
+    /// sizeMult 티어별 파티클 수 — 항상 1개 → 1.6 이상 2개 → 2.6 이상 3개(+위성).
+    /// (Android sparkleSetMinSize: set0 항상 / set1 1.6 / set2 2.6)
+    static func particleCount(sizeMult: Double) -> Int {
+        if sizeMult >= 2.6 { return 3 }
+        if sizeMult >= 1.6 { return 2 }
+        return 1
+    }
+
+    /// 컨테이너 [host] 의 [center] 를 중심으로 파티클 공전을 설치. ⚠️ 별 이미지 서브뷰보다 **먼저** 호출(별이 위에 오게).
+    static func install(on host: UIView, center: CGPoint, markerSize: CGFloat,
+                        sizeMult: Double, starType: Int, starColor: Int) {
+        let count = particleCount(sizeMult: sizeMult)
+        let big = sizeMult >= bigStarThreshold
+        // 세트별 궤도 반경 / 파티클 크기(pt) — markerSize 에 비례(별 크기·줌이 자동 반영). 별 가장자리 바로 곁.
+        let radii: [CGFloat] = [markerSize * 0.42, markerSize * 0.56, markerSize * 0.62]
+        let sizes: [CGFloat] = [markerSize * 0.30, markerSize * 0.24, markerSize * 0.16]
+        // 회전 주기(초)/방향 — Android 스파클 각속도(set0 +1.1, set1 -0.8, 위성 빠름) 패리티.
+        let periods: [Double] = [2 * .pi / 1.1, 2 * .pi / 0.8, 2 * .pi / 1.5]
+        let clockwise: [Bool] = [true, false, true]
+        for set in 0..<count {
+            let size = sizes[set]
+            let image = big
+                ? StarImageRenderer.image(type: starType, colorIndex: starColor, size: size)
+                : whiteSparkle(size: size)
+            let iv = UIImageView(image: image)
+            iv.bounds = CGRect(x: 0, y: 0, width: size, height: size)
+            iv.center = center
+            iv.alpha = 0.95
+            host.addSubview(iv)
+            addOrbit(to: iv, center: center, radius: radii[set],
+                     period: periods[set], clockwise: clockwise[set], phaseFraction: Double(set) * 0.37)
+        }
+    }
+
+    /// 타원 궤도(y×0.55)를 따라 파티클 position 을 무한 반복 애니메이션. rotationMode 미사용 → 파티클 자체는 안 돈다.
+    private static func addOrbit(to view: UIView, center: CGPoint, radius: CGFloat,
+                                 period: Double, clockwise: Bool, phaseFraction: Double) {
+        let ySquash: CGFloat = 0.55
+        let rect = CGRect(x: center.x - radius, y: center.y - radius * ySquash,
+                          width: radius * 2, height: radius * ySquash * 2)
+        let oval = UIBezierPath(ovalIn: rect)
+        let path = clockwise ? oval : oval.reversing()
+        let anim = CAKeyframeAnimation(keyPath: "position")
+        anim.path = path.cgPath
+        anim.duration = period
+        anim.calculationMode = .paced
+        anim.repeatCount = .infinity
+        anim.isRemovedOnCompletion = false
+        // 벽시계 기준 위상 오프셋 — 어노테이션 재생성돼도 궤도 위치가 이어지고, 세트별 시작점을 어긋나게.
+        anim.timeOffset = (CACurrentMediaTime() + phaseFraction * period).truncatingRemainder(dividingBy: period)
+        view.layer.add(anim, forKey: "orbit")
+    }
+
+    /// 흰 4꼭지 스파클(글로우+본체) — 작은/보통 별 곁 기본 반짝이. 크기별 캐시. (Android sparkleBitmap 패리티)
+    private static var whiteCache: [Int: UIImage] = [:]
+    private static func whiteSparkle(size: CGFloat) -> UIImage {
+        let key = Int(size.rounded())
+        if let cached = whiteCache[key] { return cached }
+        let px = CGFloat(max(key, 1))
+        let img = UIGraphicsImageRenderer(size: CGSize(width: px, height: px)).image { ctx in
+            let cg = ctx.cgContext
+            let body = px * 0.68
+            let rect = CGRect(x: (px - body) / 2, y: (px - body) / 2, width: body, height: body)
+            let path = StarShape(type: 0).path(in: rect).cgPath
+            cg.setShadow(offset: .zero, blur: px * 0.18, color: UIColor.white.withAlphaComponent(0.9).cgColor)
+            cg.setFillColor(UIColor.white.cgColor)
+            cg.addPath(path)
+            cg.fillPath(using: .evenOdd)
+        }
+        whiteCache[key] = img
+        return img
+    }
+}
+
 /// 겹친 별(머지) 마커 뷰 — 대표 별을 중심에 두고, 나머지 멤버 별 미니어처(각자 자기 모양/색)가
 /// 대표 곁 고정 자리(타원 배치, y×0.55)에서 저마다의 결로 잔잔히 둥둥 떠다닌다.
 /// 컨테이너 전체(대표+위성)가 같은 상하 float 를 공유해 **대표 별과 함께** 오르내리고,
@@ -373,12 +458,21 @@ final class MergedStarAnnotationView: MLNAnnotationView {
         let markerSize = annotation.markerSize
         let members = Array(annotation.members.dropFirst().prefix(Self.maxOrbitStars))
         let maxRadius = Self.radius(markerSize: markerSize, satIndex: max(members.count - 1, 0))
-        let side = (maxRadius + Self.satSize / 2 + Self.driftAmpY + Self.floatAmp) * 2
+        // 프레임은 위성 배치와 스파클 궤도 중 더 큰 쪽을 담아야 한다(둘 다 대표 곁을 돈다).
+        let satExtent = maxRadius + Self.satSize / 2 + Self.driftAmpY + Self.floatAmp
+        let orbitExtent = markerSize * MapSparkle.maxOrbitExtentRatio + Self.floatAmp
+        let side = max(satExtent, orbitExtent) * 2
         self.repId = annotation.diary.id ?? ""
         super.init(reuseIdentifier: nil)
         frame = CGRect(x: 0, y: 0, width: side, height: side)
         backgroundColor = .clear
+        clipsToBounds = false
         scalesWithViewingDistance = true   // 줌아웃 시 별 무리도 작아지게(#1)
+
+        // 스파클 공전 파티클 — 대표 별 곁을 돈다(맨 아래). 위성/대표보다 먼저 설치.
+        MapSparkle.install(on: self, center: CGPoint(x: side / 2, y: side / 2), markerSize: markerSize,
+                           sizeMult: annotation.sizeMult,
+                           starType: annotation.diary.starType, starColor: annotation.diary.starColor)
 
         // 위성 먼저 추가 → 대표 별이 항상 위(Android 레이어 순서와 동일).
         for (i, m) in members.enumerated() {
@@ -450,17 +544,26 @@ final class MergedStarAnnotationView: MLNAnnotationView {
 }
 
 /// 단일 별 마커 뷰 — `scalesWithViewingDistance` 로 줌아웃 시 자연스럽게 작아진다(#1).
+/// 별 곁을 도는 스파클 파티클(공전)을 담도록 프레임을 넓히고 별을 중앙에 둔다(별 중심=뷰 중심=좌표).
 final class SingleStarAnnotationView: MLNAnnotationView {
     init(annotation: DiaryAnnotation, reuseIdentifier: String) {
-        let size = annotation.markerSize
+        let markerSize = annotation.markerSize
+        let box = (markerSize / 2 + markerSize * MapSparkle.maxOrbitExtentRatio) * 2
         super.init(reuseIdentifier: reuseIdentifier)
-        frame = CGRect(x: 0, y: 0, width: size, height: size)
+        frame = CGRect(x: 0, y: 0, width: box, height: box)
         backgroundColor = .clear
+        clipsToBounds = false
         scalesWithViewingDistance = true
+        let center = CGPoint(x: box / 2, y: box / 2)
+        // 파티클(별 아래) 먼저 설치 → 별 이미지(위).
+        MapSparkle.install(on: self, center: center, markerSize: markerSize,
+                           sizeMult: annotation.sizeMult,
+                           starType: annotation.diary.starType, starColor: annotation.diary.starColor)
         let iv = UIImageView(image: StarImageRenderer.image(
-            type: annotation.diary.starType, colorIndex: annotation.diary.starColor, size: size
+            type: annotation.diary.starType, colorIndex: annotation.diary.starColor, size: markerSize
         ))
-        iv.frame = bounds
+        iv.frame = CGRect(x: center.x - markerSize / 2, y: center.y - markerSize / 2,
+                          width: markerSize, height: markerSize)
         iv.contentMode = .scaleAspectFit
         addSubview(iv)
     }

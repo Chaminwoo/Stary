@@ -227,10 +227,10 @@ struct FriendsScreen: View {
         }
     }
 
-    /// 친구가 가장 최근에 남긴, 내가 볼 수 있는 별(비공개/익명 제외). Android observeLatestVisibleDiaryOf 패리티.
+    /// 친구가 가장 최근에 남긴, 내가 볼 수 있는 별(비공개 제외). Android observeLatestVisibleDiaryOf 패리티.
     private func latestStar(of userId: String) -> Diary? {
         store.diaries
-            .filter { $0.userId == userId && $0.visibilityType != "private" && !$0.isAnonymous }
+            .filter { $0.userId == userId && $0.visibilityType != "private" }
             .max { $0.createdAt < $1.createdAt }
     }
 

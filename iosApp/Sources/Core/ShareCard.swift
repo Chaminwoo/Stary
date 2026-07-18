@@ -130,7 +130,7 @@ struct ShareCardView: View {
     }
 
     private var authorName: String {
-        (diary.isAnonymous || diary.userName.isEmpty)
+        diary.userName.isEmpty
             ? LocaleManager.shared.t(.shareCardAnonymous) : diary.userName
     }
 

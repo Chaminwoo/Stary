@@ -274,7 +274,7 @@ enum L10n: String {
         case .shareCardUntitled:    return ("(제목 없음)", "(Untitled)", "（タイトルなし）")
         case .shareCardAnonymous:   return ("익명의 별", "An anonymous star", "名もなき星")
         case .inviteFriends:        return ("친구를 Stary 로 초대하기", "Invite friends to Stary", "友達をStaryに招待する")
-        case .inviteFriendsDesc:    return ("가입한 친구가 초대 링크를 열면 둘 다 칭호를 받아요",
+        case .inviteFriendsDesc:    return ("가입한 친구가 초대 링크를 열면 칭호를 받아요",
                                             "When an invited friend opens your link, you both earn a title",
                                             "招待した友達がリンクを開くと、ふたりとも称号がもらえます")
         case .inviteShareText:      return ("Stary 에서 함께 별을 남겨요 ✦ 가입 후 이 링크를 다시 열면 우리 둘 다 칭호를 받아요!",
