@@ -1,0 +1,107 @@
+# 02. 디자인 시스템 · 공용 UI
+
+Android: `core/designsystem/`(Color, Type, Theme, StarStyle), `core/ui/`(공용 컴포넌트)
+iOS: `Core/Theme.swift`, `AppFont.swift`, `StarStyle.swift`, `StarShape.swift`, `StarCrystal.swift`,
+`BundleImage.swift`, `StarLoadingView.swift`, `StarBirth.swift`, `HiddenStarBadge.swift`,
+`ImageCache.swift`, `LoopingVideoPlayer.swift`, `Features/InAppBanner.swift`, `FirstVisitInfo.swift`
+
+---
+
+## Color.kt — 색 토큰(단일 출처)
+- `Bg=0xFF0D0D0D`(앱 배경) `Surface1=0xFF1A1A1A` `Surface2=0xFF242424` `Outline=0xFF2E2E2E`
+- `TextPrimary=0xFFF0F0F0` `TextSub=0xFF8A8A8A` `AccentRed=0xFFFF4F4F`
+- `Mint=0xFF6EE7B7` : 흩어져 있던 민트 리터럴의 단일 출처(별자리/내위치 마커 등 잔존).
+- `MintBlue=0xFF3B82F6` : 그라데이션 짝.
+- ⚠️ 참고: 2026-07 색 개편으로 화면 강조색은 대부분 **남색 계열**(`0xFF9FB3E8` Accent, `0xFF1E3A8A` Navy)
+  로 바뀌었는데, 이 값들은 각 화면 파일 상단의 private val 로 선언돼 있다(화면별 튜닝 허용 설계).
+
+## Type.kt — 폰트
+- `PoetsenOne` : 영문 디스플레이(대형 헤더). `MinSans` : 한글 본문·UI 전반(가변 폰트).
+- ⚠️ `MinSans` 는 "요청 굵기 → 실제 wght 축" 매핑 테이블(Light=300 … Bold=550).
+  **일괄 굵기 치환 금지** — 같은 FontWeight 중복 등록 시 어떤 wght 가 걸릴지 모호해진다.
+- `Typography` : display/headline/title=PoetsenOne, 본문/label=MinSans.
+
+## Theme.kt — `StaryTheme` : Material3 다크 팔레트 + Typography 적용(MainActivity 에서 감쌈).
+
+## StarStyle.kt — 별 모양·색·크리스탈 렌더의 심장 ⭐
+
+**별과 관련된 모든 시각 요소가 이 object 를 지난다.** 지도 마커/피커/프로필/공유카드/파장 전부 공유.
+
+- `TYPE_COUNT = 9` : 모양 수 — 0 4꼭지 스파클 / 1 5꼭지 별 / 2 6꼭지 / 3 8꼭지 가는 스파클 /
+  4 다이아 스파클 / 5 꽃 / 6 다이아몬드 / 7 초승달 / 8 행성 (5~8은 수집 보상 형태).
+- `COLOR_COUNT = 21` : 0~15 단색 팔레트(흰색 30% 혼합으로 "빛나는" 톤) + 16~20 2색 그라데이션
+  (고난도 업적 보상, `GRAD_START=16`).
+- `palette` / `gradients` / `isGradient(i)` / `gradientOf(i)` / `colorOf(i)`(대표색) / `colorsOf(i)`.
+- `fillShader(index, left, top, sizePx)` : 그라데이션 채움 Shader(단색이면 null).
+- `starPath(type, sizePx)` : 모양 Path. **모양 추가/수정은 여기 + iOS `StarShape.swift` 동시에.**
+- `drawCrystalFill(canvas, type, colorIndex|colors, left, top, sizePx, alpha)` :
+  실루엣 clip 후 내부를 불규칙 파편(크리스탈)으로 채우는 공용 렌더 —
+  파편 메시는 결정론적 해시(같은 별=같은 무늬), 볼록 돔 셰이딩 + 좌상단 하이라이트.
+- `drawCrystalFacets(..., silhouette, seed)` : 실루엣 없이 사각 영역에 파편만(아이콘 알파 마스킹용).
+- ⚠️ 새 별 type 추가 시: `starPath` + `facetDensity`(파편 밀도) + iOS `StarShape.swift` + 업로드 피커
+  해금 조건까지 한 세트.
+
+## core/ui 공용 컴포넌트
+
+- `StaryToast`(StaryToast.kt) : 하단 커스텀 토스트. `StaryToast.show(text)` 어디서든 호출,
+  호스트(`StaryToastHost`)는 MainScreen 최상단 1개. 남색 배경(0xFF131B36 계열), 2.2초.
+- `InAppBanner`(InAppBanner.kt) : 상단 인앱 배너(알림/채팅/근처 별). `InAppBanner.show(...)` +
+  `InAppBannerHost`. 토스트와 별개 채널. 표시 4초. 같은 key 반복 dedup.
+- `ClickBounce.kt` : `Modifier.clickBounce(peak=1.12)` — 누르면 통통 튀는 스케일.
+  Initial 패스 관찰이라 클릭 처리와 간섭 없음. size 다음·border 앞에 배치 권장.
+- `StaryComponents.kt` :
+  - `Modifier.appCard(radius)` : 공용 카드 배경/테두리.
+  - `Modifier.raisedCosmicBorder(width, shape)` : 지도 원형 버튼의 볼록(엠보스) 남색 테두리.
+  - `StarShapeIcon(type, color|colorIndex, modifier)` : 별 아이콘(크리스탈 채움) — 피커/목록/카드 공용.
+  - `DiaryCard(...)` : 다이어리 리스트 카드(목록/클러스터에서 사용).
+  - `TextMain=0xFFF2F4FA`/`TextMuted=0xFF8A92A6` 등 이 파일 전용 톤.
+- `StarLoading.kt` : `StarLoadingIndicator(size, colorIndex|color)` — 회전하는 별 로딩
+  (비트맵 1회 베이크 후 스케일/회전만 — 팔레트 밖 색은 별도 캐시).
+- `StarBirth.kt` : 업로드 성공 연출(01·05 문서). `StarBirthState.trigger(type, color)` →
+  `StarBirthHost`(MainScreen)가 화면 중앙에서 응축→발광→내려앉기 950ms 재생. 터치 통과.
+- `HiddenStarBadge.kt` : `HiddenStarBadges(userId, size, max)` — 이름 옆 히든 업적 크리스탈 배지
+  (HiddenClaimStore 전역 구독). `HiddenStarBadge(type, colorIndex)` 단독 사용 가능.
+- `CrystalIcon.kt` : `bakeCrystalIcon(painter, color, seed, sizePx, layoutDirection)` —
+  벡터 아이콘 실루엣을 크리스탈 파편으로 채운 비트맵 1회 베이크(SRC_IN 마스킹).
+- `FirstVisitInfo.kt` : `FirstVisitInfo(seenKey, icon, title, message)` — 화면 첫 진입 1회 안내
+  다이얼로그(prefs `stary_onboarding`). 화면 본문 어디서든 호출 가능(Dialog 는 자체 윈도우).
+- `ReportDialog.kt` : 신고 사유 선택(스팸 등 키를 `onSubmit`) — 다이어리/댓글/사용자 공용.
+- `GifImage.kt` : 움짤(GIF) 표시 — 전역 Coil 로더 재사용. 로컬 File/원격 URL 지원.
+- `ThumbAsyncImage.kt` : `ThumbAsyncImage(model, contentDescription, modifier, sizePx)` —
+  지정 크기로 다운샘플 디코드(목록 썸네일 최적화).
+- `VideoPlayer.kt` : `LoopingVideoPlayer(...)` — VideoView 기반 루프 재생(muted 지원).
+
+---
+
+## iOS 대응
+
+- `Theme.swift` : Android Color.kt 1:1 토큰(Bg/Surface/Outline/TextPrimary/TextSub/Mint/MintBlue/
+  AccentRed) + `navyAccent`(0x9FB3E8)·`navyDeep` 등 남색 계열. `Color(hex:)` 유틸.
+- `AppFont.swift` : `PoetsenOne-Regular`(영문) / `PoorStory-Regular`(한글 UI 전반) —
+  `.font(.poorStory(size))`. ⚠️ Android 는 MinSans, iOS 는 PoorStory 로 **서체 자체가 다르다**(의도).
+  새 폰트 추가 시 `project.yml` `UIAppFonts` 등록 필수.
+- `StarStyle.swift` + `StarShape.swift` : 팔레트/그라데이션/모양 Path — **Android StarStyle 과 값 동일
+  유지**(모양·색 추가 시 양쪽 동시). 달·행성·꽃·보석은 진짜 boolean 연산 —
+  ⚠️ iOS16 타깃이라 `Path.union/subtracting`(iOS17+) 대신 `CGPath` 기반 `unionCompat/subtractingCompat`.
+- `StarCrystal.swift` : 크리스탈 렌더 + NSCache —
+  `StarCrystal.image(type:colorIndex:size:)`(별) / `iconImage(systemName:color:seed:size:)`(SF Symbol 을
+  알파 마스크로 파편 채움) / 내부 `drawMesh(salt:silhouette:)`. ⚠️ 매 프레임 파편 재생성 금지 —
+  항상 이 캐시 이미지 재사용.
+- `BundleImage.swift` : 번들 이미지 NSCache 로더 + `ScreenBackground(name:darken:)` —
+  Android 의 "배경 이미지 + 검정 틴트" 대응(값: Upload 0.82, Settings 0.84, Chat 0.85 등).
+- `StarLoadingView.swift` / `StarBirth.swift`(StarBirthStore.shared+StarBirthHost) /
+  `HiddenStarBadge.swift` : Android 동명 컴포넌트 포팅(비트맵 1회 베이크 원칙 동일).
+- `InAppBanner.swift`(InAppBannerHost) / `FirstVisitInfo.swift` / `ImageCache.swift`(썸네일 캐시) /
+  `LoopingVideoPlayer.swift` : 각각 배너/1회 안내/이미지 캐시/루프 영상 대응.
+- ⚠️ iOS 장식 Canvas 공통 규칙: `TimelineView(.animation)` + `allowsHitTesting(false)`,
+  Canvas 수식은 Double 통일 후 CGFloat 변환(혼합 시 컴파일 에러).
+
+### 값 조절(패리티 매핑)
+| 항목 | Android | iOS |
+|---|---|---|
+| 별 팔레트/그라데이션/모양 | `StarStyle.kt` | `StarStyle.swift`+`StarShape.swift` (**값 동일**) |
+| 크리스탈 파편 밀도/셰이딩 | `StarStyle.drawCrystalFill/Facets` | `StarCrystal.drawMesh` |
+| 배경 이미지·틴트 | 화면별 Image+ColorFilter alpha | `ScreenBackground(name:darken:)` |
+| 토스트/배너 노출 시간 | `StaryToast`(2.2s)/`InAppBanner`(4s) | iOS ToastView/`InAppBanner.swift` |
+| 로딩 별 | `StarLoadingIndicator` | `StarLoadingView` |
+| 별 탄생 연출 길이 | `StarBirth.kt` BIRTH_MS=950 | `StarBirth.swift` 대응 상수 |
