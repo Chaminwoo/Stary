@@ -86,10 +86,16 @@ fun FriendScreen(
 
     if (userId == null) {
         Box(
-            modifier = modifier.fillMaxSize().background(PageBg),
+            modifier = modifier
+                .fillMaxSize()
+                .background(PageBg),
             contentAlignment = Alignment.Center
         ) {
-            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 15.sp)
+            Text(
+                stringResource(R.string.common_login_required),
+                color = TextMuted,
+                fontSize = 15.sp
+            )
         }
         return
     }
@@ -136,13 +142,18 @@ fun FriendScreen(
         lastSearched = q
     }
 
-    Box(modifier = modifier.fillMaxSize().background(PageBg)) {
+    Box(modifier = modifier
+        .fillMaxSize()
+        .background(PageBg)) {
         Image(
             painter = painterResource(R.drawable.mydiary_bg),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
+            colorFilter = ColorFilter.tint(
+                Color.Black.copy(alpha = 0.82f),
+                blendMode = BlendMode.Darken
+            )
         )
 
         FirstVisitInfo(
@@ -166,27 +177,14 @@ fun FriendScreen(
                 )
             }
 
-            // --- 친구 초대(체크리스트 31) — 초대 링크 공유. 가입+리딤 시 양쪽 다 칭호 보상 ---
-            item {
-                InviteCard(
-                    onClick = {
-                        val text = context.getString(
-                            R.string.invite_share_text,
-                            StaryConfig.inviteLink(userId)
-                        )
-                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(android.content.Intent.EXTRA_TEXT, text)
-                        }
-                        context.startActivity(
-                            android.content.Intent.createChooser(send, context.getString(R.string.invite_friends))
-                        )
-                    }
-                )
-            }
-
             if (isSearching) {
-                item { Text(stringResource(R.string.friend_searching), color = TextMuted, fontSize = 13.sp) }
+                item {
+                    Text(
+                        stringResource(R.string.friend_searching),
+                        color = TextMuted,
+                        fontSize = 13.sp
+                    )
+                }
             }
 
             // --- 검색 결과 ---
@@ -207,7 +205,12 @@ fun FriendScreen(
                             // 이미 보낸 pending 요청 — 다시 못 누르게 상태 칩으로 교체.
                             StatusChip(stringResource(R.string.friend_status_requested))
                         } else {
-                            Pill(stringResource(R.string.friend_add), Icons.Filled.PersonAdd, Accent.copy(alpha = 0.16f), Accent) {
+                            Pill(
+                                stringResource(R.string.friend_add),
+                                Icons.Filled.PersonAdd,
+                                Accent.copy(alpha = 0.16f),
+                                Accent
+                            ) {
                                 vm.sendRequest(user)
                             }
                         }
@@ -217,10 +220,16 @@ fun FriendScreen(
                 // 검색은 했는데 결과가 없을 때
                 item {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(stringResource(R.string.friend_no_results, query.trim()), color = TextMuted, fontSize = 13.sp)
+                        Text(
+                            stringResource(R.string.friend_no_results, query.trim()),
+                            color = TextMuted,
+                            fontSize = 13.sp
+                        )
                     }
                 }
             }
@@ -236,8 +245,18 @@ fun FriendScreen(
                         onClick = { onOpenProfile(req.fromId, req.fromName) }
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Pill(stringResource(R.string.friend_accept), Icons.Filled.Check, Accent.copy(alpha = 0.16f), Accent) { vm.accept(req) }
-                            Pill(stringResource(R.string.friend_decline), Icons.Filled.Close, Color.White.copy(alpha = 0.06f), SoftRed) { vm.decline(req) }
+                            Pill(
+                                stringResource(R.string.friend_accept),
+                                Icons.Filled.Check,
+                                Accent.copy(alpha = 0.16f),
+                                Accent
+                            ) { vm.accept(req) }
+                            Pill(
+                                stringResource(R.string.friend_decline),
+                                Icons.Filled.Close,
+                                Color.White.copy(alpha = 0.06f),
+                                SoftRed
+                            ) { vm.decline(req) }
                         }
                     }
                 }
@@ -248,7 +267,9 @@ fun FriendScreen(
             if (friends.isEmpty()) {
                 item {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 28.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -282,17 +303,44 @@ fun FriendScreen(
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
+
+
+
+        InviteCard(
+            onClick = {
+                val text = context.getString(
+                    R.string.invite_share_text,
+                    StaryConfig.inviteLink(userId)
+                )
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_TEXT, text)
+                }
+                context.startActivity(
+                    android.content.Intent.createChooser(
+                        send,
+                        context.getString(R.string.invite_friends)
+                    )
+                )
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+        )
     }
 }
 
 /** 친구 초대 카드 — 탭하면 초대 링크를 공유 시트로 보낸다(체크리스트 31). */
 @Composable
-private fun InviteCard(onClick: () -> Unit) {
+private fun InviteCard(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .appCard(16.dp)
-            .clickable { onClick() }
+            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -304,7 +352,12 @@ private fun InviteCard(onClick: () -> Unit) {
                 .border(1.dp, Accent.copy(alpha = 0.30f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = Accent, modifier = Modifier.size(20.dp))
+            Icon(
+                Icons.Filled.PersonAdd,
+                contentDescription = null,
+                tint = Accent,
+                modifier = Modifier.size(20.dp)
+            )
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -317,7 +370,11 @@ private fun InviteCard(onClick: () -> Unit) {
                 color = TextMuted, fontSize = 12.sp
             )
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted)
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = TextMuted
+        )
     }
 }
 
@@ -327,7 +384,12 @@ private fun SearchField(query: String, onValueChange: (String) -> Unit, onSearch
     OutlinedTextField(
         value = query,
         onValueChange = onValueChange,
-        placeholder = { Text(stringResource(R.string.friend_search_placeholder), color = TextMuted) },
+        placeholder = {
+            Text(
+                stringResource(R.string.friend_search_placeholder),
+                color = TextMuted
+            )
+        },
         singleLine = true,
         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TextMuted) },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -349,7 +411,9 @@ private fun SearchField(query: String, onValueChange: (String) -> Unit, onSearch
 @Composable
 private fun SectionHeader(title: String, count: Int) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(title, color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.Light)
@@ -375,7 +439,10 @@ private fun PersonCard(
     trailing: @Composable () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().appCard(16.dp).padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .appCard(16.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 아바타+이름 영역 탭 → 프로필 진입(trailing 버튼들과 별개로 동작).
@@ -506,7 +573,9 @@ private fun Avatar(
                 com.chaminwoo.stary.data.staryFirestore
                     .collection(StaryConfig.Collections.USERS).document(userId)
                     .get().await().getString("profileImageUrl")
-            } catch (_: Exception) { null }
+            } catch (_: Exception) {
+                null
+            }
             if (!url.isNullOrBlank()) resolved = url
         }
     }
@@ -522,8 +591,12 @@ private fun Avatar(
             // 작은 아바타 — 96px 다운샘플 디코드로 목록 스크롤에서도 즉시 뜨게.
             com.chaminwoo.stary.core.ui.ThumbAsyncImage(
                 model = resolved,
-                contentDescription = stringResource(R.string.cd_profile_photo, name.ifBlank { stringResource(R.string.common_user) }),
-                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                contentDescription = stringResource(
+                    R.string.cd_profile_photo,
+                    name.ifBlank { stringResource(R.string.common_user) }),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
                 sizePx = 96,
             )
         } else {
@@ -552,7 +625,12 @@ private fun Pill(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = text, tint = contentColor, modifier = Modifier.size(15.dp))
+            Icon(
+                icon,
+                contentDescription = text,
+                tint = contentColor,
+                modifier = Modifier.size(15.dp)
+            )
             Spacer(Modifier.width(4.dp))
         }
         Text(text, color = contentColor, fontSize = 12.5.sp, fontWeight = FontWeight.Light)

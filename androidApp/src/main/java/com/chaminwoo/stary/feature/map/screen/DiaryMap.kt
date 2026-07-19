@@ -716,7 +716,7 @@ fun DiaryMap(
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 16.dp, start = 16.dp),
+                .padding(top = 100.dp, start = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

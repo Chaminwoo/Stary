@@ -103,12 +103,7 @@ struct MainTabView: View {
                 if let d = diaryTarget { DetailScreen(diary: d) }
             }
         }
-        // 근처 미조회 별 발견 알림(체크리스트 33) — 실제 위치 fix 갱신마다 검사(빈도 제한은 내부에서).
-        .onReceive(location.$coordinate) { coord in
-            guard let coord else { return }
-            NearbyStarAlert.check(me: coord, diaries: store.diaries,
-                                  viewedIds: viewed.viewedIds, myUserId: auth.uid)
-        }
+
         // 길찾기/포커스 요청 → 전부 pop 하고 지도(루트)로 (Android popUpTo Main 대응).
         .onChange(of: focus.pendingDiaryId) { id in
             if id != nil {

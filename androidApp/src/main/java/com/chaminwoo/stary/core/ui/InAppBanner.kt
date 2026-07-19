@@ -44,6 +44,15 @@ import com.chaminwoo.stary.core.designsystem.MinSans
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * 앱 전역 인앱 알림 배너 — 채팅 새 메시지·다이어리 알림(좋아요/댓글/친구 새 글)이 도착하면
@@ -111,6 +120,9 @@ fun InAppBannerHost(modifier: Modifier = Modifier) {
             exit = slideOutVertically(animationSpec = tween(220)) { -it } + fadeOut(tween(220)),
         ) {
             val e = current ?: return@AnimatedVisibility
+            val offsetX = remember { Animatable(0f) }
+            val scope = rememberCoroutineScope()
+
             Box(
                 modifier = Modifier
                     .statusBarsPadding()
@@ -119,6 +131,29 @@ fun InAppBannerHost(modifier: Modifier = Modifier) {
             ) {
                 Row(
                     modifier = Modifier
+                        .offset {
+                            IntOffset(offsetX.value.roundToInt(), 0)
+                        }
+                        .pointerInput(e.id) {
+                            detectHorizontalDragGestures(
+                                onHorizontalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    scope.launch {
+                                        offsetX.snapTo(offsetX.value + dragAmount)
+                                    }
+                                },
+                                onDragEnd = {
+                                    scope.launch {
+                                        if (abs(offsetX.value) > 250f) {
+                                            visible = false
+                                            InAppBanner.consume(e.id)
+                                        } else {
+                                            offsetX.animateTo(0f)
+                                        }
+                                    }
+                                }
+                            )
+                        }
                         .fillMaxWidth()
                         .shadow(14.dp, RoundedCornerShape(18.dp), clip = false)
                         .clip(RoundedCornerShape(18.dp))

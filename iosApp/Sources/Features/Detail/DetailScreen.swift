@@ -91,10 +91,6 @@ struct DetailScreen: View {
                     .padding(.horizontal, 20)
                 }
             }
-
-            // 열람의 여운(34-2) — 파장(별 열람 연출)이 남긴 잔향처럼 화면 상단에
-            // 그 별 색의 오로라가 아주 옅게 드리운다(스크롤 무관 고정 레이어, 터치 통과).
-            DetailAuroraVeil(accent: StarStyle.color(diary.starColor))
         }
         .fullScreenCover(isPresented: $showFullMedia) {
             FullScreenMediaViewer(
@@ -454,39 +450,6 @@ struct DetailScreen: View {
 
     private func distanceLabel(_ m: Double) -> String {
         m < 1000 ? "\(Int(m))m" : String(format: "%.1fkm", m / 1000)
-    }
-}
-
-/// 상세 화면 상단 오로라(34-2) — 별색을 아주 옅게(≤0.16) 드리우고 좌우로 느리게 흐른다.
-/// 장식 전용: 히트테스트에 참여하지 않는다(아래 콘텐츠 탭 그대로 동작). (Android DetailAuroraVeil 패리티)
-private struct DetailAuroraVeil: View {
-    let accent: Color
-
-    var body: some View {
-        VStack(spacing: 0) {
-            TimelineView(.animation(minimumInterval: 1.0 / 20)) { tl in
-                // 15s 왕복 드리프트(Android Reverse 트윈 대응 — 삼각파 0→1→0).
-                let cycle = tl.date.timeIntervalSinceReferenceDate / 15
-                let drift = abs(cycle.truncatingRemainder(dividingBy: 2) - 1)
-                Canvas { ctx, size in
-                    let cx = size.width * (0.28 + 0.44 * drift)
-                    let grad = Gradient(stops: [
-                        .init(color: accent.opacity(0.16), location: 0),
-                        .init(color: accent.opacity(0.06), location: 0.5),
-                        .init(color: .clear, location: 1),
-                    ])
-                    ctx.fill(
-                        Path(CGRect(origin: .zero, size: size)),
-                        with: .radialGradient(grad, center: CGPoint(x: cx, y: 0),
-                                              startRadius: 0, endRadius: size.width * 0.95)
-                    )
-                }
-            }
-            .frame(height: 220)
-            Spacer(minLength: 0)
-        }
-        .ignoresSafeArea(edges: .top)
-        .allowsHitTesting(false)
     }
 }
 

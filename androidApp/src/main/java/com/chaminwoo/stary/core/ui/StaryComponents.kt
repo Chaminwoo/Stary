@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -37,9 +34,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.core.designsystem.StarStyle
-import com.chaminwoo.stary.core.model.Diary
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 val PageBg = Color(0xFF0E1018)
 val CardBg = Color(0xFF181C2A)
@@ -91,30 +85,22 @@ fun StarShapeIcon(type: Int, colorIndex: Int, modifier: Modifier = Modifier) {
 
 @Composable
 fun StarDiaryButton(
-    text: String = "별 다이어리 남기기",
     modifier: Modifier = Modifier,
+    text: String = "로그인 버튼",
     onClick: () -> Unit = {}
 ) {
     val creamTop = Color(0xFFF7EDD8)
     val creamBottom = Color(0xFFE9D6AE)
     val charcoal = Color(0xFF2C2723)
-    val glow = Color(0xFFF3E4C0)
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .matchParentSize()
-                .padding(horizontal = 4.dp, vertical = 6.dp)
-                .blur(28.dp)
-                .background(glow.copy(alpha = 0.55f), RoundedCornerShape(50))
-        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(50))
                 .background(Brush.verticalGradient(listOf(creamTop, creamBottom)))
                 .clickable(onClick = onClick)
-                .padding(horizontal = 30.dp, vertical = 16.dp),
+                .padding(horizontal = 26.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -124,40 +110,14 @@ fun StarDiaryButton(
                 tint = charcoal,
                 modifier = Modifier.size(20.dp)
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 text = text,
                 color = charcoal,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Light
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
             )
         }
-    }
-}
-
-@Composable
-fun StyleButton(
-    text: String,
-    modifier: Modifier = Modifier,
-    isDestructive: Boolean = false,
-    onClick: () -> Unit
-) {
-    val textColor = if (isDestructive) Color(0xFFFF6B6B) else TextMuted
-
-    Box(
-        modifier = modifier
-            .appCard(20.dp)
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Normal,
-            letterSpacing = 0.2.sp,
-            color = textColor
-        )
     }
 }
 
@@ -188,52 +148,5 @@ fun StatCard(
             icon()
             Text(text = label, fontSize = 20.sp, color = TextMuted)
         }
-    }
-}
-
-@Composable
-fun DiaryCard(
-    diary: Diary,
-    showStar: Boolean = false,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .appCard(18.dp)
-            .clickable(onClick = onClick)
-            .padding(14.dp)
-    ) {
-        // 별 모양을 카드 가운데 크게 배치
-        if (showStar) {
-            StarShapeIcon(
-                type = diary.starType,
-                colorIndex = diary.starColor,
-                modifier = Modifier
-                    .size(64.dp)
-                    .align(Alignment.Center)
-            )
-        }
-
-        // 제목 — 좌측 상단
-        Text(
-            text = diary.title,
-            fontSize = 25.sp,
-            fontWeight = FontWeight.Light,
-            color = TextMain,
-            maxLines = 2,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.TopStart)
-        )
-
-        // 날짜 — 우측 하단
-        Text(
-            text = SimpleDateFormat("MM.dd HH:mm", Locale.KOREA)
-                .format(java.util.Date(diary.createdAt)),
-            fontSize = 15.sp,
-            color = TextMuted,
-            modifier = Modifier.align(Alignment.BottomEnd)
-        )
     }
 }

@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.annotation.OptIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -217,21 +218,40 @@ fun LoginScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(horizontal = 32.dp)
+                        .padding(horizontal = 40.dp)
                         .padding(bottom = 48.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    StarDiaryButton(
-                        text = "Google 계정으로 로그인",
+                    Box(
                         modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            coroutineScope.launch {
-                                val idToken = GoogleAuthHelper.signInWithGoogle(context)
-                                if (idToken != null) onLoginClick()
-                                else com.chaminwoo.stary.core.ui.StaryToast.show("잠시만 기다려주세요")
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // 후광
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .padding(vertical = 10.dp)
+                                .blur(
+                                    50.dp,
+                                    edgeTreatment = BlurredEdgeTreatment.Unbounded
+                                )
+                                .background(
+                                    Color(0xFFFFF3D4).copy(alpha = 0.7f),
+                                    RoundedCornerShape(50)
+                                )
+                        )
+                        StarDiaryButton(
+                            text = "Google 계정으로 로그인",
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                coroutineScope.launch {
+                                    val idToken = GoogleAuthHelper.signInWithGoogle(context)
+                                    if (idToken != null) onLoginClick()
+                                    else com.chaminwoo.stary.core.ui.StaryToast.show("잠시만 기다려주세요")
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 

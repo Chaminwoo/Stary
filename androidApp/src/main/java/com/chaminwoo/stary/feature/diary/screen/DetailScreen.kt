@@ -341,15 +341,21 @@ fun DetailScreen(
                         )
                 }
 
-                // 하단 가독성 스크림
+                // 하단 가독성 스크림 (하단 영역만)
                 Box(
-                    modifier = Modifier.fillMaxSize().background(
-                        Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            0.55f to Color(0x66000000),
-                            1f to MaterialTheme.colorScheme.background
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.25f),
+                                    MaterialTheme.colorScheme.background
+                                )
+                            )
                         )
-                    )
                 )
 
                 // 오버레이 내용
@@ -570,10 +576,6 @@ fun DetailScreen(
             }
         }
 
-        // 열람의 여운 — 지도에서 별을 열 때의 파장(DiaryOpenWarp)이 남긴 잔향처럼
-        // 화면 상단에 그 별 색의 오로라가 아주 옅게 드리운다(별마다 화면의 공기가 달라진다).
-        DetailAuroraVeil(accent = accent, modifier = Modifier.align(Alignment.TopCenter))
-
         // 사진/영상 전체화면 뷰어 — 잘린 헤더가 아니라 원본 전체를 보며 확대/이동 가능.
         // 영상(움짤/mp4)이 있으면 그것을, 없으면 사진을 띄운다(다이어리는 둘 중 하나만 갖는다).
         val fullMediaUrl = currentDiary.videoUrl.ifBlank { currentDiary.imageUrl }
@@ -587,44 +589,6 @@ fun DetailScreen(
             )
         }
     }
-}
-
-/**
- * 상세 화면 상단 오로라 — 별색을 아주 옅게(≤0.16) 드리우고 좌우로 느리게 흐른다.
- * 장식 전용: 배경 modifier 만 쓰므로 히트테스트에 참여하지 않는다(아래 콘텐츠 탭 그대로 동작).
- * ⚠️ DetailScreen 본체에 인라인하지 말 것 — dex 레지스터 한계(파일 상단 주석 참고).
- */
-@Composable
-private fun DetailAuroraVeil(accent: Color, modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "detail_aurora")
-    val drift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(15000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "aurora_drift",
-    )
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(220.dp)
-            .drawBehind {
-                val cx = size.width * (0.28f + 0.44f * drift)
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            accent.copy(alpha = 0.16f),
-                            accent.copy(alpha = 0.06f),
-                            Color.Transparent,
-                        ),
-                        center = Offset(cx, 0f),
-                        radius = size.width * 0.95f,
-                    )
-                )
-            }
-    )
 }
 
 /**

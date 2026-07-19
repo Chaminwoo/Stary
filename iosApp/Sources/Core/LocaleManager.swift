@@ -298,9 +298,9 @@ enum L10n: String {
         case .nearbyStarBody:       return ("약 %dm 앞 — 탭하면 지도에서 보여드릴게요",
                                             "About %dm ahead — tap to see it on the map",
                                             "約%dm先 — タップすると地図に表示します")
-        case .friendNoChatYet:      return ("아직 대화가 없어요 — 탭해서 시작해 보세요",
-                                            "No messages yet — tap to start",
-                                            "まだメッセージがありません — タップして始めましょう")
+        case .friendNoChatYet:      return ("아직 대화가 없어요",
+                                            "No messages yet",
+                                            "まだメッセージがありません")
         case .navMap:               return ("지도", "Map", "マップ")
         case .navMyDiary:           return ("내 다이어리", "My Diary", "マイ日記")
         case .navMusic:             return ("배경음악", "Music", "BGM")

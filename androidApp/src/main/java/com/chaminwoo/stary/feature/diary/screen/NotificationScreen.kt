@@ -97,8 +97,9 @@ fun NotificationScreen(
         }
         return
     }
-
-    LazyColumn(modifier = modifier.fillMaxSize()) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize()
+    ) {
         items(visibleNotifs, key = { it.id }) { notif ->
             // animateItem(): 삭제되면 그 셀이 사라지며 아래 셀들이 빈 공간을 부드럽게 채운다.
             Column(modifier = Modifier.animateItem()) {
@@ -128,6 +129,7 @@ fun NotificationScreen(
         item { Spacer(modifier = Modifier.height(32.dp)) }
     }
 }
+
 
 // 부드러운 삭제색(기존 형광 빨강 대비 톤다운)
 private val SoftDeleteRed = Color(0xFFE57373)

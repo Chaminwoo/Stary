@@ -442,23 +442,49 @@ fun MainScreen(
                 }
             }
         ) { paddingValues ->
-            // 영상이 시작된 뒤(contentReady)부터 지도를 로드 — 영상 우선.
-            // 지도(MainListScreen)는 NavHost 뒤 상시 레이어 — NavRoute.Main 은 빈 투명 화면이라
-            // 지도 위 터치가 그대로 통과하고, 다른 화면을 밀어 올려도 지도는 파괴되지 않는다.
             if (contentReady) {
-                Box(modifier = modifier.padding(paddingValues)) {
+                Box(
+                    modifier = modifier.fillMaxSize()
+                ) {
+
+                    // 지도는 Scaffold padding을 먹지 않음
                     MainListScreen(
+                        modifier = Modifier.fillMaxSize(),
                         onItemClick = { diaryId -> navController.navigateToDetail(diaryId) },
                         onOpenCluster = { ids ->
-                            navController.navigate(NavRoute.StarCluster(ids = ids.joinToString(",")))
+                            navController.navigate(
+                                NavRoute.StarCluster(ids = ids.joinToString(","))
+                            )
                         },
-                        onCreateClick = { navController.navigate(NavRoute.Upload) },
+                        onCreateClick = {
+                            navController.navigate(NavRoute.Upload)
+                        }
                     )
-                    NavGraph(
-                        navController = navController,
-                        onLogout = onLogout,
-                        modifier = Modifier.fillMaxSize()
-                    )
+
+                    // 나머지 화면은 기존처럼 TopBar 아래부터 시작
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                    ) {
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    if (currentRoute is NavRoute.Main)
+                                        Color.Transparent
+                                    else
+                                        Color(0xFF0D0D0D)
+                                )
+                        )
+
+                        NavGraph(
+                            navController = navController,
+                            onLogout = onLogout,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         }
