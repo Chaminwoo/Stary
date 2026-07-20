@@ -40,14 +40,31 @@ service cloud.firestore {
       );
     }
 
-    // 채팅방(chatId = 두 appUserId 를 정렬·'_' 결합)의 참여자인지.
-    function isChatMember(chatId) {
-      return request.auth != null && (
-        (request.auth.uid in chatId.split('_'))
-        || (request.auth.token.firebase.sign_in_provider == 'google.com'
-            && (request.auth.token.firebase.identities['google.com'][0] in chatId.split('_')))
-      );
-    }
+function myAppUserId() {
+  return request.auth.token.firebase.sign_in_provider == 'google.com'
+    ? request.auth.token.firebase.identities['google.com'][0]
+    : request.auth.uid;
+}
+
+match /chats/{chatId} {
+  allow read, write: if myAppUserId() in resource.data.participants;
+
+  match /messages/{messageId} {
+    allow read: if myAppUserId() in
+      get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+
+    allow create: if myAppUserId() in
+      get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+      && request.resource.data.senderId == myAppUserId();
+
+    allow update: if false;
+
+    allow delete: if myAppUserId() in
+      get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+      && resource.data.senderId == myAppUserId()
+      && request.time.toMillis() - resource.data.createdAt < 60000;
+  }
+}
 
     // ── 다이어리 ────────────────────────────────────────────────────────────
     //  읽기 : 로그인 세션(익명 포함) — 지도에 남의 별 표시.
@@ -126,24 +143,6 @@ service cloud.firestore {
     match /reports/{reportId} {
       allow create: if isSignedIn();
       allow read, update, delete: if false;
-    }
-
-    // ── 1:1 채팅 ────────────────────────────────────────────────────────────
-    //  방 메타·메시지 모두 두 참여자(chatId 안의 두 appUserId)만 접근.
-    //  메시지 생성 : 보낸 본인(senderId==나). 삭제 : 보낸 본인 + 전송 1분 이내.
-    //  (예전엔 로그인만 하면 아무나 모든 1:1 대화를 읽을 수 있었음.)
-    match /chats/{chatId} {
-      allow read, write: if isChatMember(chatId);
-
-      match /messages/{messageId} {
-        allow read:   if isChatMember(chatId);
-        allow create: if isChatMember(chatId)
-          && isMe(request.resource.data.senderId);
-        allow update: if false;
-        allow delete: if isChatMember(chatId)
-          && isMe(resource.data.senderId)
-          && request.time.toMillis() - resource.data.createdAt < 60000;
-      }
     }
 
     // ── 히든 업적 선점(앱 전체 1명) ─────────────────────────────────────────

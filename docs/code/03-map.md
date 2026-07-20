@@ -2,7 +2,7 @@
 
 Android: `feature/home/screen/MainListScreen.kt`, `feature/map/screen/DiaryMap.kt`,
 `feature/map/screen/DiaryMapMarkers.kt`, `feature/map/screen/DiaryOpenWarp.kt`,
-`feature/home/screen/MapOnlyOverlay.kt`, `feature/map/OrsRouting.kt`, `core/util/NearbyStarAlert.kt`
+`feature/home/screen/MapOnlyOverlay.kt`, `feature/map/OrsRouting.kt`
 iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swift`,
 `DiaryOpenWarpView.swift`, `StarMerge.swift`, `StarImageRenderer.swift`, `OrsRouting.swift`
 
@@ -47,7 +47,6 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   (미조회만/친구만/나만보기/친구선택/기간별). "전체보기" 항목은 없음 — 활성 칩 재탭으로 해제.
 - 하단 중앙 "지구 보기" 버튼: `globeButtonCenter != null && globeCenter == null` 일 때만.
 - `GlobeScreen` 오버레이 + `globeScrim` 디졸브(04 문서).
-- `NearbyStarAlert.check(...)` : 위치 갱신마다 근처 미조회 별 검사(아래).
 
 ## DiaryMap.kt — MapLibre 지도 본체
 
@@ -156,14 +155,6 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - `walkingRoute(startLat, startLng, endLat, endLng): Route?` : OpenRouteService GET 1회.
   `Route(coordinates=[[lng,lat],...], distanceM, durationS)`. 실패/미설정 시 null(조용히 무시).
 - provider 교체 시 이 object 만 바꾸면 된다(호출부는 좌표 list 만 사용).
-
-## NearbyStarAlert.kt — 근처 미조회 별 발견 배너
-- `check(context, me, diaries, viewedIds, myUserId)` : 조건 만족하는 **가장 가까운 별 1개**만 인앱 배너.
-- 빈도 제한: 같은 별 평생 1회(SharedPreferences) / 하루 `NEARBY_ALERT_DAILY_LIMIT` /
-  최소 간격 `NEARBY_ALERT_MIN_INTERVAL_MS` (반경 포함 전부 shared `StaryConfig`).
-- 배너 탭 → `MapFocusStore/MapFocusState.request(diaryId)` → 지도 포커스.
-
----
 
 ## iOS 대응
 

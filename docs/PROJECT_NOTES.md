@@ -251,14 +251,13 @@ shared `FriendRepository.observeOutgoingRequests`(fromId==나) 신설 + Android 
 - **34-10 화면 전환 별 잔상 완전 삭제(사용자 지시)**: `core/ui/RouteStreak.kt` 삭제 + `MainScreen` 오버레이 호출 제거. iOS 미구현 유지.
 - **iOS 신설 4파일**(`Core/`): `StarLoadingView.swift`(34-9 로딩 별 — 비트맵 1회 굽고 스케일만, 팔레트 밖 색 별도 캐시) /
   `StarBirth.swift`(34-8 — `StarBirthStore.shared`+`StarBirthHost`, 업로드 성공 → 지도 탭 전환 후 재생) /
-  `NearbyStarAlert.swift`(33 — UserDefaults 로 같은 별 평생 1회·하루 5회·3분 간격, `MainTabView.onReceive(location.$coordinate)` 훅) /
   `HiddenStarBadge.swift`(34-4 — 이름 옆 전용 크리스탈 배지, `StarCrystal.image` NSCache 재사용).
 - **34-4**: `HiddenAchievements.swift` 에 `badgeType/badgeColor` 추가(**값 Android 동일** — drift 금지) +
   **칭호 fallback drift 정정**(iOS 구 칭호 "은하의 밀사" 등 → Android 정본 "별의 암호" 등. 표시는 원래 `LocalizedNames` 라 영향 없음).
   `HiddenAchievementStore` 에 `static shared` 승격(전역 리스너 1개, Android HiddenClaimStore 패턴) + `achievements(of:)`.
   배지 삽입: Detail 작성자/댓글 · 친구 행/검색 · 채팅 타이틀(principal 툴바) · 내/타인 프로필. 달성자 이름 = `UserDirectory` 현재값(34-4a).
-- **34-1** `StarClusterView` 헤더 별 ↔ 페이지 연동(활성만 밝게+확대+후광, easeOut 0.2s) / **34-2** `DetailAuroraVeil`(콘텐츠 위 고정, 15s 드리프트) /
-  **34-5** `NebulaProgressBand`(**Animatable 보간** Canvas — blob/잔별 배치 Android 동일) / **34-7** `ChatStardust`(시드/주기 동일).
+- **34-1** `StarClusterView` 헤더 별 ↔ 페이지 연동(활성만 밝게+확대+후광, easeOut 0.2s) / **34-2** 
+- **34-5** `NebulaProgressBand`(**Animatable 보간** Canvas — blob/잔별 배치 Android 동일) / **34-7** `ChatStardust`(시드/주기 동일).
 - **닉네임 20자 클램프(iOS)**: `ProfileScreen` — alert TextField 는 화면 레벨 `.onChange(of: nicknameDraft)` 로 선차단 + 저장 시 prefix.
 - ⚠️ 주의: iOS 장식 Canvas 는 전부 `TimelineView(.animation)` + `allowsHitTesting(false)`; 크리스탈은 매 프레임 파편 렌더 금지 → `StarCrystal.image`(NSCache) 재사용.
 - **남은 iOS TODO(기존 유지)**: 마커 스파클(궤도/개수 티어), 공유카드 편집+인스타 스토리, 지도 야경 커스텀 스타일(demotiles), 설정 음량 슬라이더 별 thumb.

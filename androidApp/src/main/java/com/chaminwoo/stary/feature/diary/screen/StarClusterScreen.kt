@@ -5,7 +5,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,8 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,7 +19,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -68,6 +64,17 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.absoluteValue
+import androidx.compose.foundation.gestures.snapping.SnapLayoutInfoProvider
+import androidx.compose.foundation.gestures.snapping.SnapPosition
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import kotlin.math.abs
 
 /**
  * 30m 안에서 합쳐진 별 무리 열람 화면 — 합쳐진 다이어리들을 우선순위
@@ -102,19 +109,26 @@ fun StarClusterScreen(
         }.getOrNull()?.asImageBitmap()
     }
 
-    Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier = modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)) {
         // 스크린 배경 — 친구 스크린과 동일(mydiary_bg 어둡게 틴트)
         Image(
             painter = painterResource(R.drawable.mydiary_bg),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
+            colorFilter = ColorFilter.tint(
+                Color.Black.copy(alpha = 0.82f),
+                blendMode = BlendMode.Darken
+            )
         )
         // 뒤로가기 — 좌상단
         IconButton(
             onClick = onBack,
-            modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 4.dp)
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 4.dp, top = 4.dp)
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
@@ -214,33 +228,70 @@ fun StarClusterScreen(
             // 카드 페이저 — 가운데 카드는 좌우로 좁고 상하로 긴 직사각형(세로 카드).
             // 옆 카드는 바닥 중앙 피벗으로 우측(다음)=시계 / 좌측(이전)=반시계 회전해
             // 위쪽이 바깥으로 기울고, 바깥 밀기+축소를 더해 가운데 카드와 겹치지 않는다.
-            HorizontalPager(
-                state = pagerState,
-                contentPadding = PaddingValues(horizontal = 58.dp, vertical = 8.dp),
-                pageSpacing = 18.dp,
+            val listState = rememberLazyListState()
+            val configuration = LocalConfiguration.current
+            val screenWidth = configuration.screenWidthDp.dp
+
+            val cardWidth = 290.dp
+            val cardHeight = 530.dp
+
+            val horizontalPadding = (screenWidth - cardWidth) / 2
+            val cardWidthPx = with(LocalDensity.current) { cardWidth.toPx() }
+
+            val currentIndex by remember {
+                derivedStateOf {
+                    val layoutInfo = listState.layoutInfo
+                    val viewportCenter =
+                        (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
+
+                    layoutInfo.visibleItemsInfo
+                        .minByOrNull { item ->
+                            abs((item.offset + item.size / 2f) - viewportCenter)
+                        }
+                        ?.index ?: 0
+                }
+            }
+
+            val snapLayoutInfoProvider = remember(listState) {
+                SnapLayoutInfoProvider(listState, SnapPosition.Center)
+            }
+            val flingBehavior = rememberSnapFlingBehavior(snapLayoutInfoProvider)
+
+            LazyRow(
+                state = listState,
+                flingBehavior = flingBehavior,
+                contentPadding = PaddingValues(horizontal = horizontalPadding),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
-            ) { page ->
-                val diary = diaries[page]
-                // 부호 있는 오프셋: 우측(다음) = +1, 좌측(이전) = -1 방향
-                val signed = ((page - pagerState.currentPage) - pagerState.currentPageOffsetFraction)
-                    .coerceIn(-1f, 1f)
-                val dist = signed.absoluteValue
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            ){
+                itemsIndexed(diaries, key = { _, diary -> diary.id }) { index, diary ->
+                    val layoutInfo = listState.layoutInfo
+                    val viewportCenter =
+                        (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
+
+                    val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+                    val cardCenter = itemInfo?.let { it.offset + it.size / 2f } ?: viewportCenter
+
+                    val dist =
+                        (((cardCenter - viewportCenter) / cardWidthPx).coerceIn(-1f, 1f))
+                    val signed = dist
+
                     ClusterDiaryCard(
                         diary = diary,
-                        rank = page + 1,
                         bgImage = cardBgImage,
                         modifier = Modifier
-                            .fillMaxHeight(0.97f)
-                            .aspectRatio(0.54f, matchHeightConstraintsFirst = true)
+                            .width(cardWidth)
+                            .height(cardHeight)
                             .graphicsLayer {
-                                val s = 1f - 0.10f * dist
-                                scaleX = s; scaleY = s
-                                alpha = 1f - 0.42f * dist
+                                val s = 1.13f - 0.23f * dist.absoluteValue
+                                scaleX = s
+                                scaleY = s
+                                alpha = 1f - 0.42f * dist.absoluteValue
                                 rotationZ = 8f * signed
                                 transformOrigin = TransformOrigin(0.5f, 1f)
                                 translationX = signed * 14.dp.toPx()
-                                translationY = dist * 10.dp.toPx()
+                                translationY = dist.absoluteValue * 10.dp.toPx()
                             },
                         onClick = { onOpenDiary(diary.id) }
                     )
@@ -251,11 +302,12 @@ fun StarClusterScreen(
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .padding(vertical = 18.dp),
+                    .padding(vertical = 18.dp)
+                    .navigationBarsPadding(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 repeat(diaries.size) { i ->
-                    val active = pagerState.currentPage == i
+                    val active = currentIndex == i
                     Box(
                         modifier = Modifier
                             .size(if (active) 8.dp else 6.dp)
@@ -277,7 +329,6 @@ fun StarClusterScreen(
 @Composable
 private fun ClusterDiaryCard(
     diary: Diary,
-    rank: Int,
     bgImage: ImageBitmap?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -307,61 +358,102 @@ private fun ClusterDiaryCard(
                     )
             )
         }
-        Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-        // 별 영역 — 카드의 남는 세로 전체. 사진/영상은 띄우지 않고 항상 별만 크게 보여준다.
-        Box(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(16.dp))
-                .background(
-                    Brush.radialGradient(listOf(accent.copy(alpha = 0.18f), Color.Transparent))
-                ),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .padding(14.dp)
         ) {
-            StarShapeIcon(
-                type = diary.starType,
-                colorIndex = diary.starColor,
-                modifier = Modifier.size(84.dp)
-            )
-        }
-        Spacer(Modifier.height(12.dp))
+            // 별 영역 — 카드의 남는 세로 전체. 사진/영상은 띄우지 않고 항상 별만 크게 보여준다.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        Brush.radialGradient(listOf(accent.copy(alpha = 0.18f), Color.Transparent))
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                StarShapeIcon(
+                    type = diary.starType,
+                    colorIndex = diary.starColor,
+                    modifier = Modifier.size(84.dp)
+                )
+            }
+            Spacer(Modifier.height(12.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StarShapeIcon(type = diary.starType, colorIndex = diary.starColor, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
             Text(
-                diary.title.ifBlank { stringResource(R.string.common_untitled) },
+                text = diary.title.ifBlank { stringResource(R.string.common_untitled) },
                 color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Light,
                 maxLines = 1
             )
-        }
-        Spacer(Modifier.height(6.dp))
-        val dateStr = remember(diary.createdAt) {
-            SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()).format(Date(diary.createdAt))
-        }
-        Text("#$rank · $dateStr", color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp)
 
-        Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(2.dp))
 
-        // 간략 지표 — 하트/댓글 수만
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Filled.Favorite, contentDescription = null,
-                tint = Color(0xFFFF6B81), modifier = Modifier.size(15.dp)
+            Text(
+                text = diary.userName,
+                color = MaterialTheme.colorScheme.secondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Light,
+                maxLines = 1
             )
-            Spacer(Modifier.width(5.dp))
-            Text("${diary.likeCount}", color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp)
-            Spacer(Modifier.width(16.dp))
-            Icon(
-                Icons.Filled.ChatBubbleOutline, contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(15.dp)
-            )
-            Spacer(Modifier.width(5.dp))
-            Text("${diary.commentCount}", color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp)
-            Spacer(Modifier.weight(1f))
-        }
+
+            Spacer(Modifier.height(8.dp))
+
+            val dateStr = remember(diary.createdAt) {
+                SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()).format(Date(diary.createdAt))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.Favorite,
+                    contentDescription = null,
+                    tint = Color(0xFFFF6B81),
+                    modifier = Modifier.size(15.dp)
+                )
+
+                Spacer(Modifier.width(4.dp))
+
+                Text(
+                    text = "${diary.likeCount}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Light,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+
+                Spacer(Modifier.width(14.dp))
+
+                Icon(
+                    Icons.Filled.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(15.dp)
+                )
+
+                Spacer(Modifier.width(4.dp))
+
+                Text(
+                    text = "${diary.commentCount}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Light,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                Text(
+                    text = dateStr,
+                    color = MaterialTheme.colorScheme.secondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Light
+                )
+            }
         }
     }
 }
+

@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import android.util.Log
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.shared.config.StaryConfig
@@ -23,7 +24,15 @@ class FirebaseNotificationRepository : NotificationRepository {
         val listener = db.collection(StaryConfig.Collections.NOTIFICATIONS)
             .whereEqualTo("diaryOwnerId", ownerId)
             .addSnapshotListener { snap, error ->
-                if (error != null) { trySend(emptyList()); return@addSnapshotListener } // 에러여도 빈 목록 emit(검은 화면 방지)
+                if (error != null) {
+                    Log.e(
+                        "CHAT",
+                        "permission error",
+                        error
+                    )
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
                 val list = (snap?.documents?.mapNotNull { doc ->
                     doc.toObject(AppNotification::class.java)?.copy(id = doc.id)
                 } ?: emptyList()).sortedByDescending { it.createdAt }

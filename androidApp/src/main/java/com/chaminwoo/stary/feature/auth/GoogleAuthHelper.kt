@@ -128,6 +128,16 @@ object GoogleAuthHelper {
         currentUserEmail = user.email
         // 앱 재시작(세션 복원)도 "로그인"으로 보고 삭제 예약을 취소(7일 유예 정책).
         CoroutineScope(Dispatchers.IO).launch { cancelPendingDeletion(uid) }
+
+        Log.d("AUTH", "uid=${user?.uid}")
+        user?.providerData?.forEach {
+            Log.d(
+                "AUTH",
+                "provider=${it.providerId}, uid=${it.uid}"
+            )
+        }
+        Log.d("AUTH", "provider=${user?.providerData}")
+
         return true
     }
 

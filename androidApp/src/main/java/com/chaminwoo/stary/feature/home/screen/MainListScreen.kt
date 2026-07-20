@@ -182,11 +182,23 @@ fun MainListScreen(
     // 내가 차단한 사용자 — 그 사람의 별은 지도/목록에서 숨긴다.
     val blockedIds by remember(userId) {
         val uid = userId
-        if (uid != null) com.chaminwoo.stary.data.repository.FirebaseModerationRepository().observeBlockedIds(uid)
+        if (uid != null) com.chaminwoo.stary.data.repository.FirebaseModerationRepository()
+            .observeBlockedIds(uid)
         else flowOf(emptySet())
     }.collectAsState(initial = emptySet())
 
-    val filteredDiaries = remember(diaries, unviewedOnly, friendsOnly, myOnly, selectedFriendIds, viewedIds, friendIds, blockedIds, userId, periodDays) {
+    val filteredDiaries = remember(
+        diaries,
+        unviewedOnly,
+        friendsOnly,
+        myOnly,
+        selectedFriendIds,
+        viewedIds,
+        friendIds,
+        blockedIds,
+        userId,
+        periodDays
+    ) {
         // 기간 컷오프(epoch ms) — 오늘=로컬 자정, 그 외=지금-N일. 선택이 바뀔 때 재계산.
         val periodCutoff: Long? = when (val d = periodDays) {
             null -> null
@@ -194,16 +206,17 @@ fun MainListScreen(
                 set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
                 set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
             }.timeInMillis
+
             else -> System.currentTimeMillis() - d * 86_400_000L
         }
         diaries.filter { diary ->
             val visibilityOk = diary.visibilityType != "friends" ||
-                diary.userId == userId || diary.userId in friendIds
+                    diary.userId == userId || diary.userId in friendIds
             val filterOk = (!unviewedOnly || diary.id !in viewedIds) &&
-                (!friendsOnly || diary.userId in friendIds) &&
-                (!myOnly || diary.userId == userId) &&
-                (selectedFriendIds.isEmpty() || diary.userId in selectedFriendIds) &&
-                (periodCutoff == null || diary.createdAt >= periodCutoff)
+                    (!friendsOnly || diary.userId in friendIds) &&
+                    (!myOnly || diary.userId == userId) &&
+                    (selectedFriendIds.isEmpty() || diary.userId in selectedFriendIds) &&
+                    (periodCutoff == null || diary.createdAt >= periodCutoff)
             visibilityOk && filterOk && diary.userId !in blockedIds
         }
     }
@@ -213,7 +226,13 @@ fun MainListScreen(
         AlertDialog(
             onDismissRequest = { showPeriodPicker = false },
             containerColor = Color(0xFF1A1A1A),
-            title = { Text(stringResource(R.string.filter_period), color = Color(0xFFF0F0F0), fontSize = 16.sp) },
+            title = {
+                Text(
+                    stringResource(R.string.filter_period),
+                    color = Color(0xFFF0F0F0),
+                    fontSize = 16.sp
+                )
+            },
             text = {
                 Column {
                     // '전체 기간' 항목은 없음 — 해제는 활성 칩을 다시 탭.
@@ -254,17 +273,29 @@ fun MainListScreen(
         AlertDialog(
             onDismissRequest = { showFriendPicker = false },
             containerColor = Color(0xFF1A1A1A),
-            title = { Text(stringResource(R.string.filter_pick_friends), color = Color(0xFFF0F0F0), fontSize = 16.sp) },
+            title = {
+                Text(
+                    stringResource(R.string.filter_pick_friends),
+                    color = Color(0xFFF0F0F0),
+                    fontSize = 16.sp
+                )
+            },
             text = {
                 if (friends.isEmpty()) {
-                    Text(stringResource(R.string.filter_no_friends), color = Color(0xFF8A8A8A), fontSize = 14.sp)
+                    Text(
+                        stringResource(R.string.filter_no_friends),
+                        color = Color(0xFF8A8A8A),
+                        fontSize = 14.sp
+                    )
                 } else {
                     Column {
                         friends.forEach { friend ->
                             val checked = friend.userId in tempSelected
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp)
                             ) {
                                 Checkbox(
                                     checked = checked,
@@ -287,7 +318,9 @@ fun MainListScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { selectedFriendIds = tempSelected; showFriendPicker = false }) {
+                TextButton(onClick = {
+                    selectedFriendIds = tempSelected; showFriendPicker = false
+                }) {
                     Text(stringResource(R.string.filter_apply), color = Color(0xFF9FB3E8))
                 }
             },
@@ -354,7 +387,8 @@ fun MainListScreen(
     }
 
     fun moveLocation(latDelta: Double, lngDelta: Double) {
-        val newLatLng = LatLng(currentLatLng.latitude + latDelta, currentLatLng.longitude + lngDelta)
+        val newLatLng =
+            LatLng(currentLatLng.latitude + latDelta, currentLatLng.longitude + lngDelta)
         currentLatLng = newLatLng
         LocationHelper.setCurrentLocation(newLatLng)
     }
@@ -367,10 +401,22 @@ fun MainListScreen(
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     when (keyEvent.key) {
-                        Key.W -> { moveLocation(step, 0.0); true }
-                        Key.S -> { moveLocation(-step, 0.0); true }
-                        Key.A -> { moveLocation(0.0, -step); true }
-                        Key.D -> { moveLocation(0.0, step); true }
+                        Key.W -> {
+                            moveLocation(step, 0.0); true
+                        }
+
+                        Key.S -> {
+                            moveLocation(-step, 0.0); true
+                        }
+
+                        Key.A -> {
+                            moveLocation(0.0, -step); true
+                        }
+
+                        Key.D -> {
+                            moveLocation(0.0, step); true
+                        }
+
                         else -> false
                     }
                 } else false
@@ -378,17 +424,24 @@ fun MainListScreen(
     } else Modifier
 
     Box(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .then(devKeyModifier)
     ) {
         // 알림에서 요청된 다이어리로 카메라 이동 + 파장 — 좌표는 필터와 무관하게 전체 목록에서 찾는다.
-        val focusTarget = remember(MapFocusState.pendingDiaryId, MapFocusState.pendingRoute, diaries) {
-            val id = MapFocusState.pendingDiaryId ?: return@remember null
-            diaries.firstOrNull { it.id == id }?.let {
-                DiaryFocusTarget(it.latitude, it.longitude, it.starColor, it.id, MapFocusState.pendingRoute)
+        val focusTarget =
+            remember(MapFocusState.pendingDiaryId, MapFocusState.pendingRoute, diaries) {
+                val id = MapFocusState.pendingDiaryId ?: return@remember null
+                diaries.firstOrNull { it.id == id }?.let {
+                    DiaryFocusTarget(
+                        it.latitude,
+                        it.longitude,
+                        it.starColor,
+                        it.id,
+                        MapFocusState.pendingRoute
+                    )
+                }
             }
-        }
 
         DiaryMap(
             diaries = filteredDiaries,
@@ -403,24 +456,36 @@ fun MainListScreen(
                 globeButtonCenter = if (available) lat to lng else null
             },
             globeReturnCamera = globeReturn,
+            modifier = modifier,
         )
 
         // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)
         if (userId != null && !MapUiState.mapOnly) {
-            val anyActive = unviewedOnly || friendsOnly || myOnly || selectedFriendIds.isNotEmpty() || periodDays != null
+            val anyActive =
+                unviewedOnly || friendsOnly || myOnly || selectedFriendIds.isNotEmpty() || periodDays != null
             val mint = Color(0xFF9FB3E8)
             val pillBg = Color(0xEE111120)
 
             // "전체보기"는 기본 상태(필터 없음)와 같아 목록에서 제외 — 각 필터 재탭으로 해제.
             val filterOpts = listOf(
-                FilterOpt(stringResource(R.string.filter_unviewed), Icons.Filled.FiberNew, unviewedOnly) {
+                FilterOpt(
+                    stringResource(R.string.filter_unviewed),
+                    Icons.Filled.FiberNew,
+                    unviewedOnly
+                ) {
                     unviewedOnly = !unviewedOnly; if (unviewedOnly) myOnly = false
                 },
-                FilterOpt(stringResource(R.string.filter_friends), Icons.Filled.People, friendsOnly) {
+                FilterOpt(
+                    stringResource(R.string.filter_friends),
+                    Icons.Filled.People,
+                    friendsOnly
+                ) {
                     friendsOnly = !friendsOnly; if (friendsOnly) myOnly = false
                 },
                 FilterOpt(stringResource(R.string.filter_mine), Icons.Filled.Lock, myOnly) {
-                    myOnly = !myOnly; if (myOnly) { friendsOnly = false; selectedFriendIds = emptySet() }
+                    myOnly = !myOnly; if (myOnly) {
+                    friendsOnly = false; selectedFriendIds = emptySet()
+                }
                 },
                 // 친구 선택 — 비활성이면 선택 다이얼로그, 활성이면 재탭으로 해제(기간 필터와 동일 패턴).
                 FilterOpt(
@@ -445,7 +510,8 @@ fun MainListScreen(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 20.dp),
+                    .padding(start = 16.dp, bottom = 20.dp)
+                    .navigationBarsPadding(),
                 horizontalAlignment = Alignment.Start,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -496,7 +562,11 @@ fun MainListScreen(
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(pillBg)
-                        .border(1.5.dp, if (anyActive) mint else Color.White.copy(alpha = 0.18f), CircleShape)
+                        .border(
+                            1.5.dp,
+                            if (anyActive) mint else Color.White.copy(alpha = 0.18f),
+                            CircleShape
+                        )
                         .clickable { speedDialExpanded = !speedDialExpanded },
                     contentAlignment = Alignment.Center
                 ) {

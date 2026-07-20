@@ -21,7 +21,6 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Ma
 - `ViewCountSession` : 앱 세션 동안 조회수를 올린 다이어리 id 집합(재진입 중복 카운트 방지).
 - `interactionVm : InteractionViewModel` : 좋아요/댓글 상태(아래).
 - 수정 모드 상태(제목/본문 편집 + 저장), 삭제 확인 다이얼로그, 신고 다이얼로그(`ReportDialog`).
-- `DetailAuroraVeil(accent)` : 콘텐츠 위 고정 오로라 장식(15s 드리프트).
   ⚠️ **DetailScreen 본체에 인라인 금지** — dex 레지스터 한계로 크래시 이력. `ShareDiaryButton` 도 동일
   이유로 별도 컴포저블 유지.
 - `FullScreenMediaViewer(mediaUrl, isVideo, onClose)` : 원본 비율(Fit) 전체화면 + 핀치 확대/드래그,
@@ -62,7 +61,7 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Ma
 
 ## iOS 대응
 - `DetailScreen.swift` : Android 와 같은 구성(히어로/본문 카드/인라인 액션/댓글/잠금 pill/
-  `FullScreenMediaViewer`/`RemoteGifFitView`/`DetailAuroraVeil`). push 진입(시트 아님).
+  `FullScreenMediaViewer`/`RemoteGifFitView`). push 진입(시트 아님).
 - `DetailViewModel.swift` : 좋아요/댓글 리스너 — ⚠️ 모델 디코딩은 `@DocumentID` 명시 디코드 필수
   (12 문서의 id=nil 버그 참고).
 - `StarClusterView.swift` : 겹친 별 카드 뷰어(자체 뒤로가기, 내비바 숨김). 카드 탭 → pop 후 0.35s

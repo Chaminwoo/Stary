@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.friend.screen
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
@@ -68,6 +70,7 @@ import com.chaminwoo.stary.core.ui.TextMain
 import com.chaminwoo.stary.core.ui.TextMuted
 import com.chaminwoo.stary.core.ui.appCard
 import com.chaminwoo.stary.core.model.UserProfile
+import com.chaminwoo.stary.core.util.ChatReadStore
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.friend.FriendViewModel
 
@@ -280,18 +283,29 @@ fun FriendScreen(
                     }
                 }
             }
+
+
             // 메신저형 친구 행(2026-07-12 개편) — 채팅/삭제 버튼 없이
             // [사진] [이름 / 마지막 채팅 ㆍ상대시간] [그 친구의 최근 별]. 행 탭=채팅, 사진 탭=프로필.
             // (미읽음 파란 점은 34-6 에서 최근 별로 교체 — ChatReadStore 는 채팅 화면이 계속 사용하므로 유지)
             items(friends, key = { "friend_${it.userId}" }) { friend ->
                 val chatId = StaryConfig.chatId(userId, friend.userId)
                 val summary = summaryByFriend[friend.userId]
+                val unread =
+                    summary != null &&
+                            summary.lastSenderId == friend.userId &&
+                            com.chaminwoo.stary.core.util.ChatReadStore.isUnread(
+                                context,
+                                chatId,
+                                summary.updatedAt
+                            )
                 FriendRow(
                     name = friend.userName,
                     photoUrl = friend.photoUrl,
                     userId = friend.userId,
                     lastMessage = summary?.lastMessage.orEmpty(),
                     lastAt = summary?.updatedAt ?: 0L,
+                    isUnread = unread,
                     onOpenProfile = { onOpenProfile(friend.userId, friend.userName) },
                     onClick = {
                         com.chaminwoo.stary.core.util.ChatReadStore.markRead(context, chatId)
@@ -299,6 +313,7 @@ fun FriendScreen(
                     },
                     onOpenLatestStar = onOpenDiaryOnMap,
                 )
+
             }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -326,6 +341,7 @@ fun FriendScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(horizontal = 16.dp, vertical = 16.dp)
+                .navigationBarsPadding()
         )
     }
 }
@@ -491,6 +507,7 @@ private fun FriendRow(
     userId: String,
     lastMessage: String,
     lastAt: Long,
+    isUnread: Boolean,
     onOpenProfile: () -> Unit,
     onClick: () -> Unit,
     onOpenLatestStar: (diaryId: String) -> Unit,
@@ -528,7 +545,7 @@ private fun FriendRow(
             if (lastMessage.isNotBlank()) {
                 Text(
                     "$lastMessage · ${com.chaminwoo.stary.core.util.RelativeTime.format(lastAt)}",
-                    color = TextMuted, fontSize = 15.sp,
+                    color = if (isUnread) Color.White else TextMuted, fontSize = 15.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             } else {

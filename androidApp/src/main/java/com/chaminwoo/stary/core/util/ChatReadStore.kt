@@ -37,4 +37,12 @@ object ChatReadStore {
         state[chatId] = at
         prefs(context).edit().putLong(chatId, at).apply()
     }
+
+    fun isUnread(
+        context: Context,
+        chatId: String,
+        lastMessageTime: Long
+    ): Boolean {
+        return lastMessageTime > lastReadAt(context, chatId)
+    }
 }

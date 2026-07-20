@@ -376,21 +376,6 @@
       탭 → 퀘스트 안내. 개척되면 비콘 자동 제거(실시간 구독). 안드 `DiaryMap` PIONEER_* 레이어 / iOS `PioneerAnnotation`.
 - [x] iOS 패리티(§1.5). (글로브(3D)에서의 표시는 후속 TODO)
 
-### 33. 근처 별 발견 알림 (리텐션) — ✅ Android (BUILD SUCCESSFUL, 테스트 대기 / iOS 연기)
-- [x] **앱 사용 중(foreground) 감지**: 실제 위치 fix 갱신 시 `NearbyStarAlert.check` — 반경
-      `NEARBY_ALERT_RADIUS_M`(250m) 안의 "아직 안 본 남의 별" 중 가장 가까운 1개를 상단 인앱 배너로.
-      탭 → 그 별로 지도 포커스(MapFocusState). 대상 = 지도에 보이는 목록(공개범위 반영).
-- [x] **빈도 제한**: 같은 별 평생 1회(SharedPreferences 영구 기록) + 하루 5회 상한 + 최소 간격 3분.
-- [ ] 백그라운드 지오펜스 확장은 후속 검토(위치 권한 정책 부담).
-- [x] **iOS 패리티 — 완료(2026-07-14, 34 라운드 iOS 일괄과 함께)**:
-      AppConfig `nearbyAlert*` 동기화 + `Core/NearbyStarAlert.swift`(같은 별 평생 1회/하루 5회/3분 간격 — UserDefaults) +
-      MainTabView `.onReceive(location.$coordinate)` 훅 + InAppBanner + 탭 → MapFocusStore + L10n `nearbyStar*`(ko/en/ja).
-
-> ⚠️ **iOS 진행 방침(2026-07-10 사용자 지시)**: 이번 유입/흥미 라운드의 추가 iOS 작업은
-> **안드로이드 실기기 테스트와 최종 수정이 끝난 뒤** 일괄 진행한다. (29~32 의 iOS 반영분은 이미 커밋됨 — CI 검증은 push 후)
-
----
-
 ## 🎨 34. 디자인 라운드 — ✅ Android 구현 완료 (2026-07-13) + ✅ iOS 패리티 일괄 (2026-07-14, CI 검증 대기 / 34-3 폐기 · 34-10 삭제)
 > **iOS 패리티 완료(2026-07-14)** — 34-1/2/4/5/6/7/8/9 + 체크리스트 33 근처 별 알림 + 닉네임 클램프. push 후 ios.yml CI 로 컴파일 검증.
 > **34-10(전환 잔상)은 사용자 지시로 Android 에서도 삭제**(RouteStreak.kt 제거) — iOS 미구현 유지.
@@ -419,8 +404,7 @@
 - [ ] `DetailScreen.kt`: 배경 최상단(스크롤 무관 고정 레이어)에 `accent`(= `StarStyle.colorOf(diary.starColor)`, 이미 존재) 오로라 —
       높이 ~200dp `verticalGradient(accent.copy(alpha≤0.16) → Transparent)`. 선택: 그라데이션 중심을 12~18s 주기로 아주 느리게 수평 드리프트.
 - [ ] 파장(DiaryOpenWarp) 색과 이어져 "열람의 여운"으로 읽히게 — 별색 그대로, 화이트 혼합 금지.
-- [x] iOS `DetailScreen.swift`: `DetailAuroraVeil`(TimelineView+Canvas, 15s 드리프트) — 콘텐츠 위 고정 레이어(Android 동일). (2026-07-14)
-
+- 
 ### 34-3. 내 하늘 헤더 — ❌ **폐기(2026-07-13 사용자 지시: "내 하늘만 삭제")**
 > 구현했다가 제거함(프로필 화면은 기존 배경/부유 아이콘 유지). **iOS 에도 만들지 말 것.**
 

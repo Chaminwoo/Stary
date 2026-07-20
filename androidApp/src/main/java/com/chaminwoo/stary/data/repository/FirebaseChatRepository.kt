@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import android.util.Log
 import com.chaminwoo.stary.core.model.ChatMessage
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.shared.config.StaryConfig
@@ -36,10 +37,24 @@ class FirebaseChatRepository : ChatRepository {
         val listener = chats
             .whereArrayContains("participants", userId)
             .addSnapshotListener { snapshot, error ->
-                if (error != null) { trySend(emptyList()); return@addSnapshotListener }
+
+                Log.e("CHAT_LISTENER", "observeMyChats", error)
+                Log.d("CHAT", "docs=${snapshot?.documents?.size}")
+
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+
                 val list = snapshot?.documents?.mapNotNull { doc ->
                     @Suppress("UNCHECKED_CAST")
-                    val participants = (doc.get("participants") as? List<String>) ?: doc.id.split("_")
+                    val participants =
+                        (doc.get("participants") as? List<String>) ?: doc.id.split("_")
+
+                    @Suppress("UNCHECKED_CAST")
+                    val lastReadAt =
+                        doc.get("lastReadAt") as? Map<String, Long> ?: emptyMap()
+
                     ChatSummary(
                         chatId = doc.id,
                         participants = participants,
@@ -47,10 +62,15 @@ class FirebaseChatRepository : ChatRepository {
                         lastSenderId = doc.getString("lastSenderId") ?: "",
                         lastSenderName = doc.getString("lastSenderName") ?: "",
                         updatedAt = doc.getLong("updatedAt") ?: 0L,
+                        lastReadAt = lastReadAt
                     )
                 } ?: emptyList()
+
+                Log.d("CHAT", "list size=${list.size}")
+
                 trySend(list)
             }
+
         awaitClose { listener.remove() }
     }
 
@@ -94,8 +114,11 @@ class FirebaseChatRepository : ChatRepository {
                         "participants" to chatId.split("_"),
                         "lastMessage" to body,
                         "lastSenderId" to senderId,
-                        "lastSenderName" to senderName, // 인앱 팝업에 보낸 사람 이름 표시용
+                        "lastSenderName" to senderName,
                         "updatedAt" to now,
+                        "lastReadAt" to mapOf(
+                            senderId to now
+                        )
                     ),
                     com.google.firebase.firestore.SetOptions.merge()
                 ).await()
@@ -119,7 +142,19 @@ class FirebaseChatRepository : ChatRepository {
             false
         }
     }
+    suspend fun markAsRead(
+        chatId: String,
+        myId: String
+    ) {
+        chats.document(chatId)
+            .update(
+                "lastReadAt.$myId",
+                System.currentTimeMillis()
+            )
+            .await()
+    }
 }
+
 
 /** 채팅방 메타 요약(인앱 팝업/목록용). */
 data class ChatSummary(
@@ -129,4 +164,5 @@ data class ChatSummary(
     val lastSenderId: String = "",
     val lastSenderName: String = "",
     val updatedAt: Long = 0L,
+    val lastReadAt: Map<String, Long> = emptyMap()
 )

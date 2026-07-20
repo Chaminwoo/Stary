@@ -57,6 +57,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import android.content.Context
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -139,10 +143,13 @@ fun MainScreen(
         currentDestination?.hasRoute<NavRoute.Notification>() == true -> NavRoute.Notification
         currentDestination?.hasRoute<NavRoute.Chat>() == true ->
             navBackStackEntry?.toRoute<NavRoute.Chat>() ?: NavRoute.Chat()
+
         currentDestination?.hasRoute<NavRoute.UserProfile>() == true ->
             navBackStackEntry?.toRoute<NavRoute.UserProfile>() ?: NavRoute.UserProfile()
+
         currentDestination?.hasRoute<NavRoute.UserDiaryStars>() == true ->
             navBackStackEntry?.toRoute<NavRoute.UserDiaryStars>() ?: NavRoute.UserDiaryStars()
+
         currentDestination?.hasRoute<NavRoute.Detail>() == true -> NavRoute.Detail()
         else -> NavRoute.Main
     }
@@ -202,11 +209,16 @@ fun MainScreen(
     }
     // 친구 초대 딥링크(stary://invite/{uid}) 리딤 — 로그인 상태여야 소비. 비로그인이면 보관해 두고
     // 로그인 완료(showLogin 변경) 시 재시도한다. 결과는 토스트로 안내(체크리스트 31).
-    androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.inviterId, showLogin) {
+    androidx.compose.runtime.LaunchedEffect(
+        com.chaminwoo.stary.core.util.DeepLinkState.inviterId,
+        showLogin
+    ) {
         com.chaminwoo.stary.core.util.DeepLinkState.inviterId ?: return@LaunchedEffect
         val uid = GoogleAuthHelper.currentUserId ?: return@LaunchedEffect
-        val inviter = com.chaminwoo.stary.core.util.DeepLinkState.consumeInvite() ?: return@LaunchedEffect
-        val result = com.chaminwoo.stary.data.repository.FirebaseInviteRepository().redeem(inviter, uid)
+        val inviter =
+            com.chaminwoo.stary.core.util.DeepLinkState.consumeInvite() ?: return@LaunchedEffect
+        val result =
+            com.chaminwoo.stary.data.repository.FirebaseInviteRepository().redeem(inviter, uid)
         val msg = when (result) {
             com.chaminwoo.stary.data.repository.FirebaseInviteRepository.RedeemResult.SUCCESS -> R.string.invite_redeemed
             com.chaminwoo.stary.data.repository.FirebaseInviteRepository.RedeemResult.ALREADY -> R.string.invite_already
@@ -221,7 +233,8 @@ fun MainScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // 첫 실행 코치마크(주요 컨트롤 안내) — SharedPreferences 로 1회만 노출.
-    val onboardPrefs = remember { context.getSharedPreferences("stary_onboarding", Context.MODE_PRIVATE) }
+    val onboardPrefs =
+        remember { context.getSharedPreferences("stary_onboarding", Context.MODE_PRIVATE) }
     var showOnboarding by androidx.compose.runtime.saveable.rememberSaveable {
         mutableStateOf(!onboardPrefs.getBoolean("main_coach_seen", false))
     }
@@ -230,7 +243,8 @@ fun MainScreen(
     val notifVm: NotificationViewModel? = if (userId != null) {
         viewModel(factory = NotificationViewModel.factory(userId))
     } else null
-    val unreadCount by (notifVm?.unreadCount?.collectAsState() ?: androidx.compose.runtime.mutableStateOf(0))
+    val unreadCount by (notifVm?.unreadCount?.collectAsState()
+        ?: androidx.compose.runtime.mutableStateOf(0))
     // 인앱 알림 팝업용 — 알림 목록을 관찰(null=로딩 중). 비로그인 시 null.
     val notifList by (notifVm?.notifications?.collectAsState()
         ?: remember { mutableStateOf<List<com.chaminwoo.stary.core.model.AppNotification>?>(null) })
@@ -257,308 +271,440 @@ fun MainScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = drawerState.isOpen,
-        scrimColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f),
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = Color(0xFF111111),
-                drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 20.dp)) {
-                    // 상단: "목록"(회색 작은 글씨) + 우측 닫기(왼쪽 화살표)
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, bottom = 3.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text(
-                            stringResource(R.string.drawer_list),
-                            fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF8A8A8A),
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = { coroutineScope.launch { drawerState.close() } }, modifier = Modifier.clickBounce()) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_close), tint = Color(0xFFF0F0F0))
-                        }
-                    }
-
-                    DrawerItem(stringResource(R.string.nav_my_diary), Icons.AutoMirrored.Filled.MenuBook, currentRoute is NavRoute.MyDiary) { onNavigate(NavRoute.MyDiary) }
-                    DrawerItem(stringResource(R.string.nav_profile), Icons.Filled.Person, currentRoute is NavRoute.Profile) { onNavigate(NavRoute.Profile) }
-                    DrawerItem(stringResource(R.string.nav_achievements), Icons.Filled.EmojiEvents, currentRoute is NavRoute.Achievements) { onNavigate(NavRoute.Achievements) }
-                    DrawerItem(stringResource(R.string.nav_music), Icons.Filled.MusicNote, currentRoute is NavRoute.Music) { onNavigate(NavRoute.Music) }
-                    DrawerItem(stringResource(R.string.nav_friends), Icons.Filled.People, currentRoute is NavRoute.Friends) { onNavigate(NavRoute.Friends) }
-                    DrawerItem(stringResource(R.string.nav_settings), Icons.Filled.Settings, currentRoute is NavRoute.Settings) { onNavigate(NavRoute.Settings) }
-                    // 로그인 상태면 로그아웃, 아니면 로그인 항목 노출
-                    if (GoogleAuthHelper.currentUserId == null) {
-                        DrawerItem(stringResource(R.string.drawer_login), Icons.AutoMirrored.Filled.Login, selected = false, alwaysAccent = true) {
-                            coroutineScope.launch { drawerState.close() }
-                            showLogin = true
-                        }
-                    } else {
-                        DrawerItem(stringResource(R.string.drawer_logout), Icons.AutoMirrored.Filled.Logout, selected = false, danger = true) {
-                            onLogout()
-                        }
-                    }
-                }
-            }
-        }
-    ) {
-        Scaffold(
-            containerColor = Color(0xFF0D0D0D),
-            topBar = {
-                if (currentRoute.showTopBar && !MapUiState.mapOnly) {
-                    CenterAlignedTopAppBar(
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                            containerColor = Color(0xFF0D0D0D),
-                            titleContentColor = Color(0xFFF0F0F0),
-                            navigationIconContentColor = Color(0xFFF0F0F0),
-                            actionIconContentColor = Color(0xFFF0F0F0)
-                        ),
-                        title = {
-                            // 사람 이름이 제목인 화면(채팅/타인 프로필)에는 그 사람의 히든 업적 배지를 옆에 붙인다.
-                            val titleUserId = when (val r = currentRoute) {
-                                is NavRoute.Chat -> r.friendId
-                                is NavRoute.UserProfile -> r.userId
-                                else -> ""
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = localizedTitle(currentRoute),
-                                    fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Color(0xFFF0F0F0)
-                                )
-                                com.chaminwoo.stary.core.ui.HiddenStarBadges(
-                                    userId = titleUserId,
-                                    modifier = Modifier.padding(start = 6.dp),
-                                    size = 15.dp,
-                                )
-                            }
-                        },
-                        navigationIcon = {
-                            if (currentRoute.isRoot) {
-                                IconButton(onClick = { coroutineScope.launch { drawerState.open() } }, modifier = Modifier.clickBounce()) {
-                                    Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.cd_menu), tint = Color(0xFFF0F0F0))
-                                }
-                            } else {
-                                IconButton(onClick = { navController.navigateUp() }, modifier = Modifier.clickBounce()) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back), tint = Color(0xFFF0F0F0))
-                                }
-                            }
-                        },
-                        actions = {
-                            if (currentRoute is NavRoute.Main) {
-                                IconButton(onClick = { navController.navigate(NavRoute.Notification) }, modifier = Modifier.clickBounce()) {
-                                    BadgedBox(
-                                        badge = {
-                                            // 미열람 알림이 있으면 하트 우측 상단에 빨간 동그라미(알림 점)
-                                            if (unreadCount > 0) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .offset(x = 4.dp,y = (-4).dp)
-                                                        .size(7.dp)
-                                                        .background(Color(0xFFFF3B30), CircleShape)
-                                                )
-                                            }
-                                        }
-                                    ) {
-                                        Icon(Icons.Filled.FavoriteBorder, contentDescription = stringResource(R.string.cd_notifications), tint = Color(0xFFF0F0F0))
-                                    }
-                                }
-                            }
-                            // 내 프로필: 우측 + 버튼 — 프로필에 띄울 별(다이어리) 고르기
-                            if (currentRoute is NavRoute.Profile && ProfilePinState.visible) {
-                                IconButton(onClick = { ProfilePinState.onOpen() }, modifier = Modifier.clickBounce()) {
-                                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.profile_pin_diaries), tint = Color(0xFFF0F0F0))
-                                }
-                            }
-                            // 타인 프로필: 우측에 친구 액션 — 사람+(친구추가) / 사람✓(친구, 누르면 취소 확인)
-                            if (currentRoute is NavRoute.UserProfile && UserProfileActionState.visible) {
-                                val mint = Color(0xFF9FB3E8)
-                                IconButton(onClick = { UserProfileActionState.onClick() }, modifier = Modifier.clickBounce()) {
-                                    when {
-                                        UserProfileActionState.isFriend ->
-                                            Icon(Icons.Filled.HowToReg, contentDescription = stringResource(R.string.friend_status_friend), tint = mint)
-                                        UserProfileActionState.requested ->
-                                            Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.user_requested), tint = Color(0xFF8A8A8A))
-                                        else ->
-                                            Icon(Icons.Filled.PersonAdd, contentDescription = stringResource(R.string.user_add_friend), tint = mint)
-                                    }
-                                }
-                                // 더보기(⋮) — 신고 / 차단·차단해제
-                                var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-                                Box {
-                                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.clickBounce()) {
-                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.cd_more), tint = Color(0xFFF0F0F0))
-                                    }
-                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.report_user), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
-                                            onClick = { menuOpen = false; UserProfileActionState.onReport() }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(if (UserProfileActionState.isBlocked) stringResource(R.string.unblock) else stringResource(R.string.block), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
-                                            onClick = { menuOpen = false; UserProfileActionState.onToggleBlock() }
-                                        )
-                                    }
-                                }
-                            }
-                            // (로그아웃은 프로필 화면 내 버튼으로 이동)
-                        }
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = drawerState.isOpen,
+            scrimColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f),
+            drawerContent = {
+                ModalDrawerSheet(
+                    drawerContainerColor = Color(0xFF111111),
+                    drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(
+                        topEnd = 24.dp,
+                        bottomEnd = 24.dp
                     )
-                }
-            },
-            floatingActionButton = {
-                if (currentRoute.showFab && !MapUiState.mapOnly) {
-                    FloatingActionButton(
-                        onClick = { navController.navigate(NavRoute.Upload) },
-                        shape = CircleShape,
-                        elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                        containerColor = Color.Transparent,
-                        modifier = Modifier.clickBounce()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
-                                        start = Offset(0f, 0f),
-                                        end = Offset(80f, 80f)
-                                    ),
-                                    CircleShape
-                                )
-                                .raisedCosmicBorder(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "글쓰기", tint = Color.White, modifier = Modifier.size(24.dp))
-                        }
-                    }
-                }
-            }
-        ) { paddingValues ->
-            if (contentReady) {
-                Box(
-                    modifier = modifier.fillMaxSize()
                 ) {
-
-                    // 지도는 Scaffold padding을 먹지 않음
-                    MainListScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        onItemClick = { diaryId -> navController.navigateToDetail(diaryId) },
-                        onOpenCluster = { ids ->
-                            navController.navigate(
-                                NavRoute.StarCluster(ids = ids.joinToString(","))
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 20.dp)) {
+                        // 상단: "목록"(회색 작은 글씨) + 우측 닫기(왼쪽 화살표)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 12.dp, bottom = 3.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text(
+                                stringResource(R.string.drawer_list),
+                                fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF8A8A8A),
+                                modifier = Modifier.weight(1f)
                             )
-                        },
-                        onCreateClick = {
-                            navController.navigate(NavRoute.Upload)
+                            IconButton(
+                                onClick = { coroutineScope.launch { drawerState.close() } },
+                                modifier = Modifier.clickBounce()
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = stringResource(R.string.cd_close),
+                                    tint = Color(0xFFF0F0F0)
+                                )
+                            }
                         }
-                    )
 
-                    // 나머지 화면은 기존처럼 TopBar 아래부터 시작
+                        DrawerItem(
+                            stringResource(R.string.nav_my_diary),
+                            Icons.AutoMirrored.Filled.MenuBook,
+                            currentRoute is NavRoute.MyDiary
+                        ) { onNavigate(NavRoute.MyDiary) }
+                        DrawerItem(
+                            stringResource(R.string.nav_profile),
+                            Icons.Filled.Person,
+                            currentRoute is NavRoute.Profile
+                        ) { onNavigate(NavRoute.Profile) }
+                        DrawerItem(
+                            stringResource(R.string.nav_achievements),
+                            Icons.Filled.EmojiEvents,
+                            currentRoute is NavRoute.Achievements
+                        ) { onNavigate(NavRoute.Achievements) }
+                        DrawerItem(
+                            stringResource(R.string.nav_music),
+                            Icons.Filled.MusicNote,
+                            currentRoute is NavRoute.Music
+                        ) { onNavigate(NavRoute.Music) }
+                        DrawerItem(
+                            stringResource(R.string.nav_friends),
+                            Icons.Filled.People,
+                            currentRoute is NavRoute.Friends
+                        ) { onNavigate(NavRoute.Friends) }
+                        DrawerItem(
+                            stringResource(R.string.nav_settings),
+                            Icons.Filled.Settings,
+                            currentRoute is NavRoute.Settings
+                        ) { onNavigate(NavRoute.Settings) }
+                        // 로그인 상태면 로그아웃, 아니면 로그인 항목 노출
+                        if (GoogleAuthHelper.currentUserId == null) {
+                            DrawerItem(
+                                stringResource(R.string.drawer_login),
+                                Icons.AutoMirrored.Filled.Login,
+                                selected = false,
+                                alwaysAccent = true
+                            ) {
+                                coroutineScope.launch { drawerState.close() }
+                                showLogin = true
+                            }
+                        } else {
+                            DrawerItem(
+                                stringResource(R.string.drawer_logout),
+                                Icons.AutoMirrored.Filled.Logout,
+                                selected = false,
+                                danger = true
+                            ) {
+                                onLogout()
+                            }
+                        }
+                    }
+                }
+            }
+        ) {
+            Scaffold(
+                containerColor = Color(0xFF0D0D0D),
+                topBar = {
+                    if (currentRoute.showTopBar && !MapUiState.mapOnly) {
+                        CenterAlignedTopAppBar(
+                            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                containerColor = Color(0xFF0D0D0D),
+                                titleContentColor = Color(0xFFF0F0F0),
+                                navigationIconContentColor = Color(0xFFF0F0F0),
+                                actionIconContentColor = Color(0xFFF0F0F0)
+                            ),
+                            title = {
+                                // 사람 이름이 제목인 화면(채팅/타인 프로필)에는 그 사람의 히든 업적 배지를 옆에 붙인다.
+                                val titleUserId = when (val r = currentRoute) {
+                                    is NavRoute.Chat -> r.friendId
+                                    is NavRoute.UserProfile -> r.userId
+                                    else -> ""
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = localizedTitle(currentRoute),
+                                        fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color(0xFFF0F0F0)
+                                    )
+                                    com.chaminwoo.stary.core.ui.HiddenStarBadges(
+                                        userId = titleUserId,
+                                        modifier = Modifier.padding(start = 6.dp),
+                                        size = 15.dp,
+                                    )
+                                }
+                            },
+                            navigationIcon = {
+                                if (currentRoute.isRoot) {
+                                    IconButton(
+                                        onClick = { coroutineScope.launch { drawerState.open() } },
+                                        modifier = Modifier.clickBounce()
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Menu,
+                                            contentDescription = stringResource(R.string.cd_menu),
+                                            tint = Color(0xFFF0F0F0)
+                                        )
+                                    }
+                                } else {
+                                    IconButton(
+                                        onClick = { navController.navigateUp() },
+                                        modifier = Modifier.clickBounce()
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = stringResource(R.string.cd_back),
+                                            tint = Color(0xFFF0F0F0)
+                                        )
+                                    }
+                                }
+                            },
+                            actions = {
+                                if (currentRoute is NavRoute.Main) {
+                                    IconButton(
+                                        onClick = { navController.navigate(NavRoute.Notification) },
+                                        modifier = Modifier.clickBounce()
+                                    ) {
+                                        BadgedBox(
+                                            badge = {
+                                                if (unreadCount > 0) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .align(Alignment.TopEnd)
+                                                            .offset(x = (-1).dp, y = 3.dp)
+                                                            .size(6.dp)
+                                                            .background(Color(0xFFFF3B30), CircleShape)
+                                                    )
+                                                }
+                                            }
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.FavoriteBorder,
+                                                contentDescription = stringResource(R.string.cd_notifications),
+                                                tint = Color(0xFFF0F0F0)
+                                            )
+                                        }
+                                    }
+                                }
+                                // 내 프로필: 우측 + 버튼 — 프로필에 띄울 별(다이어리) 고르기
+                                if (currentRoute is NavRoute.Profile && ProfilePinState.visible) {
+                                    IconButton(
+                                        onClick = { ProfilePinState.onOpen() },
+                                        modifier = Modifier.clickBounce()
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Add,
+                                            contentDescription = stringResource(R.string.profile_pin_diaries),
+                                            tint = Color(0xFFF0F0F0)
+                                        )
+                                    }
+                                }
+                                // 타인 프로필: 우측에 친구 액션 — 사람+(친구추가) / 사람✓(친구, 누르면 취소 확인)
+                                if (currentRoute is NavRoute.UserProfile && UserProfileActionState.visible) {
+                                    val mint = Color(0xFF9FB3E8)
+                                    IconButton(
+                                        onClick = { UserProfileActionState.onClick() },
+                                        modifier = Modifier.clickBounce()
+                                    ) {
+                                        when {
+                                            UserProfileActionState.isFriend ->
+                                                Icon(
+                                                    Icons.Filled.HowToReg,
+                                                    contentDescription = stringResource(R.string.friend_status_friend),
+                                                    tint = mint
+                                                )
+
+                                            UserProfileActionState.requested ->
+                                                Icon(
+                                                    Icons.Filled.Check,
+                                                    contentDescription = stringResource(R.string.user_requested),
+                                                    tint = Color(0xFF8A8A8A)
+                                                )
+
+                                            else ->
+                                                Icon(
+                                                    Icons.Filled.PersonAdd,
+                                                    contentDescription = stringResource(R.string.user_add_friend),
+                                                    tint = mint
+                                                )
+                                        }
+                                    }
+                                    // 더보기(⋮) — 신고 / 차단·차단해제
+                                    var menuOpen by androidx.compose.runtime.remember {
+                                        androidx.compose.runtime.mutableStateOf(
+                                            false
+                                        )
+                                    }
+                                    Box {
+                                        IconButton(
+                                            onClick = { menuOpen = true },
+                                            modifier = Modifier.clickBounce()
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.MoreVert,
+                                                contentDescription = stringResource(R.string.cd_more),
+                                                tint = Color(0xFFF0F0F0)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = menuOpen,
+                                            onDismissRequest = { menuOpen = false }) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        stringResource(R.string.report_user),
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                },
+                                                onClick = {
+                                                    menuOpen =
+                                                        false; UserProfileActionState.onReport()
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        if (UserProfileActionState.isBlocked) stringResource(
+                                                            R.string.unblock
+                                                        ) else stringResource(R.string.block),
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                },
+                                                onClick = {
+                                                    menuOpen =
+                                                        false; UserProfileActionState.onToggleBlock()
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                // (로그아웃은 프로필 화면 내 버튼으로 이동)
+                            }
+                        )
+                    }
+                },
+                floatingActionButton = {
+                    if (currentRoute.showFab && !MapUiState.mapOnly) {
+                        FloatingActionButton(
+                            onClick = { navController.navigate(NavRoute.Upload) },
+                            shape = CircleShape,
+                            elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                            containerColor = Color.Transparent,
+                            modifier = Modifier.clickBounce()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(Color(0xFF3A4676), Color(0xFF111936)),
+                                            start = Offset(0f, 0f),
+                                            end = Offset(80f, 80f)
+                                        ),
+                                        CircleShape
+                                    )
+                                    .raisedCosmicBorder(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "글쓰기",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            ) { paddingValues ->
+                if (contentReady) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
+                        modifier = modifier.fillMaxSize()
                     ) {
 
+                        // 지도는 Scaffold padding을 먹지 않음
+                        MainListScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            onItemClick = { diaryId -> navController.navigateToDetail(diaryId) },
+                            onOpenCluster = { ids ->
+                                navController.navigate(
+                                    NavRoute.StarCluster(ids = ids.joinToString(","))
+                                )
+                            },
+                            onCreateClick = {
+                                navController.navigate(NavRoute.Upload)
+                            }
+                        )
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .padding(
+                                    top = paddingValues.calculateTopPadding()
+                                )
                                 .background(
                                     if (currentRoute is NavRoute.Main)
                                         Color.Transparent
                                     else
                                         Color(0xFF0D0D0D)
                                 )
-                        )
-
-                        NavGraph(
-                            navController = navController,
-                            onLogout = onLogout,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        ) {
+                            NavGraph(
+                                navController = navController,
+                                onLogout = onLogout,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                 }
             }
         }
-    }
 
-    // 로그인 오버레이 — 영상을 먼저 끝까지 재생한 뒤(onVideoEnded) 또는 로그인 진행 시 지도를 로드한다.
-    if (showLogin) {
-        LoginScreen(
-            immediate = loginImmediate,
-            onLoginClick = { showLogin = false; loginImmediate = false; contentReady = true },
-            onVideoEnded = { contentReady = true }
-        )
-    }
+        // 로그인 오버레이 — 영상을 먼저 끝까지 재생한 뒤(onVideoEnded) 또는 로그인 진행 시 지도를 로드한다.
+        if (showLogin) {
+            LoginScreen(
+                immediate = loginImmediate,
+                onLoginClick = { showLogin = false; loginImmediate = false; contentReady = true },
+                onVideoEnded = { contentReady = true }
+            )
+        }
 
-    // 첫 로그인 코치마크 — 로그인한 상태에서 지도(Main) 화면에 처음 들어왔을 때 1회만.
-    // (비로그인 둘러보기에선 표시하지 않는다)
-    if (showOnboarding && !showLogin && userId != null && currentRoute is NavRoute.Main) {
-        MainOnboardingOverlay(onDismiss = {
-            onboardPrefs.edit().putBoolean("main_coach_seen", true).apply()
-            showOnboarding = false
-        })
-    }
+        // 첫 로그인 코치마크 — 로그인한 상태에서 지도(Main) 화면에 처음 들어왔을 때 1회만.
+        // (비로그인 둘러보기에선 표시하지 않는다)
+        if (showOnboarding && !showLogin && userId != null && currentRoute is NavRoute.Main) {
+            MainOnboardingOverlay(onDismiss = {
+                onboardPrefs.edit().putBoolean("main_coach_seen", true).apply()
+                showOnboarding = false
+            })
+        }
 
-    // 지도만 보기(몰입) — 하단 중앙 X 로 복귀. 지도 위에 떠 있어 지도 조작은 그대로.
-    if (MapUiState.mapOnly && !showLogin) {
-        MapOnlyOverlay(onExit = { MapUiState.exitMapOnly() })
-    }
+        // 지도만 보기(몰입) — 하단 중앙 X 로 복귀. 지도 위에 떠 있어 지도 조작은 그대로.
+        if (MapUiState.mapOnly && !showLogin) {
+            MapOnlyOverlay(onExit = { MapUiState.exitMapOnly() })
+        }
 
-    // 업적 해금 팝업 감시 — 로그인 상태에서 통계 변화 시 새 업적 달성을 팝업으로 알림.
-    // 코치마크가 떠 있는 동안엔 큐에 쌓아두고, 코치마크가 모두 닫힌 뒤에 팝업을 띄운다.
-    if (userId != null && !showLogin) {
-        com.chaminwoo.stary.feature.profile.AchievementUnlockWatcher(
-            userId = userId,
-            suppressed = showOnboarding,
-        )
+        // 업적 해금 팝업 감시 — 로그인 상태에서 통계 변화 시 새 업적 달성을 팝업으로 알림.
+        // 코치마크가 떠 있는 동안엔 큐에 쌓아두고, 코치마크가 모두 닫힌 뒤에 팝업을 띄운다.
+        if (userId != null && !showLogin) {
+            com.chaminwoo.stary.feature.profile.AchievementUnlockWatcher(
+                userId = userId,
+                suppressed = showOnboarding,
+            )
 
-        // 히든 업적 감시 — 자동 조건 충족 시 앱 전체 선착순 선점(트랜잭션) + 첫 달성 팝업.
-        com.chaminwoo.stary.feature.profile.HiddenAchievementWatcher(
-            userId = userId,
-            suppressed = showOnboarding,
-        )
+            // 히든 업적 감시 — 자동 조건 충족 시 앱 전체 선착순 선점(트랜잭션) + 첫 달성 팝업.
+            com.chaminwoo.stary.feature.profile.HiddenAchievementWatcher(
+                userId = userId,
+                suppressed = showOnboarding,
+            )
 
-        // 인앱 알림 팝업 — 새 다이어리 알림(좋아요/댓글/친구 글) 도착 시 상단 배너.
-        com.chaminwoo.stary.feature.diary.NotificationPopupWatcher(
-            notifications = notifList,
-            onOpen = { n ->
-                if (n.type == com.chaminwoo.stary.core.model.NotificationType.FRIEND_POST.name && n.diaryId.isNotBlank()) {
-                    com.chaminwoo.stary.core.util.MapFocusState.request(n.diaryId)
-                    navController.navigate(NavRoute.Main) { popUpTo<NavRoute.Main> { inclusive = true } }
-                } else if (n.diaryId.isNotBlank()) {
-                    navController.navigateToDetail(n.diaryId)
-                } else {
-                    navController.navigate(NavRoute.Notification)
+            // 인앱 알림 팝업 — 새 다이어리 알림(좋아요/댓글/친구 글) 도착 시 상단 배너.
+            com.chaminwoo.stary.feature.diary.NotificationPopupWatcher(
+                notifications = notifList,
+                onOpen = { n ->
+                    if (n.type == com.chaminwoo.stary.core.model.NotificationType.FRIEND_POST.name && n.diaryId.isNotBlank()) {
+                        com.chaminwoo.stary.core.util.MapFocusState.request(n.diaryId)
+                        navController.navigate(NavRoute.Main) {
+                            popUpTo<NavRoute.Main> {
+                                inclusive = true
+                            }
+                        }
+                    } else if (n.diaryId.isNotBlank()) {
+                        navController.navigateToDetail(n.diaryId)
+                    } else {
+                        navController.navigate(NavRoute.Notification)
+                    }
                 }
-            }
-        )
+            )
 
-        // 인앱 채팅 팝업 — 친구 새 메시지 도착 시 상단 배너. 그 채팅을 보고 있으면 생략.
-        val activeChatFriendId = (currentRoute as? NavRoute.Chat)?.friendId
-        com.chaminwoo.stary.feature.diary.ChatPopupWatcher(
-            userId = userId,
-            suppressChatWith = activeChatFriendId,
-            onOpenChat = { friendId, friendName ->
-                navController.navigate(NavRoute.Chat(friendId = friendId, friendName = friendName))
-            }
-        )
-    }
+            // 인앱 채팅 팝업 — 친구 새 메시지 도착 시 상단 배너. 그 채팅을 보고 있으면 생략.
+            val activeChatFriendId = (currentRoute as? NavRoute.Chat)?.friendId
+            com.chaminwoo.stary.feature.diary.ChatPopupWatcher(
+                userId = userId,
+                suppressChatWith = activeChatFriendId,
+                onOpenChat = { friendId, friendName ->
+                    navController.navigate(
+                        NavRoute.Chat(
+                            friendId = friendId,
+                            friendName = friendName
+                        )
+                    )
+                }
+            )
+        }
 
-    // 별 탄생 연출(34-8) — 업로드 성공 직후 업로드 화면이 pop 되고 나서 지도 위에서 재생된다.
-    com.chaminwoo.stary.core.ui.StarBirthHost()
-    // 인앱 알림 배너(상단) — 모든 콘텐츠 위에 표시. 토스트(하단)와 별개 채널.
-    com.chaminwoo.stary.core.ui.InAppBannerHost()
-    // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시
-    com.chaminwoo.stary.core.ui.StaryToastHost()
+        // 별 탄생 연출(34-8) — 업로드 성공 직후 업로드 화면이 pop 되고 나서 지도 위에서 재생된다.
+        com.chaminwoo.stary.core.ui.StarBirthHost()
+        // 인앱 알림 배너(상단) — 모든 콘텐츠 위에 표시. 토스트(하단)와 별개 채널.
+        com.chaminwoo.stary.core.ui.InAppBannerHost()
+        // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시
+        com.chaminwoo.stary.core.ui.StaryToastHost()
     }
 }
 
@@ -597,7 +743,15 @@ private fun DrawerItem(
     }
     NavigationDrawerItem(
         icon = { Icon(icon, null, tint = color, modifier = Modifier.size(22.dp)) },
-        label = { Text(label, fontFamily = com.chaminwoo.stary.core.designsystem.MinSans, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = color) },
+        label = {
+            Text(
+                label,
+                fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = color
+            )
+        },
         selected = selected,
         onClick = onClick,
         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(

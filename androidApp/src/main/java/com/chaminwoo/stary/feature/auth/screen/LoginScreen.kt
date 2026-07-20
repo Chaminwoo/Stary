@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.annotation.OptIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -219,7 +220,7 @@ fun LoginScreen(
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .padding(horizontal = 40.dp)
-                        .padding(bottom = 48.dp),
+                        .padding(bottom = 38.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -236,7 +237,7 @@ fun LoginScreen(
                                     edgeTreatment = BlurredEdgeTreatment.Unbounded
                                 )
                                 .background(
-                                    Color(0xFFFFF3D4).copy(alpha = 0.7f),
+                                    Color(0xFFFFF3D4).copy(alpha = 0.85f),
                                     RoundedCornerShape(50)
                                 )
                         )
@@ -253,11 +254,9 @@ fun LoginScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     TextButton(
                         onClick = onLoginClick,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
                     ) {
                         Text(
                             text = "로그인 없이 둘러보기",

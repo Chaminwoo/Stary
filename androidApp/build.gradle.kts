@@ -54,8 +54,8 @@ android {
         applicationId = "com.chaminwoo.stary_ios"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.3.3"
+        versionCode = 10
+        versionName = "1.3.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // TODO: secrets.properties 에 실제 값 채우기 (커밋 금지)
@@ -142,6 +142,7 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.compose.foundation.layout)
+    implementation(libs.androidx.foundation.layout)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
