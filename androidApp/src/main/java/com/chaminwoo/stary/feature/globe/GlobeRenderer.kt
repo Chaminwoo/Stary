@@ -77,11 +77,17 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     // ── 별 데이터 (setDiaries 가 백그라운드에서 빌드 → GL 스레드 업로드) ──
-    private var flareData: FloatBuffer? = null
-    private var flareVertexCount = 0
-    private var glowData: FloatBuffer? = null
+    /** setDiaries 한 번의 결과 묶음 — **버퍼와 정점 수는 반드시 함께** 발행해야 한다.
+     *  (따로 두면 GL 스레드가 "새 정점 수 + 아직 안 올라간 옛 VBO" 를 읽어 버퍼 밖을 그리는
+     *   프레임이 생겨 별들이 깨져 보인다.) 불변 객체 + @Volatile 참조 = 원자적 발행. */
+    private class StarBatch(
+        val flare: FloatBuffer, val flareCount: Int,
+        val glow: FloatBuffer, val glowCount: Int,
+    )
+    @Volatile private var pendingStars: StarBatch? = null // 백그라운드 쓰기 → GL 스레드 읽기
+    private var uploadedStars: StarBatch? = null          // GL 스레드 전용(업로드 완료본)
+    private var flareVertexCount = 0                      // GL 스레드 전용 — VBO 내용과 항상 일치
     private var glowVertexCount = 0
-    @Volatile private var starsDirty = false
 
     // ── GL 핸들 ──
     private var earthProgram = 0
@@ -201,7 +207,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sparkEmitCarry = 0f
         // 글로브 입장 이후 30초마다 확률 판정 시작(첫 판정도 입장 30초 뒤).
         nextRollT = (SystemClock.uptimeMillis() - startMs) / 1000f + METEOR_ROLL_INTERVAL
-        starsDirty = true // 서피스 재생성 시(백그라운드 복귀) 재업로드
+        // 서피스 재생성 시(백그라운드 복귀) VBO 가 날아갔으므로 재업로드시킨다.
+        uploadedStars = null
+        flareVertexCount = 0
+        glowVertexCount = 0
         fade = 0f
         lastFrameNs = 0L
     }
@@ -210,7 +219,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glViewport(0, 0, width, height)
         val aspect = width.toFloat() / height.coerceAtLeast(1)
         screenAspect = aspect
-        Matrix.perspectiveM(proj, 0, 42f, aspect, 0.1f, 100f)
+        // near 는 깊이 정밀도를 지배한다(해상도 ∝ z²·(1/near)). 0.1 로 두면 16비트 깊이버퍼에서
+        // 줌아웃(camDist 9.5) 시 해상도가 0.011 월드단위 — 지구 바로 위 레이어(구름 +0.012)가
+        // 지표와 같은 깊이 값으로 뭉개져 얼룩덜룩 깨진다. 최대 확대(MIN_DIST 1.45)에서 가장
+        // 가까운 지오메트리가 플레어(반지름 1.045) = 0.405 이므로 0.3 까지 당겨도 안전.
+        Matrix.perspectiveM(proj, 0, 42f, aspect, NEAR_PLANE, 100f)
     }
 
     override fun onDrawFrame(gl: GL10?) {
@@ -221,7 +234,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         stepSimulation(dt)
 
-        if (starsDirty) uploadStars()
+        val pending = pendingStars
+        if (pending !== uploadedStars) uploadStars(pending)
 
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
 
@@ -268,8 +282,16 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         for (tr in trails) drawTrail(tr, t)
 
         // 4) 다이어리 노란 불빛(도시 야경) → 5) 별 플레어
-        if (glowVertexCount > 0) drawSprites(glowVbo, glowVertexCount, glowTex, camPos, t, depthTest = true)
-        if (flareVertexCount > 0) drawSprites(flareVbo, flareVertexCount, flareTex, camPos, t, depthTest = true)
+        // **깊이 테스트를 쓰지 않는다.** 이 스프라이트들은 지표 바로 위(+0.008/+0.045)에 떠 있는
+        // 카메라 정면 빌보드라, 깊이 버퍼로 가리면 두 가지 방식으로 깨진다:
+        //  ① 빌보드 평면이 구면을 파고들어 정면에서 17°(글로)/50°(플레어)만 벗어나도 안쪽 절반이
+        //     호 모양으로 싹둑 잘린다.
+        //  ② 줌아웃에서 깊이 해상도(near 0.3·16비트 기준 ≈0.004, 예전 near 0.1 에선 0.011)가
+        //     지표와의 간격에 근접해 얼룩덜룩 z-파이팅이 난다.
+        // 대신 뒷면 가림은 셰이더의 해석적 지평선 컷(SPRITE_VS 의 vis — 구 접평면 판정이라 정확)이
+        // 담당한다. 지구는 이미 그려졌고 additive 라 그리기 순서 문제도 없다.
+        if (glowVertexCount > 0) drawSprites(glowVbo, glowVertexCount, glowTex, camPos, t, depthTest = false)
+        if (flareVertexCount > 0) drawSprites(flareVbo, flareVertexCount, flareTex, camPos, t, depthTest = false)
 
         GLES20.glDepthMask(true)
         GLES20.glDisable(GLES20.GL_BLEND)
@@ -751,22 +773,29 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             )
         }
 
-        flareData = toFloatBuffer(flares)
-        flareVertexCount = flares.size / SPRITE_FLOATS
-        glowData = toFloatBuffer(glows)
-        glowVertexCount = glows.size / SPRITE_FLOATS
-        starsDirty = true
+        // 버퍼 + 정점 수를 한 묶음으로 원자적 발행(GL 스레드가 짝이 안 맞는 상태를 못 보게).
+        pendingStars = StarBatch(
+            flare = toFloatBuffer(flares), flareCount = flares.size / SPRITE_FLOATS,
+            glow = toFloatBuffer(glows), glowCount = glows.size / SPRITE_FLOATS,
+        )
     }
 
     /** 좌표 기반 결정적 팔레트 인덱스 — 같은 다이어리는 항상 같은 색. */
     private fun flareColorIndex(d: Diary): Int =
         (d.latitude * 7919.0 + d.longitude * 104729.0).mod(FLARE_COLORS.size.toDouble()).toInt()
 
-    /** GL 스레드에서 setDiaries 결과 업로드. */
-    private fun uploadStars() {
-        starsDirty = false
-        flareData?.let { uploadBuffer(flareVbo, it) }
-        glowData?.let { uploadBuffer(glowVbo, it) }
+    /** GL 스레드에서 setDiaries 결과 업로드 — 정점 수는 VBO 를 올린 뒤에만 갱신한다. */
+    private fun uploadStars(batch: StarBatch?) {
+        uploadedStars = batch
+        if (batch == null) {
+            flareVertexCount = 0
+            glowVertexCount = 0
+            return
+        }
+        uploadBuffer(flareVbo, batch.flare)
+        flareVertexCount = batch.flareCount
+        uploadBuffer(glowVbo, batch.glow)
+        glowVertexCount = batch.glowCount
     }
 
     /**
@@ -1479,6 +1508,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         const val IDLE_DIST = 9.5f    // 진입 정착 거리 = 최소 줌(MAX_DIST) — 지구가 가장 작게 보이는 상태
         const val MIN_DIST = 1.45f    // 카메라 최소 거리(더 바짝 당겨보기 — 화면 전환 없음)
         const val MAX_DIST = 9.5f     // 카메라 최대 거리(지구가 작아 보일 만큼 멀리)
+        /** 근거리 클립면 — 깊이 정밀도의 지배 요인. MIN_DIST 에서 가장 가까운 지오메트리가
+         *  플레어 스프라이트(반지름 1.045) = 1.45−1.045 = 0.405 라 0.3 이 안전 하한. */
+        private const val NEAR_PLANE = 0.3f
 
         private const val SPRITE_FLOATS = 12
         /** 스프라이트 쿼드 코너(2삼각형×3꼭짓점) — 호출마다 재할당하지 않게 공유. */

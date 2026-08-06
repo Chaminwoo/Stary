@@ -46,6 +46,51 @@ import com.chaminwoo.stary.core.model.Diary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import javax.microedition.khronos.egl.EGL10
+import javax.microedition.khronos.egl.EGLConfig
+import javax.microedition.khronos.egl.EGLDisplay
+
+/**
+ * EGL 설정 선택기 — RGBA8888 + **깊이 24비트 우선**(없는 기기만 16비트 폴백).
+ *
+ * 16비트 깊이버퍼로는 줌아웃(camDist 9.5)에서 깊이 해상도가 0.011 월드단위까지 벌어져,
+ * 지표 바로 위에 있는 레이어(구름 +0.012, 다이어리 불빛 +0.008)가 지표와 같은 깊이 값으로
+ * 뭉개지면서 얼룩덜룩 z-파이팅이 난다. 24비트면 같은 조건에서 해상도가 256배 촘촘해진다.
+ * (GLSurfaceView.setEGLConfigChooser(r,g,b,a,depth,stencil) 는 조건에 맞는 설정이 없으면
+ *  GL 스레드에서 예외를 던지므로, 직접 폴백을 가진 선택기를 쓴다.)
+ */
+private object DepthFirstConfigChooser : GLSurfaceView.EGLConfigChooser {
+    override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {
+        for (depth in intArrayOf(24, 16)) {
+            val spec = intArrayOf(
+                EGL10.EGL_RED_SIZE, 8,
+                EGL10.EGL_GREEN_SIZE, 8,
+                EGL10.EGL_BLUE_SIZE, 8,
+                EGL10.EGL_ALPHA_SIZE, 8,
+                EGL10.EGL_DEPTH_SIZE, depth,
+                EGL10.EGL_STENCIL_SIZE, 0,
+                EGL10.EGL_RENDERABLE_TYPE, 4, // EGL_OPENGL_ES2_BIT
+                EGL10.EGL_NONE,
+            )
+            val num = IntArray(1)
+            if (!egl.eglChooseConfig(display, spec, null, 0, num) || num[0] <= 0) continue
+            val configs = arrayOfNulls<EGLConfig>(num[0])
+            if (!egl.eglChooseConfig(display, spec, configs, num[0], num)) continue
+            // eglChooseConfig 는 요청보다 큰 색 깊이(RGB1010102 등)도 돌려줄 수 있어
+            // 정확히 8888 인 설정을 우선 고른다. 없으면 첫 후보로.
+            fun size(c: EGLConfig, attr: Int): Int {
+                val v = IntArray(1)
+                return if (egl.eglGetConfigAttrib(display, c, attr, v)) v[0] else 0
+            }
+            val exact = configs.filterNotNull().firstOrNull {
+                size(it, EGL10.EGL_RED_SIZE) == 8 && size(it, EGL10.EGL_GREEN_SIZE) == 8 &&
+                    size(it, EGL10.EGL_BLUE_SIZE) == 8 && size(it, EGL10.EGL_ALPHA_SIZE) == 8
+            }
+            (exact ?: configs.firstOrNull { it != null })?.let { return it }
+        }
+        throw IllegalArgumentException("No EGL config with RGBA8888 + depth")
+    }
+}
 
 /**
  * 3D 행성(지구) 화면 — 지도 하단 "지구 보기" 버튼으로 진입하는 전체화면 오버레이.
@@ -95,7 +140,7 @@ fun GlobeScreen(
             factory = { ctx ->
                 GLSurfaceView(ctx).apply {
                     setEGLContextClientVersion(2)
-                    setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+                    setEGLConfigChooser(DepthFirstConfigChooser)
                     setZOrderMediaOverlay(true) // MapLibre SurfaceView 위에 얹히도록
                     setRenderer(renderer)
                     renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY

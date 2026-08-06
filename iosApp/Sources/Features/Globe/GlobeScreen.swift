@@ -328,7 +328,11 @@ private struct GlobeSceneView: UIViewRepresentable {
 
             let camera = SCNCamera()
             camera.fieldOfView = 42
-            camera.zNear = 0.1
+            // zNear 가 깊이 정밀도를 지배한다(해상도 ∝ z²·(1/zNear)) — 줌아웃에서 지표 바로 위
+            // 레이어(구름 +0.012)가 지표와 같은 깊이로 뭉개지지 않도록 당겨 둔다. minDist(1.45)에서
+            // 가장 가까운 지오메트리가 플레어(반지름 1.045) = 0.405 라 0.3 이 안전 하한.
+            // (Android GlobeRenderer.NEAR_PLANE 과 동일 값)
+            camera.zNear = 0.3
             camera.zFar = 100
             cameraNode.camera = camera
             cameraNode.position = SCNVector3(0, 0, camDist)
@@ -533,13 +537,31 @@ private enum GlobeBuilder {
             material.diffuse.contents = flareImage
             material.blendMode = .add
             material.writesToDepthBuffer = false
+            // **깊이 버퍼로 가리지 않는다.** 이 빌보드는 지표 바로 위(반지름 1.045)에 떠 있어
+            // 카메라 정면 평면이 구면을 파고든다 — 정면에서 41°만 벗어나도 안쪽 절반이 호 모양으로
+            // 잘려 별이 깨져 보인다. 대신 뒷면 가림은 아래 셰이더 모디파이어의 해석적 지평선 컷이
+            // 담당한다(구 접평면 판정이라 정확). Android drawSprites(depthTest=false) + SPRITE_VS 패리티.
+            material.readsFromDepthBuffer = false
             // 팔레트 tint × 감광 밝기 — 레퍼런스처럼 별마다 다른 색으로 빛남
             let bright = CGFloat(0.60 + 0.15 * boost)
             material.multiply.contents = flareColors[flareColorIndex(d)].withBrightnessScaled(by: bright)
+            // 지평선 컷 — 노드 월드 위치(u_modelTransform 4번째 열)의 법선과 카메라 방향 내적.
+            // dot=0 이 정확히 구의 접선(지평선), 음수면 지구 뒤편. Android SPRITE_VS 의 vis 와 동일 식.
+            material.shaderModifiers = [
+                .surface: """
+                float3 wc = u_modelTransform[3].xyz;
+                float3 camW = u_inverseViewTransform[3].xyz;
+                float3 nrm = normalize(wc);
+                float3 toCam = normalize(camW - wc);
+                _surface.diffuse *= smoothstep(-0.02, 0.22, dot(nrm, toCam));
+                """
+            ]
             plane.materials = [material]
 
             let node = SCNNode(geometry: plane)
             node.position = latLngToXyz(lat: d.latitude, lng: d.longitude, radius: 1.045)
+            // 깊이 테스트를 끈 만큼 그리기 순서로 지구 위에 얹는다(지구·구름 = 0 보다 뒤).
+            node.renderingOrder = 10
             let billboard = SCNBillboardConstraint()
             billboard.freeAxes = .all
             node.constraints = [billboard]
