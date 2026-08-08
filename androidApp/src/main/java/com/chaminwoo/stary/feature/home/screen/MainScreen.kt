@@ -62,7 +62,9 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Alignment
+import com.chaminwoo.stary.core.designsystem.StaryResponsive
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -614,12 +616,19 @@ fun MainScreen(
                                         Color.Transparent
                                     else
                                         Color(0xFF0D0D0D)
-                                )
+                                ),
+                            // 태블릿에서 콘텐츠가 화면 폭만큼 늘어나지 않도록 가운데 정렬
+                            // (배경은 이 Box 가 전체를 덮고, 폭 상한은 안쪽 NavGraph 에만 건다).
+                            contentAlignment = Alignment.TopCenter,
                         ) {
                             NavGraph(
                                 navController = navController,
                                 onLogout = onLogout,
-                                modifier = Modifier.fillMaxSize()
+                                // 지도(Main)는 이 NavHost 뒤에서 전체 화면으로 따로 그려지므로
+                                // 폭 상한의 영향을 받지 않는다(Main 라우트는 빈 투명 레이어).
+                                modifier = Modifier
+                                    .widthIn(max = StaryResponsive.MAX_CONTENT_WIDTH_DP.dp)
+                                    .fillMaxSize()
                             )
                         }
                     }

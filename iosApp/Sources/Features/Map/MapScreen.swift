@@ -234,7 +234,7 @@ struct MapScreen: View {
                                       lat2: rep.latitude, lng2: rep.longitude)
         guard dist <= AppConfig.diaryOpenRadiusM else {
             showToast(String(format: locale.t(.mapOpenRange),
-                             Int(AppConfig.diaryOpenRadiusM), Int(dist)))
+                             Int(AppConfig.diaryOpenRadiusM), Geo.formatDistance(dist)))
             return
         }
         MusicManager.shared.playOpenDiary() // Android: 파장 시작과 함께 열람 효과음
@@ -263,7 +263,7 @@ struct MapScreen: View {
                     globeButtonCenter = available ? GlobeCenter(lat: lat, lng: lng) : nil
                 },
                 globeReturnCamera: globeReturn,
-                pioneerCountries: pioneer.featured,
+                pioneerCountries: pioneer.activeCountries,
                 onTapPioneer: { code in pioneerMessage = LocalizedNames.pioneerQuestMessage(code) },
                 zoomRequest: zoomRequest,
                 recenterNonce: recenterNonce,
@@ -536,7 +536,7 @@ struct MapScreen: View {
         guard let route = await OrsRouting.walkingRoute(start: me, end: dest) else { return }
         fullRoute = route.coordinates
         let mins = max(1, Int((route.durationS / 60).rounded()))
-        routeSummary = "\(mins)\(locale.t(.routeMinSuffix)) · \(Int(route.distanceM))m"
+        routeSummary = "\(mins)\(locale.t(.routeMinSuffix)) · \(Geo.formatDistance(route.distanceM))"
     }
 
     private func cancelRoute() {

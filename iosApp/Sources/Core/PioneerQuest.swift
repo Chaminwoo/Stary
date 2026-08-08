@@ -97,6 +97,16 @@ enum PioneerQuest {
         return result
     }
 
+    /// 이번 주 **활성 개척 대상국 1개** — 아직 개척되지 않은 나라(pool)에서 주차로 하나만 결정적으로 고른다.
+    /// 과거 주의 나라를 누적하지 않고 항상 1개만 활성이다(모두 개척되면 nil). 개척된 나라는 pool 에서 빠지므로
+    /// 자연히 "개척된 나라만 쌓이고" 미개척 나라 중에서만 매주 새로 뽑힌다. 지도 비콘/선점 판정 공용 기준.
+    /// ⚠️ Kotlin `PioneerQuest.activeCountry` 와 로직이 동일해야 한다(결정성/파리티).
+    static func activeCountry(nowMs: Int64, claimedCodes: Set<String>) -> Country? {
+        let pool = permutation.filter { !claimedCodes.contains($0.code) }
+        if pool.isEmpty { return nil }
+        return pool[weekIndex(nowMs: nowMs) % pool.count]
+    }
+
     /// 다음 나라 교체(다음 주 경계)까지 남은 ms — 안내문의 "d일 h시간 후 나라 변경" 계산용.
     static func msUntilCountryChange(nowMs: Int64) -> Int64 {
         let next = epochWeekStartMs + Int64(weekIndex(nowMs: nowMs) + 1) * weekMs

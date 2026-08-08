@@ -14,6 +14,9 @@ struct RootView: View {
             }
         }
         .font(.poorStory(16))   // 앱 기본 폰트(Android bodyLarge=PoorStory 대응)
+        // 시스템 글꼴 크기 상한 — 고정 높이 카드가 많아 그대로 두면 큰 글꼴에서 글자가 잘린다
+        // (Android StaryResponsive.MAX_FONT_SCALE=1.15 대응).
+        .dynamicTypeSize(...StaryResponsive.maxDynamicType)
         .animation(.easeInOut, value: auth.isSignedIn)
         .environmentObject(locale)
         .environment(\.locale, locale.swiftLocale)
@@ -336,16 +339,21 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func destinationView(_ dest: DrawerDest) -> some View {
-        switch dest {
-        case .myDiary: MyStarsScreen()
-        case .profile: ProfileScreen()
-        case .achievements: AchievementsEntry()
-        case .music: MusicScreen()
-        case .friends: FriendsScreen()
-        case .settings: SettingsScreen()
-        case .notifications: NotificationsScreen()
-        case .upload: UploadScreen()
+        // iPad 에서 콘텐츠가 화면 폭만큼 늘어나지 않도록 상한 + 가운데 정렬(Android NavGraph 폭 상한 대응).
+        // 지도(루트)는 여기 안 거치므로 계속 화면 전체를 쓴다.
+        Group {
+            switch dest {
+            case .myDiary: MyStarsScreen()
+            case .profile: ProfileScreen()
+            case .achievements: AchievementsEntry()
+            case .music: MusicScreen()
+            case .friends: FriendsScreen()
+            case .settings: SettingsScreen()
+            case .notifications: NotificationsScreen()
+            case .upload: UploadScreen()
+            }
         }
+        .staryContentWidth()
     }
 
     private func startWatcher() {

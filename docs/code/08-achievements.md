@@ -48,8 +48,10 @@ iOS: `Core/Achievements.swift`, `Core/HiddenAchievements.swift`, `Data/HiddenAch
   히든: 미달성=??? / 달성=조건+달성자 이름(`UserDirectory` 현재값). 심연의 별 등 전용 아이콘.
 
 ## PioneerClaimHelper.kt — 개척 퀘스트(체크리스트 32)
-- 업로드 성공 좌표로 `attemptClaim(context, lat, lng)` — 그 좌표가 이번 주 대상국(shared
-  `PioneerQuest.featuredCountries`) 안이면 국가 선점 시도(트랜잭션). 지도에는 금색 비콘(03 문서).
+- 업로드 성공 좌표로 `attemptClaim(context, lat, lng)` — 그 좌표가 **이번 주 활성 대상국 1개**(shared
+  `PioneerQuest.activeCountry` — 미개척 나라 중 주차로 결정) 이면 국가 선점 시도(트랜잭션).
+  지도에는 금색 비콘(03 문서)이 이 나라 1개에만 뜬다(과거 주 나라 누적 없음 — 비콘·선점 판정 동일 기준).
+  구 `featuredCountries`(등장한 모든 미개척국 누적)는 이 변경으로 미사용.
 
 ---
 

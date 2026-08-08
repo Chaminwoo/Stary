@@ -156,24 +156,30 @@ fun MusicScreen(modifier: Modifier = Modifier) {
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 32.dp)
         ) {
-            Box(
-                modifier = Modifier.fillMaxWidth().height(380.dp),
+            // 다이얼 지름 = 화면 폭 비례(작은 폰에서 잘리지 않게 축소 / 태블릿에서 과도하게 작아 보이지
+            // 않게 확대), 320dp(기존 S22+ 기준 크기) 를 기준으로 한 배율을 안쪽 별 배치·크기에도 그대로 적용.
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                // 정말 '원형' 다이얼 — 별이 원 둘레에 놓이고, 그 원 안쪽에 별자리가 보인다.
+                val dialSize = (maxWidth * 0.82f).coerceIn(240.dp, 380.dp)
+                val dialScale = dialSize / 320.dp
                 Box(
-                    modifier = Modifier.size(320.dp),
+                    modifier = Modifier
+                        .padding(vertical = 30.dp)
+                        .size(dialSize),
                     contentAlignment = Alignment.Center
                 ) {
                     MusicConstellationBackground(
                         trackId = selected.id, color = selectedColor, flashKey = selectedIndex,
-                        modifier = Modifier.size(186.dp)
+                        modifier = Modifier.size(186.dp * dialScale)
                     )
                     MusicDial(
                         tracks = tracks,
                         selectedIndex = selectedIndex,
                         isUnlocked = ::isUnlocked,
                         onSelect = { selectedIndex = it },
+                        scale = dialScale,
                         modifier = Modifier.matchParentSize()
                     )
                 }
@@ -218,6 +224,8 @@ private fun MusicDial(
     isUnlocked: (MusicCatalog.Track) -> Boolean,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    /** 다이얼 컨테이너 크기 배율(320dp 기준 1f) — 화면 폭에 맞춰 궤도 반경/별 크기를 함께 스케일한다. */
+    scale: Float = 1f,
 ) {
     val scope = rememberCoroutineScope()
     val n = tracks.size
@@ -280,10 +288,11 @@ private fun MusicDial(
         }
     ) {
         // 다이얼 고리(은은한 원)
+        val ringRadiusDp = DIAL_RING_RADIUS_DP * scale
         Canvas(modifier = Modifier.matchParentSize()) {
             drawCircle(
                 color = Color.White.copy(alpha = 0.07f),
-                radius = DIAL_RING_RADIUS_DP.dp.toPx(),
+                radius = ringRadiusDp.dp.toPx(),
                 center = Offset(size.width / 2f, size.height / 2f),
                 style = Stroke(width = 1.2.dp.toPx())
             )
@@ -291,19 +300,19 @@ private fun MusicDial(
 
         tracks.forEachIndexed { i, track ->
             val ang = topAngle + i * step + angleOffset
-            val x = (cos(ang) * DIAL_RING_RADIUS_DP).dp
-            val y = (sin(ang) * DIAL_RING_RADIUS_DP).dp
+            val x = (cos(ang) * ringRadiusDp).dp
+            val y = (sin(ang) * ringRadiusDp).dp
             // 위쪽(topAngle)에 가까울수록 1 → 더 크고 밝게.
             val closeness = ((cos(ang - topAngle) + 1f) / 2f).coerceIn(0f, 1f)
             val col = Color(track.colorArgb)
             val unlocked = isUnlocked(track)
-            val starSize = (16f + 14f * closeness).dp
+            val starSize = (16f + 14f * closeness) * scale
             val interaction = remember { MutableInteractionSource() }
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(x = x, y = y)
-                    .size(54.dp)
+                    .size(54.dp * scale)
                     .clickable(interactionSource = interaction, indication = null) {
                         animateOffsetTo(nearest(-i * step))
                         onSelect(i)
@@ -313,20 +322,20 @@ private fun MusicDial(
                 val glowA = (0.16f + 0.46f * closeness) * (if (unlocked) 1f else 0.4f)
                 Box(
                     Modifier
-                        .size((22f + 24f * closeness).dp)
+                        .size(((22f + 24f * closeness) * scale).dp)
                         .background(Brush.radialGradient(listOf(col.copy(alpha = glowA), Color.Transparent)))
                 )
                 val starColor = lerp(col.copy(alpha = 0.45f), col, closeness)
                 StarShapeIcon(
                     type = track.starType,
                     color = if (unlocked) starColor else starColor.copy(alpha = 0.30f),
-                    modifier = Modifier.size(starSize)
+                    modifier = Modifier.size(starSize.dp)
                 )
                 if (!unlocked) {
                     Icon(
                         Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
                         tint = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier.size((10f + 5f * closeness).dp)
+                        modifier = Modifier.size(((10f + 5f * closeness) * scale).dp)
                     )
                 }
             }

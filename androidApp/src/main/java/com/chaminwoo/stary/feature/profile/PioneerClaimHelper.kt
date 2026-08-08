@@ -38,11 +38,11 @@ object PioneerClaimHelper {
                 val code = Geocoder(appContext, Locale.getDefault())
                     .getFromLocation(lat, lng, 1)?.firstOrNull()?.countryCode?.uppercase()
                     ?: return@launch
-                // 활성 대상국(이번 주까지 등장 + 아직 미개척)인지 확인
+                // 이번 주 활성 대상국(미개척 나라 중 이번 주 1개)과 일치하는지 확인 — 비콘과 동일 기준.
                 val claimedDocs = staryFirestore.collection(PioneerQuest.COLLECTION).get().await()
                 val claimed = claimedDocs.documents.map { it.id }.toSet()
-                val featured = PioneerQuest.featuredCountries(System.currentTimeMillis(), claimed)
-                if (featured.none { it.code == code }) return@launch
+                val active = PioneerQuest.activeCountry(System.currentTimeMillis(), claimed)
+                if (active?.code != code) return@launch
                 val won = FirebasePioneerRepository().claim(code, uid, name)
                 if (won) {
                     val title = LocalizedNames.pioneerTitle(appContext, PioneerQuest.titleId(code)) ?: return@launch

@@ -319,13 +319,14 @@ enum L10n: String {
         case .filterFriendsN:       return ("친구 %d명", "%d friends", "友達%d人")
         case .commonEdit:           return ("수정", "Edit", "編集")
         case .commonAnonymous:      return ("익명", "Anonymous", "匿名")
-        // ⚠️ detailCommentsCount 는 %d(댓글 수), mapOpenRange 는 %1$d(반경)/%2$d(현재 거리)를 format 으로 채운다.
+        // ⚠️ detailCommentsCount 는 %d(댓글 수), mapOpenRange 는 %1$d(반경 m)/%2$@(현재 거리 — 이미
+        // 포맷된 문자열, `Geo.formatDistance`)를 format 으로 채운다(Android `map_open_range` %2$s 패리티).
         case .detailCommentsCount:  return ("댓글 %d", "Comments %d", "コメント %d")
         case .commentPlaceholder:   return ("댓글을 입력하세요", "Write a comment", "コメントを入力")
         case .detailLocating:       return ("위치를 확인하는 중이에요…", "Checking your location…", "位置を確認しています…")
-        case .mapOpenRange:         return ("%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)",
-                                            "Get within %1$dm to open (now %2$dm)",
-                                            "%1$dm以内で開けます（現在%2$dm）")
+        case .mapOpenRange:         return ("%1$dm 이내에 있어야 열람할 수 있어요 \n(현재 %2$@)",
+                                            "Get within %1$dm to open (now %2$@)",
+                                            "%1$dm以内で開けます（現在%2$@）")
         case .sortLatest:           return ("최신순", "Latest", "新着順")
         case .sortPopular:          return ("인기순", "Popular", "人気順")
         case .sortDistance:         return ("거리순", "Nearest", "距離順")

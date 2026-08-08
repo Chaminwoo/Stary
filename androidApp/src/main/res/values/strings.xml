@@ -202,7 +202,7 @@
     <string name="map_constellation">별자리</string>
     <string name="map_only">지도만 보기</string>
     <string name="cd_create_diary">다이어리 생성</string>
-    <string name="map_open_range">%1$dm 이내에 있어야 열람할 수 있어요 (현재 %2$dm)</string>
+    <string name="map_open_range">%1$dm 이내에 있어야 열람할 수 있어요 \n(현재 %2$s)</string>
     <string name="map_waiting_fix">현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요</string>
     <string name="share_diary">공유</string>
     <string name="share_to_story">SNS에 공유</string>
@@ -247,7 +247,7 @@
     <string name="nearby_star_title">근처에 아직 안 본 별이 있어요 ✦</string>
     <string name="nearby_star_body">약 %1$dm 앞 — 탭하면 지도에서 보여드릴게요</string>
     <string name="location_mock_blocked">모의 위치(위치 조작)가 감지되어 위치 기능이 제한돼요</string>
-    <string name="map_route_summary">도보 약 %1$d분 · %2$dm</string>
+    <string name="map_route_summary">도보 약 %1$d분 · %2$s</string>
     <string name="map_route_cancel">길찾기 취소</string>
     <string name="globe_hint">드래그로 회전 · 아래를 탭해 닫기</string>
     <string name="globe_open">우주에서 보기</string>

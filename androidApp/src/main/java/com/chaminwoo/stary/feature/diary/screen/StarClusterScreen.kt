@@ -72,8 +72,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import com.chaminwoo.stary.core.designsystem.LocalScreenSize
+import com.chaminwoo.stary.core.designsystem.staryContentWidth
 import kotlin.math.abs
 
 /**
@@ -153,8 +154,20 @@ fun StarClusterScreen(
 
         val rep = diaries.first()
         val accent = StarStyle.colorOf(rep.starColor)
-        val pagerState = rememberPagerState(pageCount = { diaries.size })
+        val listState = rememberLazyListState()
+        val currentIndex by remember {
+            derivedStateOf {
+                val layoutInfo = listState.layoutInfo
+                val viewportCenter =
+                    (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
 
+                layoutInfo.visibleItemsInfo
+                    .minByOrNull { item ->
+                        abs((item.offset + item.size / 2f) - viewportCenter)
+                    }
+                    ?.index ?: 0
+            }
+        }
         Column(modifier = Modifier.fillMaxSize()) {
             Spacer(Modifier.height(18.dp))
 
@@ -166,7 +179,7 @@ fun StarClusterScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 diaries.take(5).forEachIndexed { i, d ->
-                    val active = pagerState.currentPage == i
+                    val active = currentIndex == i
                     val emphasis by animateFloatAsState(
                         targetValue = if (active) 1f else 0f,
                         animationSpec = tween(220),
@@ -228,29 +241,19 @@ fun StarClusterScreen(
             // 카드 페이저 — 가운데 카드는 좌우로 좁고 상하로 긴 직사각형(세로 카드).
             // 옆 카드는 바닥 중앙 피벗으로 우측(다음)=시계 / 좌측(이전)=반시계 회전해
             // 위쪽이 바깥으로 기울고, 바깥 밀기+축소를 더해 가운데 카드와 겹치지 않는다.
-            val listState = rememberLazyListState()
-            val configuration = LocalConfiguration.current
-            val screenWidth = configuration.screenWidthDp.dp
 
-            val cardWidth = 290.dp
-            val cardHeight = 530.dp
+            // ⚠️ raw `LocalConfiguration.screenWidthDp` 를 쓰면 안 된다 — StaryTheme 이 density 를
+            // 스케일하므로 Configuration 의 원본 dp 와 좌표계가 다르다. 폭은 실제 컨테이너 기준인
+            // [staryContentWidth](태블릿 폭 상한 반영), 높이는 [LocalScreenSize] 를 쓴다.
+            val screenWidth = staryContentWidth()
+            // 화면 비율 기반이라 태블릿에서 카드가 과도하게 커지는 것을 막는 상한.
+            // 상한값은 일반 폰 화면에서는 절대 걸리지 않도록 여유 있게 잡았다(기존 비율 그대로 유지).
+            val cardWidth = (screenWidth * 0.61f).coerceAtMost(300.dp)
+            val cardHeight = (LocalScreenSize.current.height * 0.52f).coerceAtMost(560.dp)
 
             val horizontalPadding = (screenWidth - cardWidth) / 2
             val cardWidthPx = with(LocalDensity.current) { cardWidth.toPx() }
 
-            val currentIndex by remember {
-                derivedStateOf {
-                    val layoutInfo = listState.layoutInfo
-                    val viewportCenter =
-                        (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
-
-                    layoutInfo.visibleItemsInfo
-                        .minByOrNull { item ->
-                            abs((item.offset + item.size / 2f) - viewportCenter)
-                        }
-                        ?.index ?: 0
-                }
-            }
 
             val snapLayoutInfoProvider = remember(listState) {
                 SnapLayoutInfoProvider(listState, SnapPosition.Center)
@@ -263,7 +266,7 @@ fun StarClusterScreen(
                 contentPadding = PaddingValues(horizontal = horizontalPadding),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).padding(top = 20.dp)
             ){
                 itemsIndexed(diaries, key = { _, diary -> diary.id }) { index, diary ->
                     val layoutInfo = listState.layoutInfo
@@ -385,7 +388,7 @@ private fun ClusterDiaryCard(
             Text(
                 text = diary.title.ifBlank { stringResource(R.string.common_untitled) },
                 color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 17.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Light,
                 maxLines = 1
             )
@@ -395,7 +398,7 @@ private fun ClusterDiaryCard(
             Text(
                 text = diary.userName,
                 color = MaterialTheme.colorScheme.secondary,
-                fontSize = 12.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Light,
                 maxLines = 1
             )
@@ -410,18 +413,37 @@ private fun ClusterDiaryCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Filled.Favorite,
-                    contentDescription = null,
-                    tint = Color(0xFFFF6B81),
-                    modifier = Modifier.size(15.dp)
-                )
+                Box(
+                    modifier = Modifier.size(18.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(
+                                        Color(0xFFFF6B81).copy(alpha = 0.28f),
+                                        Color.Transparent
+                                    )
+                                ),
+                                CircleShape
+                            )
+                    )
+
+                    Icon(
+                        Icons.Filled.Favorite,
+                        contentDescription = null,
+                        tint = Color(0xFFFF6B81),
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
 
                 Spacer(Modifier.width(4.dp))
 
                 Text(
                     text = "${diary.likeCount}",
-                    fontSize = 13.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Light,
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -432,14 +454,14 @@ private fun ClusterDiaryCard(
                     Icons.Filled.ChatBubbleOutline,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(15.dp)
+                    modifier = Modifier.size(13.dp)
                 )
 
                 Spacer(Modifier.width(4.dp))
 
                 Text(
                     text = "${diary.commentCount}",
-                    fontSize = 13.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Light,
                     color = MaterialTheme.colorScheme.onBackground
                 )

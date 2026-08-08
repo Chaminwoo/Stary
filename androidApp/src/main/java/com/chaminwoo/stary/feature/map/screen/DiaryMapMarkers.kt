@@ -112,9 +112,10 @@ internal const val ROAD_GLINT_LAYER = "road-glint"
 internal const val ROAD_GLINT_DASH = 0.5f
 internal const val ROAD_GLINT_GAP = 34f
 internal const val ROAD_GLINT_SPEED = 8.5f // 초당 위상 이동(선 두께 배수)
-internal const val ROAD_GLINT_STEPS = 40   // 위상 양자화 단계(대시 아틀라스 캐시 재사용)
-internal const val ROAD_GLINT_FADE_SEC = 0.2f
-internal val ROAD_GLINT_PERIOD_SEC = ROAD_GLINT_GAP / ROAD_GLINT_SPEED // 한 바퀴(초)
+// 위상 양자화 단계(대시 아틀라스 캐시 재사용). ⚠️ 단계가 프레임당 이동량보다 촘촘해야 매끄럽다 —
+// 프레임당 위상 이동 = SPEED×0.05 ≈ 0.43(주기 34.5) 이므로 34.5/STEPS < 0.43, 즉 STEPS ≥ 82 이어야
+// 매 프레임 최소 1단계 이동해 "프레임마다 순간이동"하는 끊김이 사라진다(100 → 단계폭 0.345).
+internal const val ROAD_GLINT_STEPS = 100
 internal const val CONSTELLATION_HALO_OPACITY = 0.18f
 internal const val CONSTELLATION_GLOW_OPACITY = 0.42f
 internal const val CONSTELLATION_LINE_OPACITY = 0.95f
@@ -750,16 +751,38 @@ internal fun particleOpacityExpression(twinkle: Float): Expression =
     )
 
 /**
- * road-glint lineOpacity — [envelope](위상 순환 페이드)를 곱해 루프에서 갱신.
+ * road-glint lineOpacity — 줌 보간(페이드 없음). 흐름이 [roadGlintDashArray] 로 이미 이음매 없이
+ * 이어지므로 위상 순환 페이드가 불필요하다. 1회만 설정하면 줌에 따라 MapLibre 가 재평가한다.
  * ⚠️ zoom 스톱은 maplibre_style.json 의 road-glint 스톱과 일치해야 한다.
  */
-internal fun roadGlintOpacityExpression(envelope: Float): Expression =
+internal fun roadGlintOpacityExpression(): Expression =
     Expression.interpolate(
         Expression.linear(), Expression.zoom(),
         Expression.stop(13f, 0f),
-        Expression.stop(15f, 0.55f * envelope),
-        Expression.stop(17f, 0.7f * envelope),
+        Expression.stop(15f, 0.55f),
+        Expression.stop(17f, 0.7f),
     )
+
+/**
+ * 도로 글린트 대시 배열 — 위상 [phase](0..[ROAD_GLINT_DASH]+[ROAD_GLINT_GAP]) 만큼 흘린 대시 패턴.
+ * 위상을 **전체 주기(dash+gap)** 에 걸쳐 이동시키고, 배열 총합을 항상 한 주기로 맞춰 타일링이
+ * 이음매 없이 반복되게 한다 — 위상이 한 바퀴 돌아 0 으로 되돌아가도 알갱이가 튀지 않고 연속으로 흐른다.
+ * (기존 [0,q,dash,gap-q] 방식은 위상이 gap 구간만 이동해 되돌아갈 때 대시가 뒤로 점프했다.)
+ */
+internal fun roadGlintDashArray(phase: Float): Array<Float> {
+    val dash = ROAD_GLINT_DASH
+    val gap = ROAD_GLINT_GAP
+    val period = dash + gap
+    // u = 언시프트 패턴에서 라인 시작점이 놓이는 위치(0..period). phase 가 커질수록 알갱이가 앞으로 흐른다.
+    val u = ((period - (phase % period)) % period + period) % period
+    return if (u < dash) {
+        // 라인 시작이 대시(ON) 내부 — 남은 대시부터 그린다. 배열 합=period 라 타일 경계에서 ON 끼리 합쳐져 dash 복원.
+        arrayOf(dash - u, gap, u, 0f)
+    } else {
+        // 라인 시작이 갭(OFF) 내부 — 0 길이 ON 으로 시작해 남은 갭 → 대시 → 남은 갭.
+        arrayOf(0f, period - u, dash, u - dash)
+    }
+}
 
 /**
  * 별자리 라인 GeoJSON — 뷰포트에 보이는 대표 별들을 가장 가까운

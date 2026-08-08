@@ -39,7 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import com.chaminwoo.stary.core.designsystem.LocalScreenSize
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -149,7 +149,8 @@ private fun SwipeToDeleteNotification(
     val density = LocalDensity.current
     val revealPx = with(density) { revealDp.toPx() }
     // 삭제 확정 시 행을 완전히 밀어낼 화면 밖 목표 위치(화면 폭만큼).
-    val dismissPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    // ⚠️ raw Configuration 이 아니라 [LocalScreenSize] — density 가 스케일돼 있어 원본 dp 를 toPx 하면 어긋난다.
+    val dismissPx = with(density) { LocalScreenSize.current.width.toPx() }
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 

@@ -105,6 +105,18 @@ object PioneerQuest {
     fun currentCountry(nowMs: Long): Country = countryForWeek(weekIndex(nowMs))
 
     /**
+     * 이번 주 **활성 개척 대상국 1개** — 아직 개척되지 않은 나라(pool)에서 주차로 하나만 결정적으로 고른다.
+     * 과거 주의 나라를 누적하지 않고 항상 1개만 활성이다(모두 개척되면 null). 개척된 나라는 pool 에서 빠지므로
+     * 자연히 "개척된 나라만 쌓이고" 미개척 나라 중에서만 매주 새로 뽑힌다. 지도 비콘/선점 판정 공용 기준.
+     * ⚠️ iOS `PioneerQuest.swift` 에도 같은 함수를 추가해야 한다(결정성/파리티).
+     */
+    fun activeCountry(nowMs: Long, claimedCodes: Set<String>): Country? {
+        val pool = permutation.filter { it.code !in claimedCodes }
+        if (pool.isEmpty()) return null
+        return pool[weekIndex(nowMs) % pool.size]
+    }
+
+    /**
      * 다음 나라 교체(다음 주 경계)까지 남은 ms. 퀘스트 안내문의 "d일 h시간 후 나라 변경" 계산용.
      * (시작 전이면 첫 주가 끝나는 시각까지 — weekIndex 가 0 으로 고정되는 규칙과 일치.)
      */

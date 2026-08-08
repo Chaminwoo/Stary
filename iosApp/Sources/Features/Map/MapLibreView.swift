@@ -283,9 +283,10 @@ struct MapLibreView: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, imageFor annotation: MLNAnnotation) -> MLNAnnotationImage? {
             // 개척 비콘 — 금색 스파클(8꼭지, 앰버골드 = Android starBitmap(3, 15) 패리티).
             if annotation is PioneerAnnotation {
-                let key = "pioneer-beacon"
+                // 기존 대비 30% 크기(기본 40 → 12) — Android pioneer-layer iconSize ×0.3 패리티.
+                let key = "pioneer-beacon-12"
                 if let cached = mapView.dequeueReusableAnnotationImage(withIdentifier: key) { return cached }
-                let img = StarImageRenderer.image(type: 3, colorIndex: 15)
+                let img = StarImageRenderer.image(type: 3, colorIndex: 15, size: 12)
                 return MLNAnnotationImage(image: img, reuseIdentifier: key)
             }
             guard let d = annotation as? DiaryAnnotation else { return nil }

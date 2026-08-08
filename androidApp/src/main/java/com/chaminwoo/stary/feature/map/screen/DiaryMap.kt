@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -99,6 +100,7 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.roundToInt
@@ -123,6 +125,11 @@ data class GlobeReturnCamera(
     val zoom: Double,
     val nonce: Long,
 )
+
+/** 거리(미터) 표기 — 1km 이상이면 소수 1자리 km, 그 미만이면 정수 m. (예: 1234m → "1.2km", 340m → "340m") */
+private fun formatDistance(meters: Double): String =
+    if (meters >= 1000.0) String.format(Locale.getDefault(), "%.1fkm", meters / 1000.0)
+    else "${meters.roundToInt()}m"
 
 /**
  * MapLibre GL Native + MapTiler 벡터 타일 기반 밤하늘 지도.
@@ -250,7 +257,7 @@ fun DiaryMap(
             savedRoute = route.coordinates.map { Point.fromLngLat(it[0], it[1]) }
             val mins = (route.durationS / 60.0).roundToInt().coerceAtLeast(1)
             com.chaminwoo.stary.core.ui.StaryToast.show(
-                context.getString(R.string.map_route_summary, mins, route.distanceM.roundToInt())
+                context.getString(R.string.map_route_summary, mins, formatDistance(route.distanceM.toDouble()))
             )
         }
     }
@@ -293,6 +300,10 @@ fun DiaryMap(
                     isCompassEnabled = false
                     isLogoEnabled = false
                     isAttributionEnabled = false
+                    // 팬을 놓았을 때 딱 멈추지 않고 관성으로 서서히 감속(글라이드)하게 한다.
+                    isFlingVelocityAnimationEnabled = true // 관성 애니메이션 on(기본값이지만 명시)
+                    flingThreshold = 400L        // 살짝만 밀어도 미끄러지듯 이어짐(기본 1000 — 너무 높아 느린 팬은 즉시 멈춤)
+                    flingAnimationBaseTime = 420L // 감속에 걸리는 시간을 늘려 더 길고 부드럽게 멈춤(기본 150ms)
                 }
                 map.setMinZoomPreference(MAP_MIN_ZOOM) // 이 밑은 3D 글로브가 담당
                 // 세계 상하 끝(타일 한계) 밖 빈 공간의 화면상 경계 계산 — 오버레이가 바다색으로 덮는다.
@@ -395,7 +406,7 @@ fun DiaryMap(
                                     context.getString(
                                         R.string.map_open_range,
                                         StaryConfig.DIARY_OPEN_RADIUS_M.toInt(),
-                                        distance.toInt()
+                                        formatDistance(distance.toDouble())
                                     )
                                 )
                             }
@@ -611,11 +622,12 @@ fun DiaryMap(
                         SymbolLayer(PIONEER_LAYER, PIONEER_SOURCE).withProperties(
                             PropertyFactory.iconImage(PIONEER_ICON_ID),
                             PropertyFactory.iconSize(
+                                // 기존 대비 30% 크기(0.55/0.8/1.0 → ×0.3)
                                 Expression.interpolate(
                                     Expression.linear(), Expression.zoom(),
-                                    Expression.stop(2f, 0.55f),
-                                    Expression.stop(8f, 0.8f),
-                                    Expression.stop(14f, 1.0f),
+                                    Expression.stop(2f, 0.165f),
+                                    Expression.stop(8f, 0.24f),
+                                    Expression.stop(14f, 0.30f),
                                 )
                             ),
                             PropertyFactory.iconAllowOverlap(true),
@@ -718,10 +730,13 @@ fun DiaryMap(
         // 지도만 보기 모드에선 모든 버튼(좌상단 줌 + 우하단 FAB)을 숨긴다.
         if (!MapUiState.mapOnly) {
         // 좌상단 줌 버튼 (+/-) — 버튼 1탭당 한 단계, 부드럽게 애니메이션 줌.
+        // 지도는 Scaffold padding 을 안 먹으므로(MainScreen) 상태바 인셋 + 탑바 실제 높이(Material3
+        // CenterAlignedTopAppBar 표준 64dp)를 직접 더해 기종별 상태바 높이 차이에 안전하게 대응한다.
+        val zoomButtonTopClearance = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 64.dp + 10.dp
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 110.dp, start = 16.dp),
+                .padding(top = zoomButtonTopClearance, start = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -897,6 +912,8 @@ fun DiaryMap(
     // 합쳐짐/펼쳐짐은 배정표(id → 대표 id) 전이를 위치+투명도로 보간해 부드럽게.
     var lastFeaturesKey by remember { mutableStateOf<Any?>(null) }
     var prevAssignment by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // 직전에 표시한 별 크기(id → sizeMult) — 재클러스터로 크기가 바뀔 때 스냅 대신 전이로 보간하기 위함.
+    var prevSizeMult by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
     LaunchedEffect(diaries, styleRef, currentLatLng, cameraIdleTick) {
         val style = styleRef ?: return@LaunchedEffect
         val source = diarySource ?: return@LaunchedEffect
@@ -924,6 +941,11 @@ fun DiaryMap(
         fun mergeMult(d: Diary): Float = mergeSizeMult(merged.groups[d.id] ?: listOf(d))
         fun repSizeMult(d: Diary): Float =
             mergeMult(d) * clusterSizeBoost(clusterCount[d.id] ?: 1)
+
+        // 각 별의 "정착 시 표시 크기": 대표=repSizeMult, 흡수 별=mergeMult. 다음 전이의 시작 크기로도 쓴다.
+        val curSizeMult = mergedReps.associate { d ->
+            d.id to (if (assignment[d.id] == d.id) repSizeMult(d) else mergeMult(d))
+        }
 
         val key = reps.map { it.id } to nearIds
         if (key == lastFeaturesKey) return@LaunchedEffect
@@ -964,7 +986,9 @@ fun DiaryMap(
         }
 
         val from = prevAssignment
+        val fromSize = prevSizeMult
         prevAssignment = assignment
+        prevSizeMult = curSizeMult
 
         // 최초 1회는 애니메이션 없이 바로 표시
         if (from.isEmpty()) {
@@ -1002,8 +1026,11 @@ fun DiaryMap(
                 val lng = fLng + (tLng - fLng) * e
                 val lat = fLat + (tLat - fLat) * e
                 val a = fromAlpha + (toAlpha - fromAlpha) * e
-                // 대표로 정착하는 별만 클러스터 보너스 적용(흡수되는 별은 머지 배율만으로 페이드)
-                val sm = if (toRep == d.id) repSizeMult(d) else mergeMult(d)
+                // 크기도 (이전 표시 크기 ↔ 새 표시 크기) 로 보간 — 재클러스터로 크기가 확 튀지 않게.
+                // 대표로 정착하는 별만 클러스터 보너스 적용(흡수되는 별은 머지 배율만으로 페이드).
+                val targetSm = curSizeMult[d.id] ?: (if (toRep == d.id) repSizeMult(d) else mergeMult(d))
+                val startSm = fromSize[d.id] ?: targetSm
+                val sm = startSm + (targetSm - startSm) * e
                 feats.add(diaryFeature(d, lng, lat, d.id in nearIds, a, sm))
             }
             source.setGeoJson(FeatureCollection.fromFeatures(feats))
@@ -1060,8 +1087,10 @@ fun DiaryMap(
         lastConstellationJson = null
     }
 
-    // 마커 애니메이션 루프(20fps): float 부유 + pulse + 스파클 궤도 + 위성 공전 + 파티클 트윙클.
-    // ⚠️ 카메라 이동 중엔 스타일 변경을 멈춰 팬/줌 끊김을 방지한다.
+    // 마커 애니메이션 루프(20fps): float 부유 + pulse + 스파클 궤도 + 위성 공전 + 파티클 트윙클 + 도로 흐름.
+    // 카메라 이동(팬/줌) 중에도 **멈추지 않고 전부 계속 갱신**한다 — 별/스파클/위성 심볼 레이어는
+    // iconAllowOverlap+iconIgnorePlacement 라 충돌검사 없이 재배치가 싸므로 이동 중 갱신해도 끊김이 적다.
+    // (줌아웃 시엔 별·스파클 크기와 궤도 반경이 zoom 보간/orbitZoomScale 로 매 프레임 함께 작아진다.)
     LaunchedEffect(styleRef) {
         val style = styleRef ?: return@LaunchedEffect
         // 레이어는 스타일 초기화 때 전부 추가되고 제거되지 않으므로(styleRef 는 그 뒤 설정)
@@ -1073,6 +1102,8 @@ fun DiaryMap(
         val orbitLayers = Array(MAX_ORBIT_STARS) { i -> Array(PHASE_GROUPS) { g -> style.getLayer(orbitLayerId(i, g)) as? SymbolLayer } }
         val particleLayers = Array(PHASE_GROUPS) { style.getLayer(particleLayerId(it)) as? SymbolLayer }
         val roadGlintLayer = style.getLayer(ROAD_GLINT_LAYER) as? LineLayer
+        // 도로 글린트 불투명도는 줌 보간(1회 설치) — 흐름이 이음매 없이 이어지므로 페이드가 불필요하다.
+        roadGlintLayer?.setProperties(PropertyFactory.lineOpacity(roadGlintOpacityExpression()))
         // 값이 연속 변하는 표현식은 양자화해 캐시(눈에 안 보이는 1/64 단위) — 매 틱 트리 재생성 방지.
         val sizeExprCache = HashMap<Int, Expression>()
         val groundExprCache = HashMap<Int, Expression>()
@@ -1081,12 +1112,7 @@ fun DiaryMap(
         fun quant(v: Float) = (v * 64f).toInt()
         var t = 0f
         var lastDashOffset = -1f
-        var lastGlintEnvelope = -1f
         while (isActive) {
-            if (isCameraMoving.value) {
-                delay(100)
-                continue
-            }
             // 앱이 후면이면 스타일 갱신을 멈춰 배터리를 아낀다(전면 복귀 시 자동 재개).
             if (!com.chaminwoo.stary.core.util.AppForeground.isForeground) {
                 delay(300)
@@ -1112,6 +1138,7 @@ fun DiaryMap(
                 val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
                 val wave = sin(t * 1.6f + phase) // -1(위)..1(아래)
                 val floatDy = wave * 4f * zoomAmp // 최대 -4..4 dp, 줌 작으면 축소
+                // 부유(icon-translate) + 맥동(icon-size) — 이동 중에도 계속 갱신(별이 멈추지 않게).
                 val pulse = 1f + 0.20f * ((sin(t * 3.2f + phase) + 1f) / 2f) // 1.0..1.2 맥동
                 layer.setProperties(
                     PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
@@ -1119,11 +1146,11 @@ fun DiaryMap(
                         sizeExprCache.getOrPut(quant(pulse)) { starSizeExpression(quant(pulse) / 64f) }
                     ),
                 )
-                // 후광도 같은 float 적용 → 별과 함께 떠오른다
+                // 후광도 같은 float 적용 → 별과 함께 떠오른다(circle-translate=paint, 이동 중에도).
                 auraLayers[g]?.setProperties(
                     PropertyFactory.circleTranslate(arrayOf(0f, floatDy))
                 )
-                // 바닥 빛 웅덩이는 지점 고정(시차의 기준점). 별이 내려와 가까워질수록 살짝 밝게.
+                // 바닥 빛 웅덩이는 지점 고정(시차의 기준점). 별이 내려와 가까워질수록 살짝 밝게(paint).
                 val downFrac = (wave + 1f) / 2f // 0(위)..1(아래)
                 val groundOp = GROUND_LIGHT_OPACITY * (0.7f + 0.3f * downFrac)
                 groundLayers[g]?.setProperties(
@@ -1136,68 +1163,72 @@ fun DiaryMap(
                         }
                     )
                 )
-                // 스파클 — 타원 궤도(icon-offset) + 별 부유 동기(iconTranslate) + 개수 게이트(opacity).
-                val sparkleZoom = sparkleZoomFactor(zoom)
-                // 궤도 반경도 줌에 따라 함께 줄인다 — 줌 아웃 시 별이 작아지는데 궤도가 dp 로 고정이면
-                // 파티클이 별에서 너무 멀어 보인다. sparkleZoom(줌 배율)에 비례시켜 별 크기와 함께 궤도를 좁힌다.
-                // (줌 인 최대(sparkleZoom=1)에서는 ×1.0 이라 기존의 '자연스러운' 근접 배치를 그대로 유지.)
-                val orbitZoomScale = 0.4f + 0.6f * sparkleZoom
-                if (sparkleZoom > 0.01f) { // 숨김 줌에서는 갱신 자체를 건너뛴다
-                    // 부모(set 1) 궤도 각 — 위성(set 2)이 이 위치를 중심으로 주전원 공전한다.
-                    val parentAng = t * -0.8f + phase + 1.9f
-                    val parentUx = kotlin.math.cos(parentAng)
-                    val parentUy = sin(parentAng) * 0.55f
-                    val satAng = t * 3.4f + phase
-                    val satUx = kotlin.math.cos(satAng)
-                    val satUy = sin(satAng) * 0.55f
+                // 스파클/위성 궤도 — icon-offset(layout) 이지만 allowOverlap+ignorePlacement 라 재배치가 싸므로
+                // 카메라 이동 중에도 계속 갱신한다(줌아웃 시 궤도 반경도 orbitZoomScale 로 매 프레임 함께 줄어든다).
+                run {
+                    // 스파클 — 타원 궤도(icon-offset) + 별 부유 동기(iconTranslate) + 개수 게이트(opacity).
+                    val sparkleZoom = sparkleZoomFactor(zoom)
+                    // 궤도 반경도 줌에 따라 함께 줄인다 — 줌 아웃 시 별이 작아지는데 궤도가 dp 로 고정이면
+                    // 파티클이 별에서 너무 멀어 보인다. sparkleZoom(줌 배율)에 비례시켜 별 크기와 함께 궤도를 좁힌다.
+                    // (줌 인 최대(sparkleZoom=1)에서는 ×1.0 이라 기존의 '자연스러운' 근접 배치를 그대로 유지.)
+                    val orbitZoomScale = 0.4f + 0.6f * sparkleZoom
+                    if (sparkleZoom > 0.01f) { // 숨김 줌에서는 갱신 자체를 건너뛴다
+                        // 부모(set 1) 궤도 각 — 위성(set 2)이 이 위치를 중심으로 주전원 공전한다.
+                        val parentAng = t * -0.8f + phase + 1.9f
+                        val parentUx = kotlin.math.cos(parentAng)
+                        val parentUy = sin(parentAng) * 0.55f
+                        val satAng = t * 3.4f + phase
+                        val satUx = kotlin.math.cos(satAng)
+                        val satUy = sin(satAng) * 0.55f
 
-                    for (s in 0 until SPARKLE_SETS) {
-                        val sl = sparkleLayers[s][g] ?: continue
-                        val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
-                        // 세트별 목표 오프셋(dp) — 위성은 부모 파티클 위치 + 주전원(그 파티클을 공전).
-                        val dpAt: (Float) -> Pair<Float, Float> = when (s) {
-                            SPARKLE_SATELLITE_SET -> { tier ->
-                                val pr = orbitTargetDp(1, tier) * orbitZoomScale
-                                val sr = satelliteOrbitDp(tier) * orbitZoomScale
-                                (parentUx * pr + satUx * sr) to (parentUy * pr + satUy * sr)
-                            }
-                            else -> { tier ->
-                                val ang = t * (if (s == 0) 1.1f else -0.8f) + phase + s * 1.9f
-                                val r = orbitTargetDp(s, tier) * orbitZoomScale
-                                (kotlin.math.cos(ang) * r) to (sin(ang) * 0.55f * r)
-                            }
-                        }
-                        sl.setProperties(
-                            PropertyFactory.iconOffset(
-                                sparkleOffsetExpression(s, sparkleZoom, screenDensity, dpAt)
-                            ),
-                            PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                            PropertyFactory.iconOpacity(
-                                sparkleOpExprCache.getOrPut(s * 100_000 + quant(op)) {
-                                    sparkleOpacityExpression(s, quant(op) / 64f)
+                        for (s in 0 until SPARKLE_SETS) {
+                            val sl = sparkleLayers[s][g] ?: continue
+                            val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
+                            // 세트별 목표 오프셋(dp) — 위성은 부모 파티클 위치 + 주전원(그 파티클을 공전).
+                            val dpAt: (Float) -> Pair<Float, Float> = when (s) {
+                                SPARKLE_SATELLITE_SET -> { tier ->
+                                    val pr = orbitTargetDp(1, tier) * orbitZoomScale
+                                    val sr = satelliteOrbitDp(tier) * orbitZoomScale
+                                    (parentUx * pr + satUx * sr) to (parentUy * pr + satUy * sr)
                                 }
-                            ),
-                        )
+                                else -> { tier ->
+                                    val ang = t * (if (s == 0) 1.1f else -0.8f) + phase + s * 1.9f
+                                    val r = orbitTargetDp(s, tier) * orbitZoomScale
+                                    (kotlin.math.cos(ang) * r) to (sin(ang) * 0.55f * r)
+                                }
+                            }
+                            sl.setProperties(
+                                PropertyFactory.iconOffset(
+                                    sparkleOffsetExpression(s, sparkleZoom, screenDensity, dpAt)
+                                ),
+                                PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
+                                PropertyFactory.iconOpacity(
+                                    sparkleOpExprCache.getOrPut(s * 100_000 + quant(op)) {
+                                        sparkleOpacityExpression(s, quant(op) / 64f)
+                                    }
+                                ),
+                            )
+                        }
                     }
-                }
-                // 겹친 별 위성 부유 — 회전(공전) 없이 고정 자리에서 위성마다 다른 주기로 잔잔히
-                // 흔들리되, iconTranslate 는 대표 별과 같은 floatDy 를 그대로 물려받아 **대표 별과
-                // 함께** 오르내린다(같은 phaseGroup 레이어라 가능).
-                if (zoom > 11.1f) {
-                    for (i in 0 until MAX_ORBIT_STARS) {
-                        val ol = orbitLayers[i][g] ?: continue
-                        val driftX = sin(t * (0.7f + 0.14f * i) + i * 2.1f) * 0.8f
-                        val driftY = sin(t * (1.15f + 0.18f * i) + i * 1.4f) * 1.0f
-                        val op = orbitFade.value * (0.88f + 0.12f * sin(t * 1.7f + i * 1.3f))
-                        ol.setProperties(
-                            PropertyFactory.iconOffset(orbitOffsetExpression(i, driftX, driftY, screenDensity)),
-                            PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                            PropertyFactory.iconOpacity(op),
-                        )
+                    // 겹친 별 위성 부유 — 회전(공전) 없이 고정 자리에서 위성마다 다른 주기로 잔잔히
+                    // 흔들리되, iconTranslate 는 대표 별과 같은 floatDy 를 그대로 물려받아 **대표 별과
+                    // 함께** 오르내린다(같은 phaseGroup 레이어라 가능).
+                    if (zoom > 11.1f) {
+                        for (i in 0 until MAX_ORBIT_STARS) {
+                            val ol = orbitLayers[i][g] ?: continue
+                            val driftX = sin(t * (0.7f + 0.14f * i) + i * 2.1f) * 0.8f
+                            val driftY = sin(t * (1.15f + 0.18f * i) + i * 1.4f) * 1.0f
+                            val op = orbitFade.value * (0.88f + 0.12f * sin(t * 1.7f + i * 1.3f))
+                            ol.setProperties(
+                                PropertyFactory.iconOffset(orbitOffsetExpression(i, driftX, driftY, screenDensity)),
+                                PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
+                                PropertyFactory.iconOpacity(op),
+                            )
+                        }
                     }
                 }
             }
-            // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신 (GeoJSON 재생성 없음)
+            // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신(icon-opacity=paint, 이동 중에도 계속).
             for (g in 0 until PHASE_GROUPS) {
                 val layer = particleLayers[g] ?: continue
                 val phase = g * (2f * Math.PI.toFloat() / PHASE_GROUPS)
@@ -1209,33 +1240,14 @@ fun DiaryMap(
                     )
                 )
             }
-            // 도로 글린트: 대시 위상을 흘려 빛 알갱이가 도로를 따라 흐른다.
-            // 위상을 ROAD_GLINT_STEPS 단계로 양자화해 대시 아틀라스 캐시를 재사용(무한 패턴 생성 방지).
-            val off = (t * ROAD_GLINT_SPEED) % ROAD_GLINT_GAP
-            val q = (off / ROAD_GLINT_GAP * ROAD_GLINT_STEPS).toInt()
-                .toFloat() / ROAD_GLINT_STEPS * ROAD_GLINT_GAP
-            if (q != lastDashOffset) {
-                lastDashOffset = q
-                roadGlintLayer?.setProperties(
-                    PropertyFactory.lineDasharray(
-                        arrayOf(0f, q, ROAD_GLINT_DASH, ROAD_GLINT_GAP - q)
-                    )
-                )
-            }
-            // 위상이 한 바퀴 돌아 처음으로 되돌아가는(알갱이가 다시 태어나는) 순간 전후
-            // ROAD_GLINT_FADE_SEC 씩 부드럽게 사라졌다 나타나도록 불투명도에 삼각 envelope 를 곱한다.
-            val cyclePos = t % ROAD_GLINT_PERIOD_SEC
-            val envelope = when {
-                cyclePos < ROAD_GLINT_FADE_SEC -> cyclePos / ROAD_GLINT_FADE_SEC
-                cyclePos > ROAD_GLINT_PERIOD_SEC - ROAD_GLINT_FADE_SEC ->
-                    (ROAD_GLINT_PERIOD_SEC - cyclePos) / ROAD_GLINT_FADE_SEC
-                else -> 1f
-            }.coerceIn(0f, 1f)
-            if (envelope != lastGlintEnvelope) {
-                lastGlintEnvelope = envelope
-                roadGlintLayer?.setProperties(
-                    PropertyFactory.lineOpacity(roadGlintOpacityExpression(envelope))
-                )
+            // 도로 글린트: 대시 위상을 전체 주기에 걸쳐 흘려 빛 알갱이가 도로를 따라 **끊김 없이** 흐른다
+            // (line-dasharray=paint, 이동 중에도 계속). 위상을 ROAD_GLINT_STEPS 단계로 양자화해 대시 아틀라스 캐시 재사용.
+            val period = ROAD_GLINT_DASH + ROAD_GLINT_GAP
+            val rawPhase = (t * ROAD_GLINT_SPEED) % period
+            val p = (rawPhase / period * ROAD_GLINT_STEPS).toInt().toFloat() / ROAD_GLINT_STEPS * period
+            if (p != lastDashOffset) {
+                lastDashOffset = p
+                roadGlintLayer?.setProperties(PropertyFactory.lineDasharray(roadGlintDashArray(p)))
             }
             delay(50)
         }
@@ -1246,20 +1258,28 @@ fun DiaryMap(
         locationSource?.setGeoJson(Point.fromLngLat(currentLatLng.longitude, currentLatLng.latitude))
     }
 
-    // 개척 퀘스트 비콘 갱신(체크리스트 32) — 개척 현황을 구독해 "등장했지만 미개척"인 나라만 표시.
+    // 개척 퀘스트 비콘 갱신(체크리스트 32) — **미개척 나라 중 이번 주 1개만** 표시. 과거 나라는 누적하지 않는다.
+    // 주 경계에서 자동으로 다음 대상으로 넘어가도록 남은 시간만큼 대기 후 재평가한다(시계 어긋남 방어로 1시간 캡).
     val pioneerClaims by remember {
         com.chaminwoo.stary.data.repository.FirebasePioneerRepository().observeClaims()
     }.collectAsState(initial = emptyMap())
     LaunchedEffect(pioneerClaims, pioneerSource) {
         val src = pioneerSource ?: return@LaunchedEffect
-        val featured = com.chaminwoo.stary.shared.config.PioneerQuest
-            .featuredCountries(System.currentTimeMillis(), pioneerClaims.keys)
-        val features = featured.map { c ->
-            Feature.fromGeometry(Point.fromLngLat(c.lng, c.lat)).apply {
-                addStringProperty("code", c.code)
-            }
+        while (isActive) {
+            val now = System.currentTimeMillis()
+            val active = com.chaminwoo.stary.shared.config.PioneerQuest
+                .activeCountry(now, pioneerClaims.keys)
+            val features = if (active == null) emptyList()
+            else listOf(
+                Feature.fromGeometry(Point.fromLngLat(active.lng, active.lat)).apply {
+                    addStringProperty("code", active.code)
+                }
+            )
+            src.setGeoJson(FeatureCollection.fromFeatures(features))
+            val wait = com.chaminwoo.stary.shared.config.PioneerQuest
+                .msUntilCountryChange(now).coerceIn(60_000L, 60L * 60 * 1000)
+            delay(wait)
         }
-        src.setGeoJson(FeatureCollection.fromFeatures(features))
     }
 
     // 최초 진입 시 내 위치로 카메라 1회 이동 — 스타일 로드 시점엔 아직 위치 fix 가 없어 기본 좌표로

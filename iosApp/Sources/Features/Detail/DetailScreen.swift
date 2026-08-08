@@ -365,7 +365,7 @@ struct DetailScreen: View {
             Text(location.coordinate == nil
                  ? LocaleManager.shared.t(.detailLocating)
                  : String(format: LocaleManager.shared.t(.mapOpenRange),
-                          Int(AppConfig.diaryOpenRadiusM), Int(distanceM)))
+                          Int(AppConfig.diaryOpenRadiusM), Geo.formatDistance(distanceM)))
                 .font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity)

@@ -200,7 +200,7 @@
     <string name="map_constellation">星座</string>
     <string name="map_only">地図のみ表示</string>
     <string name="cd_create_diary">日記を作成</string>
-    <string name="map_open_range">%1$dm以内で閲覧できます（現在%2$dm）</string>
+    <string name="map_open_range">%1$dm以内で閲覧できます（現在%2$s）</string>
     <string name="map_waiting_fix">現在地を確認しています。しばらくしてからお試しください</string>
     <string name="share_diary">共有</string>
     <string name="share_to_story">Instagramストーリーズに共有</string>
@@ -245,7 +245,7 @@
     <string name="nearby_star_title">近くにまだ見ていない星があります ✦</string>
     <string name="nearby_star_body">約%1$dm先 — タップすると地図に表示します</string>
     <string name="location_mock_blocked">模擬位置（位置偽装）が検出されたため、位置機能を制限しています</string>
-    <string name="map_route_summary">徒歩約%1$d分 · %2$dm</string>
+    <string name="map_route_summary">徒歩約%1$d分 · %2$s</string>
     <string name="map_route_cancel">経路を取り消す</string>
     <string name="globe_hint">ドラッグで回転 · 下をタップで閉じる</string>
     <string name="globe_open">地球を見る</string>

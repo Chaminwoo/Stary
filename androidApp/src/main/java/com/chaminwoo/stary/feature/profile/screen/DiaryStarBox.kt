@@ -37,7 +37,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
+import com.chaminwoo.stary.core.designsystem.staryContentWidth
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -109,11 +109,13 @@ fun DiaryStarBox(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    val config = LocalConfiguration.current
+    // ⚠️ raw Configuration 이 아니라 [staryContentWidth] — StaryTheme 이 density 를 스케일하므로
+    // 92dp 셀 폭과 같은 좌표계(배율 적용 후)여야 하고, 태블릿 폭 상한도 반영돼야 열 수가 맞는다.
+    val screenWidthDp = staryContentWidth().value
 
     val n = diaries.size
     // 화면 폭에 맞춘 열 수(3~5), 너무 빽빽하지 않게
-    val cols = (((config.screenWidthDp - 24) / 92f).toInt()).coerceIn(3, 5)
+    val cols = (((screenWidthDp - 24) / 92f).toInt()).coerceIn(3, 5)
     val rows = ceil(n / cols.toFloat()).toInt().coerceAtLeast(1)
     val boxHeightDp = rows * CELL_H_DP + 24
 

@@ -9,7 +9,11 @@ import Foundation
 final class PioneerStore: ObservableObject {
     /// countryCode → 개척자 userId. (지도 비콘/업적 화면이 구독)
     @Published var claimedBy: [String: String] = [:]
+    /// 주 경계에서 `activeCountries` 를 다시 계산시키기 위한 틱(값 자체는 의미 없음) —
+    /// Android `DiaryMap` 비콘 루프의 `delay(msUntilCountryChange)` 재평가와 같은 역할.
+    @Published private var weekTick: Int = 0
     private var reg: ListenerRegistration?
+    private var weekTask: Task<Void, Never>?
 
     private static var collection: CollectionReference { FirestoreService.db.collection(PioneerQuest.collection) }
 
@@ -21,16 +25,32 @@ final class PioneerStore: ObservableObject {
             } ?? [:]
             Task { @MainActor in self?.claimedBy = map }
         }
+        // 주 경계가 지나면 활성 대상국이 바뀌므로 남은 시간만큼 자고 일어나 재평가시킨다
+        // (시계 어긋남 방어로 1분~1시간 캡 — Android 비콘 루프와 동일 규칙).
+        weekTask = Task { [weak self] in
+            while !Task.isCancelled {
+                let waitMs = min(max(PioneerQuest.msUntilCountryChange(nowMs: FirestoreService.nowMillis), 60_000), 60 * 60 * 1000)
+                try? await Task.sleep(nanoseconds: UInt64(waitMs) * 1_000_000)
+                if Task.isCancelled { return }
+                self?.weekTick &+= 1
+            }
+        }
     }
 
     func stop() {
         reg?.remove()
         reg = nil
+        weekTask?.cancel()
+        weekTask = nil
     }
 
-    /// 아직 개척되지 않은 대상국(지도 비콘 대상).
-    var featured: [PioneerQuest.Country] {
-        PioneerQuest.featuredCountries(nowMs: FirestoreService.nowMillis, claimedCodes: Set(claimedBy.keys))
+    /// 지도 비콘 대상 — **미개척 나라 중 이번 주 1개만**(과거 나라 누적 없음). 없으면 빈 배열.
+    var activeCountries: [PioneerQuest.Country] {
+        _ = weekTick // 주 경계 틱에 의존시켜 재계산되게 한다
+        guard let c = PioneerQuest.activeCountry(
+            nowMs: FirestoreService.nowMillis, claimedCodes: Set(claimedBy.keys)
+        ) else { return [] }
+        return [c]
     }
 
     /// 업로드 성공 직후 선점 시도 — 역지오코딩 → 활성 대상국 확인 → 트랜잭션 선점.
@@ -41,11 +61,11 @@ final class PioneerStore: ObservableObject {
         let location = CLLocation(latitude: lat, longitude: lng)
         guard let code = (try? await CLGeocoder().reverseGeocodeLocation(location).first)?
             .isoCountryCode?.uppercased() else { return }
-        // 활성 대상국(이번 주까지 등장 + 미개척)인지 1회 조회로 확인
+        // 이번 주 활성 대상국(미개척 나라 중 이번 주 1개)과 일치하는지 1회 조회로 확인 — 비콘과 동일 기준.
         guard let snap = try? await collection.getDocuments() else { return }
         let claimed = Set(snap.documents.map { $0.documentID })
-        let featured = PioneerQuest.featuredCountries(nowMs: FirestoreService.nowMillis, claimedCodes: claimed)
-        guard featured.contains(where: { $0.code == code }) else { return }
+        let active = PioneerQuest.activeCountry(nowMs: FirestoreService.nowMillis, claimedCodes: claimed)
+        guard active?.code == code else { return }
         // 트랜잭션 선점 — 이미 주인이 있으면 아무 것도 하지 않는다.
         let ref = collection.document(code)
         _ = try? await FirestoreService.db.runTransaction { tx, _ in
