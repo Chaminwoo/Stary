@@ -87,8 +87,6 @@ enum L10n: String {
     case onbMyDiaryTitle, onbMyDiaryMsg, onbProfileTitle, onbProfileMsg
     case onbAchievementsTitle, onbAchievementsMsg, onbMusicTitle, onbMusicMsg
     case onbFriendsTitle, onbFriendsMsg
-    // 3D 행성(글로브) — 지도 하단 버튼으로 진입.
-    case globeHint, globeOpen, globeClose
     // 채팅 메시지 완전 삭제(1분 이내, 본인만).
     case chatDeleteTitle, chatDeleteConfirm
     // 닉네임 변경.
@@ -243,9 +241,6 @@ enum L10n: String {
         case .onbFriendsMsg:        return ("이름으로 친구를 검색해 요청을 보내세요.\n받은 요청을 수락하면 서로의 프로필을 보며, 채팅할 수 있어요.",
                                             "Search friends by name to send requests; accept incoming ones to see each other's stars and chat.",
                                             "名前でフレンドを検索してリクエストを送り、届いたリクエストを承認するとお互いの星を見たりチャットできます。")
-        case .globeHint:            return ("드래그로 회전 · 아래를 탭하여 닫기", "Drag to rotate · Tap below to close", "ドラッグで回転 · 下をタップで閉じる")
-        case .globeOpen:            return ("지구 보기", "View globe", "地球を見る")
-        case .globeClose:           return ("지도로 돌아가기", "Back to map", "地図に戻る")
         case .chatDeleteTitle:      return ("메시지 삭제", "Delete message", "メッセージを削除")
         case .chatDeleteConfirm:    return ("이 메시지를 완전히 삭제할까요? 상대방에게도 사라져요.",
                                             "Delete this message completely? It will disappear for the other person too.",

@@ -63,19 +63,6 @@ struct MapScreen: View {
     @State private var voidBottomY: CGFloat = .greatestFiniteMagnitude
     @State private var voidZoom: Double = 0
 
-    // 3D 행성(글로브) 뷰 상태 — 줌을 충분히 빼면 하단 버튼이 뜨고, 눌러야 진입.
-    @State private var globeCenter: GlobeCenter?
-    @State private var globeReturn: GlobeReturnCamera?
-    // 줌이 낮을 때 지도에서 보고되는 "지구 보기" 후보 중심(nil = 버튼 숨김).
-    @State private var globeButtonCenter: GlobeCenter?
-    // 지도 ↔ 글로브 교체를 가리는 검정 디졸브 스크림.
-    @State private var globeScrim: Double = 0
-
-    private struct GlobeCenter: Equatable {
-        let lat: Double
-        let lng: Double
-    }
-
     /// 기간 컷오프(epoch ms) — 오늘=로컬 자정, 그 외=지금-N일.
     private var periodCutoffMs: Int64? {
         guard let d = periodDays else { return nil }
@@ -259,10 +246,6 @@ struct MapScreen: View {
                 },
                 route: partialRoute,
                 focusTarget: focusTarget,
-                onGlobeAvailability: { lat, lng, available in
-                    globeButtonCenter = available ? GlobeCenter(lat: lat, lng: lng) : nil
-                },
-                globeReturnCamera: globeReturn,
                 pioneerCountries: pioneer.activeCountries,
                 onTapPioneer: { code in pioneerMessage = LocalizedNames.pioneerQuestMessage(code) },
                 zoomRequest: zoomRequest,
@@ -368,42 +351,6 @@ struct MapScreen: View {
             if !fullRoute.isEmpty {
                 routeControls
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            }
-
-            // ── 하단 "지구 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
-            // (Android: 0xEE111120 알약 + 민트 0.5 테두리)
-            if let entry = globeButtonCenter, globeCenter == nil, !chrome.mapOnly {
-                Button {
-                    enterGlobe(lat: entry.lat, lng: entry.lng)
-                } label: {
-                    Label(locale.t(.globeOpen), systemImage: "globe.asia.australia.fill")
-                        .font(.poorStory(13))
-                        .padding(.horizontal, 18).padding(.vertical, 11)
-                        .background(Color(hex: 0x111120).opacity(0.93), in: Capsule())
-                        .foregroundStyle(Theme.textPrimary)
-                        .overlay(Capsule().strokeBorder(Theme.navyAccent.opacity(0.5), lineWidth: 1))
-                        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 30)
-            }
-
-            // ── 3D 행성(글로브) 오버레이 — 버튼으로 진입, 하단 탭 → X 버튼으로 그 지점 지도 복귀 ──
-            if let center = globeCenter {
-                GlobeScreen(
-                    diaries: shownDiaries,
-                    startLat: center.lat,
-                    startLng: center.lng,
-                    onRequestExit: { lat, lng in exitGlobe(lat: lat, lng: lng) }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea()
-            }
-            // 전환 스크림(검정 디졸브) — 지도 ↔ 글로브(SceneKit) 교체를 가린다.
-            if globeScrim > 0.001 {
-                Color.black.opacity(globeScrim)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
             }
         }
         // 별 상세 — Android 처럼 전체 화면 push(NavRoute.Detail 대응).
@@ -542,34 +489,6 @@ struct MapScreen: View {
     private func cancelRoute() {
         fullRoute = []
         routeSummary = nil
-    }
-
-    // MARK: 3D 글로브 전환 (Android MainListScreen 글로브 라운드 패리티)
-
-    /// 지도 줌아웃 → 글로브 진입. 검정 디졸브로 지도 ↔ SceneKit 교체를 가린다.
-    private func enterGlobe(lat: Double, lng: Double) {
-        guard globeCenter == nil else { return }
-        MapChromeState.shared.hidden = true   // 글로브에서는 상단바·글쓰기 FAB 숨김(#12)
-        withAnimation(.easeInOut(duration: 0.17)) { globeScrim = 1 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            globeCenter = GlobeCenter(lat: lat, lng: lng)
-            withAnimation(.easeInOut(duration: 0.52)) { globeScrim = 0 }
-        }
-    }
-
-    /// 글로브 핀치-인 → 지금 정면 지점의 지도(줌 4)로 복귀.
-    private func exitGlobe(lat: Double, lng: Double) {
-        MapChromeState.shared.hidden = false  // 지도 복귀 시 크롬 다시 표시
-        withAnimation(.easeInOut(duration: 0.17)) { globeScrim = 1 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            globeReturn = GlobeReturnCamera(lat: lat, lng: lng, zoom: 4.0,
-                                            nonce: (globeReturn?.nonce ?? 0) + 1)
-            globeCenter = nil
-            // 지도 카메라 점프가 프레임에 반영될 시간을 살짝 준 뒤 걷는다.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) {
-                withAnimation(.easeInOut(duration: 0.38)) { globeScrim = 0 }
-            }
-        }
     }
 
     /// 전체 경로 [full] 에서 현재 위치 [me] 의 최근접 투영점을 찾아
