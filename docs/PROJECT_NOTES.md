@@ -2,7 +2,10 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.44 iOS 패리티 라운드3(버그 7건 + 미완 6건)** — **계정 통일(uid=Google sub)**/**@DocumentID id=nil 버그(7모델)**/구독 최신순 1000/시뮬레이터 서울 고정/달·행성 boolean 모양/친구 요청됨+토스트/후광 2겹 별색/타인 프로필 핀 별만/틸트 25°/마지막 카메라 복원/채팅 별가루 삭제 — Android BUILD SUCCESSFUL, **iOS CI(macOS) BUILD SUCCESS `003b2b3`**(2026-07-16) — 아래 8.44 참고.
+> 최종 갱신: **8.45 크로스플랫폼 버그 7건**(카메라/갤러리/3초영상 3지선다 · 휠 스냅 · 업로드 키보드 ·
+> **채팅 규칙(첫 메시지 거부) 근본 수정** · 채팅 입력바 인셋 · **iOS 푸시(FCM/APNs) 신설** · 친구 요청 알림)
+> — Android BUILD SUCCESSFUL(2026-08-09), iOS 는 push 후 CI 검증 + **사용자 액션 3건 필요**(아래 8.45).
+> 이전: **8.44 iOS 패리티 라운드3(버그 7건 + 미완 6건)** — **계정 통일(uid=Google sub)**/**@DocumentID id=nil 버그(7모델)**/구독 최신순 1000/시뮬레이터 서울 고정/달·행성 boolean 모양/친구 요청됨+토스트/후광 2겹 별색/타인 프로필 핀 별만/틸트 25°/마지막 카메라 복원/채팅 별가루 삭제 — Android BUILD SUCCESSFUL, **iOS CI(macOS) BUILD SUCCESS `003b2b3`**(2026-07-16) — 아래 8.44 참고.
 > 이전: **8.43 iOS 패리티 라운드2 (R2-1~R2-3 + 마무리 5건)** — anonymous 디코딩/줌 별크기/후광·파티클/100m 게이팅/미디어/열람 애니메이션/몰입·별자리 버튼/친구 db + 프로필 아이콘 크리스탈화/음악 별자리 보드 스타일/글로브 지구 복원/미번역 전수 + Android 업로드 휠 피커 — **CI(macOS) BUILD SUCCESS `f6428d2`**(2026-07-16) — 아래 8.43 참고.
 > 이전: **8.42 iOS UI 전면 패리티(1~7차 완료)** — 드로어 내비/테마/야경 지도/지도 크롬/상세 재구성/필터 확장/별자리 보드/L10n — **CI(macOS) BUILD SUCCESS `9cd867b`**(2026-07-15) — 아래 8.42 참고.
 > 이전: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 아래 8.41 참고.
@@ -34,6 +37,68 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.45 크로스플랫폼 버그 7건 (Android BUILD SUCCESSFUL 2026-08-09, iOS CI 검증 대기)
+
+사용자 보고 7건. Android 변경분은 패리티 규칙(§1.5)에 따라 iOS 와 같은 단위로 처리.
+
+**⚠️ 사용자 액션 3건 — 이거 안 하면 고쳐도 동작 안 함**
+1. **Firestore 규칙 배포**: `firebase deploy --only firestore:rules`
+   (#4 채팅 불통의 근본 원인이 서버 규칙이라, 배포 전에는 앱만 고쳐도 그대로 막힌다.)
+2. **Cloud Functions 재배포**: `cd functions && npm install && cd .. && firebase deploy --only functions`
+   (친구 요청 푸시 분기 + iOS APNs 옵션 추가분.)
+3. **iOS 푸시 서버 설정**: Firebase 콘솔 > 프로젝트 설정 > 클라우드 메시징에 **APNs 인증 키(.p8)** 등록
+   (Apple Developer > Keys 에서 발급, Key ID/Team ID 함께 입력). Mac 에서는 `cd iosApp && xcodegen generate`
+   재실행 필요(신규 파일 `CameraPicker.swift`/`PushManager.swift` + entitlements 반영).
+   시뮬레이터는 원격 푸시 불가 — **실기기**로 확인할 것.
+
+**#1 첨부 3지선다(iOS)**: 갤러리+부메랑 2버튼 → Android 와 동일한 "사진 추가" 1버튼 →
+`confirmationDialog`(카메라 촬영 / 갤러리에서 선택 / 3초 영상 촬영) + 첨부 후 "다시 선택".
+`Features/Upload/CameraPicker.swift` 신설(UIImagePickerController `.camera`, 긴 변 1600px JPEG 0.85 축소,
+권한/시뮬레이터 미지원 토스트). 촬영 화면 2종은 fullScreenCover **하나**(`captureSheet` item)로 통합.
+
+**#2 휠 피커 스냅(iOS+Android)**: `commit(steps)` 이 `steps == 0`(반 슬롯 미만 드래그)에서 그냥 return 해
+`drag` 잔여값이 남아 **항목 사이에 멈춘 채 고정**됐다 → 0 이면 원위치로 애니메이션(0.18s/180ms).
+
+**#3 업로드 키보드(iOS)**: `@FocusState` + 키보드 툴바 "완료"(본문은 여러 줄이라 리턴키가 줄바꿈) +
+제목 `submitLabel(.done)` + `scrollDismissesKeyboard(.interactively)`. 배경을 ZStack 형제 →
+`.background { ScreenBackground }` 로 옮겨 키보드가 올라올 때 스크롤 영역이 실제로 줄어들게 함.
+
+**#4 iOS↔Android 채팅 불통(근본 원인 = 서버 규칙)**: `firestore.rules` 의 chats 규칙이
+`resource.data.participants` / `get(chats/{chatId}).data.participants` 를 봤는데, **방 문서가 없는 첫
+메시지**에서는 둘 다 null → create 가 항상 거부. 즉 "이미 방이 있는 사이"만 채팅이 됐고 새 상대
+(iOS↔Android 조합)는 영원히 불통. → **chatId 문자열로 참여자 판정**(`isChatMember` = `myAppUserId() in
+chatId.split('_')`; chatId = 정렬 결합된 두 appUserId, 둘 다 '_' 없음). get() 도 사라져 읽기 비용 감소.
+클라이언트도 **방 메타 먼저 → 메시지** 순서로 통일했고, iOS `send` 는 Bool 반환 + 실패 시 입력 복원·토스트
+(`chatSendFailed`) — 조용한 실패 금지.
+
+**#5 채팅 입력바 인셋**:
+- Android: `navigationBarsPadding() + imePadding()` 이어 붙이기 → 키보드 위로 내비바 높이만큼 더 뜸.
+  `windowInsetsPadding(WindowInsets.safeDrawing.only(Bottom))` 한 번으로 교체(둘 중 큰 값) +
+  Manifest 에 `windowSoftInputMode="adjustResize"` 명시(창이 통째로 밀리는 것 방지 — edge-to-edge 조합 정석).
+- iOS: `ZStack { ScreenBackground(ignoresSafeArea); VStack{...} }` 구조가 **스택을 키보드 영역까지 키워서**
+  입력 바가 키보드 뒤에 깔렸다 → `.background { ScreenBackground }` 로 변경(레이아웃 비관여).
+  입력 바 배경만 `.ignoresSafeArea(.container, edges: .bottom)` — **regions 를 `.all` 로 쓰면 재발**.
+
+**#6 친구 요청 알림(Android+iOS)**: 기존엔 `friendRequests` 문서만 만들어 **알림도 푸시도 없었다**
+(친구 화면에 들어가야만 보임). → 요청 전송 시 `notifications` 문서(type=**FRIEND_REQUEST**, 수신자=toId,
+diaryId 없음)를 함께 생성 → 목록 + 인앱 배너 + FCM 푸시가 한 번에 동작. shared `NotificationType` 에 항목 추가,
+Functions `notifyOnNotificationCreate` 에 분기(제목 "{이름}님의 친구 요청"). 탭 → 친구 화면
+(Android: `openFriends` extra + `DeepLinkState.friendsNonce` / iOS: `PushRoute.friends`).
+
+**#7 iOS 푸시 자체가 없었음 → `Data/PushManager.swift` 신설**: iOS 에는 FirebaseMessaging/APNs 코드가
+**전혀 없어서** users/{uid}.fcmToken 이 비어 있었다(서버는 토큰 없는 사용자를 조용히 건너뜀) — 친구 새 글도
+친구 요청도 팝업이 올 수 없었다. 구성: `configure()`(AppDelegate) → `setUser(uid)`(RootView, 권한 요청 +
+registerForRemoteNotifications + 토큰 저장) → 전면 `willPresent` 는 `[]`(인앱 배너가 담당, Android 정책 동일) →
+탭은 `PushRouter` → RootView `.onReceive`(구독 시 현재 값도 받아 콜드 스타트 처리). `project.yml` 에
+FirebaseMessaging SPM + `UIBackgroundModes: remote-notification` + entitlements(`aps-environment`,
+`iosApp/Stary.entitlements` — 생성물이라 gitignore).
+Android 쪽 보강: `GoogleAuthHelper.syncFcmToken(uid)` 를 **세션 복원(앱 재시작)에서도** 호출(예전엔 로그인
+화면을 실제로 거친 순간에만 저장 → 토큰 회전 시 조용히 끊길 수 있었음).
+
+**남은 것**: 실기기 확인(iOS 푸시/카메라, Android 채팅 인셋), 규칙·Functions 배포 후 채팅 재검증.
 
 ---
 

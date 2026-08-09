@@ -44,6 +44,9 @@ targets:
         UILaunchScreen: {}
         # 앱 전역 다크(밤하늘) 톤
         UIUserInterfaceStyle: Dark
+        # 푸시 알림(FCM/APNs) — 백그라운드 수신.
+        UIBackgroundModes:
+          - remote-notification
         # 회전 금지 — 기기 자동회전이 켜져 있어도 세로 고정(Android screenOrientation=portrait 패리티)
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -71,6 +74,13 @@ targets:
               - $(GOOGLE_REVERSED_CLIENT_ID)
           - CFBundleURLSchemes:
               - stary
+    # Push Notifications 권한 — aps-environment. 배포(App Store/TestFlight) 아카이브 시
+    # Xcode 가 production 으로 바꿔 넣는다. 자동 서명(-allowProvisioningUpdates)이 App ID 에도 권한을 켠다.
+    # ⚠️ Sources/ 밖에 둔다 — sources 로 잡히면 앱 번들에 리소스로 복사될 수 있다.
+    entitlements:
+      path: Stary.entitlements
+      properties:
+        aps-environment: development
     dependencies:
       - package: Firebase
         product: FirebaseAuth
@@ -78,6 +88,8 @@ targets:
         product: FirebaseFirestore
       - package: Firebase
         product: FirebaseStorage
+      - package: Firebase
+        product: FirebaseMessaging
       - package: GoogleSignIn
         product: GoogleSignIn
       - package: MapLibre

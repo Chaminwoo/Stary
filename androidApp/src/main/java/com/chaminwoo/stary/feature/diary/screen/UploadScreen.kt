@@ -617,7 +617,14 @@ private fun StarWheelPicker(
 
     // 놓은(또는 탭한) 지점의 항목을 놓은 자리에서 중앙으로 스냅 → 끝난 뒤 selection 갱신(시각적 점프 없음).
     fun commit(steps: Int) {
-        if (steps == 0) return
+        // 반 슬롯을 못 넘긴 드래그(steps=0)도 반드시 원위치로 되돌린다 —
+        // 그냥 return 하면 drag 가 남아 항목과 항목 **사이**에 멈춘 채 고정된다(iOS 와 동일 수정).
+        if (steps == 0) {
+            if (drag.value != 0f) {
+                coroutineScope.launch { drag.animateTo(0f, tween(180, easing = FastOutSlowInEasing)) }
+            }
+            return
+        }
         settling = true
         val target = wrap(selection + steps)
         coroutineScope.launch {

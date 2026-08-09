@@ -64,6 +64,7 @@ private fun notificationTitle(n: AppNotification): String {
         NotificationType.LIKE.name -> "${who}님이 좋아요를 눌렀어요"
         NotificationType.COMMENT.name -> "${who}님이 댓글을 남겼어요"
         NotificationType.FRIEND_POST.name -> "${who}님이 새 다이어리를 올렸어요"
+        NotificationType.FRIEND_REQUEST.name -> "${who}님이 친구 요청을 보냈어요"
         else -> "${who}님의 새 알림"
     }
 }

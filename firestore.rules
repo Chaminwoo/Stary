@@ -46,21 +46,30 @@ function myAppUserId() {
     : request.auth.uid;
 }
 
+// ── 1:1 채팅 ──────────────────────────────────────────────────────────────
+// 참여자 판정은 **chatId 자체**로 한다. chatId = 두 appUserId 를 정렬·결합한 결정적 값
+// ("작은id_큰id" — StaryConfig.chatId / AppConfig.chatId)이라, 그 안에 내 id 가 있으면 곧 참여자다.
+// (appUserId 는 Google sub 또는 FirebaseAuth uid — 둘 다 '_' 를 포함하지 않는다.)
+//
+// ⚠️ 이전 규칙은 `resource.data.participants` / `get(chats/{chatId}).data.participants` 를 봤는데,
+//    방 문서가 아직 없는 **첫 메시지**에서는 resource/get 결과가 null 이라 항상 거부됐다
+//    → 새 상대(예: iOS ↔ Android)와의 채팅이 영원히 열리지 않던 원인. get() 호출도 사라져 읽기 비용 감소.
+function isChatMember(chatId) {
+  return isSignedIn() && myAppUserId() in chatId.split('_');
+}
+
 match /chats/{chatId} {
-  allow read, write: if myAppUserId() in resource.data.participants;
+  allow read, write: if isChatMember(chatId);
 
   match /messages/{messageId} {
-    allow read: if myAppUserId() in
-      get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+    allow read: if isChatMember(chatId);
 
-    allow create: if myAppUserId() in
-      get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+    allow create: if isChatMember(chatId)
       && request.resource.data.senderId == myAppUserId();
 
     allow update: if false;
 
-    allow delete: if myAppUserId() in
-      get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+    allow delete: if isChatMember(chatId)
       && resource.data.senderId == myAppUserId()
       && request.time.toMillis() - resource.data.createdAt < 60000;
   }

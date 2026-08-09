@@ -61,6 +61,7 @@ fun NotificationScreen(
     modifier: Modifier = Modifier,
     onOpenDiary: (String) -> Unit = {},
     onFocusDiaryOnMap: (String) -> Unit = {},
+    onOpenFriends: () -> Unit = {},
 ) {
     val userId = GoogleAuthHelper.currentUserId
 
@@ -108,16 +109,17 @@ fun NotificationScreen(
                     vm.delete(notif.id)          // 서버 삭제
                 }) {
                     // 새 다이어리(친구 글) 알림은 상세 대신 지도에서 그 위치로 날아가 파장을 낸다.
+                    // 친구 요청 알림은 다이어리가 없으므로 친구 화면(받은 요청)으로 보낸다.
                     val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
+                    val isFriendRequest = notif.type == NotificationType.FRIEND_REQUEST.name
                     NotificationItem(
                         notif,
-                        onClick = if (notif.diaryId.isNotBlank()) {
-                            if (isFriendPost) {
-                                { onFocusDiaryOnMap(notif.diaryId) }
-                            } else {
-                                { onOpenDiary(notif.diaryId) }
-                            }
-                        } else null
+                        onClick = when {
+                            isFriendRequest -> { { onOpenFriends() } }
+                            notif.diaryId.isBlank() -> null
+                            isFriendPost -> { { onFocusDiaryOnMap(notif.diaryId) } }
+                            else -> { { onOpenDiary(notif.diaryId) } }
+                        }
                     )
                 }
                 HorizontalDivider(
@@ -214,6 +216,7 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
     val dateStr = remember(notif.createdAt) { RelativeTime.format(notif.createdAt) }
     val isLike = notif.type == NotificationType.LIKE.name
     val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
+    val isFriendRequest = notif.type == NotificationType.FRIEND_REQUEST.name
 
     Row(
         modifier = Modifier
@@ -223,7 +226,15 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(if (isFriendPost) "⭐" else if (isLike) "❤️" else "💬", fontSize = 20.sp)
+        Text(
+            when {
+                isFriendRequest -> "🙋"
+                isFriendPost -> "⭐"
+                isLike -> "❤️"
+                else -> "💬"
+            },
+            fontSize = 20.sp
+        )
 
         Column(modifier = Modifier.weight(1f)) {
             Row(
@@ -242,6 +253,7 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = when {
+                    isFriendRequest -> stringResource(R.string.notif_friend_request)
                     isFriendPost -> stringResource(R.string.notif_friend_post, notif.diaryTitle)
                     isLike -> stringResource(R.string.notif_like, notif.diaryTitle)
                     else -> stringResource(R.string.notif_comment, notif.diaryTitle)
@@ -249,7 +261,7 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.secondary
             )
-            if (!isLike && !isFriendPost && notif.content.isNotEmpty()) {
+            if (!isLike && !isFriendPost && !isFriendRequest && notif.content.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "\"${notif.content}\"",

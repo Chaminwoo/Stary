@@ -16,7 +16,7 @@ struct NotificationsScreen: View {
                     ForEach(vm.items) { n in
                         // Android NotificationItem 행 구조: [이모지] [이름 · 시간 / 문구 / (댓글 내용)]
                         HStack(alignment: .top, spacing: 12) {
-                            Text(n.type == "FRIEND_POST" ? "⭐" : (n.type == "COMMENT" ? "💬" : "❤️"))
+                            Text(n.emoji)
                                 .font(.system(size: 20))
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {

@@ -22,13 +22,24 @@ object DeepLinkState {
     var inviterId by mutableStateOf<String?>(null)
         private set
 
+    /** 친구 요청 푸시 탭 — 친구 화면(받은 요청)으로 보낼지. 소비할 때마다 nonce 가 올라간다. */
+    var friendsNonce by mutableStateOf(0)
+        private set
+
     /** 인텐트에서 읽은 딥링크 목적지를 등록(있는 것만). */
-    fun request(diaryId: String? = null, chatFriendId: String? = null, chatFriendName: String? = null) {
+    fun request(
+        diaryId: String? = null,
+        chatFriendId: String? = null,
+        chatFriendName: String? = null,
+        openFriends: Boolean = false,
+    ) {
         if (!chatFriendId.isNullOrBlank()) {
             this.chatFriendId = chatFriendId
             this.chatFriendName = chatFriendName ?: ""
         } else if (!diaryId.isNullOrBlank()) {
             this.diaryId = diaryId
+        } else if (openFriends) {
+            friendsNonce += 1
         }
     }
 

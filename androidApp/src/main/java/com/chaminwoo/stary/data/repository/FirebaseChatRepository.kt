@@ -97,6 +97,21 @@ class FirebaseChatRepository : ChatRepository {
         if (body.isEmpty()) return false
         return try {
             val now = System.currentTimeMillis()
+            // ⚠️ 방 메타를 **먼저** 만든다 — 방 문서가 없는 첫 메시지에서도 목록/규칙이 방을 인지하게.
+            //    (서버 규칙이 방 문서 참여자로 게이팅하던 시절엔 이 순서가 아니면 첫 메시지가 거부됐다.)
+            chats.document(chatId).set(
+                mapOf(
+                    "participants" to chatId.split("_"),
+                    "lastMessage" to body,
+                    "lastSenderId" to senderId,
+                    "lastSenderName" to senderName,
+                    "updatedAt" to now,
+                    "lastReadAt" to mapOf(
+                        senderId to now
+                    )
+                ),
+                com.google.firebase.firestore.SetOptions.merge()
+            ).await()
             val doc = messagesRef(chatId).document()
             doc.set(
                 ChatMessage(
@@ -107,24 +122,9 @@ class FirebaseChatRepository : ChatRepository {
                     createdAt = now
                 )
             ).await()
-            // 방 메타 갱신(목록/미리보기·재구독용). 실패해도 메시지 자체는 전송됨.
-            try {
-                chats.document(chatId).set(
-                    mapOf(
-                        "participants" to chatId.split("_"),
-                        "lastMessage" to body,
-                        "lastSenderId" to senderId,
-                        "lastSenderName" to senderName,
-                        "updatedAt" to now,
-                        "lastReadAt" to mapOf(
-                            senderId to now
-                        )
-                    ),
-                    com.google.firebase.firestore.SetOptions.merge()
-                ).await()
-            } catch (_: Exception) {}
             true
         } catch (e: Exception) {
+            Log.w("CHAT", "메시지 전송 실패: ${e.localizedMessage}")
             false
         }
     }

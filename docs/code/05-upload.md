@@ -43,6 +43,8 @@ iOS: `Features/Upload/UploadScreen.swift`, `BoomerangCamera.swift`, `BoomerangCa
 - `StarWheelPicker(...)` : iOS WheelPicker 이식 — 선택 항목 항상 정중앙(민트 링), 좌우 5개 노출,
   modulo 순환. 놓은 지점 항목을 중앙으로 스냅 → **스냅이 끝난 뒤 selection 일괄 갱신**
   (좌표 불연속 방지). 잠긴 항목은 alpha 0.25+자물쇠.
+  ⚠️ `commit(steps)` 는 **steps=0(반 슬롯 미만 드래그)일 때도 drag 를 0 으로 되돌려야 한다** —
+  그냥 return 하면 항목과 항목 **사이**에 멈춘 채 고정된다(8.45 수정, iOS 도 동일).
 - `VisibilityOptions` : (key, 라벨 리소스, 아이콘) — 공개 범위 선택지 정의.
 
 ## ImageCropHelper.kt
@@ -68,6 +70,16 @@ iOS: `Features/Upload/UploadScreen.swift`, `BoomerangCamera.swift`, `BoomerangCa
 - 같은 입력 구성(제목/본문/공개범위/익명/사진·부메랑/별 휠 2개). `WheelPicker` 가 원본
   (Android `StarWheelPicker` 가 이걸 이식한 것). 저장 성공 →
   `StarBirthStore.shared.trigger` + `TabRouter.go(map)`(지도 복귀 후 연출).
+- **첨부 3지선다(8.45)** : "사진 추가" 버튼 → `confirmationDialog` (카메라 촬영 / 갤러리 / 3초 영상) —
+  Android `showImageSourceDialog` 패리티. 첨부가 있으면 "다시 선택"(upload_reselect) 버튼이 붙는다.
+  - 카메라 = `CameraPicker.swift`(UIImagePickerController, 긴 변 1600px JPEG 0.85 로 축소).
+    시뮬레이터는 카메라 불가 → `toastCameraUnavailable`, 권한 거부 → `toastCameraPermission`.
+  - 촬영 화면(사진/움짤)은 **fullScreenCover 하나**(`captureSheet` item)로 처리 — 같은 뷰에 커버 2개를
+    달면 한쪽이 안 열릴 수 있다.
+- **키보드(8.45)** : `@FocusState` + 키보드 툴바 "완료" + `scrollDismissesKeyboard(.interactively)` +
+  제목 필드 `submitLabel(.done)`. 본문은 여러 줄이라 리턴키가 줄바꿈이므로 "완료" 버튼이 유일한 닫기 수단.
+  배경은 ZStack 형제가 아니라 `.background { ScreenBackground(...) }` — 그래야 키보드가 올라올 때
+  스크롤 영역이 줄어들어 입력칸이 가려지지 않는다.
 - 하루 제한/제목 길이 등 수치는 `AppConfig`(= shared StaryConfig 복제값) 사용.
 - 시뮬레이터 위치: `LocationManager` 가 시뮬레이터 빌드에선 위치 업데이트를 무시하고 서울(건국대)
   고정 — 업로드 좌표(`coordinateOrDefault`)도 서울이 된다(8.44 #3).

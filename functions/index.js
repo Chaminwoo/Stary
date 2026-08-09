@@ -39,6 +39,20 @@ const GRACE_MS = 7 * 24 * 60 * 60 * 1000; // 계정 삭제 유예 7일
 /** FCM multicast 1회 최대 토큰 수 */
 const FCM_BATCH = 500;
 
+/**
+ * 플랫폼별 발송 옵션.
+ *  - android : heads-up 채널(앱이 미리 만들어 둔 stary_default) + high priority
+ *  - apns    : iOS 는 이 블록이 없으면 소리 없이 조용히 오거나 표시가 지연될 수 있다.
+ *              (iOS 팝업 알림이 안 오던 원인 중 하나 — 클라이언트 APNs 등록과 함께 필요)
+ * ⚠️ Firebase Console > 프로젝트 설정 > 클라우드 메시징에 **APNs 인증 키(.p8)** 가 등록돼 있어야
+ *    iOS 로 실제 발송된다(키가 없으면 서버가 성공을 반환해도 기기까지 가지 않음).
+ */
+const ANDROID_OPTS = { priority: "high", notification: { channelId: "stary_default" } };
+const APNS_OPTS = {
+  headers: { "apns-priority": "10" },
+  payload: { aps: { sound: "default" } },
+};
+
 exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
   {
     document: "diaries/{diaryId}",
@@ -95,7 +109,8 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
         // notification 페이로드 → 백그라운드/종료 상태에서도 시스템 트레이 알림 표시.
         notification: { title: data.title, body: data.body },
         data,
-        android: { priority: "high", notification: { channelId: "stary_default" } },
+        android: ANDROID_OPTS,
+        apns: APNS_OPTS,
       });
       success += res.successCount;
       res.responses.forEach((r, idx) => {
@@ -149,7 +164,8 @@ async function sendToUser(uid, data) {
       // notification 페이로드 → 앱이 백그라운드/종료 상태여도 시스템이 트레이 알림을 표시한다.
       notification: { title: data.title, body: data.body },
       data,
-      android: { priority: "high", notification: { channelId: "stary_default" } },
+      android: ANDROID_OPTS,
+      apns: APNS_OPTS,
     });
     return true;
   } catch (e) {
@@ -203,7 +219,7 @@ exports.notifyOnChatMessage = onDocumentCreated(
 );
 
 /**
- * 좋아요/댓글 알림 → 수신자(diaryOwnerId)에게 푸시.
+ * 좋아요/댓글/친구 요청 알림 → 수신자(diaryOwnerId)에게 푸시.
  * notifications/{notifId} onCreate. FRIEND_POST 는 notifyFriendsOnDiaryCreate 가 이미 발송하므로 제외(이중 방지).
  */
 exports.notifyOnNotificationCreate = onDocumentCreated(
@@ -227,6 +243,10 @@ exports.notifyOnNotificationCreate = onDocumentCreated(
     if (type === "LIKE") {
       title = `${actor}님이 좋아요를 눌렀어요`;
       body = diaryTitle ? `"${diaryTitle}"` : "내 별에 좋아요가 달렸어요";
+    } else if (type === "FRIEND_REQUEST") {
+      // 친구 요청 — 다이어리가 없는 알림(탭하면 앱의 친구 화면으로).
+      title = `${actor}님의 친구 요청`;
+      body = "친구 요청이 도착했어요";
     } else {
       title = `${actor}님의 댓글`;
       body = n.content || (diaryTitle ? `"${diaryTitle}"` : "새 댓글이 달렸어요");

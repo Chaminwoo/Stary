@@ -52,6 +52,8 @@ struct MainTabView: View {
     @StateObject private var notifications = NotificationsViewModel()
     @ObservedObject private var router = TabRouter.shared
     @ObservedObject private var focus = MapFocusStore.shared
+    /// 푸시 알림 탭 → 채팅/상세/친구 화면 이동 요청(Android DeepLinkState 대응).
+    @ObservedObject private var pushRouter = PushRouter.shared
     // 글로브/몰입 진입 시 상단바·FAB 를 숨긴다(#12).
     @ObservedObject private var chrome = MapChromeState.shared
     @Environment(\.scenePhase) private var scenePhase
@@ -116,6 +118,27 @@ struct MainTabView: View {
                 drawerOpen = false
             }
         }
+        // 푸시 알림 탭 → 해당 화면으로. onReceive 는 구독 시점의 현재 값도 받으므로
+        // "종료 상태에서 알림을 눌러 실행"된 경우(뷰보다 먼저 설정된 요청)도 처리된다.
+        .onReceive(pushRouter.$pending) { route in
+            guard let route else { return }
+            switch route {
+            case .chat(let friendId, let friendName):
+                path = NavigationPath()
+                diaryTarget = nil
+                chatTarget = ChatTarget(friendId: friendId, friendName: friendName)
+            case .diary(let diaryId):
+                // 상세 직행은 100m 열람 게이팅을 우회하므로 지도에서 그 별로 포커스(공유 딥링크와 동일 정책).
+                path = NavigationPath()
+                chatTarget = nil; diaryTarget = nil
+                MapFocusStore.shared.request(diaryId: diaryId)
+            case .friends:
+                chatTarget = nil; diaryTarget = nil
+                path = NavigationPath()
+                path.append(DrawerDest.friends)
+            }
+            pushRouter.pending = nil
+        }
         // 탭바 시절 go(tab) 호출부(딥링크/업로드 성공/프로필 버블) → 드로어 내비 목적지로 해석.
         .onChange(of: router.request.nonce) { _ in
             switch router.request.tab {
@@ -143,10 +166,12 @@ struct MainTabView: View {
             MusicManager.shared.resume() // 로그인 후 메인 진입 시 배경음악 시작
             startWatcher()
             loadFriendsCount()
-
+            // 푸시 권한 요청 + fcmToken 기록(= 서버 발송 대상 등록). Android 로그인 직후 동작과 동일.
+            PushManager.shared.setUser(auth.uid)
         }
         .onChange(of: auth.uid) { newUid in
             store.startIfNeeded(uid: newUid)
+            PushManager.shared.setUser(newUid)
             if let uid = newUid {
                 viewed.start(uid: uid); blocks.start(uid: uid)
                 notifications.start(ownerId: uid)
@@ -364,6 +389,12 @@ struct MainTabView: View {
                 chatTarget = ChatTarget(friendId: friendId, friendName: friendName)
             },
             onOpenNotification: { n in
+                // 친구 요청 알림은 다이어리가 없으므로 친구 화면(받은 요청)으로.
+                if n.type == "FRIEND_REQUEST" {
+                    path = NavigationPath()
+                    path.append(DrawerDest.friends)
+                    return
+                }
                 // 알림이 가리키는 다이어리를 현재 구독 목록에서 찾으면 상세를 push.
                 if let d = store.diaries.first(where: { $0.id == n.diaryId }) {
                     diaryTarget = d
