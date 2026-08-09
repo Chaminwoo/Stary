@@ -59,7 +59,7 @@ struct ChatScreen: View {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 6) {
                     Text(friendName)
-                        .font(.headline)
+                        .font(.minSans(18, .semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     HiddenStarBadges(userId: friendId, size: 12)
@@ -109,6 +109,7 @@ struct ChatScreen: View {
         return HStack {
             if mine { Spacer(minLength: 40) }
             Text(msg.text)
+                .font(.minSans(15))                       // Android MessageBubble 15sp
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(mine ? Theme.mint.opacity(0.85) : Theme.surface,
                             in: RoundedRectangle(cornerRadius: 14))

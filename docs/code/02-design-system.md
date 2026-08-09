@@ -77,9 +77,21 @@ iOS: `Core/Theme.swift`, `AppFont.swift`, `StarStyle.swift`, `StarShape.swift`, 
 
 - `Theme.swift` : Android Color.kt 1:1 토큰(Bg/Surface/Outline/TextPrimary/TextSub/Mint/MintBlue/
   AccentRed) + `navyAccent`(0x9FB3E8)·`navyDeep` 등 남색 계열. `Color(hex:)` 유틸.
-- `AppFont.swift` : `PoetsenOne-Regular`(영문) / `PoorStory-Regular`(한글 UI 전반) —
-  `.font(.poorStory(size))`. ⚠️ Android 는 MinSans, iOS 는 PoorStory 로 **서체 자체가 다르다**(의도).
-  새 폰트 추가 시 `project.yml` `UIAppFonts` 등록 필수.
+- `AppFont.swift` : **Android 와 같은 폰트 파일을 그대로 쓴다**(8.45) —
+  `.font(.minSans(size, weight))` 가 앱 전역 기본. PoetsenOne 은 영문 디스플레이용(양쪽 다 실사용 거의 없음).
+  - 폰트 파일은 `androidApp/src/main/res/font/min_sans.ttf` **한 곳**을 iOS 타깃이 참조
+    (`project.yml` sources 에 상대경로 + `UIAppFonts: min_sans.ttf`). 9MB 짜리를 복제하지 않는다.
+  - MinSans 는 **가변 폰트(wght 100~900, 기본 100=Thin)** — 그냥 `UIFont(name:)` 로 만들면 안드로이드보다
+    훨씬 얇게 나온다. `MinSansWeight`(light 300 / normal 400 / medium 450 / semibold 500 / bold 550 —
+    **Android Type.kt 매핑표와 동일**)로 `kCTFontVariationAttribute` 의 'wght' 축을 지정해 생성한다.
+  - 폰트 이름은 런타임에 해석(`AppFont.body`) — PostScript `MinSansVF-VF` → 패밀리 후보 → "minsans"
+    포함 패밀리 순. 실패 시 시스템 폰트 폴백 + 콘솔 경고(레이아웃은 유지).
+  - `Font(UIFont)` 기반이라 **Dynamic Type 비례 확대가 없다**(고정 크기). Android 가 폰트 배율 상한
+    (`StaryResponsive.MAX_FONT_SCALE`=1.15)을 두는 것과 같은 취지 — 고정 높이 카드에서 글자가 잘리지 않게.
+  - ⚠️ 크기 값은 **Android 의 sp 숫자를 그대로** 쓴다(예: 상단바 18 SemiBold, 드로어 항목 17 SemiBold,
+    본문 16, 보조 13, 캡션 12/11). 새 화면을 만들 땐 Android 대응 화면의 `fontSize` 를 그대로 옮길 것.
+  - 참고(치수 감각): 같은 pt 에서 MinSans 는 이전 PoorStory 대비 x-height 약 1.4배, 줄높이 약 1.07배라
+    **글자가 더 크고 꽉 차 보인다** — 이게 안드로이드의 실제 모습이다(축소해서 맞추지 말 것).
 - `StarStyle.swift` + `StarShape.swift` : 팔레트/그라데이션/모양 Path — **Android StarStyle 과 값 동일
   유지**(모양·색 추가 시 양쪽 동시). 달·행성·꽃·보석은 진짜 boolean 연산 —
   ⚠️ iOS16 타깃이라 `Path.union/subtracting`(iOS17+) 대신 `CGPath` 기반 `unionCompat/subtractingCompat`.

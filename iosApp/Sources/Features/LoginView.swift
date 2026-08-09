@@ -82,7 +82,7 @@ struct LoginView: View {
                     Task { await auth.signInAnonymously() }
                 } label: {
                     Text(LocaleManager.shared.t(.loginBrowse))
-                        .font(.poorStory(14))
+                        .font(.minSans(14))
                         .foregroundStyle(Theme.mint)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
@@ -90,7 +90,7 @@ struct LoginView: View {
 
                 if let error = auth.errorMessage {
                     Text(error)
-                        .font(.poorStory(12))
+                        .font(.minSans(12))
                         .foregroundStyle(.red.opacity(0.9))
                         .multilineTextAlignment(.center)
                 }
@@ -136,7 +136,7 @@ struct StarDiaryButton: View {
                 Image(systemName: "star.fill")
                     .font(.system(size: 20))
                 Text(text)
-                    .font(.poorStory(16))
+                    .font(.minSans(16))
             }
             .foregroundStyle(charcoal)
             .frame(maxWidth: .infinity)

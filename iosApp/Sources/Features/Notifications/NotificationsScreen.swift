@@ -21,19 +21,19 @@ struct NotificationsScreen: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
                                     Text(n.actorName)
-                                        .font(.poorStory(14))
+                                        .font(.minSans(14))
                                         .foregroundStyle(Theme.textPrimary)
                                     Spacer()
                                     Text(RelativeTime.string(fromMillis: n.createdAt))
-                                        .font(.poorStory(11))
+                                        .font(.minSans(11))
                                         .foregroundStyle(Theme.textSecondary)
                                 }
                                 Text(n.displayText)
-                                    .font(.poorStory(13))
+                                    .font(.minSans(13))
                                     .foregroundStyle(Theme.textSecondary)
                                 if n.type == "COMMENT", !n.content.isEmpty {
                                     Text("\"\(n.content)\"")
-                                        .font(.poorStory(13))
+                                        .font(.minSans(13))
                                         .foregroundStyle(Theme.textPrimary)
                                         .padding(.top, 2)
                                 }

@@ -96,7 +96,7 @@ struct FriendsScreen: View {
                                     : LocaleManager.shared.t(.friendRequestFail))
                             }
                         }
-                        .font(.poorStory(12)).tint(Theme.navyAccent)
+                        .font(.minSans(12)).tint(Theme.navyAccent)
                     }
                 }
                 .padding(10)
@@ -108,7 +108,7 @@ struct FriendsScreen: View {
     /// 상태 칩(친구/요청됨) — Android StatusChip(민트 알약) 대응.
     private func statusChip(_ text: String) -> some View {
         Text(text)
-            .font(.poorStory(12))
+            .font(.minSans(12))
             .foregroundStyle(Theme.navyAccent)
             .padding(.horizontal, 12).padding(.vertical, 6)
             .background(Theme.navyAccent.opacity(0.10), in: Capsule())
@@ -135,10 +135,10 @@ struct FriendsScreen: View {
                             .background(Theme.navyAccent.opacity(0.14), in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
                             Text(LocaleManager.shared.t(.inviteFriends))
-                                .font(.subheadline).fontWeight(.medium)
+                                .font(.minSans(15, .medium))
                                 .foregroundStyle(Theme.textPrimary)
                             Text(LocaleManager.shared.t(.inviteFriendsDesc))
-                                .font(.caption)
+                                .font(.minSans(12))
                                 .foregroundStyle(Theme.textSecondary)
                         }
                         Spacer()
@@ -153,7 +153,7 @@ struct FriendsScreen: View {
 
     private var requestsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(LocaleManager.shared.t(.friendRequests)).font(.poorStory(17)).foregroundStyle(Theme.textPrimary)
+            Text(LocaleManager.shared.t(.friendRequests)).font(.minSans(17)).foregroundStyle(Theme.textPrimary)
             ForEach(vm.requests) { req in
                 HStack {
                     Button { profileTarget = FriendProfileTarget(userId: req.fromId, userName: req.fromName) } label: {
@@ -166,9 +166,9 @@ struct FriendsScreen: View {
                         guard let uid = auth.uid else { return }
                         Task { await vm.accept(req, myUid: uid, myName: auth.displayName) }
                     }
-                    .font(.poorStory(12)).tint(Theme.navyAccent)
+                    .font(.minSans(12)).tint(Theme.navyAccent)
                     Button(LocaleManager.shared.t(.friendDecline)) { Task { await vm.decline(req) } }
-                        .font(.poorStory(12)).tint(.red)
+                        .font(.minSans(12)).tint(.red)
                 }
                 .padding(10)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
@@ -181,10 +181,10 @@ struct FriendsScreen: View {
     /// 최근 별을 탭하면 지도로 가서 그 별까지 도보 길찾기(프로필 핀 별과 동일 동선).
     private var friendsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\(LocaleManager.shared.t(.friendMyFriends)) \(vm.friends.count)").font(.poorStory(17)).foregroundStyle(Theme.textPrimary)
+            Text("\(LocaleManager.shared.t(.friendMyFriends)) \(vm.friends.count)").font(.minSans(17)).foregroundStyle(Theme.textPrimary)
             if vm.friends.isEmpty {
                 Text(LocaleManager.shared.t(.friendEmpty))
-                    .font(.poorStory(15)).foregroundStyle(Theme.textSecondary)
+                    .font(.minSans(15)).foregroundStyle(Theme.textSecondary)
             } else {
                 ForEach(vm.friends) { friend in
                     ZStack(alignment: .trailing) {
@@ -244,7 +244,7 @@ struct FriendsScreen: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     Text(friend.userName.isEmpty ? LocaleManager.shared.t(.friendNoName) : friend.userName)
-                        .font(.subheadline.weight(.medium))
+                        .font(.minSans(15, .medium))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     // 히든 업적 달성자 전용 크리스탈 배지(34-4).
@@ -252,12 +252,12 @@ struct FriendsScreen: View {
                 }
                 if let summary, !summary.lastMessage.isEmpty {
                     Text("\(summary.lastMessage) · \(RelativeTime.string(fromMillis: summary.updatedAt))")
-                        .font(.caption)
+                        .font(.minSans(12))
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)
                 } else {
                     Text(LocaleManager.shared.t(.friendNoChatYet))
-                        .font(.caption)
+                        .font(.minSans(12))
                         .foregroundStyle(Theme.textSecondary.opacity(0.7))
                         .lineLimit(1)
                 }

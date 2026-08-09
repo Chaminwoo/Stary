@@ -38,7 +38,7 @@ struct GlobeScreen: View {
 
             // 조작 힌트 — 잠깐 보였다 사라짐 (Android globe_hint 패리티)
             Text(locale.t(.globeHint))
-                .font(.footnote)
+                .font(.minSans(13))
                 .foregroundStyle(.white.opacity(0.75))
                 .padding(.horizontal, 16).padding(.vertical, 8)
                 .background(Color.black.opacity(0.35), in: Capsule())

@@ -106,10 +106,10 @@ struct StarClusterView: View {
             }
             .animation(.easeOut(duration: 0.2), value: page)
             Text(String(format: LocaleManager.shared.t(.clusterHeader), ordered.count))
-                .font(.headline)
+                .font(.minSans(17, .semibold))
                 .foregroundStyle(Theme.textPrimary)
             Text(LocaleManager.shared.t(.clusterHint))
-                .font(.caption)
+                .font(.minSans(12))
                 .foregroundStyle(Theme.textSecondary)
         }
     }
@@ -141,14 +141,14 @@ private struct ClusterCard: View {
             HStack(spacing: 8) {
                 StarView(type: diary.starType, colorIndex: diary.starColor, size: 18, glow: false)
                 Text(diary.title.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : diary.title)
-                    .font(.poorStory(17))
+                    .font(.minSans(17))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
             }
             .padding(.leading, 4)
             Spacer().frame(height: 6)
             Text("#\(rank) · \(dateText)")
-                .font(.caption)
+                .font(.minSans(12))
                 .foregroundStyle(Theme.textSecondary)
                 .padding(.leading, 4)
 
@@ -160,14 +160,14 @@ private struct ClusterCard: View {
                     .font(.system(size: 13))
                     .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.51))
                 Text("\(diary.likeCount)")
-                    .font(.system(size: 13))
+                    .font(.minSans(13))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer().frame(width: 11)
                 Image(systemName: "bubble.right")
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.textSecondary)
                 Text("\(diary.commentCount)")
-                    .font(.system(size: 13))
+                    .font(.minSans(13))
                     .foregroundStyle(Theme.textPrimary)
             }
         }

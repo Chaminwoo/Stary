@@ -89,7 +89,7 @@ struct MyStarsScreen: View {
                     // 정렬·개수 라벨 + 보기 전환 토글(별 보드 ↔ 1열 리스트)
                     ZStack {
                         Text(String(format: locale.t(.mydiarySortCount), locale.t(sortMode.label), sorted.count))
-                            .font(.poorStory(14))
+                            .font(.minSans(14))
                             .foregroundStyle(sortMode.color)
                         HStack {
                             Spacer()
@@ -106,7 +106,7 @@ struct MyStarsScreen: View {
 
                     if sorted.isEmpty {
                         Text(locale.t(.mydiaryEmpty))
-                            .font(.poorStory(14))
+                            .font(.minSans(14))
                             .foregroundStyle(Theme.textSecondary)
                             .padding(.vertical, 48)
                     } else if listMode {
@@ -137,12 +137,12 @@ struct MyStarsScreen: View {
                     HStack(spacing: 12) {
                         StarView(type: d.starType, colorIndex: d.starColor, size: 24)
                         Text(d.title.isEmpty ? locale.t(.commonUntitled) : d.title)
-                            .font(.poorStory(15))
+                            .font(.minSans(15))
                             .foregroundStyle(Color.white.opacity(0.92))
                             .lineLimit(1)
                         Spacer()
                         Text(Self.dateFmt.string(from: d.createdDate))
-                            .font(.poorStory(12))
+                            .font(.minSans(12))
                             .foregroundStyle(Theme.textSecondary)
                     }
                     .padding(.horizontal, 14).padding(.vertical, 12)

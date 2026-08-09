@@ -98,7 +98,7 @@ struct AchievementsScreen: View {
             // 진행도 = 막대 대신 **성운이 차오르는 밴드**(34-5). 달성할수록 성운이 오른쪽으로 짙어진다.
             NebulaProgressBand(fraction: Double(unlocked.count) / Double(Swift.max(Achievements.all.count, 1))) {
                 Text("\(unlocked.count) / \(Achievements.all.count)")
-                    .font(.caption).foregroundStyle(Theme.navyAccent)
+                    .font(.minSans(12)).foregroundStyle(Theme.navyAccent)
             }
             .frame(height: 52)
 
@@ -130,7 +130,7 @@ struct AchievementsScreen: View {
     /// 업적 구분 헤더 행(Android 섹션 제목 대응).
     private func sectionHeader(_ text: String) -> some View {
         Text(text)
-            .font(.poorStory(15))
+            .font(.minSans(15))
             .foregroundStyle(Theme.navyAccent)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 6)
@@ -143,15 +143,15 @@ struct AchievementsScreen: View {
         return HStack(spacing: 10) {
             Image(systemName: "flag.fill").foregroundStyle(Theme.navyAccent)
             VStack(alignment: .leading, spacing: 2) {
-                Text(display).font(.subheadline).foregroundStyle(Theme.textPrimary)
+                Text(display).font(.minSans(15)).foregroundStyle(Theme.textPrimary)
                 Text(locale.t(.pioneerCondition))
-                    .font(.caption2).foregroundStyle(Theme.textSecondary)
+                    .font(.minSans(11)).foregroundStyle(Theme.textSecondary)
             }
             Spacer()
             Button(equippedTitleId == titleId ? locale.t(.achEquipped) : locale.t(.achEquip)) {
                 equipTitle(equippedTitleId == titleId ? nil : titleId)
             }
-            .font(.caption2).tint(Theme.navyAccent)
+            .font(.minSans(11)).tint(Theme.navyAccent)
         }
         .padding(10)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
@@ -165,16 +165,16 @@ struct AchievementsScreen: View {
             VStack(alignment: .leading, spacing: 2) {
                 // 칭호 업적명(=칭호)은 언어 전환에 맞춰 표시(보상 업적은 매핑 밖 → 원문)
                 Text(LocalizedNames.title(ach.id, fallback: ach.name) ?? ach.name)
-                    .font(.subheadline).foregroundStyle(Theme.textPrimary)
+                    .font(.minSans(15)).foregroundStyle(Theme.textPrimary)
                 Text(ach.condition)
-                    .font(.caption2).foregroundStyle(Theme.textSecondary)
+                    .font(.minSans(11)).foregroundStyle(Theme.textSecondary)
             }
             Spacer()
             if case .title = ach.reward, done {
                 Button(equippedTitleId == ach.id ? locale.t(.achEquipped) : locale.t(.achEquip)) {
                     equipTitle(equippedTitleId == ach.id ? nil : ach.id)
                 }
-                .font(.caption2).tint(Theme.navyAccent)
+                .font(.minSans(11)).tint(Theme.navyAccent)
             } else {
                 rewardBadge(ach.reward)
             }
@@ -188,7 +188,7 @@ struct AchievementsScreen: View {
     private func rewardBadge(_ reward: Reward) -> some View {
         switch reward {
         case .title(let n):
-            Text(n).font(.caption2).foregroundStyle(Theme.textFaint)
+            Text(n).font(.minSans(11)).foregroundStyle(Theme.textFaint)
         case .shape(let t):
             StarView(type: t, colorIndex: 0, size: 22, glow: false)
         case .color(let c):
@@ -200,7 +200,7 @@ struct AchievementsScreen: View {
     private var hiddenListView: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(locale.t(.achHiddenIntro))
-                .font(.footnote)
+                .font(.minSans(13))
                 .foregroundStyle(Color(hex: 0xFFD86F).opacity(0.85))
             ForEach(HiddenAchievements.all) { ach in
                 hiddenRow(ach)
@@ -220,12 +220,12 @@ struct AchievementsScreen: View {
                 // 칭호는 항상 노출 + 이 업적 달성자에게 붙는 전용 크리스탈 배지 미리보기(34-4).
                 HStack(spacing: 6) {
                     Text(LocalizedNames.title(ach.id, fallback: ach.title) ?? ach.title)
-                        .font(.subheadline).foregroundStyle(Theme.textPrimary)
+                        .font(.minSans(15)).foregroundStyle(Theme.textPrimary)
                     HiddenStarBadge(type: ach.badgeType, colorIndex: ach.badgeColor, size: 14)
                 }
                 // 조건은 달성 후에만 공개.
                 Text(claimed ? ach.condition : "???")
-                    .font(.caption2)
+                    .font(.minSans(11))
                     .foregroundStyle(claimed ? Theme.textSecondary : Color(hex: 0xB388FF).opacity(0.85))
                 if claimed {
                     // 달성자 이름은 선점 시점 스냅샷이 아니라 users/{uid} 의 **현재 닉네임**(34-4a).
@@ -233,7 +233,7 @@ struct AchievementsScreen: View {
                     let name = directory.name(claim?.achieverId ?? "", fallback: snapshot)
                     Text(mineClaim ? locale.t(.achHiddenByMe)
                                    : String(format: locale.t(.achHiddenAchiever), name))
-                        .font(.caption2).fontWeight(.medium)
+                        .font(.minSans(11, .medium))
                         .foregroundStyle(mineClaim ? Color(hex: 0xFFD86F) : Theme.navyAccent)
                 }
             }
@@ -242,12 +242,12 @@ struct AchievementsScreen: View {
                 Button(equippedTitleId == ach.id ? locale.t(.achEquipped) : locale.t(.achEquip)) {
                     equipTitle(equippedTitleId == ach.id ? nil : ach.id)
                 }
-                .font(.caption2).tint(Color(hex: 0xFFD86F))
+                .font(.minSans(11)).tint(Color(hex: 0xFFD86F))
             } else if claimed {
                 Image(systemName: "lock.fill").foregroundStyle(Theme.textFaint)
             } else {
                 Text(locale.t(.achHiddenUnclaimed))
-                    .font(.caption2).foregroundStyle(Theme.textFaint)
+                    .font(.minSans(11)).foregroundStyle(Theme.textFaint)
             }
         }
         .padding(10)

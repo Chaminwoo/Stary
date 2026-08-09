@@ -37,6 +37,9 @@ targets:
     sources:
       - path: Sources
       - path: AppDelegate.swift
+      # 본문/UI 폰트는 Android 와 **같은 파일**을 그대로 번들에 넣는다(9MB 복제·드리프트 방지).
+      - path: ../androidApp/src/main/res/font/min_sans.ttf
+        buildPhase: resources
     info:
       path: Sources/Info.plist
       properties:
@@ -59,10 +62,10 @@ targets:
         # MapTiler 벡터 타일 키(야경 커스텀 스타일용 — Android secrets.properties 의 MAPTILER_KEY 와 동일 값).
         # 빈 값이면 지도는 키 불필요한 데모 스타일로 폴백.
         MAPTILER_KEY: $(MAPTILER_KEY)
-        # 커스텀 폰트(Android Type.kt 대응) — 영문 타이틀 PoetsenOne, 한글 본문/UI PoorStory.
+        # 커스텀 폰트(Android Type.kt 와 동일) — 영문 타이틀 PoetsenOne, 한글 본문/UI MinSans(가변).
         UIAppFonts:
           - poetsen_one_regular.ttf
-          - poor_story_regular.ttf
+          - min_sans.ttf
         # 런타임 권한 사용 설명(심사 필수)
         NSLocationWhenInUseUsageDescription: 주변의 별(다이어리)을 지도에 표시하기 위해 위치가 필요해요.
         NSCameraUsageDescription: 다이어리에 넣을 사진을 촬영하기 위해 카메라가 필요해요.

@@ -4,6 +4,7 @@
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
 > 최종 갱신: **8.45 크로스플랫폼 버그 7건**(카메라/갤러리/3초영상 3지선다 · 휠 스냅 · 업로드 키보드 ·
 > **채팅 규칙(첫 메시지 거부) 근본 수정** · 채팅 입력바 인셋 · **iOS 푸시(FCM/APNs) 신설** · 친구 요청 알림)
+> **+ 8.45-2 iOS 폰트를 Android 와 동일하게(PoorStory → MinSans 가변폰트)**
 > — Android BUILD SUCCESSFUL(2026-08-09), iOS 는 push 후 CI 검증 + **사용자 액션 3건 필요**(아래 8.45).
 > 이전: **8.44 iOS 패리티 라운드3(버그 7건 + 미완 6건)** — **계정 통일(uid=Google sub)**/**@DocumentID id=nil 버그(7모델)**/구독 최신순 1000/시뮬레이터 서울 고정/달·행성 boolean 모양/친구 요청됨+토스트/후광 2겹 별색/타인 프로필 핀 별만/틸트 25°/마지막 카메라 복원/채팅 별가루 삭제 — Android BUILD SUCCESSFUL, **iOS CI(macOS) BUILD SUCCESS `003b2b3`**(2026-07-16) — 아래 8.44 참고.
 > 이전: **8.43 iOS 패리티 라운드2 (R2-1~R2-3 + 마무리 5건)** — anonymous 디코딩/줌 별크기/후광·파티클/100m 게이팅/미디어/열람 애니메이션/몰입·별자리 버튼/친구 db + 프로필 아이콘 크리스탈화/음악 별자리 보드 스타일/글로브 지구 복원/미번역 전수 + Android 업로드 휠 피커 — **CI(macOS) BUILD SUCCESS `f6428d2`**(2026-07-16) — 아래 8.43 참고.
@@ -99,6 +100,32 @@ Android 쪽 보강: `GoogleAuthHelper.syncFcmToken(uid)` 를 **세션 복원(앱
 화면을 실제로 거친 순간에만 저장 → 토큰 회전 시 조용히 끊길 수 있었음).
 
 **남은 것**: 실기기 확인(iOS 푸시/카메라, Android 채팅 인셋), 규칙·Functions 배포 후 채팅 재검증.
+
+### 8.45-2 iOS 폰트를 Android 와 동일하게(MinSans) — 사용자 지시
+
+iOS 는 8.41 에서 들어온 **PoorStory** 를 앱 전역 폰트로 쓰고 있었는데 Android 에는 그 폰트가 아예 없다
+(Android UI 폰트 = **MinSans**, `res/font/min_sans.ttf`). → iOS 를 MinSans 로 전면 교체.
+
+- **폰트 파일은 복제하지 않는다**: `project.yml` sources 에 `../androidApp/src/main/res/font/min_sans.ttf`
+  를 `buildPhase: resources` 로 추가(9MB 짜리 중복 커밋 방지) + `UIAppFonts: min_sans.ttf`.
+  `iosApp/Sources/Resources/poor_story_regular.ttf` 는 삭제.
+- **가변 폰트 함정(중요)**: min_sans.ttf 는 wght 100~900 가변 폰트인데 **기본값이 100(Thin)** 이다.
+  그냥 `UIFont(name:)` 로 쓰면 안드로이드보다 훨씬 얇게 나온다 → `AppFont.swift` 가
+  `kCTFontVariationAttribute` 의 'wght' 축을 직접 지정해 인스턴스를 만든다.
+  굵기 매핑은 Android `Type.kt` 표와 동일: light 300 / normal 400 / medium 450 / semibold 500 / bold 550.
+  폰트 이름은 런타임 해석(`MinSansVF-VF` → 패밀리 후보 → "minsans" 포함 패밀리), 실패 시 시스템 폰트 폴백.
+- **호출부 일괄 교체**: `.font(.poorStory(n))` → `.font(.minSans(n[, weight]))` (117곳).
+  SwiftUI 시맨틱 폰트(`.headline/.caption/.subheadline/.footnote/...`)와 `.font(.system(size:))` 로
+  남아 있던 **Text** 들도 전부 MinSans 로(= Android 처럼 앱 전체가 한 서체). ⚠️ `Image(systemName:)` 의
+  `.font(.system(size:))`/`.font(.caption2)` 는 **SF Symbol 크기 지정이라 그대로 둔다**.
+- **크기 정렬(Android sp 그대로)**: 상단바 제목 18 SemiBold, 드로어 헤더 15 SemiBold, 드로어 항목 17 SemiBold,
+  본문 기본 16, 상세 제목 24 SemiBold, 상세 본문 16, 댓글 14, 채팅 말풍선 15, 캡션 12/11.
+  push 화면 내비바(`configureNavigationBarAppearance`)도 MinSans 18 SemiBold + 뒤로가기 라벨 16.
+- **글자 잘림 대책**: `Font(UIFont)` 기반이라 Dynamic Type 비례 확대가 없어졌다(고정 크기 —
+  Android 의 폰트 배율 상한 1.15 와 같은 취지). 고정폭 프레임에 갇힌 Text 는 없고(전수 확인),
+  고정 높이 컨테이너(탑바 56 / 드로어 항목 52 / 진행 밴드 52)는 새 줄높이로도 여유가 있다.
+  ⚠️ 참고 수치: 같은 pt 에서 MinSans 는 PoorStory 대비 **x-height 1.42배, 줄높이 1.07배** —
+  글자가 더 크고 꽉 차 보이는 게 정상(안드로이드와 같은 모습). 작아 보이게 되돌리지 말 것.
 
 ---
 

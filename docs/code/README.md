@@ -39,7 +39,7 @@
 | 열람 반경(100m)·기본 좌표·딥링크 스킴 | `shared/.../StaryConfig.kt` (공용) | `Core/AppConfig.swift` (**값 복제 — 함께 수정**) |
 | 화면 배경 이미지/틴트 | 각 스크린의 `Image(painterResource(R.drawable...))` + 틴트 alpha | 각 스크린의 `ScreenBackground(name:darken:)` |
 | 앱 공통 색 토큰 | `core/designsystem/Color.kt` | `Core/Theme.swift` |
-| 폰트 | `core/designsystem/Type.kt` (MinSans 등) | `Core/AppFont.swift` (PoorStory) |
+| 폰트 | `core/designsystem/Type.kt` (MinSans/PoetsenOne) | `Core/AppFont.swift` — **같은 min_sans.ttf 참조**(`.minSans(size, weight)`) |
 | 문자열(ko/en/ja) | `res/values*/strings.xml` | `Core/LocaleManager.swift` 의 `L10n` 키 |
 | 지도 야경 스타일 JSON | `res/raw/maplibre_style.json` | iOS 번들에 같은 파일 복사됨(`MapLibreView.staryStyleURL` 이 로드) |
 
