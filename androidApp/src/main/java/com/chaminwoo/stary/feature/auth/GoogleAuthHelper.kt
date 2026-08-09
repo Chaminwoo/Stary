@@ -228,6 +228,8 @@ object GoogleAuthHelper {
                 .document(uid)
                 .set(mapOf("fcmToken" to fcmToken, "authUid" to authUid), SetOptions.merge())
                 .await()
+            // 이 문서에 fcmToken 이 없으면 서버가 그 사용자를 조용히 건너뛴다 → 푸시 미수신 1순위 확인 지점.
+            Log.i(TAG, "fcmToken 저장 완료 users/$uid …${fcmToken.takeLast(8)}")
         } catch (e: Exception) {
             Log.w(TAG, "FCM 토큰 저장 실패: ${e.localizedMessage}")
         }

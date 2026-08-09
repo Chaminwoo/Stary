@@ -71,6 +71,31 @@ iOS: `Features/Notifications/NotificationsScreen.swift`, `NotificationsViewModel
   - ⚠️ **Firebase 콘솔에 APNs 인증 키(.p8) 등록 + 유료 Apple Developer 계정 필수** — 없으면 토큰만 생기고
     실제 발송이 되지 않는다. 시뮬레이터는 원격 푸시 불가(실기기 필요).
 
+---
+
+## 푸시가 안 올 때 — 확인 순서(경로가 길어서 반드시 위에서부터)
+
+메시지 1건이 기기에 뜨기까지: **문서 생성 → Functions 트리거 → 수신자 fcmToken 조회 → FCM 발송 →
+(Android: 채널/알림권한 / iOS: APNs 키·권한) → 표시**. 한 칸만 비어도 **조용히** 아무 일도 안 일어난다.
+
+1. **Functions 가 배포돼 있나** — `firebase deploy --only functions` (규칙 배포와 별개다).
+   Console > Functions 에 `notifyOnChatMessage`/`notifyOnNotificationCreate`/`notifyFriendsOnDiaryCreate` 가 보여야 한다.
+2. **Functions 로그** — `firebase functions:log` 또는 Console.
+   - `chat {chatId}: A → B 푸시 시도` 가 없다 → 트리거 자체가 안 걸림(배포/DB(stary-db)/리전 확인).
+   - `fcmToken 없음 → 발송 생략` → **수신자 앱이 토큰을 저장 못 한 상태**(3번).
+   - `발송 실패 (…)` → APNs 키 미등록(iOS)·토큰 만료 등. 코드가 그대로 찍힌다.
+   - `발송 성공 …` → 서버는 끝. 기기 쪽 문제(4번).
+3. **수신자 `users/{uid}.fcmToken` 이 실제로 있나** — Console > Firestore(stary-db) 에서 직접 확인.
+   - Android 로그: `GoogleAuthHelper: fcmToken 저장 완료 users/…`
+   - iOS 콘솔: `✅ fcmToken 저장 완료 users/…` / `⚠️ FCM 토큰 발급 실패` / `⚠️ 알림 권한 거부됨`
+   - ⚠️ 토큰은 **로그인/세션 복원 시** 저장한다 → 앱을 한 번 껐다 켜야 갱신되는 경우가 있다.
+4. **기기 조건**
+   - Android: 알림 권한(13+), 채널 `stary_default`(앱 실행 시 생성), 배터리 최적화 예외.
+   - iOS: **실기기 필수**(시뮬레이터는 원격 푸시 불가), Push Notifications 권한(entitlement),
+     Firebase 콘솔에 **APNs 인증 키(.p8)** 등록, 알림 권한 허용.
+   - 전면(포그라운드)에서는 **일부러 시스템 배너를 막고** 인앱 배너를 띄운다(양 플랫폼 동일 정책) —
+     백그라운드/종료 상태로 테스트할 것.
+
 ### 값 조절(패리티 매핑)
 | 항목 | Android | iOS |
 |---|---|---|

@@ -70,6 +70,12 @@
             </intent-filter>
         </activity>
 
+        <!-- 채널 id 없이 도착한 메시지의 기본 채널 — 없으면 시스템이 '기타(Miscellaneous)' 저중요도
+             채널에 넣어 상단 배너가 안 뜬다. 서버는 보통 channelId 를 함께 보낸다(ANDROID_OPTS). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="stary_default" />
+
         <!-- FCM 수신 (푸시 발송은 Cloud Functions 필요 — 체크리스트 7/8) -->
         <service
             android:name=".push.StaryMessagingService"

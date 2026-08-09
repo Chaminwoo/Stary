@@ -65,8 +65,12 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
     private func requestAuthorizationIfNeeded() {
         guard !didRequestAuthorization else { return }
         didRequestAuthorization = true
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
-            guard granted else { return }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            guard granted else {
+                // 권한 거부 = 서버가 보내도 기기에 안 뜬다(설정 앱에서 켜야 함).
+                print("⚠️ 알림 권한 거부됨 — 푸시 미수신 \(error?.localizedDescription ?? "")")
+                return
+            }
             DispatchQueue.main.async {
                 UIApplication.shared.registerForRemoteNotifications()
             }
@@ -76,6 +80,22 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
     /// APNs 기기 토큰 → FCM 에 연결(AppDelegate 에서 전달). 이 연결 없이는 FCM 토큰이 발급되지 않는다.
     func setAPNsToken(_ deviceToken: Data) {
         Messaging.messaging().apnsToken = deviceToken
+        // 델리게이트 콜백만 믿지 않고 여기서도 한 번 당겨온다(등록 순서에 따라 콜백이 이미 지나갔을 수 있음).
+        fetchTokenAndSave()
+    }
+
+    /// 현재 FCM 토큰을 명시적으로 조회해 저장. 실패 사유를 콘솔에 남긴다(진단용).
+    private func fetchTokenAndSave() {
+        Messaging.messaging().token { [weak self] token, error in
+            if let error {
+                // APNs 미등록/인증 키 미설정이면 여기서 실패한다.
+                print("⚠️ FCM 토큰 발급 실패: \(error.localizedDescription)")
+                return
+            }
+            guard let token, !token.isEmpty else { return }
+            self?.fcmToken = token
+            self?.saveTokenIfPossible()
+        }
     }
 
     // MARK: - MessagingDelegate
@@ -86,6 +106,8 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
     }
 
     /// users/{uid} 에 fcmToken + authUid 기록(Android syncFcmToken 과 동일 필드).
+    /// 이 문서에 fcmToken 이 없으면 서버(Cloud Functions)는 그 사용자를 **조용히 건너뛴다**
+    /// → "푸시가 안 온다"의 1순위 확인 지점.
     private func saveTokenIfPossible() {
         guard let uid = appUserId, !uid.isEmpty,
               let token = fcmToken, !token.isEmpty else { return }
@@ -96,6 +118,7 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
                     "fcmToken": token,
                     "authUid": authUid,
                 ], merge: true)
+                print("✅ fcmToken 저장 완료 users/\(uid) …\(token.suffix(8))")
             } catch {
                 print("⚠️ fcmToken 저장 실패: \(error.localizedDescription)")
             }

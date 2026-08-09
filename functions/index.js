@@ -156,10 +156,20 @@ async function sendToUser(uid, data) {
   if (!uid) return false;
   const db = getFirestore(DATABASE_ID);
   const userSnap = await db.collection(USERS).doc(uid).get();
+  if (!userSnap.exists) {
+    // 수신자 프로필 문서가 없음 = uid 가 잘못됐다는 뜻(앱의 appUserId 규칙 확인 필요).
+    logger.warn(`sendToUser ${uid}: users 문서 없음 → 발송 생략`);
+    return false;
+  }
   const token = userSnap.get("fcmToken");
-  if (typeof token !== "string" || token.length === 0) return false;
+  if (typeof token !== "string" || token.length === 0) {
+    // ⚠️ "푸시가 안 온다"의 1순위 원인. 수신자 앱이 토큰을 저장하지 못한 상태다.
+    //    (iOS: APNs 인증 키 미등록/푸시 권한 거부/시뮬레이터, Android: 알림 권한 거부 등)
+    logger.warn(`sendToUser ${uid}: fcmToken 없음 → 발송 생략(수신자 앱이 토큰 미저장)`);
+    return false;
+  }
   try {
-    await getMessaging().send({
+    const messageId = await getMessaging().send({
       token,
       // notification 페이로드 → 앱이 백그라운드/종료 상태여도 시스템이 트레이 알림을 표시한다.
       notification: { title: data.title, body: data.body },
@@ -167,6 +177,7 @@ async function sendToUser(uid, data) {
       android: ANDROID_OPTS,
       apns: APNS_OPTS,
     });
+    logger.info(`sendToUser ${uid}: 발송 성공 ${messageId}`);
     return true;
   } catch (e) {
     const code = e && e.code;
@@ -174,9 +185,12 @@ async function sendToUser(uid, data) {
       code === "messaging/registration-token-not-registered" ||
       code === "messaging/invalid-registration-token"
     ) {
+      // 재설치/토큰 회전으로 죽은 토큰 — 지워서 다음 로그인 때 새로 받게 한다.
+      logger.warn(`sendToUser ${uid}: 만료된 토큰 → 삭제(${code})`);
       await db.collection(USERS).doc(uid).update({ fcmToken: FieldValue.delete() });
     } else {
-      logger.warn(`sendToUser ${uid} 발송 실패 (${code})`);
+      // iOS 에서 APNs 키 미등록이면 여기로 온다(third-party auth error 등).
+      logger.error(`sendToUser ${uid} 발송 실패 (${code}): ${e && e.message}`);
     }
     return false;
   }
@@ -198,12 +212,20 @@ exports.notifyOnChatMessage = onDocumentCreated(
     const msg = snap.data();
     const chatId = event.params.chatId;
     const senderId = msg.senderId;
-    if (!senderId) return;
-    const recipientId = chatId.split("_").find((id) => id !== senderId);
-    if (!recipientId) {
-      logger.warn(`chat ${chatId}: 수신자 식별 실패 → 발송 생략`);
+    if (!senderId) {
+      logger.warn(`chat ${chatId}: senderId 없음 → 발송 생략`);
       return;
     }
+    // chatId = "작은appUserId_큰appUserId" → 나머지 한 쪽이 수신자.
+    // ⚠️ 발신자 id 가 chatId 안에 없으면(= 앱의 appUserId 규칙이 어긋난 상태) 수신자를 못 고른다.
+    const recipientId = chatId.split("_").find((id) => id !== senderId);
+    if (!recipientId || !chatId.split("_").includes(senderId)) {
+      logger.warn(
+        `chat ${chatId}: 수신자 식별 실패(senderId=${senderId}) → 발송 생략`
+      );
+      return;
+    }
+    logger.info(`chat ${chatId}: ${senderId} → ${recipientId} 푸시 시도`);
     const data = {
       type: "chat",
       chatId,

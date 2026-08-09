@@ -110,6 +110,23 @@ Android 쪽 보강: `GoogleAuthHelper.syncFcmToken(uid)` 를 **세션 복원(앱
 
 **남은 것**: 실기기 확인(iOS 푸시/카메라, Android 채팅 인셋), 규칙·Functions 배포 후 채팅 재검증.
 
+### 8.45-4 채팅 백그라운드 푸시 미수신 — 진단 계측 추가
+
+"채팅은 가는데 백그라운드 알림이 안 온다" 보고. 코드 경로(트리거 문서 경로/컬렉션명/채널 id/수신자
+산출)는 전수 확인 결과 정상이라, **어디서 끊기는지 보이게** 만드는 쪽으로 처리했다.
+경로가 길어서(문서 생성 → 트리거 → 토큰 조회 → FCM → 기기 표시) 한 칸만 비어도 조용히 아무 일도 안 난다.
+- **Functions 로그 강화**: `chat {id}: A → B 푸시 시도` / `fcmToken 없음 → 발송 생략` /
+  `발송 성공 {messageId}` / `발송 실패 (code)`. users 문서 부재, senderId 가 chatId 에 없는 경우도 경고.
+- **토큰 저장 로그**: Android `fcmToken 저장 완료 users/…`, iOS `✅ fcmToken 저장 완료 …`.
+  iOS 는 델리게이트 콜백만 믿지 않고 APNs 등록 직후 `Messaging.token` 을 **명시 조회**(순서 문제 방어),
+  권한 거부/토큰 발급 실패도 콘솔에 남긴다.
+- **Android 기본 알림 채널 메타데이터** 추가(`default_notification_channel_id=stary_default`) —
+  channelId 없이 온 메시지가 저중요도 '기타' 채널로 빠져 배너가 안 뜨는 경우 방지.
+- **Functions 런타임 nodejs20 → 22**(20 은 지원 종료 예정 — 배포가 막히는 원인이 될 수 있음).
+- 확인 순서는 `docs/code/11-notifications-push.md` 의 "푸시가 안 올 때" 절 참고.
+- ⚠️ 전면(포그라운드)에서는 **의도적으로** 시스템 배너를 막고 인앱 배너를 띄운다(양 플랫폼 동일) —
+  반드시 앱을 백그라운드/종료 상태로 두고 테스트할 것.
+
 ### 8.45-2 iOS 폰트를 Android 와 동일하게(MinSans) — 사용자 지시
 
 iOS 는 8.41 에서 들어온 **PoorStory** 를 앱 전역 폰트로 쓰고 있었는데 Android 에는 그 폰트가 아예 없다
