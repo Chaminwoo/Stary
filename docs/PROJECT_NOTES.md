@@ -75,6 +75,15 @@ chatId.split('_')`; chatId = 정렬 결합된 두 appUserId, 둘 다 '_' 없음)
 클라이언트도 **방 메타 먼저 → 메시지** 순서로 통일했고, iOS `send` 는 Bool 반환 + 실패 시 입력 복원·토스트
 (`chatSendFailed`) — 조용한 실패 금지.
 
+> **후속(같은 라운드에서 재수정) — 규칙은 판정 방식을 용도별로 섞어야 한다**
+> 위 수정을 chats 문서에까지 적용했더니 이번엔 **친구 화면 마지막 메시지가 전부 사라졌다**("아직 채팅이 없어요").
+> 원인: 친구 화면/인앱 배너는 `chats.whereArrayContains("participants", 나)` 로 **컬렉션 쿼리(list)** 를 하는데,
+> 규칙이 "문서 id 안에 내 id 가 있는가"만 보면 규칙 엔진이 **쿼리 결과를 증명할 수 없어 쿼리 전체를 거부**한다
+> (rules 는 필터가 아니다 — 쿼리 제약과 규칙 조건이 같은 형태여야 통과). 메시지 하위 컬렉션은 경로에 chatId 가
+> 확정돼 있어 영향이 없어서 "채팅은 되는데 목록만 안 보이는" 형태로 나타났다.
+> **최종 규칙**: 방 문서 read/update/delete·목록 쿼리 = `resource.data.participants` 기준,
+> 방 문서 create + `messages` 하위 = `isChatMember(chatId)` 기준. 한쪽으로 통일하면 반드시 다른 쪽이 깨진다.
+
 **#5 채팅 입력바 인셋**:
 - Android: `navigationBarsPadding() + imePadding()` 이어 붙이기 → 키보드 위로 내비바 높이만큼 더 뜸.
   `windowInsetsPadding(WindowInsets.safeDrawing.only(Bottom))` 한 번으로 교체(둘 중 큰 값) +

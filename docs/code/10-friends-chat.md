@@ -37,10 +37,16 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
 - `chatId = StaryConfig.chatId(myId, friendId)` : 두 uid 를 정렬해 만드는 **결정적 방 id**(공용 규칙).
 - `messages` : `FirebaseChatRepository.observeMessages(chatId)` 실시간.
 - `send(text)` : **방 메타(chats/{chatId}) 먼저 → 메시지 문서** 순서로 쓴다(양 플랫폼 동일).
-  ⚠️ 보안 규칙은 **chatId 문자열로 참여자를 판정**한다(`firestore.rules` 의 `isChatMember`) —
-  예전엔 방 문서의 participants 를 봤는데, 방이 없는 **첫 메시지**에서는 resource/get 이 null 이라
-  항상 거부돼 "새 상대(iOS↔Android)와는 채팅이 아예 안 가는" 증상이 있었다(8.45 수정).
-  규칙을 고치면 **반드시 배포**: `firebase deploy --only firestore:rules`.
+
+### ⚠️ chats 보안 규칙 — 판정 방식을 용도별로 **섞어** 써야 한다(8.45, 두 번 데임)
+
+| 대상 | 판정 | 이유 |
+|---|---|---|
+| `chats` **목록 쿼리**(`whereArrayContains("participants", 나)`) · 방 문서 읽기/수정 | `myAppUserId() in resource.data.participants` | 쿼리 제약과 규칙 조건이 **같은 형태**여야 list 가 통과한다. chatId(문서 id) 기반 조건은 규칙 엔진이 쿼리 결과를 증명할 수 없어 **쿼리 전체가 거부** → 친구 화면이 "아직 채팅이 없어요"로 뜬다 |
+| 방 문서 **생성** · `messages` 하위 전부 | `myAppUserId() in chatId.split('_')` (`isChatMember`) | 방 문서가 **아직 없는 첫 메시지**에서도 판정돼야 한다. `resource`/`get(chats/{chatId})` 는 null 이라 항상 거부됐고, 그게 "새 상대(iOS↔Android)와 채팅이 아예 안 가던" 원인 |
+
+한쪽으로 통일하면 반드시 다른 쪽이 깨진다(첫 채팅 불통 ↔ 목록 미표시). 규칙을 고치면
+**반드시 배포**: `firebase deploy --only firestore:rules`.
 - `canDelete(message)` / `deleteMessage(message)` : **내가 보낸 메시지 + 1분 이내**
   (`StaryConfig.CHAT_DELETE_WINDOW_MS`)만 완전 삭제(상대 쪽에서도 사라짐).
 - `ChatScreen(friendId, friendName)` : 말풍선 목록(내/상대 정렬·색 구분) + 입력창.
