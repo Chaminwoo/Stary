@@ -20,9 +20,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -158,14 +161,15 @@ fun ChatScreen(
                 }
             }
 
-            // 입력 바 — 하단 시스템 바 여백은 상위 Scaffold(paddingValues)가 이미 처리하므로
-            // 여기서 navigationBarsPadding 을 다시 주면 이중 여백이 생긴다(제거). imePadding 만 유지.
+            // 입력 바 — 하단 여백은 **한 번만**(키보드가 있으면 키보드 높이, 없으면 내비게이션 바 높이).
+            // ⚠️ navigationBarsPadding() + imePadding() 을 이어 붙이면 두 인셋이 각각 적용될 수 있어
+            //    키보드 위로 내비바 높이만큼 더 떠버렸다(#5). safeDrawing 의 Bottom 만 쓰면 둘 중 큰 값 한 번.
+            //    (창 자체가 밀려 올라가지 않도록 Manifest 에 windowSoftInputMode=adjustResize 를 명시했다.)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(CardBgTop.copy(alpha = 0.92f))
-                    .navigationBarsPadding()
-                    .imePadding()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

@@ -23,22 +23,33 @@ final class ChatViewModel: ObservableObject {
             }
     }
 
-    func send(senderId: String, senderName: String, text: String) async {
+    /// 메시지 전송. 실패하면 false(호출부에서 토스트) — 예전엔 try? 로 조용히 삼켜
+    /// "보냈는데 안 가는" 상태를 알 수 없었다.
+    @discardableResult
+    func send(senderId: String, senderName: String, text: String) async -> Bool {
         let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !body.isEmpty else { return }
+        guard !body.isEmpty, !senderId.isEmpty else { return false }
         let now = FirestoreService.nowMillis
-        // async 컨텍스트에선 addDocument(data:) 의 async throws 오버로드가 선택됨.
-        _ = try? await FirestoreService.messages(of: chatId).addDocument(data: [
-            "senderId": senderId, "senderName": senderName, "text": body, "createdAt": now,
-        ])
-        // 방 메타(목록/미리보기용). 실패해도 메시지는 전송됨.
-        try? await FirestoreService.chats.document(chatId).setData([
-            "participants": chatId.components(separatedBy: "_"),
-            "lastMessage": body,
-            "lastSenderId": senderId,
-            "lastSenderName": senderName, // 인앱 채팅 배너 발신자명
-            "updatedAt": now,
-        ], merge: true)
+        do {
+            // ⚠️ 방 메타를 **먼저** 만든다(Android FirebaseChatRepository 와 동일 순서).
+            // 서버 규칙이 방 문서로 참여자를 확인하던 시절엔 방이 없으면 메시지 생성이 거부됐다.
+            try await FirestoreService.chats.document(chatId).setData([
+                "participants": chatId.components(separatedBy: "_"),
+                "lastMessage": body,
+                "lastSenderId": senderId,
+                "lastSenderName": senderName, // 인앱 채팅 배너 발신자명
+                "updatedAt": now,
+                "lastReadAt": [senderId: now], // 보낸 사람은 읽은 것으로(Android 패리티)
+            ], merge: true)
+            // async 컨텍스트에선 addDocument(data:) 의 async throws 오버로드가 선택됨.
+            _ = try await FirestoreService.messages(of: chatId).addDocument(data: [
+                "senderId": senderId, "senderName": senderName, "text": body, "createdAt": now,
+            ])
+            return true
+        } catch {
+            print("⚠️ 채팅 전송 실패: \(error.localizedDescription)")
+            return false
+        }
     }
 
     /// 이 메시지를 지금 삭제할 수 있는가 — 내가 보냈고 전송 후 1분 이내일 때만. (삭제 UI 노출 판단)

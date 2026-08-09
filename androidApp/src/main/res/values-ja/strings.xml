@@ -157,6 +157,7 @@
     <string name="notif_friend_post">新しい日記「%1$s」を投稿しました</string>
     <string name="notif_like">「%1$s」にいいねしました</string>
     <string name="notif_comment">「%1$s」にコメントしました</string>
+    <string name="notif_friend_request">友達リクエストを送りました</string>
 
     <!-- マイ日記画面 -->
     <string name="mydiary_empty">まだ記録した日記がありません</string>

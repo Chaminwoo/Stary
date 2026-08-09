@@ -204,6 +204,12 @@ class FirebaseFriendRepository : FriendRepository {
                     createdAt = System.currentTimeMillis()
                 )
             ).await()
+            // 상대에게 알림(인앱 배너 + FCM 푸시) — 새로 만든 요청에서만(중복은 위에서 return).
+            FirebaseNotificationRepository().notifyFriendRequest(
+                actorId = from.userId,
+                actorName = from.userName,
+                toId = to.userId,
+            )
             true
         } catch (e: Exception) {
             false

@@ -43,6 +43,9 @@ class StaryMessagingService : FirebaseMessagingService() {
         val diaryId = message.data["diaryId"]
         val chatFriendId = message.data["chatFriendId"]
         val chatFriendName = message.data["chatFriendName"]
+        // 친구 요청 알림은 대상 다이어리가 없다 → 탭하면 친구 화면(받은 요청)으로.
+        val isFriendRequest = message.data["type"] ==
+            com.chaminwoo.stary.core.model.NotificationType.FRIEND_REQUEST.name
         val title = message.data["title"] ?: message.notification?.title ?: "Stary"
         val body = message.data["body"] ?: message.notification?.body ?: "새 소식이 있어요"
 
@@ -56,13 +59,15 @@ class StaryMessagingService : FirebaseMessagingService() {
             if (chatFriendId != null) {
                 putExtra(MainActivity.EXTRA_CHAT_FRIEND_ID, chatFriendId)
                 putExtra(MainActivity.EXTRA_CHAT_FRIEND_NAME, chatFriendName ?: "")
+            } else if (isFriendRequest) {
+                putExtra(MainActivity.EXTRA_OPEN_FRIENDS, true)
             } else {
                 diaryId?.let { putExtra(MainActivity.EXTRA_DIARY_ID, it) }
             }
         }
         val pending = PendingIntent.getActivity(
             this,
-            (chatFriendId ?: diaryId)?.hashCode() ?: 0,
+            (chatFriendId ?: diaryId)?.hashCode() ?: if (isFriendRequest) 1 else 0,
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

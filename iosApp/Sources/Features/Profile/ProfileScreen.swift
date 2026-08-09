@@ -105,7 +105,7 @@ struct ProfileScreen: View {
                     // 닉네임 — 누르면 변경(기본=구글 닉네임). 레이아웃은 그대로.
                     HStack(spacing: 6) {
                         Text(auth.displayName.isEmpty ? "Stargazer" : auth.displayName)
-                            .font(.poorStory(26))
+                            .font(.minSans(26))
                             .foregroundStyle(Theme.textPrimary)
                             .onTapGesture {
                                 nicknameDraft = auth.displayName
@@ -116,7 +116,7 @@ struct ProfileScreen: View {
                     }
                     Button { showAchievements = true } label: {
                         Text(titleDisplayText)
-                            .font(.poorStory(15))
+                            .font(.minSans(15))
                             .foregroundStyle(titleDisplayColor)
                             .shadow(color: (equippedTitle == nil ? .clear : titleDisplayColor).opacity(0.9),
                                     radius: equippedTitleIsHidden ? 16 : 12)
@@ -137,7 +137,7 @@ struct ProfileScreen: View {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                             Text(locale.t(.drawerLogout))
                         }
-                        .font(.poorStory(15))
+                        .font(.minSans(15))
                         .foregroundStyle(Color(hex: 0xFF6B6B))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
@@ -324,11 +324,11 @@ private struct PinDiaryPicker: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(locale.t(.profilePinHint))
-                            .font(.caption).foregroundStyle(Theme.textSecondary)
+                            .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
                             .padding(.bottom, 4)
                         if diaries.isEmpty {
                             Text(locale.t(.profileEmptyStars))
-                                .font(.subheadline).foregroundStyle(Theme.textSecondary)
+                                .font(.minSans(15)).foregroundStyle(Theme.textSecondary)
                                 .padding(.vertical, 20)
                         } else {
                             ForEach(diaries) { d in row(d) }
@@ -360,7 +360,7 @@ private struct PinDiaryPicker: View {
             HStack(spacing: 12) {
                 StarView(type: d.starType, colorIndex: d.starColor, size: 24)
                 Text(d.title.isEmpty ? locale.t(.profileMyStars) : d.title)
-                    .font(.subheadline).foregroundStyle(Theme.textPrimary)
+                    .font(.minSans(15)).foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 Spacer()
                 if isSel { Image(systemName: "checkmark").foregroundStyle(Theme.navyAccent) }

@@ -1,6 +1,12 @@
 package com.chaminwoo.stary.core.model
 
-enum class NotificationType { LIKE, COMMENT, FRIEND_POST }
+/**
+ * 알림 종류.
+ * - LIKE / COMMENT      : 내 다이어리에 달린 반응 (diaryId 有)
+ * - FRIEND_POST         : 친구의 새 다이어리 (diaryId 有)
+ * - FRIEND_REQUEST      : 받은 친구 요청 (diaryId 無 — 탭하면 친구 화면)
+ */
+enum class NotificationType { LIKE, COMMENT, FRIEND_POST, FRIEND_REQUEST }
 
 data class AppNotification(
     val id: String = "",

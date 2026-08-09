@@ -39,6 +39,20 @@ const GRACE_MS = 7 * 24 * 60 * 60 * 1000; // 계정 삭제 유예 7일
 /** FCM multicast 1회 최대 토큰 수 */
 const FCM_BATCH = 500;
 
+/**
+ * 플랫폼별 발송 옵션.
+ *  - android : heads-up 채널(앱이 미리 만들어 둔 stary_default) + high priority
+ *  - apns    : iOS 는 이 블록이 없으면 소리 없이 조용히 오거나 표시가 지연될 수 있다.
+ *              (iOS 팝업 알림이 안 오던 원인 중 하나 — 클라이언트 APNs 등록과 함께 필요)
+ * ⚠️ Firebase Console > 프로젝트 설정 > 클라우드 메시징에 **APNs 인증 키(.p8)** 가 등록돼 있어야
+ *    iOS 로 실제 발송된다(키가 없으면 서버가 성공을 반환해도 기기까지 가지 않음).
+ */
+const ANDROID_OPTS = { priority: "high", notification: { channelId: "stary_default" } };
+const APNS_OPTS = {
+  headers: { "apns-priority": "10" },
+  payload: { aps: { sound: "default" } },
+};
+
 exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
   {
     document: "diaries/{diaryId}",
@@ -95,7 +109,8 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
         // notification 페이로드 → 백그라운드/종료 상태에서도 시스템 트레이 알림 표시.
         notification: { title: data.title, body: data.body },
         data,
-        android: { priority: "high", notification: { channelId: "stary_default" } },
+        android: ANDROID_OPTS,
+        apns: APNS_OPTS,
       });
       success += res.successCount;
       res.responses.forEach((r, idx) => {
@@ -141,16 +156,28 @@ async function sendToUser(uid, data) {
   if (!uid) return false;
   const db = getFirestore(DATABASE_ID);
   const userSnap = await db.collection(USERS).doc(uid).get();
+  if (!userSnap.exists) {
+    // 수신자 프로필 문서가 없음 = uid 가 잘못됐다는 뜻(앱의 appUserId 규칙 확인 필요).
+    logger.warn(`sendToUser ${uid}: users 문서 없음 → 발송 생략`);
+    return false;
+  }
   const token = userSnap.get("fcmToken");
-  if (typeof token !== "string" || token.length === 0) return false;
+  if (typeof token !== "string" || token.length === 0) {
+    // ⚠️ "푸시가 안 온다"의 1순위 원인. 수신자 앱이 토큰을 저장하지 못한 상태다.
+    //    (iOS: APNs 인증 키 미등록/푸시 권한 거부/시뮬레이터, Android: 알림 권한 거부 등)
+    logger.warn(`sendToUser ${uid}: fcmToken 없음 → 발송 생략(수신자 앱이 토큰 미저장)`);
+    return false;
+  }
   try {
-    await getMessaging().send({
+    const messageId = await getMessaging().send({
       token,
       // notification 페이로드 → 앱이 백그라운드/종료 상태여도 시스템이 트레이 알림을 표시한다.
       notification: { title: data.title, body: data.body },
       data,
-      android: { priority: "high", notification: { channelId: "stary_default" } },
+      android: ANDROID_OPTS,
+      apns: APNS_OPTS,
     });
+    logger.info(`sendToUser ${uid}: 발송 성공 ${messageId}`);
     return true;
   } catch (e) {
     const code = e && e.code;
@@ -158,9 +185,12 @@ async function sendToUser(uid, data) {
       code === "messaging/registration-token-not-registered" ||
       code === "messaging/invalid-registration-token"
     ) {
+      // 재설치/토큰 회전으로 죽은 토큰 — 지워서 다음 로그인 때 새로 받게 한다.
+      logger.warn(`sendToUser ${uid}: 만료된 토큰 → 삭제(${code})`);
       await db.collection(USERS).doc(uid).update({ fcmToken: FieldValue.delete() });
     } else {
-      logger.warn(`sendToUser ${uid} 발송 실패 (${code})`);
+      // iOS 에서 APNs 키 미등록이면 여기로 온다(third-party auth error 등).
+      logger.error(`sendToUser ${uid} 발송 실패 (${code}): ${e && e.message}`);
     }
     return false;
   }
@@ -182,12 +212,20 @@ exports.notifyOnChatMessage = onDocumentCreated(
     const msg = snap.data();
     const chatId = event.params.chatId;
     const senderId = msg.senderId;
-    if (!senderId) return;
-    const recipientId = chatId.split("_").find((id) => id !== senderId);
-    if (!recipientId) {
-      logger.warn(`chat ${chatId}: 수신자 식별 실패 → 발송 생략`);
+    if (!senderId) {
+      logger.warn(`chat ${chatId}: senderId 없음 → 발송 생략`);
       return;
     }
+    // chatId = "작은appUserId_큰appUserId" → 나머지 한 쪽이 수신자.
+    // ⚠️ 발신자 id 가 chatId 안에 없으면(= 앱의 appUserId 규칙이 어긋난 상태) 수신자를 못 고른다.
+    const recipientId = chatId.split("_").find((id) => id !== senderId);
+    if (!recipientId || !chatId.split("_").includes(senderId)) {
+      logger.warn(
+        `chat ${chatId}: 수신자 식별 실패(senderId=${senderId}) → 발송 생략`
+      );
+      return;
+    }
+    logger.info(`chat ${chatId}: ${senderId} → ${recipientId} 푸시 시도`);
     const data = {
       type: "chat",
       chatId,
@@ -203,7 +241,7 @@ exports.notifyOnChatMessage = onDocumentCreated(
 );
 
 /**
- * 좋아요/댓글 알림 → 수신자(diaryOwnerId)에게 푸시.
+ * 좋아요/댓글/친구 요청 알림 → 수신자(diaryOwnerId)에게 푸시.
  * notifications/{notifId} onCreate. FRIEND_POST 는 notifyFriendsOnDiaryCreate 가 이미 발송하므로 제외(이중 방지).
  */
 exports.notifyOnNotificationCreate = onDocumentCreated(
@@ -227,6 +265,10 @@ exports.notifyOnNotificationCreate = onDocumentCreated(
     if (type === "LIKE") {
       title = `${actor}님이 좋아요를 눌렀어요`;
       body = diaryTitle ? `"${diaryTitle}"` : "내 별에 좋아요가 달렸어요";
+    } else if (type === "FRIEND_REQUEST") {
+      // 친구 요청 — 다이어리가 없는 알림(탭하면 앱의 친구 화면으로).
+      title = `${actor}님의 친구 요청`;
+      body = "친구 요청이 도착했어요";
     } else {
       title = `${actor}님의 댓글`;
       body = n.content || (diaryTitle ? `"${diaryTitle}"` : "새 댓글이 달렸어요");

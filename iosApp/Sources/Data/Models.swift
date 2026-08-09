@@ -448,8 +448,20 @@ struct AppNotification: Identifiable, Codable {
             return String(format: LocaleManager.shared.t(.notifCommentRow), diaryTitle)
         case "FRIEND_POST":
             return String(format: LocaleManager.shared.t(.notifFriendPostRow), diaryTitle)
+        case "FRIEND_REQUEST":
+            return LocaleManager.shared.t(.notifFriendRequestRow)
         default:
             return String(format: LocaleManager.shared.t(.notifLikeRow), diaryTitle)
+        }
+    }
+
+    /// 알림 행 이모지 — Android NotificationItem 과 동일.
+    var emoji: String {
+        switch type {
+        case "FRIEND_REQUEST": return "🙋"
+        case "FRIEND_POST": return "⭐"
+        case "COMMENT": return "💬"
+        default: return "❤️"
         }
     }
 }

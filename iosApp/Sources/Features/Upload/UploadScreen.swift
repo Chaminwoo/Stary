@@ -19,8 +19,22 @@ struct UploadScreen: View {
     @State private var imageData: Data?
     // 부메랑(3초 움짤) GIF — 커스텀 촬영 화면에서 생성(이미지와 배타).
     @State private var boomerangGif: Data?
-    @State private var showBoomerangCapture = false
+    // 첨부 소스 선택(촬영/갤러리/3초 영상) — Android showImageSourceDialog 대응.
+    @State private var showMediaSourceSheet = false
+    @State private var showPhotosPicker = false
+    /// 전체 화면 촬영(사진/움짤) — nil 이면 닫힘.
+    @State private var captureSheet: CaptureSheet?
     @State private var friendsCount = 0
+    /// 키보드 내리기용 포커스 — 제목/내용 입력 후 키보드가 안 내려가던 문제(#3) 대응.
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable { case title, content }
+
+    /// 전체 화면으로 띄우는 촬영 화면 종류.
+    private enum CaptureSheet: String, Identifiable {
+        case camera, boomerang
+        var id: String { rawValue }
+    }
 
     /// 현재 해금된 업적 id 집합(내 다이어리 + 친구 수 기반).
     private var unlocked: Set<String> {
@@ -32,36 +46,49 @@ struct UploadScreen: View {
 
     // 루트(MainTabView)의 단일 NavigationStack 에 push 되므로 자체 스택은 두지 않는다(Android 단일 NavHost 대응).
     var body: some View {
-        ZStack {
-            // 업로드 화면 배경 — Android upload_bg 이미지 + 검정 0.82 틴트 대응.
-            ScreenBackground(name: "upload_bg", darken: 0.82)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    preview
-                    field(LocaleManager.shared.t(.fieldTitle)) {
-                        TextField("", text: $title).textFieldStyle(.plain)
-                            .onChange(of: title) { v in
-                                if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
-                            }
-                    }
-                    field(LocaleManager.shared.t(.uploadContentLabel)) {
-                        TextField("", text: $content, axis: .vertical)
-                            .lineLimit(4...8)
-                            .onChange(of: content) { v in
-                                if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
-                            }
-                    }
-                    photoSection
-                    starPicker
-                    colorPicker
-                    visibilityPicker
-                    saveButton
+        // ⚠️ 배경은 ZStack 형제가 아니라 .background 로 — ScreenBackground 의 ignoresSafeArea 가
+        //    ZStack(=스크롤 영역)을 키보드 영역까지 늘리면, 키보드가 올라와도 입력칸이 안 밀려 가려진다.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                preview
+                field(LocaleManager.shared.t(.fieldTitle)) {
+                    TextField("", text: $title).textFieldStyle(.plain)
+                        .focused($focusedField, equals: .title)
+                        .submitLabel(.done)                      // 한 줄 입력 → 리턴키로 바로 닫기
+                        .onSubmit { focusedField = nil }
+                        .onChange(of: title) { v in
+                            if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
+                        }
                 }
-                .padding(16)
+                field(LocaleManager.shared.t(.uploadContentLabel)) {
+                    TextField("", text: $content, axis: .vertical)
+                        .lineLimit(4...8)
+                        .focused($focusedField, equals: .content)
+                        .onChange(of: content) { v in
+                            if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
+                        }
+                }
+                photoSection
+                starPicker
+                colorPicker
+                visibilityPicker
+                saveButton
             }
+            .padding(16)
         }
+        // 스크롤(드래그)로도 키보드가 내려가게 — 긴 본문 입력 후 탈출구(#3).
+        .scrollDismissesKeyboard(.interactively)
+        // 업로드 화면 배경 — Android upload_bg 이미지 + 검정 0.82 틴트 대응.
+        .background { ScreenBackground(name: "upload_bg", darken: 0.82) }
         .navigationTitle(LocaleManager.shared.t(.navUpload))
         .navigationBarTitleDisplayMode(.inline)
+        // 키보드 위 "완료" — 여러 줄 입력(본문)은 리턴키가 줄바꿈이라 이 버튼이 유일한 닫기 수단(#3).
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(LocaleManager.shared.t(.commonDone)) { focusedField = nil }
+            }
+        }
         .overlay(alignment: .bottom) {
             if let toast { ToastView(text: toast) }
         }
@@ -73,12 +100,34 @@ struct UploadScreen: View {
                 }
             }
         }
-        // 부메랑(3초 움짤) 커스텀 촬영 — 전체 화면
-        .fullScreenCover(isPresented: $showBoomerangCapture) {
-            BoomerangCaptureView { data in
-                boomerangGif = data
-                imageData = nil; photoItem = nil // 이미지와 배타
-                showBoomerangCapture = false
+        // 첨부 소스 선택 — Android 의 촬영/갤러리/3초 영상 3지선다 다이얼로그 패리티(#1).
+        .confirmationDialog(LocaleManager.shared.t(.uploadAddPhoto),
+                            isPresented: $showMediaSourceSheet, titleVisibility: .visible) {
+            Button(LocaleManager.shared.t(.uploadTakePhoto)) { launchCamera() }
+            Button(LocaleManager.shared.t(.uploadPickGallery)) { showPhotosPicker = true }
+            Button(LocaleManager.shared.t(.uploadCaptureBoomerang)) { captureSheet = .boomerang }
+            Button(LocaleManager.shared.t(.commonCancel), role: .cancel) {}
+        }
+        .photosPicker(isPresented: $showPhotosPicker, selection: $photoItem, matching: .images)
+        // 촬영 화면(사진 1장 / 3초 움짤)은 **하나의** fullScreenCover 로 — 같은 뷰에 커버를 두 개 달면
+        // 한쪽이 안 열리는 사례가 있어 item 방식으로 합쳤다.
+        .fullScreenCover(item: $captureSheet) { which in
+            switch which {
+            case .camera:
+                CameraPicker { data in
+                    if let data {
+                        imageData = data
+                        boomerangGif = nil; photoItem = nil // 움짤과 배타
+                    }
+                    captureSheet = nil
+                }
+                .ignoresSafeArea()
+            case .boomerang:
+                BoomerangCaptureView { data in
+                    boomerangGif = data
+                    imageData = nil; photoItem = nil // 이미지와 배타
+                    captureSheet = nil
+                }
             }
         }
         .task {
@@ -94,7 +143,7 @@ struct UploadScreen: View {
             Spacer()
             VStack(spacing: 8) {
                 StarView(type: starType, colorIndex: starColor, size: 72)
-                Text(LocaleManager.shared.t(.uploadPreview)).font(.poorStory(11)).foregroundStyle(Theme.textFaint)
+                Text(LocaleManager.shared.t(.uploadPreview)).font(.minSans(11)).foregroundStyle(Theme.textFaint)
             }
             Spacer()
         }
@@ -112,6 +161,7 @@ struct UploadScreen: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     clearMediaButton
                 }
+                reselectButton
             } else if let imageData, let ui = UIImage(data: imageData) {
                 ZStack(alignment: .topTrailing) {
                     Image(uiImage: ui)
@@ -122,19 +172,40 @@ struct UploadScreen: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     clearMediaButton
                 }
+                reselectButton
             } else {
-                HStack(spacing: 10) {
-                    PhotosPicker(selection: $photoItem, matching: .images) {
-                        mediaAddLabel(icon: "photo.on.rectangle.angled",
-                                      text: LocaleManager.shared.t(.uploadAddPhoto))
-                    }
-                    // 파일 선택 대신 커스텀 촬영 화면으로(부메랑 3초 움짤)
-                    Button { showBoomerangCapture = true } label: {
-                        mediaAddLabel(icon: "infinity",
-                                      text: LocaleManager.shared.t(.uploadCaptureBoomerang))
-                    }
+                // 한 버튼 → 촬영/갤러리/3초 영상 선택 시트(Android 와 동일한 3지선다).
+                Button { openMediaSourceSheet() } label: {
+                    mediaAddLabel(icon: "camera.fill",
+                                  text: LocaleManager.shared.t(.uploadAddPhoto))
                 }
             }
+        }
+    }
+
+    /// 첨부 다시 고르기 — Android upload_reselect 대응.
+    private var reselectButton: some View {
+        Button { openMediaSourceSheet() } label: {
+            Text(LocaleManager.shared.t(.uploadReselect))
+                .font(.minSans(13))
+                .foregroundStyle(Theme.textPrimary)
+        }
+    }
+
+    /// 첨부 소스 시트 열기 — 열기 전에 키보드를 내려 시트가 키보드 위로 겹치지 않게 한다.
+    private func openMediaSourceSheet() {
+        focusedField = nil
+        showMediaSourceSheet = true
+    }
+
+    /// 카메라 촬영 — 기기 지원/권한 확인 후 촬영 화면. (Android launchCamera + 권한 토스트 패리티)
+    private func launchCamera() {
+        guard CameraPicker.isAvailable else {
+            showToast(LocaleManager.shared.t(.toastCameraUnavailable)); return
+        }
+        CameraPicker.requestPermission { granted in
+            if granted { captureSheet = .camera }
+            else { showToast(LocaleManager.shared.t(.toastCameraPermission)) }
         }
     }
 
@@ -248,7 +319,7 @@ struct UploadScreen: View {
             .padding(.vertical, 14)
             .background(Theme.navyAccent, in: RoundedRectangle(cornerRadius: 14))
             .foregroundStyle(Color.black)
-            .font(.poorStory(17))
+            .font(.minSans(17))
         }
         .disabled(saving || title.isEmpty)
         .opacity(title.isEmpty ? 0.5 : 1)
@@ -331,7 +402,7 @@ struct UploadScreen: View {
     // MARK: - 작은 헬퍼
 
     private func label(_ t: String) -> some View {
-        Text(t).font(.poorStory(12)).foregroundStyle(Theme.textSecondary)
+        Text(t).font(.minSans(12)).foregroundStyle(Theme.textSecondary)
     }
 
     private func field<Content: View>(_ t: String, @ViewBuilder _ content: () -> Content) -> some View {
@@ -407,7 +478,12 @@ private struct WheelPicker<Content: View>: View {
     /// selection 은 애니메이션이 끝난 뒤 한 번에 갱신 → 좌표계 불연속(되돌아가는 현상)이 없다.
     /// 잠긴 항목도 중앙에 고정되며, 저장은 UploadScreen 에서 별도로 막는다.
     private func commit(steps: Int) {
-        guard steps != 0 else { return }
+        // 반 슬롯을 못 넘긴 드래그(steps=0)도 반드시 원위치로 되돌린다 —
+        // 그냥 return 하면 drag 가 남아 항목과 항목 **사이**에 멈춘 채 고정된다(#2).
+        guard steps != 0 else {
+            if drag != 0 { withAnimation(.easeOut(duration: 0.18)) { drag = 0 } }
+            return
+        }
         settling = true
         let target = wrap(selection + steps)
         // 현재 위치에서 목표 슬롯이 중앙(x=0)에 오도록 drag 를 이동.
@@ -425,7 +501,7 @@ struct ToastView: View {
     let text: String
     var body: some View {
         Text(text)
-            .font(.poorStory(15))
+            .font(.minSans(15))
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(.ultraThinMaterial, in: Capsule())
             .padding(.bottom, 24)

@@ -23,20 +23,34 @@ struct StaryApp: App {
     }
 
     /// push 된 모든 화면의 시스템 내비바를 Android CenterAlignedTopAppBar 톤으로 통일 —
-    /// 배경 0x0D0D0D 불투명 + 구분선 없음 + 제목 PoorStory 20/0xF0F0F0 + 뒤로가기 틴트 0xF0F0F0.
+    /// 배경 0x0D0D0D 불투명 + 구분선 없음 + 제목 **MinSans 18 SemiBold**/0xF0F0F0 + 뒤로가기 틴트 0xF0F0F0.
+    /// (Android MainScreen 의 상단바 제목: fontFamily=MinSans, 18.sp, FontWeight.SemiBold)
     private static func configureNavigationBarAppearance() {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithOpaqueBackground()
         appearance.backgroundColor = UIColor(red: 0x0D / 255.0, green: 0x0D / 255.0, blue: 0x0D / 255.0, alpha: 1)
         appearance.shadowColor = .clear
         let titleColor = UIColor(red: 0xF0 / 255.0, green: 0xF0 / 255.0, blue: 0xF0 / 255.0, alpha: 1)
-        let titleFont = UIFont(name: AppFont.body, size: 20) ?? .systemFont(ofSize: 20)
+        let titleFont = UIFont.minSans(18, .semibold)
         appearance.titleTextAttributes = [.foregroundColor: titleColor, .font: titleFont]
         appearance.largeTitleTextAttributes = [.foregroundColor: titleColor]
+        // 뒤로가기 버튼 라벨도 같은 폰트로(기본 SF 가 섞이지 않게).
+        let buttonAppearance = UIBarButtonItemAppearance()
+        buttonAppearance.normal.titleTextAttributes = [.foregroundColor: titleColor, .font: UIFont.minSans(16)]
+        appearance.buttonAppearance = buttonAppearance
+        appearance.backButtonAppearance = buttonAppearance
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
         UINavigationBar.appearance().compactAppearance = appearance
         UINavigationBar.appearance().tintColor = titleColor
+
+        // 세그먼티드 컨트롤(업로드 화면 공개범위)도 같은 서체로 — UIKit 이 그리는 위젯이라
+        // SwiftUI 의 .font 가 닿지 않는다(여기서 안 맞추면 이 칩만 시스템 폰트로 튄다).
+        let segmentFont = UIFont.minSans(13)
+        UISegmentedControl.appearance().setTitleTextAttributes(
+            [.font: segmentFont, .foregroundColor: titleColor], for: .normal)
+        UISegmentedControl.appearance().setTitleTextAttributes(
+            [.font: UIFont.minSans(13, .semibold), .foregroundColor: UIColor.black], for: .selected)
     }
 
     var body: some Scene {

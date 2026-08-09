@@ -119,6 +119,9 @@ enum L10n: String {
     case mydiaryViewList, mydiaryViewStars, commonUntitled
     // 업로드 화면(Android UploadScreen 대응).
     case fieldTitle, uploadContentLabel, uploadPhotoSection, uploadAddPhoto, uploadCaptureBoomerang
+    // 첨부 소스 3지선다(촬영/갤러리/다시 선택) + 카메라 상태 토스트 — Android upload_take_photo 등 대응.
+    case uploadTakePhoto, uploadPickGallery, uploadReselect
+    case toastCameraPermission, toastCameraUnavailable, commonDone
     case uploadStarShape, uploadStarColor, uploadVisibility, uploadAnonymous
     case uploadVisPublic, uploadVisFriends, uploadVisPrivate
     case uploadDailyLimit, toastUnlockAchievement, toastImageUploadFailed, uploadDone, uploadPreview
@@ -127,12 +130,12 @@ enum L10n: String {
     case friendRequests, friendMyFriends, friendEmpty, friendNoName, commonSearch
     // 친구 요청 상태/토스트(Android friend_status_* + FriendViewModel 토스트 대응 — %@ = 상대 이름).
     case friendStatusFriend, friendStatusRequested, friendRequestSent, friendRequestFail
-    case chatInputPlaceholder, commonFriend
+    case chatInputPlaceholder, commonFriend, chatSendFailed
     case loginGoogle, loginBrowse, notifEmpty
     // 업적 화면(장착 버튼/히든 달성 알림).
     case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
     // 알림 행 문구(Android notif_* 대응 — %@ = 다이어리 제목).
-    case notifLikeRow, notifCommentRow, notifFriendPostRow
+    case notifLikeRow, notifCommentRow, notifFriendPostRow, notifFriendRequestRow
     // 지도 열람 게이팅(Android map_waiting_fix 대응).
     case mapWaitingFix
     // 지도 우하단 버튼(Android map_constellation/map_only 대응).
@@ -336,6 +339,12 @@ enum L10n: String {
         case .uploadPhotoSection:   return ("사진 · 움짤 (선택)", "Photo · GIF (optional)", "写真・GIF（任意）")
         case .uploadAddPhoto:       return ("사진 추가", "Add photo", "写真を追加")
         case .uploadCaptureBoomerang: return ("3초 영상 촬영", "3-second clip", "3秒動画を撮影")
+        case .uploadTakePhoto:      return ("카메라로 촬영", "Take a photo", "カメラで撮影")
+        case .uploadPickGallery:    return ("갤러리에서 선택", "Choose from gallery", "ギャラリーから選択")
+        case .uploadReselect:       return ("다시 선택", "Reselect", "選び直す")
+        case .toastCameraPermission: return ("카메라 권한이 필요해요", "Camera permission is required", "カメラの権限が必要です")
+        case .toastCameraUnavailable: return ("이 기기에서는 카메라를 쓸 수 없어요", "Camera isn't available on this device", "この端末ではカメラを使用できません")
+        case .commonDone:           return ("완료", "Done", "完了")
         case .uploadStarShape:      return ("별 모양", "Star shape", "星の形")
         case .uploadStarColor:      return ("별 색상", "Star color", "星の色")
         case .uploadVisibility:     return ("공개 범위", "Visibility", "公開範囲")
@@ -369,6 +378,7 @@ enum L10n: String {
         case .friendRequestFail:    return ("요청 실패", "Request failed", "リクエストに失敗しました")
         case .commonSearch:         return ("검색", "Search", "検索")
         case .chatInputPlaceholder: return ("메시지 입력", "Message", "メッセージを入力")
+        case .chatSendFailed:       return ("메시지를 보내지 못했어요", "Couldn't send the message", "メッセージを送信できませんでした")
         case .commonFriend:         return ("친구", "Friend", "友達")
         case .loginGoogle:          return ("Google 계정으로 로그인", "Sign in with Google", "Googleでログイン")
         case .loginBrowse:          return ("로그인 없이 둘러보기", "Browse without signing in", "ログインせずに見る")
@@ -384,6 +394,7 @@ enum L10n: String {
         case .notifLikeRow:         return ("\"%@\"를 좋아해요", "Liked \"%@\"", "「%@」にいいねしました")
         case .notifCommentRow:      return ("\"%@\"에 댓글을 남겼어요", "Commented on \"%@\"", "「%@」にコメントしました")
         case .notifFriendPostRow:   return ("새 다이어리 \"%@\"를 남겼어요", "Posted a new diary \"%@\"", "新しい日記「%@」を投稿しました")
+        case .notifFriendRequestRow: return ("친구 요청을 보냈어요", "Sent you a friend request", "友達リクエストを送りました")
         case .mapWaitingFix:        return ("현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요",
                                             "Locating you… please try again in a moment",
                                             "現在地を確認しています。しばらくしてからお試しください")

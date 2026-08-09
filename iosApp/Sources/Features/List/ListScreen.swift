@@ -121,11 +121,11 @@ struct DiaryCard: View {
             StarView(type: diary.starType, colorIndex: diary.starColor, size: 36)
             VStack(alignment: .leading, spacing: 4) {
                 Text(diary.title.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : diary.title)
-                    .font(.poorStory(17))
+                    .font(.minSans(17))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 Text(diary.userName.isEmpty ? LocaleManager.shared.t(.commonAnonymous) : diary.userName)
-                    .font(.poorStory(12))
+                    .font(.minSans(12))
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -140,7 +140,7 @@ struct DiaryCard: View {
             }
             if let distance {
                 Text(distanceLabel(distance))
-                    .font(.poorStory(11))
+                    .font(.minSans(11))
                     .foregroundStyle(Theme.textFaint)
             }
         }
@@ -162,7 +162,7 @@ struct ContentUnavailableCompat: View {
                 .font(.largeTitle)
                 .foregroundStyle(Theme.textFaint)
             Text(text)
-                .font(.poorStory(15))
+                .font(.minSans(15))
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
         }

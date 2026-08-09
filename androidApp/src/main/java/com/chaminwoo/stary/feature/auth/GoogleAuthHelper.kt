@@ -90,16 +90,7 @@ object GoogleAuthHelper {
                         // 삭제 예약이 걸려 있으면 재로그인으로 취소(7일 유예 정책).
                         cancelPendingDeletion(uid)
                         // FCM 토큰 + authUid 저장 — 친구 새 글 푸시(Cloud Functions) 발송 대상 / 서버 계정삭제용
-                        try {
-                            val fcmToken = FirebaseMessaging.getInstance().token.await()
-                            val authUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-                            staryFirestore.collection(StaryConfig.Collections.USERS)
-                                .document(uid)
-                                .set(mapOf("fcmToken" to fcmToken, "authUid" to authUid), SetOptions.merge())
-                                .await()
-                        } catch (e: Exception) {
-                            Log.w(TAG, "FCM 토큰 저장 실패: ${e.localizedMessage}")
-                        }
+                        syncFcmToken(uid)
                     }
                 }
                 idToken
@@ -127,7 +118,13 @@ object GoogleAuthHelper {
         currentUserPhotoUrl = (google?.photoUrl ?: user.photoUrl)?.toString()
         currentUserEmail = user.email
         // 앱 재시작(세션 복원)도 "로그인"으로 보고 삭제 예약을 취소(7일 유예 정책).
-        CoroutineScope(Dispatchers.IO).launch { cancelPendingDeletion(uid) }
+        // ⚠️ FCM 토큰도 여기서 다시 기록한다 — 예전엔 "구글 로그인 화면을 실제로 거친 순간"에만
+        //    저장해서, 로그인이 유지되는 기기(대부분)는 토큰이 재발급돼도 갱신되지 않아
+        //    푸시가 조용히 끊길 수 있었다(친구 새 글/친구 요청 알림 미수신 원인).
+        CoroutineScope(Dispatchers.IO).launch {
+            cancelPendingDeletion(uid)
+            syncFcmToken(uid)
+        }
 
         Log.d("AUTH", "uid=${user?.uid}")
         user?.providerData?.forEach {
@@ -214,6 +211,27 @@ object GoogleAuthHelper {
         } catch (e: Exception) {
             Log.e(TAG, "계정 삭제 예약 실패: ${e.localizedMessage}")
             false
+        }
+    }
+
+    /**
+     * 현재 FCM 토큰 + FirebaseAuth uid 를 users/{uid} 에 기록.
+     * 서버(Cloud Functions)가 이 토큰으로 푸시를 보내므로, 로그인/세션 복원마다 최신값으로 맞춘다.
+     * (토큰 회전은 [com.chaminwoo.stary.push.StaryMessagingService.onNewToken] 이 별도로 처리)
+     */
+    suspend fun syncFcmToken(uid: String) {
+        if (uid.isBlank()) return
+        try {
+            val fcmToken = FirebaseMessaging.getInstance().token.await()
+            val authUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+            staryFirestore.collection(StaryConfig.Collections.USERS)
+                .document(uid)
+                .set(mapOf("fcmToken" to fcmToken, "authUid" to authUid), SetOptions.merge())
+                .await()
+            // 이 문서에 fcmToken 이 없으면 서버가 그 사용자를 조용히 건너뛴다 → 푸시 미수신 1순위 확인 지점.
+            Log.i(TAG, "fcmToken 저장 완료 users/$uid …${fcmToken.takeLast(8)}")
+        } catch (e: Exception) {
+            Log.w(TAG, "FCM 토큰 저장 실패: ${e.localizedMessage}")
         }
     }
 

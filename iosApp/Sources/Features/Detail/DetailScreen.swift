@@ -73,7 +73,7 @@ struct DetailScreen: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Spacer().frame(height: 18)
                         Text(displayTitle)
-                            .font(.poorStory(24))
+                            .font(.minSans(24, .semibold))
                             .foregroundStyle(Theme.textPrimary)
                         Spacer().frame(height: 16)
                         bodyCard
@@ -277,7 +277,7 @@ struct DetailScreen: View {
                     StarView(type: diary.starType, colorIndex: diary.starColor, size: 18, glow: false)
                     Spacer().frame(width: 8)
                     Text(authorName.isEmpty ? LocaleManager.shared.t(.commonAnonymous) : authorName)
-                        .font(.poorStory(13))
+                        .font(.minSans(13))
                         .foregroundStyle(Theme.textPrimary.opacity(0.85))
                     if canOpenProfile {
                         // 히든 업적 배지 — 익명 글에는 붙이지 않는다(작성자 은닉 유지).
@@ -291,9 +291,9 @@ struct DetailScreen: View {
             }
             .buttonStyle(.plain)
             .disabled(!canOpenProfile)
-            Text("  ·  ").font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+            Text("  ·  ").font(.minSans(13)).foregroundStyle(Theme.textSecondary)
             Text(Self.createdFmt.string(from: diary.createdDate))
-                .font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+                .font(.minSans(13)).foregroundStyle(Theme.textSecondary)
         }
         .task(id: diary.userId) {
             if canOpenProfile { directory.ensureWatching(diary.userId) }
@@ -304,7 +304,7 @@ struct DetailScreen: View {
 
     private var bodyCard: some View {
         Text(editedContent ?? diary.content)
-            .font(.poorStory(16))
+            .font(.minSans(16))
             .lineSpacing(8)
             .foregroundStyle(Theme.textPrimary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -334,7 +334,7 @@ struct DetailScreen: View {
                     .frame(width: 40, height: 40)
             }
             Text("\(vm.likeCount)")
-                .font(.poorStory(14)).foregroundStyle(Theme.textSecondary)
+                .font(.minSans(14)).foregroundStyle(Theme.textSecondary)
             // (공유 기능은 iOS 에서 제거됨 — 사용자 지시)
             Spacer()
             if isOwner {
@@ -343,15 +343,15 @@ struct DetailScreen: View {
                     editContent = editedContent ?? diary.content
                     showEditDialog = true
                 }
-                .font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+                .font(.minSans(13)).foregroundStyle(Theme.textSecondary)
                 Spacer().frame(width: 12)
                 Button(LocaleManager.shared.t(.commonDelete)) { showDeleteConfirm = true }
-                    .font(.poorStory(13)).foregroundStyle(Theme.accentRed)
+                    .font(.minSans(13)).foregroundStyle(Theme.accentRed)
             } else {
                 Button(LocaleManager.shared.t(.reportDiary)) {
                     if auth.uid == nil { showLoginRequired = true } else { showReportDialog = true }
                 }
-                .font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+                .font(.minSans(13)).foregroundStyle(Theme.textSecondary)
             }
         }
         .padding(.bottom, 8)
@@ -366,7 +366,7 @@ struct DetailScreen: View {
                  ? LocaleManager.shared.t(.detailLocating)
                  : String(format: LocaleManager.shared.t(.mapOpenRange),
                           Int(AppConfig.diaryOpenRadiusM), Geo.formatDistance(distanceM)))
-                .font(.poorStory(13)).foregroundStyle(Theme.textSecondary)
+                .font(.minSans(13)).foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(14)
@@ -377,7 +377,7 @@ struct DetailScreen: View {
         VStack(alignment: .leading, spacing: 12) {
             // "댓글 N" 헤더 — Android detail_comments_count 대응.
             Text(String(format: LocaleManager.shared.t(.detailCommentsCount), visibleComments.count))
-                .font(.poorStory(14))
+                .font(.minSans(14))
                 .foregroundStyle(Theme.textPrimary)
             HStack {
                 TextField(LocaleManager.shared.t(.commentPlaceholder), text: $commentText, axis: .vertical)
@@ -423,7 +423,7 @@ struct DetailScreen: View {
                                 HStack(spacing: 4) {
                                     // 저장 시점 스냅샷이 아닌 현재 닉네임으로 표시
                                     Text(directory.name(c.userId, fallback: c.userName))
-                                        .font(.poorStory(12)).foregroundStyle(Theme.textSecondary)
+                                        .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
                                     HiddenStarBadges(userId: c.userId, size: 10)
                                 }
                             }
@@ -437,7 +437,7 @@ struct DetailScreen: View {
                                 }
                             }
                         }
-                        Text(c.content).font(.poorStory(15)).foregroundStyle(Theme.textPrimary)
+                        Text(c.content).font(.minSans(14)).foregroundStyle(Theme.textPrimary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -516,7 +516,7 @@ private struct CommentAvatar: View {
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(initial)
-                        .font(.poorStory(13))
+                        .font(.minSans(13))
                         .foregroundStyle(Theme.mint)
                 )
             }

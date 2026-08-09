@@ -159,6 +159,7 @@
     <string name="notif_friend_post">새 다이어리 \"%1$s\"를 남겼어요</string>
     <string name="notif_like">\"%1$s\"를 좋아해요</string>
     <string name="notif_comment">\"%1$s\"에 댓글을 남겼어요</string>
+    <string name="notif_friend_request">친구 요청을 보냈어요</string>
 
     <!-- 내 다이어리 화면 -->
     <string name="mydiary_empty">아직 기록한 다이어리가 없어요</string>

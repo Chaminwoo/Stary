@@ -191,7 +191,7 @@ struct MapScreen: View {
                     .font(.system(size: 14))
                     .foregroundStyle(active ? Theme.navyAccent : .white.opacity(0.7))
                 Text(label)
-                    .font(.poorStory(13))
+                    .font(.minSans(13))
                     .foregroundStyle(active ? Theme.navyAccent : .white.opacity(0.85))
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
@@ -429,7 +429,7 @@ struct MapScreen: View {
         VStack(spacing: 10) {
             if let s = routeSummary {
                 Text(s)
-                    .font(.caption.weight(.medium))
+                    .font(.minSans(12, .medium))
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .background(Theme.surface.opacity(0.95), in: Capsule())
                     .foregroundStyle(Color(red: 0.525, green: 0.937, blue: 0.675))
@@ -645,7 +645,7 @@ private struct FriendFilterPicker: View {
         } label: {
             HStack(spacing: 12) {
                 Text(f.userName)
-                    .font(.poorStory(15))
+                    .font(.minSans(15))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 Spacer()

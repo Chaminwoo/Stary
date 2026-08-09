@@ -302,10 +302,10 @@ struct MusicScreen: View {
 
                 // 트랙명은 언어 전환에 맞춰 표시(로케일 해석)
                 Text(LocalizedNames.music(selected.id, fallback: selected.displayName))
-                    .font(.poorStory(20))
+                    .font(.minSans(20))
                     .foregroundStyle(isUnlocked(selected) ? selected.color : Theme.textSecondary)
                 Text(subtitle)
-                    .font(.poorStory(13))
+                    .font(.minSans(13))
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
             }

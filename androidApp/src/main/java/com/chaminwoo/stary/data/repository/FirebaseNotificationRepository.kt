@@ -87,6 +87,33 @@ class FirebaseNotificationRepository : NotificationRepository {
         } catch (_: Exception) {}
     }
 
+    /**
+     * 친구 요청 알림 — 요청을 보낸 클라이언트가 수신자(toId) 앞으로 알림 문서를 만든다.
+     * 이 문서가 생기면 (a) 수신자가 전면이면 인앱 배너, (b) 후면/종료면 Cloud Functions
+     * `notifyOnNotificationCreate` 가 FCM 푸시를 보낸다(= iOS/Android 공통 팝업 경로).
+     * 중복 요청(이미 pending)일 때는 호출하지 않는다 — [FirebaseFriendRepository.sendRequest] 참고.
+     */
+    suspend fun notifyFriendRequest(
+        actorId: String,
+        actorName: String,
+        toId: String,
+    ) {
+        if (actorId.isBlank() || toId.isBlank()) return
+        try {
+            val doc = db.collection(StaryConfig.Collections.NOTIFICATIONS).document()
+            doc.set(
+                AppNotification(
+                    id = doc.id,
+                    type = com.chaminwoo.stary.core.model.NotificationType.FRIEND_REQUEST.name,
+                    diaryOwnerId = toId, // 알림 수신자
+                    actorId = actorId,
+                    actorName = actorName,
+                    createdAt = System.currentTimeMillis()
+                )
+            ).await()
+        } catch (_: Exception) {}
+    }
+
     override suspend fun deleteNotification(notificationId: String) {
         try {
             db.collection(StaryConfig.Collections.NOTIFICATIONS)

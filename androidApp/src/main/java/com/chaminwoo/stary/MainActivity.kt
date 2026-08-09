@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
             diaryId = intent?.getStringExtra(EXTRA_DIARY_ID),
             chatFriendId = intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID),
             chatFriendName = intent?.getStringExtra(EXTRA_CHAT_FRIEND_NAME),
+            openFriends = intent?.getBooleanExtra(EXTRA_OPEN_FRIENDS, false) == true,
         )
         // 공유 랜딩(stary://diary/{id}) → 상세가 아닌 "지도 포커스"(카메라+파장)로.
         // 상세 직행이면 100m 열람 게이팅이 우회되므로 별 위치만 보여준다(체크리스트 30).
@@ -105,5 +106,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_DIARY_ID = "diaryId"
         const val EXTRA_CHAT_FRIEND_ID = "chatFriendId"
         const val EXTRA_CHAT_FRIEND_NAME = "chatFriendName"
+        /** 친구 요청 푸시 탭 → 친구 화면(받은 요청)으로. */
+        const val EXTRA_OPEN_FRIENDS = "openFriends"
     }
 }

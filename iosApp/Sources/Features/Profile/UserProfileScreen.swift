@@ -59,7 +59,7 @@ struct UserProfileScreen: View {
                 avatar
                 HStack(spacing: 6) {
                     Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
-                        .font(.poorStory(26))
+                        .font(.minSans(26))
                         .foregroundStyle(Theme.textPrimary)
                     HiddenStarBadges(userId: userId, size: 13)
                 }
@@ -67,7 +67,7 @@ struct UserProfileScreen: View {
                     let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
                     let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.navyAccent
                     Text(hiddenT ? "『\(title)』" : title)
-                        .font(.poorStory(15))
+                        .font(.minSans(15))
                         .foregroundStyle(titleColor)
                         .shadow(color: titleColor.opacity(0.9), radius: hiddenT ? 16 : 12)
                 }
@@ -158,7 +158,7 @@ struct UserProfileScreen: View {
             avatar
             HStack(spacing: 6) {
                 Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
-                    .font(.poorStory(20))
+                    .font(.minSans(20))
                     .foregroundStyle(Theme.textPrimary)
                 // 히든 업적 달성자 전용 크리스탈 배지(34-4).
                 HiddenStarBadges(userId: userId, size: 13)
@@ -169,7 +169,7 @@ struct UserProfileScreen: View {
                 let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
                 let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.navyAccent
                 Text(hiddenT ? "『\(title)』" : title)
-                    .font(.poorStory(12))
+                    .font(.minSans(12))
                     .padding(.horizontal, 12).padding(.vertical, 5)
                     .background(titleColor.opacity(0.2), in: Capsule())
                     .foregroundStyle(titleColor)
@@ -193,7 +193,7 @@ struct UserProfileScreen: View {
                 } else {
                     Theme.surfaceAlt.overlay(
                         Text(String((userName.isEmpty ? "?" : userName).prefix(1)))
-                            .font(.poorStory(40))
+                            .font(.minSans(40))
                             .foregroundStyle(Theme.navyAccent)
                     )
                 }
@@ -208,14 +208,14 @@ struct UserProfileScreen: View {
     private var actionRow: some View {
         if isMe {
             Text(locale.t(.userProfileMe))
-                .font(.poorStory(15)).foregroundStyle(Theme.textSecondary)
+                .font(.minSans(15)).foregroundStyle(Theme.textSecondary)
         } else if isFriend {
             HStack(spacing: 12) {
                 Label(locale.t(.userStatusFriend), systemImage: "checkmark.seal.fill")
-                    .font(.poorStory(15)).foregroundStyle(Theme.navyAccent)
+                    .font(.minSans(15)).foregroundStyle(Theme.navyAccent)
                 Button { openChat = true } label: {
                     Label(locale.t(.userChatAction), systemImage: "bubble.left.fill")
-                        .font(.poorStory(15))
+                        .font(.minSans(15))
                         .padding(.horizontal, 16).padding(.vertical, 8)
                         .background(Theme.navyAccent.opacity(0.18), in: Capsule())
                         .foregroundStyle(Theme.navyAccent)
@@ -227,7 +227,7 @@ struct UserProfileScreen: View {
             } label: {
                 Label(requested ? locale.t(.userRequested) : locale.t(.userAddFriend),
                       systemImage: requested ? "checkmark" : "person.badge.plus")
-                    .font(.poorStory(15))
+                    .font(.minSans(15))
                     .padding(.horizontal, 18).padding(.vertical, 9)
                     .background((requested ? Theme.textFaint : Theme.navyAccent).opacity(0.18), in: Capsule())
                     .foregroundStyle(requested ? Theme.textSecondary : Theme.navyAccent)

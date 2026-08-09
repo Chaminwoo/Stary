@@ -52,13 +52,13 @@ struct SettingsScreen: View {
                                 iconBadge("globe", active: true)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(locale.t(.settingsLanguage))
-                                        .foregroundStyle(Theme.textPrimary)
+                                        .font(.minSans(17)).foregroundStyle(Theme.textPrimary)
                                     Text(locale.t(.settingsLanguageDesc))
-                                        .font(.poorStory(11)).foregroundStyle(Theme.textSecondary)
+                                        .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
                                 }
                                 Spacer()
                                 Text(languageLabel(locale.language))
-                                    .font(.poorStory(15)).foregroundStyle(Theme.navyAccent)
+                                    .font(.minSans(15)).foregroundStyle(Theme.navyAccent)
                                 Image(systemName: "chevron.right")
                                     .font(.caption).foregroundStyle(Theme.textFaint)
                             }
@@ -80,9 +80,9 @@ struct SettingsScreen: View {
                                     .overlay(Circle().strokeBorder(SoftRed.opacity(0.35), lineWidth: 1))
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(locale.t(.settingsDeleteAccount))
-                                        .foregroundStyle(SoftRed)
+                                        .font(.minSans(17)).foregroundStyle(SoftRed)
                                     Text(locale.t(.settingsDeleteAccountDesc))
-                                        .font(.caption2).foregroundStyle(Theme.textSecondary)
+                                        .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
                                 }
                                 Spacer()
                                 if deleting { StarLoadingView(size: 20, color: SoftRed) }
@@ -143,7 +143,7 @@ struct SettingsScreen: View {
     private func sectionLabel(_ text: String, _ icon: String) -> some View {
         HStack(spacing: 7) {
             Image(systemName: icon).font(.system(size: 13)).foregroundStyle(Theme.navyAccent)
-            Text(text).font(.poorStory(15)).foregroundStyle(Theme.navyAccent)
+            Text(text).font(.minSans(15)).foregroundStyle(Theme.navyAccent)
         }
     }
 
@@ -178,9 +178,9 @@ struct SettingsScreen: View {
         HStack(spacing: 14) {
             iconBadge(icon, active: isOn)
             VStack(alignment: .leading, spacing: 2) {
-                Text(label).foregroundStyle(Theme.textPrimary)
+                Text(label).font(.minSans(17)).foregroundStyle(Theme.textPrimary)
                 if let description {
-                    Text(description).font(.poorStory(11)).foregroundStyle(Theme.textSecondary)
+                    Text(description).font(.minSans(12)).foregroundStyle(Theme.textSecondary)
                 }
             }
             Spacer()
@@ -198,10 +198,10 @@ struct SettingsScreen: View {
         return VStack(spacing: 6) {
             HStack(spacing: 14) {
                 iconBadge(icon, active: enabled)
-                Text(label).foregroundStyle(enabled ? Theme.textPrimary : Theme.textFaint)
+                Text(label).font(.minSans(17)).foregroundStyle(enabled ? Theme.textPrimary : Theme.textFaint)
                 Spacer()
                 Text("\(Int(value * 100))%")
-                    .font(.poorStory(12))
+                    .font(.minSans(12))
                     .foregroundStyle(enabled ? Theme.navyAccent : Theme.textFaint)
                     .padding(.horizontal, 12).padding(.vertical, 4)
                     .background(enabled ? Theme.navyAccent.opacity(0.14) : Color.white.opacity(0.05), in: Capsule())

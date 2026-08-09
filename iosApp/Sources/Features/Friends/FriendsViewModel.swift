@@ -134,10 +134,32 @@ final class FriendsViewModel: ObservableObject {
                 "toId": to.userId, "toName": to.userName,
                 "createdAt": FirestoreService.nowMillis,
             ])
+            // 상대에게 알림 문서 생성 — 전면이면 인앱 배너, 후면/종료면 Cloud Functions 가 FCM 푸시.
+            // (Android FirebaseFriendRepository.sendRequest 와 동일 — 중복 요청일 땐 위에서 return.)
+            await Self.notifyFriendRequest(actorId: fromId, actorName: fromName, toId: to.userId)
             return true
         } catch {
             return false
         }
+    }
+
+    /// 친구 요청 알림 문서(notifications/{id}) 생성 — 수신자 = toId.
+    /// 필드/타입은 Android `AppNotification` 저장 형태와 동일해야 한다(양쪽이 같은 문서를 읽음).
+    static func notifyFriendRequest(actorId: String, actorName: String, toId: String) async {
+        guard !actorId.isEmpty, !toId.isEmpty else { return }
+        let ref = FirestoreService.notifications.document()
+        try? await ref.setData([
+            "id": ref.documentID,
+            "type": "FRIEND_REQUEST",
+            "diaryId": "",
+            "diaryTitle": "",
+            "diaryOwnerId": toId,   // 알림 수신자
+            "actorId": actorId,
+            "actorName": actorName,
+            "content": "",
+            "createdAt": FirestoreService.nowMillis,
+            "read": false,          // Kotlin isRead 직렬화 규칙상 필드명은 read
+        ])
     }
 
     func accept(_ r: FriendRequest, myUid: String, myName: String) async {

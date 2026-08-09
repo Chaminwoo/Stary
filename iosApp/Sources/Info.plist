@@ -50,7 +50,11 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>poetsen_one_regular.ttf</string>
-		<string>poor_story_regular.ttf</string>
+		<string>min_sans.ttf</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>

@@ -142,7 +142,8 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
 ### StaryApp.swift — 진입점
 - `@UIApplicationDelegateAdaptor(AppDelegate.self)` + `FirebaseApp.configure()`.
 - `configureNavigationBarAppearance()` : push 화면의 시스템 내비바를 Android 탑바 톤으로 통일
-  (배경 0x0D0D0D 불투명, 제목 PoorStory 20 / 0xF0F0F0). **탑바 색/폰트를 바꾸려면 여기.**
+  (배경 0x0D0D0D 불투명, 제목 **MinSans 18 SemiBold** / 0xF0F0F0, 뒤로가기 라벨 MinSans 16).
+  **탑바 색/폰트를 바꾸려면 여기.**
 - `onOpenURL` : `stary://diary/{id}` → `TabRouter.go(map)` + `MapFocusStore.request(id)`,
   `stary://invite/{uid}` → `InviteStore.handleDeepLink`, 그 외 → 구글 로그인 콜백.
 
@@ -176,5 +177,5 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
 | 드로어 폭/색 | `MainScreen.kt` ModalDrawerSheet(0x111111, 라운드 24) | `RootView.swift` drawerPanel(300pt, 0x111111, 라운드 24) |
 | 글쓰기 FAB 그라데이션 | `MainScreen.kt`/`DiaryMap.kt` (0x3A4676→0x111936, 56dp) | `RootView.swift` fab (같은 hex, 56pt) |
 | 지도 복귀 재센터 | `MainScreen.kt` isMapRoute 효과 + `MapUiState.requestRecenter` | `MapScreen.swift` `.onAppear` 의 `rootAppearedOnce` 블록 |
-| 탑바 높이/제목 폰트 | CenterAlignedTopAppBar + MinSans 18 | topBar(56pt) + PoorStory 20, push 화면은 `StaryApp.configureNavigationBarAppearance()` |
+| 탑바 높이/제목 폰트 | CenterAlignedTopAppBar + MinSans 18 SemiBold | topBar(56pt) + MinSans 18 SemiBold, push 화면은 `StaryApp.configureNavigationBarAppearance()` |
 | 딥링크 스킴/호스트 | `shared StaryConfig.DEEP_LINK_*` | `AppConfig.deepLinkScheme/HostDiary/HostInvite` (**값 동일 유지**) |

@@ -157,6 +157,7 @@
     <string name="notif_friend_post">Posted a new diary \"%1$s\"</string>
     <string name="notif_like">Liked \"%1$s\"</string>
     <string name="notif_comment">Commented on \"%1$s\"</string>
+    <string name="notif_friend_request">Sent you a friend request</string>
 
     <!-- My Diary screen -->
     <string name="mydiary_empty">No diaries yet</string>

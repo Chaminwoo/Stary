@@ -46,21 +46,53 @@ function myAppUserId() {
     : request.auth.uid;
 }
 
+// ── 1:1 채팅 ──────────────────────────────────────────────────────────────
+// ⚠️ **두 가지 판정을 용도별로 섞어 써야 한다. 하나로 통일하면 반드시 한쪽이 깨진다.**
+//
+//  (A) chatId 로 판정 — `isChatMember(chatId)`
+//      chatId = 두 appUserId 를 정렬·결합한 결정적 값("작은id_큰id", StaryConfig.chatId /
+//      AppConfig.chatId)이라 그 안에 내 id 가 있으면 곧 참여자다.
+//      → **방 문서가 아직 없는 첫 메시지**에도 쓸 수 있다(resource/get 이 null 이어도 판정 가능).
+//      과거 messages 규칙이 `get(chats/{chatId}).data.participants` 를 봐서, 방이 없는 첫 메시지가
+//      항상 거부됐다 = 새 상대(iOS ↔ Android)와 채팅이 영영 안 되던 원인.
+//
+//  (B) participants 필드로 판정 — `myAppUserId() in resource.data.participants`
+//      **컬렉션 쿼리(list)** 에 필요하다. 친구 화면/인앱 배너는
+//      `chats.whereArrayContains("participants", 내id)` 로 방 목록을 구독하는데,
+//      이 쿼리는 "결과 문서의 **문서 id** 안에 내 id 가 들어 있다"는 걸 규칙 엔진이 증명할 수 없다
+//      → (A)만 쓰면 **쿼리 전체가 거부**되어 마지막 메시지가 안 보인다("아직 채팅이 없어요").
+//      쿼리 제약(participants arrayContains 나)과 규칙 조건이 같은 형태여야 통과한다.
+//
+//  정리: 방 문서 읽기/수정·목록 쿼리 = (B), 방 문서 생성 + messages 하위 = (A).
+function isChatMember(chatId) {
+  return isSignedIn() && myAppUserId() in chatId.split('_');
+}
+
 match /chats/{chatId} {
-  allow read, write: if myAppUserId() in resource.data.participants;
+  // 목록 쿼리(participants arrayContains 나)가 통과하려면 반드시 이 형태여야 한다. (B)
+  allow read: if isSignedIn() && myAppUserId() in resource.data.participants;
+
+  // 첫 메시지에서 방을 만드는 경우 — resource 가 없으므로 chatId + 새로 쓰는 participants 로 판정. (A)
+  allow create: if isChatMember(chatId)
+    && myAppUserId() in request.resource.data.participants;
+
+  // 마지막 메시지/읽음 시각 갱신 — 기존 문서 기준. (B)
+  allow update: if isSignedIn() && myAppUserId() in resource.data.participants;
+
+  // 방 삭제 기능은 없지만, 참여자 본인 정리는 막지 않는다(구 규칙과 동일 범위).
+  allow delete: if isSignedIn() && myAppUserId() in resource.data.participants;
 
   match /messages/{messageId} {
-    allow read: if myAppUserId() in
-      get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+    // 하위 컬렉션은 경로에 chatId 가 이미 확정돼 있어 (A) 로 충분하다.
+    // 방 문서 존재 여부와 무관해야 하므로 get() 을 쓰지 않는다(읽기 비용도 절약).
+    allow read: if isChatMember(chatId);
 
-    allow create: if myAppUserId() in
-      get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+    allow create: if isChatMember(chatId)
       && request.resource.data.senderId == myAppUserId();
 
     allow update: if false;
 
-    allow delete: if myAppUserId() in
-      get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+    allow delete: if isChatMember(chatId)
       && resource.data.senderId == myAppUserId()
       && request.time.toMillis() - resource.data.createdAt < 60000;
   }

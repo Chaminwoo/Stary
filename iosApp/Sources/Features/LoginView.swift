@@ -82,7 +82,7 @@ struct LoginView: View {
                     Task { await auth.signInAnonymously() }
                 } label: {
                     Text(LocaleManager.shared.t(.loginBrowse))
-                        .font(.poorStory(14))
+                        .font(.minSans(14))
                         .foregroundStyle(Theme.mint)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
@@ -90,7 +90,7 @@ struct LoginView: View {
 
                 if let error = auth.errorMessage {
                     Text(error)
-                        .font(.poorStory(12))
+                        .font(.minSans(12))
                         .foregroundStyle(.red.opacity(0.9))
                         .multilineTextAlignment(.center)
                 }
@@ -136,7 +136,7 @@ struct StarDiaryButton: View {
                 Image(systemName: "star.fill")
                     .font(.system(size: 20))
                 Text(text)
-                    .font(.poorStory(16))
+                    .font(.minSans(16))
             }
             .foregroundStyle(charcoal)
             .frame(maxWidth: .infinity)
@@ -165,11 +165,12 @@ struct StarDiaryButton: View {
 
 // MARK: - 인트로 영상 뷰
 
-/// 무음 인트로 영상을 1회 재생하고 끝나면 콜백. (Android ExoPlayer 대응)
+/// 무음 인트로 영상을 1회 재생하고, **끝나기 [Coordinator.earlyRevealSeconds] 초 전에** 콜백. (Android ExoPlayer 대응)
 /// 재생 속도 곡선(빠르게 시작 → 종반 감속)까지 근사한다.
 private struct IntroVideoView: UIViewRepresentable {
     let resource: String
     let ext: String
+    /// 로그인 UI(로고+버튼) 등장 신호. 영상은 이 뒤에도 계속 재생돼 자연스럽게 마무리된다.
     let onEnded: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(onEnded: onEnded) }
@@ -198,6 +199,15 @@ private struct IntroVideoView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject {
+        /// 영상 종료보다 이만큼 **먼저** 로그인 UI 를 띄운다(초, 실제 시간).
+        /// 값을 키우면 로고/버튼이 그만큼 더 빨리 뜬다.
+        ///
+        /// 현재 인트로: 미디어 7.83초를 속도 곡선(2.5x→1.8x→0.5x)으로 재생 = **실제 약 4.85초**.
+        /// 1.0 이면 약 3.85초에 노출(+페이드 0.8초).
+        /// ⚠️ Android 는 영상과 무관하게 **1.5초 고정 후 노출**이라 아직 iOS 가 더 늦다 —
+        ///    완전한 패리티를 원하면 이 값 대신 "재생 시작 후 1.5초 타이머" 방식으로 바꿀 것.
+        static let earlyRevealSeconds: Double = 1.0
+
         private let onEnded: () -> Void
         private weak var player: AVPlayer?
         private var timeObserver: Any?
@@ -224,16 +234,40 @@ private struct IntroVideoView: UIViewRepresentable {
             guard let player, let item = player.currentItem else { return }
             let total = CMTimeGetSeconds(item.duration)
             guard total.isFinite, total > 0 else { return }
-            let progress = Float(CMTimeGetSeconds(player.currentTime()) / total)
-            let rate: Float
-            if progress <= 0.5 {
-                rate = 2.5 - (progress / 0.5) * 0.7          // 2.5x → 1.8x
-            } else if progress >= 0.75 {
-                rate = max(1.8 - ((progress - 0.75) / 0.25) * 1.3, 0.25) // 1.8x → 0.25x
-            } else {
-                rate = 1.8
+            let progress = CMTimeGetSeconds(player.currentTime()) / total
+            if player.rate > 0 { player.rate = Self.rate(atProgress: progress) }
+
+            // 영상이 끝나기 전에 미리 로그인 UI 를 띄운다(체감 대기 단축 — 사용자 요청).
+            // 종반이 0.5배속까지 감속하므로 "남은 재생 시간"은 실제 시간 기준으로 계산해야 한다.
+            if !didEnd, Self.remainingWallSeconds(fromProgress: progress, total: total) <= Self.earlyRevealSeconds {
+                didEnd = true
+                onEnded()   // 영상은 계속 재생 — UI 가 그 위로 페이드인된다(Android 도 재생 중 노출).
             }
-            if player.rate > 0 { player.rate = rate }
+        }
+
+        /// 진행도별 재생 속도(Android LoginScreen 의 속도 곡선과 동일 값).
+        /// ⚠️ [remainingWallSeconds] 가 이 곡선을 적분하므로 값을 바꾸면 둘 다 함께 반영된다.
+        private static func rate(atProgress p: Double) -> Float {
+            if p <= 0.5 {
+                return Float(2.5 - (p / 0.5) * 0.7)                       // 2.5x → 1.8x
+            } else if p >= 0.75 {
+                return Float(max(1.8 - ((p - 0.75) / 0.25) * 1.3, 0.25))  // 1.8x → 0.25x(하한)
+            }
+            return 1.8
+        }
+
+        /// 지금 진행도에서 영상이 끝날 때까지 남은 **실제(벽시계) 시간** — 속도 곡선을 수치 적분.
+        /// (미디어 시간 ÷ 배속. 종반 감속 때문에 단순히 "남은 미디어 시간"을 쓰면 크게 어긋난다.)
+        private static func remainingWallSeconds(fromProgress p0: Double, total: Double) -> Double {
+            guard p0 < 1 else { return 0 }
+            let steps = 60
+            let dp = (1 - p0) / Double(steps)
+            var seconds = 0.0
+            for i in 0..<steps {
+                let mid = p0 + dp * (Double(i) + 0.5)
+                seconds += (dp * total) / Double(rate(atProgress: mid))
+            }
+            return seconds
         }
 
         @objc private func playbackEnded() {

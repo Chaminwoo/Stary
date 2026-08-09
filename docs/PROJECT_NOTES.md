@@ -2,7 +2,11 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.44 iOS 패리티 라운드3(버그 7건 + 미완 6건)** — **계정 통일(uid=Google sub)**/**@DocumentID id=nil 버그(7모델)**/구독 최신순 1000/시뮬레이터 서울 고정/달·행성 boolean 모양/친구 요청됨+토스트/후광 2겹 별색/타인 프로필 핀 별만/틸트 25°/마지막 카메라 복원/채팅 별가루 삭제 — Android BUILD SUCCESSFUL, **iOS CI(macOS) BUILD SUCCESS `003b2b3`**(2026-07-16) — 아래 8.44 참고.
+> 최종 갱신: **8.45 크로스플랫폼 버그 7건**(카메라/갤러리/3초영상 3지선다 · 휠 스냅 · 업로드 키보드 ·
+> **채팅 규칙(첫 메시지 거부) 근본 수정** · 채팅 입력바 인셋 · **iOS 푸시(FCM/APNs) 신설** · 친구 요청 알림)
+> **+ 8.45-2 iOS 폰트를 Android 와 동일하게(PoorStory → MinSans 가변폰트)**
+> — Android BUILD SUCCESSFUL(2026-08-09), iOS 는 push 후 CI 검증 + **사용자 액션 3건 필요**(아래 8.45).
+> 이전: **8.44 iOS 패리티 라운드3(버그 7건 + 미완 6건)** — **계정 통일(uid=Google sub)**/**@DocumentID id=nil 버그(7모델)**/구독 최신순 1000/시뮬레이터 서울 고정/달·행성 boolean 모양/친구 요청됨+토스트/후광 2겹 별색/타인 프로필 핀 별만/틸트 25°/마지막 카메라 복원/채팅 별가루 삭제 — Android BUILD SUCCESSFUL, **iOS CI(macOS) BUILD SUCCESS `003b2b3`**(2026-07-16) — 아래 8.44 참고.
 > 이전: **8.43 iOS 패리티 라운드2 (R2-1~R2-3 + 마무리 5건)** — anonymous 디코딩/줌 별크기/후광·파티클/100m 게이팅/미디어/열람 애니메이션/몰입·별자리 버튼/친구 db + 프로필 아이콘 크리스탈화/음악 별자리 보드 스타일/글로브 지구 복원/미번역 전수 + Android 업로드 휠 피커 — **CI(macOS) BUILD SUCCESS `f6428d2`**(2026-07-16) — 아래 8.43 참고.
 > 이전: **8.42 iOS UI 전면 패리티(1~7차 완료)** — 드로어 내비/테마/야경 지도/지도 크롬/상세 재구성/필터 확장/별자리 보드/L10n — **CI(macOS) BUILD SUCCESS `9cd867b`**(2026-07-15) — 아래 8.42 참고.
 > 이전: **8.41 다른 컴퓨터 iOS 작업 합류(로그인 화면 전면 개편 + 커스텀 폰트) + 번들 ID `com.chaminwoo.stary.ios` 확정** — 아래 8.41 참고.
@@ -34,6 +38,133 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.45 크로스플랫폼 버그 7건 (Android BUILD SUCCESSFUL 2026-08-09, iOS CI 검증 대기)
+
+사용자 보고 7건. Android 변경분은 패리티 규칙(§1.5)에 따라 iOS 와 같은 단위로 처리.
+
+**⚠️ 사용자 액션 3건 — 이거 안 하면 고쳐도 동작 안 함**
+1. **Firestore 규칙 배포**: `firebase deploy --only firestore:rules`
+   (#4 채팅 불통의 근본 원인이 서버 규칙이라, 배포 전에는 앱만 고쳐도 그대로 막힌다.)
+2. **Cloud Functions 재배포**: `cd functions && npm install && cd .. && firebase deploy --only functions`
+   (친구 요청 푸시 분기 + iOS APNs 옵션 추가분.)
+3. **iOS 푸시 서버 설정**: Firebase 콘솔 > 프로젝트 설정 > 클라우드 메시징에 **APNs 인증 키(.p8)** 등록
+   (Apple Developer > Keys 에서 발급, Key ID/Team ID 함께 입력). Mac 에서는 `cd iosApp && xcodegen generate`
+   재실행 필요(신규 파일 `CameraPicker.swift`/`PushManager.swift` + entitlements 반영).
+   시뮬레이터는 원격 푸시 불가 — **실기기**로 확인할 것.
+
+**#1 첨부 3지선다(iOS)**: 갤러리+부메랑 2버튼 → Android 와 동일한 "사진 추가" 1버튼 →
+`confirmationDialog`(카메라 촬영 / 갤러리에서 선택 / 3초 영상 촬영) + 첨부 후 "다시 선택".
+`Features/Upload/CameraPicker.swift` 신설(UIImagePickerController `.camera`, 긴 변 1600px JPEG 0.85 축소,
+권한/시뮬레이터 미지원 토스트). 촬영 화면 2종은 fullScreenCover **하나**(`captureSheet` item)로 통합.
+
+**#2 휠 피커 스냅(iOS+Android)**: `commit(steps)` 이 `steps == 0`(반 슬롯 미만 드래그)에서 그냥 return 해
+`drag` 잔여값이 남아 **항목 사이에 멈춘 채 고정**됐다 → 0 이면 원위치로 애니메이션(0.18s/180ms).
+
+**#3 업로드 키보드(iOS)**: `@FocusState` + 키보드 툴바 "완료"(본문은 여러 줄이라 리턴키가 줄바꿈) +
+제목 `submitLabel(.done)` + `scrollDismissesKeyboard(.interactively)`. 배경을 ZStack 형제 →
+`.background { ScreenBackground }` 로 옮겨 키보드가 올라올 때 스크롤 영역이 실제로 줄어들게 함.
+
+**#4 iOS↔Android 채팅 불통(근본 원인 = 서버 규칙)**: `firestore.rules` 의 chats 규칙이
+`resource.data.participants` / `get(chats/{chatId}).data.participants` 를 봤는데, **방 문서가 없는 첫
+메시지**에서는 둘 다 null → create 가 항상 거부. 즉 "이미 방이 있는 사이"만 채팅이 됐고 새 상대
+(iOS↔Android 조합)는 영원히 불통. → **chatId 문자열로 참여자 판정**(`isChatMember` = `myAppUserId() in
+chatId.split('_')`; chatId = 정렬 결합된 두 appUserId, 둘 다 '_' 없음). get() 도 사라져 읽기 비용 감소.
+클라이언트도 **방 메타 먼저 → 메시지** 순서로 통일했고, iOS `send` 는 Bool 반환 + 실패 시 입력 복원·토스트
+(`chatSendFailed`) — 조용한 실패 금지.
+
+> **후속(같은 라운드에서 재수정) — 규칙은 판정 방식을 용도별로 섞어야 한다**
+> 위 수정을 chats 문서에까지 적용했더니 이번엔 **친구 화면 마지막 메시지가 전부 사라졌다**("아직 채팅이 없어요").
+> 원인: 친구 화면/인앱 배너는 `chats.whereArrayContains("participants", 나)` 로 **컬렉션 쿼리(list)** 를 하는데,
+> 규칙이 "문서 id 안에 내 id 가 있는가"만 보면 규칙 엔진이 **쿼리 결과를 증명할 수 없어 쿼리 전체를 거부**한다
+> (rules 는 필터가 아니다 — 쿼리 제약과 규칙 조건이 같은 형태여야 통과). 메시지 하위 컬렉션은 경로에 chatId 가
+> 확정돼 있어 영향이 없어서 "채팅은 되는데 목록만 안 보이는" 형태로 나타났다.
+> **최종 규칙**: 방 문서 read/update/delete·목록 쿼리 = `resource.data.participants` 기준,
+> 방 문서 create + `messages` 하위 = `isChatMember(chatId)` 기준. 한쪽으로 통일하면 반드시 다른 쪽이 깨진다.
+
+**#5 채팅 입력바 인셋**:
+- Android: `navigationBarsPadding() + imePadding()` 이어 붙이기 → 키보드 위로 내비바 높이만큼 더 뜸.
+  `windowInsetsPadding(WindowInsets.safeDrawing.only(Bottom))` 한 번으로 교체(둘 중 큰 값) +
+  Manifest 에 `windowSoftInputMode="adjustResize"` 명시(창이 통째로 밀리는 것 방지 — edge-to-edge 조합 정석).
+- iOS: `ZStack { ScreenBackground(ignoresSafeArea); VStack{...} }` 구조가 **스택을 키보드 영역까지 키워서**
+  입력 바가 키보드 뒤에 깔렸다 → `.background { ScreenBackground }` 로 변경(레이아웃 비관여).
+  입력 바 배경만 `.ignoresSafeArea(.container, edges: .bottom)` — **regions 를 `.all` 로 쓰면 재발**.
+
+**#6 친구 요청 알림(Android+iOS)**: 기존엔 `friendRequests` 문서만 만들어 **알림도 푸시도 없었다**
+(친구 화면에 들어가야만 보임). → 요청 전송 시 `notifications` 문서(type=**FRIEND_REQUEST**, 수신자=toId,
+diaryId 없음)를 함께 생성 → 목록 + 인앱 배너 + FCM 푸시가 한 번에 동작. shared `NotificationType` 에 항목 추가,
+Functions `notifyOnNotificationCreate` 에 분기(제목 "{이름}님의 친구 요청"). 탭 → 친구 화면
+(Android: `openFriends` extra + `DeepLinkState.friendsNonce` / iOS: `PushRoute.friends`).
+
+**#7 iOS 푸시 자체가 없었음 → `Data/PushManager.swift` 신설**: iOS 에는 FirebaseMessaging/APNs 코드가
+**전혀 없어서** users/{uid}.fcmToken 이 비어 있었다(서버는 토큰 없는 사용자를 조용히 건너뜀) — 친구 새 글도
+친구 요청도 팝업이 올 수 없었다. 구성: `configure()`(AppDelegate) → `setUser(uid)`(RootView, 권한 요청 +
+registerForRemoteNotifications + 토큰 저장) → 전면 `willPresent` 는 `[]`(인앱 배너가 담당, Android 정책 동일) →
+탭은 `PushRouter` → RootView `.onReceive`(구독 시 현재 값도 받아 콜드 스타트 처리). `project.yml` 에
+FirebaseMessaging SPM + `UIBackgroundModes: remote-notification` + entitlements(`aps-environment`,
+`iosApp/Stary.entitlements` — 생성물이라 gitignore).
+Android 쪽 보강: `GoogleAuthHelper.syncFcmToken(uid)` 를 **세션 복원(앱 재시작)에서도** 호출(예전엔 로그인
+화면을 실제로 거친 순간에만 저장 → 토큰 회전 시 조용히 끊길 수 있었음).
+
+**남은 것**: 실기기 확인(iOS 푸시/카메라, Android 채팅 인셋), 규칙·Functions 배포 후 채팅 재검증.
+
+### 8.45-4 채팅 백그라운드 푸시 미수신 — 진단 계측 추가
+
+"채팅은 가는데 백그라운드 알림이 안 온다" 보고. 코드 경로(트리거 문서 경로/컬렉션명/채널 id/수신자
+산출)는 전수 확인 결과 정상이라, **어디서 끊기는지 보이게** 만드는 쪽으로 처리했다.
+경로가 길어서(문서 생성 → 트리거 → 토큰 조회 → FCM → 기기 표시) 한 칸만 비어도 조용히 아무 일도 안 난다.
+- **Functions 로그 강화**: `chat {id}: A → B 푸시 시도` / `fcmToken 없음 → 발송 생략` /
+  `발송 성공 {messageId}` / `발송 실패 (code)`. users 문서 부재, senderId 가 chatId 에 없는 경우도 경고.
+- **토큰 저장 로그**: Android `fcmToken 저장 완료 users/…`, iOS `✅ fcmToken 저장 완료 …`.
+  iOS 는 델리게이트 콜백만 믿지 않고 APNs 등록 직후 `Messaging.token` 을 **명시 조회**(순서 문제 방어),
+  권한 거부/토큰 발급 실패도 콘솔에 남긴다.
+- **Android 기본 알림 채널 메타데이터** 추가(`default_notification_channel_id=stary_default`) —
+  channelId 없이 온 메시지가 저중요도 '기타' 채널로 빠져 배너가 안 뜨는 경우 방지.
+- **Functions 런타임 nodejs20 → 22**(20 은 지원 종료 예정 — 배포가 막히는 원인이 될 수 있음).
+- 확인 순서는 `docs/code/11-notifications-push.md` 의 "푸시가 안 올 때" 절 참고.
+- ⚠️ 전면(포그라운드)에서는 **의도적으로** 시스템 배너를 막고 인앱 배너를 띄운다(양 플랫폼 동일) —
+  반드시 앱을 백그라운드/종료 상태로 두고 테스트할 것.
+
+### 8.45-2 iOS 폰트를 Android 와 동일하게(MinSans) — 사용자 지시
+
+iOS 는 8.41 에서 들어온 **PoorStory** 를 앱 전역 폰트로 쓰고 있었는데 Android 에는 그 폰트가 아예 없다
+(Android UI 폰트 = **MinSans**, `res/font/min_sans.ttf`). → iOS 를 MinSans 로 전면 교체.
+
+- **폰트 파일은 복제하지 않는다**: `project.yml` sources 에 `../androidApp/src/main/res/font/min_sans.ttf`
+  를 `buildPhase: resources` 로 추가(9MB 짜리 중복 커밋 방지) + `UIAppFonts: min_sans.ttf`.
+  `iosApp/Sources/Resources/poor_story_regular.ttf` 는 삭제.
+- **가변 폰트 함정(중요)**: min_sans.ttf 는 wght 100~900 가변 폰트인데 **기본값이 100(Thin)** 이다.
+  그냥 `UIFont(name:)` 로 쓰면 안드로이드보다 훨씬 얇게 나온다 → `AppFont.swift` 가
+  `kCTFontVariationAttribute` 의 'wght' 축을 직접 지정해 인스턴스를 만든다.
+  굵기 매핑은 Android `Type.kt` 표와 동일: light 300 / normal 400 / medium 450 / semibold 500 / bold 550.
+  폰트 이름은 런타임 해석(`MinSansVF-VF` → 패밀리 후보 → "minsans" 포함 패밀리), 실패 시 시스템 폰트 폴백.
+- **호출부 일괄 교체**: `.font(.poorStory(n))` → `.font(.minSans(n[, weight]))` (117곳).
+  SwiftUI 시맨틱 폰트(`.headline/.caption/.subheadline/.footnote/...`)와 `.font(.system(size:))` 로
+  남아 있던 **Text** 들도 전부 MinSans 로(= Android 처럼 앱 전체가 한 서체). ⚠️ `Image(systemName:)` 의
+  `.font(.system(size:))`/`.font(.caption2)` 는 **SF Symbol 크기 지정이라 그대로 둔다**.
+- **크기 정렬(Android sp 그대로)**: 상단바 제목 18 SemiBold, 드로어 헤더 15 SemiBold, 드로어 항목 17 SemiBold,
+  본문 기본 16, 상세 제목 24 SemiBold, 상세 본문 16, 댓글 14, 채팅 말풍선 15, 캡션 12/11.
+  push 화면 내비바(`configureNavigationBarAppearance`)도 MinSans 18 SemiBold + 뒤로가기 라벨 16.
+- **글자 잘림 대책**: `Font(UIFont)` 기반이라 Dynamic Type 비례 확대가 없어졌다(고정 크기 —
+  Android 의 폰트 배율 상한 1.15 와 같은 취지). 고정폭 프레임에 갇힌 Text 는 없고(전수 확인),
+  고정 높이 컨테이너(탑바 56 / 드로어 항목 52 / 진행 밴드 52)는 새 줄높이로도 여유가 있다.
+  ⚠️ 참고 수치: 같은 pt 에서 MinSans 는 PoorStory 대비 **x-height 1.42배, 줄높이 1.07배** —
+  글자가 더 크고 꽉 차 보이는 게 정상(안드로이드와 같은 모습). 작아 보이게 되돌리지 말 것.
+
+### 8.45-3 iOS 로그인 인트로 — 로고/버튼 1초 빨리 노출 (사용자 지시)
+
+iOS 는 인트로 영상이 **끝나야** 로그인 UI 를 띄우고 있었다(Android 는 영상과 무관하게 1.5초 고정 노출).
+- 인트로 실측: 미디어 7.83초를 속도 곡선(2.5x→1.8x→0.5x)으로 재생 = **실제 약 4.85초**.
+- `IntroVideoView.Coordinator.earlyRevealSeconds = 1.0` 신설 — 영상이 끝나기 1초(실제 시간) 전에
+  `onEnded`(=UI 노출)를 발화. → **약 3.85초에 노출**(+페이드 0.8초). 영상은 그 뒤로도 계속 재생돼
+  UI 가 그 위로 페이드인된다(Android 도 재생 중 노출이라 동작이 같아짐).
+- ⚠️ 종반이 0.5배속까지 감속하므로 "남은 미디어 시간"으로 계산하면 크게 어긋난다 →
+  속도 곡선을 수치 적분하는 `remainingWallSeconds` 로 **실제 남은 시간**을 구한다.
+  속도 곡선은 `rate(atProgress:)` 한 곳으로 모아 적분과 실제 배속이 항상 같은 값을 쓰게 했다.
+- **남은 차이**: Android 1.5초 vs iOS 약 3.85초 — 더 줄이려면 `earlyRevealSeconds` 를 키우거나
+  "재생 시작 후 1.5초 타이머" 방식으로 바꾸면 된다(사용자 요청은 1초 단축이라 여기까지만).
 
 ---
 

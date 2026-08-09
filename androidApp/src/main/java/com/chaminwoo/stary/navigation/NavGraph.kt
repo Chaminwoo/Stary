@@ -165,7 +165,9 @@ fun NavGraph(
                     navController.navigate(NavRoute.Main) {
                         popUpTo<NavRoute.Main> { inclusive = true }
                     }
-                }
+                },
+                // 친구 요청 알림 → 친구 화면(받은 요청에서 수락/거절).
+                onOpenFriends = { navController.navigate(NavRoute.Friends) }
             )
         }
 

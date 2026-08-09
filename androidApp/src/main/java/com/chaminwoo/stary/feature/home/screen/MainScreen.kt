@@ -209,6 +209,13 @@ fun MainScreen(
             navController.navigate(NavRoute.Chat(friendId = fid, friendName = fname))
         }
     }
+    // 친구 요청 푸시 탭 → 친구 화면(받은 요청). nonce 가 올라갈 때만 이동(최초 0 은 무시).
+    androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.friendsNonce) {
+        if (com.chaminwoo.stary.core.util.DeepLinkState.friendsNonce > 0) {
+            showLogin = false
+            navController.navigate(NavRoute.Friends)
+        }
+    }
     // 친구 초대 딥링크(stary://invite/{uid}) 리딤 — 로그인 상태여야 소비. 비로그인이면 보관해 두고
     // 로그인 완료(showLogin 변경) 시 재시도한다. 결과는 토스트로 안내(체크리스트 31).
     androidx.compose.runtime.LaunchedEffect(
@@ -677,7 +684,10 @@ fun MainScreen(
             com.chaminwoo.stary.feature.diary.NotificationPopupWatcher(
                 notifications = notifList,
                 onOpen = { n ->
-                    if (n.type == com.chaminwoo.stary.core.model.NotificationType.FRIEND_POST.name && n.diaryId.isNotBlank()) {
+                    if (n.type == com.chaminwoo.stary.core.model.NotificationType.FRIEND_REQUEST.name) {
+                        // 친구 요청 배너 → 친구 화면(받은 요청 목록)
+                        navController.navigate(NavRoute.Friends)
+                    } else if (n.type == com.chaminwoo.stary.core.model.NotificationType.FRIEND_POST.name && n.diaryId.isNotBlank()) {
                         com.chaminwoo.stary.core.util.MapFocusState.request(n.diaryId)
                         navController.navigate(NavRoute.Main) {
                             popUpTo<NavRoute.Main> {
