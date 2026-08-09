@@ -66,7 +66,8 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
   - `send` 는 **Bool 반환** — 실패 시 입력 내용을 되돌리고 토스트(`chatSendFailed`). 조용한 실패 금지.
   - ⚠️ **배경은 ZStack 형제가 아니라 `.background { ScreenBackground(...) }`** — `ignoresSafeArea` 배경을
     ZStack 에 형제로 두면 스택이 키보드 영역까지 커져 입력 바가 키보드 뒤에 깔린다(8.45 수정).
-    입력 바 배경만 `.ignoresSafeArea(.container, edges: .bottom)`(regions 를 `.all` 로 두면 재발).
+    입력 바 배경은 `.background(Theme.background)`(ShapeStyle 오버로드 — 하단 안전영역까지 자연히 이어짐).
+    여기에 `ignoresSafeArea(.all)` 짜리 뷰를 넣으면 키보드 영역까지 무시해 같은 증상이 재발한다.
 - `InviteStore.swift` : 초대 딥링크 보관/리딤(비로그인 시 보관 → 로그인 후 처리).
 - 친구 요청 전송 시 상대에게 알림 문서 생성(`notifyFriendRequest`) → 인앱 배너 + 푸시(11 문서).
 - iOS 채팅/알림 푸시(APNs)는 **8.45 에서 구현**(`Data/PushManager.swift`) — 11 문서 참고.

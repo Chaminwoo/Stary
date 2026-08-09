@@ -149,13 +149,13 @@ struct ChatScreen: View {
             .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(12)
-        // 배경만 하단 안전영역까지 늘린다(홈 인디케이터 아래로 이어지게).
-        // ⚠️ regions 를 .container 로 한정 — .all 로 두면 키보드 영역까지 무시해 입력 바가 다시 안 올라온다.
-        .background(Theme.background.ignoresSafeArea(.container, edges: .bottom))
+        // ShapeStyle 오버로드라 배경색이 하단 안전영역(홈 인디케이터)까지 자연히 이어진다.
+        // ⚠️ 여기에 ignoresSafeArea(.all) 짜리 뷰를 넣지 말 것 — 키보드 영역까지 무시해 입력 바가 안 올라온다.
+        .background(Theme.background)
     }
 
-    private func showToast(_ text: String) {
-        toast = text
+    private func showToast(_ message: String) {
+        toast = message
         Task { try? await Task.sleep(nanoseconds: 1_800_000_000); toast = nil }
     }
 }
