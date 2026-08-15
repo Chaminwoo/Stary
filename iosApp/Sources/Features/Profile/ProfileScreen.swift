@@ -2,6 +2,7 @@ import FirebaseAuth
 import FirebaseFirestore
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// 프로필 탭 — 중앙 아바타/이름/칭호 + **떠다니는 통계 아이콘**(좋아요·친구·다이어리·업적) +
 /// 핀한 내 별이 별 모양으로 함께 떠다니고, 하단 로그아웃. 우상단 +로 띄울 별을 고른다.
@@ -16,6 +17,8 @@ struct ProfileScreen: View {
     @State private var profileImageUrl: String?
     @State private var equippedTitleId: String?
     @State private var photoItem: PhotosPickerItem?
+    /// 프로필 사진 업로드 중 — 아바타 자리에 별 로딩을 띄운다(Android `isUploading` 패리티).
+    @State private var uploadingPhoto = false
     @State private var pinnedIds: [String] = []
     @State private var showPinPicker = false
     // 루트 스택 push 로 전환(Android 단일 NavHost 대응) — 자체 NavigationPath 대신 목적지별 bool.
@@ -188,13 +191,18 @@ struct ProfileScreen: View {
             }
             .onChange(of: hidden.loaded) { _ in runHiddenClaims() }
             .onChange(of: friendsCount) { _ in runHiddenClaims() }
+            // 프로필 사진 변경 — 업로드 동안 별 로딩을 띄우고, **새 사진을 다 받은 뒤에** 교체한다
+            // (빈 원이 잠깐 보이거나 옛 사진이 남는 문제 방지 — 2026-08-15 사용자 지시).
             .onChange(of: photoItem) { item in
+                guard let item else { return }
                 Task {
-                    guard let uid = auth.uid, let item,
-                          let data = try? await item.loadTransferable(type: Data.self) else { return }
-                    if let url = try? await ImageUploader.uploadProfile(uid: uid, data: data) {
-                        profileImageUrl = url
-                    }
+                    guard let uid = auth.uid else { return }
+                    uploadingPhoto = true
+                    defer { uploadingPhoto = false }
+                    guard let data = try? await item.loadTransferable(type: Data.self),
+                          let url = try? await ImageUploader.uploadProfile(uid: uid, data: data) else { return }
+                    _ = await AvatarThumbCache.shared.image(for: url, maxPixel: avatarPixelSize)
+                    profileImageUrl = url
                 }
             }
             .firstVisitInfo(key: "profile", systemImage: "person.fill",
@@ -283,10 +291,10 @@ struct ProfileScreen: View {
 
     private var avatarImage: some View {
         Group {
-            if let url = profileImageUrl, !url.isEmpty {
-                AsyncImage(url: URL(string: url)) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: { Color(hex: 0x0D0D0D) }
+            if uploadingPhoto {
+                Color(hex: 0x0D0D0D).overlay(StarLoadingView(size: 28))
+            } else if let url = profileImageUrl, !url.isEmpty {
+                ProfilePhotoView(url: url, pixelSize: avatarPixelSize)
             } else {
                 Color(hex: 0x0D0D0D).overlay(
                     Image(systemName: "person.crop.circle.fill")
@@ -294,6 +302,32 @@ struct ProfileScreen: View {
                         .foregroundStyle(Color(hex: 0x555555))
                 )
             }
+        }
+    }
+}
+
+/// 아바타 150pt × 화면 배율 여유 — 다운샘플 캐시(AvatarThumbCache) 키에 쓰이는 픽셀 크기.
+private let avatarPixelSize: CGFloat = 384
+
+/// 프로필 사진 — **다 받아진 뒤에** 페이드인하고, 받는 동안엔 별 로딩을 보여준다(2026-08-15 사용자 지시).
+/// 네트워크는 공용 디스크 캐시([ImageCache.session])를 타므로 재방문 시 즉시 뜬다.
+private struct ProfilePhotoView: View {
+    let url: String
+    var pixelSize: CGFloat = avatarPixelSize
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            Color(hex: 0x0D0D0D)
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                StarLoadingView(size: 26)
+            }
+        }
+        .task(id: url) {
+            let loaded = await AvatarThumbCache.shared.image(for: url, maxPixel: pixelSize)
+            withAnimation(.easeIn(duration: 0.25)) { image = loaded }
         }
     }
 }

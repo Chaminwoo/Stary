@@ -73,13 +73,18 @@ object GoogleAuthHelper {
                 val appCtx = context.applicationContext
                 currentUserId?.let { uid ->
                     CoroutineScope(Dispatchers.IO).launch {
+                        val saved = FirebaseFriendRepository().getProfile(uid)
                         // 이미 정해둔 닉네임(커스텀 포함)이 있으면 그걸 우선 — 구글 이름으로 덮어쓰지 않는다.
                         // (다른 기기에서 재로그인해도 닉네임이 유지되도록.)
-                        val existing = FirebaseFriendRepository().getProfile(uid)?.userName?.takeIf { it.isNotBlank() }
+                        val existing = saved?.userName?.takeIf { it.isNotBlank() }
                         if (existing != null) {
                             currentUserName = existing
                             NicknameStore.set(appCtx, uid, existing)
                         }
+                        // 프로필 **사진**도 동일 — 앱에서 바꾼 사진이 있으면 유지한다.
+                        // (예전엔 아래 upsertProfile 이 항상 구글 사진으로 덮어써서 재로그인마다 사진이 초기화됐다.)
+                        val existingPhoto = saved?.profileImageUrl?.takeIf { it.isNotBlank() }
+                        if (existingPhoto != null) currentUserPhotoUrl = existingPhoto
                         FirebaseFriendRepository().upsertProfile(
                             UserProfile(
                                 userId = uid,
@@ -122,6 +127,13 @@ object GoogleAuthHelper {
         //    저장해서, 로그인이 유지되는 기기(대부분)는 토큰이 재발급돼도 갱신되지 않아
         //    푸시가 조용히 끊길 수 있었다(친구 새 글/친구 요청 알림 미수신 원인).
         CoroutineScope(Dispatchers.IO).launch {
+            // 앱에서 바꾼 닉네임/프로필 사진이 있으면 구글 값 대신 그걸 쓴다.
+            // (사진은 users/{uid}.profileImageUrl 이 원본 — 여기서 안 채우면 재시작 후 친구 요청 등에
+            //  구글 사진이 다시 실려 나가 사진이 되돌아간 것처럼 보인다.)
+            FirebaseFriendRepository().getProfile(uid)?.let { saved ->
+                saved.userName.takeIf { it.isNotBlank() }?.let { currentUserName = it }
+                saved.profileImageUrl.takeIf { it.isNotBlank() }?.let { currentUserPhotoUrl = it }
+            }
             cancelPendingDeletion(uid)
             syncFcmToken(uid)
         }

@@ -7,7 +7,8 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if auth.isSignedIn {
+            // 로그인 또는 "로그인 없이 둘러보기"(게스트)면 본 화면으로 — Android 는 둘러보기도 지도로 들어간다.
+            if auth.canEnterApp {
                 MainTabView()
             } else {
                 LoginView()
@@ -17,7 +18,7 @@ struct RootView: View {
         // 시스템 글꼴 크기 상한 — 고정 높이 카드가 많아 그대로 두면 큰 글꼴에서 글자가 잘린다
         // (Android StaryResponsive.MAX_FONT_SCALE=1.15 대응).
         .dynamicTypeSize(...StaryResponsive.maxDynamicType)
-        .animation(.easeInOut, value: auth.isSignedIn)
+        .animation(.easeInOut, value: auth.canEnterApp)
         .environmentObject(locale)
         .environment(\.locale, locale.swiftLocale)
         // 언어 변경 시 전체 트리를 다시 그린다(Android activity.recreate() 대응).
@@ -311,9 +312,17 @@ struct MainTabView: View {
             drawerItem(locale.t(.navMusic), "music.note") { open(.music) }
             drawerItem(locale.t(.tabFriends), "person.2.fill") { open(.friends) }
             drawerItem(locale.t(.navSettings), "gearshape.fill") { open(.settings) }
-            drawerItem(locale.t(.drawerLogout), "rectangle.portrait.and.arrow.right", danger: true) {
-                withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
-                auth.signOut()
+            // 둘러보기(게스트)면 "로그인" — 로그인 화면으로 되돌아간다. Android 드로어와 동일.
+            if auth.isGuest && !auth.isSignedIn {
+                drawerItem(locale.t(.drawerLogin), "rectangle.portrait.and.arrow.right") {
+                    withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
+                    auth.exitGuest()
+                }
+            } else {
+                drawerItem(locale.t(.drawerLogout), "rectangle.portrait.and.arrow.right", danger: true) {
+                    withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
+                    auth.signOut()
+                }
             }
 
             Spacer()
