@@ -7,6 +7,9 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.chaminwoo.stary.core.model.UserProfile
 import com.chaminwoo.stary.core.util.NicknameStore
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
@@ -35,6 +38,17 @@ object GoogleAuthHelper {
     var currentUserPhotoUrl: String? = null
     var currentUserEmail: String? = null  // 어드민 판정용(히든 업적 선점 제외)
 
+    /**
+     * 마지막 구글 로그인 실패 사유(사람이 읽을 수 있는 한 줄).
+     *
+     * ⚠️ 예전엔 [signInWithGoogle] 이 예외를 통째로 삼키고 `null` 만 돌려줘, 화면에는
+     *    "잠시만 기다려주세요" 토스트만 떴다. 실기기(Play 설치본)는 logcat 을 붙이기 전엔
+     *    원인을 볼 방법이 아예 없어서, 서명 SHA-1 미등록 하나를 찾는 데 USB 디버깅까지 필요했다.
+     *    (실제 원인은 Play 앱 서명 키 지문 미등록 → `[28444] Developer console is not set up correctly.`)
+     */
+    var lastSignInError: String? = null
+        private set
+
     suspend fun signInWithGoogle(context: Context): String? {
         val credentialManager = CredentialManager.create(context)
 
@@ -48,6 +62,7 @@ object GoogleAuthHelper {
             .addCredentialOption(googleIdOption)
             .build()
 
+        lastSignInError = null
         return try {
             val result = credentialManager.getCredential(context = context, request = request)
             val credential = result.credential
@@ -99,11 +114,35 @@ object GoogleAuthHelper {
                     }
                 }
                 idToken
-            } else null
+            } else {
+                lastSignInError = "예상과 다른 자격증명 타입(${credential.type})"
+                Log.e(TAG, "구글 로그인 실패: $lastSignInError")
+                null
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "구글 로그인 실패: ${e.localizedMessage}")
+            lastSignInError = describeSignInFailure(e)
+            Log.e(TAG, "구글 로그인 실패: $lastSignInError", e)
             null
         }
+    }
+
+    /**
+     * Credential Manager 실패 예외 → 화면에 띄울 한 줄 설명.
+     *
+     * [GetCredentialException.type] 이 핵심 단서다.
+     * - `TYPE_NO_CREDENTIAL` : 쓸 수 있는 구글 계정이 없거나, **이 빌드의 서명 지문이 Firebase /
+     *   Google Cloud 에 등록돼 있지 않아** 구글이 계정을 하나도 내주지 않는 상태.
+     *   → 로컬 빌드는 되는데 **Play 설치본만** 실패하면 업로드 키가 아니라 **Play 앱 서명 키**의
+     *     SHA-1/SHA-256 미등록이 1순위 원인(Play 가 AAB 를 자기 키로 재서명한다).
+     * - `TYPE_USER_CANCELED` : 사용자가 시트를 닫음(정상).
+     * - 그 밖(`TYPE_UNKNOWN`/`INTERRUPTED`) : 네트워크·Play 서비스 문제.
+     */
+    private fun describeSignInFailure(e: Exception): String = when (e) {
+        is GetCredentialCancellationException -> "로그인을 취소했어요."
+        is NoCredentialException ->
+            "사용할 수 있는 구글 계정을 찾지 못했어요. (앱 서명 지문 미등록이거나 기기에 구글 계정이 없음)"
+        is GetCredentialException -> "구글 로그인 실패 [${e.type}] ${e.errorMessage ?: ""}"
+        else -> "구글 로그인 실패 [${e::class.java.simpleName}] ${e.localizedMessage ?: ""}"
     }
 
     /**
@@ -137,15 +176,6 @@ object GoogleAuthHelper {
             cancelPendingDeletion(uid)
             syncFcmToken(uid)
         }
-
-        Log.d("AUTH", "uid=${user?.uid}")
-        user?.providerData?.forEach {
-            Log.d(
-                "AUTH",
-                "provider=${it.providerId}, uid=${it.uid}"
-            )
-        }
-        Log.d("AUTH", "provider=${user?.providerData}")
 
         return true
     }

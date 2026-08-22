@@ -74,6 +74,16 @@ enum AppConfig {
     /// 다이어리 공유 웹 랜딩 베이스 URL. (StaryConfig.SHARE_BASE_URL 와 동기화)
     static let shareBaseUrl = "https://momentdiary-f26c8.web.app"
 
+    /// Universal Links(https) 매칭용 호스트/경로. shareBaseUrl 을 쪼갠 값이라 함께 바꿔야 한다.
+    /// (StaryConfig.SHARE_HOST / SHARE_PATH_* 와 동기화)
+    static let shareHost = "momentdiary-f26c8.web.app"
+    static let sharePathDiary = "s"
+    static let sharePathInvite = "i"
+
+    /// Play 스토어 링크(StaryConfig.PLAY_STORE_URL 와 동기화).
+    static let playStoreUrl =
+        "https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios"
+
     /// 다이어리 공유 링크 — 랜딩이 앱 설치자는 stary://diary/{id} 딥링크로 돌려보낸다.
     static func shareLink(diaryId: String) -> String { "\(shareBaseUrl)/s/\(diaryId)" }
 

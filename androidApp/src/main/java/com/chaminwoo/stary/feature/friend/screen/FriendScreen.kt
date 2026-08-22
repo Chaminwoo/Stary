@@ -115,8 +115,13 @@ fun FriendScreen(
     val friends by vm.friends.collectAsState()
     val requests by vm.incomingRequests.collectAsState()
     val outgoing by vm.outgoingRequests.collectAsState()
-    val results by vm.searchResults.collectAsState()
+    val allResults by vm.searchResults.collectAsState()
     val isSearching by vm.isSearching.collectAsState()
+    // 내가 차단한 사용자 — 검색 결과/받은 요청에서 숨긴다(지도·목록·알림과 동일 규칙).
+    val blockedIds by remember(userId) {
+        com.chaminwoo.stary.data.repository.FirebaseModerationRepository().observeBlockedIds(userId)
+    }.collectAsState(initial = emptySet())
+    val results = remember(allResults, blockedIds) { allResults.filter { it.userId !in blockedIds } }
     // 채팅방 메타(마지막 메시지/시각) — 친구 행의 미리보기·미읽음 점에 사용.
     val chatRepo = remember { com.chaminwoo.stary.data.repository.FirebaseChatRepository() }
     val chatSummaries by remember(userId) { chatRepo.observeMyChats(userId) }
@@ -237,10 +242,11 @@ fun FriendScreen(
                 }
             }
 
-            // --- 받은 요청 ---
-            if (requests.isNotEmpty()) {
-                item { SectionHeader(stringResource(R.string.friend_requests), requests.size) }
-                items(requests, key = { "req_${it.id}" }) { req ->
+            // --- 받은 요청 --- (차단한 사람의 요청은 목록에서 숨긴다)
+            val visibleRequests = requests.filter { it.fromId !in blockedIds }
+            if (visibleRequests.isNotEmpty()) {
+                item { SectionHeader(stringResource(R.string.friend_requests), visibleRequests.size) }
+                items(visibleRequests, key = { "req_${it.id}" }) { req ->
                     PersonCard(
                         name = req.fromName,
                         photoUrl = req.fromPhotoUrl,
@@ -269,18 +275,14 @@ fun FriendScreen(
             item { SectionHeader(stringResource(R.string.friend_my_friends), friends.size) }
             if (friends.isEmpty()) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 28.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            stringResource(R.string.friend_empty),
-                            color = TextMuted, fontSize = 13.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    }
+                    // 검색창이 위에 있는 화면이라 액션 버튼 없이 안내만(StaryEmptyState 공용).
+                    com.chaminwoo.stary.core.ui.StaryEmptyState(
+                        title = stringResource(R.string.friend_empty_title),
+                        description = stringResource(R.string.friend_empty),
+                        starType = 6,        // 보석 — "함께"를 상징
+                        starColorIndex = 9,  // 민트
+                        modifier = Modifier.fillMaxWidth().height(230.dp)
+                    )
                 }
             }
 

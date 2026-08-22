@@ -470,21 +470,44 @@ private struct AchievementsEntry: View {
     }
 }
 
-/// 일반 업적 해금 축하 팝업 — Android `AchievementUnlockDialog` 패리티(트로피 + 스프링 팝 + 보상 pill).
+/// 일반 업적 해금 축하 팝업 — Android `AchievementUnlockDialog` 패리티.
+///
+/// **해금된 보상을 실제로 보여준다**: 파편이 사방에서 모여 그 별(모양/색)이 완성되는 리빌 +
+/// 뒤쪽 광선 회전 + 축하 진동. 예전엔 트로피 글리프 + "새 별 모양 해금" 글자뿐이라
+/// 무엇을 얻었는지 업적 화면에 들어가야 알 수 있었다.
 private struct AchievementUnlockOverlay: View {
     let achievement: Achievement
     let onDismiss: () -> Void
     @ObservedObject private var locale = LocaleManager.shared
     @State private var pop: CGFloat = 0.6
+    /// 리빌 진행도 0→1 (파편 수렴 0~0.55 → 별 완성 → 안정).
+    @State private var reveal: Double = 0
+
+    /// 리빌 길이(s)/파편 개수 — Android REVEAL_MS(900)/REVEAL_SHARDS(14) 와 동일 값.
+    private static let revealDuration: Double = 0.9
 
     private var displayName: String {
         LocalizedNames.title(achievement.id, fallback: achievement.name) ?? achievement.name
     }
+
+    /// 보상 → 화면에 띄울 별(모양/색). 칭호는 형태가 없어 앰버골드 5꼭지 별로 대역한다.
+    private var rewardStar: (type: Int, colorIndex: Int) {
+        let gold = 15 // 앰버골드
+        switch achievement.reward {
+        case .title:            return (1, gold)
+        case .shape(let t):     return (t, gold)
+        case .color(let c):     return (1, c)
+        }
+    }
+    private var rewardColor: Color { StarStyle.color(rewardStar.colorIndex) }
+
     private var rewardText: String {
         switch achievement.reward {
-        case .title(let n): return "칭호 «\(n)» 획득"
-        case .shape:        return "새 별 모양 해금"
-        case .color:        return "새 별 색 해금"
+        case .title(let n):
+            let name = LocalizedNames.title(achievement.id, fallback: n) ?? n
+            return String(format: locale.t(.achRewardTitle), name)
+        case .shape: return locale.t(.achRewardShape)
+        case .color: return locale.t(.achRewardColor)
         }
     }
     private var grad: LinearGradient {
@@ -496,9 +519,24 @@ private struct AchievementUnlockOverlay: View {
         ZStack {
             Color.black.opacity(0.55).ignoresSafeArea().onTapGesture { onDismiss() }
             VStack(spacing: 0) {
-                Image(systemName: "trophy.fill").font(.system(size: 46)).foregroundStyle(Theme.navyAccent)
-                Spacer().frame(height: 14)
-                Text("업적 달성!").font(.minSans(15)).foregroundStyle(Theme.navyAccent)
+                // ── 보상 리빌: 광선 + 모여드는 파편 + 완성된 별 ──
+                ZStack {
+                    RewardReveal(seed: achievement.id.hashValue,
+                                 progress: reveal,
+                                 accent: rewardColor)
+                        .frame(width: 132, height: 132)
+                    Image(uiImage: StarCrystal.image(type: rewardStar.type,
+                                                     colorIndex: rewardStar.colorIndex,
+                                                     size: 62))
+                        .resizable()
+                        .frame(width: 62, height: 62)
+                        .scaleEffect(starScale)
+                        .opacity(starAppear)
+                }
+                .frame(width: 132, height: 132)
+
+                Spacer().frame(height: 10)
+                Text(locale.t(.achUnlocked)).font(.minSans(15)).foregroundStyle(Theme.navyAccent)
                 Spacer().frame(height: 8)
                 Text(displayName).font(.minSans(22)).foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
@@ -506,10 +544,10 @@ private struct AchievementUnlockOverlay: View {
                 Text(achievement.condition).font(.minSans(13))
                     .foregroundStyle(Theme.textPrimary.opacity(0.6)).multilineTextAlignment(.center)
                 Spacer().frame(height: 16)
-                Text(rewardText).font(.minSans(13)).foregroundStyle(Theme.navyAccent)
+                Text(rewardText).font(.minSans(13)).foregroundStyle(rewardColor)
                     .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(Theme.navyAccent.opacity(0.12), in: Capsule())
-                    .overlay(Capsule().stroke(Theme.navyAccent.opacity(0.4), lineWidth: 1))
+                    .background(rewardColor.opacity(0.12), in: Capsule())
+                    .overlay(Capsule().stroke(rewardColor.opacity(0.4), lineWidth: 1))
                 Spacer().frame(height: 22)
                 Button(action: onDismiss) {
                     Text(locale.t(.commonOk)).font(.minSans(15)).foregroundStyle(Color(hex: 0x0D0D0D))
@@ -525,6 +563,117 @@ private struct AchievementUnlockOverlay: View {
             .scaleEffect(pop)
             .opacity(Double(min(pop / 0.6, 1)))
         }
-        .onAppear { withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { pop = 1 } }
+        .onAppear {
+            Haptics.celebrate() // 보상이 완성되는 순간의 축하 진동
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { pop = 1 }
+            withAnimation(.easeInOut(duration: Self.revealDuration)) { reveal = 1 }
+        }
+    }
+
+    /// 파편이 다 모인 뒤 또렷해진다(0.42~0.77 구간).
+    private var starAppear: Double { min(max((reveal - 0.42) / 0.35, 0), 1) }
+    /// 살짝 부풀었다(1.18) 안정(1.0).
+    private var starScale: CGFloat {
+        reveal < 0.62
+            ? CGFloat(0.7 + 0.48 * starAppear)
+            : CGFloat(1.18 - 0.18 * min(max((reveal - 0.62) / 0.38, 0), 1))
+    }
+}
+
+/// 업적 보상 리빌 배경 — 회전 광선 + 바깥에서 중심으로 모여드는 크리스탈 파편 + 완성 플래시.
+/// 장식 전용(터치 통과). Android AchievementUnlockDialog 의 Canvas 와 같은 수식.
+private struct RewardReveal: View {
+    let seed: Int
+    let progress: Double
+    let accent: Color
+
+    private static let shardCount = 14
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            Canvas { ctx, size in
+                let p = progress
+                let r = Double(min(size.width, size.height)) / 2
+                let cx = Double(size.width) / 2
+                let cy = Double(size.height) / 2
+                let settled = min(max((p - 0.55) / 0.45, 0), 1)
+
+                // 뒤쪽 광선 12갈래 — 아주 천천히 계속 돈다(18초 1바퀴).
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                let rayAngle = (t / 18.0).truncatingRemainder(dividingBy: 1) * 360
+                for i in 0..<12 {
+                    let a = (Double(i) * 30 + rayAngle) * .pi / 180
+                    let long = i % 2 == 0
+                    let len = r * (long ? 1.0 : 0.72)
+                    let half = long ? 3.2 : 2.0
+                    var path = Path()
+                    path.move(to: CGPoint(x: CGFloat(cx + cos(a + .pi / 2) * half),
+                                          y: CGFloat(cy + sin(a + .pi / 2) * half)))
+                    path.addLine(to: CGPoint(x: CGFloat(cx + cos(a) * len),
+                                             y: CGFloat(cy + sin(a) * len)))
+                    path.addLine(to: CGPoint(x: CGFloat(cx + cos(a - .pi / 2) * half),
+                                             y: CGFloat(cy + sin(a - .pi / 2) * half)))
+                    path.closeSubpath()
+                    ctx.fill(path, with: .color(accent.opacity(0.16 * settled)))
+                }
+
+                // 별 뒤 후광.
+                let haloR = CGFloat(r * 0.86)
+                let haloRect = CGRect(x: CGFloat(cx) - haloR, y: CGFloat(cy) - haloR,
+                                      width: haloR * 2, height: haloR * 2)
+                ctx.fill(Path(ellipseIn: haloRect),
+                         with: .radialGradient(
+                            Gradient(colors: [accent.opacity(0.34 * settled), .clear]),
+                            center: CGPoint(x: CGFloat(cx), y: CGFloat(cy)),
+                            startRadius: 0, endRadius: haloR))
+
+                // 모여드는 파편 — 바깥에서 중심으로 빨려 들어와 별이 된다.
+                var rndState = UInt64(truncatingIfNeeded: seed) | 1
+                func rnd() -> Double {
+                    rndState ^= rndState << 13; rndState ^= rndState >> 7; rndState ^= rndState << 17
+                    return Double(rndState % 1000) / 1000.0
+                }
+                for i in 0..<Self.shardCount {
+                    let angle = Double(i) / Double(Self.shardCount) * 360 + rnd() * 18 - 9
+                    let startDistance = 0.85 + rnd() * 0.6
+                    let sizeMul = 0.55 + rnd() * 0.75
+                    let delay = rnd() * 0.22
+
+                    let span = max(0.55 - delay, 0.05)
+                    let local = min(max((p - delay) / span, 0), 1)
+                    if local >= 1 { continue }
+                    let ease = local * local  // easeInQuad — 중심에 가까울수록 빨라진다
+                    let dist = r * startDistance * (1 - ease)
+                    let rad = angle * .pi / 180
+                    let sx = CGFloat(cx + cos(rad) * dist)
+                    let sy = CGFloat(cy + sin(rad) * dist)
+                    let side = CGFloat(6.0 * sizeMul * (0.4 + 0.6 * (1 - ease)))
+
+                    var path = Path()
+                    path.move(to: CGPoint(x: sx, y: sy - side))
+                    path.addLine(to: CGPoint(x: sx + side * 0.6, y: sy))
+                    path.addLine(to: CGPoint(x: sx, y: sy + side))
+                    path.addLine(to: CGPoint(x: sx - side * 0.6, y: sy))
+                    path.closeSubpath()
+                    let rotated = path.applying(
+                        CGAffineTransform(translationX: sx, y: sy)
+                            .rotated(by: CGFloat(rad))
+                            .translatedBy(x: -sx, y: -sy)
+                    )
+                    ctx.fill(rotated, with: .color(accent.opacity(0.9 * (1 - ease * 0.35))))
+                }
+
+                // 완성 순간의 플래시 링(0.5~0.75 구간).
+                let flash = min(max((p - 0.5) / 0.25, 0), 1)
+                if flash > 0, flash < 1 {
+                    let fr = CGFloat(r * (0.3 + 0.75 * flash))
+                    let rect = CGRect(x: CGFloat(cx) - fr, y: CGFloat(cy) - fr, width: fr * 2, height: fr * 2)
+                    ctx.stroke(Path(ellipseIn: rect),
+                               with: .color(accent.opacity(0.5 * (1 - flash))),
+                               lineWidth: CGFloat(3 * (1 - flash)))
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }

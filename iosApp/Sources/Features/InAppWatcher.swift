@@ -25,13 +25,12 @@ final class ChatPresence {
 final class InAppWatcher: ObservableObject {
     private var regs: [ListenerRegistration] = []
 
-    // 채팅 — 와처 시작 시각. 이 시각 이후 "갱신된(updatedAt)" 메시지만 배너로 띄운다
-    // (앱 켤 때 기존 메시지가 새 메시지로 잘못 떠 한 번씩 뜨던 문제 방지 — Android 와 동일 타임스탬프 기준).
+    // 와처 시작 시각. 채팅은 이 시각 이후 "갱신된(updatedAt)", 알림은 "생성된(createdAt)" 것만 배너로 띄운다
+    // (앱 켤 때 기존 항목이 새 항목으로 잘못 떠 한 번씩 뜨던 문제 방지 — Android 와 동일 타임스탬프 기준).
     private var sinceTime: Int64 = 0
 
     // 알림 dedup
     private var shownNotifIds: Set<String> = []
-    private var notifBaseline: Int64?
 
     private var uid: String?
     private var onOpenChat: ((String, String) -> Void)?
@@ -96,14 +95,12 @@ final class InAppWatcher: ObservableObject {
     }
 
     private func handleNotifications(_ list: [AppNotification]) {
-        let maxCreated = list.map { $0.createdAt }.max() ?? 0
-        if notifBaseline == nil {
-            notifBaseline = maxCreated
-            return
-        }
-        let base = notifBaseline ?? 0
+        // ⚠️ 예전엔 "첫 스냅샷의 최대 createdAt" 을 기준선으로 삼았는데, 로그아웃/권한 오류로 **빈 스냅샷**이
+        //    먼저 도착하면 기준선이 0 으로 주저앉아 재로그인 직후 과거 알림이 전부 새 알림처럼 배너로 떴다.
+        //    채팅과 동일하게 와처 시작 시각(sinceTime) 기준으로 판단한다.
+        //    (Android `NotificationPopupWatcher` 패리티)
         let fresh = list
-            .filter { $0.createdAt > base && !shownNotifIds.contains($0.id ?? "") }
+            .filter { $0.createdAt > sinceTime && !shownNotifIds.contains($0.id ?? "") }
             .sorted { $0.createdAt < $1.createdAt }
         for n in fresh {
             shownNotifIds.insert(n.id ?? "")
@@ -115,7 +112,6 @@ final class InAppWatcher: ObservableObject {
                 key: "notif:\(n.id ?? "")"
             ) { [weak self] in self?.onOpenNotification?(n) }
         }
-        notifBaseline = Swift.max(base, maxCreated)
     }
 
     func stop() {

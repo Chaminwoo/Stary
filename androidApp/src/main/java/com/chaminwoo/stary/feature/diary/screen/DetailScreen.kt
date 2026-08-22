@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -451,36 +453,35 @@ fun DetailScreen(
                 if (isNear) {
                     // 좋아요 + (내 글이면) 수정/삭제
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {
-                            if (!isLoggedIn) {
-                                requireLogin()
-                            } else {
-                                val willLike = !isLiked
-                                interactionVm.toggleLike()
-                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(if (willLike) R.string.toast_liked else R.string.toast_unliked))
+                        // 하트 pop + 크리스탈 파편 버스트 + 숫자 롤링(LikeButton). 파편 색은 그 별의 색.
+                        com.chaminwoo.stary.core.ui.LikeButton(
+                            isLiked = isLiked,
+                            count = likeCount,
+                            accent = accent,
+                            onToggle = {
+                                if (!isLoggedIn) requireLogin() else interactionVm.toggleLike()
                             }
-                        }) {
-                            Icon(
-                                imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                contentDescription = stringResource(R.string.cd_like),
-                                tint = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                        Text("$likeCount", fontSize = 14.sp, color = MaterialTheme.colorScheme.secondary)
+                        )
                         ShareDiaryButton(currentDiary)
                         Spacer(modifier = Modifier.weight(1f))
                         if (isMyDiary) {
-                            TextButton(onClick = { editTitle = currentDiary.title; editContent = currentDiary.content; showEditDialog = true }) {
-                                Text(stringResource(R.string.common_edit), fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                            TextButton(onClick = { showDeleteDialog = true }) {
-                                Text(stringResource(R.string.common_delete), fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
-                            }
+                            // 수정/삭제는 붙여 둔다 — TextButton 은 최소 폭 58dp 라 둘 사이가 과하게 벌어졌다.
+                            CompactTextAction(
+                                text = stringResource(R.string.common_edit),
+                                color = MaterialTheme.colorScheme.secondary,
+                                onClick = { editTitle = currentDiary.title; editContent = currentDiary.content; showEditDialog = true },
+                            )
+                            CompactTextAction(
+                                text = stringResource(R.string.common_delete),
+                                color = MaterialTheme.colorScheme.error,
+                                onClick = { showDeleteDialog = true },
+                            )
                         } else {
-                            TextButton(onClick = { if (!isLoggedIn) requireLogin() else showReportDialog = true }) {
-                                Text(stringResource(R.string.report_diary), fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
-                            }
+                            CompactTextAction(
+                                text = stringResource(R.string.report_diary),
+                                color = MaterialTheme.colorScheme.secondary,
+                                onClick = { if (!isLoggedIn) requireLogin() else showReportDialog = true },
+                            )
                         }
                     }
 
@@ -597,6 +598,33 @@ fun DetailScreen(
  * ⚠️ DetailScreen 본체에 인라인하면 dex 메서드 레지스터 한계(256)를 넘겨 VerifyError 로
  * 클래스 로드가 거부된다(열람 즉시 크래시) — 반드시 별도 컴포저블로 유지할 것.
  */
+/**
+ * 인라인 텍스트 액션(수정/삭제/신고) — `TextButton` 대신 쓰는 **좁은** 버전.
+ *
+ * `TextButton` 은 내부적으로 최소 폭 58dp(`ButtonDefaults.MinWidth`) 를 강제해서
+ * "수정"·"삭제" 처럼 짧은 글자에서는 좌우 여백이 크게 남아 두 버튼이 멀찍이 떨어져 보였다.
+ * 여기선 글자 폭 + 좌우 8dp 만 차지하고, 터치 높이는 40dp 로 확보한다.
+ */
+@Composable
+private fun CompactTextAction(
+    text: String,
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = text,
+        fontSize = 13.sp,
+        color = color,
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .defaultMinSize(minHeight = 40.dp)
+            .wrapContentHeight(Alignment.CenterVertically)
+            .padding(horizontal = 8.dp),
+    )
+}
+
 @Composable
 private fun ShareDiaryButton(diary: Diary) {
     var editorOpen by remember { mutableStateOf(false) }

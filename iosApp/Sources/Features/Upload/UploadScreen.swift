@@ -444,6 +444,8 @@ private struct WheelPicker<Content: View>: View {
     private var slot: CGFloat { itemSize + 28 }
     @State private var drag: CGFloat = 0
     @State private var settling = false
+    /// 드래그 중 슬롯을 지날 때마다 딸깍(햅틱) — 중복 방지용 마지막 눈금.
+    @State private var tickedStep = 0
 
     private func wrap(_ i: Int) -> Int { ((i % count) + count) % count }
 
@@ -480,9 +482,15 @@ private struct WheelPicker<Content: View>: View {
                 .onChanged { g in
                     guard !settling else { return }
                     drag = g.translation.width
+                    let step = Int((-drag / slot).rounded())
+                    if step != tickedStep {
+                        tickedStep = step
+                        Haptics.tick()
+                    }
                 }
                 .onEnded { g in
                     let steps = Int((-g.translation.width / slot).rounded())
+                    tickedStep = 0
                     commit(steps: steps)
                 }
         )

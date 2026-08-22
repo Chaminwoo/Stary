@@ -37,3 +37,6 @@ keystore.properties
 xcuserdata/
 *.xcworkspace/xcuserdata/
 Pods/
+
+# Firebase CLI 배포 캐시(호스팅 업로드 해시) — 로컬 산출물이라 커밋 불필요
+.firebase/

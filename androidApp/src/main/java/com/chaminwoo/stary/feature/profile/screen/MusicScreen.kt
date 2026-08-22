@@ -234,6 +234,8 @@ private fun MusicDial(
 
     // angleOffset: 고리 회전량(라디안). 초기엔 selectedIndex 가 위쪽에 오도록.
     var angleOffset by remember { mutableFloatStateOf(-selectedIndex * step) }
+    // 드래그 중 햅틱 눈금 중복 방지 — 마지막으로 딸깍한 트랙 인덱스.
+    var tickedIndex by remember { mutableIntStateOf(selectedIndex) }
     var dragging by remember { mutableStateOf(false) }
 
     fun indexAt(off: Float): Int = (((-off / step).roundToInt() % n) + n) % n
@@ -256,6 +258,7 @@ private fun MusicDial(
 
     fun settle() {
         val idx = indexAt(angleOffset)
+        tickedIndex = idx
         animateOffsetTo(nearest(-idx * step))
         onSelect(idx)
     }
@@ -281,6 +284,12 @@ private fun MusicDial(
                     if (d > Math.PI) d -= (2.0 * Math.PI).toFloat()
                     if (d < -Math.PI) d += (2.0 * Math.PI).toFloat()
                     angleOffset += d
+                    // 눈금(트랙 하나)을 지날 때마다 딸깍 — 회전 루프음과 짝을 이룬다.
+                    val idx = indexAt(angleOffset)
+                    if (idx != tickedIndex) {
+                        tickedIndex = idx
+                        com.chaminwoo.stary.core.util.Haptics.tick()
+                    }
                 },
                 onDragEnd = { dragging = false; MusicManager.setDialTurning(false); settle() },
                 onDragCancel = { dragging = false; MusicManager.setDialTurning(false); settle() }

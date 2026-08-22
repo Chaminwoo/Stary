@@ -12,6 +12,8 @@ struct MapScreen: View {
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
     @EnvironmentObject var viewed: ViewedStore
+    /// 내가 차단한 사용자 — 그 사람의 별은 지도에서 제외한다(Android MainListScreen blockedIds 패리티).
+    @EnvironmentObject var blocks: BlockStore
     @ObservedObject private var locale = LocaleManager.shared
     @ObservedObject private var focus = MapFocusStore.shared
     @State private var selected: Diary?
@@ -87,7 +89,8 @@ struct MapScreen: View {
 
     /// 미조회/친구/나만/친구선택/기간 필터 적용된 표시 대상. (Android MainListScreen 필터 파이프라인 대응)
     private var shownDiaries: [Diary] {
-        var list = store.diaries
+        // 차단한 사용자의 별은 어떤 필터 조합에서도 뜨지 않는다(가장 먼저 제외).
+        var list = store.diaries.filter { !blocks.blockedIds.contains($0.userId) }
         if unviewedOnly { list = list.filter { !viewed.viewedIds.contains($0.id ?? "") } }
         if friendsOnly {
             let ids = Set(myFriends.map { $0.userId })
@@ -238,6 +241,7 @@ struct MapScreen: View {
             return
         }
         MusicManager.shared.playOpenDiary() // Android: 파장 시작과 함께 열람 효과음
+        Haptics.warp()                       // 파장과 같은 결의 진동(Android DiaryMap 패리티)
         openWarp = DiaryOpenWarpData(snapshot: snapshot, origin: origin, members: members)
     }
 
@@ -308,7 +312,7 @@ struct MapScreen: View {
                 }
             }
 
-            // 하단 토스트(Android StaryToast 대응) — 100m 게이팅/위치 확인 안내.
+            // 하단 토스트(Android StaryToast 대응) — 100m 게이팅/위치 확인 안내
             if let t = toast {
                 ToastView(text: t)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -353,6 +357,10 @@ struct MapScreen: View {
             .padding(.bottom, 84)
 
             // ── 좌하단 필터 스피드 다이얼 — Android MainListScreen 대응(전체/미조회만/기간별) ──
+            // 실제 하늘(여명·황혼) — 지도 위, UI 아래. 터치 통과.
+            SkyOverlay(latitude: location.coordinateOrDefault.latitude,
+                       longitude: location.coordinateOrDefault.longitude)
+
             filterSpeedDial
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .padding(.leading, 16)

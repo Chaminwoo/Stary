@@ -49,8 +49,16 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
 **반드시 배포**: `firebase deploy --only firestore:rules`.
 - `canDelete(message)` / `deleteMessage(message)` : **내가 보낸 메시지 + 1분 이내**
   (`StaryConfig.CHAT_DELETE_WINDOW_MS`)만 완전 삭제(상대 쪽에서도 사라짐).
-- `ChatScreen(friendId, friendName)` : 말풍선 목록(내/상대 정렬·색 구분) + 입력창.
-  진입/메시지 수신 시 `ChatReadStore.markRead` — 친구 목록 미읽음 점이 즉시 꺼진다.
+- `ChatScreen(friendId, friendName)` : 말풍선 목록 + 입력창.
+  - **내 말풍선 = 파랑→남색 그라데이션**(`MineBubble` 0xFF2F4C9E→0xFF1B2A5E) + 남색 테두리.
+    예전 초록 단색(0xFF6EE7B7)은 남색으로 개편된 앱 톤에서 혼자 튀었다. 입력창 포커스/커서/전송
+    버튼도 같은 남색(`Accent` 0xFF9FB3E8)으로 통일.
+  - **삭제 가능 링 타이머**(`DeleteWindowRing`) : 내 메시지 왼쪽에 1분 잔여 시간이 줄어드는 원호.
+    0 이 되면 사라진다(그때부터 롱프레스 삭제도 막힌다). 1초 주기 갱신.
+  - **방금 보낸 메시지 등장 연출** : 화면 진입 시각(`sessionStartedAt`) 이후 내가 보낸 것만
+    아래에서 떠오르며 별가루가 흩어진다(과거 메시지는 조용히 — 스크롤 시 재생 방지).
+  - 빈 대화는 `StaryEmptyState`(02 문서). 전송/롱프레스에 `Haptics.light()`.
+  - 진입/메시지 수신 시 `ChatReadStore.markRead` — 친구 목록 미읽음 점이 즉시 꺼진다.
   - **입력 바 하단 여백은 한 번만**: `windowInsetsPadding(WindowInsets.safeDrawing.only(Bottom))`
     (= 키보드가 있으면 키보드 높이, 없으면 내비바 높이). `navigationBarsPadding()+imePadding()` 을
     이어 붙이면 키보드 위로 내비바 높이만큼 더 떠오른다(8.45 수정).
@@ -68,7 +76,8 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
 - `FriendsScreen.swift` : 메신저형 행(행 탭=채팅, 아바타 위 투명 버튼=프로필 push),
   행 최우측 최근 별 버튼 → `MapFocusStore.request(diaryId, withRoute: true)`.
 - `ChatViewModel.swift` / `ChatScreen.swift` : 같은 chatId 규칙/1분 삭제/읽음 처리.
-  채팅 타이틀(principal 툴바)에 `HiddenStarBadges`.
+  채팅 타이틀(principal 툴바)에 `HiddenStarBadges`. 말풍선/삭제 링/등장 연출은 Android 와 동일
+  (`SentAppear` ViewModifier + `DeleteWindowRing`). ⚠️ iOS 는 **빈 대화 안내가 아직 없다**(Android `chat_empty`) — TODO.
   - `send` 는 **Bool 반환** — 실패 시 입력 내용을 되돌리고 토스트(`chatSendFailed`). 조용한 실패 금지.
   - ⚠️ **배경은 ZStack 형제가 아니라 `.background { ScreenBackground(...) }`** — `ignoresSafeArea` 배경을
     ZStack 에 형제로 두면 스택이 키보드 영역까지 커져 입력 바가 키보드 뒤에 깔린다(8.45 수정).
@@ -85,3 +94,5 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
 | 메시지 삭제 허용 시간(1분) | shared `StaryConfig.CHAT_DELETE_WINDOW_MS` | `AppConfig`(동일 값) |
 | 미읽음 판정 | `ChatReadStore`(로컬) | `ChatReadStore.swift`(로컬) |
 | 초대 링크 | `stary://invite/{uid}` (StaryConfig) | `AppConfig.deepLinkHostInvite` |
+| 내 말풍선 색 | `ChatScreen.kt` MineBubble(0xFF2F4C9E→0xFF1B2A5E) | `ChatScreen.swift` 같은 hex LinearGradient |
+| 삭제 링/등장 연출 | `DeleteWindowRing`·appear 애니 | `DeleteWindowRing`·`SentAppear` (**값 동일**) |

@@ -96,10 +96,32 @@ class MainActivity : ComponentActivity() {
     private fun inviterIdFromUri(intent: Intent?): String? =
         lastSegmentForHost(intent, com.chaminwoo.stary.shared.config.StaryConfig.DEEP_LINK_HOST_INVITE)
 
+    /**
+     * 딥링크 URI 에서 대상 id 를 뽑는다. 두 형태를 모두 받는다.
+     *  1. 커스텀 스킴  : `stary://diary/{id}` · `stary://invite/{uid}` (웹 랜딩의 버튼)
+     *  2. **App Links**: `https://{SHARE_HOST}/s/{id}` · `/i/{uid}`
+     *     — 카톡 등에서 링크를 누르면 웹 랜딩을 거치지 않고 앱이 **바로** 열린다.
+     *       (검증은 `web/.well-known/assetlinks.json` 의 SHA-256 지문 대조)
+     */
     private fun lastSegmentForHost(intent: Intent?, host: String): String? {
         val uri = intent?.data ?: return null
-        if (uri.scheme != com.chaminwoo.stary.shared.config.StaryConfig.DEEP_LINK_SCHEME || uri.host != host) return null
-        return uri.lastPathSegment?.takeIf { it.isNotBlank() }
+        val config = com.chaminwoo.stary.shared.config.StaryConfig
+        if (uri.scheme == config.DEEP_LINK_SCHEME) {
+            if (uri.host != host) return null
+            return uri.lastPathSegment?.takeIf { it.isNotBlank() }
+        }
+        if (uri.scheme == "https" && uri.host == config.SHARE_HOST) {
+            val prefix = when (host) {
+                config.DEEP_LINK_HOST_DIARY -> config.SHARE_PATH_DIARY
+                config.DEEP_LINK_HOST_INVITE -> config.SHARE_PATH_INVITE
+                else -> return null
+            }
+            val segments = uri.pathSegments
+            if (segments.size >= 2 && segments[0] == prefix) {
+                return segments[1].takeIf { it.isNotBlank() }
+            }
+        }
+        return null
     }
 
     companion object {

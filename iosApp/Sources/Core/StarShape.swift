@@ -154,7 +154,9 @@ private extension Int {
     func clamped(_ lo: Int, _ hi: Int) -> Int { Swift.min(Swift.max(self, lo), hi) }
 }
 
-private extension Path {
+/// iOS 16 호환 boolean 연산 — 별 모양뿐 아니라 달 위상(SkyOverlay) 등 다른 곳에서도 쓰므로
+/// 파일 밖에서 보이게 둔다(같은 이름을 다른 파일에 또 정의하지 말 것).
+extension Path {
     /// iOS 16 호환 boolean 연산 — SwiftUI `Path.union/subtracting` 은 iOS 17+ 라
     /// 같은 기능의 CGPath 연산(iOS 16+)으로 우회한다(결과는 동일한 정규화 경로).
     func unionCompat(_ other: Path) -> Path { Path(cgPath.union(other.cgPath)) }

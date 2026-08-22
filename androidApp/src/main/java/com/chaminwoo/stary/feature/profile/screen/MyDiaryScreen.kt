@@ -196,9 +196,13 @@ fun DiaryStarsBoard(
         }
 
         if (diaries.isEmpty()) {
-            Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.mydiary_empty), color = TextMuted, fontSize = 14.sp)
-            }
+            com.chaminwoo.stary.core.ui.StaryEmptyState(
+                title = stringResource(R.string.mydiary_empty),
+                description = stringResource(R.string.mydiary_empty_desc),
+                starType = 1,
+                starColorIndex = 13, // 코발트
+                modifier = Modifier.fillMaxWidth().height(300.dp)
+            )
         } else if (listMode) {
             DiaryListColumn(
                 diaries = diaries,

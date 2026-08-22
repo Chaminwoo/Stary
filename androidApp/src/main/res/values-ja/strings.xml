@@ -23,6 +23,8 @@
 
     <!-- 設定画面 -->
     <string name="settings_sound">サウンド</string>
+    <string name="settings_haptics">触覚フィードバック</string>
+    <string name="settings_haptics_desc">星を開いたり、いいねを押すと指先に反応が返ります</string>
     <string name="settings_notification">通知</string>
     <string name="settings_language">言語</string>
     <string name="settings_bgm">BGM</string>
@@ -54,6 +56,19 @@
     <string name="unblock">ブロック解除</string>
     <string name="toast_blocked">ブロックしました</string>
     <string name="toast_unblocked">ブロックを解除しました</string>
+    <!-- ブロックリスト（設定 &gt; 安全） -->
+    <string name="nav_blocked_users">ブロックリスト</string>
+    <string name="settings_safety">安全</string>
+    <string name="settings_blocked_users">ブロックしたユーザー</string>
+    <string name="settings_blocked_users_desc">ブロックした人の星やコメントは表示されません</string>
+    <string name="settings_blocked_count">%1$d人</string>
+    <string name="blocked_empty">ブロックしたユーザーはいません</string>
+    <string name="blocked_empty_desc">プロフィール右上の ⋮ メニューからブロックできます。</string>
+    <string name="blocked_hint">ブロックした人の星は地図・リストから隠れ、コメントも表示されません。相手にブロックは通知されません。</string>
+    <string name="blocked_at">%1$s にブロック</string>
+    <string name="block_confirm_title">%1$sさんをブロックしますか？</string>
+    <string name="block_confirm_msg">ブロックすると、この人の星が地図とリストから消え、コメントも表示されません。友だちの場合は友だち関係も解除されます。設定 &gt; 安全 でいつでも解除できます。</string>
+    <string name="unblock_confirm_msg">%1$sさんのブロックを解除しますか？星とコメントが再び表示されます。</string>
 
     <!-- 言語選択 -->
     <string name="language_dialog_title">言語を選択</string>
@@ -63,6 +78,11 @@
     <string name="language_ja">日本語</string>
 
     <!-- 共通 -->
+    <string name="common_confirm">確認</string>
+    <string name="ach_unlocked">実績達成！</string>
+    <string name="ach_reward_title">称号「%1$s」を獲得</string>
+    <string name="ach_reward_shape">新しい星の形を解放</string>
+    <string name="ach_reward_color">新しい星の色を解放</string>
     <string name="common_cancel">キャンセル</string>
     <string name="common_save">保存</string>
     <string name="common_delete">削除</string>
@@ -126,7 +146,8 @@
     <string name="friend_accept">承認</string>
     <string name="friend_decline">拒否</string>
     <string name="friend_my_friends">友達一覧</string>
-    <string name="friend_empty">まだ友達がいません。\n名前で検索して追加しましょう！</string>
+    <string name="friend_empty_title">まだ友だちがいません</string>
+    <string name="friend_empty">上の検索欄に名前を入れて探してみましょう。</string>
     <string name="friend_chat">チャット</string>
     <string name="friend_search_placeholder">名前で友達を探す</string>
     <string name="friend_no_name">(名前なし)</string>
@@ -153,14 +174,16 @@
     <string name="common_friend">友達</string>
 
     <!-- 通知画面 -->
-    <string name="notif_empty">通知はありません</string>
+    <string name="notif_empty">まだ届いたお知らせはありません</string>
+    <string name="notif_empty_desc">いいね・コメント・友だちの新しい星がここに集まります。</string>
     <string name="notif_friend_post">新しい日記「%1$s」を投稿しました</string>
     <string name="notif_like">「%1$s」にいいねしました</string>
     <string name="notif_comment">「%1$s」にコメントしました</string>
     <string name="notif_friend_request">友達リクエストを送りました</string>
 
     <!-- マイ日記画面 -->
-    <string name="mydiary_empty">まだ記録した日記がありません</string>
+    <string name="mydiary_empty">まだ残した星がありません</string>
+    <string name="mydiary_empty_desc">地図の + ボタンから、この場所の記憶を星として残しましょう。</string>
     <string name="mydiary_sort_count">%1$s · %2$d件</string>
     <string name="mydiary_view_list">リストで表示</string>
     <string name="mydiary_view_stars">星で表示</string>

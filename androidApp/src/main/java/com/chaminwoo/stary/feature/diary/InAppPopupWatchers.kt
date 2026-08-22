@@ -5,9 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.core.model.NotificationType
 import com.chaminwoo.stary.core.ui.InAppBanner
@@ -18,7 +16,7 @@ import com.chaminwoo.stary.data.repository.FirebaseChatRepository
 /**
  * 다이어리 알림(좋아요/댓글/친구 새 글) 인앱 팝업 감시기.
  * 앱이 전면에 있는 동안 새 알림이 도착하면 상단 배너를 띄운다.
- * 최초 구독 시점의 알림은 기준선으로만 잡고 띄우지 않는다(앱 켤 때 과거 알림 폭주 방지).
+ * 와처가 뜬 시각 이후 생성된 알림만 띄운다(앱 켤 때 과거 알림 폭주 방지).
  *
  * [notifications] 는 [NotificationViewModel.notifications] (null=로딩 중) 을 그대로 전달한다.
  */
@@ -28,18 +26,18 @@ fun NotificationPopupWatcher(
     onOpen: (AppNotification) -> Unit,
 ) {
     val shownIds = remember { mutableStateListOf<String>() }
-    var baseline by remember { mutableStateOf<Long?>(null) }
+
+    // 와처가 뜬 시각 — 이 시각 이후 **생성된(createdAt)** 알림만 배너로 띄운다.
+    // ⚠️ 예전엔 "첫 비-null 방출의 최대 createdAt"을 기준선으로 삼았는데, 로그아웃하면
+    //    FirebaseNotificationRepository 의 스냅샷 리스너가 권한 오류(request.auth == null)로 빠지면서
+    //    emptyList 를 흘려보낸다(= 로딩중 null 이 아니다) → 기준선이 0 으로 주저앉고,
+    //    재로그인 직후 도착한 실제 스냅샷의 **과거 알림이 전부 새 알림으로 인식돼** 배너가 다시 떴다.
+    //    ChatPopupWatcher 와 동일한 타임스탬프 기준으로 바꿔 근본 차단한다.
+    val sinceTime = remember { System.currentTimeMillis() }
 
     LaunchedEffect(notifications) {
         val list = notifications ?: return@LaunchedEffect
-        val maxCreated = list.maxOfOrNull { it.createdAt } ?: 0L
-        if (baseline == null) {
-            // 최초 구독: 기존 알림은 기준선으로만 기록(팝업 X)
-            baseline = maxCreated
-            return@LaunchedEffect
-        }
-        val base = baseline ?: 0L
-        list.filter { it.createdAt > base && it.id !in shownIds }
+        list.filter { it.createdAt > sinceTime && it.id !in shownIds }
             .sortedBy { it.createdAt }
             .forEach { n ->
                 shownIds.add(n.id) // 후면에서 온 알림도 seen 처리(전면 복귀 시 한꺼번에 뜨지 않게)
@@ -54,7 +52,6 @@ fun NotificationPopupWatcher(
                     )
                 }
             }
-        baseline = maxOf(base, maxCreated)
     }
 }
 

@@ -72,7 +72,8 @@ fun NotificationScreen(
         return
     }
 
-    val vm: NotificationViewModel = viewModel(factory = NotificationViewModel.factory(userId))
+    // key = userId — 기본 키(클래스 이름)만 쓰면 계정 전환 후에도 이전 사용자의 VM 이 재사용된다.
+    val vm: NotificationViewModel = viewModel(key = userId, factory = NotificationViewModel.factory(userId))
     val notifications by vm.notifications.collectAsState()
 
     LaunchedEffect(Unit) { vm.markAllRead() }
@@ -87,15 +88,21 @@ fun NotificationScreen(
 
     // 낙관적 삭제: 스와이프 즉시 로컬에서 제거(서버 반영 왕복을 기다리지 않음).
     val locallyRemoved = remember { mutableStateListOf<String>() }
-    val visibleNotifs = notifications!!.filter { it.id !in locallyRemoved }
+    // 차단한 사용자가 남긴 좋아요/댓글/친구 요청 알림은 숨긴다(지도·목록·댓글과 동일 규칙).
+    val blockedIds by remember(userId) {
+        com.chaminwoo.stary.data.repository.FirebaseModerationRepository().observeBlockedIds(userId)
+    }.collectAsState(initial = emptySet())
+    val visibleNotifs = notifications!!.filter { it.id !in locallyRemoved && it.actorId !in blockedIds }
 
     if (visibleNotifs.isEmpty()) {
-        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(stringResource(R.string.notif_empty), color = MaterialTheme.colorScheme.secondary, fontSize = 15.sp)
-            }
-        }
+        // 빈 상태도 별 언어로(떠 있는 골드 별 + 안내) — StaryEmptyState 공용.
+        com.chaminwoo.stary.core.ui.StaryEmptyState(
+            title = stringResource(R.string.notif_empty),
+            description = stringResource(R.string.notif_empty_desc),
+            starType = 0,
+            starColorIndex = 1, // 골드
+            modifier = modifier,
+        )
         return
     }
     LazyColumn(

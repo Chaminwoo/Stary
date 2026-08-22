@@ -24,7 +24,7 @@
 | [06-detail-cluster.md](06-detail-cluster.md) | 다이어리 상세, 겹친 별 카드 뷰어, 좋아요/댓글, 공유 카드 |
 | [07-profile.md](07-profile.md) | 내/타인 프로필, 떠다니는 아이콘(FloatingStatBox), 핀 별, 내 다이어리 보드 |
 | [08-achievements.md](08-achievements.md) | 일반/히든 업적, 칭호, 선점(개척) 로직 |
-| [09-music-settings.md](09-music-settings.md) | 배경음악 화면/매니저, 설정 화면(볼륨·알림·언어·탈퇴) |
+| [09-music-settings.md](09-music-settings.md) | 배경음악 화면/매니저, 설정 화면(볼륨·알림·언어·**안전(차단 목록)**·탈퇴) |
 | [10-friends-chat.md](10-friends-chat.md) | 친구 목록/검색/요청, 채팅 |
 | [11-notifications-push.md](11-notifications-push.md) | 알림 화면, 인앱 배너/팝업 감시자, FCM 푸시/딥링크 |
 | [12-data-firebase.md](12-data-firebase.md) | Firestore 연결/리포지토리/뷰모델/캐시, shared(KMP) 모델·설정 |
@@ -41,6 +41,11 @@
 | 앱 공통 색 토큰 | `core/designsystem/Color.kt` | `Core/Theme.swift` |
 | 폰트 | `core/designsystem/Type.kt` (MinSans/PoetsenOne) | `Core/AppFont.swift` — **같은 min_sans.ttf 참조**(`.minSans(size, weight)`) |
 | 문자열(ko/en/ja) | `res/values*/strings.xml` | `Core/LocaleManager.swift` 의 `L10n` 키 |
+| 사용자 차단(지도/댓글/알림에서 숨김) | `data/repository/FirebaseModerationRepository.kt` + 각 화면 필터 | `Data/Moderation.swift`(`BlockStore`) + 각 화면 필터 — 09 문서 |
+| 햅틱(진동) 세기·지점 | `core/util/Haptics.kt` | `Core/Haptics.swift` — 02 문서 |
+| 빈 화면 표현 | `core/ui/StaryEmptyState.kt` | `Core/StaryEmptyState.swift` — 02 문서 |
+| 좋아요 버스트 | `core/ui/LikeButton.kt` | `Core/LikeButton.swift` |
+| 오늘의 하늘(여명·황혼) | `shared/.../core/sky/SkyAlmanac.kt` + `feature/map/screen/SkyOverlay.kt` | `Core/SkyAlmanac.swift` + `Features/Map/SkyOverlay.swift` — 03 문서 |
 | 지도 야경 스타일 JSON | `res/raw/maplibre_style.json` | iOS 번들에 같은 파일 복사됨(`MapLibreView.staryStyleURL` 이 로드) |
 
 ## 공통 아키텍처 요약
