@@ -561,7 +561,7 @@ private struct AchievementUnlockOverlay: View {
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(grad, lineWidth: 1.5))
             .padding(.horizontal, 32)
             .scaleEffect(pop)
-            .opacity(Double(min(pop / 0.6, 1)))
+            .opacity(min(Double(pop) / 0.6, 1))   // CGFloat↔Double 혼합 회피(02 문서 규칙)
         }
         .onAppear {
             Haptics.celebrate() // 보상이 완성되는 순간의 축하 진동

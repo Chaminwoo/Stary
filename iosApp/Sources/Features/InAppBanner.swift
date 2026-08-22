@@ -62,7 +62,9 @@ struct InAppBannerHost: View {
             if let e = banner.events.first {
                 bannerView(e)
                     .offset(x: dragX)
-                    .opacity(1 - min(abs(dragX) / 220, 1))
+                    // ⚠️ CGFloat(dragX) 와 Double 리터럴을 섞으면 'ambiguous use of operator' 로
+                    // 컴파일이 깨진다(CI 실패 이력) — Double 로 맞춘 뒤 계산한다(02 문서 규칙).
+                    .opacity(1 - min(Double(abs(dragX)) / 220, 1))
                     // highPriorityGesture — 배너 본체가 Button 이라, 일반 .gesture 로 붙이면
                     // 스와이프 후 손을 뗄 때 버튼 탭까지 같이 발동해 화면이 이동할 수 있다.
                     // minimumDistance 8 이라 '탭'은 드래그로 인식되지 않아 탭 동작은 그대로다.
