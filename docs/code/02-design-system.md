@@ -122,6 +122,11 @@ iOS: `Core/Theme.swift`, `AppFont.swift`, `StarStyle.swift`, `StarShape.swift`, 
   `LoopingVideoPlayer.swift` : 각각 배너/1회 안내/이미지 캐시/루프 영상 대응.
 - ⚠️ iOS 장식 Canvas 공통 규칙: `TimelineView(.animation)` + `allowsHitTesting(false)`,
   Canvas 수식은 Double 통일 후 CGFloat 변환(혼합 시 컴파일 에러).
+- ⚠️ **`background(_:in:)` 은 View 가 아니라 ShapeStyle 을 받는다.** 조건에 따라 그라데이션/단색을
+  갈아 끼울 땐 `Group { if ... }`(=View) 를 넣으면 CI 컴파일 에러
+  (`Group<_ConditionalContent<...>> does not conform to 'ShapeStyle'` — 실제로 한 번 터졌다).
+  타입이 다른 두 채움은 **`AnyShapeStyle`(iOS 15+)로 지워서** 삼항으로 넘긴다
+  (예: `ChatScreen.bubbleFill(mine:)`).
 
 ### 값 조절(패리티 매핑)
 | 항목 | Android | iOS |

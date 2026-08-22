@@ -107,6 +107,19 @@ struct ChatScreen: View {
         ChatReadStore.shared.markRead(AppConfig.chatId(uid, friendId))
     }
 
+    /// 말풍선 배경 채움 — 내 것은 파랑→남색 그라데이션, 상대는 surface.
+    ///
+    /// ⚠️ `background(_:in:)` 은 **ShapeStyle** 을 받는다(View 가 아니다).
+    /// `Group { if mine { LinearGradient } else { Color } }` 는 View 라 컴파일이 안 된다
+    /// (CI 실패 이력 — `Group<_ConditionalContent<...>>` does not conform to 'ShapeStyle').
+    /// 그라데이션과 단색은 타입이 달라 삼항으로 못 묶으므로 **`AnyShapeStyle`(iOS 15+)로 타입을 지운다.**
+    private static func bubbleFill(mine: Bool) -> AnyShapeStyle {
+        mine
+            ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x2F4C9E), Color(hex: 0x1B2A5E)],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing))
+            : AnyShapeStyle(Theme.surface)
+    }
+
     /// 말풍선 — 내 것은 파랑→남색 그라데이션(Android MineBubble 과 같은 색), 상대는 surface.
     /// 삭제 가능(내 메시지 1분 이내)이면 왼쪽에 남은 시간이 줄어드는 링을 띄운다.
     private func bubble(_ msg: ChatMessage) -> some View {
@@ -122,17 +135,7 @@ struct ChatScreen: View {
             Text(msg.text)
                 .font(.minSans(15))                       // Android MessageBubble 15sp
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(
-                    Group {
-                        if mine {
-                            LinearGradient(colors: [Color(hex: 0x2F4C9E), Color(hex: 0x1B2A5E)],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing)
-                        } else {
-                            Theme.surface
-                        }
-                    },
-                    in: RoundedRectangle(cornerRadius: 14)
-                )
+                .background(Self.bubbleFill(mine: mine), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14).strokeBorder(
                         mine ? Theme.navyAccent.opacity(0.35) : Color.white.opacity(0.06),
