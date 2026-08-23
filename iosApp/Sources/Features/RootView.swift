@@ -72,6 +72,8 @@ struct MainTabView: View {
     @State private var fabScale: CGFloat = 1
     /// FAB 중심(화면 전역 좌표) — 파장 시작 위치 계산용.
     @State private var fabCenter: CGPoint = .zero
+    /// 최초 실행 코치마크 (Android main_coach_seen 대응)
+    @State private var showCoachMark = !UserDefaults.standard.bool(forKey: "main_coach_seen")
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -99,9 +101,16 @@ struct MainTabView: View {
                 // 별 탄생 연출(34-8) — 업로드 성공 직후 지도 위에서 재생된다(터치 통과).
                 StarBirthHost()
 
-                if let ach = achievementQueue.first {
+                if !showCoachMark, let ach = achievementQueue.first {
                     AchievementUnlockOverlay(achievement: ach) {
                         if !achievementQueue.isEmpty { achievementQueue.removeFirst() }
+                    }
+                }
+
+                if showCoachMark {
+                    MainOnboardingOverlay {
+                        showCoachMark = false
+                        UserDefaults.standard.set(true, forKey: "main_coach_seen")
                     }
                 }
             }

@@ -408,9 +408,6 @@ struct MapScreen: View {
         )) {
             Button("OK", role: .cancel) {}
         }
-        .firstVisitInfo(key: "map", systemImage: "map.fill",
-                        title: locale.t(.onbMapTitle),
-                        message: locale.t(.onbMapMsg))
     }
 
     /// 세계 상하 끝 밖 빈 공간을 덮는 바다색 사각형(위/아래) — 물 레이어 색과 같은 줌 보간.
