@@ -28,6 +28,7 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - `viewedIds` : 내가 연 다이어리 id 집합(FirebaseViewedRepository).
 - `friends` / `friendIds` : 내 친구 목록/id 집합 — friends 공개범위 판정에 사용.
 - `blockedIds` : 내가 차단한 uid 집합 — 그 사람 별은 지도/목록에서 숨김.
+  iOS 는 `MapScreen.shownDiaries` 가 `BlockStore.blockedIds` 로 같은 필터를 적용한다(09 문서).
 - `filteredDiaries` : 위 조건을 모두 적용한 표시 대상. **공개범위(friends) 판정도 여기서**:
   `visibilityType != "friends" || 내 글 || 친구 글`.
 - `globeCenter` / `globeReturn` / `globeButtonCenter` / `globeScrim` : 3D 글로브 진입 좌표 /
@@ -106,6 +107,20 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - 오버레이 Canvas: 세계 밖 빈 공간 바다색 덮기 + 상시 비네트 + 저줌 대기 헤이즈(터치 통과).
 - 우하단 FAB 열: 내 위치 → 별자리 토글 → 몰입(지도만 보기) → 업로드(+, 파장 후 작성 화면).
   좌상단: 줌 +/−. 길찾기 활성 시 하단 중앙 X(경로 취소).
+
+## SkyOverlay.kt — 실제 하늘 반영(여명/황혼)
+
+지도 밤하늘이 늘 똑같아 "배경 그림"으로 읽히던 것을 **지금 이 순간의 진짜 하늘**로 바꾼다.
+계산은 공용 KMP `shared/.../core/sky/SkyAlmanac.kt` — 네트워크/권한 없이 순수 계산(오프라인 동작).
+
+- `SkyOverlay(latitude, longitude)` : 비네트 위·UI 아래에 그리는 장식 Canvas(터치 통과).
+  `DiaryMap` 이 현재 좌표를 넘긴다(좌표가 없으면 아무것도 그리지 않는다).
+- **여명/황혼** : `sunAltitudeDeg(now, lat, lng)` → `twilightStrength` (+6°~-12°, -2° 최대).
+  화면 아래쪽에서 보라→주황이 차오른다(BlendMode.Screen).
+- 상태 재계산은 60초 주기(태양 고도는 그보다 훨씬 느리게 변한다).
+- ⚠️ **달 위상·유성(유성우 시즌)은 삭제됨**(2026-08-22 사용자 테스트 피드백 — "지도에 계속 떨어지는
+  유성/달 표시가 이상하다"). `SkyAlmanac` 의 달·유성우 계산, 극대일 토스트, `shower_*`/`sky_meteor_peak`
+  문자열도 함께 제거했다. **글로브(3D 지구) 쪽 유성은 별개 기능이라 그대로 유지**.
 
 ## DiaryMapMarkers.kt — 상수·표현식·비트맵 헬퍼 (지도 튜닝은 대부분 여기)
 
@@ -213,3 +228,5 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 | 길찾기 API | `OrsRouting.kt`(ORS_API_KEY, secrets.properties) | `OrsRouting.swift`(동일 계약) |
 | 야경 스타일 | `res/raw/maplibre_style.json` | iOS 번들 동일 파일 + Info.plist MAPTILER_KEY |
 | 복귀 재센터 예외 조건 | `MainScreen`(pendingDiaryId·routeActive) | `MapScreen.onAppear`(pendingDiaryId·fullRoute) |
+| 하늘(여명/황혼) 계산 | `shared/.../core/sky/SkyAlmanac.kt` | `Core/SkyAlmanac.swift` (**수식·상수 복제 — 함께 수정**) |
+| 하늘 렌더(황혼 그라데이션) | `feature/map/screen/SkyOverlay.kt` | `Features/Map/SkyOverlay.swift` (**값 동일**) |

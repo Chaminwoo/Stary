@@ -25,6 +25,8 @@
 
     <!-- 설정 화면 -->
     <string name="settings_sound">사운드</string>
+    <string name="settings_haptics">햅틱(진동)</string>
+    <string name="settings_haptics_desc">별을 열거나 좋아요를 누를 때 손끝에 반응이 와요</string>
     <string name="settings_notification">알림</string>
     <string name="settings_language">언어</string>
     <string name="settings_bgm">배경음악</string>
@@ -56,6 +58,19 @@
     <string name="unblock">차단 해제</string>
     <string name="toast_blocked">차단했어요</string>
     <string name="toast_unblocked">차단을 해제했어요</string>
+    <!-- 차단 목록(설정 > 안전) -->
+    <string name="nav_blocked_users">차단 목록</string>
+    <string name="settings_safety">안전</string>
+    <string name="settings_blocked_users">차단한 사용자</string>
+    <string name="settings_blocked_users_desc">차단한 사용자의 별과 댓글은 보이지 않아요</string>
+    <string name="settings_blocked_count">%1$d명</string>
+    <string name="blocked_empty">차단한 사용자가 없어요</string>
+    <string name="blocked_empty_desc">프로필 우측 상단 ⋮ 메뉴에서 사용자를 차단할 수 있어요.</string>
+    <string name="blocked_hint">차단한 사용자의 별은 지도·목록에서 숨겨지고, 댓글도 보이지 않아요. 상대는 차단 사실을 알 수 없어요.</string>
+    <string name="blocked_at">%1$s 차단</string>
+    <string name="block_confirm_title">%1$s님을 차단할까요?</string>
+    <string name="block_confirm_msg">차단하면 이 사용자의 별이 지도와 목록에서 사라지고 댓글도 보이지 않아요. 친구라면 친구 관계도 해제돼요. 설정 &gt; 안전에서 언제든 해제할 수 있어요.</string>
+    <string name="unblock_confirm_msg">%1$s님의 차단을 해제할까요? 이 사용자의 별과 댓글이 다시 보여요.</string>
 
     <!-- 언어 선택 -->
     <string name="language_dialog_title">언어 선택</string>
@@ -65,6 +80,11 @@
     <string name="language_ja">日本語</string>
 
     <!-- 공통 -->
+    <string name="common_confirm">확인</string>
+    <string name="ach_unlocked">업적 달성!</string>
+    <string name="ach_reward_title">칭호 «%1$s» 획득</string>
+    <string name="ach_reward_shape">새 별 모양 해금</string>
+    <string name="ach_reward_color">새 별 색 해금</string>
     <string name="common_cancel">취소</string>
     <string name="common_save">저장</string>
     <string name="common_delete">삭제</string>
@@ -128,7 +148,8 @@
     <string name="friend_accept">수락</string>
     <string name="friend_decline">거절</string>
     <string name="friend_my_friends">내 친구</string>
-    <string name="friend_empty">아직 친구가 없어요.\n이름으로 검색해 친구를 추가해보세요!</string>
+    <string name="friend_empty_title">아직 친구가 없어요</string>
+    <string name="friend_empty">위 검색창에 이름을 넣어 친구를 찾아보세요.</string>
     <string name="friend_chat">채팅</string>
     <string name="friend_search_placeholder">이름으로 친구 찾기</string>
     <string name="friend_no_name">(이름 없음)</string>
@@ -155,14 +176,16 @@
     <string name="common_friend">친구</string>
 
     <!-- 알림 화면 -->
-    <string name="notif_empty">알림이 없습니다</string>
+    <string name="notif_empty">아직 도착한 소식이 없어요</string>
+    <string name="notif_empty_desc">좋아요·댓글·친구의 새 별이 여기에 모여요.</string>
     <string name="notif_friend_post">새 다이어리 \"%1$s\"를 남겼어요</string>
     <string name="notif_like">\"%1$s\"를 좋아해요</string>
     <string name="notif_comment">\"%1$s\"에 댓글을 남겼어요</string>
     <string name="notif_friend_request">친구 요청을 보냈어요</string>
 
     <!-- 내 다이어리 화면 -->
-    <string name="mydiary_empty">아직 기록한 다이어리가 없어요</string>
+    <string name="mydiary_empty">아직 남긴 별이 없어요</string>
+    <string name="mydiary_empty_desc">지도에서 + 버튼을 눌러 이곳의 기억을 별로 남겨보세요.</string>
     <string name="mydiary_sort_count">%1$s · %2$d개</string>
     <string name="mydiary_view_list">목록으로 보기</string>
     <string name="mydiary_view_stars">별로 보기</string>

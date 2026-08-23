@@ -61,7 +61,9 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 - `pinnedIds` / `pinnedDiaries` : 그 사람이 핀한 다이어리 — 별로 떠 있고 **탭하면 지도 길찾기**.
 - `theirHiddenAch` : 그 사람이 달성한 히든 업적(전용 아이콘/파티클).
 - `vm : FriendViewModel` + `friends` / `isFriend` / `requested` / `showCancelDialog` : 친구 상태·요청.
-- `moderation` / `blockedIds` / `isBlocked` / `showReportDialog` : 차단/신고.
+- `moderation` / `blockedIds` / `isBlocked` / `showReportDialog` / `showBlockDialog` : 차단/신고.
+  **차단은 확인 다이얼로그를 거친다**(숨겨지는 범위 + 친구 해제 안내). 해제는 즉시.
+  차단 시 `block(..., targetPhotoUrl = photoUrl)` 로 이름·사진 스냅샷을 남겨 차단 목록에서 그대로 쓴다(09 문서).
 - `visibleDiaries` : 공개범위 필터(private=본인만, friends=본인·친구만) 적용된 목록.
 - `SideEffect` → `UserProfileActionState` 에 탑바 버튼 상태/콜백 등록(친구추가·취소/신고/차단),
   `DisposableEffect.onDispose` 에서 `reset()`.
@@ -71,7 +73,7 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
   items = [하트(버스트), **친구(버스트)**, 다이어리(책), 편지(채팅), 업적(버스트)] + 핀 별 + 히든 아이콘.
   `onTap` = idx2→`UserDiaryStars` 화면 / idx3→친구면 채팅·아니면 "친구만 채팅" 토스트 /
   핀 별→`onOpenDiary(id)`(NavGraph 가 `withRoute=true` 로 지도 길찾기) / 히든→버스트만.
-- 친구 취소 확인 / 신고 다이얼로그.
+- 친구 취소 확인 / **차단 확인** / 신고 다이얼로그.
 
 ## UserDiaryStarsScreen.kt — "OO님의 별" (타인 다이어리 별 보드)
 - 내 다이어리 보드와 동일한 다이얼+부유 별 UI 재사용. 차이: **별 탭 → `onOpenMap(diaryId)`**

@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.chaminwoo.stary_ios",
+      "sha256_cert_fingerprints": [
+        "45:07:07:05:90:55:86:8C:2F:F6:B0:81:92:6B:71:3F:61:A1:B2:AB:34:68:8D:07:A3:74:F8:4F:CC:A8:82:25",
+        "A4:D1:9A:61:16:6C:83:D4:0B:38:34:FA:B3:2C:C1:27:61:82:E1:04:BB:E5:79:A1:FD:24:3E:94:29:17:0A:DE"
+      ]
+    }
+  }
+]

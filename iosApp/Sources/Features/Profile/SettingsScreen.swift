@@ -4,6 +4,7 @@ import SwiftUI
 /// 값은 [MusicManager]/[AppSettings]/[LocaleManager] 에 즉시 저장되어 전 화면에 반영된다.
 struct SettingsScreen: View {
     @EnvironmentObject var auth: AuthManager
+    @EnvironmentObject var blocks: BlockStore
     @ObservedObject private var music = MusicManager.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var locale = LocaleManager.shared
@@ -33,6 +34,11 @@ struct SettingsScreen: View {
                                   value: music.sfxVolume,
                                   enabled: true,
                                   iconOverride: "waveform") { music.updateSfxVolume($0) }
+                        divider
+                        toggleRow(icon: "iphone.radiowaves.left.and.right",
+                                  label: locale.t(.settingsHaptics),
+                                  description: locale.t(.settingsHapticsDesc),
+                                  isOn: settings.hapticsEnabled) { settings.updateHapticsEnabled($0) }
                     }
 
                     // ── 알림 ──
@@ -59,6 +65,33 @@ struct SettingsScreen: View {
                                 Spacer()
                                 Text(languageLabel(locale.language))
                                     .font(.minSans(15)).foregroundStyle(Theme.navyAccent)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption).foregroundStyle(Theme.textFaint)
+                            }
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // ── 안전 ── (차단 목록: 차단한 사용자의 별/댓글은 앱 전체에서 숨겨진다)
+                    sectionLabel(locale.t(.settingsSafety), "shield.lefthalf.filled")
+                    glassCard {
+                        NavigationLink {
+                            BlockedUsersScreen()
+                        } label: {
+                            HStack(spacing: 14) {
+                                iconBadge("person.slash", active: true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(locale.t(.settingsBlockedUsers))
+                                        .font(.minSans(17)).foregroundStyle(Theme.textPrimary)
+                                    Text(locale.t(.settingsBlockedUsersDesc))
+                                        .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
+                                }
+                                Spacer()
+                                if !blocks.blockedIds.isEmpty {
+                                    Text("\(blocks.blockedIds.count)")
+                                        .font(.minSans(15)).foregroundStyle(Theme.navyAccent)
+                                }
                                 Image(systemName: "chevron.right")
                                     .font(.caption).foregroundStyle(Theme.textFaint)
                             }

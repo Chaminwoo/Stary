@@ -18,6 +18,8 @@ iOS: `Features/Notifications/NotificationsScreen.swift`, `NotificationsViewModel
 
 ## NotificationScreen.kt
 - 알림 목록(타입별 아이콘/문구: ❤️ 좋아요 / 💬 댓글 / ⭐ 친구 새 글 / 🙋 친구 요청) + 상대 시각(RelativeTime).
+- **차단한 사용자(actorId)의 알림은 숨긴다**(09 문서의 차단 규칙과 동일).
+- 알림이 하나도 없으면 `StaryEmptyState`(골드 스파클 별 + `notif_empty`/`notif_empty_desc`, 02 문서).
 - 행 탭: 다이어리 알림 → `onOpenDiary`(상세) / FRIEND_POST(친구 새 글) →
   `onFocusDiaryOnMap` → `MapFocusState.request(diaryId)`(지도 카메라+파장, 길찾기 없음) /
   **FRIEND_REQUEST → `onOpenFriends`(친구 화면 = 받은 요청 목록)**.

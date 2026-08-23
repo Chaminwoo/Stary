@@ -1,5 +1,7 @@
 package com.chaminwoo.stary.feature.chat.screen
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -9,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -55,7 +58,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -75,7 +81,8 @@ import com.chaminwoo.stary.feature.chat.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-private val Green = Color(0xFF6EE7B7)
+/** 입력창 포커스·커서·전송 버튼 강조 — 앱 전역 남색 계열(구 민트 0xFF6EE7B7 대체). */
+private val Accent = Color(0xFF9FB3E8)
 
 @Composable
 fun ChatScreen(
@@ -120,6 +127,10 @@ fun ChatScreen(
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
 
+    // 이 화면에 들어온 시각 — 이후 내가 보낸 메시지만 "방금 보낸 것"으로 보고 등장 연출을 준다
+    // (스크롤을 올려 과거 메시지를 봐도 연출이 재생되지 않도록).
+    val sessionStartedAt = remember { System.currentTimeMillis() }
+
     Box(modifier = modifier.fillMaxSize().background(PageBg)) {
         Image(
             painter = painterResource(R.drawable.mydiary_bg),
@@ -131,13 +142,14 @@ fun ChatScreen(
 
         Column(modifier = Modifier.fillMaxSize()) {
             if (messages.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        stringResource(R.string.chat_empty, friendName.ifBlank { stringResource(R.string.common_friend) }),
-                        color = TextMuted, fontSize = 14.sp
+                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    com.chaminwoo.stary.core.ui.StaryEmptyState(
+                        title = stringResource(
+                            R.string.chat_empty,
+                            friendName.ifBlank { stringResource(R.string.common_friend) }
+                        ),
+                        starType = 0,        // 4꼭지 스파클 — 첫 인사
+                        starColorIndex = 9,  // 민트
                     )
                 }
             } else {
@@ -153,6 +165,8 @@ fun ChatScreen(
                         MessageBubble(
                             msg = msg,
                             isMine = mine,
+                            // 이번 화면에서 내가 방금 보낸 메시지만 떠오르는 등장 연출(과거 메시지는 조용히).
+                            justSent = mine && msg.createdAt >= sessionStartedAt,
                             onLongPress = if (mine && vm.canDelete(msg)) {
                                 { pendingDelete = msg }
                             } else null
@@ -183,9 +197,9 @@ fun ChatScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = PageBg.copy(alpha = 0.6f),
                         unfocusedContainerColor = PageBg.copy(alpha = 0.4f),
-                        focusedBorderColor = Green.copy(alpha = 0.55f),
+                        focusedBorderColor = Accent.copy(alpha = 0.55f),
                         unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
-                        cursorColor = Green,
+                        cursorColor = Accent,
                         focusedTextColor = TextMain,
                         unfocusedTextColor = TextMain,
                     )
@@ -196,8 +210,9 @@ fun ChatScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(if (canSend) Green else Color.White.copy(alpha = 0.08f))
+                        .background(if (canSend) Accent else Color.White.copy(alpha = 0.08f))
                         .clickable(enabled = canSend) {
+                            com.chaminwoo.stary.core.util.Haptics.light()
                             vm.send(input)
                             input = ""
                         },
@@ -235,17 +250,45 @@ fun ChatScreen(
     }
 }
 
+/** 내 말풍선 그라데이션(파랑→남색) — 앱 전역 강조색과 같은 계열. */
+private val MineBubble = Brush.linearGradient(listOf(Color(0xFF2F4C9E), Color(0xFF1B2A5E)))
+
+/**
+ * 채팅 말풍선.
+ *
+ * 예전엔 내 말풍선이 초록 단색이라 남색으로 개편된 앱 톤에서 혼자 튀었다. 지금은
+ *  - 내 말풍선: 파랑→남색 그라데이션 + 은은한 외곽 글로우,
+ *  - 삭제 가능(내 메시지 1분 이내): 말풍선 왼쪽에 **남은 시간이 줄어드는 링 타이머** —
+ *    "지금 롱프레스하면 지울 수 있다"를 말없이 알려준다(기존엔 아무 표시도 없었다),
+ *  - 방금 보낸 내 메시지: 아래에서 떠오르며 별가루가 흩어지는 등장 연출.
+ *
+ * @param justSent 이 메시지가 **이번 세션에서 내가 방금 보낸 것**인지(등장 연출 1회용).
+ */
 @Composable
-private fun MessageBubble(msg: ChatMessage, isMine: Boolean, onLongPress: (() -> Unit)? = null) {
+private fun MessageBubble(
+    msg: ChatMessage,
+    isMine: Boolean,
+    justSent: Boolean = false,
+    onLongPress: (() -> Unit)? = null,
+) {
     val time = remember(msg.createdAt) {
         SimpleDateFormat("a h:mm", Locale.KOREA).format(java.util.Date(msg.createdAt))
     }
+
+    // 등장 연출 — 방금 보낸 내 메시지만 아래에서 떠오르며 별가루가 흩어진다.
+    val appear = remember(msg.id) { Animatable(if (justSent) 0f else 1f) }
+    LaunchedEffect(msg.id) {
+        if (justSent) appear.animateTo(1f, tween(520, easing = FastOutSlowInEasing))
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Bottom
     ) {
         if (isMine) {
+            // 삭제 가능 잔여 시간 링(1분) — 다 돌면 사라진다.
+            DeleteWindowRing(createdAt = msg.createdAt, visible = onLongPress != null)
             Text(time, color = TextMuted, fontSize = 10.sp)
             Spacer(Modifier.width(6.dp))
         }
@@ -260,29 +303,69 @@ private fun MessageBubble(msg: ChatMessage, isMine: Boolean, onLongPress: (() ->
                     modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
                 )
             }
-            Box(
-                modifier = Modifier
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 16.dp, topEnd = 16.dp,
-                            bottomStart = if (isMine) 16.dp else 4.dp,
-                            bottomEnd = if (isMine) 4.dp else 16.dp
-                        )
-                    )
-                    .background(if (isMine) Green.copy(alpha = 0.92f) else CardBgTop)
-                    .then(
-                        if (onLongPress != null) Modifier.pointerInput(msg.id) {
-                            detectTapGestures(onLongPress = { onLongPress() })
-                        } else Modifier
-                    )
-                    .padding(horizontal = 13.dp, vertical = 9.dp)
-            ) {
-                Text(
-                    msg.text,
-                    color = if (isMine) Color(0xFF0E1018) else TextMain,
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp
+            Box(contentAlignment = Alignment.Center) {
+                // 별가루 트레일 — 등장 중에만 말풍선 뒤로 흩어진다(터치 통과).
+                if (isMine && appear.value < 1f) {
+                    Canvas(modifier = Modifier.matchParentSize()) {
+                        val p = appear.value
+                        val fade = (1f - p).coerceIn(0f, 1f)
+                        repeat(7) { i ->
+                            val seed = (msg.id.hashCode() + i * 31)
+                            val fx = ((seed % 100) / 100f) * size.width
+                            val drift = ((seed / 100 % 40) - 20) / 20f
+                            val y = size.height * (1f - p) + size.height * 0.5f
+                            drawCircle(
+                                color = Color(0xFF9FB3E8).copy(alpha = 0.55f * fade),
+                                radius = (1.4f + (i % 3)).dp.toPx() * 0.6f,
+                                center = androidx.compose.ui.geometry.Offset(
+                                    fx + drift * 14.dp.toPx() * p,
+                                    y + 10.dp.toPx() * p
+                                )
+                            )
+                        }
+                    }
+                }
+
+                val shape = RoundedCornerShape(
+                    topStart = 16.dp, topEnd = 16.dp,
+                    bottomStart = if (isMine) 16.dp else 4.dp,
+                    bottomEnd = if (isMine) 4.dp else 16.dp
                 )
+                Box(
+                    modifier = Modifier
+                        .graphicsLayer {
+                            // 아래에서 떠오르며 또렷해진다(등장 연출이 없으면 값이 1이라 무동작).
+                            translationY = (1f - appear.value) * 14.dp.toPx()
+                            alpha = 0.25f + 0.75f * appear.value
+                        }
+                        .clip(shape)
+                        .then(
+                            if (isMine) Modifier.background(MineBubble)
+                            else Modifier.background(CardBgTop)
+                        )
+                        .border(
+                            1.dp,
+                            if (isMine) Color(0xFF9FB3E8).copy(alpha = 0.35f)
+                            else Color.White.copy(alpha = 0.06f),
+                            shape
+                        )
+                        .then(
+                            if (onLongPress != null) Modifier.pointerInput(msg.id) {
+                                detectTapGestures(onLongPress = {
+                                    com.chaminwoo.stary.core.util.Haptics.light()
+                                    onLongPress()
+                                })
+                            } else Modifier
+                        )
+                        .padding(horizontal = 13.dp, vertical = 9.dp)
+                ) {
+                    Text(
+                        msg.text,
+                        color = if (isMine) Color(0xFFEDF1FF) else TextMain,
+                        fontSize = 15.sp,
+                        lineHeight = 21.sp
+                    )
+                }
             }
         }
         if (!isMine) {
@@ -290,4 +373,38 @@ private fun MessageBubble(msg: ChatMessage, isMine: Boolean, onLongPress: (() ->
             Text(time, color = TextMuted, fontSize = 10.sp)
         }
     }
+}
+
+/**
+ * 삭제 가능 잔여 시간 링 — 내 메시지를 보낸 뒤 [StaryConfig.CHAT_DELETE_WINDOW_MS] 동안
+ * 조금씩 줄어드는 원호. 0 이 되면 사라진다(그때부터 롱프레스 삭제도 막힌다).
+ */
+@Composable
+private fun DeleteWindowRing(createdAt: Long, visible: Boolean) {
+    if (!visible) return
+    val window = com.chaminwoo.stary.shared.config.StaryConfig.CHAT_DELETE_WINDOW_MS
+    var remain by remember(createdAt) {
+        mutableStateOf(((createdAt + window - System.currentTimeMillis()).toFloat() / window).coerceIn(0f, 1f))
+    }
+    LaunchedEffect(createdAt) {
+        // 1초마다 갱신 — 초 단위 표시라 더 자주 그릴 이유가 없다(배터리).
+        while (remain > 0f) {
+            kotlinx.coroutines.delay(1000)
+            remain = ((createdAt + window - System.currentTimeMillis()).toFloat() / window).coerceIn(0f, 1f)
+        }
+    }
+    if (remain <= 0f) return
+    Canvas(modifier = Modifier.size(11.dp)) {
+        drawArc(
+            color = Color(0xFF9FB3E8).copy(alpha = 0.18f),
+            startAngle = -90f, sweepAngle = 360f, useCenter = false,
+            style = Stroke(width = 1.6.dp.toPx())
+        )
+        drawArc(
+            color = Color(0xFF9FB3E8).copy(alpha = 0.75f),
+            startAngle = -90f, sweepAngle = 360f * remain, useCenter = false,
+            style = Stroke(width = 1.6.dp.toPx())
+        )
+    }
+    Spacer(Modifier.width(5.dp))
 }

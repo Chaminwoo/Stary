@@ -83,10 +83,21 @@ struct UploadScreen: View {
         .navigationTitle(LocaleManager.shared.t(.navUpload))
         .navigationBarTitleDisplayMode(.inline)
         // 키보드 위 "완료" — 여러 줄 입력(본문)은 리턴키가 줄바꿈이라 이 버튼이 유일한 닫기 수단(#3).
+        // 작아서 누르기 어렵다는 피드백(2026-08-15) → 캡슐 버튼으로 키우고 키보드/가장자리에서 살짝 띄운다.
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button(LocaleManager.shared.t(.commonDone)) { focusedField = nil }
+                Button { focusedField = nil } label: {
+                    Text(LocaleManager.shared.t(.commonDone))
+                        .font(.minSans(17, .semibold))
+                        .foregroundStyle(Color(hex: 0x0D0D0D))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 9)
+                        .background(Theme.mint, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 8)
+                .padding(.bottom, 6)
             }
         }
         .overlay(alignment: .bottom) {
@@ -326,7 +337,10 @@ struct UploadScreen: View {
     }
 
     private func save() async {
-        guard let uid = auth.uid else { return }
+        // 둘러보기(게스트)는 작성 불가 — Android common_login_required 안내와 동일.
+        guard let uid = auth.uid else {
+            showToast(LocaleManager.shared.t(.commonLoginRequired)); return
+        }
         // 잠긴 별 모양/색이 다이얼 중앙에 온 채 저장되지 않도록 차단(#7).
         if let a = StarUnlocks.lockedShapeAch(starType, unlocked) {
             showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name)); return
@@ -430,6 +444,8 @@ private struct WheelPicker<Content: View>: View {
     private var slot: CGFloat { itemSize + 28 }
     @State private var drag: CGFloat = 0
     @State private var settling = false
+    /// 드래그 중 슬롯을 지날 때마다 딸깍(햅틱) — 중복 방지용 마지막 눈금.
+    @State private var tickedStep = 0
 
     private func wrap(_ i: Int) -> Int { ((i % count) + count) % count }
 
@@ -466,9 +482,15 @@ private struct WheelPicker<Content: View>: View {
                 .onChanged { g in
                     guard !settling else { return }
                     drag = g.translation.width
+                    let step = Int((-drag / slot).rounded())
+                    if step != tickedStep {
+                        tickedStep = step
+                        Haptics.tick()
+                    }
                 }
                 .onEnded { g in
                     let steps = Int((-g.translation.width / slot).rounded())
+                    tickedStep = 0
                     commit(steps: steps)
                 }
         )

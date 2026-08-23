@@ -54,13 +54,41 @@ iOS: `Features/Music/MusicScreen.swift`, `Features/Profile/SettingsScreen.swift`
 
 ### 상태/변수
 - `showLanguageDialog` / `showDeleteDialog` / `deleting` : 언어 선택/계정 삭제 다이얼로그·진행 상태.
+- `blockedIds` : 내가 차단한 uid 집합(`FirebaseModerationRepository.observeBlockedIds`) —
+  안전 섹션 행 우측의 "N명" 카운트에만 쓴다(비어 있으면 숫자 숨김).
+- 파라미터 `onOpenBlockedUsers` : 안전 > 차단한 사용자 → `NavRoute.BlockedUsers` 이동(NavGraph 가 주입).
 
 ### 구성(섹션 순서)
-1. 사운드 — BGM 토글(`MusicManager.setActive`) + BGM/효과음 볼륨(`VolumeRow`).
+1. 사운드 — BGM 토글(`MusicManager.setActive`) + BGM/효과음 볼륨(`VolumeRow`)
+   + **햅틱(진동) 토글**(`AppSettings.updateHapticsEnabled` — 끄면 `Haptics` 호출이 전부 무음, 02 문서).
 2. 알림 — 인앱 팝업 토글(`AppSettings.updateNotificationsEnabled`).
 3. 언어 — `NavRow` 탭 → `LanguageDialog`(시스템/ko/en/ja) → `LocaleManager.setLanguageTag` +
    `activity.recreate()`.
-4. 계정 — 탈퇴(7일 유예 예약, `GoogleAuthHelper.requestDeletion`) → 성공 시 로그아웃 콜백.
+4. **안전 — 차단한 사용자(`NavRow`, 우측 = 차단 수) → `BlockedUsersScreen`.**
+5. 계정 — 탈퇴(7일 유예 예약, `GoogleAuthHelper.requestDeletion`) → 성공 시 로그아웃 콜백.
+
+## BlockedUsersScreen.kt — 차단 목록(설정 > 안전)
+
+내가 차단한 사용자 확인/해제. 라우트 `NavRoute.BlockedUsers`(탑바 제목 `nav_blocked_users`).
+
+- 데이터: `FirebaseModerationRepository.observeBlockedUsers(myId)` →
+  `List<BlockedUser>`(문서 id=상대 uid, `userName`/`photoUrl`/`createdAt`, **최근 차단 순**).
+  이름·사진은 **차단 시점 스냅샷**이라 상대 프로필 문서를 다시 읽지 않는다.
+- 행 = `BlockedRow` : [사진 44dp] [이름 / `yyyy.MM.dd` 차단일] [차단 해제 pill(SoftRed)].
+  사진·이름 탭 → 그 사람 프로필(`NavRoute.UserProfile`), 해제 pill → **확인 다이얼로그**를 거쳐 `unblock`.
+- 비어 있으면 사람✕ 아이콘 + `blocked_empty`/`blocked_empty_desc` 안내, 목록 위에는 `blocked_hint`
+  (숨겨지는 범위 + "상대는 모른다" 설명).
+
+### 차단이 실제로 걸리는 지점(한 곳에서 안 막는다 — 화면마다 필터)
+| 화면 | Android | iOS |
+|---|---|---|
+| 지도/글로브 별 | `MainListScreen.filteredDiaries` (`diary.userId !in blockedIds`) | `MapScreen.shownDiaries` |
+| 목록 탭 | (지도와 같은 필터) | `ListScreen.rows` |
+| 상세 댓글 | `DetailScreen.comments` | `DetailScreen.visibleComments` |
+| 알림 | `NotificationScreen.visibleNotifs` (`actorId`) | `NotificationsScreen.items` |
+| 친구 검색/받은 요청 | `FriendScreen` results/visibleRequests | `FriendsScreen` results/visibleRequests |
+- **차단 시 친구 관계도 해제**된다(UserProfileScreen: Android `vm.remove`, iOS 양방향 friends 문서 삭제).
+- 차단은 `users/{내uid}/blocked/{상대uid}` **한 방향 기록** — 상대에겐 아무 표시도 가지 않는다.
 
 ### 보조 컴포저블
 - `GlassCard` : CardBg + 파랑→남색 그라데이션 테두리 카드. `SectionLabel` : 섹션 제목.
@@ -70,6 +98,8 @@ iOS: `Features/Music/MusicScreen.swift`, `Features/Profile/SettingsScreen.swift`
 - `Context.findActivity()` : recreate 용 액티비티 탐색.
 
 ## AppSettings.kt
+- `hapticsEnabled` : 햅틱(진동) on/off(기본 켜짐). `init(context)` 이 `Haptics.init` 도 호출한다.
+  켠 순간 `Haptics.light()` 로 어떤 느낌인지 바로 보여준다.
 - `notificationsEnabled` : 인앱 알림 배너 on/off(기본 켜짐, prefs `stary_prefs` 영속).
   끄면 배너만 안 뜨고 미읽음 카운트/알림 목록은 유지. `init(context)` / `updateNotificationsEnabled(v)`.
 
@@ -96,8 +126,16 @@ iOS: `Features/Music/MusicScreen.swift`, `Features/Profile/SettingsScreen.swift`
 
 ### SettingsScreen.swift
 - 카드 배경 `cardBg = Color(hex: 0x080D1A).opacity(0.9)` — **Android CardBg 0xE6080D1A 패리티**.
-- 구성 동일(사운드/알림/언어/계정). 언어는 confirmationDialog → `locale.setLanguage(tag)`
+- 구성 동일(사운드/알림/언어/**안전**/계정). 언어는 confirmationDialog → `locale.setLanguage(tag)`
   (RootView 가 `.id(locale.language)` 로 전체 재렌더). 탈퇴는 `auth.requestDeletion()`.
+- 안전 섹션은 `NavigationLink { BlockedUsersScreen() }`, 우측 숫자는 `blocks.blockedIds.count`
+  (`BlockStore` 는 RootView 가 environmentObject 로 주입).
+
+### BlockedUsersScreen.swift
+- `BlockStore.blockedUsers`(스냅샷 리스너에서 `BlockedUser` 로 매핑, 최근 차단 순)를 그대로 그린다.
+- 행/빈 화면/문구는 Android 와 동일. 해제는 `.alert(presenting:)` 확인 후 `ModerationRepository.unblock`.
+- 문구는 `L10n` 의 `navBlockedUsers`/`settingsSafety`/`settingsBlockedUsers(Desc)`/`blockedEmpty(Desc)`/
+  `blockedHint`/`blockedAtFormat`/`blockConfirmTitle`/`blockConfirmMsg`/`unblockConfirmMsg`.
 - 볼륨 슬라이더는 시스템 Slider + navyAccent 틴트(별 thumb 는 Android 전용 — iOS TODO).
 
 ### AppSettings.swift / LocaleManager.swift
@@ -114,3 +152,5 @@ iOS: `Features/Music/MusicScreen.swift`, `Features/Profile/SettingsScreen.swift`
 | 음악 별자리 문양 | `MusicScreen.kt` MC_* | `MusicScreen.swift` (**값 동일**) |
 | 볼륨/토글 저장 키 | prefs `stary_prefs` | UserDefaults |
 | 언어 지원 목록 | `LocaleManager.SUPPORTED` | `LocaleManager.supported` |
+| 차단 목록 화면 | `BlockedUsersScreen.kt` | `BlockedUsersScreen.swift` |
+| 차단 저장 스키마 | `FirebaseModerationRepository` (`userName`/`photoUrl`/`createdAt`) | `ModerationRepository` (**필드 동일**) |

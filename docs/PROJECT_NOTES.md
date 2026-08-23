@@ -2,7 +2,13 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.45 크로스플랫폼 버그 7건**(카메라/갤러리/3초영상 3지선다 · 휠 스냅 · 업로드 키보드 ·
+> 최종 갱신: **8.48 테스트 피드백 — 연출 3종 삭제(지도 유성/달 위상/사진 리빌) + 좋아요 버스트·수정/삭제 레이아웃 수정**
+> — Android BUILD SUCCESSFUL(2026-08-22), iOS 는 push 후 CI 검증 — 아래 8.48 참고.
+> 이전: **8.47 UI 체감 강화 7건 — 햅틱 / 좋아요 버스트 / 업적 보상 리빌 / 빈 화면 / 채팅 말풍선 /
+> 사진 크리스탈 리빌 / 실제 하늘(달·유성우·여명)** — 아래 8.47 참고(그중 3종은 8.48 에서 삭제됨).
+> 이전: **8.46 사용자 차단 기능 완성 — 차단 목록 화면(설정 > 안전) + 차단 확인 + iOS 지도 차단 필터**
+> — Android BUILD SUCCESSFUL(2026-08-22), iOS 는 push 후 CI 검증 — 아래 8.46 참고.
+> 이전: **8.45 크로스플랫폼 버그 7건**(카메라/갤러리/3초영상 3지선다 · 휠 스냅 · 업로드 키보드 ·
 > **채팅 규칙(첫 메시지 거부) 근본 수정** · 채팅 입력바 인셋 · **iOS 푸시(FCM/APNs) 신설** · 친구 요청 알림)
 > **+ 8.45-2 iOS 폰트를 Android 와 동일하게(PoorStory → MinSans 가변폰트)**
 > — Android BUILD SUCCESSFUL(2026-08-09), iOS 는 push 후 CI 검증 + **사용자 액션 3건 필요**(아래 8.45).
@@ -40,6 +46,160 @@
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
 
 ---
+
+## 8.48 테스트 피드백 — 연출 3종 삭제 + 좋아요/수정·삭제 레이아웃 수정 (Android BUILD SUCCESSFUL 2026-08-22, iOS CI 검증 대기)
+
+8.47 로 넣은 연출 중 **사용자 테스트에서 "이상하다"고 지적된 3종**을 제거했다(나머지 8.47 항목은 유지).
+양 플랫폼 동시 반영.
+
+### 삭제한 것
+1. **지도 유성** — 유성우 기간에 3~20초 간격으로 계속 떨어지던 것. 애니메이션 루프·`Meteor` 데이터·
+   `MapUiState/AppForeground` 게이팅까지 통째로 제거.
+2. **지도 달 위상** — 우상단 달(후광 + Path Difference 위상). iOS 의 `subtractingCompat` 호출도 사라졌다
+   (헬퍼 자체는 `StarShape.swift` 에 남아 별 모양 등에서 계속 쓰인다 — internal 그대로 둠).
+3. **상세 사진 크리스탈 리빌** — 진입 시 조각이 흩어지며 사진이 드러나던 오버레이.
+   `core/ui/CrystalReveal.kt` / `Core/CrystalReveal.swift` **파일 삭제**, DetailScreen 양쪽 호출 제거.
+
+### 함께 정리한 부수물
+- `SkyAlmanac`(Kotlin/Swift 양쪽): `moonPhase`/`moonIllumination`/`activeMeteorShower`/`MeteorShower`/
+  유성우 7개 테이블 제거 → **`sunAltitudeDeg` + `twilightStrength`(여명·황혼)만 남았다.**
+- **유성우 극대일 하루 1회 토스트** 제거 — 유성이 없으면 안내할 대상이 없다.
+  Android `announcePeakOnce`/prefs `sky_peak_announced`, iOS `SkyPeakAnnouncer` + MapScreen 수신 배선까지.
+- 문자열: `strings.xml` ko/en/ja 의 `sky_meteor_peak`·`shower_*` 8건씩, iOS `L10n.skyMeteorPeak`·`shower*`
+  + `LocaleManager.meteorShowerName()`.
+
+### 레이아웃 수정 2건 (같은 테스트 라운드)
+- **좋아요 버스트가 행 배치를 밀던 문제** : 파편 Canvas(72dp)가 하트 `Box` 의 **자식**이라
+  버스트가 뜨는 동안만 Box 가 44dp → 72dp 로 커지면서 좋아요/공유/수정 행 전체가 밀렸다.
+  → Box 를 **44dp 고정**, 파편은 `matchParentSize` + 고정 반지름 `BURST_RADIUS`(36dp)로
+  **경계 밖에 그리기만** 한다(측정에 안 잡힘). iOS 는 `ZStack` → **`.background`** 로 같은 처리.
+  ⚠️ 앞으로 이런 "튀어나가는" 연출은 **레이아웃에 참여시키지 말 것**(02 문서에도 규칙으로 남김).
+- **수정/삭제 간격** : `TextButton` 이 최소 폭 58dp(`ButtonDefaults.MinWidth`)를 강제해
+  짧은 한글 라벨("수정"/"삭제")에서 좌우 여백이 크게 남아 둘이 멀찍이 떨어져 보였다.
+  → `CompactTextAction`(DetailScreen private): 글자 폭 + 좌우 8dp, 터치 높이 40dp 유지.
+  같은 자리의 **신고** 버튼도 함께 바꿨다(우측 정렬 위치가 어긋나 보이지 않게).
+  iOS 는 `Spacer().frame(width: 12 → 16)` 로 같은 간격.
+
+### 남긴 것 (혼동 주의)
+- **`SkyOverlay` 자체는 살아 있다** — 여명/황혼 그라데이션 전용으로 축소됐다(사용자가 지적하지 않은 항목).
+- **글로브(3D 지구)의 유성은 별개 기능** — `GlobeRenderer.kt` / `GlobeScreen.swift` 의 곡선 유성 + 잔류
+  스파클(8.35)은 그대로다. 이번 삭제는 **지도 화면 SkyOverlay 한정**.
+
+---
+
+## 8.47 UI 체감 강화 7건 — 햅틱/버스트/리빌/빈 화면/말풍선/하늘 (Android BUILD SUCCESSFUL 2026-08-22, iOS CI 검증 대기)
+
+"탑바 빼고 우와 할 부분"을 코드 기준으로 뽑아 7건 진행(9=연말결산 별자리, 12=지도 첫 로딩 연출은 다음 라운드).
+전부 **양 플랫폼 동시** 반영.
+
+### 1) 햅틱 — 앱 전체에 0건이던 것을 연출 지점에만
+- 신설 `core/util/Haptics.kt` / `Core/Haptics.swift` : `tick/light/medium/heavy/celebrate/warp`.
+  Android 는 `VibrationEffect`(createOneShot/createWaveform), iOS 는 `UIImpactFeedbackGenerator`(재사용).
+- 넣은 지점: **별 열람 파장**(DiaryMap/MapScreen `warp()`), **좋아요**(`medium()`),
+  **음악 다이얼·업로드 휠 눈금**(`tick()`), **별 탄생/업적 달성**(`celebrate()`), 채팅 전송/롱프레스(`light/soft`).
+- 설정 > 사운드에 **햅틱 토글**(`AppSettings.hapticsEnabled`, 기본 켜짐) — 끄면 전부 무음.
+- ⚠️ Android 는 Manifest 에 `VIBRATE` 권한이 필요하다(런타임 요청 없는 일반 권한).
+- 원칙: **이미 시각/청각 연출이 있는 지점에만.** 아무 버튼에나 넣으면 진동이 배경소음이 된다.
+
+### 2) 좋아요 = 크리스탈 파편 버스트
+- 신설 `core/ui/LikeButton.kt` / `Core/LikeButton.swift` : 하트 pop(스프링) + 파편 12개(620ms) + 숫자 롤링.
+  파편 색 = **그 별의 색**(다이어리마다 다르게 터진다). **켤 때만** 버스트/진동(해제는 조용히).
+- 좋아요 토스트("좋아요 ♥")는 제거 — 버스트가 곧 피드백이라 중복이었다.
+
+### 3) 업적 달성 팝업 = 보상을 실제로 보여준다
+- 예전엔 트로피 글리프 + "새 별 모양 해금" **글자만** → 무엇을 얻었는지 업적 화면에 들어가야 알 수 있었다.
+- 지금은 파편 14개가 모여 그 별이 완성되는 리빌(900ms) + 광선 12갈래 회전 + 축하 진동.
+  칭호=앰버골드 5꼭지 / 모양=해금 모양 / 색=해금 색.
+- ⚠️ **i18n 버그도 함께 수정** — 팝업 문구가 양 플랫폼 모두 한국어 하드코딩이라 en/ja 에서 번역되지 않았다.
+  `ach_unlocked`/`ach_reward_title|shape|color`/`common_confirm` (+ iOS `L10n` 동일 키) 신설.
+
+### 4) 빈 화면 공용화
+- 신설 `core/ui/StaryEmptyState.kt` / `Core/StaryEmptyState.swift` :
+  떠 있는 별(6초 부유 + 궤도 스파클 3개) + 문구(+선택 액션).
+- 적용: 알림(골드 스파클) · 친구(민트 보석) · 내 다이어리(코발트) · 차단 목록(초승달) · 채팅 첫 대화 ·
+  iOS 목록 탭. 문구도 다듬었다(`notif_empty_desc`, `mydiary_empty_desc`, `friend_empty_title` 신설).
+- iOS 채팅은 아직 빈 대화 안내가 없다(Android `chat_empty` 만 존재) — 남은 TODO.
+
+### 5) 채팅 말풍선(초록 → 앱 톤)
+- 내 말풍선 = 파랑→남색 그라데이션(0xFF2F4C9E→0xFF1B2A5E) + 남색 테두리. 입력창 포커스/커서/전송 버튼도 남색.
+  (구 민트 0xFF6EE7B7 단색은 2026-07 남색 개편 이후 이 화면만 튀고 있었다.)
+- **삭제 가능 링 타이머** : 내 메시지 왼쪽에 1분 잔여가 줄어드는 원호 — "지금 롱프레스하면 지울 수 있다"를
+  말없이 알려 준다(기존엔 아무 표시도 없었다).
+- **방금 보낸 메시지**만 아래에서 떠오르며 별가루가 흩어진다(화면 진입 시각 기준 — 과거 메시지는 조용히).
+
+### 6) 상세 사진 크리스탈 리빌 — ⚠️ **8.48 에서 삭제됨**(사용자 테스트 피드백)
+- 신설 `core/ui/CrystalReveal.kt` / `Core/CrystalReveal.swift` :
+  조각 12갈래×3링이 바깥으로 흩어지며 사진이 드러난다(780ms, 바깥 링부터).
+- 지도에서 별을 열 때의 파장 → 상세 진입 사이가 끊겨 있던 것을 잇는다.
+- 장식 전용(`pointerInput`/hitTesting 없음)이라 사진 탭(전체화면 뷰어)을 가리지 않는다.
+
+### 7) 실제 하늘 — 오늘의 달 / 유성우 / 여명·황혼
+⚠️ **8.48 에서 달·유성우는 삭제됐다. 지금 남은 건 여명·황혼뿐**(아래 설명은 당시 기록).
+- 신설 **공용 KMP** `shared/.../core/sky/SkyAlmanac.kt` (+ iOS 복제 `Core/SkyAlmanac.swift`) :
+  - `moonPhase(now)` : 기준 신월 2000-01-06 18:14 UTC + 삭망월 29.530588853일.
+  - `activeMeteorShower(년,월,일)` : 주요 7개(사분의/거문고/물병η/페르세우스/오리온/사자/쌍둥이),
+    극대 근접도 × ZHR 로 intensity 0..1.
+  - `sunAltitudeDeg(now, lat, lng)` : 저정밀 태양 위치(NOAA 근사) → `twilightStrength`(+6°~-12°).
+  - **네트워크·권한 없이 순수 계산** — 오프라인에서도 동작한다.
+- 신설 `feature/map/screen/SkyOverlay.kt` / `Features/Map/SkyOverlay.swift`(지도 비네트 위, UI 아래):
+  - **달** : 우상단. 원반에서 그림자 원을 빼(Path Difference) 초승/반달/보름을 그대로 그린다.
+    빛나는 비율 4% 미만(신월 근처)이면 아예 안 뜬다.
+    ⚠️ iOS 는 `Path.subtracting` 이 iOS17+ 라 기존 `subtractingCompat`(CGPath) 사용 —
+    이 헬퍼를 `StarShape.swift` 에서 private → internal 로 열었다.
+  - **유성** : 유성우 기간에만. 극대일 ~3초, 가장자리 ~20초 간격(강도 비례).
+    지도가 안 보이거나 앱이 후면이면 루프가 쉰다.
+  - **여명/황혼** : 해가 지평선 근처일 때 화면 아래가 보라→주황으로 물든다.
+  - **극대일엔 하루 한 번 토스트**("오늘 밤은 페르세우스 유성우가 절정이에요 ✦") — 유성우 7개 이름 ko/en/ja.
+- 값 drift 금지: Kotlin/Swift 두 벌이 **같은 수식·같은 상수**다. 한쪽만 고치지 말 것.
+
+### 다음 라운드로 미룬 것(사용자 지시)
+- **9) "나의 별자리" 연말/월간 결산** — 내 별을 시간순으로 이어 개인 별자리 + 공유 카드.
+- **12) 지도 첫 로딩 연출** — 별이 가까운 순으로 하나씩 켜지기.
+
+## 8.46 사용자 차단 기능 완성 — 차단 목록(설정 > 안전) + 차단 확인 + iOS 지도 필터 (Android BUILD SUCCESSFUL 2026-08-22, iOS CI 검증 대기)
+
+요구: "유저 차단 기능 + 차단한 유저의 별은 지도에서 제외. 위치/설정은 알아서."
+차단 자체(프로필 ⋮ → 차단, `users/{uid}/blocked/{상대uid}`)와 **Android 지도 필터는 이미 있었고**,
+빠져 있던 **관리 화면 · 차단 확인 · iOS 지도 필터 · 알림/친구 화면 필터**를 채워 기능을 닫았다.
+
+### 데이터/저장소
+- `shared/.../core/model/BlockedUser.kt` **신설** — `userId/userName/photoUrl/createdAt`.
+  이름·사진은 **차단 시점 스냅샷**(목록에서 상대 프로필 문서를 다시 읽지 않기 위함).
+- `FirebaseModerationRepository`:
+  - `observeBlockedUsers(userId): Flow<List<BlockedUser>>` **추가**(최근 차단 순). id 집합만 필요하면 기존 `observeBlockedIds`.
+  - `block(..., targetPhotoUrl: String = "")` — `photoUrl` 필드 추가(기존 문서엔 없어도 빈 문자열 폴백).
+- iOS `Moderation.swift`: `BlockedUser` 구조체 + `BlockStore.blockedUsers` 추가, `block(targetPhotoUrl:)` 파라미터 추가.
+  Firestore 규칙은 이미 `users/{uid}/blocked/{id}` read/write = 본인만이라 변경 없음.
+
+### 화면
+- **`BlockedUsersScreen.kt` / `BlockedUsersScreen.swift` 신설** — 설정 > **안전 > 차단한 사용자**로 진입.
+  행 = [사진][이름 / `yyyy.MM.dd` 차단][차단 해제 pill], 사진·이름 탭 = 그 사람 프로필, 해제는 **확인 다이얼로그**.
+  비어 있으면 안내(어디서 차단하는지), 목록 위엔 "숨겨지는 범위 + 상대는 모른다" 힌트.
+- `NavRoute.BlockedUsers` 추가 + `NavGraph` 연결 + `MainScreen.localizedTitle` 매핑(`nav_blocked_users`).
+- `SettingsScreen`(양 플랫폼): **안전 섹션 신설**(언어와 계정 사이). 우측에 차단 인원 수 표시.
+- `UserProfileScreen`(양 플랫폼): **차단 시 확인 다이얼로그**(별/댓글이 숨겨지고 친구도 해제됨을 안내).
+  해제는 확인 없이 즉시. 차단할 때 프로필 사진 URL 을 함께 스냅샷으로 저장.
+
+### 차단이 걸리는 지점(이번에 추가한 곳 ★)
+| 화면 | Android | iOS |
+|---|---|---|
+| 지도/글로브 별 | `MainListScreen.filteredDiaries`(기존) | ★ `MapScreen.shownDiaries` |
+| 목록 | (지도와 동일 필터) | `ListScreen.rows`(기존) |
+| 상세 댓글 | `DetailScreen`(기존) | `DetailScreen`(기존) |
+| 알림 | ★ `NotificationScreen.visibleNotifs`(`actorId`) | ★ `NotificationsScreen.items` |
+| 친구 검색/받은 요청 | ★ `FriendScreen` | ★ `FriendsScreen` |
+
+### 문자열
+- Android `strings.xml` ko/en/ja 에 `nav_blocked_users` / `settings_safety` / `settings_blocked_users(_desc)` /
+  `settings_blocked_count` / `blocked_empty(_desc)` / `blocked_hint` / `blocked_at` /
+  `block_confirm_title(_msg)` / `unblock_confirm_msg` 추가. iOS `L10n` 에 동일 키 추가(ko/en/ja).
+- ⚠️ Android 문자열의 아포스트로피(`'`)는 `\'` 로 이스케이프해야 `mergeDebugResources` 가 통과한다
+  (이번에 en `people's` 로 한 번 깨져서 문장을 바꿔 회피).
+
+### 알아둘 점
+- 차단은 **내 문서에만 쓰는 한 방향 기록** — 상대에겐 어떤 신호도 가지 않는다(푸시/알림 없음).
+- 차단해도 **그 사람 프로필/별 목록 화면에 직접 들어가면 보인다**(내가 능동적으로 연 화면이라 의도적).
+- 차단 시 친구 관계는 양방향 해제(Android `FriendViewModel.remove`, iOS friends 문서 2개 삭제).
 
 ## 8.45 크로스플랫폼 버그 7건 (Android BUILD SUCCESSFUL 2026-08-09, iOS CI 검증 대기)
 

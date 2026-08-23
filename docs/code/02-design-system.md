@@ -47,6 +47,18 @@ iOS: `Core/Theme.swift`, `AppFont.swift`, `StarStyle.swift`, `StarShape.swift`, 
   호스트(`StaryToastHost`)는 MainScreen 최상단 1개. 남색 배경(0xFF131B36 계열), 2.2초.
 - `InAppBanner`(InAppBanner.kt) : 상단 인앱 배너(알림/채팅/근처 별). `InAppBanner.show(...)` +
   `InAppBannerHost`. 토스트와 별개 채널. 표시 4초. 같은 key 반복 dedup.
+- `Haptics.kt`(core/util) : **앱 전역 햅틱** — `tick()`(눈금) `light()` `medium()`(좋아요)
+  `heavy()` `celebrate()`(업적/별 탄생) `warp()`(별 열람 파장). `AppSettings.hapticsEnabled`
+  가 꺼져 있으면 전부 무음, 진동 모터 없으면 조용히 무시. `AppSettings.init` 에서 `Haptics.init`.
+  ⚠️ **이미 시각/청각 연출이 있는 지점에만** 준다 — 아무 버튼에나 넣으면 진동이 배경소음이 된다.
+  Manifest 에 `android.permission.VIBRATE` 필요(런타임 요청 없는 일반 권한).
+- `LikeButton.kt` : 좋아요 버튼 — 하트 pop(스프링) + **크리스탈 파편 12개 버스트** + 숫자 롤링.
+  `accent` 에 그 별의 색을 넘기면 다이어리마다 다른 색으로 터진다. **켤 때만** 버스트/진동(해제는 조용히).
+  ⚠️ **파편은 레이아웃에 참여하면 안 된다.** 크기는 버튼 44dp 로 고정하고 파편은
+  `matchParentSize` + 고정 반지름(`BURST_RADIUS` 36dp)으로 **경계 밖에 그리기만** 한다.
+  (예전엔 72dp Canvas 가 Box 의 자식이라 버스트 동안만 행이 밀렸다 — iOS 는 `.background` 로 동일 처리.)
+- `StaryEmptyState.kt` : 빈 화면 공용 — 떠 있는 별(6초 부유 + 궤도 스파클 3개) + 문구 + 선택 액션.
+  알림/친구/내 다이어리/차단 목록/채팅이 모두 이걸 쓴다(화면마다 `starType`/`starColorIndex` 만 다름).
 - `ClickBounce.kt` : `Modifier.clickBounce(peak=1.12)` — 누르면 통통 튀는 스케일.
   Initial 패스 관찰이라 클릭 처리와 간섭 없음. size 다음·border 앞에 배치 권장.
 - `StaryComponents.kt` :
@@ -101,12 +113,20 @@ iOS: `Core/Theme.swift`, `AppFont.swift`, `StarStyle.swift`, `StarShape.swift`, 
   항상 이 캐시 이미지 재사용.
 - `BundleImage.swift` : 번들 이미지 NSCache 로더 + `ScreenBackground(name:darken:)` —
   Android 의 "배경 이미지 + 검정 틴트" 대응(값: Upload 0.82, Settings 0.84, Chat 0.85 등).
+- `Haptics.swift` / `LikeButton.swift` / `StaryEmptyState.swift` :
+  Android 동명 컴포넌트 포팅(파편 개수·시간·이징 **값 동일**). 햅틱은 `UIImpactFeedbackGenerator`
+  (제너레이터 재사용 — 매번 만들면 첫 진동이 늦다), 토글은 `AppSettings.shared.hapticsEnabled`.
 - `StarLoadingView.swift` / `StarBirth.swift`(StarBirthStore.shared+StarBirthHost) /
   `HiddenStarBadge.swift` : Android 동명 컴포넌트 포팅(비트맵 1회 베이크 원칙 동일).
 - `InAppBanner.swift`(InAppBannerHost) / `FirstVisitInfo.swift` / `ImageCache.swift`(썸네일 캐시) /
   `LoopingVideoPlayer.swift` : 각각 배너/1회 안내/이미지 캐시/루프 영상 대응.
 - ⚠️ iOS 장식 Canvas 공통 규칙: `TimelineView(.animation)` + `allowsHitTesting(false)`,
   Canvas 수식은 Double 통일 후 CGFloat 변환(혼합 시 컴파일 에러).
+- ⚠️ **`background(_:in:)` 은 View 가 아니라 ShapeStyle 을 받는다.** 조건에 따라 그라데이션/단색을
+  갈아 끼울 땐 `Group { if ... }`(=View) 를 넣으면 CI 컴파일 에러
+  (`Group<_ConditionalContent<...>> does not conform to 'ShapeStyle'` — 실제로 한 번 터졌다).
+  타입이 다른 두 채움은 **`AnyShapeStyle`(iOS 15+)로 지워서** 삼항으로 넘긴다
+  (예: `ChatScreen.bubbleFill(mine:)`).
 
 ### 값 조절(패리티 매핑)
 | 항목 | Android | iOS |
@@ -116,4 +136,8 @@ iOS: `Core/Theme.swift`, `AppFont.swift`, `StarStyle.swift`, `StarShape.swift`, 
 | 배경 이미지·틴트 | 화면별 Image+ColorFilter alpha | `ScreenBackground(name:darken:)` |
 | 토스트/배너 노출 시간 | `StaryToast`(2.2s)/`InAppBanner`(4s) | iOS ToastView/`InAppBanner.swift` |
 | 로딩 별 | `StarLoadingIndicator` | `StarLoadingView` |
+| 햅틱 세기/패턴 | `core/util/Haptics.kt`(진동 길이·진폭) | `Core/Haptics.swift`(UIImpactFeedbackGenerator 스타일) |
+| 좋아요 파편 수/시간 | `LikeButton.kt` SHARD_COUNT=12 / BURST_MS=620 | `LikeButton.swift` (**값 동일**) |
+| 좋아요 파편 반경(레이아웃 제외) | `LikeButton.kt` BURST_RADIUS=36dp + matchParentSize | `LikeButton.swift` `.background{ .frame(72) }` |
+| 빈 화면 별 부유 주기 | `StaryEmptyState.kt` 6초 | `StaryEmptyState.swift` (**값 동일**) |
 | 별 탄생 연출 길이 | `StarBirth.kt` BIRTH_MS=950 | `StarBirth.swift` 대응 상수 |

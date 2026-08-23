@@ -248,7 +248,11 @@ fun LoginScreen(
                                 coroutineScope.launch {
                                     val idToken = GoogleAuthHelper.signInWithGoogle(context)
                                     if (idToken != null) onLoginClick()
-                                    else com.chaminwoo.stary.core.ui.StaryToast.show("잠시만 기다려주세요")
+                                    // 실패 사유를 그대로 노출한다 — 예전엔 "잠시만 기다려주세요" 뿐이라
+                                    // 실기기에서 왜 로그인이 안 되는지 확인할 방법이 없었다.
+                                    else com.chaminwoo.stary.core.ui.StaryToast.show(
+                                        GoogleAuthHelper.lastSignInError ?: "잠시만 기다려주세요"
+                                    )
                                 }
                             }
                         )

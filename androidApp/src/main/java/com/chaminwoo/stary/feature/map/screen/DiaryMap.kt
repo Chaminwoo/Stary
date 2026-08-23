@@ -393,6 +393,8 @@ fun DiaryMap(
                                 val group = mergeGroupsState.value[id] ?: listOf(diary)
                                 map.snapshot { bmp ->
                                     com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
+                                    com.chaminwoo.stary.core.util.Haptics.warp() // 파장과 같은 결의 진동
+
                                     warpState.value = DiaryOpenWarpData(
                                         bmp, ox, oy, id, diary.starColor, navigateAfter = true,
                                         burstStars = if (group.size > 1) {
@@ -722,6 +724,13 @@ fun DiaryMap(
             }
         }
 
+        // 실제 하늘(여명·황혼) — 비네트 위, UI 아래. 터치 통과.
+        SkyOverlay(
+            latitude = currentLatLng.latitude,
+            longitude = currentLatLng.longitude,
+            modifier = Modifier.fillMaxSize(),
+        )
+
         // 업로드 버튼 파장 연출 — 버튼들이 연출 내내 그대로 보여야 하므로 버튼보다 아래(먼저) 그린다.
         warpState.value?.let { wd ->
             if (wd.openCreate) DiaryOpenWarp(wd) { onWarpFinished(wd) }
@@ -833,6 +842,7 @@ fun DiaryMap(
                             // 스냅샷을 기다리지 않고 탭 즉시 파장 시작 — 그동안은 라이브 지도 위에
                             // 링만 퍼지고, 스냅샷이 도착하면 같은 진행도에서 왜곡 메시로 이어진다.
                             com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
+                            com.chaminwoo.stary.core.util.Haptics.warp()
                             val wd = DiaryOpenWarpData(
                                 null, ox, oy, id = "", colorIndex = 13, // 코발트 — 남색 버튼과 동계열 파장
                                 navigateAfter = false, openCreate = true,

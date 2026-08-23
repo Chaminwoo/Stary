@@ -323,18 +323,12 @@ struct DetailScreen: View {
 
     private var interactionRow: some View {
         HStack(spacing: 2) {
-            Button {
+            // 하트 pop + 크리스탈 파편 버스트 + 숫자 롤링(LikeButton). 파편 색은 그 별의 색.
+            LikeButton(isLiked: vm.isLiked, count: vm.likeCount, accent: accent) {
                 // 비로그인 시 좋아요 잠금 — 로그인 안내만.
                 guard auth.uid != nil else { showLoginRequired = true; return }
                 Task { await vm.toggleLike(uid: auth.uid, userName: auth.displayName) }
-            } label: {
-                Image(systemName: vm.isLiked ? "heart.fill" : "heart")
-                    .font(.system(size: 20))
-                    .foregroundStyle(vm.isLiked ? Theme.accentRed : Theme.textSecondary)
-                    .frame(width: 40, height: 40)
             }
-            Text("\(vm.likeCount)")
-                .font(.minSans(14)).foregroundStyle(Theme.textSecondary)
             // (공유 기능은 iOS 에서 제거됨 — 사용자 지시)
             Spacer()
             if isOwner {
@@ -344,7 +338,8 @@ struct DetailScreen: View {
                     showEditDialog = true
                 }
                 .font(.minSans(13)).foregroundStyle(Theme.textSecondary)
-                Spacer().frame(width: 12)
+                // 수정/삭제는 붙여 둔다(Android CompactTextAction 좌우 8dp 와 같은 간격).
+                Spacer().frame(width: 16)
                 Button(LocaleManager.shared.t(.commonDelete)) { showDeleteConfirm = true }
                     .font(.minSans(13)).foregroundStyle(Theme.accentRed)
             } else {

@@ -25,6 +25,7 @@ final class StarBirthStore: ObservableObject {
 
     func trigger(starType: Int, starColor: Int) {
         event = Event(type: starType, colorIndex: starColor)
+        Haptics.celebrate() // 별이 응축·발광하는 순간에 맞춘 축하 진동
     }
 
     func clear() { event = nil }

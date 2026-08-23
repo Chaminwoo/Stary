@@ -6,34 +6,26 @@ private let appLogo: UIImage = UIImage(named: "logo") ?? UIImage()
 
 /// 첫 진입 — 인트로 영상 후 구글 로그인 / 둘러보기.
 /// Android `LoginScreen` 대응: 무음 인트로 영상 1회 재생 → 페이드인 → 빛나는 후광 로고 + 하단 버튼.
+///
+/// ⚠️ 인트로는 **로그인 화면에 들어올 때마다**(로그아웃 후 재입장 포함) 처음부터 재생하고,
+///    로고·버튼은 영상이 끝나갈 때 페이드인한다(2026-08-15 사용자 지시).
+///    Android 도 로그아웃 재진입에서 `immediate = false` 로 영상을 다시 재생하므로 이게 패리티다.
 struct LoginView: View {
     @EnvironmentObject var auth: AuthManager
 
-    /// 인트로 영상은 앱 실행 후 최초 1회만 재생(로그아웃 재진입 시 즉시 UI — Android `immediate` 대응).
-    private static var didPlayIntro = false
-
-    @State private var showUI: Bool
+    @State private var showUI = false
     @State private var haloWidth: CGFloat = 100
-    private let playsIntro: Bool
-
-    init() {
-        let immediate = LoginView.didPlayIntro
-        self.playsIntro = !immediate
-        _showUI = State(initialValue: immediate)
-    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // 인트로 영상(무음). 재생이 끝나면 UI 등장.
-            if playsIntro {
-                IntroVideoView(resource: "login_video", ext: "mp4") {
-                    revealUI()
-                }
-                .ignoresSafeArea()
-                .scaleEffect(1.12)
+            // 인트로 영상(무음). 종반에 다다르면 UI 등장.
+            IntroVideoView(resource: "login_video", ext: "mp4") {
+                revealUI()
             }
+            .ignoresSafeArea()
+            .scaleEffect(1.12)
 
             if showUI {
                 content
@@ -43,9 +35,6 @@ struct LoginView: View {
             if auth.isBusy {
                 StarLoadingView(size: 40)   // 앱 공용 크리스탈 별 로딩(34-9)
             }
-        }
-        .onAppear {
-            if !playsIntro { animateHalo() }
         }
     }
 
@@ -79,7 +68,8 @@ struct LoginView: View {
                 }
 
                 Button {
-                    Task { await auth.signInAnonymously() }
+                    // 로그인 없이 둘러보기 — 익명 세션은 best-effort, 실패해도 진입한다(Android 동일).
+                    Task { await auth.browseAsGuest() }
                 } label: {
                     Text(LocaleManager.shared.t(.loginBrowse))
                         .font(.minSans(14))
@@ -105,7 +95,7 @@ struct LoginView: View {
     // MARK: - 연출
 
     private func revealUI() {
-        LoginView.didPlayIntro = true
+        guard !showUI else { return }
         withAnimation(.easeIn(duration: 0.8)) { showUI = true }
         animateHalo()
     }

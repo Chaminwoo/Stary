@@ -20,6 +20,7 @@ import com.chaminwoo.stary.feature.diary.screen.UploadScreen
 import com.chaminwoo.stary.feature.chat.screen.ChatScreen
 import com.chaminwoo.stary.feature.friend.screen.FriendScreen
 import com.chaminwoo.stary.feature.profile.screen.AchievementsScreen
+import com.chaminwoo.stary.feature.profile.screen.BlockedUsersScreen
 import com.chaminwoo.stary.feature.profile.screen.MusicScreen
 import com.chaminwoo.stary.feature.profile.screen.MyDiaryScreen
 import com.chaminwoo.stary.feature.profile.screen.ProfileScreen
@@ -151,7 +152,18 @@ fun NavGraph(
         }
 
         composable<NavRoute.Settings> {
-            SettingsScreen(onAccountDeleted = onLogout)
+            SettingsScreen(
+                onAccountDeleted = onLogout,
+                onOpenBlockedUsers = { navController.navigate(NavRoute.BlockedUsers) },
+            )
+        }
+
+        composable<NavRoute.BlockedUsers> {
+            BlockedUsersScreen(
+                onOpenProfile = { uid, uname ->
+                    navController.navigate(NavRoute.UserProfile(userId = uid, userName = uname))
+                }
+            )
         }
 
         composable<NavRoute.Notification> {

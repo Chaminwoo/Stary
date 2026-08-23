@@ -13,6 +13,9 @@ final class AuthManager: ObservableObject {
     @Published var displayName: String = ""
     @Published var isBusy = false
     @Published var errorMessage: String?
+    /// "로그인 없이 둘러보기"(게스트) 모드 — Android `GoogleAuthHelper.currentUserId == null` 상태 대응.
+    /// 익명 FirebaseAuth 세션은 규칙(request.auth != null) 통과용일 뿐 앱 사용자로 치지 않는다.
+    @Published var isGuest = false
 
     private var handle: AuthStateDidChangeListenerHandle?
 
@@ -20,7 +23,7 @@ final class AuthManager: ObservableObject {
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
                 self?.uid = Self.appUserId(of: user)
-                if let user {
+                if let user, !user.isAnonymous {
                     let appUid = Self.appUserId(of: user) ?? user.uid
                     // 캐시된 커스텀 닉네임이 있으면 즉시 반영(기본=구글 이름). Firestore 값으로 ensureProfile 에서 확정.
                     let cached = UserDefaults.standard.string(forKey: "nickname_\(appUid)")
@@ -33,11 +36,13 @@ final class AuthManager: ObservableObject {
         }
     }
 
-    /// 앱 데이터 식별자(userId) — **Google sub**(providerData google.com 의 uid), 없으면(익명) FirebaseAuth uid.
+    /// 앱 데이터 식별자(userId) — **Google sub**(providerData google.com 의 uid).
     /// Android `GoogleAuthHelper` 가 userId = Google sub 를 쓰므로, 같은 구글 계정이 OS 와 무관하게
     /// 같은 계정으로 묶이려면 iOS 도 같은 값을 써야 한다(FirebaseAuth uid 는 프로젝트별 발급이라 별개 값).
+    /// ⚠️ **익명 세션은 nil** — Android 는 둘러보기에서 userId 가 null 이고(작성/댓글/친구 잠금),
+    ///    익명 로그인은 보안 규칙 통과용 세션일 뿐이다. iOS 도 같은 의미로 맞춘다.
     nonisolated static func appUserId(of user: User?) -> String? {
-        guard let user else { return nil }
+        guard let user, !user.isAnonymous else { return nil }
         if let sub = user.providerData.first(where: { $0.providerID == "google.com" })?.uid,
            !sub.isEmpty {
             return sub
@@ -47,11 +52,27 @@ final class AuthManager: ObservableObject {
 
     var isSignedIn: Bool { uid != nil }
 
-    /// 익명 로그인 — 온보딩 없이 둘러보기.
-    func signInAnonymously() async {
-        await run {
-            try await Auth.auth().signInAnonymously()
+    /// 본 화면(지도)에 들어갈 수 있는가 — 로그인했거나 게스트(둘러보기)면 true.
+    var canEnterApp: Bool { isSignedIn || isGuest }
+
+    /// 로그인 없이 둘러보기 — **Android 와 동일하게 로그인 없이 바로 진입한다.**
+    /// Firestore/Storage 규칙(`request.auth != null`)을 통과하려면 세션이 필요해 익명 로그인을 시도하지만
+    /// (Android `StaryApplication` 과 동일한 best-effort), 콘솔에서 익명 인증이 꺼져 있어 실패해도 **진입을 막지 않는다**.
+    /// (예전엔 실패 시 빨간 에러만 뜨고 화면이 넘어가지 않았다 — 2026-08-15 수정.)
+    func browseAsGuest() async {
+        isBusy = true
+        errorMessage = nil
+        if Auth.auth().currentUser == nil {
+            _ = try? await Auth.auth().signInAnonymously()
         }
+        isBusy = false
+        isGuest = true
+    }
+
+    /// 게스트 → 로그인 화면으로 되돌리기(드로어의 "로그인"). Android 드로어 `drawer_login` 대응.
+    func exitGuest() {
+        isGuest = false
+        try? Auth.auth().signOut()
     }
 
     /// 구글 로그인 → Firebase Auth credential 교환.
@@ -79,6 +100,7 @@ final class AuthManager: ObservableObject {
     }
 
     func signOut() {
+        isGuest = false
         try? Auth.auth().signOut()
         GIDSignIn.sharedInstance.signOut()
     }
@@ -127,16 +149,21 @@ final class AuthManager: ObservableObject {
     private func ensureProfile(_ user: User) async {
         let appUid = Self.appUserId(of: user) ?? user.uid
         let ref = FirestoreService.users.document(appUid)
+        let saved = try? await ref.getDocument()
         // 이미 정해둔 닉네임(커스텀 포함)이 있으면 우선 — 구글 이름으로 덮어쓰지 않는다(재로그인 유지).
-        let existing = (try? await ref.getDocument())?.get("userName") as? String
+        let existing = saved?.get("userName") as? String
         let name = (existing?.isEmpty == false) ? existing! : (user.displayName ?? user.email ?? "익명의 별")
+        // 프로필 **사진**도 동일 — 앱에서 올린 사진이 있으면 그대로 둔다.
+        // (예전엔 항상 구글 사진으로 덮어써서 재로그인마다 프로필 사진이 초기화됐다 — 2026-08-15 수정.)
+        let existingPhoto = saved?.get("profileImageUrl") as? String
+        let photo = (existingPhoto?.isEmpty == false) ? existingPhoto! : (user.photoURL?.absoluteString ?? "")
         displayName = name
         UserDefaults.standard.set(name, forKey: "nickname_\(appUid)")
         // Android upsertProfile 과 동일한 3필드(검색 가능하도록) + 서버 계정삭제용 authUid.
         let data: [String: Any] = [
             "userId": appUid,
             "userName": name,
-            "profileImageUrl": user.photoURL?.absoluteString ?? "",
+            "profileImageUrl": photo,
             "authUid": user.uid,
         ]
         try? await ref.setData(data, merge: true)

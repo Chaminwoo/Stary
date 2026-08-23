@@ -10,12 +10,14 @@ import androidx.compose.runtime.setValue
  *
  * - [notificationsEnabled] : 인앱 알림 팝업(채팅/다이어리 알림 배너) 표시 여부.
  *   끄면 새 알림/메시지가 와도 배너를 띄우지 않는다(미읽음 카운트·알림 목록 자체는 유지).
+ * - [hapticsEnabled] : 햅틱(진동) 피드백. 끄면 [Haptics] 호출이 전부 무음이 된다.
  *
  * SharedPreferences("stary_prefs") 에 영속. Compose 에서 관찰 가능하도록 mutableStateOf 사용.
  */
 object AppSettings {
     private const val PREFS = "stary_prefs"
     private const val KEY_NOTIF = "notifications_enabled"
+    private const val KEY_HAPTICS = "haptics_enabled"
 
     private var appContext: Context? = null
 
@@ -23,11 +25,17 @@ object AppSettings {
     var notificationsEnabled by mutableStateOf(true)
         private set
 
+    /** 햅틱(진동) on/off (기본 켜짐). */
+    var hapticsEnabled by mutableStateOf(true)
+        private set
+
     fun init(context: Context) {
         val ctx = context.applicationContext
         appContext = ctx
-        notificationsEnabled = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_NOTIF, true)
+        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        notificationsEnabled = prefs.getBoolean(KEY_NOTIF, true)
+        hapticsEnabled = prefs.getBoolean(KEY_HAPTICS, true)
+        Haptics.init(ctx)
     }
 
     // property setter(setNotificationsEnabled) 와 JVM 시그니처 충돌을 피해 함수명을 다르게 둔다.
@@ -36,5 +44,13 @@ object AppSettings {
         notificationsEnabled = value
         appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             ?.edit()?.putBoolean(KEY_NOTIF, value)?.apply()
+    }
+
+    fun updateHapticsEnabled(value: Boolean) {
+        if (hapticsEnabled == value) return
+        hapticsEnabled = value
+        appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            ?.edit()?.putBoolean(KEY_HAPTICS, value)?.apply()
+        if (value) Haptics.light() // 켠 순간 어떤 느낌인지 바로 보여준다
     }
 }

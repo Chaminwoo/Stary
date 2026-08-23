@@ -37,11 +37,9 @@ class FirebaseChatRepository : ChatRepository {
         val listener = chats
             .whereArrayContains("participants", userId)
             .addSnapshotListener { snapshot, error ->
-
-                Log.e("CHAT_LISTENER", "observeMyChats", error)
-                Log.d("CHAT", "docs=${snapshot?.documents?.size}")
-
                 if (error != null) {
+                    // 로그아웃 직후엔 규칙(request.auth != null)에 걸려 여기로 온다 — 정상 흐름이라 warn.
+                    Log.w("CHAT", "observeMyChats 실패: ${error.localizedMessage}")
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
@@ -65,8 +63,6 @@ class FirebaseChatRepository : ChatRepository {
                         lastReadAt = lastReadAt
                     )
                 } ?: emptyList()
-
-                Log.d("CHAT", "list size=${list.size}")
 
                 trySend(list)
             }

@@ -18,6 +18,7 @@ struct UserProfileScreen: View {
     @State private var requested = false
     @State private var openChat = false
     @State private var isBlocked = false
+    @State private var showBlockConfirm = false
     @State private var showReportDialog = false
     @State private var showReportedConfirm = false
     @State private var friendsCount = 0
@@ -94,7 +95,8 @@ struct UserProfileScreen: View {
                             Label(locale.t(.reportUser), systemImage: "exclamationmark.bubble")
                         }
                         Button(role: .destructive) {
-                            Task { await toggleBlock() }
+                            // 차단은 되돌리기 번거로운 동작(친구 해제 포함)이라 확인창을 거친다. 해제는 바로.
+                            if isBlocked { Task { await toggleBlock() } } else { showBlockConfirm = true }
                         } label: {
                             Label(locale.t(isBlocked ? .unblockAction : .blockAction),
                                   systemImage: isBlocked ? "hand.raised.slash" : "hand.raised")
@@ -119,6 +121,15 @@ struct UserProfileScreen: View {
         }
         .alert(locale.t(.toastReported), isPresented: $showReportedConfirm) {
             Button("OK", role: .cancel) {}
+        }
+        // 차단 확인 — 무엇이 숨겨지는지(별/댓글) + 친구 해제를 미리 알린다(Android 패리티).
+        .alert(String(format: locale.t(.blockConfirmTitle),
+                      userName.isEmpty ? locale.t(.unknownUser) : userName),
+               isPresented: $showBlockConfirm) {
+            Button(locale.t(.commonCancel), role: .cancel) {}
+            Button(locale.t(.blockAction), role: .destructive) { Task { await toggleBlock() } }
+        } message: {
+            Text(locale.t(.blockConfirmMsg))
         }
         .task {
             hidden.start()
@@ -145,7 +156,8 @@ struct UserProfileScreen: View {
             await ModerationRepository.unblock(userId: myUid, targetId: userId)
             isBlocked = false
         } else {
-            await ModerationRepository.block(userId: myUid, targetId: userId, targetName: userName)
+            await ModerationRepository.block(userId: myUid, targetId: userId, targetName: userName,
+                                             targetPhotoUrl: profileImageUrl ?? "")
             isBlocked = true
             try? await FirestoreService.friends(of: myUid).document(userId).delete()
             try? await FirestoreService.friends(of: userId).document(myUid).delete()

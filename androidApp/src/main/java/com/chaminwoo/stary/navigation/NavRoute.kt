@@ -101,6 +101,15 @@ sealed class NavRoute {
         override val showFab = false
     }
 
+    /** 차단 목록(설정 > 안전에서 진입) — 내가 차단한 사용자 확인/해제. */
+    @Serializable
+    data object BlockedUsers : NavRoute() {
+        override val title = "차단 목록"
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
     @Serializable
     data class Detail(val diaryId: String = "") : NavRoute() {
         override val title = "별 들여다보기"

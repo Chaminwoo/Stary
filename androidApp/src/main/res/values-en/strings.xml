@@ -23,6 +23,8 @@
 
     <!-- Settings screen -->
     <string name="settings_sound">Sound</string>
+    <string name="settings_haptics">Haptics</string>
+    <string name="settings_haptics_desc">Feel a tap when you open a star or tap like</string>
     <string name="settings_notification">Notifications</string>
     <string name="settings_language">Language</string>
     <string name="settings_bgm">Background music</string>
@@ -54,6 +56,19 @@
     <string name="unblock">Unblock</string>
     <string name="toast_blocked">Blocked</string>
     <string name="toast_unblocked">Unblocked</string>
+    <!-- Blocked list (Settings &gt; Safety) -->
+    <string name="nav_blocked_users">Blocked users</string>
+    <string name="settings_safety">Safety</string>
+    <string name="settings_blocked_users">Blocked users</string>
+    <string name="settings_blocked_users_desc">Their stars and comments stay hidden from you</string>
+    <string name="settings_blocked_count">%1$d</string>
+    <string name="blocked_empty">No blocked users</string>
+    <string name="blocked_empty_desc">You can block someone from the ⋮ menu on their profile.</string>
+    <string name="blocked_hint">Stars from blocked users are hidden on the map and in the list, and their comments stay hidden too. They are never told they were blocked.</string>
+    <string name="blocked_at">Blocked %1$s</string>
+    <string name="block_confirm_title">Block %1$s?</string>
+    <string name="block_confirm_msg">Their stars disappear from the map and list and their comments stay hidden. If you are friends, the friendship is removed. You can undo this anytime in Settings &gt; Safety.</string>
+    <string name="unblock_confirm_msg">Unblock %1$s? Their stars and comments will show up again.</string>
 
     <!-- Language picker -->
     <string name="language_dialog_title">Select language</string>
@@ -63,6 +78,11 @@
     <string name="language_ja">日本語</string>
 
     <!-- Common -->
+    <string name="common_confirm">OK</string>
+    <string name="ach_unlocked">Achievement unlocked!</string>
+    <string name="ach_reward_title">Title «%1$s» earned</string>
+    <string name="ach_reward_shape">New star shape unlocked</string>
+    <string name="ach_reward_color">New star color unlocked</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_save">Save</string>
     <string name="common_delete">Delete</string>
@@ -126,7 +146,8 @@
     <string name="friend_accept">Accept</string>
     <string name="friend_decline">Decline</string>
     <string name="friend_my_friends">My friends</string>
-    <string name="friend_empty">No friends yet.\nSearch by name to add some!</string>
+    <string name="friend_empty_title">No friends yet</string>
+    <string name="friend_empty">Search a name above to find someone.</string>
     <string name="friend_chat">Chat</string>
     <string name="friend_search_placeholder">Find friends by name</string>
     <string name="friend_no_name">(No name)</string>
@@ -153,14 +174,16 @@
     <string name="common_friend">Friend</string>
 
     <!-- Notification screen -->
-    <string name="notif_empty">No notifications</string>
+    <string name="notif_empty">Nothing has arrived yet</string>
+    <string name="notif_empty_desc">Likes, comments and your friends\' new stars land here.</string>
     <string name="notif_friend_post">Posted a new diary \"%1$s\"</string>
     <string name="notif_like">Liked \"%1$s\"</string>
     <string name="notif_comment">Commented on \"%1$s\"</string>
     <string name="notif_friend_request">Sent you a friend request</string>
 
     <!-- My Diary screen -->
-    <string name="mydiary_empty">No diaries yet</string>
+    <string name="mydiary_empty">No stars of yours yet</string>
+    <string name="mydiary_empty_desc">Tap + on the map to leave this place as a star.</string>
     <string name="mydiary_sort_count">%1$s · %2$d</string>
     <string name="mydiary_view_list">View as list</string>
     <string name="mydiary_view_stars">View as stars</string>

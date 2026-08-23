@@ -17,6 +17,9 @@ struct ChatScreen: View {
         self.init(friendId: friend.userId, friendName: friend.userName, myUid: myUid)
     }
 
+    /// 이 화면에 들어온 시각(ms) — 이후 내가 보낸 메시지만 "방금 보낸 것"으로 본다.
+    private let sessionStartedAt = Int64(Date().timeIntervalSince1970 * 1000)
+
     init(friendId: String, friendName: String, myUid: String) {
         self.friendId = friendId
         self.friendName = friendName
@@ -104,19 +107,48 @@ struct ChatScreen: View {
         ChatReadStore.shared.markRead(AppConfig.chatId(uid, friendId))
     }
 
+    /// 말풍선 배경 채움 — 내 것은 파랑→남색 그라데이션, 상대는 surface.
+    ///
+    /// ⚠️ `background(_:in:)` 은 **ShapeStyle** 을 받는다(View 가 아니다).
+    /// `Group { if mine { LinearGradient } else { Color } }` 는 View 라 컴파일이 안 된다
+    /// (CI 실패 이력 — `Group<_ConditionalContent<...>>` does not conform to 'ShapeStyle').
+    /// 그라데이션과 단색은 타입이 달라 삼항으로 못 묶으므로 **`AnyShapeStyle`(iOS 15+)로 타입을 지운다.**
+    private static func bubbleFill(mine: Bool) -> AnyShapeStyle {
+        mine
+            ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x2F4C9E), Color(hex: 0x1B2A5E)],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing))
+            : AnyShapeStyle(Theme.surface)
+    }
+
+    /// 말풍선 — 내 것은 파랑→남색 그라데이션(Android MineBubble 과 같은 색), 상대는 surface.
+    /// 삭제 가능(내 메시지 1분 이내)이면 왼쪽에 남은 시간이 줄어드는 링을 띄운다.
     private func bubble(_ msg: ChatMessage) -> some View {
         let mine = msg.senderId == auth.uid
-        return HStack {
-            if mine { Spacer(minLength: 40) }
+        let canDelete = mine && vm.canDelete(msg, myUid: auth.uid)
+        // 이 화면에 들어온 뒤 내가 보낸 메시지만 떠오르는 등장 연출(과거 메시지는 조용히).
+        let justSent = mine && msg.createdAt >= sessionStartedAt
+        return HStack(spacing: 5) {
+            if mine {
+                Spacer(minLength: 40)
+                if canDelete { DeleteWindowRing(createdAt: msg.createdAt) }
+            }
             Text(msg.text)
                 .font(.minSans(15))                       // Android MessageBubble 15sp
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(mine ? Theme.mint.opacity(0.85) : Theme.surface,
-                            in: RoundedRectangle(cornerRadius: 14))
-                .foregroundStyle(mine ? Color.black : Theme.textPrimary)
+                .background(Self.bubbleFill(mine: mine), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14).strokeBorder(
+                        mine ? Theme.navyAccent.opacity(0.35) : Color.white.opacity(0.06),
+                        lineWidth: 1)
+                )
+                .foregroundStyle(mine ? Color(hex: 0xEDF1FF) : Theme.textPrimary)
+                .modifier(SentAppear(active: justSent))
                 // 내 메시지 + 전송 후 1분 이내면 롱프레스로 완전 삭제(그 외엔 무반응)
                 .onLongPressGesture {
-                    if vm.canDelete(msg, myUid: auth.uid) { pendingDelete = msg }
+                    if canDelete {
+                        Haptics.soft()
+                        pendingDelete = msg
+                    }
                 }
             if !mine { Spacer(minLength: 40) }
         }
@@ -136,6 +168,7 @@ struct ChatScreen: View {
             Button {
                 let t = text
                 text = ""
+                Haptics.soft()
                 Task {
                     let ok = await vm.send(senderId: auth.uid ?? "", senderName: auth.displayName, text: t)
                     if !ok {
@@ -145,7 +178,7 @@ struct ChatScreen: View {
                 }
             } label: {
                 Image(systemName: "paperplane.fill")
-                    .foregroundStyle(text.trimmingCharacters(in: .whitespaces).isEmpty ? Theme.textFaint : Theme.mint)
+                    .foregroundStyle(text.trimmingCharacters(in: .whitespaces).isEmpty ? Theme.textFaint : Theme.navyAccent)
             }
             .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
         }
@@ -161,3 +194,53 @@ struct ChatScreen: View {
     }
 }
 
+/// 방금 보낸 내 메시지의 등장 연출 — 아래에서 떠오르며 또렷해진다(Android appear 애니 패리티).
+private struct SentAppear: ViewModifier {
+    let active: Bool
+    @State private var appear: Double = 1
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: CGFloat((1 - appear) * 14))
+            .opacity(0.25 + 0.75 * appear)
+            .onAppear {
+                guard active else { return }
+                appear = 0
+                withAnimation(.easeInOut(duration: 0.52)) { appear = 1 }
+            }
+    }
+}
+
+/// 삭제 가능 잔여 시간 링 — 내 메시지를 보낸 뒤 `AppConfig.chatDeleteWindowMs` 동안 줄어든다.
+/// 0 이 되면 사라진다(그때부터 롱프레스 삭제도 막힌다). Android DeleteWindowRing 패리티.
+private struct DeleteWindowRing: View {
+    let createdAt: Int64
+    @State private var remain: Double = 1
+
+    /// 1초마다 갱신 — 초 단위 표시라 더 자주 그릴 이유가 없다(배터리).
+    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        Group {
+            if remain > 0 {
+                Circle()
+                    .stroke(Theme.navyAccent.opacity(0.18), lineWidth: 1.6)
+                    .overlay(
+                        Circle()
+                            .trim(from: 0, to: remain)
+                            .stroke(Theme.navyAccent.opacity(0.75), lineWidth: 1.6)
+                            .rotationEffect(.degrees(-90))
+                    )
+                    .frame(width: 11, height: 11)
+            }
+        }
+        .onAppear { update() }
+        .onReceive(tick) { _ in update() }
+    }
+
+    private func update() {
+        let window = Double(AppConfig.chatDeleteWindowMs)
+        let left = (Double(createdAt) + window - Date().timeIntervalSince1970 * 1000) / window
+        remain = min(max(left, 0), 1)
+    }
+}

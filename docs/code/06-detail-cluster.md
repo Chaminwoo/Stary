@@ -12,8 +12,14 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Ma
 ### 구조(위 → 아래)
 1. **4:3 히어로 헤더** : 미디어(사진/움짤) 또는 `image_frame` + 가독성 스크림 +
    별·작성자(탭=프로필)·공개 배지·날짜 오버레이. 미디어 탭 → `FullScreenMediaViewer`.
+   ⚠️ 진입 시 사진이 깨지며 드러나던 **크리스탈 리빌은 삭제됨**(2026-08-22 사용자 테스트 피드백).
 2. 제목 / 본문 카드(0xCC14181C + accent 그라데이션 테두리).
-3. 인라인 액션: 좋아요(하트) / 공유(`ShareDiaryButton`) / (내 글) 수정·삭제 / (남 글) 신고.
+3. 인라인 액션: 좋아요(`LikeButton` — 하트 pop + 크리스탈 파편 버스트 + 숫자 롤링, 파편 색 = 그 별의 색,
+   02 문서) / 공유(`ShareDiaryButton`) / (내 글) 수정·삭제 / (남 글) 신고.
+   수정·삭제·신고는 `TextButton` 이 아니라 **`CompactTextAction`**(같은 파일 private) —
+   `TextButton` 의 최소 폭 58dp 때문에 "수정 삭제" 사이가 과하게 벌어져서, 글자 폭 + 좌우 8dp 로 좁혔다
+   (터치 높이는 40dp 유지). iOS 는 `Spacer().frame(width: 16)` 로 같은 간격.
+   ⚠️ 좋아요 토스트는 없앴다 — 버스트 자체가 피드백이라 중복이었다.
 4. 댓글: "댓글 N" 헤더 + `CommentItem` 목록 + 입력창. 댓글 작성자 탭=프로필, 내 댓글 삭제 가능.
 5. 100m 밖이면 잠금 pill(map_open_range) — 본문/댓글 가림.
 

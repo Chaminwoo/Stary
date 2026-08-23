@@ -34,10 +34,13 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.PersonOff
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -49,6 +52,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,6 +84,9 @@ import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.AppSettings
 import com.chaminwoo.stary.core.util.LocaleManager
 import com.chaminwoo.stary.core.util.MusicManager
+import com.chaminwoo.stary.data.repository.FirebaseModerationRepository
+import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
+import kotlinx.coroutines.flow.flowOf
 
 private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val SoftRed = Color(0xFFFF6B6B)
@@ -103,12 +110,20 @@ private val AccentBrush = Brush.linearGradient(listOf(Blue, Navy))
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onAccountDeleted: () -> Unit = {},
+    /** 안전 > 차단한 사용자 → 차단 목록 화면. */
+    onOpenBlockedUsers: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+
+    // 차단한 사용자 수 — 안전 섹션 행의 우측 값. 비로그인이면 0.
+    val myId = GoogleAuthHelper.currentUserId
+    val blockedIds by remember(myId) {
+        if (myId != null) FirebaseModerationRepository().observeBlockedIds(myId) else flowOf(emptySet())
+    }.collectAsState(initial = emptySet())
 
     Box(modifier = modifier.fillMaxSize()) {
         // 우주 배경(어둡게 틴트) — 프로필/내 다이어리와 동일 톤
@@ -152,6 +167,14 @@ fun SettingsScreen(
                     icon = Icons.Filled.GraphicEq,
                     onValueChange = { MusicManager.updateSfxVolume(it) }
                 )
+                RowDivider()
+                ToggleRow(
+                    icon = Icons.Filled.Vibration,
+                    label = stringResource(R.string.settings_haptics),
+                    description = stringResource(R.string.settings_haptics_desc),
+                    checked = AppSettings.hapticsEnabled,
+                    onCheckedChange = { AppSettings.updateHapticsEnabled(it) }
+                )
             }
 
             // ── 알림 ──
@@ -175,6 +198,19 @@ fun SettingsScreen(
                     description = stringResource(R.string.settings_language_desc),
                     value = languageLabel(LocaleManager.getLanguageTag(context)),
                     onClick = { showLanguageDialog = true }
+                )
+            }
+
+            // ── 안전 ── (차단 목록: 차단한 사용자의 별/댓글은 앱 전체에서 숨겨진다)
+            SectionLabel(stringResource(R.string.settings_safety), Icons.Filled.Shield)
+            GlassCard {
+                NavRow(
+                    icon = Icons.Filled.PersonOff,
+                    label = stringResource(R.string.settings_blocked_users),
+                    description = stringResource(R.string.settings_blocked_users_desc),
+                    value = if (blockedIds.isEmpty()) ""
+                    else stringResource(R.string.settings_blocked_count, blockedIds.size),
+                    onClick = onOpenBlockedUsers
                 )
             }
 

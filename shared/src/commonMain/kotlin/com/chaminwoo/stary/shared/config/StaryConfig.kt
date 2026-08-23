@@ -101,6 +101,19 @@ object StaryConfig {
      */
     const val SHARE_BASE_URL: String = "https://momentdiary-f26c8.web.app"
 
+    /**
+     * App Links(https) 매칭용 호스트/경로. `SHARE_BASE_URL` 을 쪼갠 값이라 **함께 바꿔야 한다.**
+     * AndroidManifest 의 autoVerify intent-filter, `web/.well-known/assetlinks.json`,
+     * iOS `apple-app-site-association` 이 모두 이 호스트를 가리킨다.
+     */
+    const val SHARE_HOST: String = "momentdiary-f26c8.web.app"
+    const val SHARE_PATH_DIARY: String = "s"
+    const val SHARE_PATH_INVITE: String = "i"
+
+    /** Play 스토어 링크 — 웹 랜딩의 "설치" 버튼/미설치 폴백에 쓴다(비밀 아님). */
+    const val PLAY_STORE_URL: String =
+        "https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios"
+
     /** 다이어리 공유 링크 — 웹 랜딩이 앱 설치자는 stary://diary/{id} 딥링크로 돌려보낸다. */
     fun shareLink(diaryId: String): String = "$SHARE_BASE_URL/s/$diaryId"
 

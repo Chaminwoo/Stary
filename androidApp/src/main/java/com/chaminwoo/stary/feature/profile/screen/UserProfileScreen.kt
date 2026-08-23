@@ -177,6 +177,8 @@ fun UserProfileScreen(
     }.collectAsState(initial = emptySet())
     val isBlocked = blockedIds.contains(userId)
     var showReportDialog by remember(userId) { mutableStateOf(false) }
+    // 차단은 되돌리기 번거로운 동작(친구 해제 포함)이라 확인 다이얼로그를 거친다. 해제는 바로.
+    var showBlockDialog by remember(userId) { mutableStateOf(false) }
     val blockedMsg = stringResource(R.string.toast_blocked)
     val unblockedMsg = stringResource(R.string.toast_unblocked)
     val reportedMsg = stringResource(R.string.toast_reported)
@@ -200,15 +202,11 @@ fun UserProfileScreen(
         UserProfileActionState.onReport = { showReportDialog = true }
         UserProfileActionState.onToggleBlock = {
             val mine = myId
-            if (mine != null) scope.launch {
-                if (isBlocked) {
+            if (mine != null) {
+                if (isBlocked) scope.launch {
                     moderation.unblock(mine, userId)
                     com.chaminwoo.stary.core.ui.StaryToast.show(unblockedMsg)
-                } else {
-                    moderation.block(mine, userId, resolvedName)
-                    if (isFriend) vm.remove(userId, resolvedName) // 차단 시 친구도 해제
-                    com.chaminwoo.stary.core.ui.StaryToast.show(blockedMsg)
-                }
+                } else showBlockDialog = true // 실제 차단은 확인 다이얼로그에서
             }
         }
     }
@@ -386,6 +384,35 @@ fun UserProfileScreen(
                 dismissButton = {
                     TextButton(onClick = { showCancelDialog = false }) {
                         Text(stringResource(R.string.user_unfriend_no), color = Accent)
+                    }
+                }
+            )
+        }
+
+        // 차단 확인 다이얼로그 — 무엇이 숨겨지는지(별/댓글) + 친구 해제를 미리 알린다.
+        if (showBlockDialog) {
+            val name = resolvedName.ifBlank { stringResource(R.string.common_user) }
+            AlertDialog(
+                onDismissRequest = { showBlockDialog = false },
+                containerColor = Color(0xFF14181C),
+                titleContentColor = TextMain,
+                textContentColor = TextMuted,
+                title = { Text(stringResource(R.string.block_confirm_title, name)) },
+                text = { Text(stringResource(R.string.block_confirm_msg)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showBlockDialog = false
+                        val mine = myId
+                        if (mine != null) scope.launch {
+                            moderation.block(mine, userId, resolvedName, photoUrl)
+                            if (isFriend) vm.remove(userId, resolvedName) // 차단 시 친구도 해제
+                            com.chaminwoo.stary.core.ui.StaryToast.show(blockedMsg)
+                        }
+                    }) { Text(stringResource(R.string.block), color = Color(0xFFFF6B6B)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBlockDialog = false }) {
+                        Text(stringResource(R.string.common_cancel), color = Accent)
                     }
                 }
             )

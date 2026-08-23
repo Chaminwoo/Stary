@@ -4,9 +4,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stary — 그 장소에 가야 열리는 별</title>
+<meta name="description" content="이 별은 그 장소에 가야 열려요. 지도 위 밤하늘에 남기는 위치 다이어리, Stary.">
+<!-- 링크 프리뷰(카카오톡/인스타 DM/X/디스코드). og:image 가 없으면 회색 빈 박스로 뜬다.
+     ⚠️ og:url / canonical 은 일부러 넣지 않는다 — 정적 SPA 라 모든 /s/{id} 가 같은 HTML 이고,
+        고정 og:url 을 주면 크롤러가 서로 다른 공유 링크를 하나로 합쳐 캐시한다.
+        별마다 다른 제목·이미지가 필요하면 /s/{id} 를 Cloud Function 으로 SSR 해야 한다. -->
+<meta property="og:site_name" content="Stary">
 <meta property="og:title" content="Stary — 누군가 밤하늘에 별을 남겼어요">
 <meta property="og:description" content="이 별은 그 장소에 가야 열려요. 지도 위 밤하늘에 남기는 위치 다이어리, Stary.">
 <meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:image" content="https://momentdiary-f26c8.web.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Stary — 지도 위 밤하늘에 남기는 위치 다이어리">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Stary — 누군가 밤하늘에 별을 남겼어요">
+<meta name="twitter:description" content="이 별은 그 장소에 가야 열려요. 지도 위 밤하늘에 남기는 위치 다이어리, Stary.">
+<meta name="twitter:image" content="https://momentdiary-f26c8.web.app/og.png">
 <style>
   :root { color-scheme: dark; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -52,7 +67,6 @@
   <p class="desc" id="desc">이 별은 <b>그 장소에 가야</b> 열려요.<br>
     Stary 앱을 열고, 별이 뜬 곳으로 걸어가 보세요.</p>
   <a class="btn btn-primary" id="openApp" href="#">앱에서 별 보기</a>
-  <!-- 스토어 링크는 앱 출시 후 채운다. 미출시 동안은 '준비 중'(비활성). -->
   <a class="btn btn-ghost" id="store" href="#" aria-disabled="true">앱 설치 (준비 중)</a>
   <div class="brand">S T A R Y</div>
   <div class="tagline">지도 위 밤하늘에 남기는 위치 다이어리</div>
@@ -62,6 +76,12 @@
   //  /s/{diaryId} (?d= 폴백) = 별 공유 → stary://diary/{id}
   //  /i/{uid}     (?i= 폴백) = 친구 초대 → stary://invite/{uid}
   (function () {
+    // Android: Play 프로덕션 출시됨. iOS: 아직 TestFlight 라 빈 값(→ '준비 중' 유지).
+    var STORE_URL_ANDROID = "https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios";
+    var STORE_URL_IOS = ""; // TODO: App Store 출시 후 https://apps.apple.com/app/id<APPSTORE_ID>
+    var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    var storeUrl = isIOS ? STORE_URL_IOS : STORE_URL_ANDROID;
+
     var share = location.pathname.match(/^\/s\/([\w-]+)/);
     var invite = location.pathname.match(/^\/i\/([\w-]+)/);
     var qs = new URLSearchParams(location.search);
@@ -77,19 +97,25 @@
       var id = (share && share[1]) || qs.get("d") || "";
       btn.href = "stary://diary/" + encodeURIComponent(id);
     }
-    // 스토어 출시 후 아래에 실제 URL 을 채운다(현재는 미출시 → '준비 중' 비활성 유지).
-    //   Android: https://play.google.com/store/apps/details?id=<PACKAGE>
-    //   iOS    : https://apps.apple.com/app/id<APPSTORE_ID>
-    var STORE_URL_ANDROID = ""; // TODO: Play Store 출시 후 채우기
-    var STORE_URL_IOS = "";     // TODO: App Store 출시 후 채우기
-    var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    var storeUrl = isIOS ? STORE_URL_IOS : STORE_URL_ANDROID;
     var storeBtn = document.getElementById("store");
     if (storeUrl) {
       storeBtn.href = storeUrl;
       storeBtn.setAttribute("aria-disabled", "false");
       storeBtn.textContent = isIOS ? "App Store 에서 설치" : "Play 스토어에서 설치";
+    } else if (isIOS) {
+      storeBtn.textContent = "iOS 앱은 준비 중이에요";
     }
+
+    // 미설치 폴백 — 커스텀 스킴(stary://)은 앱이 없으면 **아무 일도 일어나지 않는다.**
+    // 눌렀는데 페이지가 그대로면(앱이 열렸다면 탭이 백그라운드로 간다) 스토어로 보낸다.
+    btn.addEventListener("click", function () {
+      if (!storeUrl) return;
+      var t = Date.now();
+      setTimeout(function () {
+        if (document.hidden || Date.now() - t > 2200) return; // 앱이 열렸음
+        location.href = storeUrl;
+      }, 1400);
+    });
   })();
 
   // 밤하늘 캔버스 — 잔별 + 반짝임.

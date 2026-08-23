@@ -41,6 +41,11 @@ iOS: `Core/Achievements.swift`, `Core/HiddenAchievements.swift`, `Data/HiddenAch
   (이미 주인 있으면 실패 — 선착순 보장) + 첫 달성 팝업. 어드민 계정은 선점 제외(8.31)
   + 어드민이 선점한 기록 자가치유 해제(8.32).
 - `AchievementUnlockWatcher(userId, suppressed)` : 일반 업적 새 달성 팝업(코치마크 중엔 큐잉).
+- `AchievementUnlockDialog` : **해금된 보상을 실제로 보여준다** — 파편 14개가 사방에서 모여
+  그 별이 완성되는 리빌(900ms) + 뒤쪽 광선 12갈래 회전(18초 1바퀴) + `Haptics.celebrate()`.
+  보상별 표시 별: 칭호=앰버골드(15) 5꼭지 / 모양=해금 모양을 앰버골드로 / 색=해금 색 5꼭지.
+  ⚠️ 문구는 전부 `strings.xml`(`ach_unlocked`/`ach_reward_*`/`common_confirm`) —
+  예전엔 한국어 하드코딩이라 en/ja 에서 번역되지 않았다. 업적 이름은 `LocalizedNames.title`.
 - `HiddenParticles.kt` : `HiddenIconWithEffect` 등 — 히든 아이콘 전용 파티클 렌더.
 
 ## AchievementsScreen.kt

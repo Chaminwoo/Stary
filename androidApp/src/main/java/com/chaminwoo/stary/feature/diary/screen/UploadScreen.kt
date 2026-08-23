@@ -612,6 +612,8 @@ private fun StarWheelPicker(
 
     val drag = remember { Animatable(0f) }
     var settling by remember { mutableStateOf(false) }
+    // 드래그 중 슬롯을 지날 때마다 딸깍(햅틱) — 중복 방지용 마지막 눈금.
+    var tickedStep by remember { mutableStateOf(0) }
 
     fun wrap(i: Int): Int = ((i % count) + count) % count
 
@@ -648,14 +650,23 @@ private fun StarWheelPicker(
                 detectHorizontalDragGestures(
                     onDragStart = { },
                     onHorizontalDrag = { _, delta ->
-                        if (!settling) coroutineScope.launch { drag.snapTo(drag.value + delta) }
+                        if (!settling) {
+                            coroutineScope.launch { drag.snapTo(drag.value + delta) }
+                            val step = (-drag.value / slotPx).roundToInt()
+                            if (step != tickedStep) {
+                                tickedStep = step
+                                com.chaminwoo.stary.core.util.Haptics.tick()
+                            }
+                        }
                     },
                     onDragEnd = {
                         val steps = (-drag.value / slotPx).roundToInt()
+                        tickedStep = 0
                         commit(steps)
                     },
                     onDragCancel = {
                         val steps = (-drag.value / slotPx).roundToInt()
+                        tickedStep = 0
                         commit(steps)
                     }
                 )

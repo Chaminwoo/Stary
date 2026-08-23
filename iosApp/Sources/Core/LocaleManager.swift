@@ -60,6 +60,8 @@ enum L10n: String {
     case settingsSound, settingsNotification, settingsLanguage
     case settingsBgm1, settingsBgmVolume, settingsSfxVolume
     case settingsNotifPopup, settingsNotifPopupDesc, settingsLanguageDesc, settingsAutosave
+    /// 햅틱(진동) 토글 — Android settings_haptics 패리티.
+    case settingsHaptics, settingsHapticsDesc
     case languageDialogTitle, languageSystem, languageKo, languageEn, languageJa
     case tabMap, tabList, tabUpload, tabFriends, tabProfile
     // 타인 프로필(UserProfileScreen) + 미조회 필터 — Android 8.24 리소스화 패리티.
@@ -77,6 +79,10 @@ enum L10n: String {
     case reportReasonSpam, reportReasonAbuse, reportReasonInappropriate, reportReasonImpersonation, reportReasonOther
     case toastReported
     case blockAction, unblockAction, toastBlocked, toastUnblocked
+    // 차단 목록(설정 > 안전) — Android BlockedUsersScreen 패리티.
+    case navBlockedUsers, settingsSafety, settingsBlockedUsers, settingsBlockedUsersDesc
+    case blockedEmpty, blockedEmptyDesc, blockedHint, blockedAtFormat
+    case blockConfirmTitle, blockConfirmMsg, unblockConfirmMsg
     // 도보 길찾기 — 친구 별 탭 진입 라운드.
     case routeDirections, routeCancel, routeMinSuffix
     // 프로필 떠다니는 아이콘/핀 별 라운드.
@@ -134,6 +140,10 @@ enum L10n: String {
     case loginGoogle, loginBrowse, notifEmpty
     // 업적 화면(장착 버튼/히든 달성 알림).
     case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
+    /// 업적 달성 팝업 — Android ach_unlocked / ach_reward_* 패리티.
+    case achUnlocked, achRewardTitle, achRewardShape, achRewardColor
+    /// 빈 화면(StaryEmptyState) 문구 — Android notif_empty_desc / friend_empty_title / mydiary_empty_desc 패리티.
+    case notifEmptyDesc, friendEmptyTitle, friendEmptyDesc
     // 알림 행 문구(Android notif_* 대응 — %@ = 다이어리 제목).
     case notifLikeRow, notifCommentRow, notifFriendPostRow, notifFriendRequestRow
     // 지도 열람 게이팅(Android map_waiting_fix 대응).
@@ -159,6 +169,8 @@ enum L10n: String {
         case .settingsBgm1:         return ("배경음악", "Background music", "BGM")
         case .settingsBgmVolume:    return ("배경음악 볼륨", "Music volume", "BGMの音量")
         case .settingsSfxVolume:    return ("효과음 볼륨", "Sound effects volume", "効果音の音量")
+        case .settingsHaptics:      return ("햅틱(진동)", "Haptics", "触覚フィードバック")
+        case .settingsHapticsDesc:  return ("별을 열거나 좋아요를 누를 때 손끝에 반응이 와요", "Feel a tap when you open a star or tap like", "星を開いたり、いいねを押すと指先に反応が返ります")
         case .settingsNotifPopup:   return ("알림 팝업", "Notification banners", "通知バナー")
         case .settingsNotifPopupDesc: return ("채팅·다이어리 알림을 상단 배너로 알려드려요", "Show chat and diary alerts as a top banner", "チャットや日記の通知を上部バナーで表示します")
         case .settingsLanguageDesc: return ("앱에 표시되는 언어를 선택해요", "Choose the language shown in the app", "アプリに表示される言語を選択します")
@@ -209,6 +221,17 @@ enum L10n: String {
         case .unblockAction:        return ("차단 해제", "Unblock", "ブロック解除")
         case .toastBlocked:         return ("차단했어요", "Blocked", "ブロックしました")
         case .toastUnblocked:       return ("차단을 해제했어요", "Unblocked", "ブロックを解除しました")
+        case .navBlockedUsers:      return ("차단 목록", "Blocked users", "ブロックリスト")
+        case .settingsSafety:       return ("안전", "Safety", "安全")
+        case .settingsBlockedUsers: return ("차단한 사용자", "Blocked users", "ブロックしたユーザー")
+        case .settingsBlockedUsersDesc: return ("차단한 사용자의 별과 댓글은 보이지 않아요", "Their stars and comments stay hidden from you", "ブロックした人の星やコメントは表示されません")
+        case .blockedEmpty:         return ("차단한 사용자가 없어요", "No blocked users", "ブロックしたユーザーはいません")
+        case .blockedEmptyDesc:     return ("프로필 우측 상단 ⋯ 메뉴에서 사용자를 차단할 수 있어요.", "You can block someone from the ⋯ menu on their profile.", "プロフィール右上の ⋯ メニューからブロックできます。")
+        case .blockedHint:          return ("차단한 사용자의 별은 지도·목록에서 숨겨지고, 댓글도 보이지 않아요. 상대는 차단 사실을 알 수 없어요.", "Stars from blocked users are hidden on the map and in the list, and their comments stay hidden too. They are never told they were blocked.", "ブロックした人の星は地図・リストから隠れ、コメントも表示されません。相手にブロックは通知されません。")
+        case .blockedAtFormat:      return ("%@ 차단", "Blocked %@", "%@ にブロック")
+        case .blockConfirmTitle:    return ("%@님을 차단할까요?", "Block %@?", "%@さんをブロックしますか？")
+        case .blockConfirmMsg:      return ("차단하면 이 사용자의 별이 지도와 목록에서 사라지고 댓글도 보이지 않아요. 친구라면 친구 관계도 해제돼요. 설정 > 안전에서 언제든 해제할 수 있어요.", "Their stars disappear from the map and list and their comments stay hidden. If you are friends, the friendship is removed. You can undo this anytime in Settings > Safety.", "ブロックすると、この人の星が地図とリストから消え、コメントも表示されません。友だちの場合は友だち関係も解除されます。設定 > 安全 でいつでも解除できます。")
+        case .unblockConfirmMsg:    return ("%@님의 차단을 해제할까요? 이 사용자의 별과 댓글이 다시 보여요.", "Unblock %@? Their stars and comments will show up again.", "%@さんのブロックを解除しますか？星とコメントが再び表示されます。")
         case .routeDirections:      return ("길찾기", "Directions", "道案内")
         case .routeCancel:          return ("길찾기 취소", "Cancel route", "案内をやめる")
         case .routeMinSuffix:       return ("분", "min", "分")
@@ -390,6 +413,13 @@ enum L10n: String {
                                             "Only one in the whole app — you're the first",
                                             "アプリでただ一人 — あなたが最初です")
         case .commonOk:             return ("확인", "OK", "OK")
+        case .achUnlocked:          return ("업적 달성!", "Achievement unlocked!", "実績達成！")
+        case .achRewardTitle:       return ("칭호 «%@» 획득", "Title «%@» earned", "称号「%@」を獲得")
+        case .achRewardShape:       return ("새 별 모양 해금", "New star shape unlocked", "新しい星の形を解放")
+        case .achRewardColor:       return ("새 별 색 해금", "New star color unlocked", "新しい星の色を解放")
+        case .notifEmptyDesc:       return ("좋아요·댓글·친구의 새 별이 여기에 모여요.", "Likes, comments and your friends' new stars land here.", "いいね・コメント・友だちの新しい星がここに集まります。")
+        case .friendEmptyTitle:     return ("아직 친구가 없어요", "No friends yet", "まだ友だちがいません")
+        case .friendEmptyDesc:      return ("위 검색창에 이름을 넣어 친구를 찾아보세요.", "Search a name above to find someone.", "上の検索欄に名前を入れて探してみましょう。")
         // ⚠️ notif*Row 는 %@(다이어리 제목)를 format 으로 채운다.
         case .notifLikeRow:         return ("\"%@\"를 좋아해요", "Liked \"%@\"", "「%@」にいいねしました")
         case .notifCommentRow:      return ("\"%@\"에 댓글을 남겼어요", "Commented on \"%@\"", "「%@」にコメントしました")

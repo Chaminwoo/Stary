@@ -44,6 +44,9 @@ enum ImageUploader {
     static func uploadProfile(uid: String, data: Data) async throws -> String {
         let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.8) ?? data
         let ref = Storage.storage().reference().child("profile_images/\(uid).jpg")
+        // 이전 이미지를 먼저 지운다(Android UserRepository 와 같은 순서). 같은 경로를 덮어쓰기만 하면
+        // 다운로드 URL 의 토큰이 그대로일 수 있어, 캐시에 남은 **옛 사진**이 계속 보인다.
+        try? await ref.delete()
         let meta = StorageMetadata()
         meta.contentType = "image/jpeg"
         _ = try await ref.putDataAsync(jpeg, metadata: meta)

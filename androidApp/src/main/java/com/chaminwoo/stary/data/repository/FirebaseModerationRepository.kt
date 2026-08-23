@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.core.model.BlockedUser
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.channels.awaitClose
@@ -43,11 +44,41 @@ class FirebaseModerationRepository {
         }
     }
 
-    suspend fun block(userId: String, targetId: String, targetName: String) {
+    /**
+     * 차단 목록 화면용 상세 목록(최근 차단 순). id 만 필요한 곳은 [observeBlockedIds] 를 쓴다.
+     * 이름/사진은 차단 시점 스냅샷이라 상대 프로필 문서를 다시 읽지 않는다.
+     */
+    fun observeBlockedUsers(userId: String): Flow<List<BlockedUser>> = callbackFlow {
+        if (userId.isBlank()) {
+            trySend(emptyList())
+            awaitClose { }
+            return@callbackFlow
+        }
+        val listener = blockedCol(userId).addSnapshotListener { snapshot, error ->
+            if (error != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snapshot?.documents?.map { doc ->
+                BlockedUser(
+                    userId = doc.id,
+                    userName = doc.getString("userName") ?: "",
+                    photoUrl = doc.getString("photoUrl") ?: "",
+                    createdAt = doc.getLong("createdAt") ?: 0L,
+                )
+            }?.sortedByDescending { it.createdAt } ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
+    }
+
+    /** 사용자 차단. 이름/사진은 차단 목록 화면에서 바로 보여주기 위한 스냅샷. */
+    suspend fun block(userId: String, targetId: String, targetName: String, targetPhotoUrl: String = "") {
         if (userId.isBlank() || targetId.isBlank() || userId == targetId) return
         try {
             blockedCol(userId).document(targetId).set(
-                mapOf("userName" to targetName, "createdAt" to System.currentTimeMillis())
+                mapOf(
+                    "userName" to targetName,
+                    "photoUrl" to targetPhotoUrl,
+                    "createdAt" to System.currentTimeMillis(),
+                )
             ).await()
         } catch (_: Exception) {}
     }

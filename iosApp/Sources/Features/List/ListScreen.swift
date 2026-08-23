@@ -50,7 +50,8 @@ struct ListScreen: View {
                 if store.loading {
                     StarLoadingView(size: 40)
                 } else if rows.isEmpty {
-                    ContentUnavailableCompat(text: locale.t(unviewedOnly ? .listEmptyUnviewed : .listEmpty))
+                    StaryEmptyState(title: locale.t(unviewedOnly ? .listEmptyUnviewed : .listEmpty),
+                                    starType: 1, starColorIndex: 13)
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {

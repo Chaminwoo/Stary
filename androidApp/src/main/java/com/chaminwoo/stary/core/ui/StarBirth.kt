@@ -65,6 +65,8 @@ fun StarBirthHost() {
     val progress = remember(star) { Animatable(0f) }
     LaunchedEffect(star) {
         progress.snapTo(0f)
+        // 별이 응축을 끝내고 발광하는 순간(0.45~0.62 구간 진입)에 축하 진동을 맞춘다.
+        com.chaminwoo.stary.core.util.Haptics.celebrate()
         progress.animateTo(1f, animationSpec = tween(BIRTH_MS, easing = LinearEasing))
         StarBirthState.clear()
     }

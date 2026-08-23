@@ -5,6 +5,8 @@ struct FriendsScreen: View {
     @EnvironmentObject var auth: AuthManager
     /// 친구의 "최근 별"을 찾기 위한 다이어리 목록(비공개/익명은 여기서 걸러 쓴다).
     @EnvironmentObject var store: DiaryStore
+    /// 내가 차단한 사용자 — 검색 결과/받은 요청에서 숨긴다(지도·목록·알림과 동일 규칙).
+    @EnvironmentObject var blocks: BlockStore
     @StateObject private var vm = FriendsViewModel()
     /// 읽음 기록 — 채팅 화면과 공유(행 탭 시 markRead).
     @ObservedObject private var readStore = ChatReadStore.shared
@@ -29,7 +31,7 @@ struct FriendsScreen: View {
                 VStack(alignment: .leading, spacing: 20) {
                     searchSection
                     inviteSection
-                    if !vm.requests.isEmpty { requestsSection }
+                    if !visibleRequests.isEmpty { requestsSection }
                     friendsSection
                 }
                 .padding(16)
@@ -72,7 +74,7 @@ struct FriendsScreen: View {
                     .tint(Theme.navyAccent)
             }
             if vm.searching { StarLoadingView(size: 26) }
-            ForEach(vm.results) { user in
+            ForEach(vm.results.filter { !blocks.blockedIds.contains($0.userId) }) { user in
                 HStack {
                     Button { profileTarget = FriendProfileTarget(userId: user.userId, userName: user.userName) } label: {
                         avatar(user.userName, photoUrl: user.profileImageUrl ?? "", userId: user.userId)
@@ -151,10 +153,13 @@ struct FriendsScreen: View {
         }
     }
 
+    /// 받은 요청 중 차단하지 않은 사람의 것만.
+    private var visibleRequests: [FriendRequest] { vm.requests.filter { !blocks.blockedIds.contains($0.fromId) } }
+
     private var requestsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(LocaleManager.shared.t(.friendRequests)).font(.minSans(17)).foregroundStyle(Theme.textPrimary)
-            ForEach(vm.requests) { req in
+            ForEach(visibleRequests) { req in
                 HStack {
                     Button { profileTarget = FriendProfileTarget(userId: req.fromId, userName: req.fromName) } label: {
                         avatar(req.fromName, photoUrl: req.fromPhotoUrl, userId: req.fromId)
@@ -183,8 +188,12 @@ struct FriendsScreen: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("\(LocaleManager.shared.t(.friendMyFriends)) \(vm.friends.count)").font(.minSans(17)).foregroundStyle(Theme.textPrimary)
             if vm.friends.isEmpty {
-                Text(LocaleManager.shared.t(.friendEmpty))
-                    .font(.minSans(15)).foregroundStyle(Theme.textSecondary)
+                // 검색창이 위에 있는 화면이라 액션 버튼 없이 안내만(StaryEmptyState 공용).
+                StaryEmptyState(title: LocaleManager.shared.t(.friendEmptyTitle),
+                                description: LocaleManager.shared.t(.friendEmptyDesc),
+                                starType: 6,        // 보석 — '함께'를 상징
+                                starColorIndex: 9)  // 민트
+                    .frame(height: 230)
             } else {
                 ForEach(vm.friends) { friend in
                     ZStack(alignment: .trailing) {

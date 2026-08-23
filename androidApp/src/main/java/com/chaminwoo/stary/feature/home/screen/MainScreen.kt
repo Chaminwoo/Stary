@@ -250,7 +250,12 @@ fun MainScreen(
 
     val userId = GoogleAuthHelper.currentUserId
     val notifVm: NotificationViewModel? = if (userId != null) {
-        viewModel(factory = NotificationViewModel.factory(userId))
+        // ⚠️ key = userId 필수. viewModel() 의 기본 키는 **클래스 이름**이라, 로그아웃 후 다른 계정으로
+        //    로그인해도 처음 만들어진(이전 userId 에 바인딩된) 인스턴스가 그대로 돌아온다.
+        //    MainScreen 은 MainActivity.setContent 바로 아래라 ViewModelStoreOwner 가 Activity 이고
+        //    로그아웃에도 살아남기 때문에, 계정을 바꾸면 **이전 사용자의 알림/미읽음 배지**가 그대로 보였다.
+        //    (ChatScreen 이 쓰는 key = "chat_${'$'}friendId" 와 같은 패턴)
+        viewModel(key = userId, factory = NotificationViewModel.factory(userId))
     } else null
     val unreadCount by (notifVm?.unreadCount?.collectAsState()
         ?: androidx.compose.runtime.mutableStateOf(0))
@@ -732,6 +737,7 @@ fun MainScreen(
 private fun localizedTitle(route: NavRoute): String = when (route) {
     is NavRoute.Main -> stringResource(R.string.nav_map)
     is NavRoute.Settings -> stringResource(R.string.nav_settings)
+    is NavRoute.BlockedUsers -> stringResource(R.string.nav_blocked_users)
     is NavRoute.Friends -> stringResource(R.string.nav_friends)
     is NavRoute.Profile -> stringResource(R.string.nav_profile)
     is NavRoute.Achievements -> stringResource(R.string.nav_achievements)
