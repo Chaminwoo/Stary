@@ -140,8 +140,8 @@ struct MapScreen: View {
                 // 친구 선택 — 비활성이면 선택 시트, 활성이면 재탭으로 해제(Android 동일 패턴).
                 filterPill(
                     selectedFriendIds.isEmpty
-                        ? locale.t(.filterPickFriends)
-                        : String(format: locale.t(.filterFriendsN), selectedFriendIds.count),
+                    ? locale.t(.filterPickFriends)
+                    : String(format: locale.t(.filterFriendsN), selectedFriendIds.count),
                     icon: "person.badge.plus", active: !selectedFriendIds.isEmpty
                 ) {
                     if selectedFriendIds.isEmpty { showFriendPicker = true }
@@ -155,16 +155,46 @@ struct MapScreen: View {
                 }
             }
             Button {
-                withAnimation(.easeOut(duration: 0.18)) { speedDialExpanded.toggle() }
+                withAnimation(.easeOut(duration: 0.18)) {
+                    speedDialExpanded.toggle()
+                }
             } label: {
                 Image(systemName: "safari")
                     .font(.system(size: 22))
-                    .foregroundStyle(anyFilterActive ? Theme.navyAccent : .white.opacity(0.75))
+                    .foregroundStyle(
+                        anyFilterActive
+                        ? Theme.navyAccent
+                        : .white.opacity(0.75)
+                    )
                     .frame(width: 48, height: 48)
-                    .background(Color(hex: 0x111120).opacity(0.93), in: Circle())
-                    .overlay(Circle().strokeBorder(
-                        anyFilterActive ? Theme.navyAccent : Color.white.opacity(0.18), lineWidth: 1.5))
+                    .background(
+                        Color(hex: 0x111120).opacity(0.93),
+                        in: Circle()
+                    )
+                    .overlay(
+                        Circle().strokeBorder(
+                            anyFilterActive
+                            ? Theme.navyAccent
+                            : Color.white.opacity(0.18),
+                            lineWidth: 1.5
+                        )
+                    )
             }
+            .background(
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(
+                            key: CoachMarkPositionKey.self,
+                            value: [
+                                CoachMarkAnchor.filter:
+                                    CGPoint(
+                                        x: proxy.frame(in: .global).midX,
+                                        y: proxy.frame(in: .global).midY
+                                    )
+                            ]
+                        )
+                }
+            )
         }
         .confirmationDialog(locale.t(.filterPeriod), isPresented: $showPeriodPicker, titleVisibility: .visible) {
             Button(locale.t(.periodToday)) { periodDays = 0 }
@@ -323,17 +353,64 @@ struct MapScreen: View {
                 mapCircleButton("location.north.fill", size: 48) {
                     recenterNonce += 1
                 }
-                // 별자리 토글 — 활성 시 민트(Android AutoAwesome tint 동일).
-                mapCircleButton("sparkles", size: 48,
-                                tint: constellationOn ? Theme.mint : .white) {
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(
+                                key: CoachMarkPositionKey.self,
+                                value: [
+                                    CoachMarkAnchor.location:
+                                        CGPoint(
+                                            x: proxy.frame(in: .global).midX,
+                                            y: proxy.frame(in: .global).midY
+                                        )
+                                ]
+                            )
+                    }
+                )    // 별자리 토글 — 활성 시 민트(Android AutoAwesome tint 동일).
+                mapCircleButton(
+                    "sparkles",
+                    size: 48,
+                    tint: constellationOn ? Theme.mint : .white
+                ) {
                     constellationOn.toggle()
                 }
                 .accessibilityLabel(locale.t(.mapConstellation))
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(
+                                key: CoachMarkPositionKey.self,
+                                value: [
+                                    CoachMarkAnchor.constellation:
+                                        CGPoint(
+                                            x: proxy.frame(in: .global).midX,
+                                            y: proxy.frame(in: .global).midY
+                                        )
+                                ]
+                            )
+                    }
+                )
                 // 몰입(지도만 보기) — 탑바/필터/버튼을 모두 숨기고 지도에 집중.
                 mapCircleButton("eye", size: 48) {
                     chrome.mapOnly = true
                 }
                 .accessibilityLabel(locale.t(.mapOnlyMode))
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(
+                                key: CoachMarkPositionKey.self,
+                                value: [
+                                    CoachMarkAnchor.eye:
+                                        CGPoint(
+                                            x: proxy.frame(in: .global).midX,
+                                            y: proxy.frame(in: .global).midY
+                                        )
+                                ]
+                            )
+                    }
+                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .padding(.trailing, 16)

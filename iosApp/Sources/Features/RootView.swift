@@ -73,7 +73,17 @@ struct MainTabView: View {
     /// FAB 중심(화면 전역 좌표) — 파장 시작 위치 계산용.
     @State private var fabCenter: CGPoint = .zero
     /// 최초 실행 코치마크 (Android main_coach_seen 대응)
-    @State private var showCoachMark = !UserDefaults.standard.bool(forKey: "main_coach_seen")
+    /// MARK: - 코치마크 실제 버튼 좌표
+    
+    @State private var coachFilterCenter: CGPoint = .zero
+    @State private var coachLocationCenter: CGPoint = .zero
+    @State private var coachConstellationCenter: CGPoint = .zero
+    @State private var coachEyeCenter: CGPoint = .zero
+    @State private var coachUploadCenter: CGPoint = .zero
+    @State private var coachMenuCenter: CGPoint = .zero
+    
+    @State private var showCoachMark = false
+    //@State private var showCoachMark = !UserDefaults.standard.bool(forKey: "main_coach_seen") 임시로 일단 지워둠
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -81,6 +91,26 @@ struct MainTabView: View {
                 VStack(spacing: 0) {
                     if !chrome.chromeHidden { topBar }
                     MapScreen()
+                        .onPreferenceChange(
+                            CoachMarkPositionKey.self
+                        ) { positions in
+
+                            if let p = positions[CoachMarkAnchor.filter] {
+                                coachFilterCenter = p
+                            }
+
+                            if let p = positions[CoachMarkAnchor.location] {
+                                coachLocationCenter = p
+                            }
+
+                            if let p = positions[CoachMarkAnchor.constellation] {
+                                coachConstellationCenter = p
+                            }
+
+                            if let p = positions[CoachMarkAnchor.eye] {
+                                coachEyeCenter = p
+                            }
+                        }
                 }
                 .background(Theme.background.ignoresSafeArea())
 
@@ -108,10 +138,36 @@ struct MainTabView: View {
                 }
 
                 if showCoachMark {
-                    MainOnboardingOverlay {
+
+                    MainOnboardingOverlay(
+
+                        filterCenter: coachFilterCenter,
+
+                        locationCenter: coachLocationCenter,
+
+                        constellationCenter: coachConstellationCenter,
+
+                        eyeCenter: coachEyeCenter,
+
+                        uploadCenter: coachUploadCenter,
+
+                        menuCenter: coachMenuCenter
+
+                    ) {
+
                         showCoachMark = false
-                        UserDefaults.standard.set(true, forKey: "main_coach_seen")
+
+                        UserDefaults.standard.set(
+                            true,
+                            forKey: "main_coach_seen"
+                        )
                     }
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity
+                    )
+                    .ignoresSafeArea()
+                    .zIndex(999)
                 }
             }
             // 루트(지도)는 커스텀 상단바를 쓰므로 시스템 내비바 숨김 — push 된 화면들은 시스템 내비바 사용
@@ -226,15 +282,40 @@ struct MainTabView: View {
 
     private var topBar: some View {
         HStack(spacing: 0) {
-            Button {
-                withAnimation(.easeOut(duration: 0.25)) { drawerOpen = true }
-            } label: {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 22))
-                    .foregroundStyle(Theme.textPrimary)
-                    .frame(width: 48, height: 48)
-                    .contentShape(Rectangle())
-            }
+                Button {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        drawerOpen = true
+                    }
+                } label: {
+
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Theme.textPrimary)
+                        .frame(width: 48, height: 48)
+                        .contentShape(Rectangle())
+                }
+                .background(
+                    GeometryReader { proxy in
+
+                        Color.clear
+
+                            .onAppear {
+
+                                coachMenuCenter = CGPoint(
+                                    x: proxy.frame(in: .global).midX,
+                                    y: proxy.frame(in: .global).midY
+                                )
+                            }
+
+                            .onChange(of: proxy.size) { _ in
+
+                                coachMenuCenter = CGPoint(
+                                    x: proxy.frame(in: .global).midX,
+                                    y: proxy.frame(in: .global).midY
+                                )
+                            }
+                    }
+                )
             Spacer()
             Button {
                 path.append(DrawerDest.notifications)
@@ -288,13 +369,33 @@ struct MainTabView: View {
                         .raisedCosmicBorder()
                 }
                 .scaleEffect(fabScale)
-                .background(GeometryReader { g in
-                    Color.clear
-                        .onAppear { fabCenter = CGPoint(x: g.frame(in: .global).midX, y: g.frame(in: .global).midY) }
-                        .onChange(of: g.size) { _ in
-                            fabCenter = CGPoint(x: g.frame(in: .global).midX, y: g.frame(in: .global).midY)
-                        }
-                })
+                .background(
+                    GeometryReader { g in
+
+                        Color.clear
+
+                            .onAppear {
+                                let center = CGPoint(
+                                    x: g.frame(in: .global).midX,
+                                    y: g.frame(in: .global).midY
+                                )
+
+                                fabCenter = center
+                                coachUploadCenter = center
+                            }
+
+                            .onChange(of: g.size) { _ in
+
+                                let center = CGPoint(
+                                    x: g.frame(in: .global).midX,
+                                    y: g.frame(in: .global).midY
+                                )
+
+                                fabCenter = center
+                                coachUploadCenter = center
+                            }
+                    }
+                )
                 .disabled(uploadWarp != nil)
                 .padding(.trailing, 16)
                 .padding(.bottom, 16)
