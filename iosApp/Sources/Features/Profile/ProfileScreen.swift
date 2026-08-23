@@ -44,7 +44,7 @@ struct ProfileScreen: View {
     private var equippedTitleIsHidden: Bool { HiddenAchievements.byId(equippedTitleId) != nil }
     private var titleDisplayText: String {
         guard let t = equippedTitle else { return locale.t(.userNoTitle) }
-        return equippedTitleIsHidden ? "『\(t)』" : t
+        return "『\(t)』"
     }
     private var titleDisplayColor: Color {
         if equippedTitle == nil { return Theme.textSecondary }
@@ -178,16 +178,38 @@ struct ProfileScreen: View {
             .task {
                 hidden.start()
                 guard let uid = auth.uid else { return }
+                // 로컬 캐시 즉시 반영 — Firestore 응답 전에 이전 칭호 표시(로그인 직후 깜빡임 방지)
+                if equippedTitleId == nil {
+                    equippedTitleId = UserDefaults.standard.string(forKey: "equipped_title_\(uid)")
+                }
                 // 어드민(테스트) 계정이 과거에 실수로 선점한 히든 업적은 슬롯을 되돌린다(실제 유저가 첫 달성자가 되게).
                 if AppConfig.isAdminEmail(Auth.auth().currentUser?.email) { await hidden.releaseOwnedBy(uid: uid) }
                 let snap = try? await FirestoreService.friends(of: uid).getDocuments()
                 friendsCount = snap?.documents.count ?? 0
                 if let doc = try? await FirestoreService.users.document(uid).getDocument() {
                     profileImageUrl = doc.get("profileImageUrl") as? String
-                    equippedTitleId = doc.get("equippedTitle") as? String
+                    let serverTitle = doc.get("equippedTitle") as? String
+                    if let t = serverTitle, !t.isEmpty {
+                        // Firestore 값이 유효하면 사용하고 로컬 캐시 갱신
+                        equippedTitleId = t
+                        UserDefaults.standard.set(t, forKey: "equipped_title_\(uid)")
+                    } else if serverTitle != nil {
+                        // Firestore 에 빈 문자열 — 의도적으로 해제된 것이므로 로컬 캐시도 제거
+                        equippedTitleId = nil
+                        UserDefaults.standard.removeObject(forKey: "equipped_title_\(uid)")
+                    }
+                    // serverTitle == nil(필드 없음)이면 로컬 캐시 유지(Android 쪽 버그로 지워진 경우 보호)
                     pinnedIds = (doc.get("pinnedDiaries") as? [String]) ?? []
                 }
                 runHiddenClaims()
+            }
+            .onChange(of: equippedTitleId) { id in
+                guard let uid = auth.uid else { return }
+                if let id, !id.isEmpty {
+                    UserDefaults.standard.set(id, forKey: "equipped_title_\(uid)")
+                } else if id == nil {
+                    UserDefaults.standard.removeObject(forKey: "equipped_title_\(uid)")
+                }
             }
             .onChange(of: hidden.loaded) { _ in runHiddenClaims() }
             .onChange(of: friendsCount) { _ in runHiddenClaims() }

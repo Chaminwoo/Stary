@@ -43,6 +43,17 @@ class FirebaseFriendRepository : FriendRepository {
         }
     }
 
+    /** 장착 칭호(업적 id) 조회 — 로컬 캐시(StigmaStore)가 없을 때 Firestore 에서 복원용. */
+    suspend fun getEquippedTitle(userId: String): String? {
+        if (userId.isBlank()) return null
+        return try {
+            val doc = users.document(userId).get().await()
+            doc.getString("equippedTitle")?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** 장착 칭호(업적 id)를 공개 프로필에 기록 — 타인 프로필에서도 칭호를 볼 수 있게. (null=해제) */
     suspend fun setEquippedTitle(userId: String, achievementId: String?) {
         if (userId.isBlank()) return

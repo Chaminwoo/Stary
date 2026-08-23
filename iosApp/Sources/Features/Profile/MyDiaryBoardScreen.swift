@@ -474,6 +474,20 @@ private struct FloatingStarItem: View {
         StarView(type: diary.starType, colorIndex: diary.starColor, size: size)
             .frame(width: 54, height: 54)
             .contentShape(Rectangle())
+            .overlay {
+                if dragging {
+                    Text(diary.title.isEmpty ? LocaleManager.shared.t(.commonUntitled) : diary.title)
+                        .font(.minSans(11))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 6))
+                        .frame(maxWidth: 80)
+                        .offset(y: 36) // star center +27(half frame) +9(gap)
+                }
+            }
             .scaleEffect(dragging ? 1.18 : 1)      // 잡는 순간 살짝 커져 "들어올린" 느낌
             .offset(y: up ? -4 : 4)
             .offset(drag)

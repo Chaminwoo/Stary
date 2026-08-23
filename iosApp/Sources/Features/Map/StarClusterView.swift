@@ -18,11 +18,18 @@ struct StarClusterView: View {
     var onOpenDiary: (Diary) -> Void
     var onClose: () -> Void
 
-    @State private var page = 0
+    /// 현재 중앙에 스냅된 카드 id(스크롤 위치).
+    @State private var scrolledID: String?
 
     /// 지도 대표 선정과 같은 우선순위로 재정렬(호출부 정렬 상태와 무관하게 안전).
     private var ordered: [Diary] {
         diaries.sorted(by: StarMerge.precedes)
+    }
+
+    /// 중앙 카드 인덱스(헤더 강조·인디케이터용).
+    private var currentIndex: Int {
+        guard let scrolledID, let i = ordered.firstIndex(where: { $0.id == scrolledID }) else { return 0 }
+        return i
     }
 
     private var accent: Color {
@@ -38,27 +45,21 @@ struct StarClusterView: View {
                 header
                     .padding(.top, 18)
 
-                // 카드 페이저 — 세로로 긴 카드(포트레이트), 좌우 스와이프.
-                TabView(selection: $page) {
-                    ForEach(Array(ordered.enumerated()), id: \.element.id) { index, diary in
-                        ClusterCard(diary: diary, rank: index + 1) { onOpenDiary(diary) }
-                            .padding(.horizontal, 44)
-                            .padding(.vertical, 10)
-                            .tag(index)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
+                // 카드 캐러셀 — iOS 17+ 는 커버플로우, iOS 16 은 기본 페이저 폴백.
+                carousel
+                    .frame(maxHeight: .infinity)
 
                 // 페이지 인디케이터 점
                 HStack(spacing: 6) {
                     ForEach(ordered.indices, id: \.self) { i in
                         Circle()
-                            .fill(i == page ? accent : Color.white.opacity(0.25))
-                            .frame(width: i == page ? 8 : 6, height: i == page ? 8 : 6)
+                            .fill(i == currentIndex ? accent : Color.white.opacity(0.25))
+                            .frame(width: i == currentIndex ? 8 : 6, height: i == currentIndex ? 8 : 6)
                     }
                 }
                 .padding(.vertical, 18)
             }
+            .onAppear { if scrolledID == nil { scrolledID = ordered.first?.id } }
 
             // 뒤로가기(X) — 좌상단. 화면 밖으로 나가지 않게 안쪽 여백을 준다(#16).
             VStack {
@@ -79,6 +80,56 @@ struct StarClusterView: View {
         }
     }
 
+    /// 카드 캐러셀 — iOS 17+ 는 커버플로우(중앙 확대 + 옆 카드 바닥피벗 회전·축소·페이드·엿보기 + 스냅),
+    /// iOS 16 은 기본 페이지 뷰 폴백(한 장씩). 둘 다 `scrolledID` 로 헤더/인디케이터를 동기화한다.
+    @ViewBuilder private var carousel: some View {
+        if #available(iOS 17.0, *) {
+            GeometryReader { geo in
+                let cardWidth = min(geo.size.width * 0.61, 300)
+                // 중앙 카드가 1.13배 확대되므로 잘리지 않게 세로를 넉넉히(≈영역의 86%).
+                let cardHeight = min(geo.size.height * 0.86, 560)
+                let sidePad = max((geo.size.width - cardWidth) / 2, 0)
+                ScrollView(.horizontal) {
+                    HStack(spacing: 4) {
+                        ForEach(Array(ordered.enumerated()), id: \.element.id) { index, diary in
+                            ClusterCard(diary: diary, rank: index + 1) { onOpenDiary(diary) }
+                                .frame(width: cardWidth, height: cardHeight)
+                                // phase.value: 중앙=0, 좌=−1, 우=+1 — Android dist 와 동일 부호.
+                                .scrollTransition(.interactive, axis: .horizontal) { content, phase in
+                                    content
+                                        .scaleEffect(1.13 - 0.23 * abs(phase.value))
+                                        .opacity(1 - 0.42 * abs(phase.value))
+                                        .rotationEffect(.degrees(8 * phase.value), anchor: .bottom)
+                                        .offset(x: phase.value * 14, y: abs(phase.value) * 10)
+                                }
+                                .id(diary.id)
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .frame(height: geo.size.height)
+                }
+                .scrollTargetBehavior(.viewAligned)
+                .scrollIndicators(.hidden)
+                .contentMargins(.horizontal, sidePad, for: .scrollContent)
+                .scrollPosition(id: $scrolledID)
+            }
+        } else {
+            // iOS 16 폴백 — 기본 페이지 뷰(한 장씩). 선택은 카드 id 로 동기화.
+            TabView(selection: Binding(
+                get: { scrolledID ?? ordered.first?.id },
+                set: { scrolledID = $0 }
+            )) {
+                ForEach(Array(ordered.enumerated()), id: \.element.id) { index, diary in
+                    ClusterCard(diary: diary, rank: index + 1) { onOpenDiary(diary) }
+                        .padding(.horizontal, 44)
+                        .padding(.vertical, 10)
+                        .tag(diary.id as String?)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+        }
+    }
+
     /// 헤더 — 겹쳐진 별 모양들을 살짝 겹쳐 보여주고 개수 안내.
     /// 카드를 스와이프하면 **지금 보고 있는 별만 밝아지고 커진다**(34-1, Android 패리티).
     /// 헤더는 5개까지만 그리므로 6번째 이후 카드에선 아무것도 강조되지 않는다(의도).
@@ -86,7 +137,7 @@ struct StarClusterView: View {
         VStack(spacing: 10) {
             HStack(spacing: -6) {
                 ForEach(Array(ordered.prefix(5).enumerated()), id: \.element.id) { i, d in
-                    let active = page == i
+                    let active = currentIndex == i
                     let side: CGFloat = i == 0 ? 30 : 22
                     ZStack {
                         // 활성 별에만 옅은 후광 — 별색 그대로.
@@ -104,7 +155,7 @@ struct StarClusterView: View {
                     .frame(width: side, height: side)
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: page)
+            .animation(.easeOut(duration: 0.2), value: currentIndex)
             Text(String(format: LocaleManager.shared.t(.clusterHeader), ordered.count))
                 .font(.minSans(17, .semibold))
                 .foregroundStyle(Theme.textPrimary)
@@ -183,19 +234,43 @@ private struct ClusterCard: View {
     /// 이미지 로드 실패 시 기존 어두운 톤으로 폴백(카드는 항상 보인다).
     private var cardBackground: some View {
         ZStack {
-            Color(red: 0.078, green: 0.094, blue: 0.122)
+            Color(
+                red: 0.078,
+                green: 0.094,
+                blue: 0.122
+            )
+
             if let bg = ShareCardBackground.image {
                 Image(uiImage: bg)
                     .resizable()
-                    .scaledToFill()
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity
+                    )
             }
+
             LinearGradient(
                 colors: [
-                    Color(red: 0.02, green: 0.027, blue: 0.051).opacity(0.24),
-                    Color(red: 0.02, green: 0.027, blue: 0.051).opacity(0.16),
-                    Color(red: 0.02, green: 0.027, blue: 0.051).opacity(0.72),
+                    Color(
+                        red: 0.02,
+                        green: 0.027,
+                        blue: 0.051
+                    ).opacity(0.24),
+
+                    Color(
+                        red: 0.02,
+                        green: 0.027,
+                        blue: 0.051
+                    ).opacity(0.16),
+
+                    Color(
+                        red: 0.02,
+                        green: 0.027,
+                        blue: 0.051
+                    ).opacity(0.72)
                 ],
-                startPoint: .top, endPoint: .bottom
+                startPoint: .top,
+                endPoint: .bottom
             )
         }
     }

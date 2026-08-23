@@ -90,6 +90,7 @@ enum L10n: String {
     case profileFriends, profileDiaries, profileAchievements, profileEmptyStars
     // 화면 첫 진입 설명창(FirstVisitInfo).
     case onbButton
+    case onbMapTitle, onbMapMsg
     case onbMyDiaryTitle, onbMyDiaryMsg, onbProfileTitle, onbProfileMsg
     case onbAchievementsTitle, onbAchievementsMsg, onbMusicTitle, onbMusicMsg
     case onbFriendsTitle, onbFriendsMsg
@@ -247,6 +248,10 @@ enum L10n: String {
         case .profileEditNickname:  return ("닉네임 변경", "Edit nickname", "ニックネーム変更")
         case .profileNicknameHint:  return ("닉네임을 입력하세요", "Enter a nickname", "ニックネームを入力")
         case .onbButton:            return ("시작하기", "Get started", "はじめる")
+        case .onbMapTitle:          return ("별들의 지도", "Star Map", "星たちの地図")
+        case .onbMapMsg:            return ("별을 눌러 다이어리를 읽어보세요.\n기간·친구·나만 보기 필터로 원하는 별만 골라볼 수 있어요.\n업로드 버튼으로 나만의 별을 이 우주에 남겨보세요.",
+                                            "Tap a star to read its diary.\nUse filters by period, friends, or only your stars.\nHit the upload button to leave your own star in the universe.",
+                                            "星をタップして日記を読もう。\n期間・フレンド・自分だけフィルターで絞り込みもできます。\nアップロードボタンで自分だけの星を宇宙に残そう。")
         case .onbMyDiaryTitle:      return ("내 별", "My Stars", "マイ星")
         case .onbMyDiaryMsg:        return ("내가 남긴 다이어리가 모여있어요.\n별을 잡아서 제목을 보거나, 클릭하여 열람하세요",
                                             "Here are the stars you've left. Tap one to open the diary, or use Directions to walk there.",

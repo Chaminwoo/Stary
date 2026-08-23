@@ -193,10 +193,10 @@ private struct IntroVideoView: UIViewRepresentable {
         /// 값을 키우면 로고/버튼이 그만큼 더 빨리 뜬다.
         ///
         /// 현재 인트로: 미디어 7.83초를 속도 곡선(2.5x→1.8x→0.5x)으로 재생 = **실제 약 4.85초**.
-        /// 1.0 이면 약 3.85초에 노출(+페이드 0.8초).
-        /// ⚠️ Android 는 영상과 무관하게 **1.5초 고정 후 노출**이라 아직 iOS 가 더 늦다 —
+        /// 2.0 이면 약 2.85초에 노출(+페이드 0.8초) — 사용자 요청으로 로고/버튼을 1초 더 앞당김.
+        /// ⚠️ Android 는 영상과 무관하게 **1.5초 고정 후 노출**이라 아직 iOS 가 살짝 더 늦다 —
         ///    완전한 패리티를 원하면 이 값 대신 "재생 시작 후 1.5초 타이머" 방식으로 바꿀 것.
-        static let earlyRevealSeconds: Double = 1.0
+        static let earlyRevealSeconds: Double = 2.0
 
         private let onEnded: () -> Void
         private weak var player: AVPlayer?

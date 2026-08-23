@@ -16,7 +16,7 @@ struct NotificationsScreen: View {
             Theme.background.ignoresSafeArea()
             if items.isEmpty {
                 // 빈 상태도 별 언어로(떠 있는 골드 별 + 안내) — StaryEmptyState 공용.
-                StaryEmptyState(title: LocaleManager.shared.t(.notifEmpty),
+                    StaryEmptyState(title: LocaleManager.shared.t(.notifEmpty),
                                 description: LocaleManager.shared.t(.notifEmptyDesc),
                                 starType: 0, starColorIndex: 1)
             } else {

@@ -262,6 +262,12 @@ struct AchievementsScreen: View {
     private func equipTitle(_ id: String?) {
         equippedTitleId = id
         guard let uid = auth.uid else { return }
+        // 로컬 캐시 즉시 갱신 — ProfileScreen.onChange 가 저장하지만 AchievementsEntry 경로에서도 보장
+        if let id, !id.isEmpty {
+            UserDefaults.standard.set(id, forKey: "equipped_title_\(uid)")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "equipped_title_\(uid)")
+        }
         Task {
             try? await FirestoreService.users.document(uid)
                 .setData(["equippedTitle": id ?? ""], merge: true)

@@ -16,6 +16,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -125,8 +127,8 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
     val goldIndex = 15 // 앰버골드
     val (starType, starColor) = when (val r = achievement.reward) {
         is Reward.Shape -> r.shapeType to goldIndex
-        is Reward.StarColor -> 1 to r.colorIndex
-        is Reward.Title -> 1 to goldIndex
+        is Reward.StarColor -> 1 to r.colorIndex  // 색상값은 rewardColor 계산용, 렌더는 동그라미
+        is Reward.Title -> 3 to goldIndex          // 8꼭지 십자 별로 칭호를 대역
     }
     val rewardText = when (val r = achievement.reward) {
         is Reward.Title -> stringResource(
@@ -266,15 +268,25 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
                         reveal.value < 0.62f -> 0.7f + 0.48f * appear      // 0.70 → 1.18
                         else -> 1.18f - 0.18f * ((reveal.value - 0.62f) / 0.38f).coerceIn(0f, 1f)
                     }
-                    StarShapeIcon(
-                        type = starType,
-                        colorIndex = starColor,
-                        modifier = Modifier
-                            .size(62.dp)
-                            .graphicsLayer {
-                                scaleX = settleScale; scaleY = settleScale; alpha = appear
-                            }
-                    )
+                    if (achievement.reward is Reward.StarColor) {
+                        Box(
+                            modifier = Modifier
+                                .size(62.dp)
+                                .graphicsLayer { scaleX = settleScale; scaleY = settleScale; alpha = appear }
+                                .clip(CircleShape)
+                                .background(rewardColor)
+                        )
+                    } else {
+                        StarShapeIcon(
+                            type = starType,
+                            colorIndex = starColor,
+                            modifier = Modifier
+                                .size(62.dp)
+                                .graphicsLayer {
+                                    scaleX = settleScale; scaleY = settleScale; alpha = appear
+                                }
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(10.dp))

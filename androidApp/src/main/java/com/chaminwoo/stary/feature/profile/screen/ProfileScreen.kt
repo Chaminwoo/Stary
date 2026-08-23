@@ -137,7 +137,10 @@ fun ProfileScreen(
     }
 
     val stats = rememberUserStats(userId)
-    val equippedStigmaId = StigmaStore.equipped(context, userId)
+    // StigmaStore(SharedPreferences) 에서 즉시 읽는 값 — 칭호 장착/해제 시 StigmaStore 가 갱신되고
+    // 화면이 recompose 되면 fresh 값이 반영된다. remember 키에 포함해 back-nav 후에도 최신값 유지.
+    val stigmaIdInPrefs = StigmaStore.equipped(context, userId)
+    var equippedStigmaId by remember(userId, stigmaIdInPrefs) { mutableStateOf(stigmaIdInPrefs) }
     // 칭호는 언어 전환에 맞춰 표시(정의는 한국어 데이터, 표시만 로케일 해석)
     val equippedStigma = LocalizedNames.equippedTitle(context, equippedStigmaId)
 
@@ -169,10 +172,20 @@ fun ProfileScreen(
         ProfilePinState.onOpen = { showPinPicker = true }
     }
     DisposableEffect(Unit) { onDispose { ProfilePinState.reset() } }
-    // 내가 장착한 칭호를 공개 프로필에 백필 동기화(이전에 장착해 둔 값도 타인에게 보이도록).
-    LaunchedEffect(userId, equippedStigmaId) {
-        com.chaminwoo.stary.data.repository.FirebaseFriendRepository()
-            .setEquippedTitle(userId, equippedStigmaId)
+    // 칭호 초기화: 로컬(StigmaStore) 값이 없으면 Firestore 에서 복원해 로컬에 저장.
+    // 있으면 Firestore 에 백필 동기화. — 신규 설치/데이터 초기화 후 재로그인 시 칭호 유실 방지.
+    LaunchedEffect(userId) {
+        val local = StigmaStore.equipped(context, userId)
+        val repo = com.chaminwoo.stary.data.repository.FirebaseFriendRepository()
+        if (local == null) {
+            val server = repo.getEquippedTitle(userId)
+            if (!server.isNullOrBlank()) {
+                StigmaStore.equip(context, userId, server)
+                equippedStigmaId = server
+            }
+        } else {
+            repo.setEquippedTitle(userId, local)
+        }
     }
 
     Box(modifier = modifier.fillMaxSize()) {

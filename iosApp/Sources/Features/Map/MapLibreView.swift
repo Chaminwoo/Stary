@@ -1107,9 +1107,9 @@ final class MergedStarAnnotationView:
         satIndex: Int
     ) -> CGFloat {
 
-        markerSize * 0.12
-        + 1
-        + CGFloat(satIndex) * 1.6
+        markerSize * 0.09
+        + 0.5
+        + CGFloat(satIndex) * 1.0
     }
 
     init(annotation: DiaryAnnotation) {
@@ -1149,7 +1149,7 @@ final class MergedStarAnnotationView:
             max(
                 satExtent,
                 orbitExtent
-            ) * 2
+            ) * 1.8
 
         // Diary.id가 String?이라는 기존 코드 가정.
         self.repId =

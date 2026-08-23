@@ -67,6 +67,11 @@ struct MainTabView: View {
     @State private var friendsCount = 0
     @State private var friendsCountLoaded = false
     @State private var achievementQueue: [Achievement] = []
+    // 업로드 버튼 파장 연출(Android openCreate 워프 패리티) — FAB 바운스 + 코발트 파장 후 업로드로 이동.
+    @State private var uploadWarp: DiaryOpenWarpData?
+    @State private var fabScale: CGFloat = 1
+    /// FAB 중심(화면 전역 좌표) — 파장 시작 위치 계산용.
+    @State private var fabCenter: CGPoint = .zero
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -76,6 +81,15 @@ struct MainTabView: View {
                     MapScreen()
                 }
                 .background(Theme.background.ignoresSafeArea())
+
+                // 업로드 버튼 파장 — FAB 아래(먼저) 그려 버튼은 연출 내내 위에 보인다(Android 동일).
+                if let warp = uploadWarp {
+                    DiaryOpenWarpView(data: warp) {
+                        uploadWarp = nil
+                        path.append(DrawerDest.upload)
+                    }
+                    .allowsHitTesting(false)
+                }
 
                 if !chrome.chromeHidden { fab }
 
@@ -251,7 +265,7 @@ struct MainTabView: View {
             HStack {
                 Spacer()
                 Button {
-                    path.append(DrawerDest.upload)
+                    triggerUploadWarp()
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 24, weight: .semibold))
@@ -264,10 +278,38 @@ struct MainTabView: View {
                         )
                         .raisedCosmicBorder()
                 }
+                .scaleEffect(fabScale)
+                .background(GeometryReader { g in
+                    Color.clear
+                        .onAppear { fabCenter = CGPoint(x: g.frame(in: .global).midX, y: g.frame(in: .global).midY) }
+                        .onChange(of: g.size) { _ in
+                            fabCenter = CGPoint(x: g.frame(in: .global).midX, y: g.frame(in: .global).midY)
+                        }
+                })
+                .disabled(uploadWarp != nil)
                 .padding(.trailing, 16)
                 .padding(.bottom, 16)
             }
         }
+    }
+
+    /// 업로드 버튼 탭 — Android openCreate 워프 패리티: FAB 바운스(1→1.12→1) + 코발트 파장,
+    /// 파장이 끝나면 업로드 화면으로 이동. (iOS 는 지도 스냅샷 굴절 대신 파장 링만 — 스냅샷 배선은 후속.)
+    private func triggerUploadWarp() {
+        guard uploadWarp == nil else { return }
+        // FAB 바운스(Android createFabScale 1→1.12→1, 110ms→180ms).
+        withAnimation(.easeInOut(duration: 0.11)) { fabScale = 1.12 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.11) {
+            withAnimation(.easeInOut(duration: 0.18)) { fabScale = 1 }
+        }
+        // 파장 시작 위치 = FAB 중심(전역 좌표 → 화면 비율). 측정 전이면 우하단 근사.
+        let screen = UIScreen.main.bounds.size
+        let origin = CGPoint(
+            x: (screen.width > 0 && fabCenter.x > 0) ? fabCenter.x / screen.width : 0.86,
+            y: (screen.height > 0 && fabCenter.y > 0) ? fabCenter.y / screen.height : 0.9
+        )
+        // 코발트(13) — Android 남색 버튼과 동계열 파장. 멤버 없음 → 버스트 없이 파장 링만.
+        uploadWarp = DiaryOpenWarpData(snapshot: nil, origin: origin, members: [], colorOverride: 13)
     }
 
     // MARK: - 드로어 (Android ModalNavigationDrawer: 0x111111 패널 + 우측 라운드 24 + 스크림 0.5)
@@ -490,11 +532,11 @@ private struct AchievementUnlockOverlay: View {
         LocalizedNames.title(achievement.id, fallback: achievement.name) ?? achievement.name
     }
 
-    /// 보상 → 화면에 띄울 별(모양/색). 칭호는 형태가 없어 앰버골드 5꼭지 별로 대역한다.
+    /// 보상 → 화면에 띄울 별(모양/색). 칭호는 8꼭지 십자 별, 색 보상은 동그라미로 대역한다.
     private var rewardStar: (type: Int, colorIndex: Int) {
         let gold = 15 // 앰버골드
         switch achievement.reward {
-        case .title:            return (1, gold)
+        case .title:            return (3, gold)  // 8꼭지 십자 별
         case .shape(let t):     return (t, gold)
         case .color(let c):     return (1, c)
         }
@@ -525,13 +567,21 @@ private struct AchievementUnlockOverlay: View {
                                  progress: reveal,
                                  accent: rewardColor)
                         .frame(width: 132, height: 132)
-                    Image(uiImage: StarCrystal.image(type: rewardStar.type,
-                                                     colorIndex: rewardStar.colorIndex,
-                                                     size: 62))
-                        .resizable()
-                        .frame(width: 62, height: 62)
-                        .scaleEffect(starScale)
-                        .opacity(starAppear)
+                    Group {
+                        if case .color(let c) = achievement.reward {
+                            Circle()
+                                .fill(StarStyle.color(c))
+                                .frame(width: 62, height: 62)
+                        } else {
+                            Image(uiImage: StarCrystal.image(type: rewardStar.type,
+                                                             colorIndex: rewardStar.colorIndex,
+                                                             size: 62))
+                                .resizable()
+                                .frame(width: 62, height: 62)
+                        }
+                    }
+                    .scaleEffect(starScale)
+                    .opacity(starAppear)
                 }
                 .frame(width: 132, height: 132)
 
