@@ -33,6 +33,10 @@ final class MusicManager: ObservableObject {
     private var dialDelegate: DialDelegate?
     private var dialTurning = false
     private let dialBaseVolume: Float = 0.6
+    /// 돌리는 동안 회전음을 다시 트는 간격(초). 음원 길이보다 짧아야 "빠르게 반복"이 된다.
+    /// (Android `MusicManager.DIAL_REPEAT_MS` 와 같은 값 — drift 금지.)
+    private let dialRepeatInterval: TimeInterval = 0.3
+    private var dialRepeatTimer: Timer?
 
     private init() {
         let d = UserDefaults.standard
@@ -142,25 +146,40 @@ final class MusicManager: ObservableObject {
         p.play()
     }
 
-    /// 다이얼 회전 상태 — true(돌리기 시작)면 회전음, 겹치지 않게, 끝났을 때 아직 돌리는 중이면 재생.
+    /// 다이얼 회전 상태 — Android `MusicManager.setDialTurning` 패리티.
+    ///  - true(돌리기 시작): 회전음을 재생하고 [dialRepeatInterval] 간격으로 처음부터 다시 튼다(빠른 반복).
+    ///  - false(놓음/멈춤): 반복만 멈춘다. **재생 중인 소리는 자르지 않아 끝까지 울린다**(여운).
     func setDialTurning(_ turning: Bool) {
         if turning && !enabled { return }
+        guard dialTurning != turning else { return }
         dialTurning = turning
-        if turning { startDialIfNeeded() }
+        dialRepeatTimer?.invalidate()
+        dialRepeatTimer = nil
+        guard turning else { return }   // 놓았을 땐 반복만 멈추고 소리는 그대로 둔다.
+        restartDial()
+        dialRepeatTimer = Timer.scheduledTimer(withTimeInterval: dialRepeatInterval, repeats: true) { [weak self] t in
+            guard let self, self.dialTurning, self.enabled else { t.invalidate(); return }
+            self.restartDial()
+        }
     }
 
-    private func startDialIfNeeded() {
-        if dialPlayer?.isPlaying == true { return } // 이미 재생 중이면 겹치지 않음
-        guard let p = makePlayer("turning_dial") else { return }
-        p.volume = dialBaseVolume * sfxVolume
-        let del = DialDelegate { [weak self] in
-            guard let self, self.dialTurning, self.enabled else { return }
-            self.dialPlayer?.currentTime = 0
-            self.dialPlayer?.play() // 아직 돌리는 중이면 이어서
+    /// 회전음을 처음부터 다시 재생. player 는 한 번 만들어 두고 되감아 쓴다(생성 지연 방지).
+    private func restartDial() {
+        if dialPlayer == nil {
+            guard let p = makePlayer("turning_dial") else { return }
+            // 음원이 반복 간격보다 짧을 때도 돌리는 동안 끊기지 않게 이어 붙인다.
+            let del = DialDelegate { [weak self] in
+                guard let self, self.dialTurning, self.enabled else { return }
+                self.dialPlayer?.currentTime = 0
+                self.dialPlayer?.play()
+            }
+            dialDelegate = del
+            p.delegate = del
+            dialPlayer = p
         }
-        dialDelegate = del
-        p.delegate = del
-        dialPlayer = p
+        guard let p = dialPlayer else { return }
+        p.volume = dialBaseVolume * sfxVolume
+        p.currentTime = 0
         p.play()
     }
 }

@@ -48,12 +48,28 @@ object MusicManager {
     private var openLoaded = false
     private const val OPEN_VOLUME = 0.35f
 
-    // 다이얼 회전 효과음(turning_dial.mp3) — 겹쳐 재생하지 않고, 한 번 끝났을 때
-    // 아직 돌리는 중이면 다시 재생한다. (SoundPool 대신 완료 콜백이 필요해 MediaPlayer 사용)
+    // 다이얼 회전 효과음(turning_dial.mp3).
+    //  - **돌리는 동안**: [DIAL_REPEAT_MS] 간격으로 처음부터 다시 재생 → 짧게 끊어지며 빠르게 반복된다
+    //    (음원 전체 길이만큼 기다리면 간격이 너무 벌어져 "돌아가는 느낌"이 안 난다).
+    //  - **놓거나 멈춘 뒤**: 반복만 멈추고 재생 중인 소리는 자르지 않아 **끝까지** 울린다(여운).
+    // (SoundPool 대신 위치 제어/완료 콜백이 필요해 MediaPlayer 사용)
     private var dialPlayer: MediaPlayer? = null
     private var dialResId = 0
     private var dialTurning = false
     private const val DIAL_VOLUME = 0.6f
+
+    /** 돌리는 동안 회전음을 다시 트는 간격(ms). 음원 길이보다 짧아야 "빠르게 반복"이 된다. */
+    private const val DIAL_REPEAT_MS = 300L
+
+    private val dialHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    /** 돌리는 동안만 도는 반복 타이머 — [setDialTurning] false 에서 취소된다. */
+    private val dialRepeat = object : Runnable {
+        override fun run() {
+            if (!dialTurning || !enabled) return
+            restartDialSfx()
+            dialHandler.postDelayed(this, DIAL_REPEAT_MS)
+        }
+    }
 
     /** Compose 에서 관찰 가능한 on/off 상태. */
     var enabled by mutableStateOf(true)
@@ -151,27 +167,44 @@ object MusicManager {
     }
 
     /**
-     * 다이얼 회전 상태 알림 — true(돌리기 시작)면 회전음 재생, false(놓음)면 더 잇지 않음.
-     * 겹쳐 재생하지 않고, 한 번 끝났을 때 아직 [dialTurning] 이면 처음부터 다시 재생한다.
+     * 다이얼 회전 상태 알림.
+     *  - true(돌리기 시작): 회전음을 재생하고 [DIAL_REPEAT_MS] 간격으로 처음부터 다시 튼다(빠른 반복).
+     *  - false(놓음/멈춤): 반복만 멈춘다. **재생 중인 소리는 자르지 않아 끝까지 울린다.**
      * 음소거(enabled=false) 상태에선 출력하지 않는다.
      */
     fun setDialTurning(turning: Boolean) {
         if (turning && !enabled) return
+        if (dialTurning == turning) return
         dialTurning = turning
-        if (turning) startDialSfxIfNeeded()
+        if (turning) {
+            restartDialSfx()
+            dialHandler.removeCallbacks(dialRepeat)
+            dialHandler.postDelayed(dialRepeat, DIAL_REPEAT_MS)
+        } else {
+            // 반복만 취소 — 지금 울리는 소리는 그대로 끝까지 둔다(여운).
+            dialHandler.removeCallbacks(dialRepeat)
+        }
     }
 
-    private fun startDialSfxIfNeeded() {
+    /** 회전음을 처음부터 다시 재생. player 는 한 번 만들어 두고 seek 으로 되감는다(생성 지연 방지). */
+    private fun restartDialSfx() {
         val ctx = appContext ?: return
         if (dialResId == 0) dialResId = ctx.resources.getIdentifier("turning_dial", "raw", ctx.packageName)
         if (dialResId == 0) return // 음원 미존재 → 무동작
-        if (dialPlayer?.isPlaying == true) return // 이미 재생 중이면 겹치지 않음
-        dialPlayer?.release()
-        dialPlayer = MediaPlayer.create(ctx, dialResId)?.apply {
-            setVolume(DIAL_VOLUME * sfxVolume, DIAL_VOLUME * sfxVolume)
-            setOnCompletionListener {
-                if (dialTurning && enabled) { it.seekTo(0); it.start() } // 아직 돌리는 중이면 이어서
+        val vol = DIAL_VOLUME * sfxVolume
+        val existing = dialPlayer
+        if (existing != null) {
+            runCatching {
+                existing.setVolume(vol, vol)
+                existing.seekTo(0)
+                if (!existing.isPlaying) existing.start()
             }
+            return
+        }
+        dialPlayer = MediaPlayer.create(ctx, dialResId)?.apply {
+            setVolume(vol, vol)
+            // 음원이 반복 간격보다 짧을 때도 돌리는 동안 끊기지 않게 이어 붙인다.
+            setOnCompletionListener { if (dialTurning && enabled) { it.seekTo(0); it.start() } }
             start()
         }
     }
@@ -310,6 +343,7 @@ object MusicManager {
         windLoaded = false
         openLoaded = false
         dialTurning = false
+        dialHandler.removeCallbacks(dialRepeat)
         dialPlayer?.release()
         dialPlayer = null
         initialized = false

@@ -52,6 +52,12 @@ struct MainOnboardingOverlay: View {
 
         GeometryReader { geo in
 
+            // 버튼 좌표는 `.frame(in: .global)` 로 잰 값이고, 이 오버레이는 `.ignoresSafeArea()` 로
+            // 화면 전체를 덮는다. 두 좌표계의 원점이 어긋나면(상단 안전영역만큼) 스포트라이트가
+            // 실제 버튼보다 **위로 밀려** 보인다 → 오버레이 자신의 global 원점을 빼서 항상 맞춘다.
+            // (원점이 같으면 0 이라 아무 영향 없음 — 어떤 기기/OS 에서도 안전한 보정.)
+            let originGlobal = geo.frame(in: .global).origin
+
             ZStack {
 
                 // =========================================================
@@ -90,8 +96,8 @@ struct MainOnboardingOverlay: View {
                             height: soft * 2
                         )
                         .position(
-                            x: spotX,
-                            y: spotY
+                            x: spotX - originGlobal.x,
+                            y: spotY - originGlobal.y
                         )
                         .blendMode(.destinationOut)
                     }
@@ -118,8 +124,8 @@ struct MainOnboardingOverlay: View {
                             height: spotR * 2
                         )
                         .position(
-                            x: spotX,
-                            y: spotY
+                            x: spotX - originGlobal.x,
+                            y: spotY - originGlobal.y
                         )
                         .allowsHitTesting(false)
                 }
@@ -159,6 +165,7 @@ struct MainOnboardingOverlay: View {
 
                 print("========== COACH MARK ==========")
                 print("Overlay geometry:", geo.size)
+                print("Overlay global origin:", originGlobal)
                 print("Screen:", UIScreen.main.bounds)
                 print("filter:", filterCenter)
                 print("location:", locationCenter)

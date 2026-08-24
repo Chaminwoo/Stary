@@ -50,7 +50,21 @@ final class LocaleManager: ObservableObject {
     }
 
     /// 현재 언어로 문자열 해석.
-    func t(_ key: L10n) -> String { key.value(for: effectiveLanguage) }
+    ///
+    /// 한글 문자열은 [hangulWordWrapped] 로 한 번 다듬어 돌려준다 —
+    /// iOS 기본 줄바꿈은 한글을 글자 단위로 끊어 "표시하/기" 처럼 어색해지므로
+    /// 어절 안에 결합자를 넣어 **낱말 단위로만** 줄이 바뀌게 한다(자세한 이유는 HangulLineBreak.swift).
+    /// 결과는 (언어, 키)로 캐시 — body 평가마다 문자열을 다시 만들지 않는다.
+    func t(_ key: L10n) -> String {
+        let cacheKey = effectiveLanguage + "\u{1}" + key.rawValue
+        if let cached = wrapCache[cacheKey] { return cached }
+        let value = key.value(for: effectiveLanguage).hangulWordWrapped
+        wrapCache[cacheKey] = value
+        return value
+    }
+
+    /// 줄바꿈 다듬기 결과 캐시(언어\u{1}키 → 문자열).
+    private var wrapCache: [String: String] = [:]
 }
 
 /// 인코드 로컬라이즈 문자열(설정/탭 등). Android res/values-xx 의 iOS 대응.
@@ -77,6 +91,10 @@ enum L10n: String {
     case settingsDeleteConfirmMsg, settingsDeleteFailed, toastAccountDeleted
     case reportUser, reportDiary, reportSubmit
     case reportReasonSpam, reportReasonAbuse, reportReasonInappropriate, reportReasonImpersonation, reportReasonOther
+    /// "기타" 사유를 골랐을 때 직접 적는 설명 입력칸 안내(Android report_reason_detail_hint 패리티).
+    case reportReasonDetailHint
+    /// 프로필 사진 조절(위치·확대) 화면 — Android profile_photo_adjust* 패리티.
+    case profilePhotoAdjust, profilePhotoAdjustHint
     case toastReported
     case blockAction, unblockAction, toastBlocked, toastUnblocked
     // 차단 목록(설정 > 안전) — Android BlockedUsersScreen 패리티.
@@ -157,6 +175,8 @@ enum L10n: String {
     case musicDragHint, musicLockedHint, commonSecret
     // 부메랑(3초 움짤) 촬영(Android boomer_retake/boomer_use 대응).
     case boomerRetake, boomerUse
+    /// 움짤 만들기 실패(Android boomer_failed 대응) / 첨부 크롭 조작 안내.
+    case boomerFailed, uploadCropHint
     // 별 목록 화면(iOS 전용 화면 — 빈 상태/가까운순 정렬).
     case listEmptyUnviewed, listEmpty, listSortNearby
 
@@ -217,6 +237,11 @@ enum L10n: String {
         case .reportReasonInappropriate: return ("부적절한 콘텐츠", "Inappropriate content", "不適切なコンテンツ")
         case .reportReasonImpersonation: return ("사칭", "Impersonation", "なりすまし")
         case .reportReasonOther:    return ("기타", "Other", "その他")
+        case .reportReasonDetailHint: return ("사유를 적어주세요", "Tell us what happened", "理由をご記入ください")
+        case .profilePhotoAdjust:   return ("프로필 사진 조절", "Adjust photo", "写真を調整")
+        case .profilePhotoAdjustHint: return ("드래그로 위치, 두 손가락으로 크기를 맞춰요",
+                                            "Drag to move, pinch to resize",
+                                            "ドラッグで位置、ピンチで大きさを調整")
         case .toastReported:        return ("신고가 접수되었어요", "Report submitted", "報告を受け付けました")
         case .blockAction:          return ("차단", "Block", "ブロック")
         case .unblockAction:        return ("차단 해제", "Unblock", "ブロック解除")
@@ -443,6 +468,12 @@ enum L10n: String {
         case .commonSecret:         return ("비밀", "Secret", "秘密")
         case .boomerRetake:         return ("다시 찍기", "Retake", "撮り直す")
         case .boomerUse:            return ("자르기 완료", "Crop done", "切り抜き完了")
+        case .boomerFailed:         return ("움짤을 만들지 못했어요. 다시 시도해 주세요.",
+                                            "Couldn't create the clip. Please try again.",
+                                            "GIFを作成できませんでした。もう一度お試しください。")
+        case .uploadCropHint:       return ("드래그로 위치, 두 손가락으로 크기를 맞춰요",
+                                            "Drag to move, pinch to resize",
+                                            "ドラッグで位置、ピンチで大きさを調整")
         case .listEmptyUnviewed:    return ("안 본 별이 없어요. 모두 둘러봤네요!", "No unviewed stars — you've seen them all!", "未読の星はありません。全部見ましたね！")
         case .listEmpty:            return ("아직 별이 없어요. 첫 별을 남겨보세요.", "No stars yet. Leave your first one.", "まだ星がありません。最初の星を残しましょう。")
         case .listSortNearby:       return ("가까운순", "Nearest", "近い順")

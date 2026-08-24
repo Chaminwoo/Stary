@@ -11,12 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -49,17 +50,24 @@ private val REPORT_REASONS = listOf(
     "other" to R.string.report_reason_other,
 )
 
+/** "기타" 사유를 골랐을 때 직접 적는 설명의 최대 길이(Firestore `reasonDetail`). */
+const val REPORT_DETAIL_MAX_LEN = 200
+
 /**
- * 신고 사유 선택 다이얼로그. [onSubmit] 에 선택한 사유 키("spam" 등)를 넘긴다.
+ * 신고 사유 선택 다이얼로그. [onSubmit] 에 선택한 사유 키("spam" 등)와,
+ * "기타"를 골랐을 때 직접 적은 설명([REPORT_DETAIL_MAX_LEN] 자 제한, 그 외엔 빈 문자열)을 넘긴다.
  * 다이어리/댓글/사용자 신고에 공용.
  */
 @Composable
 fun ReportDialog(
     title: String,
-    onSubmit: (reasonKey: String) -> Unit,
+    onSubmit: (reasonKey: String, detail: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var selected by remember { mutableStateOf<String?>(null) }
+    // "기타" 전용 상세 사유 — 다른 사유로 바꾸면 전송하지 않는다(입력값은 남겨 되돌아와도 유지).
+    var detail by remember { mutableStateOf("") }
+    val isOther = selected == "other"
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -95,13 +103,41 @@ fun ReportDialog(
                     Text(stringResource(resId), color = if (isSel) TextMain else TextMuted, fontSize = 15.sp)
                 }
             }
+            // "기타"는 사유만으론 관리자가 판단할 수 없다 → 직접 적을 칸을 연다.
+            if (isOther) {
+                Spacer(Modifier.size(4.dp))
+                OutlinedTextField(
+                    value = detail,
+                    onValueChange = { detail = it.take(REPORT_DETAIL_MAX_LEN) },
+                    placeholder = {
+                        Text(stringResource(R.string.report_reason_detail_hint), color = TextMuted, fontSize = 14.sp)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Mint.copy(alpha = 0.7f),
+                        unfocusedBorderColor = TextMuted.copy(alpha = 0.35f),
+                        cursorColor = Mint,
+                        focusedTextColor = TextMain,
+                        unfocusedTextColor = TextMain,
+                    ),
+                )
+                Text(
+                    "${detail.length}/$REPORT_DETAIL_MAX_LEN",
+                    color = TextMuted, fontSize = 11.sp,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp, end = 2.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                )
+            }
             Spacer(Modifier.size(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = TextMuted) }
                 Spacer(Modifier.width(4.dp))
                 TextButton(
-                    enabled = selected != null,
-                    onClick = { selected?.let(onSubmit) }
+                    // "기타"는 설명을 적어야 접수된다(빈 설명은 관리자가 검토할 수 없음).
+                    enabled = selected != null && (!isOther || detail.isNotBlank()),
+                    onClick = { selected?.let { onSubmit(it, if (isOther) detail.trim() else "") } }
                 ) { Text(stringResource(R.string.report_submit), color = Color(0xFFFF6B6B), fontWeight = FontWeight.SemiBold) }
             }
         }

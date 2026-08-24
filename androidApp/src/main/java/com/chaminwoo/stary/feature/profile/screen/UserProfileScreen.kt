@@ -177,6 +177,8 @@ fun UserProfileScreen(
     }.collectAsState(initial = emptySet())
     val isBlocked = blockedIds.contains(userId)
     var showReportDialog by remember(userId) { mutableStateOf(false) }
+    // 프로필 사진 탭 → 전체화면 확대 뷰어(사진이 있을 때만).
+    var showPhotoViewer by remember(userId) { mutableStateOf(false) }
     // 차단은 되돌리기 번거로운 동작(친구 해제 포함)이라 확인 다이얼로그를 거친다. 해제는 바로.
     var showBlockDialog by remember(userId) { mutableStateOf(false) }
     val blockedMsg = stringResource(R.string.toast_blocked)
@@ -257,7 +259,13 @@ fun UserProfileScreen(
                             modifier = Modifier
                                 .size(124.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF0D0D0D), CircleShape),
+                                .background(Color(0xFF0D0D0D), CircleShape)
+                                // 사진이 있으면 눌러서 크게 볼 수 있다(기본 아이콘일 땐 반응 없음).
+                                .then(
+                                    if (photoUrl.isNotBlank())
+                                        Modifier.clickable { showPhotoViewer = true }
+                                    else Modifier
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             if (photoUrl.isNotBlank()) {
@@ -418,14 +426,29 @@ fun UserProfileScreen(
             )
         }
 
+        if (showPhotoViewer && photoUrl.isNotBlank()) {
+            com.chaminwoo.stary.core.ui.PhotoViewer(
+                imageUrl = photoUrl,
+                contentDescription = stringResource(
+                    R.string.cd_profile_photo,
+                    resolvedName.ifBlank { stringResource(R.string.common_user) }
+                ),
+                onClose = { showPhotoViewer = false },
+            )
+        }
+
         if (showReportDialog) {
             com.chaminwoo.stary.core.ui.ReportDialog(
                 title = stringResource(R.string.report_user),
                 onDismiss = { showReportDialog = false },
-                onSubmit = { reason ->
+                onSubmit = { reason, detail ->
                     showReportDialog = false
                     scope.launch {
-                        moderation.report(myId ?: "", "user", userId, userId, reason)
+                        // "기타" 사유는 신고자가 적은 설명을 함께 남긴다(관리자 검토용).
+                        moderation.report(
+                            myId ?: "", "user", userId, userId, reason,
+                            if (detail.isBlank()) emptyMap() else mapOf("reasonDetail" to detail)
+                        )
                         com.chaminwoo.stary.core.ui.StaryToast.show(reportedMsg)
                     }
                 }

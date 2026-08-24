@@ -1,6 +1,7 @@
 import AVFoundation
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// 올리기 탭 — 현재 위치에 별(다이어리)을 남긴다(사진 첨부 포함).
 struct UploadScreen: View {
@@ -16,9 +17,11 @@ struct UploadScreen: View {
     @State private var saving = false
     @State private var toast: String?
     @State private var photoItem: PhotosPickerItem?
-    @State private var imageData: Data?
-    // 부메랑(3초 움짤) GIF — 커스텀 촬영 화면에서 생성(이미지와 배타).
-    @State private var boomerangGif: Data?
+    /// 첨부(사진 1장 / 3초 움짤) 크롭 상태 — 고른 직후부터 프레임 안에서 위치·확대를 조절한다.
+    /// 사진과 움짤은 배타(하나만 첨부)이며 같은 프레임/같은 조작을 쓴다.
+    @StateObject private var crop = MediaCropState()
+    /// 사진을 고르는 중(디코딩 대기) — 빈 프레임에 로딩을 띄우기 위한 플래그.
+    @State private var loadingMedia = false
     // 첨부 소스 선택(촬영/갤러리/3초 영상) — Android showImageSourceDialog 대응.
     @State private var showMediaSourceSheet = false
     @State private var showPhotosPicker = false
@@ -104,11 +107,13 @@ struct UploadScreen: View {
             if let toast { ToastView(text: toast) }
         }
         .onChange(of: photoItem) { item in
+            guard item != nil else { return }
+            loadingMedia = true
             Task {
-                if let data = try? await item?.loadTransferable(type: Data.self) {
-                    imageData = data
-                    boomerangGif = nil // 이미지 선택 시 움짤과 배타
-                }
+                defer { loadingMedia = false }
+                guard let data = try? await item?.loadTransferable(type: Data.self),
+                      let ui = UIImage(data: data) else { return }
+                crop.setPhoto(ui)   // 사진 선택 시 움짤과 배타(같은 상태를 덮어쓴다)
             }
         }
         // 첨부 소스 선택 — Android 의 촬영/갤러리/3초 영상 3지선다 다이얼로그 패리티(#1).
@@ -126,17 +131,19 @@ struct UploadScreen: View {
             switch which {
             case .camera:
                 CameraPicker { data in
-                    if let data {
-                        imageData = data
-                        boomerangGif = nil; photoItem = nil // 움짤과 배타
+                    if let data, let ui = UIImage(data: data) {
+                        crop.setPhoto(ui)
+                        photoItem = nil // 움짤과 배타
                     }
                     captureSheet = nil
                 }
                 .ignoresSafeArea()
             case .boomerang:
-                BoomerangCaptureView { data in
-                    boomerangGif = data
-                    imageData = nil; photoItem = nil // 이미지와 배타
+                // 촬영 화면은 GIF 가 아니라 **원본 프레임 + 크롭 상태**를 넘긴다 —
+                // 여기서도 위치·확대를 더 조절할 수 있고, GIF 는 저장 직전에 한 번만 굽는다.
+                BoomerangCaptureView { frames, startScale, offsetNorm in
+                    crop.setBoomerang(frames, scale: startScale, offsetNorm: offsetNorm)
+                    photoItem = nil // 이미지와 배타
                     captureSheet = nil
                 }
             }
@@ -164,25 +171,17 @@ struct UploadScreen: View {
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             label(LocaleManager.shared.t(.uploadPhotoSection))
-            if let boomerangGif {
+            if !crop.isEmpty || loadingMedia {
+                // 사진도 3초 움짤도 **같은 4:3 프레임**(Android 와 동일 크기/비율).
+                // 이 프레임이 곧 잘릴 영역 — 드래그로 위치, 두 손가락으로 확대/축소.
                 ZStack(alignment: .topTrailing) {
-                    GifImageView(data: boomerangGif)
-                        .frame(height: 180)
-                        .frame(maxWidth: .infinity)
+                    MediaCropFrame(state: crop)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     clearMediaButton
                 }
-                reselectButton
-            } else if let imageData, let ui = UIImage(data: imageData) {
-                ZStack(alignment: .topTrailing) {
-                    Image(uiImage: ui)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(height: 180)
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    clearMediaButton
-                }
+                Text(LocaleManager.shared.t(.uploadCropHint))
+                    .font(.minSans(11))
+                    .foregroundStyle(Theme.textFaint)
                 reselectButton
             } else {
                 // 한 버튼 → 촬영/갤러리/3초 영상 선택 시트(Android 와 동일한 3지선다).
@@ -240,8 +239,8 @@ struct UploadScreen: View {
     }
 
     private func clearMedia() {
-        imageData = nil; photoItem = nil
-        boomerangGif = nil
+        photoItem = nil
+        crop.clear()
     }
 
     private var starPicker: some View {
@@ -357,15 +356,29 @@ struct UploadScreen: View {
         }
         saving = true
         defer { saving = false }
+        // 올리기 성공 순간의 축하 진동(StarBirthStore.trigger → Haptics.celebrate)이 확실히 울리도록
+        // 지금 탭틱 엔진을 깨워 둔다 — 예열 없이 부르면 첫 진동이 씹힌다(사용자 요청 #5).
+        Haptics.prepare()
 
-        // 첨부는 움짤/사진 중 하나(배타). 움짤(GIF)은 videoUrl 필드에 저장(스키마 유지, .gif 로 판별).
+        // 첨부는 움짤/사진 중 하나(배타). 둘 다 **지금 프레임에 보이는 그대로** 잘라서 올린다.
+        // 움짤(GIF)은 videoUrl 필드에 저장(스키마 유지, .gif 로 판별).
         var imageUrl = ""
         var videoUrl = ""
-        if let boomerangGif {
-            do { videoUrl = try await ImageUploader.uploadGif(boomerangGif) }
+        if crop.isAnimated {
+            guard let data = await encodeBoomerangGif() else {
+                showToast(LocaleManager.shared.t(.boomerFailed)); return
+            }
+            do { videoUrl = try await ImageUploader.uploadGif(data) }
             catch { showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
-        } else if let imageData {
-            do { imageUrl = try await ImageUploader.upload(imageData) }
+        } else if let image = crop.first {
+            // 크롭 실패(디코딩 오류)면 원본을 그대로 올려 흐름이 끊기지 않게 한다.
+            let data = ImageCrop.crop(image, frame: crop.frameSize, scale: crop.scale, offset: crop.offset,
+                                      outWidth: ImageCrop.diaryOutPixels)
+                ?? image.jpegData(compressionQuality: 0.9)
+            guard let data else {
+                showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), "")); return
+            }
+            do { imageUrl = try await ImageUploader.upload(data) }
             catch { showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
         }
 
@@ -406,6 +419,20 @@ struct UploadScreen: View {
         } catch {
             showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription))
         }
+    }
+
+    /// 3초 움짤을 지금 크롭 상태 그대로 잘라 GIF 로 굽는다(백그라운드). 실패하면 nil.
+    private func encodeBoomerangGif() async -> Data? {
+        let frames = crop.frames
+        let fw = crop.frameSize.width > 0 ? crop.frameSize.width : UIScreen.main.bounds.width
+        let fh = crop.frameSize.height > 0 ? crop.frameSize.height : fw / BoomerangConfig.aspect
+        let scale = crop.scale
+        let offset = crop.offset
+        return await Task.detached(priority: .userInitiated) {
+            let cropped = BoomerangConfig.cropFrames(frames, frameW: fw, frameH: fh, scale: scale, offset: offset)
+            let seq = BoomerangConfig.boomerangSequence(cropped)
+            return BoomerangConfig.encodeGif(frames: seq, delay: BoomerangConfig.frameDelay)
+        }.value
     }
 
     private func showToast(_ text: String) {

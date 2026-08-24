@@ -51,6 +51,9 @@
     <string name="report_reason_inappropriate">Inappropriate content</string>
     <string name="report_reason_impersonation">Impersonation</string>
     <string name="report_reason_other">Other</string>
+    <string name="report_reason_detail_hint">Tell us what happened</string>
+    <string name="profile_photo_adjust">Adjust photo</string>
+    <string name="profile_photo_adjust_hint">Drag to move, pinch to resize</string>
     <string name="toast_reported">Report submitted</string>
     <string name="block">Block</string>
     <string name="unblock">Unblock</string>

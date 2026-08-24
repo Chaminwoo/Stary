@@ -21,6 +21,8 @@ struct UserProfileScreen: View {
     @State private var showBlockConfirm = false
     @State private var showReportDialog = false
     @State private var showReportedConfirm = false
+    /// 프로필 사진 탭 → 전체화면 확대 뷰어(사진이 있을 때만).
+    @State private var showPhotoViewer = false
     @State private var friendsCount = 0
     /// 그 사람이 프로필에 띄우기로 선택(핀)한 다이어리 id — 타인 프로필엔 이 별들만 뜬다.
     @State private var pinnedIds: [String] = []
@@ -111,11 +113,17 @@ struct UserProfileScreen: View {
         .navigationDestination(isPresented: $openChat) {
             ChatScreen(friendId: userId, friendName: userName, myUid: auth.uid ?? "")
         }
-        .reportDialog(title: locale.t(.reportUser), isPresented: $showReportDialog) { reason in
+        // 프로필 사진 확대 보기(Android UserProfileScreen PhotoViewer 패리티).
+        .fullScreenCover(isPresented: $showPhotoViewer) {
+            PhotoViewer(imageUrl: profileImageUrl ?? "") { showPhotoViewer = false }
+        }
+        .reportDialog(title: locale.t(.reportUser), isPresented: $showReportDialog) { reason, detail in
             guard let myUid = auth.uid else { return }
             Task {
+                // "기타" 사유는 신고자가 적은 설명을 함께 남긴다(관리자 검토용).
                 await ModerationRepository.report(reporterId: myUid, type: "user",
-                                                  targetId: userId, targetOwnerId: userId, reason: reason)
+                                                  targetId: userId, targetOwnerId: userId, reason: reason,
+                                                  extra: detail.isEmpty ? [:] : ["reasonDetail": detail])
                 showReportedConfirm = true
             }
         }
@@ -213,6 +221,10 @@ struct UserProfileScreen: View {
             // 프로필 사진 바깥 링(테두리)은 제거 — 후광만 남긴다(2026-07-17 사용자 지시).
             .frame(width: 96, height: 96)
             .clipShape(Circle())
+            // 사진이 있으면 눌러서 크게 볼 수 있다(기본 이니셜일 땐 반응 없음).
+            .onTapGesture {
+                if let url = profileImageUrl, !url.isEmpty { showPhotoViewer = true }
+            }
         }
     }
 

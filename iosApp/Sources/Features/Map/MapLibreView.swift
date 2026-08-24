@@ -369,6 +369,9 @@ struct MapLibreView: UIViewRepresentable {
         /// 저줌 게이트 상태.
         var lastGateZero = false
 
+        /// 마지막으로 적용한 위성 불투명도(줌 게이트) — 값이 바뀔 때만 순회한다.
+        var satelliteOpacity: CGFloat = -1
+
         init(_ parent: MapLibreView) {
             self.parent = parent
             super.init()
@@ -411,6 +414,38 @@ struct MapLibreView: UIViewRepresentable {
             }
 
             return CGFloat(s)
+        }
+
+        /// 겹친 별 위성 표시/숨김 — 줌이 낮으면(멀리 보면) 지운다. Android `orbitSizeExpression` 대응.
+        func applySatelliteZoomGate(
+            _ mapView: MLNMapView
+        ) {
+
+            let a =
+                MergedStarAnnotationView.satelliteOpacity(
+                    forZoom: mapView.zoomLevel
+                )
+
+            guard
+                abs(a - satelliteOpacity) > 0.01
+            else {
+                return
+            }
+
+            satelliteOpacity = a
+
+            for annotation in mapView.annotations ?? [] {
+
+                guard
+                    let v = mapView.view(
+                        for: annotation
+                    ) as? MergedStarAnnotationView
+                else {
+                    continue
+                }
+
+                v.applySatelliteOpacity(a)
+            }
         }
 
         func applyStarZoomScale(
@@ -536,6 +571,7 @@ struct MapLibreView: UIViewRepresentable {
             isCameraMoving = true
 
             applyStarZoomScale(mapView)
+            applySatelliteZoomGate(mapView)
             applyStyleEffectZoom(mapView)
             reportWorldVoid(mapView)
         }
@@ -548,6 +584,7 @@ struct MapLibreView: UIViewRepresentable {
             isCameraMoving = false
 
             applyStarZoomScale(mapView)
+            applySatelliteZoomGate(mapView)
             applyStyleEffectZoom(mapView)
             reportWorldVoid(mapView)
 
@@ -609,6 +646,13 @@ struct MapLibreView: UIViewRepresentable {
                     )
 
                 v.transform = scale
+
+                // 지금 줌의 위성 게이트를 바로 반영(방금 만든 뷰는 순회 대상이 아니었다).
+                v.applySatelliteOpacity(
+                    MergedStarAnnotationView.satelliteOpacity(
+                        forZoom: mapView.zoomLevel
+                    )
+                )
 
                 return v
             }
@@ -1071,21 +1115,51 @@ final class MergedStarAnnotationView:
         1.1
     ]
 
+    // 위성 부유 주기/위상 — Android `DiaryMap` 의 위성 식과 같은 값(값 drift 금지):
+    //   driftX = sin(t × (0.7 + 0.14i) + i × 2.1) × 0.8
+    //   driftY = sin(t × (1.15 + 0.18i) + i × 1.4) × 1.0
+    // 주기 = 2π / 각속도, 위상 = (i × 위상상수) / 2π (0..1 비율).
+    // ⚠️ 위상까지 주지 않으면 **모든 위성이 같은 순간 같은 방향으로** 움직여 한 덩어리로 보인다.
     private static let driftPeriodsX: [Double] = [
-        4.6,
-        5.7,
-        3.9,
-        5.2
+        2 * Double.pi / 0.70,
+        2 * Double.pi / 0.84,
+        2 * Double.pi / 0.98,
+        2 * Double.pi / 1.12
     ]
 
     private static let driftPeriodsY: [Double] = [
-        3.3,
-        2.9,
-        3.8,
-        3.1
+        2 * Double.pi / 1.15,
+        2 * Double.pi / 1.33,
+        2 * Double.pi / 1.51,
+        2 * Double.pi / 1.69
     ]
 
+    private static let driftPhasesX: [Double] = [0, 2.1, 4.2, 6.3].map {
+        ($0 / (2 * Double.pi)).truncatingRemainder(dividingBy: 1)
+    }
+
+    private static let driftPhasesY: [Double] = [0, 1.4, 2.8, 4.2].map {
+        ($0 / (2 * Double.pi)).truncatingRemainder(dividingBy: 1)
+    }
+
     private static let satSize: CGFloat = 16
+
+    /// 위성 기본 불투명도(줌 게이트가 열렸을 때).
+    static let satelliteAlpha: CGFloat = 0.92
+
+    /// 위성이 보이기 시작하는 줌 / 완전히 드러나는 줌 —
+    /// Android `orbitSizeExpression`(줌 11 이하 0) + 부유 갱신 게이트(zoom > 11.1) 대응.
+    /// 멀리서 겹침을 식별할 일은 없으므로 저줌에선 잡동사니처럼 보이지 않게 지운다.
+    static let satelliteMinZoom: Double = 11
+    static let satelliteFullZoom: Double = 13
+
+    /// 줌 → 위성 불투명도(0 = 안 보임).
+    static func satelliteOpacity(forZoom zoom: Double) -> CGFloat {
+        guard zoom > satelliteMinZoom else { return 0 }
+        guard zoom < satelliteFullZoom else { return satelliteAlpha }
+        let t = (zoom - satelliteMinZoom) / (satelliteFullZoom - satelliteMinZoom)
+        return satelliteAlpha * CGFloat(t)
+    }
 
     private static let driftAmpX: CGFloat = 0.8
     private static let driftAmpY: CGFloat = 1.0
@@ -1228,7 +1302,7 @@ final class MergedStarAnnotationView:
                         * r
                 )
 
-            iv.alpha = 0.92
+            iv.alpha = Self.satelliteAlpha
 
             addSubview(iv)
 
@@ -1342,7 +1416,9 @@ final class MergedStarAnnotationView:
                     amp: Self.driftAmpX,
                     period:
                         Self.driftPeriodsX[i],
-                    now: now
+                    now: now,
+                    phaseFraction:
+                        Self.driftPhasesX[i]
                 ),
                 forKey: "drift-x"
             )
@@ -1354,10 +1430,21 @@ final class MergedStarAnnotationView:
                     amp: Self.driftAmpY,
                     period:
                         Self.driftPeriodsY[i],
-                    now: now
+                    now: now,
+                    phaseFraction:
+                        Self.driftPhasesY[i]
                 ),
                 forKey: "drift-y"
             )
+        }
+    }
+
+    /// 줌 게이트 반영 — 일정 줌 이하로 빼면 위성이 사라진다(Android 패리티).
+    func applySatelliteOpacity(
+        _ alpha: CGFloat
+    ) {
+        for (iv, _) in satellites {
+            iv.alpha = alpha
         }
     }
 

@@ -19,6 +19,8 @@ struct ProfileScreen: View {
     @State private var photoItem: PhotosPickerItem?
     /// 프로필 사진 업로드 중 — 아바타 자리에 별 로딩을 띄운다(Android `isUploading` 패리티).
     @State private var uploadingPhoto = false
+    /// 고른 사진은 바로 올리지 않고 조절 화면(위치/확대)을 거쳐 정사각으로 잘라 올린다.
+    @State private var pendingPhoto: PickedPhoto?
     @State private var pinnedIds: [String] = []
     @State private var showPinPicker = false
     // 루트 스택 push 로 전환(Android 단일 NavHost 대응) — 자체 NavigationPath 대신 목적지별 bool.
@@ -218,13 +220,19 @@ struct ProfileScreen: View {
             .onChange(of: photoItem) { item in
                 guard let item else { return }
                 Task {
-                    guard let uid = auth.uid else { return }
-                    uploadingPhoto = true
-                    defer { uploadingPhoto = false }
                     guard let data = try? await item.loadTransferable(type: Data.self),
-                          let url = try? await ImageUploader.uploadProfile(uid: uid, data: data) else { return }
-                    _ = await AvatarThumbCache.shared.image(for: url, maxPixel: avatarPixelSize)
-                    profileImageUrl = url
+                          let ui = UIImage(data: data) else { return }
+                    photoItem = nil          // 같은 사진을 다시 골라도 조절 화면이 열리도록
+                    pendingPhoto = PickedPhoto(image: ui)
+                }
+            }
+            // 사진 조절(위치·확대) → 확정된 정사각 이미지를 업로드한다(Android ProfilePhotoCropDialog 패리티).
+            .fullScreenCover(item: $pendingPhoto) { picked in
+                ProfilePhotoCropView(image: picked.image) { cropped in
+                    pendingPhoto = nil
+                    uploadPhoto(cropped)
+                } onCancel: {
+                    pendingPhoto = nil
                 }
             }
             .firstVisitInfo(key: "profile", systemImage: "person.fill",
@@ -292,6 +300,19 @@ struct ProfileScreen: View {
         Task {
             try? await FirestoreService.users.document(uid)
                 .setData(["pinnedDiaries": Array(ids.prefix(3))], merge: true)
+        }
+    }
+
+    /// 잘라낸 프로필 사진 업로드 — 업로드 동안 별 로딩을 띄우고, **새 사진을 다 받은 뒤에** 교체한다
+    /// (빈 원이 잠깐 보이거나 옛 사진이 남는 문제 방지 — 2026-08-15 사용자 지시).
+    private func uploadPhoto(_ data: Data) {
+        Task {
+            guard let uid = auth.uid else { return }
+            uploadingPhoto = true
+            defer { uploadingPhoto = false }
+            guard let url = try? await ImageUploader.uploadProfile(uid: uid, data: data) else { return }
+            _ = await AvatarThumbCache.shared.image(for: url, maxPixel: avatarPixelSize)
+            profileImageUrl = url
         }
     }
 

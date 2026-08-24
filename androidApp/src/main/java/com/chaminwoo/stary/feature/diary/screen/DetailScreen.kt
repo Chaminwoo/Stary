@@ -287,10 +287,11 @@ fun DetailScreen(
         com.chaminwoo.stary.core.ui.ReportDialog(
             title = stringResource(R.string.report_diary),
             onDismiss = { showReportDialog = false },
-            onSubmit = { reasonKey ->
+            onSubmit = { reasonKey, reasonDetail ->
                 showReportDialog = false
                 if (userId.isNotBlank()) reportScope.launch {
                     // 관리자가 Console 에서 바로 검토할 수 있도록 다이어리 스냅샷을 함께 등록(체크리스트 28).
+                    // "기타" 사유는 신고자가 적은 설명(reasonDetail)도 같이 남긴다.
                     com.chaminwoo.stary.data.repository.FirebaseModerationRepository()
                         .report(
                             userId, "diary", currentDiary.id, currentDiary.userId, reasonKey,
@@ -299,6 +300,7 @@ fun DetailScreen(
                                 "targetContent" to currentDiary.content.take(280),
                                 "targetOwnerName" to currentDiary.userName,
                                 "targetImageUrl" to currentDiary.imageUrl.ifBlank { currentDiary.videoUrl },
+                                "reasonDetail" to reasonDetail.ifBlank { null },
                             )
                         )
                     com.chaminwoo.stary.core.ui.StaryToast.show(reportedMsg)

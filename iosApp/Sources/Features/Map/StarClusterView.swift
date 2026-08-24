@@ -130,32 +130,13 @@ struct StarClusterView: View {
         }
     }
 
-    /// 헤더 — 겹쳐진 별 모양들을 살짝 겹쳐 보여주고 개수 안내.
+    /// 헤더 — 겹쳐진 별 모양들 + 개수 안내.
     /// 카드를 스와이프하면 **지금 보고 있는 별만 밝아지고 커진다**(34-1, Android 패리티).
-    /// 헤더는 5개까지만 그리므로 6번째 이후 카드에선 아무것도 강조되지 않는다(의도).
+    ///  · 4개 이하: 예전처럼 살짝 겹친 고정 배치.
+    ///  · 5개 이상: 고정 배치로는 6번째부터 밀려서 안 보이므로 [starDial] 로 흘려보낸다.
     private var header: some View {
         VStack(spacing: 10) {
-            HStack(spacing: -6) {
-                ForEach(Array(ordered.prefix(5).enumerated()), id: \.element.id) { i, d in
-                    let active = currentIndex == i
-                    let side: CGFloat = i == 0 ? 30 : 22
-                    ZStack {
-                        // 활성 별에만 옅은 후광 — 별색 그대로.
-                        if active {
-                            RadialGradient(
-                                colors: [StarStyle.color(d.starColor).opacity(0.9), .clear],
-                                center: .center, startRadius: 0, endRadius: side / 2
-                            )
-                            .opacity(0.35)
-                        }
-                        StarView(type: d.starType, colorIndex: d.starColor, size: side)
-                            .opacity(active ? 1 : 0.35)
-                            .scaleEffect(active ? 1.15 : 1)
-                    }
-                    .frame(width: side, height: side)
-                }
-            }
-            .animation(.easeOut(duration: 0.2), value: currentIndex)
+            if ordered.count >= 5 { starDial } else { fixedStars }
             Text(String(format: LocaleManager.shared.t(.clusterHeader), ordered.count))
                 .font(.minSans(17, .semibold))
                 .foregroundStyle(Theme.textPrimary)
@@ -163,6 +144,71 @@ struct StarClusterView: View {
                 .font(.minSans(12))
                 .foregroundStyle(Theme.textSecondary)
         }
+    }
+
+    /// 4개 이하 — 살짝 겹친 고정 배치(기존 모습 그대로).
+    private var fixedStars: some View {
+        HStack(spacing: -6) {
+            ForEach(Array(ordered.enumerated()), id: \.element.id) { i, d in
+                let active = currentIndex == i
+                let side: CGFloat = i == 0 ? 30 : 22
+                ZStack {
+                    // 활성 별에만 옅은 후광 — 별색 그대로.
+                    if active {
+                        RadialGradient(
+                            colors: [StarStyle.color(d.starColor).opacity(0.9), .clear],
+                            center: .center, startRadius: 0, endRadius: side / 2
+                        )
+                        .opacity(0.35)
+                    }
+                    StarView(type: d.starType, colorIndex: d.starColor, size: side)
+                        .opacity(active ? 1 : 0.35)
+                        .scaleEffect(active ? 1.15 : 1)
+                }
+                .frame(width: side, height: side)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: currentIndex)
+    }
+
+    /// 겹친 별 헤더 다이얼 — 별이 5개 이상일 때.
+    ///
+    /// 창(window)은 항상 5칸이고, **현재 카드의 별이 가운데 칸**에 오도록 전체가 옆으로 흐른다
+    /// (카드를 넘기면 다이얼이 한 칸씩 돌아가는 느낌). 가운데에서 멀수록 작아지고 흐려지며,
+    /// 창 밖으로 나간 별은 잘려 사라진다 — 6번째 이후 별도 자기 차례엔 반드시 보인다.
+    /// (Android `StarClusterScreen.ClusterStarDial` 패리티 — 수치 drift 금지.)
+    private var starDial: some View {
+        // 칸 간격(pt) / 가운데 기준 좌우로 그릴 칸 수(창 밖 여유 1칸 포함) / 별 아이콘 변.
+        let slot: CGFloat = 30
+        let span = 3
+        let side: CGFloat = 26
+        return ZStack {
+            ForEach(Array(ordered.enumerated()), id: \.element.id) { i, d in
+                let delta = CGFloat(i - currentIndex)
+                if abs(delta) <= CGFloat(span) {
+                    // 가운데(=0)에서 한 칸 벗어나면 강조가 0, 창(가운데 ±2.5칸) 가장자리에서 사라진다.
+                    let emphasis = max(0, min(1, 1 - abs(delta)))
+                    let edgeFade = max(0, min(1, 2.5 - abs(delta)))
+                    ZStack {
+                        if emphasis > 0.01 {
+                            RadialGradient(
+                                colors: [StarStyle.color(d.starColor).opacity(0.9), .clear],
+                                center: .center, startRadius: 0, endRadius: side / 2
+                            )
+                            .opacity(0.35 * emphasis)
+                        }
+                        StarView(type: d.starType, colorIndex: d.starColor, size: side)
+                    }
+                    .frame(width: side, height: side)
+                    .scaleEffect(0.85 + 0.35 * emphasis)
+                    .opacity((0.35 + 0.65 * emphasis) * edgeFade)
+                    .offset(x: delta * slot)
+                }
+            }
+        }
+        .frame(width: slot * 5, height: 38)
+        .clipped()
+        .animation(.easeOut(duration: 0.26), value: currentIndex)
     }
 }
 

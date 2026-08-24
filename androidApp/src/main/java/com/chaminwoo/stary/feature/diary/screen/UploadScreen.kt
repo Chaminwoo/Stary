@@ -88,6 +88,7 @@ import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
+import com.chaminwoo.stary.core.util.BoomerangHelper
 import com.chaminwoo.stary.core.util.ImageCropHelper
 import com.chaminwoo.stary.core.util.ImageUploadHelper
 import com.chaminwoo.stary.core.util.LocationHelper
@@ -123,8 +124,11 @@ fun UploadScreen(
     var content by remember { mutableStateOf("") }
     var visibilityType by remember { mutableStateOf("public") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    // 부메랑(3초 움짤) GIF — 커스텀 촬영 화면에서 생성. 이미지와 배타(하나만 첨부).
-    var boomerangFile by remember { mutableStateOf<java.io.File?>(null) }
+    // 부메랑(3초 움짤) — 촬영 화면이 넘겨준 **원본 프레임**을 그대로 들고 있다가 저장 직전에 GIF 로 굽는다.
+    // (미리보기 프레임 안에서 사진과 똑같이 위치·확대를 더 조절할 수 있게 하기 위함.) 이미지와 배타.
+    var boomerangFrames by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
+    // 촬영 화면에서 정한 크롭 상태(offset 은 프레임 대비 비율) — 프레임 크기를 잰 뒤 그대로 이어받는다.
+    var boomerangInit by remember { mutableStateOf<Triple<Float, Float, Float>?>(null) }
     var showBoomerangCapture by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
     var showImageSourceDialog by remember { mutableStateOf(false) }
@@ -139,15 +143,22 @@ fun UploadScreen(
     // 사진 크롭(고정 비율 프레임 안에서 위치/확대 지정)
     val cropController = remember { CropController() }
     LaunchedEffect(selectedImageUri) {
-        val uri = selectedImageUri
-        if (uri == null) {
-            cropController.bitmap = null
-        } else {
-            cropController.reset()
-            cropController.bitmap = withContext(Dispatchers.IO) {
-                ImageCropHelper.loadDownsampled(context, uri)
-            }
-        }
+        val uri = selectedImageUri ?: return@LaunchedEffect
+        cropController.setPhoto(null)
+        cropController.setPhoto(withContext(Dispatchers.IO) { ImageCropHelper.loadDownsampled(context, uri) })
+    }
+    // 부메랑 — 촬영 화면에서 정한 위치·확대를 이 화면 프레임 크기에 맞춰 그대로 이어받는다.
+    // (프레임 크기를 잰 뒤여야 계산할 수 있으므로 frame 도 키에 넣는다.)
+    LaunchedEffect(boomerangFrames, cropController.frame) {
+        val init = boomerangInit ?: return@LaunchedEffect
+        val bmp = boomerangFrames.firstOrNull() ?: return@LaunchedEffect
+        val fw = cropController.frame.width.toFloat()
+        val fh = cropController.frame.height.toFloat()
+        if (fw <= 0f || fh <= 0f) return@LaunchedEffect
+        cropController.minScale = BoomerangHelper.minScaleFor(bmp.width, bmp.height, fw, fh)
+        cropController.scale = init.first.coerceIn(cropController.minScale, 4f)
+        cropController.offset = Offset(init.second * fw, init.third * fh)
+        boomerangInit = null
     }
 
     // 별 모양/색 — iOS UploadScreen 의 무한 회전 휠(WheelPicker) 구조 패리티(선택 = 항상 정중앙).
@@ -168,10 +179,10 @@ fun UploadScreen(
     )
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success) { selectedImageUri = cameraUri.value; boomerangFile = null }
+        if (success) { selectedImageUri = cameraUri.value; boomerangFrames = emptyList() }
     }
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { selectedImageUri = it; boomerangFile = null }
+        uri?.let { selectedImageUri = it; boomerangFrames = emptyList() }
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
@@ -258,14 +269,13 @@ fun UploadScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                    .then(if (selectedImageUri == null && boomerangFile == null) Modifier.clickable { showImageSourceDialog = true } else Modifier),
+                    .then(if (selectedImageUri == null && boomerangFrames.isEmpty()) Modifier.clickable { showImageSourceDialog = true } else Modifier),
                 contentAlignment = Alignment.Center
             ) {
                 when {
-                    boomerangFile != null -> com.chaminwoo.stary.core.ui.GifImage(
-                        model = boomerangFile, modifier = Modifier.matchParentSize()
-                    )
-                    selectedImageUri != null -> ImageCropFrame(controller = cropController, modifier = Modifier.matchParentSize())
+                    // 사진도 3초 움짤도 같은 프레임 — 드래그로 위치, 두 손가락으로 확대/축소.
+                    selectedImageUri != null || boomerangFrames.isNotEmpty() ->
+                        ImageCropFrame(controller = cropController, modifier = Modifier.matchParentSize())
                     else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Filled.CameraAlt, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(36.dp))
                         Spacer(Modifier.height(8.dp))
@@ -274,7 +284,7 @@ fun UploadScreen(
                 }
             }
 
-            if (selectedImageUri != null || boomerangFile != null) {
+            if (selectedImageUri != null || boomerangFrames.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { showImageSourceDialog = true }) {
@@ -452,9 +462,25 @@ fun UploadScreen(
                         var imageUrl = ""
                         var videoUrl = ""
                         when {
-                            boomerangFile != null -> {
-                                // 부메랑 움짤(GIF) — videoUrl 필드에 저장(스키마 유지, .gif 로 판별)
-                                val result = ImageUploadHelper.uploadGifResult(context, boomerangFile!!)
+                            boomerangFrames.isNotEmpty() -> {
+                                // 부메랑 움짤(GIF) — 지금 프레임에서 보이는 그대로 잘라 인코딩한 뒤
+                                // videoUrl 필드에 저장(스키마 유지, .gif 로 판별).
+                                val gif = withContext(Dispatchers.Default) {
+                                    runCatching {
+                                        val cropped = BoomerangHelper.cropFrames(
+                                            boomerangFrames,
+                                            cropController.frame.width.toFloat(),
+                                            cropController.frame.height.toFloat(),
+                                            cropController.scale, cropController.offset.x, cropController.offset.y,
+                                        )
+                                        BoomerangHelper.encodeToFile(context, cropped)
+                                    }.getOrNull()
+                                }
+                                if (gif == null) {
+                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.boomer_failed))
+                                    isUploading = false; return@launch
+                                }
+                                val result = ImageUploadHelper.uploadGifResult(context, gif)
                                 if (!result.isSuccess) {
                                     com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
                                     isUploading = false; return@launch
@@ -464,7 +490,7 @@ fun UploadScreen(
                             selectedImageUri != null -> {
                                 // 크롭 프레임 상태로 잘라낸 이미지를 업로드(실패 시 원본으로 폴백).
                                 val uploadUri = withContext(Dispatchers.IO) {
-                                    val bmp = cropController.bitmap
+                                    val bmp = cropController.first
                                     if (bmp != null && cropController.frame.width > 0) {
                                         ImageCropHelper.cropToFile(
                                             context, bmp,
@@ -511,8 +537,10 @@ fun UploadScreen(
         // 부메랑(3초 움짤) 커스텀 촬영 — 전체 화면 오버레이
         if (showBoomerangCapture) {
             BoomerangCaptureScreen(
-                onResult = { file ->
-                    boomerangFile = file
+                onResult = { frames, scale, offsetNormX, offsetNormY ->
+                    boomerangFrames = frames
+                    boomerangInit = Triple(scale, offsetNormX, offsetNormY)
+                    cropController.setBoomerang(frames)
                     selectedImageUri = null
                     showBoomerangCapture = false
                 },
@@ -525,20 +553,52 @@ fun UploadScreen(
 /**
  * 크롭 상태 보유자. 프레임을 항상 덮는 cover 배율 위에 사용자 핀치(scale)와 드래그(offset)를 얹고,
  * 이미지가 프레임을 벗어나 빈 공간이 생기지 않도록 offset 을 클램프한다.
+ *
+ * 사진(1장)과 부메랑(3초 움짤, 여러 장)이 **같은 프레임/같은 조작**을 쓴다 —
+ * 부메랑은 [minScale] 을 촬영 원본이 통째로 들어오는 배율까지 낮춰 화각을 다 담을 수도 있다.
  */
 private class CropController {
-    var bitmap by mutableStateOf<Bitmap?>(null)
+    /** 크롭 대상 원본. 사진은 1장, 부메랑은 촬영 프레임 전부. */
+    var frames by mutableStateOf<List<Bitmap>>(emptyList())
+        private set
+    /** 미리보기 재생 시퀀스(부메랑은 정→역, 사진은 그대로 1장). */
+    var playback by mutableStateOf<List<Bitmap>>(emptyList())
+        private set
+    /** 부메랑 재생 위치(사진이면 항상 0). */
+    var frameIndex by mutableIntStateOf(0)
     var scale by mutableFloatStateOf(1f)
     var offset by mutableStateOf(Offset.Zero)
     var frame by mutableStateOf(IntSize.Zero)
+    /** 축소 하한 — 사진은 1f(프레임을 빈틈없이 덮는다), 부메랑은 화각 전체가 들어오는 배율. */
+    var minScale by mutableFloatStateOf(1f)
 
-    fun reset() { scale = 1f; offset = Offset.Zero }
+    val first: Bitmap? get() = frames.firstOrNull()
+    val current: Bitmap? get() = playback.getOrNull(if (playback.isEmpty()) 0 else frameIndex % playback.size)
+
+    fun setPhoto(bmp: Bitmap?) {
+        frames = listOfNotNull(bmp)
+        playback = frames
+        frameIndex = 0
+        minScale = 1f
+        reset()
+    }
+
+    /** 부메랑 촬영 프레임을 건다(위치·확대는 호출부가 촬영 화면 상태로 이어붙인다). */
+    fun setBoomerang(captured: List<Bitmap>) {
+        frames = captured
+        playback = BoomerangHelper.boomerangSequence(captured)
+        frameIndex = 0
+        minScale = 1f   // 실제 하한은 프레임 크기를 잰 뒤 호출부가 채운다.
+        reset()
+    }
+
+    fun reset() { scale = minScale; offset = Offset.Zero }
 
     fun onTransform(zoomChange: Float, panChange: Offset) {
-        val bmp = bitmap ?: return
+        val bmp = first ?: return
         val fw = frame.width.toFloat(); val fh = frame.height.toFloat()
         if (fw <= 0f || fh <= 0f) return
-        scale = (scale * zoomChange).coerceIn(1f, 4f)
+        scale = (scale * zoomChange).coerceIn(minScale, 4f)
         val dispScale = max(fw / bmp.width, fh / bmp.height) * scale
         val dispW = bmp.width * dispScale
         val dispH = bmp.height * dispScale
@@ -549,23 +609,35 @@ private class CropController {
     }
 }
 
-/** 고정 비율 프레임 안에서 이미지를 cover-fit 으로 그리고 드래그/핀치로 위치·확대를 받는다. */
+/**
+ * 고정 비율 프레임 안에서 사진(또는 3초 움짤)을 cover-fit 으로 그리고
+ * 드래그/핀치로 위치·확대를 받는다. 움짤이면 프레임을 돌려가며 재생한다.
+ */
 @Composable
 private fun ImageCropFrame(controller: CropController, modifier: Modifier) {
-    val bmp = controller.bitmap
+    // 움짤 재생 — 사진(1장)일 땐 돌지 않는다.
+    val playbackSize = controller.playback.size
+    LaunchedEffect(playbackSize) {
+        if (playbackSize <= 1) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(BoomerangHelper.FRAME_DELAY_CS * 10L)
+            controller.frameIndex = (controller.frameIndex + 1) % playbackSize
+        }
+    }
     Box(
         modifier = modifier
             .clipToBounds()
             .onSizeChanged { controller.frame = it },
         contentAlignment = Alignment.Center
     ) {
+        val bmp = controller.current
         if (bmp == null) {
             com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 28.dp, color = Color.White)
             return@Box
         }
-        val image = remember(bmp) { bmp.asImageBitmap() }
+        val image = bmp.asImageBitmap()
         Canvas(
-            modifier = Modifier.matchParentSize().pointerInput(bmp) {
+            modifier = Modifier.matchParentSize().pointerInput(controller.frames) {
                 detectTransformGestures { _, pan, zoom, _ -> controller.onTransform(zoom, pan) }
             }
         ) {

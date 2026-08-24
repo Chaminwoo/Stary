@@ -1,5 +1,7 @@
 ﻿package com.chaminwoo.stary.feature.profile.screen
 
+import android.net.Uri
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.compose.foundation.Image
@@ -125,8 +127,10 @@ fun ProfileScreen(
     val profileVm: ProfileViewModel = viewModel(factory = ProfileViewModel.factory(userId))
     val profileImageUrl by profileVm.profileImageUrl.collectAsState()
     val isUploading by profileVm.isUploading.collectAsState()
+    // 고른 사진은 바로 올리지 않고 **조절 다이얼로그**(위치/확대)를 거쳐 정사각으로 잘라 올린다.
+    var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     val galleryLauncher = rememberLauncherForActivityResult(GetContent()) { uri ->
-        uri?.let { profileVm.uploadProfileImage(it) }
+        uri?.let { pendingPhotoUri = it }
     }
     val uploadError by profileVm.uploadError.collectAsState()
     LaunchedEffect(uploadError) {
@@ -186,6 +190,17 @@ fun ProfileScreen(
         } else {
             repo.setEquippedTitle(userId, local)
         }
+    }
+
+    pendingPhotoUri?.let { picked ->
+        com.chaminwoo.stary.core.ui.ProfilePhotoCropDialog(
+            uri = picked,
+            onCancel = { pendingPhotoUri = null },
+            onConfirm = { cropped ->
+                pendingPhotoUri = null
+                profileVm.uploadProfileImage(cropped)
+            },
+        )
     }
 
     Box(modifier = modifier.fillMaxSize()) {

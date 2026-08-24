@@ -5,10 +5,14 @@ import UIKit
 ///
 /// 프리뷰가 화면을 꽉 채우고 하단에 카메라 전환 + 가운데 촬영 버튼만 둔다(안내 텍스트 없음).
 /// 촬영하면 약 1.5초간 프레임을 모으고, **사진 크롭처럼 드래그/핀치로 4:3 프레임 안에서
-/// 위치·확대를 조정**한 뒤 확정하면 3초 GIF 로 만들어 [onResult] 로 돌려준다.
+/// 위치·확대를 조정**한 뒤 확정한다.
+///
+/// 확정해도 여기서 GIF 를 굽지 않는다 — 업로드 화면에서도 위치·확대를 더 조절할 수 있어야 하므로
+/// **촬영 원본 프레임과 지금까지의 크롭 상태**를 [onResult] 로 넘기고, 인코딩은 저장 직전에 한다.
+/// offset 은 프레임 크기로 나눈 비율로 넘겨(프레임 폭이 달라도 같은 자리) 재현한다.
 /// (iOS 는 시스템 뒤로가기가 없어 좌상단에 반투명 닫기만 최소로 유지 — Android 는 뒤로가기.)
 struct BoomerangCaptureView: View {
-    let onResult: (Data) -> Void
+    let onResult: (_ frames: [UIImage], _ scale: CGFloat, _ offsetNorm: CGSize) -> Void
     @Environment(\.dismiss) private var dismiss
     @StateObject private var camera = BoomerangCamera()
 
@@ -269,28 +273,17 @@ struct BoomerangCaptureView: View {
         )
     }
 
-    /// 확정 — 크롭 상태로 전 프레임을 잘라 GIF 인코딩(백그라운드) 후 반환.
+    /// 확정 — 촬영 원본 프레임 + 크롭 상태(offset 은 프레임 대비 비율)를 그대로 돌려준다.
+    /// GIF 인코딩은 업로드 화면에서 저장 직전에 한 번만 한다(여기서 구우면 두 번 잘리게 된다).
     private func confirmCrop() {
         // 제스처와 동일한 기준(조정 프레임 실측 크기). 실측 전이면 화면 폭으로 폴백.
         let fw = adjustFrameSize.width > 0 ? adjustFrameSize.width : UIScreen.main.bounds.width
         let fh = adjustFrameSize.height > 0 ? adjustFrameSize.height : fw / BoomerangConfig.aspect
-        stage = .encoding
-        let frames = capturedFrames
-        let scale = cropScale
-        let offset = cropOffset
-        Task {
-            let data = await Task.detached(priority: .userInitiated) {
-                let cropped = BoomerangConfig.cropFrames(frames, frameW: fw, frameH: fh, scale: scale, offset: offset)
-                let seq = BoomerangConfig.boomerangSequence(cropped)
-                return BoomerangConfig.encodeGif(frames: seq, delay: BoomerangConfig.frameDelay)
-            }.value
-            await MainActor.run {
-                if let data {
-                    onResult(data)
-                } else {
-                    stage = .adjust
-                }
-            }
-        }
+        onResult(
+            capturedFrames,
+            cropScale,
+            CGSize(width: fw > 0 ? cropOffset.width / fw : 0,
+                   height: fh > 0 ? cropOffset.height / fh : 0)
+        )
     }
 }

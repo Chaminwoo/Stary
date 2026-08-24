@@ -51,6 +51,9 @@
     <string name="report_reason_inappropriate">不適切なコンテンツ</string>
     <string name="report_reason_impersonation">なりすまし</string>
     <string name="report_reason_other">その他</string>
+    <string name="report_reason_detail_hint">理由をご記入ください</string>
+    <string name="profile_photo_adjust">写真を調整</string>
+    <string name="profile_photo_adjust_hint">ドラッグで位置、ピンチで大きさを調整</string>
     <string name="toast_reported">報告を受け付けました</string>
     <string name="block">ブロック</string>
     <string name="unblock">ブロック解除</string>

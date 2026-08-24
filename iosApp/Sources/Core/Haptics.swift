@@ -18,11 +18,14 @@ enum Haptics {
 
     private static var enabled: Bool { AppSettings.shared.hapticsEnabled }
 
-    /// 곧 진동이 필요할 때 미리 예열(드래그 시작 등) — 첫 tick 지연을 없앤다.
+    /// 곧 진동이 필요할 때 미리 예열(드래그 시작, 업로드 시작 등) — 첫 진동 지연/누락을 없앤다.
+    /// ⚠️ `UINotificationFeedbackGenerator` 는 예열 없이 부르면 탭틱 엔진이 잠들어 있어
+    ///    **첫 한 번이 통째로 씹히는** 일이 잦다 → [celebrate] 대상도 여기서 함께 깨운다.
     static func prepare() {
         guard enabled else { return }
         selection.prepare()
         mediumGen.prepare()
+        notify.prepare()
     }
 
     /// 눈금/스크롤 스냅 — 가장 약한 한 점(다이얼, 휠 피커).
@@ -49,10 +52,18 @@ enum Haptics {
         heavyGen.impactOccurred()
     }
 
-    /// 보상 패턴 — 업적 달성/별 탄생처럼 축하하는 순간.
+    /// 보상 패턴 — 업적 달성/별 탄생/업로드 성공처럼 축하하는 순간.
+    /// Android `Haptics.celebrate` 는 "짧게 두 번 튕긴 뒤 여운"이라 iOS 도 알림 진동 뒤에
+    /// 가벼운 여운을 하나 붙인다. 예열도 함께 — 그냥 부르면 첫 진동이 씹히는 기기가 있다.
     static func celebrate() {
         guard enabled else { return }
+        notify.prepare()
         notify.notificationOccurred(.success)
+        Task {
+            try? await Task.sleep(nanoseconds: 110_000_000)
+            guard enabled else { return }
+            light.impactOccurred(intensity: 0.55)
+        }
     }
 
     /// 파장(warp) 전용 — 묵직한 한 방 뒤 파문이 번지듯 잦아든다(Android createWaveform 대응).

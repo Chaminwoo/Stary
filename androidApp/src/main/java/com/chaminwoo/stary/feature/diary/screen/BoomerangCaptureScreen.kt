@@ -156,7 +156,7 @@ private enum class BoomerStage { LIVE, CAPTURING, ADJUST, ENCODING }
  */
 @Composable
 fun BoomerangCaptureScreen(
-    onResult: (File) -> Unit,
+    onResult: (frames: List<Bitmap>, scale: Float, offsetNormX: Float, offsetNormY: Float) -> Unit,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -260,24 +260,15 @@ fun BoomerangCaptureScreen(
                     stage = BoomerStage.LIVE
                 },
                 onConfirm = { frameW, frameH, cropScale, cropOffset ->
-                    stage = BoomerStage.ENCODING
-                    scope.launch {
-                        val file = runCatching {
-                            withContext(Dispatchers.Default) {
-                                val cropped = BoomerangHelper.cropFrames(
-                                    capturedFrames, frameW, frameH,
-                                    cropScale, cropOffset.x, cropOffset.y,
-                                )
-                                BoomerangHelper.encodeToFile(context, cropped)
-                            }
-                        }.getOrNull()
-                        if (file != null) {
-                            onResult(file)
-                        } else {
-                            StaryToast.show(context.getString(R.string.boomer_failed))
-                            stage = BoomerStage.ADJUST
-                        }
-                    }
+                    // 여기서 인코딩하지 않는다 — 업로드 화면에서도 위치·확대를 더 조절할 수 있어야 하므로
+                    // **촬영 원본 프레임과 지금까지의 크롭 상태**를 그대로 넘기고, GIF 는 저장 직전에 만든다.
+                    // offset 은 프레임 크기로 나눈 비율로 넘겨(프레임 폭이 달라도 같은 자리) 재현한다.
+                    onResult(
+                        capturedFrames,
+                        cropScale,
+                        if (frameW > 0f) cropOffset.x / frameW else 0f,
+                        if (frameH > 0f) cropOffset.y / frameH else 0f,
+                    )
                 },
             )
         } else {

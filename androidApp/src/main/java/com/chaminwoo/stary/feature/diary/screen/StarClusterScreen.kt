@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -171,54 +172,63 @@ fun StarClusterScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             Spacer(Modifier.height(18.dp))
 
-            // 헤더 — 겹쳐진 별 모양들을 살짝 겹쳐 보여준다.
-            // 카드를 스와이프하면 **지금 보고 있는 별만 밝아지고 커진다**(나머지는 흐릿).
-            // 헤더는 5개까지만 그리므로 6번째 이후 카드에선 아무것도 강조되지 않는다(의도).
-            Row(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                diaries.take(5).forEachIndexed { i, d ->
-                    val active = currentIndex == i
-                    val emphasis by animateFloatAsState(
-                        targetValue = if (active) 1f else 0f,
-                        animationSpec = tween(220),
-                        label = "cluster_header_emphasis",
-                    )
-                    val base = if (i == 0) 30.dp else 22.dp
-                    Box(
-                        modifier = Modifier
-                            .size(base)
-                            .offset(x = (-6 * i).dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // 활성 별에만 옅은 후광 — 별색 그대로.
-                        if (emphasis > 0.01f) {
-                            Box(
+            // 헤더 — 겹쳐진 별 모양들. 카드를 스와이프하면 **지금 보고 있는 별만 밝아지고 커진다**.
+            //  · 4개 이하: 예전처럼 살짝 겹친 고정 배치.
+            //  · 5개 이상: 고정 배치로는 6번째부터 밀려서 안 보이므로, **다이얼처럼**
+            //    현재 별이 항상 가운데 오도록 좌우로 흘려보낸다([ClusterStarDial]).
+            if (diaries.size >= 5) {
+                ClusterStarDial(
+                    diaries = diaries,
+                    currentIndex = currentIndex,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                )
+            } else {
+                Row(
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    diaries.forEachIndexed { i, d ->
+                        val active = currentIndex == i
+                        val emphasis by animateFloatAsState(
+                            targetValue = if (active) 1f else 0f,
+                            animationSpec = tween(220),
+                            label = "cluster_header_emphasis",
+                        )
+                        val base = if (i == 0) 30.dp else 22.dp
+                        Box(
+                            modifier = Modifier
+                                .size(base)
+                                .offset(x = (-6 * i).dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // 활성 별에만 옅은 후광 — 별색 그대로.
+                            if (emphasis > 0.01f) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer { alpha = 0.35f * emphasis }
+                                        .background(
+                                            Brush.radialGradient(
+                                                listOf(
+                                                    StarStyle.colorOf(d.starColor).copy(alpha = 0.9f),
+                                                    Color.Transparent,
+                                                )
+                                            ),
+                                            CircleShape
+                                        )
+                                )
+                            }
+                            StarShapeIcon(
+                                type = d.starType, colorIndex = d.starColor,
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .graphicsLayer { alpha = 0.35f * emphasis }
-                                    .background(
-                                        Brush.radialGradient(
-                                            listOf(
-                                                StarStyle.colorOf(d.starColor).copy(alpha = 0.9f),
-                                                Color.Transparent,
-                                            )
-                                        ),
-                                        CircleShape
-                                    )
+                                    .graphicsLayer {
+                                        alpha = 0.35f + 0.65f * emphasis
+                                        val s = 1f + 0.15f * emphasis
+                                        scaleX = s; scaleY = s
+                                    }
                             )
                         }
-                        StarShapeIcon(
-                            type = d.starType, colorIndex = d.starColor,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    alpha = 0.35f + 0.65f * emphasis
-                                    val s = 1f + 0.15f * emphasis
-                                    scaleX = s; scaleY = s
-                                }
-                        )
                     }
                 }
             }
@@ -318,6 +328,84 @@ fun StarClusterScreen(
                             .background(if (active) accent else Color.White.copy(alpha = 0.25f))
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 겹친 별 헤더 다이얼 — 별이 5개 이상일 때 쓴다.
+ *
+ * 창(window)은 항상 5칸이고, **현재 카드의 별이 가운데 칸**에 오도록 전체가 옆으로 흐른다
+ * (카드를 넘기면 다이얼이 한 칸씩 돌아가는 느낌). 가운데에서 멀수록 작아지고 흐려지며,
+ * 창 밖으로 나간 별은 잘려 사라진다 — 6번째 이후 별도 자기 차례엔 반드시 보인다.
+ * (iOS `StarClusterView.starDial` 패리티 — 값 drift 금지.)
+ */
+@Composable
+private fun ClusterStarDial(
+    diaries: List<Diary>,
+    currentIndex: Int,
+    modifier: Modifier = Modifier,
+) {
+    /** 칸 간격(dp) — 창 5칸이 헤더 가운데 들어오는 폭. */
+    val slot = 30.dp
+    /** 가운데 기준 좌우로 그릴 칸 수(창 밖 여유 1칸 포함). */
+    val span = 3
+    val slotPx = with(LocalDensity.current) { slot.toPx() }
+    // 카드 스냅과 같은 결로 부드럽게 도는 위치(정수 index → 실수 위치).
+    val dialPos by animateFloatAsState(
+        targetValue = currentIndex.toFloat(),
+        animationSpec = tween(260),
+        label = "cluster_dial_pos",
+    )
+    Box(
+        modifier = modifier
+            .width(slot * 5)
+            .height(38.dp)
+            .clipToBounds(),
+        contentAlignment = Alignment.Center
+    ) {
+        for (off in -span..span) {
+            val i = currentIndex + off
+            val d = diaries.getOrNull(i) ?: continue
+            val delta = i - dialPos
+            val dist = abs(delta)
+            // 가운데(=0)에서 한 칸 벗어나면 강조가 0 이 된다.
+            val emphasis = (1f - dist).coerceIn(0f, 1f)
+            // 창(가운데 ±2.5칸) 가장자리에서 서서히 사라진다.
+            val edgeFade = (2.5f - dist).coerceIn(0f, 1f)
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .graphicsLayer {
+                        translationX = delta * slotPx
+                        val s = 0.85f + 0.35f * emphasis
+                        scaleX = s; scaleY = s
+                        alpha = (0.35f + 0.65f * emphasis) * edgeFade
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                // 활성 별에만 옅은 후광 — 별색 그대로(고정 배치와 동일 값).
+                if (emphasis > 0.01f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = 0.35f * emphasis }
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(
+                                        StarStyle.colorOf(d.starColor).copy(alpha = 0.9f),
+                                        Color.Transparent,
+                                    )
+                                ),
+                                CircleShape
+                            )
+                    )
+                }
+                StarShapeIcon(
+                    type = d.starType, colorIndex = d.starColor,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }

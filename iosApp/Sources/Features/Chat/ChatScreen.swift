@@ -132,7 +132,7 @@ struct ChatScreen: View {
                 Spacer(minLength: 40)
                 if canDelete { DeleteWindowRing(createdAt: msg.createdAt) }
             }
-            Text(msg.text)
+            Text(msg.text.hangulWordWrapped)
                 .font(.minSans(15))                       // Android MessageBubble 15sp
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(Self.bubbleFill(mine: mine), in: RoundedRectangle(cornerRadius: 14))

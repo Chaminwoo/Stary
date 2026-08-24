@@ -102,19 +102,22 @@ struct DetailScreen: View {
         .navigationTitle(LocaleManager.shared.t(.navDetail))
         .navigationBarTitleDisplayMode(.inline)
         // (공유/신고/수정/삭제는 Android 처럼 좋아요 행 인라인 버튼 — 탑바 액션 없음)
-        .reportDialog(title: LocaleManager.shared.t(.reportDiary), isPresented: $showReportDialog) { reason in
+        .reportDialog(title: LocaleManager.shared.t(.reportDiary), isPresented: $showReportDialog) { reason, detail in
             guard let myUid = auth.uid, let id = diary.id else { return }
             Task {
                 // 관리자가 Console 에서 바로 검토하도록 다이어리 스냅샷을 함께 등록(체크리스트 28).
+                // "기타" 사유는 신고자가 적은 설명(reasonDetail)도 같이 남긴다.
+                var extra: [String: Any] = [
+                    "targetTitle": diary.title,
+                    "targetContent": String(diary.content.prefix(280)),
+                    "targetOwnerName": diary.userName,
+                    "targetImageUrl": diary.imageUrl.isEmpty ? diary.videoUrl : diary.imageUrl,
+                ]
+                if !detail.isEmpty { extra["reasonDetail"] = detail }
                 await ModerationRepository.report(
                     reporterId: myUid, type: "diary",
                     targetId: id, targetOwnerId: diary.userId, reason: reason,
-                    extra: [
-                        "targetTitle": diary.title,
-                        "targetContent": String(diary.content.prefix(280)),
-                        "targetOwnerName": diary.userName,
-                        "targetImageUrl": diary.imageUrl.isEmpty ? diary.videoUrl : diary.imageUrl,
-                    ])
+                    extra: extra)
                 showReportedConfirm = true
             }
         }
@@ -303,7 +306,7 @@ struct DetailScreen: View {
     // ── 본문 카드 — Android: 0xCC14181C 배경 + accent 그라데이션 테두리 ──
 
     private var bodyCard: some View {
-        Text(editedContent ?? diary.content)
+        Text((editedContent ?? diary.content).hangulWordWrapped)
             .font(.minSans(16))
             .lineSpacing(8)
             .foregroundStyle(Theme.textPrimary)
@@ -432,7 +435,7 @@ struct DetailScreen: View {
                                 }
                             }
                         }
-                        Text(c.content).font(.minSans(14)).foregroundStyle(Theme.textPrimary)
+                        Text(c.content.hangulWordWrapped).font(.minSans(14)).foregroundStyle(Theme.textPrimary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
