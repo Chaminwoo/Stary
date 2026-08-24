@@ -37,6 +37,11 @@ enum FirestoreService {
         users.document(userId).collection(AppConfig.Collections.blocked)
     }
 
+    /// users/{uid}/fcmTokens — 기기별 푸시 토큰(문서 id = 토큰).
+    static func fcmTokens(of uid: String) -> CollectionReference {
+        users.document(uid).collection(AppConfig.Collections.fcmTokens)
+    }
+
     static func messages(of chatId: String) -> CollectionReference {
         chats.document(chatId).collection(AppConfig.Collections.messages)
     }

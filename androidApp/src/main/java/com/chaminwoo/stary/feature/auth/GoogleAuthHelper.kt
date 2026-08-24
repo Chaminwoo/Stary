@@ -182,6 +182,8 @@ object GoogleAuthHelper {
 
     suspend fun signOut(context: Context) = withContext(Dispatchers.IO) {
         try {
+            // ⚠️ 인증이 살아 있는 지금 이 기기 토큰을 떼어낸다 — 로그아웃 뒤엔 규칙에 막혀 못 지운다.
+            currentUserId?.let { clearFcmToken(it) }
             currentUserId = null
             currentUserName = null
             currentUserPhotoUrl = null
@@ -260,20 +262,57 @@ object GoogleAuthHelper {
      * 현재 FCM 토큰 + FirebaseAuth uid 를 users/{uid} 에 기록.
      * 서버(Cloud Functions)가 이 토큰으로 푸시를 보내므로, 로그인/세션 복원마다 최신값으로 맞춘다.
      * (토큰 회전은 [com.chaminwoo.stary.push.StaryMessagingService.onNewToken] 이 별도로 처리)
+     *
+     * **두 곳에 쓴다**:
+     *  - `users/{uid}/fcmTokens/{token}` : 기기별(문서 id = 토큰). 한 계정이 폰+태블릿처럼
+     *    여러 기기에 로그인해도 **모든 기기**로 알림이 간다.
+     *  - `users/{uid}.fcmToken`          : 예전 단일 필드(구버전 서버 함수 호환).
      */
     suspend fun syncFcmToken(uid: String) {
         if (uid.isBlank()) return
         try {
             val fcmToken = FirebaseMessaging.getInstance().token.await()
-            val authUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-            staryFirestore.collection(StaryConfig.Collections.USERS)
-                .document(uid)
-                .set(mapOf("fcmToken" to fcmToken, "authUid" to authUid), SetOptions.merge())
-                .await()
-            // 이 문서에 fcmToken 이 없으면 서버가 그 사용자를 조용히 건너뛴다 → 푸시 미수신 1순위 확인 지점.
+            registerFcmToken(uid, fcmToken)
+            // 이 문서에 토큰이 없으면 서버가 그 사용자를 조용히 건너뛴다 → 푸시 미수신 1순위 확인 지점.
             Log.i(TAG, "fcmToken 저장 완료 users/$uid …${fcmToken.takeLast(8)}")
         } catch (e: Exception) {
             Log.w(TAG, "FCM 토큰 저장 실패: ${e.localizedMessage}")
+        }
+    }
+
+    /** 토큰 1건을 기기 문서 + 예전 단일 필드에 기록. [syncFcmToken] 과 토큰 회전 콜백이 공유한다. */
+    suspend fun registerFcmToken(uid: String, fcmToken: String) {
+        if (uid.isBlank() || fcmToken.isBlank()) return
+        val authUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+        val userDoc = staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
+        userDoc.set(mapOf("fcmToken" to fcmToken, "authUid" to authUid), SetOptions.merge()).await()
+        userDoc.collection(StaryConfig.Collections.FCM_TOKENS)
+            .document(fcmToken)
+            .set(mapOf("platform" to "android", "updatedAt" to System.currentTimeMillis()))
+            .await()
+    }
+
+    /**
+     * 이 기기의 토큰을 사용자에게서 떼어낸다 — **로그아웃 직전**에 부른다.
+     *
+     * ⚠️ 안 지우면 이 기기 토큰이 이전 계정 문서에 남아, 그 계정으로 온 알림이
+     *    지금 로그인한 **다른 사람 화면에** 뜬다(또는 원래 주인은 못 받는다).
+     *    Firestore 규칙이 본인 문서만 허용하므로 **로그아웃 전(인증이 살아 있을 때)** 해야 한다.
+     */
+    suspend fun clearFcmToken(uid: String) {
+        if (uid.isBlank()) return
+        try {
+            val fcmToken = FirebaseMessaging.getInstance().token.await()
+            val userDoc = staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
+            userDoc.collection(StaryConfig.Collections.FCM_TOKENS).document(fcmToken).delete().await()
+            // 예전 단일 필드는 값이 이 기기 것일 때만 지운다(다른 기기가 나중에 쓴 값은 보존).
+            val current = userDoc.get().await().getString("fcmToken")
+            if (current == fcmToken) {
+                userDoc.update("fcmToken", com.google.firebase.firestore.FieldValue.delete()).await()
+            }
+            Log.i(TAG, "fcmToken 해제 완료 users/$uid …${fcmToken.takeLast(8)}")
+        } catch (e: Exception) {
+            Log.w(TAG, "FCM 토큰 해제 실패: ${e.localizedMessage}")
         }
     }
 

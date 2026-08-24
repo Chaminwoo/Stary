@@ -7,12 +7,12 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.chaminwoo.stary.MainActivity
 import com.chaminwoo.stary.R
-import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
-import com.chaminwoo.stary.shared.config.StaryConfig
-import com.google.firebase.firestore.SetOptions
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * FCM 수신 (체크리스트 8 — 클라이언트 부분).
@@ -27,18 +27,27 @@ import com.google.firebase.messaging.RemoteMessage
 class StaryMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
-        // 로그인 상태면 토큰 갱신을 프로필에 반영 (Function 발송용)
+        // 로그인 상태면 토큰 갱신을 프로필에 반영 (Function 발송용).
+        // 기기 문서(users/{uid}/fcmTokens/{token}) + 예전 단일 필드 양쪽에 쓴다.
         val uid = GoogleAuthHelper.currentUserId ?: return
-        staryFirestore.collection(StaryConfig.Collections.USERS)
-            .document(uid)
-            .set(mapOf("fcmToken" to token), SetOptions.merge())
-            .addOnFailureListener { Log.w(TAG, "fcmToken 저장 실패: ${it.localizedMessage}") }
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { GoogleAuthHelper.registerFcmToken(uid, token) }
+                .onFailure { Log.w(TAG, "fcmToken 저장 실패: ${it.localizedMessage}") }
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         // 앱이 전면이면 인앱 배너(InAppBanner)가 처리하므로 시스템 알림을 띄우지 않는다(이중 표시 방지).
         // 후면/종료 상태에서만 상단 heads-up 시스템 알림을 띄운다.
         if (com.chaminwoo.stary.core.util.AppForeground.isForeground) return
+
+        // 다른 계정 앞으로 온 알림은 무시 — 이 기기에서 로그아웃/계정 전환을 했는데
+        // 서버에 예전 토큰이 남아 있으면 남의 알림이 뜰 수 있다(recipientId 는 서버가 넣는다).
+        val recipientId = message.data["recipientId"]
+        if (!recipientId.isNullOrBlank() && recipientId != GoogleAuthHelper.currentUserId) {
+            Log.i(TAG, "다른 계정($recipientId) 알림 → 무시")
+            return
+        }
 
         val diaryId = message.data["diaryId"]
         val chatFriendId = message.data["chatFriendId"]

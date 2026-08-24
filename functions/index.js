@@ -33,6 +33,8 @@ const DIARIES = "diaries";
 const VIEWED_DIARIES = "viewedDiaries";
 const BLOCKED = "blocked";
 const REPORTS = "reports";
+/** users/{uid}/fcmTokens/{token} — 기기별 토큰(한 계정이 여러 기기에 로그인할 수 있다). */
+const FCM_TOKENS = "fcmTokens";
 const REGION = "asia-northeast3"; // stary-db 리전에 맞출 것
 const GRACE_MS = 7 * 24 * 60 * 60 * 1000; // 계정 삭제 유예 7일
 
@@ -87,6 +89,20 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
     const targets = friendDocs
       .map((d) => ({ uid: d.id, token: d.get("fcmToken") }))
       .filter((t) => typeof t.token === "string" && t.token.length > 0);
+    // 기기별 토큰(users/{uid}/fcmTokens) 도 합친다 — 한 계정이 여러 기기에 로그인한 경우.
+    const perDevice = await Promise.all(
+      friendDocs.map(async (d) => {
+        const snap = await db.collection(USERS).doc(d.id).collection(FCM_TOKENS).get();
+        return snap.docs.map((t) => ({ uid: d.id, token: t.id }));
+      })
+    );
+    const seen = new Set(targets.map((t) => t.token));
+    perDevice.flat().forEach((t) => {
+      if (t.token && !seen.has(t.token)) {
+        seen.add(t.token);
+        targets.push(t);
+      }
+    });
     if (targets.length === 0) {
       logger.info(`diary ${diaryId}: fcmToken 보유 친구 없음 → 발송 생략`);
       return;
@@ -121,7 +137,7 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
           code === "messaging/registration-token-not-registered" ||
           code === "messaging/invalid-registration-token"
         ) {
-          deadTokenOwners.push(batch[idx].uid);
+          deadTokenOwners.push(batch[idx]);
         } else {
           logger.warn(`diary ${diaryId}: ${batch[idx].uid} 발송 실패 (${code})`);
         }
@@ -129,13 +145,10 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
     }
 
     if (deadTokenOwners.length > 0) {
-      const cleanup = db.batch();
-      deadTokenOwners.forEach((uid) => {
-        cleanup.update(db.collection(USERS).doc(uid), {
-          fcmToken: FieldValue.delete(),
-        });
-      });
-      await cleanup.commit();
+      // 기기 문서 + (같은 값이면) 예전 단일 필드까지 정리.
+      for (const dead of deadTokenOwners) {
+        await pruneToken(db, dead.uid, dead.token);
+      }
     }
 
     logger.info(
@@ -149,51 +162,89 @@ const CHATS = "chats";
 const NOTIFICATIONS = "notifications";
 
 /**
- * 단일 사용자에게 data 메시지 발송. 토큰 없으면 생략, 만료 토큰은 정리.
+ * 한 사용자의 **모든 기기 토큰**을 모은다.
+ *  - users/{uid}/fcmTokens/{token} : 기기별(문서 id = 토큰). 한 계정이 폰+아이패드처럼 여러 기기에 로그인 가능.
+ *  - users/{uid}.fcmToken          : 예전 단일 필드(구버전 앱 호환) — 함께 넣고 중복은 제거한다.
+ */
+async function collectTokens(db, uid) {
+  const userRef = db.collection(USERS).doc(uid);
+  const [userSnap, tokenSnap] = await Promise.all([
+    userRef.get(),
+    userRef.collection(FCM_TOKENS).get(),
+  ]);
+  if (!userSnap.exists) {
+    // 수신자 프로필 문서가 없음 = uid 가 잘못됐다는 뜻(앱의 appUserId 규칙 확인 필요).
+    logger.warn(`sendToUser ${uid}: users 문서 없음 → 발송 생략`);
+    return null;
+  }
+  const tokens = new Set();
+  tokenSnap.docs.forEach((d) => {
+    if (d.id) tokens.add(d.id);
+  });
+  const legacy = userSnap.get("fcmToken");
+  if (typeof legacy === "string" && legacy.length > 0) tokens.add(legacy);
+  return [...tokens];
+}
+
+/** 죽은 토큰 제거 — 기기 문서와, 같은 값이면 예전 단일 필드까지. */
+async function pruneToken(db, uid, token) {
+  const userRef = db.collection(USERS).doc(uid);
+  await userRef.collection(FCM_TOKENS).doc(token).delete().catch(() => {});
+  const snap = await userRef.get();
+  if (snap.exists && snap.get("fcmToken") === token) {
+    await userRef.update({ fcmToken: FieldValue.delete() }).catch(() => {});
+  }
+}
+
+/**
+ * 단일 사용자에게 data 메시지 발송 — **로그인해 둔 모든 기기**로 보낸다.
+ * 토큰이 하나도 없으면 생략하고, 만료 토큰은 정리한다.
  * (data 값은 모두 문자열이어야 함 — 호출부에서 보장)
  */
 async function sendToUser(uid, data) {
   if (!uid) return false;
   const db = getFirestore(DATABASE_ID);
-  const userSnap = await db.collection(USERS).doc(uid).get();
-  if (!userSnap.exists) {
-    // 수신자 프로필 문서가 없음 = uid 가 잘못됐다는 뜻(앱의 appUserId 규칙 확인 필요).
-    logger.warn(`sendToUser ${uid}: users 문서 없음 → 발송 생략`);
-    return false;
-  }
-  const token = userSnap.get("fcmToken");
-  if (typeof token !== "string" || token.length === 0) {
+  const tokens = await collectTokens(db, uid);
+  if (tokens === null) return false;
+  if (tokens.length === 0) {
     // ⚠️ "푸시가 안 온다"의 1순위 원인. 수신자 앱이 토큰을 저장하지 못한 상태다.
     //    (iOS: APNs 인증 키 미등록/푸시 권한 거부/시뮬레이터, Android: 알림 권한 거부 등)
-    logger.warn(`sendToUser ${uid}: fcmToken 없음 → 발송 생략(수신자 앱이 토큰 미저장)`);
+    logger.warn(`sendToUser ${uid}: 토큰 없음 → 발송 생략(수신자 앱이 토큰 미저장)`);
     return false;
   }
-  try {
-    const messageId = await getMessaging().send({
-      token,
-      // notification 페이로드 → 앱이 백그라운드/종료 상태여도 시스템이 트레이 알림을 표시한다.
-      notification: { title: data.title, body: data.body },
-      data,
-      android: ANDROID_OPTS,
-      apns: APNS_OPTS,
-    });
-    logger.info(`sendToUser ${uid}: 발송 성공 ${messageId}`);
-    return true;
-  } catch (e) {
-    const code = e && e.code;
+  // 잘못된 기기(로그아웃 뒤 다른 계정이 쓰는 기기)에서 남의 알림이 뜨지 않도록 수신자를 명시한다.
+  const payload = { ...data, recipientId: uid };
+  const res = await getMessaging().sendEachForMulticast({
+    tokens,
+    // notification 페이로드 → 앱이 백그라운드/종료 상태여도 시스템이 트레이 알림을 표시한다.
+    notification: { title: data.title, body: data.body },
+    data: payload,
+    android: ANDROID_OPTS,
+    apns: APNS_OPTS,
+  });
+  const dead = [];
+  res.responses.forEach((r, i) => {
+    if (r.success) return;
+    const code = r.error && r.error.code;
     if (
       code === "messaging/registration-token-not-registered" ||
       code === "messaging/invalid-registration-token"
     ) {
-      // 재설치/토큰 회전으로 죽은 토큰 — 지워서 다음 로그인 때 새로 받게 한다.
-      logger.warn(`sendToUser ${uid}: 만료된 토큰 → 삭제(${code})`);
-      await db.collection(USERS).doc(uid).update({ fcmToken: FieldValue.delete() });
+      dead.push(tokens[i]);
     } else {
-      // iOS 에서 APNs 키 미등록이면 여기로 온다(third-party auth error 등).
-      logger.error(`sendToUser ${uid} 발송 실패 (${code}): ${e && e.message}`);
+      // iOS 에서 APNs 인증 키(.p8) 미등록이면 여기로 온다(third-party auth error 등).
+      logger.error(`sendToUser ${uid} 발송 실패 (${code}): ${r.error && r.error.message}`);
     }
-    return false;
+  });
+  for (const t of dead) {
+    logger.warn(`sendToUser ${uid}: 만료된 토큰 → 삭제(…${t.slice(-8)})`);
+    await pruneToken(db, uid, t);
   }
+  logger.info(
+    `sendToUser ${uid}: 기기 ${tokens.length}대 중 ${res.successCount}대 발송 성공` +
+      (dead.length ? `, 만료 토큰 ${dead.length}개 정리` : "")
+  );
+  return res.successCount > 0;
 }
 
 /**

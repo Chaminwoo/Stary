@@ -152,6 +152,13 @@ match /chats/{chatId} {
         allow write: if isMe(userId) || isMe(friendId);
       }
 
+      // 기기별 푸시 토큰(문서 id = FCM 토큰). 본인만 읽고 쓴다 —
+      // 남이 읽으면 알림을 가로챌 수 있고, 남이 쓰면 엉뚱한 기기로 알림을 보낼 수 있다.
+      // (서버 Cloud Functions 는 Admin SDK 라 규칙을 우회한다.)
+      match /fcmTokens/{token} {
+        allow read, write: if isMe(userId);
+      }
+
       // 열람 기록·차단 목록: 본인 것만.
       match /viewedDiaries/{viewedId} {
         allow read, write: if isMe(userId);

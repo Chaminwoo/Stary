@@ -101,8 +101,21 @@ final class AuthManager: ObservableObject {
 
     func signOut() {
         isGuest = false
-        try? Auth.auth().signOut()
-        GIDSignIn.sharedInstance.signOut()
+        // ⚠️ 인증이 살아 있는 지금 이 기기 토큰을 떼어낸다 — 로그아웃 뒤엔 규칙에 막혀 못 지운다.
+        //    네트워크가 느려도 로그아웃이 막히지 않게 짧게(1.5초) 기다린 뒤 진행한다.
+        let uid = Self.appUserId(of: Auth.auth().currentUser)
+        Task { @MainActor in
+            if let uid {
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask { await PushManager.shared.clearToken(for: uid) }
+                    group.addTask { try? await Task.sleep(nanoseconds: 1_500_000_000) }
+                    _ = await group.next()
+                    group.cancelAll()
+                }
+            }
+            try? Auth.auth().signOut()
+            GIDSignIn.sharedInstance.signOut()
+        }
     }
 
     /// 계정 삭제 "예약"(soft) — 7일 유예. (Android `GoogleAuthHelper.requestDeletion` 패리티)

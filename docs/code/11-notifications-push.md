@@ -87,10 +87,15 @@ iOS: `Features/Notifications/NotificationsScreen.swift`, `NotificationsViewModel
    - `fcmToken 없음 → 발송 생략` → **수신자 앱이 토큰을 저장 못 한 상태**(3번).
    - `발송 실패 (…)` → APNs 키 미등록(iOS)·토큰 만료 등. 코드가 그대로 찍힌다.
    - `발송 성공 …` → 서버는 끝. 기기 쪽 문제(4번).
-3. **수신자 `users/{uid}.fcmToken` 이 실제로 있나** — Console > Firestore(stary-db) 에서 직접 확인.
+3. **수신자 토큰이 실제로 있나** — Console > Firestore(stary-db) 에서 직접 확인.
+   - `users/{uid}/fcmTokens/{token}` : **기기별**(문서 id = 토큰, 2026-08-25 신설). 로그인한 기기 수만큼 있어야 한다.
+   - `users/{uid}.fcmToken` : 예전 단일 필드(구버전 앱/함수 호환). 둘 다 없으면 서버가 조용히 건너뛴다.
    - Android 로그: `GoogleAuthHelper: fcmToken 저장 완료 users/…`
    - iOS 콘솔: `✅ fcmToken 저장 완료 users/…` / `⚠️ FCM 토큰 발급 실패` / `⚠️ 알림 권한 거부됨`
    - ⚠️ 토큰은 **로그인/세션 복원 시** 저장한다 → 앱을 한 번 껐다 켜야 갱신되는 경우가 있다.
+   - ⚠️ **한 기기에서 계정을 바꿔가며 테스트했다면** 예전 계정 문서에 이 기기 토큰이 남아 있을 수 있다.
+     지금은 로그아웃 시 떼어내지만(`clearFcmToken` / `PushManager.clearToken`), 그 전에 생긴 찌꺼기는
+     Console 에서 직접 지워야 한다. 서버가 보내는 `recipientId` 로 앱이 남의 알림은 무시한다.
 4. **기기 조건**
    - Android: 알림 권한(13+), 채널 `stary_default`(앱 실행 시 생성), 배터리 최적화 예외.
    - iOS: **실기기 필수**(시뮬레이터는 원격 푸시 불가), Push Notifications 권한(entitlement),
@@ -105,4 +110,7 @@ iOS: `Features/Notifications/NotificationsScreen.swift`, `NotificationsViewModel
 | 알림 팝업 on/off | `AppSettings.notificationsEnabled` | `AppSettings.shared` |
 | 알림 문구 | `strings.xml` + `notificationTitle(n)` | `L10n` + `AppNotification.displayText/emoji` |
 | 딥링크 키 | MainActivity EXTRA_* | `PushManager` userInfo(diaryId/chatFriendId/type) — 같은 키 |
-| 토큰 저장 | `GoogleAuthHelper.syncFcmToken` | `PushManager.setUser` |
+| 토큰 저장 | `GoogleAuthHelper.syncFcmToken` / `registerFcmToken` | `PushManager.setUser` → `saveTokenIfPossible` |
+| 토큰 해제(로그아웃) | `GoogleAuthHelper.clearFcmToken`(signOut 안에서) | `PushManager.clearToken(for:)`(AuthManager.signOut 안에서) |
+| 기기별 토큰 컬렉션 | shared `StaryConfig.Collections.FCM_TOKENS` | `AppConfig.Collections.fcmTokens` (**같은 값**) |
+| 남의 계정 알림 무시 | `StaryMessagingService` `recipientId` 비교 | `PushManager` `userInfo["recipientId"]` 비교 |

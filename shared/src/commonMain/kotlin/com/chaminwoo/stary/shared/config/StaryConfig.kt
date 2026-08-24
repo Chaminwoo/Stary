@@ -37,6 +37,9 @@ object StaryConfig {
         const val VIEWED_DIARIES = "viewedDiaries"
         /** 최상위: 1:1 친구 채팅 방 */
         const val CHATS = "chats"
+        /** users/{uid} 하위: 기기별 FCM 토큰(문서 id = 토큰). 한 계정이 여러 기기에 로그인할 수 있다. */
+        const val FCM_TOKENS = "fcmTokens"
+
         /** chats/{chatId} 하위: 채팅 메시지 */
         const val MESSAGES = "messages"
         /** users/{uid} 하위: 내가 차단한 사용자 (문서 id = 상대 uid) */

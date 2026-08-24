@@ -1,5 +1,6 @@
 import FirebaseAuth
 import FirebaseCore
+import FirebaseFirestore
 import FirebaseMessaging
 import Foundation
 import UIKit
@@ -105,8 +106,12 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
         saveTokenIfPossible()
     }
 
-    /// users/{uid} 에 fcmToken + authUid 기록(Android syncFcmToken 과 동일 필드).
-    /// 이 문서에 fcmToken 이 없으면 서버(Cloud Functions)는 그 사용자를 **조용히 건너뛴다**
+    /// 토큰을 **두 곳**에 기록(Android `GoogleAuthHelper.registerFcmToken` 패리티).
+    ///  - `users/{uid}/fcmTokens/{token}` : 기기별. 한 계정이 폰+아이패드처럼 여러 기기에 로그인해도
+    ///    **모든 기기**로 알림이 간다(예전엔 필드 하나뿐이라 마지막 로그인 기기만 받았다).
+    ///  - `users/{uid}.fcmToken`          : 예전 단일 필드(구버전 서버 함수 호환).
+    ///
+    /// 여기에 아무것도 없으면 서버(Cloud Functions)는 그 사용자를 **조용히 건너뛴다**
     /// → "푸시가 안 온다"의 1순위 확인 지점.
     private func saveTokenIfPossible() {
         guard let uid = appUserId, !uid.isEmpty,
@@ -118,10 +123,35 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
                     "fcmToken": token,
                     "authUid": authUid,
                 ], merge: true)
+                try await FirestoreService.fcmTokens(of: uid).document(token).setData([
+                    "platform": "ios",
+                    "updatedAt": FirestoreService.nowMillis,
+                ])
                 print("✅ fcmToken 저장 완료 users/\(uid) …\(token.suffix(8))")
             } catch {
                 print("⚠️ fcmToken 저장 실패: \(error.localizedDescription)")
             }
+        }
+    }
+
+    /// 이 기기의 토큰을 사용자에게서 떼어낸다 — **로그아웃 직전**에 부른다.
+    ///
+    /// ⚠️ 안 지우면 이 기기 토큰이 이전 계정 문서에 남아, 그 계정으로 온 알림이
+    ///    지금 로그인한 **다른 사람 화면에** 뜬다(또는 원래 주인은 못 받는다).
+    ///    Firestore 규칙이 본인 문서만 허용하므로 **로그아웃 전(인증이 살아 있을 때)** 해야 한다.
+    func clearToken(for uid: String) async {
+        guard !uid.isEmpty, let token = fcmToken, !token.isEmpty else { return }
+        do {
+            try await FirestoreService.fcmTokens(of: uid).document(token).delete()
+            // 예전 단일 필드는 값이 이 기기 것일 때만 지운다(다른 기기가 나중에 쓴 값은 보존).
+            let snap = try await FirestoreService.users.document(uid).getDocument()
+            if snap.get("fcmToken") as? String == token {
+                try await FirestoreService.users.document(uid)
+                    .updateData(["fcmToken": FieldValue.delete()])
+            }
+            print("✅ fcmToken 해제 완료 users/\(uid) …\(token.suffix(8))")
+        } catch {
+            print("⚠️ fcmToken 해제 실패: \(error.localizedDescription)")
         }
     }
 
@@ -139,6 +169,12 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
+        // 다른 계정 앞으로 온 알림은 무시 — 이 기기에서 로그아웃/계정 전환을 했는데
+        // 서버에 예전 토큰이 남아 있으면 남의 알림이 뜰 수 있다(recipientId 는 서버가 넣는다).
+        let recipientId = info["recipientId"] as? String ?? ""
+        if !recipientId.isEmpty, let mine = appUserId, recipientId != mine {
+            completionHandler(); return
+        }
         let type = info["type"] as? String ?? ""
         let chatFriendId = info["chatFriendId"] as? String ?? ""
         let diaryId = info["diaryId"] as? String ?? ""

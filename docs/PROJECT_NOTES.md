@@ -47,6 +47,46 @@
 
 ---
 
+## 8.50 채팅 푸시 미수신 — 기기별 토큰 + 로그아웃 정리 (Android BUILD SUCCESSFUL 2026-08-25, 배포 필요)
+
+증상: "안드로이드 ↔ iOS 채팅을 보내도 알림이 안 온다."
+클라이언트 수신부/발송 트리거/규칙/`chatId` 규칙(양쪽 모두 Google sub 정렬 결합)은 모두 정상이었고,
+**토큰 보관 방식**에서 실제 결함 두 가지를 찾아 고쳤다.
+
+### 고친 것
+1. **한 사용자에 토큰이 하나뿐이었다** (`users/{uid}.fcmToken` 필드 1개)
+   → 같은 계정으로 두 기기에 로그인하면 **마지막에 로그인한 기기만** 알림을 받았다.
+   → `users/{uid}/fcmTokens/{token}`(문서 id = 토큰) 서브컬렉션 신설, **모든 기기로 발송**.
+     예전 필드도 계속 써서 구버전 앱/함수와 호환.
+2. **로그아웃해도 토큰을 안 지웠다**
+   → 한 기기에서 계정을 바꾸면 예전 계정 문서에 이 기기 토큰이 남아,
+     그 계정 알림이 **지금 로그인한 다른 사람 화면에** 뜨거나 원래 주인이 못 받았다.
+   → 로그아웃 **직전**(인증이 살아 있을 때) 이 기기 토큰을 떼어낸다.
+     Android `GoogleAuthHelper.clearFcmToken`, iOS `PushManager.clearToken(for:)`
+     (iOS 는 네트워크가 느려도 로그아웃이 막히지 않게 1.5초 타임아웃).
+3. **안전망** — 서버가 `data.recipientId` 를 함께 보내고, 앱은 **지금 로그인한 계정과 다르면 무시**한다
+   (이미 떠돌던 찌꺼기 토큰 대비).
+
+### 건드린 파일
+- `functions/index.js` — `collectTokens`/`pruneToken` 신설, `sendToUser` 가 `sendEachForMulticast` 로
+  **모든 기기 토큰**에 발송 + 죽은 토큰 개별 정리. 다이어리 친구 알림도 기기별 토큰을 합쳐 보낸다.
+- `firestore.rules` — `users/{uid}/fcmTokens/{token}` 은 **본인만** 읽기/쓰기(남이 읽으면 알림 가로채기 가능).
+- `shared` `StaryConfig.Collections.FCM_TOKENS` / iOS `AppConfig.Collections.fcmTokens` (같은 값).
+- Android `GoogleAuthHelper`(registerFcmToken/clearFcmToken), `StaryMessagingService`(회전 토큰 저장 + recipientId 필터).
+- iOS `PushManager`(기기 문서 저장/해제 + recipientId 필터), `AuthManager.signOut`, `FirestoreService.fcmTokens(of:)`.
+
+### ⚠️ 배포해야 반영된다(코드만 바꿔선 안 된다)
+```
+firebase deploy --only functions,firestore:rules
+```
+그 뒤 **양쪽 기기에서 로그아웃 → 재로그인**해야 새 스키마로 토큰이 다시 등록된다.
+
+### 그래도 안 오면(코드 밖 원인 — 확인 순서는 docs/code/11 참고)
+- `firebase functions:log` 에 `chat …: A → B 푸시 시도` 자체가 없다 → 함수 미배포/리전·DB(stary-db) 불일치.
+- `토큰 없음 → 발송 생략` → 수신자 앱이 토큰 저장 실패(권한 거부, iOS 시뮬레이터 등).
+- `발송 실패 (…)` → **iOS 는 Firebase 콘솔에 APNs 인증 키(.p8) 등록이 없으면 여기서 막힌다.**
+- 전면(앱 켜 둔 상태)에서는 **일부러** 시스템 배너를 막고 인앱 배너를 띄운다 → 백그라운드/종료 상태로 테스트할 것.
+
 ## 8.49 테스트 피드백 11건 — 크롭 통합 / 다이얼 / 신고 사유 / iOS 다듬기 (BUILD SUCCESSFUL 2026-08-24, 실기기 테스트 대기)
 
 사용자 요청 11건. **겸용(Android+iOS) 6건 → iOS 전용 5건** 순서로 작업.

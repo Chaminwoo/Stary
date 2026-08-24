@@ -23,6 +23,8 @@ enum AppConfig {
         static let messages = "messages"        // chats/{chatId} 하위
         static let hiddenAchievements = "hiddenAchievements" // 최상위 (히든 업적 선점, 앱 전체 1명)
         static let invites = "invites"          // 최상위 (친구 초대 리딤, 문서 id = 리딤한 사람 uid)
+        /// users/{uid} 하위: 기기별 FCM 토큰(문서 id = 토큰). StaryConfig.FCM_TOKENS 와 같은 값.
+        static let fcmTokens = "fcmTokens"
     }
 
     /// 두 사용자 ID 로 결정적 채팅방 ID 생성(정렬 후 결합).
