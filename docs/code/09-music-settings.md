@@ -154,3 +154,5 @@ iOS: `Features/Music/MusicScreen.swift`, `Features/Profile/SettingsScreen.swift`
 | 언어 지원 목록 | `LocaleManager.SUPPORTED` | `LocaleManager.supported` |
 | 차단 목록 화면 | `BlockedUsersScreen.kt` | `BlockedUsersScreen.swift` |
 | 차단 저장 스키마 | `FirebaseModerationRepository` (`userName`/`photoUrl`/`createdAt`) | `ModerationRepository` (**필드 동일**) |
+| 다이얼 회전음 반복 간격 | `MusicManager.DIAL_REPEAT_MS`(300ms, Handler) | `MusicManager.dialRepeatInterval`(0.3s, Timer) — **같은 값 유지** |
+| 놓았을 때 회전음 | 반복만 취소, 재생 중인 소리는 끝까지(여운) | 동일 |

@@ -100,3 +100,7 @@ iOS: `Features/Upload/UploadScreen.swift`, `BoomerangCamera.swift`, `BoomerangCa
 | 휠 피커 노출 개수/스냅 | `UploadScreen.kt` StarWheelPicker | `UploadScreen.swift` WheelPicker (원본) |
 | 부메랑 길이(3초)/배율 | `BoomerangHelper` | `BoomerangConfig` |
 | 별 해금(업적) 조건 | `Achievements`(08 문서) + 피커 잠금 | 동일 데이터( Achievements.swift ) |
+| 첨부 크롭 프레임(사진·3초 움짤 공용) | `UploadScreen.kt` CropController / ImageCropFrame | `Features/Upload/MediaCropFrame.swift`(MediaCropState + MediaCropFrame) |
+| 사진 크롭 좌표 모델·결과 픽셀 | `ImageCropHelper`(ASPECT, outWidth 1280) | `Core/ImageCrop.swift`(diaryAspect, diaryOutPixels) — **식 동일** |
+| 3초 움짤 인계 방식 | `BoomerangCaptureScreen.onResult(frames, scale, offsetNormX, offsetNormY)` | `BoomerangCaptureView.onResult(frames, scale, offsetNorm)` — **GIF 는 저장 직전에만 굽는다** |
+| 움짤 축소 하한(화각 전체 담기) | `BoomerangHelper.minScaleFor` | `BoomerangConfig.minScale` |

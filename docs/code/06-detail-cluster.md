@@ -81,3 +81,6 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Ma
 | 공유 링크/딥링크 | shared `StaryConfig.shareLink` | `AppConfig` |
 | 히어로 비율(4:3) | `ImageCropHelper.ASPECT` 공용 | iOS 상수 |
 | 조회수 중복 방지 | `ViewCountSession`(세션 집합) | iOS 대응 로직(ViewedStore/세션) |
+| 겹친 별 헤더(5개 이상 = 다이얼) | `StarClusterScreen.ClusterStarDial`(칸 30, 창 5칸, ±3, 아이콘 26) | `StarClusterView.starDial` (**수치 동일**) |
+| 4개 이하 헤더(고정 겹침 배치) | `StarClusterScreen` 의 else 분기 | `StarClusterView.fixedStars` |
+| 신고 사유 + "기타" 상세 | `core/ui/ReportDialog.kt` `onSubmit(reason, detail)` / REPORT_DETAIL_MAX_LEN | `Features/ReportDialog.swift` `onPick(reason, detail)` — iOS 는 "기타"만 알럿 한 단계 더 |

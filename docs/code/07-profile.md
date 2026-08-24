@@ -147,3 +147,5 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 | 별자리 문양 좌표 | `MyDiaryScreen.kt` CONSTELLATIONS | `MyDiaryBoardScreen.swift` (**값 동일 유지**) |
 | 핀 별 탭 동작 | NavGraph `MapFocusState.request(id, withRoute=true)` | 각 화면 `MapFocusStore.request(diaryId:withRoute:)` |
 | 닉네임 20자 제한 | ProfileScreen 다이얼로그 | ProfileScreen `.onChange(of: nicknameDraft)` 선차단 |
+| 프로필 사진 크롭(위치·확대) | `core/ui/ProfilePhotoCropDialog.kt`(결과 640px 정사각) | `Features/Profile/ProfilePhotoCropView.swift` + `Core/ImageCrop.profileOutPixels` |
+| 타인 프로필 사진 확대 뷰어 | `core/ui/PhotoViewer.kt`(핀치 1~5배, 더블탭 2.5배) | `Core/PhotoViewer.swift` (**동작/배율 동일**) |

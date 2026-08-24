@@ -230,3 +230,6 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 | 복귀 재센터 예외 조건 | `MainScreen`(pendingDiaryId·routeActive) | `MapScreen.onAppear`(pendingDiaryId·fullRoute) |
 | 하늘(여명/황혼) 계산 | `shared/.../core/sky/SkyAlmanac.kt` | `Core/SkyAlmanac.swift` (**수식·상수 복제 — 함께 수정**) |
 | 하늘 렌더(황혼 그라데이션) | `feature/map/screen/SkyOverlay.kt` | `Features/Map/SkyOverlay.swift` (**값 동일**) |
+| 겹친 별 위성 부유 주기/위상 | `DiaryMapMarkers.kt` ORBIT_* + `DiaryMap.kt` 위성 틱(`sin(t(0.7+0.14i)+2.1i)` 등) | `MapLibreView.MergedStarAnnotationView` driftPeriods/driftPhases (**같은 식 — 함께 수정**) |
+| 위성이 보이기 시작하는 줌 | `orbitSizeExpression`(11→0, 13→0.5, 15→1) + 틱 게이트 `zoom > 11.1` | `MergedStarAnnotationView.satelliteOpacity(forZoom:)`(11→0, 13→최대) |
+| 코치마크 버튼 좌표 | `MainOnboardingOverlay.kt` | `MainOnboardingOverlay.swift` — 버튼은 `.global`, 오버레이는 자기 global 원점을 빼서 보정(2026-08-24) |

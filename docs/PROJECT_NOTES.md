@@ -47,6 +47,69 @@
 
 ---
 
+## 8.49 테스트 피드백 11건 — 크롭 통합 / 다이얼 / 신고 사유 / iOS 다듬기 (BUILD SUCCESSFUL 2026-08-24, 실기기 테스트 대기)
+
+사용자 요청 11건. **겸용(Android+iOS) 6건 → iOS 전용 5건** 순서로 작업.
+
+### 겸용 (Android + iOS)
+- **(6) 프로필 사진 위치/확대 조절** — 고른 사진을 바로 올리지 않고 **원형(정사각) 프레임**에서
+  드래그·핀치로 맞춘 뒤 잘라서 업로드한다.
+  - Android `core/ui/ProfilePhotoCropDialog.kt`(신규) ↔ iOS `Features/Profile/ProfilePhotoCropView.swift`(신규).
+  - iOS 는 Android `ImageCropHelper` 에 대응하는 `Core/ImageCrop.swift`(신규)를 새로 뒀다 —
+    좌표 모델(cover×scale + offset)·클램프·결과 픽셀 수를 양쪽이 공유한다(`profileOutPixels = 640`).
+- **(7) 배경음악 다이얼 회전음** — 음원 길이(≈2초)만큼 기다리던 반복을 **300ms 간격**(`DIAL_REPEAT_MS`
+  / `dialRepeatInterval`)으로 좁혔다. 돌리는 동안엔 되감아 빠르게 반복되고,
+  **놓거나 멈추면 반복만 취소**해 지금 울리는 소리는 끝까지 남는다(여운).
+  - Android 는 `Handler` 반복 Runnable, iOS 는 `Timer` — 둘 다 `release()`/`setDialTurning(false)` 에서 취소.
+- **(8) 3초 영상도 확대/위치 조절** — 촬영 화면(`BoomerangCaptureScreen` / `BoomerangCaptureView`)이
+  **GIF 대신 촬영 원본 프레임 + 크롭 상태**를 넘기도록 바꿨다(offset 은 프레임 대비 비율이라 프레임 폭이 달라도 재현된다).
+  업로드 화면은 사진과 **같은 4:3 프레임**에서 움짤을 재생하며 위치·확대를 더 조절할 수 있고,
+  **GIF 인코딩은 저장 직전에 한 번만** 한다(예전엔 촬영 때 굽고 끝 → 두 번 자를 수 없었다).
+  - Android `CropController` 가 `frames`/`playback`/`minScale` 을 갖도록 확장 → 사진(1장)과 움짤(여러 장)이 같은 경로.
+  - iOS 는 같은 역할의 `Features/Upload/MediaCropFrame.swift`(신규 `MediaCropState` + `MediaCropFrame`).
+  - ⚠️ 촬영 원본 프레임(최대 12장 × 640px)을 업로드 화면이 들고 있는다 — 저장/취소 시 반드시 비운다.
+- **(9) 타인 프로필 사진 확대** — 프로필 아바타를 탭하면 전체화면 뷰어(핀치 1~5배, 드래그 이동, 더블탭 토글, 탭하면 닫힘).
+  - Android `core/ui/PhotoViewer.kt`(신규) ↔ iOS `Core/PhotoViewer.swift`(신규). 사진이 없으면(기본 아이콘) 반응하지 않는다.
+- **(10) 겹친 별 헤더 다이얼** — 별이 **5개 이상**이면 고정 배치로는 6번째부터 밀려 안 보였다 →
+  창 5칸짜리 다이얼로 바꿔 **현재 카드의 별이 항상 가운데**로 흘러온다(가장자리에서 작아지며 사라짐).
+  - Android `StarClusterScreen.ClusterStarDial` ↔ iOS `StarClusterView.starDial`.
+    수치 공유: 칸 간격 30, 창 5칸, 그리는 범위 ±3, 아이콘 26, 강조 = clamp(1−|delta|).
+  - 4개 이하는 예전의 살짝 겹친 고정 배치 그대로.
+- **(11) 신고 "기타" 사유 입력** — "기타"를 고르면 설명을 적어야 접수되고, `reports.reasonDetail`(최대 200자)로 함께 저장된다.
+  - Android `ReportDialog` 는 다이얼로그 안에 입력칸을 열고, iOS 는 `confirmationDialog` 에 TextField 를 못 넣어
+    **"기타"만 알럿 한 단계 더**로 받는다(`ReportDialogModifier`). `onSubmit/onPick` 이 `(reason, detail)` 2-인자로 바뀌었다.
+
+### iOS 전용
+- **(1) 코치마크 위치 밀림** — 버튼 좌표는 `.frame(in: .global)` 로 재고 오버레이는 `.ignoresSafeArea()` 로 그려서
+  두 좌표계 원점이 어긋나면 스포트라이트가 실제 버튼보다 위로 밀렸다 →
+  `MainOnboardingOverlay` 가 **자기 자신의 global 원점을 빼서** 항상 맞춘다(원점이 같으면 0이라 무해).
+  - ⚠️ 함께 신고된 **네이티브 팝업**(메시지 삭제 확인 / 설정 언어 / 첨부 3지선다)은 전부 `confirmationDialog`(액션시트)로,
+    위치를 앱 코드가 정하지 않는다. 앱 쪽 원인(안전영역 조작·창 크기 축소)은 찾지 못했다 → **재현 화면/iOS 버전 확인 필요**.
+    iOS 26 SDK 로 빌드되면 새 디자인으로 팝업 위치가 달라진다 — 예전 배치로 되돌리려면
+    `project.yml` info 에 `UIDesignRequiresCompatibility: true` 한 줄(iOS 25 이하에선 무효).
+- **(2) 겹친 별 위성** — 위성들이 한 덩어리로 같이 흔들리던 문제: iOS 는 주기만 다르고 **위상이 전부 같았다** →
+  Android `DiaryMap` 의 위성 식과 **같은 주기·위상**으로 맞췄다
+  (`driftX = sin(t(0.7+0.14i) + 2.1i)·0.8`, `driftY = sin(t(1.15+0.18i) + 1.4i)·1.0`).
+  또한 Android `orbitSizeExpression` 처럼 **줌 11 이하에선 사라지고 13에서 완전히 드러난다**
+  (`MergedStarAnnotationView.satelliteOpacity(forZoom:)` + `Coordinator.applySatelliteZoomGate`).
+- **(3) 한글 줄바꿈** — iOS 기본 줄바꿈(`.standard`)은 한글을 **글자 단위**로 끊어 "표시하/기"처럼 어색하다.
+  SwiftUI `Text` 에는 `lineBreakStrategy(.hangulWordPriority)` 를 줄 방법이 없어
+  `Core/HangulLineBreak.swift`(신규)가 **어절 안에 U+2060 WORD JOINER** 를 넣어 낱말 단위로만 줄이 바뀌게 한다.
+  - `LocaleManager.t()` 가 한 번 다듬고 (언어,키)로 캐시 → **L10n 문자열 전체**에 적용.
+  - 사용자 글에도 적용: 다이어리 본문/댓글(`DetailScreen`), 채팅 메시지(`ChatScreen`).
+  - ⚠️ `%` 가 든 덩어리(`%@`, `%d개`)는 건드리지 않는다 — 결합자가 끼면 `String(format:)` 이 깨진다.
+- **(4) 사진 첨부가 작고, 넣은 뒤 본문 수정 불가** — 기존 `scaledToFill().frame(height: 180)` 은
+  Android(4:3 전체폭)보다 작을 뿐 아니라 **프레임 밖으로 넘친 이미지가 위쪽 본문 입력칸을 덮어** 탭이 막혔다.
+  → (8)의 `MediaCropFrame`(4:3 전체폭 + `clipped()`)으로 교체해 크기·조작·터치 문제를 한 번에 해소.
+- **(5) 업로드 진동** — 저장 성공 진동(`StarBirthStore.trigger` → `Haptics.celebrate`)은 원래 있었지만
+  `UINotificationFeedbackGenerator` 를 **예열 없이** 부르면 첫 진동이 통째로 씹힌다 →
+  `Haptics.prepare()` 에 `notify.prepare()` 추가 + 저장 시작 시 예열 + `celebrate` 에 여운 한 번(Android 파형 패리티).
+
+### 주의 / 후속
+- 이 라운드에서 **`onResult`/`onSubmit` 시그니처가 바뀐 곳**: `BoomerangCaptureScreen/View`(프레임+크롭 상태),
+  `ReportDialog`(사유+상세). 다른 화면에서 재사용할 때 참고.
+- 검증: `:androidApp:assembleDebug` **BUILD SUCCESSFUL**. iOS 는 Windows 에서 컴파일 불가 → push 후 CI(`ios.yml`) 그린 확인 필요.
+
 ## 8.48 테스트 피드백 — 연출 3종 삭제 + 좋아요/수정·삭제 레이아웃 수정 (Android BUILD SUCCESSFUL 2026-08-22, iOS CI 검증 대기)
 
 8.47 로 넣은 연출 중 **사용자 테스트에서 "이상하다"고 지적된 3종**을 제거했다(나머지 8.47 항목은 유지).
