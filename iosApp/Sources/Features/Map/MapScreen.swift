@@ -196,12 +196,12 @@ struct MapScreen: View {
                 }
             )
         }
-        .confirmationDialog(locale.t(.filterPeriod), isPresented: $showPeriodPicker, titleVisibility: .visible) {
-            Button(locale.t(.periodToday)) { periodDays = 0 }
-            Button(locale.t(.periodWeek)) { periodDays = 7 }
-            Button(locale.t(.periodMonth)) { periodDays = 30 }
-            Button(locale.t(.periodYear)) { periodDays = 365 }
-        }
+        .staryChoiceDialog(locale.t(.filterPeriod), isPresented: $showPeriodPicker, options: [
+            StaryDialogOption(locale.t(.periodToday), action: { periodDays = 0 }),
+            StaryDialogOption(locale.t(.periodWeek), action: { periodDays = 7 }),
+            StaryDialogOption(locale.t(.periodMonth), action: { periodDays = 30 }),
+            StaryDialogOption(locale.t(.periodYear), action: { periodDays = 365 }),
+        ])
         .sheet(isPresented: $showFriendPicker) {
             FriendFilterPicker(friends: myFriends, initial: selectedFriendIds) { ids in
                 selectedFriendIds = ids
@@ -479,12 +479,10 @@ struct MapScreen: View {
             pioneer.start() // 개척 퀘스트 현황 구독(체크리스트 32)
         }
         // 개척 비콘 탭 → 퀘스트 안내(체크리스트 32)
-        .alert(pioneerMessage ?? "", isPresented: Binding(
+        .staryInfoDialog(pioneerMessage ?? "", isPresented: Binding(
             get: { pioneerMessage != nil },
             set: { if !$0 { pioneerMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        }
+        ))
     }
 
     /// 세계 상하 끝 밖 빈 공간을 덮는 바다색 사각형(위/아래) — 물 레이어 색과 같은 줌 보간.

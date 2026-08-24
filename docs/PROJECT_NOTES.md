@@ -105,6 +105,29 @@
   `UINotificationFeedbackGenerator` 를 **예열 없이** 부르면 첫 진동이 통째로 씹힌다 →
   `Haptics.prepare()` 에 `notify.prepare()` 추가 + 저장 시작 시 예열 + `celebrate` 에 여운 한 번(Android 파형 패리티).
 
+
+### (1) 후속 — iOS 팝업을 Android 처럼 가운데 사각 카드로 통일 (2026-08-25 사용자 지시)
+- 원인 추적을 더 하지 않고 **팝업 자체를 앱이 그리기로** 결정 —
+  "위치를 따라가는 느낌 말고 안드로이드처럼 가운데, 말풍선 말고 사각".
+- `Core/StaryDialog.swift`(신규) — Android `AlertDialog` 규격 그대로:
+  배경 `Theme.surface`, 테두리 `Theme.outline` 1pt, **모서리 18**(말풍선처럼 안 보이게), 안쪽 여백 20,
+  제목 MinSans 17 SemiBold, 설명 14, 최대 폭 340, 바깥 탭 = 닫기.
+  - API: `.staryChoiceDialog`(액션시트 대체) / `.staryConfirmDialog`(확인·취소) /
+    `.staryInfoDialog`(확인 1개) / `.staryDialog { ... }`(입력칸 등 임의 내용, 껍데기는 `StaryDialogCard`).
+- **iOS 의 `confirmationDialog`/`alert` 를 전부 걷어냈다**(0건 남음):
+  채팅 메시지 삭제 · 지도 기간 필터 · 설정 언어/계정 삭제/삭제 실패 · 업로드 첨부 3지선다(아이콘 포함) ·
+  신고 사유(“기타” 입력칸이 **같은 카드 안에서** 열려 Android 와 완전히 동일해졌다) ·
+  다이어리 수정/삭제 · 신고 접수/로그인 안내 · 차단 확인/해제 · 히든 업적 안내 · 닉네임 변경 · 개척 퀘스트 안내.
+- 구현 메모(고쳐야 할 때 참고):
+  - 내비게이션 바까지 덮어야 해서 `fullScreenCover` + **투명 배경**(`ClearBackgroundView` 가 호스팅 뷰 배경색을 지운다).
+    커버의 슬라이드 전환은 `.transaction { $0.disablesAnimations = true }` 로 끄고 카드가 페이드+확대로 뜬다.
+    이 `.transaction` 이 화면 본문 애니메이션까지 죽이지 않도록 **0 크기 배경 호스트**에 달아 격리했다.
+  - 선택지를 누르면 팝업을 닫고 **다음 런루프에** 동작을 실행한다 — 닫히는 중에 카메라/사진 선택 같은
+    다른 모달을 띄우면 표시가 씹힌다.
+  - ⚠️ 확인을 누르면 팝업이 먼저 닫히면서 대상 state(`pendingDelete`/`confirmTarget`)가 nil 이 된다 →
+    호출부는 `{ [target = pendingDelete] in ... }` 처럼 **캡처한 값**을 써야 한다(채팅 삭제/차단 해제에서 실제로 물렸던 버그).
+  - `StaryDialogOption.id` 는 제목 — UUID 로 두면 body 재평가마다 id 가 바뀌어 행이 새로 그려진다.
+
 ### 주의 / 후속
 - 이 라운드에서 **`onResult`/`onSubmit` 시그니처가 바뀐 곳**: `BoomerangCaptureScreen/View`(프레임+크롭 상태),
   `ReportDialog`(사유+상세). 다른 화면에서 재사용할 때 참고.

@@ -116,14 +116,20 @@ struct UploadScreen: View {
                 crop.setPhoto(ui)   // 사진 선택 시 움짤과 배타(같은 상태를 덮어쓴다)
             }
         }
-        // 첨부 소스 선택 — Android 의 촬영/갤러리/3초 영상 3지선다 다이얼로그 패리티(#1).
-        .confirmationDialog(LocaleManager.shared.t(.uploadAddPhoto),
-                            isPresented: $showMediaSourceSheet, titleVisibility: .visible) {
-            Button(LocaleManager.shared.t(.uploadTakePhoto)) { launchCamera() }
-            Button(LocaleManager.shared.t(.uploadPickGallery)) { showPhotosPicker = true }
-            Button(LocaleManager.shared.t(.uploadCaptureBoomerang)) { captureSheet = .boomerang }
-            Button(LocaleManager.shared.t(.commonCancel), role: .cancel) {}
-        }
+        // 첨부 소스 선택 — Android 의 촬영/갤러리/3초 영상 3지선다 다이얼로그 패리티(아이콘까지 동일).
+        .staryChoiceDialog(LocaleManager.shared.t(.uploadAddPhoto),
+                           isPresented: $showMediaSourceSheet,
+                           options: [
+                               StaryDialogOption(LocaleManager.shared.t(.uploadTakePhoto),
+                                                 systemImage: "camera.fill",
+                                                 action: { launchCamera() }),
+                               StaryDialogOption(LocaleManager.shared.t(.uploadPickGallery),
+                                                 systemImage: "photo.fill",
+                                                 action: { showPhotosPicker = true }),
+                               StaryDialogOption(LocaleManager.shared.t(.uploadCaptureBoomerang),
+                                                 systemImage: "video.fill",
+                                                 action: { captureSheet = .boomerang }),
+                           ])
         .photosPicker(isPresented: $showPhotosPicker, selection: $photoItem, matching: .images)
         // 촬영 화면(사진 1장 / 3초 움짤)은 **하나의** fullScreenCover 로 — 같은 뷰에 커버를 두 개 달면
         // 한쪽이 안 열리는 사례가 있어 item 방식으로 합쳤다.

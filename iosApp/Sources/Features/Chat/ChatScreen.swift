@@ -70,21 +70,17 @@ struct ChatScreen: View {
             }
         }
         // 내 메시지 완전 삭제 확인(1분 이내) — 상대방 쪽에서도 사라진다.
-        .confirmationDialog(
+        // 위치/모양을 Android 와 맞추려 가운데 사각 팝업([staryConfirmDialog])을 쓴다.
+        .staryConfirmDialog(
             locale.t(.chatDeleteTitle),
             isPresented: Binding(get: { pendingDelete != nil },
                                  set: { if !$0 { pendingDelete = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button(locale.t(.commonDelete), role: .destructive) {
-                if let target = pendingDelete {
-                    Task { await vm.deleteMessage(target, myUid: auth.uid) }
-                }
-                pendingDelete = nil
-            }
-            Button(locale.t(.commonCancel), role: .cancel) { pendingDelete = nil }
-        } message: {
-            Text(locale.t(.chatDeleteConfirm))
+            message: locale.t(.chatDeleteConfirm),
+            confirmTitle: locale.t(.commonDelete),
+            destructive: true
+        ) { [target = pendingDelete] in
+            // ⚠️ 확인 시 팝업이 먼저 닫히며 pendingDelete 가 nil 이 되므로 **캡처한 값**을 쓴다.
+            if let target { Task { await vm.deleteMessage(target, myUid: auth.uid) } }
         }
         .onAppear {
             vm.start()

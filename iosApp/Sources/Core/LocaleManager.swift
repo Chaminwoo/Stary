@@ -85,6 +85,8 @@ enum L10n: String {
     case filterUnviewed
     // 계정 삭제 + 신고/차단 — Android 차단·신고 라운드 패리티.
     case commonCancel, commonDelete
+    /// 다이어리 수정/삭제 팝업 문구 + 본문 입력 라벨(Android detail_* / field_content 대응).
+    case detailEditTitle, detailDeleteTitle, detailDeleteConfirm, fieldContent
     // 비로그인 상호작용 잠금 — Android common_login_required 패리티.
     case commonLoginRequired
     case settingsAccount, settingsDeleteAccount, settingsDeleteAccountDesc
@@ -222,6 +224,12 @@ enum L10n: String {
         case .filterUnviewed:       return ("미조회만", "Unviewed", "未読のみ")
         case .commonCancel:         return ("취소", "Cancel", "キャンセル")
         case .commonDelete:         return ("삭제", "Delete", "削除")
+        case .detailEditTitle:      return ("다이어리 수정", "Edit diary", "日記を編集")
+        case .detailDeleteTitle:    return ("다이어리 삭제", "Delete diary", "日記を削除")
+        case .detailDeleteConfirm:  return ("정말 삭제할까요? 되돌릴 수 없어요.",
+                                            "Delete this for good? This can't be undone.",
+                                            "本当に削除しますか？元に戻せません。")
+        case .fieldContent:         return ("내용", "Content", "内容")
         case .commonLoginRequired:  return ("로그인이 필요해요", "Sign in required", "ログインが必要です")
         case .settingsAccount:      return ("계정", "Account", "アカウント")
         case .settingsDeleteAccount: return ("계정 삭제", "Delete account", "アカウント削除")

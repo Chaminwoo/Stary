@@ -238,30 +238,39 @@ struct ProfileScreen: View {
             .firstVisitInfo(key: "profile", systemImage: "person.fill",
                             title: LocaleManager.shared.t(.onbProfileTitle),
                             message: LocaleManager.shared.t(.onbProfileMsg))
-            .alert(locale.t(.profileEditNickname), isPresented: $showNicknameEditor) {
-                TextField(locale.t(.profileNicknameHint), text: $nicknameDraft)
-                Button(locale.t(.commonSave)) {
-                    // 20자 클램프(AppConfig.nicknameMaxLen) — Android NicknameEditDialog 패리티.
-                    let n = String(nicknameDraft.prefix(AppConfig.nicknameMaxLen))
-                    Task { await auth.setNickname(n) }
+            // 닉네임 변경 — Android NicknameEditDialog 와 같은 가운데 사각 팝업.
+            .staryDialog(isPresented: $showNicknameEditor) {
+                StaryDialogCard(title: locale.t(.profileEditNickname)) {
+                    TextField(locale.t(.profileNicknameHint), text: $nicknameDraft)
+                        .font(.minSans(15))
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(10)
+                        .background(Theme.surfaceAlt, in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(Theme.outline, lineWidth: 1))
+                        // 20자 클램프(AppConfig.nicknameMaxLen) — Android 패리티.
+                        .onChange(of: nicknameDraft) { v in
+                            if v.count > AppConfig.nicknameMaxLen {
+                                nicknameDraft = String(v.prefix(AppConfig.nicknameMaxLen))
+                            }
+                        }
+                } actions: {
+                    StaryDialogTextButton(locale.t(.commonCancel), color: Theme.textSecondary) {
+                        showNicknameEditor = false
+                    }
+                    StaryDialogTextButton(locale.t(.commonSave), weight: .semibold) {
+                        showNicknameEditor = false
+                        let n = String(nicknameDraft.prefix(AppConfig.nicknameMaxLen))
+                        Task { await auth.setNickname(n) }
+                    }
                 }
-                Button(locale.t(.commonCancel), role: .cancel) {}
             }
-            // alert 안 TextField 는 onChange 를 못 다니 화면 레벨에서 초과분을 잘라 선차단.
-            .onChange(of: nicknameDraft) { v in
-                if v.count > AppConfig.nicknameMaxLen {
-                    nicknameDraft = String(v.prefix(AppConfig.nicknameMaxLen))
-                }
-            }
-            .alert(locale.t(.hiddenWonTitle),
-                   isPresented: Binding(get: { hiddenAlert != nil },
-                                        set: { if !$0 { hiddenAlert = nil } })) {
-                Button(locale.t(.commonOk), role: .cancel) { hiddenAlert = nil }
-            } message: {
-                if let a = hiddenAlert {
-                    Text("\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n\(locale.t(.hiddenWonFirst))")
-                }
-            }
+            .staryInfoDialog(locale.t(.hiddenWonTitle),
+                             isPresented: Binding(get: { hiddenAlert != nil },
+                                                  set: { if !$0 { hiddenAlert = nil } }),
+                             message: hiddenAlert.map { a in
+                                 "\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n\(locale.t(.hiddenWonFirst))"
+                             }) { hiddenAlert = nil }
         }
     }
 

@@ -121,13 +121,9 @@ struct DetailScreen: View {
                 showReportedConfirm = true
             }
         }
-        .alert(LocaleManager.shared.t(.toastReported), isPresented: $showReportedConfirm) {
-            Button("OK", role: .cancel) {}
-        }
+        .staryInfoDialog(LocaleManager.shared.t(.toastReported), isPresented: $showReportedConfirm)
         // 비로그인 상호작용(좋아요/댓글) 시 로그인 안내. (Android requireLogin 토스트 패리티)
-        .alert(LocaleManager.shared.t(.commonLoginRequired), isPresented: $showLoginRequired) {
-            Button("OK", role: .cancel) {}
-        }
+        .staryInfoDialog(LocaleManager.shared.t(.commonLoginRequired), isPresented: $showLoginRequired)
         .task {
             guard let uid = auth.uid else { return }
             if let snap = try? await FirestoreService.blocked(of: uid).getDocuments() {
@@ -162,32 +158,59 @@ struct DetailScreen: View {
             guard let uid = auth.uid, let id = diary.id else { return }
             await ViewedRepository.markViewed(uid: uid, diaryId: id)
         }
-        // 내 글 수정 — 제목/내용(글자수 제한 선차단). (Android 수정 다이얼로그 대응)
-        .alert(LocaleManager.shared.t(.commonEdit), isPresented: $showEditDialog) {
-            TextField("", text: $editTitle)
-            TextField("", text: $editContent)
-            Button(LocaleManager.shared.t(.commonSave)) {
-                let t = String(editTitle.prefix(AppConfig.diaryTitleMaxLen))
-                let c = String(editContent.prefix(AppConfig.diaryContentMaxLen))
-                var d = diary
-                d.title = t
-                d.content = c
-                editedTitle = t
-                editedContent = c
-                Task { try? await store.save(d) }
-            }
-            Button(LocaleManager.shared.t(.commonCancel), role: .cancel) {}
-        }
-        // 내 글 삭제 — 확인 후 삭제하고 pop. (Android 삭제 다이얼로그 대응)
-        .alert(LocaleManager.shared.t(.commonDelete), isPresented: $showDeleteConfirm) {
-            Button(LocaleManager.shared.t(.commonDelete), role: .destructive) {
-                guard let id = diary.id else { return }
-                Task {
-                    try? await store.delete(id)
-                    dismiss()
+        // 내 글 수정 — Android 수정 다이얼로그(제목/내용 두 칸)와 같은 가운데 사각 팝업.
+        .staryDialog(isPresented: $showEditDialog) {
+            StaryDialogCard(title: LocaleManager.shared.t(.detailEditTitle)) {
+                VStack(alignment: .leading, spacing: 12) {
+                    dialogField(LocaleManager.shared.t(.fieldTitle), text: $editTitle, lines: 1...1)
+                    dialogField(LocaleManager.shared.t(.fieldContent), text: $editContent, lines: 3...6)
+                }
+            } actions: {
+                StaryDialogTextButton(LocaleManager.shared.t(.commonCancel), color: Theme.textSecondary) {
+                    showEditDialog = false
+                }
+                StaryDialogTextButton(LocaleManager.shared.t(.commonSave), weight: .semibold) {
+                    showEditDialog = false
+                    let t = String(editTitle.prefix(AppConfig.diaryTitleMaxLen))
+                    let c = String(editContent.prefix(AppConfig.diaryContentMaxLen))
+                    var d = diary
+                    d.title = t
+                    d.content = c
+                    editedTitle = t
+                    editedContent = c
+                    Task { try? await store.save(d) }
                 }
             }
-            Button(LocaleManager.shared.t(.commonCancel), role: .cancel) {}
+        }
+        // 내 글 삭제 — 확인 후 삭제하고 pop. (Android 삭제 다이얼로그 대응)
+        .staryConfirmDialog(LocaleManager.shared.t(.detailDeleteTitle),
+                            isPresented: $showDeleteConfirm,
+                            message: LocaleManager.shared.t(.detailDeleteConfirm),
+                            confirmTitle: LocaleManager.shared.t(.commonDelete),
+                            destructive: true) {
+            guard let id = diary.id else { return }
+            Task {
+                try? await store.delete(id)
+                dismiss()
+            }
+        }
+    }
+
+    /// 수정 팝업의 라벨 달린 입력칸(Android OutlinedTextField 톤).
+    private func dialogField(_ label: String, text: Binding<String>,
+                             lines: ClosedRange<Int>) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .font(.minSans(12))
+                .foregroundStyle(Theme.textSecondary)
+            TextField("", text: text, axis: .vertical)
+                .font(.minSans(15))
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(lines)
+                .padding(10)
+                .background(Theme.surfaceAlt, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Theme.outline, lineWidth: 1))
         }
     }
 

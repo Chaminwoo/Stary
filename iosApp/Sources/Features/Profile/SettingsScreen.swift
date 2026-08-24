@@ -131,20 +131,15 @@ struct SettingsScreen: View {
         }
         .navigationTitle(locale.t(.navSettings))
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog(locale.t(.languageDialogTitle), isPresented: $showLanguagePicker, titleVisibility: .visible) {
-            ForEach(LocaleManager.supported, id: \.self) { tag in
-                Button(languageLabel(tag)) { locale.setLanguage(tag) }
-            }
-        }
-        .alert(locale.t(.settingsDeleteAccount), isPresented: $showDeleteConfirm) {
-            Button(locale.t(.commonCancel), role: .cancel) {}
-            Button(locale.t(.settingsDeleteAccount), role: .destructive) { performDelete() }
-        } message: {
-            Text(locale.t(.settingsDeleteConfirmMsg))
-        }
-        .alert(locale.t(.settingsDeleteFailed), isPresented: $showDeleteFailed) {
-            Button("OK", role: .cancel) {}
-        }
+        .staryChoiceDialog(locale.t(.languageDialogTitle), isPresented: $showLanguagePicker,
+                           options: LocaleManager.supported.map { tag in
+                               StaryDialogOption(languageLabel(tag), action: { locale.setLanguage(tag) })
+                           })
+        .staryConfirmDialog(locale.t(.settingsDeleteAccount), isPresented: $showDeleteConfirm,
+                            message: locale.t(.settingsDeleteConfirmMsg),
+                            confirmTitle: locale.t(.settingsDeleteAccount),
+                            destructive: true) { performDelete() }
+        .staryInfoDialog(locale.t(.settingsDeleteFailed), isPresented: $showDeleteFailed)
     }
 
     private func performDelete() {

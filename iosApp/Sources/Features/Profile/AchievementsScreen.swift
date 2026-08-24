@@ -78,15 +78,12 @@ struct AchievementsScreen: View {
         }
         .onChange(of: hidden.loaded) { _ in runHiddenClaims() }
         .onChange(of: friendsCount) { _ in runHiddenClaims() }
-        .alert(locale.t(.hiddenWonTitle),
-               isPresented: Binding(get: { hiddenAlert != nil },
-                                    set: { if !$0 { hiddenAlert = nil } })) {
-            Button(locale.t(.commonOk), role: .cancel) { hiddenAlert = nil }
-        } message: {
-            if let a = hiddenAlert {
-                Text("\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n\(locale.t(.hiddenWonFirst))")
-            }
-        }
+        .staryInfoDialog(locale.t(.hiddenWonTitle),
+                         isPresented: Binding(get: { hiddenAlert != nil },
+                                              set: { if !$0 { hiddenAlert = nil } }),
+                         message: hiddenAlert.map { a in
+                             "\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n\(locale.t(.hiddenWonFirst))"
+                         }) { hiddenAlert = nil }
         .firstVisitInfo(key: "achievements", systemImage: "trophy.fill",
                         title: locale.t(.onbAchievementsTitle),
                         message: locale.t(.onbAchievementsMsg))

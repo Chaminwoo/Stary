@@ -55,13 +55,16 @@ struct BlockedUsersScreen: View {
             }
         }
         // 오탭으로 바로 풀리지 않게 해제도 확인을 거친다(Android 확인 다이얼로그 패리티).
-        .alert(locale.t(.unblockAction), isPresented: Binding(
-            get: { confirmTarget != nil }, set: { if !$0 { confirmTarget = nil } }
-        ), presenting: confirmTarget) { target in
-            Button(locale.t(.commonCancel), role: .cancel) { confirmTarget = nil }
-            Button(locale.t(.unblockAction), role: .destructive) { unblock(target) }
-        } message: { target in
-            Text(String(format: locale.t(.unblockConfirmMsg), displayName(target)))
+        .staryConfirmDialog(locale.t(.unblockAction),
+                            isPresented: Binding(get: { confirmTarget != nil },
+                                                 set: { if !$0 { confirmTarget = nil } }),
+                            message: confirmTarget.map {
+                                String(format: locale.t(.unblockConfirmMsg), displayName($0))
+                            },
+                            confirmTitle: locale.t(.unblockAction),
+                            destructive: true) { [target = confirmTarget] in
+            // ⚠️ 확인 시 팝업이 먼저 닫히며 confirmTarget 이 nil 이 되므로 **캡처한 값**을 쓴다.
+            if let target { unblock(target) }
         }
         .onAppear { if let uid = auth.uid { blocks.start(uid: uid) } }
     }

@@ -141,3 +141,5 @@ iOS: `Core/Theme.swift`, `AppFont.swift`, `StarStyle.swift`, `StarShape.swift`, 
 | 좋아요 파편 반경(레이아웃 제외) | `LikeButton.kt` BURST_RADIUS=36dp + matchParentSize | `LikeButton.swift` `.background{ .frame(72) }` |
 | 빈 화면 별 부유 주기 | `StaryEmptyState.kt` 6초 | `StaryEmptyState.swift` (**값 동일**) |
 | 별 탄생 연출 길이 | `StarBirth.kt` BIRTH_MS=950 | `StarBirth.swift` 대응 상수 |
+| 팝업(확인/선택/안내) | Material3 `AlertDialog` (각 화면에서 직접) | `Core/StaryDialog.swift` — `.staryChoiceDialog` / `.staryConfirmDialog` / `.staryInfoDialog` / `.staryDialog`. iOS 기본 `confirmationDialog`·`alert` 은 쓰지 않는다(위치·모양이 Android 와 다름, 2026-08-25) |
+| 팝업 규격(모서리/폭/스크림) | AlertDialog 기본 + `ReportDialog` | `StaryDialogStyle`(corner 18 / maxWidth 340 / 좌우 32 / 스크림 0.55) |

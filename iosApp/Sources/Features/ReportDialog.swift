@@ -20,50 +20,93 @@ enum ReportReason: String, CaseIterable, Identifiable {
 let reportDetailMaxLen = 200
 
 extension View {
-    /// 신고 사유 선택 시트(네이티브 confirmationDialog).
-    /// [onPick] 에 선택한 사유 키("spam" 등)와, **"기타"를 골랐을 때 직접 적은 설명**을 넘긴다
-    /// (그 외 사유는 빈 문자열). Android ReportDialog 의 2단계(사유 → 상세) 흐름 패리티.
+    /// 신고 사유 선택 팝업 — **Android `ReportDialog` 와 같은 모양**(가운데 사각 카드,
+    /// 라디오 목록, "기타"를 고르면 그 자리에서 사유 입력칸이 열린다).
+    /// [onPick] 에 선택한 사유 키("spam" 등)와 "기타"일 때 적은 설명(그 외엔 빈 문자열)을 넘긴다.
     func reportDialog(title: String, isPresented: Binding<Bool>,
                       onPick: @escaping (_ reason: String, _ detail: String) -> Void) -> some View {
-        modifier(ReportDialogModifier(title: title, isPresented: isPresented, onPick: onPick))
+        staryDialog(isPresented: isPresented) {
+            ReportDialogContent(title: title) { reason, detail in
+                isPresented.wrappedValue = false
+                onPick(reason, detail)
+            } onCancel: {
+                isPresented.wrappedValue = false
+            }
+        }
     }
 }
 
-/// 사유 선택 시트 + "기타" 상세 입력 알럿을 한 쌍으로 묶은 수정자.
-/// (confirmationDialog 안에는 TextField 를 넣을 수 없어, "기타"만 알럿으로 한 단계 더 받는다.)
-private struct ReportDialogModifier: ViewModifier {
+/// 신고 사유 카드 본문 — 라디오 목록 + "기타" 상세 입력.
+private struct ReportDialogContent: View {
     let title: String
-    @Binding var isPresented: Bool
-    let onPick: (String, String) -> Void
+    let onSubmit: (String, String) -> Void
+    let onCancel: () -> Void
 
     @ObservedObject private var locale = LocaleManager.shared
-    @State private var showDetail = false
+    @State private var selected: ReportReason?
     @State private var detail = ""
+    @FocusState private var detailFocused: Bool
 
-    func body(content: Content) -> some View {
-        content
-            .confirmationDialog(title, isPresented: $isPresented, titleVisibility: .visible) {
+    private var isOther: Bool { selected == .other }
+    /// "기타"는 설명을 적어야 접수된다(빈 설명은 관리자가 검토할 수 없음 — Android 동일).
+    private var canSubmit: Bool {
+        guard let selected else { return false }
+        return selected != .other || !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        StaryDialogCard(title: title) {
+            VStack(spacing: 0) {
                 ForEach(ReportReason.allCases) { reason in
-                    Button(locale.t(reason.label)) {
-                        guard reason == .other else { onPick(reason.rawValue, ""); return }
-                        detail = ""
-                        // 시트가 닫히는 동안 알럿을 띄우면 표시되지 않는 경우가 있어 한 프레임 뒤에 연다.
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { showDetail = true }
+                    Button {
+                        selected = reason
+                        if reason != .other { detailFocused = false }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: selected == reason ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 18))
+                                .foregroundStyle(selected == reason ? Theme.mint : Theme.textSecondary.opacity(0.5))
+                            Text(locale.t(reason.label))
+                                .font(.minSans(15))
+                                .foregroundStyle(selected == reason ? Theme.textPrimary : Theme.textSecondary)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 11)
+                        .padding(.horizontal, 4)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
-                Button(locale.t(.commonCancel), role: .cancel) {}
-            }
-            .alert(locale.t(.reportReasonOther), isPresented: $showDetail) {
-                TextField(locale.t(.reportReasonDetailHint), text: $detail)
-                Button(locale.t(.commonCancel), role: .cancel) {}
-                Button(locale.t(.reportSubmit)) {
-                    let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
-                    // 설명이 비면 관리자가 검토할 수 없으므로 접수하지 않는다(Android 전송 버튼 비활성 대응).
-                    guard !trimmed.isEmpty else { return }
-                    onPick(ReportReason.other.rawValue, String(trimmed.prefix(reportDetailMaxLen)))
+
+                // "기타"는 사유만으론 관리자가 판단할 수 없다 → 그 자리에서 적을 칸을 연다.
+                if isOther {
+                    TextField(locale.t(.reportReasonDetailHint), text: $detail, axis: .vertical)
+                        .font(.minSans(15))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(2...4)
+                        .focused($detailFocused)
+                        .padding(10)
+                        .background(Theme.surfaceAlt, in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(Theme.mint.opacity(0.45), lineWidth: 1))
+                        .onChange(of: detail) { v in
+                            if v.count > reportDetailMaxLen { detail = String(v.prefix(reportDetailMaxLen)) }
+                        }
+                    Text("\(detail.count)/\(reportDetailMaxLen)")
+                        .font(.minSans(11))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.top, 4)
                 }
-            } message: {
-                Text(locale.t(.reportReasonDetailHint))
             }
+        } actions: {
+            StaryDialogTextButton(locale.t(.commonCancel), color: Theme.textSecondary, action: onCancel)
+            StaryDialogTextButton(locale.t(.reportSubmit),
+                                  color: Theme.accentRed, weight: .semibold, enabled: canSubmit) {
+                guard let selected, canSubmit else { return }
+                let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+                onSubmit(selected.rawValue, selected == .other ? trimmed : "")
+            }
+        }
     }
 }

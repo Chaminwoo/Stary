@@ -127,18 +127,14 @@ struct UserProfileScreen: View {
                 showReportedConfirm = true
             }
         }
-        .alert(locale.t(.toastReported), isPresented: $showReportedConfirm) {
-            Button("OK", role: .cancel) {}
-        }
+        .staryInfoDialog(locale.t(.toastReported), isPresented: $showReportedConfirm)
         // 차단 확인 — 무엇이 숨겨지는지(별/댓글) + 친구 해제를 미리 알린다(Android 패리티).
-        .alert(String(format: locale.t(.blockConfirmTitle),
-                      userName.isEmpty ? locale.t(.unknownUser) : userName),
-               isPresented: $showBlockConfirm) {
-            Button(locale.t(.commonCancel), role: .cancel) {}
-            Button(locale.t(.blockAction), role: .destructive) { Task { await toggleBlock() } }
-        } message: {
-            Text(locale.t(.blockConfirmMsg))
-        }
+        .staryConfirmDialog(String(format: locale.t(.blockConfirmTitle),
+                                   userName.isEmpty ? locale.t(.unknownUser) : userName),
+                            isPresented: $showBlockConfirm,
+                            message: locale.t(.blockConfirmMsg),
+                            confirmTitle: locale.t(.blockAction),
+                            destructive: true) { Task { await toggleBlock() } }
         .task {
             hidden.start()
             if let doc = try? await FirestoreService.users.document(userId).getDocument() {
