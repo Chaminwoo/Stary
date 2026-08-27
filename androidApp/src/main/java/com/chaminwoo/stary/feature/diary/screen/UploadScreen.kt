@@ -416,7 +416,8 @@ fun UploadScreen(
                                 if (selected) Color(0xFF9FB3E8) else MaterialTheme.colorScheme.outline,
                                 RoundedCornerShape(10.dp)
                             )
-                            .clickable { visibilityType = key }
+                            // 업로드 진행 중에는 공개 범위를 바꿀 수 없게 잠근다(저장 중 값 변경 방지).
+                            .clickable(enabled = !isUploading) { visibilityType = key }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {

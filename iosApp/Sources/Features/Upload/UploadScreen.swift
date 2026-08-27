@@ -308,6 +308,8 @@ struct UploadScreen: View {
                 ForEach(Visibility.allCases, id: \.self) { Text(visLabel($0)).tag($0) }
             }
             .pickerStyle(.segmented)
+            // 업로드(저장) 진행 중에는 공개 범위 변경 불가 — Android UploadScreen 과 동일.
+            .disabled(saving)
         }
     }
 

@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.48 테스트 피드백 — 연출 3종 삭제(지도 유성/달 위상/사진 리빌) + 좋아요 버스트·수정/삭제 레이아웃 수정**
+> 최종 갱신: **8.51 업로드 중 공개 범위 잠금 + 버전 1.3.8(15)** — Android BUILD SUCCESSFUL(2026-08-27), iOS 는 push 후 CI 검증 — 아래 8.51 참고.
+> 이전: **8.48 테스트 피드백 — 연출 3종 삭제(지도 유성/달 위상/사진 리빌) + 좋아요 버스트·수정/삭제 레이아웃 수정**
 > — Android BUILD SUCCESSFUL(2026-08-22), iOS 는 push 후 CI 검증 — 아래 8.48 참고.
 > 이전: **8.47 UI 체감 강화 7건 — 햅틱 / 좋아요 버스트 / 업적 보상 리빌 / 빈 화면 / 채팅 말풍선 /
 > 사진 크리스탈 리빌 / 실제 하늘(달·유성우·여명)** — 아래 8.47 참고(그중 3종은 8.48 에서 삭제됨).
@@ -44,6 +45,25 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.51 업로드 중 공개 범위 잠금 + 버전 1.3.8(15) (Android BUILD SUCCESSFUL 2026-08-27)
+
+증상: 업로드(저장) 진행 중에도 **공개 범위 칩/세그먼트를 계속 누를 수 있어서**,
+저장 중에 값이 바뀌면 화면에 보이는 선택과 실제로 서버에 올라간 값이 달라질 수 있었다.
+
+### 고친 것
+- **Android** `feature/diary/screen/UploadScreen.kt` — 공개 범위 칩의 `.clickable { ... }` 을
+  `.clickable(enabled = !isUploading) { ... }` 으로 바꿔, 업로드 중에는 탭이 먹지 않게 잠갔다.
+- **iOS** `Sources/Features/Upload/UploadScreen.swift` — 공개 범위 `Picker(.segmented)` 에
+  `.disabled(saving)` 추가(Android 와 동일 동작).
+- **버전**: `androidApp/build.gradle.kts` `versionCode 14 → 15`, `versionName 1.3.7 → 1.3.8`.
+
+### 참고
+- `isUploading`(Android) / `saving`(iOS) 은 이미 저장 버튼·입력 잠금에 쓰이던 상태라 새 상태를 만들지 않았다.
+- IDE 파일 `androidApp/.idea/*` 가 함께 추가됨(루트 `.idea/` 도 이미 추적 중). 캐시성 파일이라
+  나중에 정리하려면 `androidApp/.idea/caches/` 를 `.gitignore` 에 추가하면 된다.
 
 ---
 
