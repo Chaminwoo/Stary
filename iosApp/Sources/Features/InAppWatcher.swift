@@ -87,7 +87,10 @@ final class InAppWatcher: ObservableObject {
             guard isIncoming else { continue }
             let viewingThisChat = ChatPresence.shared.activeFriendId == friendId
             guard !viewingThisChat, AppSettings.shared.notificationsEnabled else { continue }
-            let name = c.lastSenderName.isEmpty ? "새 메시지" : c.lastSenderName
+            // 방 메타의 lastSenderName 은 보낸 시점 스냅샷 → 상대의 현재 닉네임으로.
+            UserDirectory.shared.ensureWatching(friendId)
+            let live = UserDirectory.shared.name(friendId, fallback: c.lastSenderName)
+            let name = live.isEmpty ? "새 메시지" : live
             InAppBanner.shared.show(title: name, body: c.lastMessage, kind: .chat, key: "\(c.chatId):\(c.updatedAt)") { [weak self] in
                 self?.onOpenChat?(friendId, name)
             }

@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import androidx.appcompat.app.AppCompatDelegate
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.GifDecoder
@@ -49,6 +50,12 @@ class StaryApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+
+        // 앱 전역 **다크 고정** — 이 앱은 라이트 팔레트가 없다(Color.kt/StaryTheme 모두 다크 단일).
+        // 기기가 라이트 모드면 리소스 한정자·AppCompat 다이얼로그·시스템 바가 라이트로 잡혀
+        // 하단 내비게이션 바가 흰색으로 떴다 → 여기서 야간 모드를 못 박는다.
+        // (시스템 바 톤은 MainActivity 의 enableEdgeToEdge(SystemBarStyle.dark) 가 마무리)
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
 
         // heads-up 알림 채널 사전 생성 — 종료/백그라운드에서 시스템이 표시하는 알림도 상단 배너로 뜨게.
         com.chaminwoo.stary.push.ensureStaryNotificationChannel(this)

@@ -11,6 +11,8 @@ struct BlockedUsersScreen: View {
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var blocks: BlockStore
     @ObservedObject private var locale = LocaleManager.shared
+    /// 차단 문서의 이름/사진은 차단 시점 스냅샷 → users/{uid} 의 현재 값으로 표시.
+    @ObservedObject private var directory = UserDirectory.shared
     /// 해제 확인 대상(nil = 알림창 닫힘).
     @State private var confirmTarget: BlockedUser?
     @State private var profileTarget: ProfileTarget?
@@ -106,9 +108,10 @@ struct BlockedUsersScreen: View {
     }
 
     private func avatar(_ user: BlockedUser) -> some View {
-        Group {
-            if !user.photoUrl.isEmpty {
-                AvatarThumbView(url: user.photoUrl, pixelSize: 132)
+        let photo = directory.photoUrl(user.userId, fallback: user.photoUrl)
+        return Group {
+            if !photo.isEmpty {
+                AvatarThumbView(url: photo, pixelSize: 132)
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(String(displayName(user).prefix(1)).uppercased())
@@ -119,6 +122,7 @@ struct BlockedUsersScreen: View {
         }
         .frame(width: 44, height: 44)
         .clipShape(Circle())
+        .watchUser(user.userId)
     }
 
     private func unblock(_ user: BlockedUser) {
@@ -128,7 +132,8 @@ struct BlockedUsersScreen: View {
     }
 
     private func displayName(_ user: BlockedUser) -> String {
-        user.userName.isEmpty ? locale.t(.unknownUser) : user.userName
+        let name = directory.name(user.userId, fallback: user.userName)
+        return name.isEmpty ? locale.t(.unknownUser) : name
     }
 
     /// 차단 시각 → yyyy.MM.dd (값이 없으면 "-").

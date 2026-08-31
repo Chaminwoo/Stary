@@ -6,6 +6,10 @@ struct ChatScreen: View {
     let friendName: String
     @EnvironmentObject var auth: AuthManager
     @ObservedObject private var locale = LocaleManager.shared
+    /// 진입 시 넘어온 이름은 스냅샷 → 상대의 현재 닉네임으로 표시.
+    @ObservedObject private var directory = UserDirectory.shared
+
+    private var shownName: String { directory.name(friendId, fallback: friendName) }
     @StateObject private var vm: ChatViewModel
     @State private var text = ""
     // 롱프레스한 내 메시지(1분 이내) — 완전 삭제 확인 대상. nil 이면 다이얼로그 숨김.
@@ -55,13 +59,14 @@ struct ChatScreen: View {
         .overlay(alignment: .bottom) {
             if let toast { ToastView(text: toast) }
         }
-        .navigationTitle(friendName)
+        .navigationTitle(shownName)
+        .watchUser(friendId)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 상대 이름 + 히든 업적 배지(34-4) — 타이틀 자리를 커스텀 뷰로.
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 6) {
-                    Text(friendName)
+                    Text(shownName)
                         .font(.minSans(18, .semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)

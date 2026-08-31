@@ -298,7 +298,10 @@ private fun MessageBubble(
         ) {
             if (!isMine) {
                 Text(
-                    msg.senderName.ifBlank { stringResource(R.string.common_friend) },
+                    // 보낸 시점 스냅샷이 아니라 상대의 현재 닉네임으로 표시.
+                    com.chaminwoo.stary.core.util.rememberCurrentUserName(
+                        msg.senderId, msg.senderName
+                    ).ifBlank { stringResource(R.string.common_friend) },
                     color = TextMuted, fontSize = 11.sp,
                     modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
                 )

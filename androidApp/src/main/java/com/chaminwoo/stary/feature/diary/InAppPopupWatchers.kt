@@ -11,6 +11,7 @@ import com.chaminwoo.stary.core.model.NotificationType
 import com.chaminwoo.stary.core.ui.InAppBanner
 import com.chaminwoo.stary.core.util.AppForeground
 import com.chaminwoo.stary.core.util.AppSettings
+import com.chaminwoo.stary.core.util.UserDirectory
 import com.chaminwoo.stary.data.repository.FirebaseChatRepository
 
 /**
@@ -56,7 +57,10 @@ fun NotificationPopupWatcher(
 }
 
 private fun notificationTitle(n: AppNotification): String {
-    val who = n.actorName.ifBlank { "누군가" }
+    // 알림 문서의 actorName 은 발생 시점 스냅샷 → 이미 구독 중인 상대라면 현재 이름으로 바꿔 띄운다.
+    // (구독은 비동기라 첫 배너는 스냅샷일 수 있다 — 목록/상세는 항상 현재 이름으로 보인다)
+    UserDirectory.ensureWatching(n.actorId)
+    val who = UserDirectory.name(n.actorId, n.actorName).ifBlank { "누군가" }
     return when (n.type) {
         NotificationType.LIKE.name -> "${who}님이 좋아요를 눌렀어요"
         NotificationType.COMMENT.name -> "${who}님이 댓글을 남겼어요"
@@ -98,12 +102,15 @@ fun ChatPopupWatcher(
             // 전면 + 그 채팅을 보고 있지 않을 때만 인앱 배너. 후면/종료는 FCM 시스템 알림이 담당.
             // 중복 enqueue 는 InAppBanner.show(key) 의 프로세스 영속 dedup 이 막는다(스냅샷 재방출/리컴포지션 무관).
             if (!viewingThisChat && AppForeground.isForeground && AppSettings.notificationsEnabled) {
+                // 방 메타의 lastSenderName 은 보낸 시점 스냅샷 → 상대의 현재 닉네임으로.
+                UserDirectory.ensureWatching(friendId)
+                val senderName = UserDirectory.name(friendId, c.lastSenderName)
                 InAppBanner.show(
-                    title = c.lastSenderName.ifBlank { "새 메시지" },
+                    title = senderName.ifBlank { "새 메시지" },
                     body = c.lastMessage,
                     kind = InAppBanner.Kind.CHAT,
                     key = "${c.chatId}:${c.updatedAt}",
-                    onClick = { onOpenChat(friendId, c.lastSenderName) },
+                    onClick = { onOpenChat(friendId, senderName) },
                 )
             }
         }

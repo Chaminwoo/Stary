@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.app.ActivityCompat
@@ -55,7 +56,14 @@ class MainActivity : ComponentActivity() {
         val initialDiaryId = intent?.getStringExtra(EXTRA_DIARY_ID) ?: diaryIdFromUri(intent)
         val initialChatFriendId = intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID)
 
-        enableEdgeToEdge()
+        // 시스템 바를 **항상 다크**로 고정한다(앱에 라이트 테마가 없다).
+        // 인자 없는 enableEdgeToEdge() 는 SystemBarStyle.auto — 기기가 라이트 모드면 하단
+        // 내비게이션 바에 밝은 스크림 + 검은 아이콘이 깔려 검정 화면과 이질적이었다(테스트 피드백).
+        // dark(TRANSPARENT) 는 스크림 없이 밝은 아이콘을 강제하고, 대비 강제(API 29+)도 함께 꺼진다.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         setContent {
             StaryTheme {
                 MainScreen(

@@ -398,9 +398,20 @@ fun MainScreen(
                                     is NavRoute.UserProfile -> r.userId
                                     else -> ""
                                 }
+                                // 채팅 탑바 제목은 진입 시 넘어온 이름(스냅샷)이라 상대가 닉네임을
+                                // 바꾸면 옛 이름이 남는다 → users/{uid} 의 현재 이름으로 해석.
+                                // (타인 프로필 탑바는 이름이 아니라 "프로필" 고정이라 대상에서 제외)
+                                val chatUserId =
+                                    (currentRoute as? NavRoute.Chat)?.friendId.orEmpty()
+                                val barTitle = localizedTitle(currentRoute).let { base ->
+                                    if (chatUserId.isBlank()) base
+                                    else com.chaminwoo.stary.core.util.rememberCurrentUserName(
+                                        chatUserId, base
+                                    )
+                                }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = localizedTitle(currentRoute),
+                                        text = barTitle,
                                         fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.SemiBold,

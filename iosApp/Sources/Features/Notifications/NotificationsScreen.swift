@@ -7,6 +7,8 @@ struct NotificationsScreen: View {
     /// 차단한 사용자가 남긴 좋아요/댓글/친구 새 글 알림은 숨긴다(Android NotificationScreen 패리티).
     @EnvironmentObject var blocks: BlockStore
     @StateObject private var vm = NotificationsViewModel()
+    /// 알림 문서의 actorName 은 발생 시점 스냅샷 → users/{actorId} 의 현재 이름으로 표시.
+    @ObservedObject private var directory = UserDirectory.shared
 
     /// 차단 필터를 적용한 표시 대상.
     private var items: [AppNotification] { vm.items.filter { !blocks.blockedIds.contains($0.actorId) } }
@@ -28,7 +30,7 @@ struct NotificationsScreen: View {
                                 .font(.system(size: 20))
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
-                                    Text(n.actorName)
+                                    Text(directory.name(n.actorId, fallback: n.actorName))
                                         .font(.minSans(14))
                                         .foregroundStyle(Theme.textPrimary)
                                     Spacer()
@@ -48,6 +50,7 @@ struct NotificationsScreen: View {
                             }
                         }
                         .padding(.vertical, 4)
+                        .watchUser(n.actorId)
                         .listRowBackground(n.read ? Theme.background : Theme.surface)
                     }
                     .onDelete { idx in

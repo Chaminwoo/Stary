@@ -61,8 +61,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.chaminwoo.stary.core.util.rememberUserDisplay
 import com.chaminwoo.stary.shared.config.StaryConfig
-import kotlinx.coroutines.tasks.await
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.ui.CardBgTop
 import com.chaminwoo.stary.core.ui.PageBg
@@ -456,6 +456,9 @@ private fun PersonCard(
     onClick: (() -> Unit)? = null,
     trailing: @Composable () -> Unit,
 ) {
+    // 검색 결과/받은 요청의 이름·사진은 그 문서에 박힌 스냅샷이라 상대가 닉네임/프사를 바꾸면
+    // 낡은 값(대개 구글 기본값)이 남는다 → users/{uid} 의 현재 값으로 해석하고 스냅샷은 폴백으로만.
+    val shownName = rememberUserDisplay(userId, name, photoUrl).name
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -474,7 +477,7 @@ private fun PersonCard(
             Avatar(name, photoUrl, userId)
             Spacer(Modifier.width(12.dp))
             Text(
-                name.ifBlank { stringResource(R.string.friend_no_name) },
+                shownName.ifBlank { stringResource(R.string.friend_no_name) },
                 color = TextMain,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Normal,
@@ -514,6 +517,8 @@ private fun FriendRow(
     onClick: () -> Unit,
     onOpenLatestStar: (diaryId: String) -> Unit,
 ) {
+    // 친구 문서(users/{나}/friends/{친구})의 이름·사진은 수락 시점 스냅샷 → 현재 프로필로 해석.
+    val shownName = rememberUserDisplay(userId, name, photoUrl).name
     // 친구의 최근(내가 볼 수 있는) 별 — private/익명은 저장소에서 이미 걸러진다.
     val diaryRepo = remember { com.chaminwoo.stary.data.repository.FirebaseDiaryRepository() }
     val latestStar by remember(userId) { diaryRepo.observeLatestVisibleDiaryOf(userId) }
@@ -532,7 +537,7 @@ private fun FriendRow(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    name.ifBlank { stringResource(R.string.friend_no_name) },
+                    shownName.ifBlank { stringResource(R.string.friend_no_name) },
                     color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.Light,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
@@ -584,20 +589,11 @@ private fun Avatar(
     size: androidx.compose.ui.unit.Dp = 44.dp,
     onClick: (() -> Unit)? = null,
 ) {
-    // photoUrl 이 비어 있으면(예전 친구 데이터) users/{userId}.profileImageUrl 을 조회해 채운다.
-    var resolved by remember(userId, photoUrl) { mutableStateOf(photoUrl) }
-    LaunchedEffect(userId, photoUrl) {
-        if (photoUrl.isBlank() && userId.isNotBlank()) {
-            val url = try {
-                com.chaminwoo.stary.data.staryFirestore
-                    .collection(StaryConfig.Collections.USERS).document(userId)
-                    .get().await().getString("profileImageUrl")
-            } catch (_: Exception) {
-                null
-            }
-            if (!url.isNullOrBlank()) resolved = url
-        }
-    }
+    // 사진은 users/{userId}.profileImageUrl 의 **현재 값**을 쓴다(스냅샷 photoUrl 은 폴백).
+    // 예전엔 photoUrl 이 빈 경우에만 1회 조회해서, 낡은 구글 사진이 박혀 있으면 영영 그대로였다.
+    val display = rememberUserDisplay(userId, name, photoUrl)
+    val resolved = display.photoUrl
+    val shownName = display.name
     Box(
         modifier = Modifier
             .size(size)
@@ -612,7 +608,7 @@ private fun Avatar(
                 model = resolved,
                 contentDescription = stringResource(
                     R.string.cd_profile_photo,
-                    name.ifBlank { stringResource(R.string.common_user) }),
+                    shownName.ifBlank { stringResource(R.string.common_user) }),
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(CircleShape),
@@ -620,7 +616,7 @@ private fun Avatar(
             )
         } else {
             Text(
-                name.take(1).uppercase().ifBlank { "?" },
+                shownName.take(1).uppercase().ifBlank { "?" },
                 color = Accent, fontSize = 16.sp, fontWeight = FontWeight.Light
             )
         }

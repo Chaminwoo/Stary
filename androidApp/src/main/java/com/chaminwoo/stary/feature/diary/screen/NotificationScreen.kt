@@ -250,7 +250,10 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = notif.actorName,
+                    // 알림 문서에 박힌 이름은 발생 시점 스냅샷 → users/{actorId} 의 현재 이름으로.
+                    text = com.chaminwoo.stary.core.util.rememberCurrentUserName(
+                        notif.actorId, notif.actorName
+                    ),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Light,
                     color = MaterialTheme.colorScheme.onBackground

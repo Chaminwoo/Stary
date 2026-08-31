@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- 창 배경을 완전 검정으로 — 첫 프레임/스플래시가 흰색으로 번쩍이지 않도록.
+    <!-- 앱은 **항상 다크**다(라이트 테마가 없다). 시스템이 라이트 모드여도 다크로 고정한다.
+         - 부모를 Light 로 두면 시스템 라이트 모드에서 **하단 내비게이션 바가 흰색 + 검은 아이콘**으로
+           떠서 검정 화면과 이질적이었다(테스트 피드백). 다크 부모 + windowLight*Bar=false 로 고정.
+         - 실제 바 색/아이콘 톤은 MainActivity 의 enableEdgeToEdge(SystemBarStyle.dark) 가 최종 결정하고,
+           앱 전역 야간 모드는 StaryApplication 의 setDefaultNightMode(MODE_NIGHT_YES) 가 고정한다.
+         창 배경을 완전 검정으로 — 첫 프레임/스플래시가 흰색으로 번쩍이지 않도록.
          Android 12+ 시스템 스플래시 세부는 values-v31/themes.xml 에서 검정 배경 + 아이콘 숨김. -->
-    <style name="Theme.Stary" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="Theme.Stary" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowBackground">@color/black</item>
+        <!-- 상태바/내비바 아이콘을 항상 밝은 톤으로(=바 배경이 어둡다는 선언). -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <!-- 시스템의 강제 다크 변환(forceDark)은 이미 다크인 화면을 뒤집으므로 끈다. -->
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>

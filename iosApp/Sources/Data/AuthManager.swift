@@ -162,24 +162,43 @@ final class AuthManager: ObservableObject {
     private func ensureProfile(_ user: User) async {
         let appUid = Self.appUserId(of: user) ?? user.uid
         let ref = FirestoreService.users.document(appUid)
-        let saved = try? await ref.getDocument()
+        // ⚠️ **"읽기 실패"와 "문서 없음"을 반드시 구분한다.**
+        //    `try?` 로 뭉뚱그리면 네트워크가 잠깐 안 될 때 아래 setData 가 커스텀 닉네임/사진을
+        //    **구글 기본값으로 덮어써** 버린다(다른 사람 화면에도 그 값이 그대로 나간다).
+        //    Android `GoogleAuthHelper.signInWithGoogle` 과 동일한 방어.
+        var readOk = true
+        var saved: DocumentSnapshot?
+        do { saved = try await ref.getDocument() } catch { readOk = false }
         // 이미 정해둔 닉네임(커스텀 포함)이 있으면 우선 — 구글 이름으로 덮어쓰지 않는다(재로그인 유지).
         let existing = saved?.get("userName") as? String
-        let name = (existing?.isEmpty == false) ? existing! : (user.displayName ?? user.email ?? "익명의 별")
+        let cached = UserDefaults.standard.string(forKey: "nickname_\(appUid)")
+        let googleName = user.displayName ?? user.email ?? "익명의 별"
+        let name: String
+        if existing?.isEmpty == false {
+            name = existing!
+        } else if !readOk, cached?.isEmpty == false {
+            // 읽기 실패 — 이 기기에 남아 있는 닉네임이 구글 기본값보다 정확하다.
+            name = cached!
+        } else {
+            name = googleName
+        }
         // 프로필 **사진**도 동일 — 앱에서 올린 사진이 있으면 그대로 둔다.
         // (예전엔 항상 구글 사진으로 덮어써서 재로그인마다 프로필 사진이 초기화됐다 — 2026-08-15 수정.)
         let existingPhoto = saved?.get("profileImageUrl") as? String
         let photo = (existingPhoto?.isEmpty == false) ? existingPhoto! : (user.photoURL?.absoluteString ?? "")
         displayName = name
         UserDefaults.standard.set(name, forKey: "nickname_\(appUid)")
-        // Android upsertProfile 과 동일한 3필드(검색 가능하도록) + 서버 계정삭제용 authUid.
-        let data: [String: Any] = [
-            "userId": appUid,
-            "userName": name,
-            "profileImageUrl": photo,
-            "authUid": user.uid,
-        ]
-        try? await ref.setData(data, merge: true)
+        // 현재 값을 확실히 아는 경우에만 기록한다(읽기 실패 시엔 손대지 않고 다음 로그인에 다시 시도).
+        if readOk {
+            // Android upsertProfile 과 동일한 3필드(검색 가능하도록) + 서버 계정삭제용 authUid.
+            let data: [String: Any] = [
+                "userId": appUid,
+                "userName": name,
+                "profileImageUrl": photo,
+                "authUid": user.uid,
+            ]
+            try? await ref.setData(data, merge: true)
+        }
         // 로그인 → 삭제 예약이 있으면 취소(7일 유예 정책).
         await Self.cancelPendingDeletion(uid: appUid)
     }

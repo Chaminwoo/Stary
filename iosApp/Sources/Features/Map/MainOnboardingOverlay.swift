@@ -39,6 +39,9 @@ struct MainOnboardingOverlay: View {
     @State private var spotY: CGFloat = 0
     @State private var spotR: CGFloat = 0
 
+    /// 말풍선 실측 크기 — 스포트라이트 원 옆/위/아래에 정확히 붙이려면 크기를 먼저 알아야 한다.
+    @State private var pillSize: CGSize = .zero
+
     private let stepCount = 7
 
     // MARK: - 반지름
@@ -134,11 +137,14 @@ struct MainOnboardingOverlay: View {
                 // 3. 안내 말풍선
                 // =========================================================
 
-                pillLayer()
-                    .animation(
-                        .easeOut(duration: 0.26),
-                        value: step
-                    )
+                pillLayer(
+                    in: geo.size,
+                    origin: originGlobal
+                )
+                .animation(
+                    .easeOut(duration: 0.26),
+                    value: step
+                )
 
                 // =========================================================
                 // 4. 건너뛰기
@@ -339,137 +345,135 @@ struct MainOnboardingOverlay: View {
 
     // MARK: - 말풍선
 
+    /// 이 단계의 문구.
+    private func pillText(for step: Int) -> String {
+
+        switch step {
+
+        case 0:
+            return "보고 싶은 다이어리만 골라서 볼 수 있어요"
+
+        case 1:
+            return "시점을 현재 내 위치로 이동해요"
+
+        case 2:
+            return "별들을 이어 별자리를 만들어요"
+
+        case 3:
+            return "지도에만 집중해서 별들을 감상해요"
+
+        case 4:
+            return "이 버튼을 눌러 다이어리를 올려요"
+
+        case 5:
+            return "내 다이어리 · 프로필 · 업적 · 친구 등\n여러 설정을 여기서 관리해요"
+
+        default:
+            return "지금부터 우주를 탐험하고,\n별들에 이야기를 남겨보세요!"
+        }
+    }
+
+    /// 말풍선을 원의 어느 쪽에 붙일지 — 필터는 화면 맨 아래라 위로, 메뉴는 맨 위라 아래로,
+    /// 우측 FAB 컬럼(1~4)은 왼쪽 옆에.
+    private func pillSide(for step: Int) -> CoachPillSide {
+
+        switch step {
+
+        case 0:
+            return .above
+
+        case 1, 2, 3, 4:
+            return .leftOf
+
+        case 5:
+            return .below
+
+        default:
+            return .center
+        }
+    }
+
+    /// 말풍선 **중심** 좌표(오버레이 로컬).
+    ///
+    /// ⚠️ 예전에는 말풍선을 화면 가장자리 기준 고정 padding 으로 놓았다 — 스포트라이트는 실제 버튼
+    ///    좌표를 따라가는데 말풍선만 상수라, 지도 버튼이 바뀌거나 기기 크기가 다르면 둘이 어긋났다.
+    ///    지금은 원 좌표 + 말풍선 실측 크기에서 계산하므로 항상 붙어 있다.
+    ///    (Android `MainOnboardingOverlay.AnchoredCoachPill` 과 동일한 규칙)
+    private func pillCenter(
+        in size: CGSize,
+        origin: CGPoint
+    ) -> CGPoint {
+
+        let margin: CGFloat = 10   // 화면 가장자리 최소 여백
+        let gap: CGFloat = 12      // 원 테두리와 말풍선 사이 간격
+
+        let sx = spotX - origin.x
+        let sy = spotY - origin.y
+        let w = pillSize.width
+        let h = pillSize.height
+
+        var cx: CGFloat
+        var cy: CGFloat
+
+        switch pillSide(for: step) {
+
+        case .leftOf:
+            cx = sx - spotR - gap - w / 2
+            cy = sy
+
+        case .above:
+            cx = sx - spotR + w / 2
+            cy = sy - spotR - gap - h / 2
+
+        case .below:
+            cx = sx - spotR + w / 2
+            cy = sy + spotR + gap + h / 2
+
+        case .center:
+            cx = size.width / 2
+            cy = size.height / 2
+        }
+
+        let minX = margin + w / 2
+        let maxX = max(minX, size.width - margin - w / 2)
+        let minY = margin + h / 2
+        let maxY = max(minY, size.height - margin - h / 2)
+
+        return CGPoint(
+            x: min(max(cx, minX), maxX),
+            y: min(max(cy, minY), maxY)
+        )
+    }
+
     @ViewBuilder
-    private func pillLayer() -> some View {
+    private func pillLayer(
+        in size: CGSize,
+        origin: CGPoint
+    ) -> some View {
 
-        ZStack {
+        let center = pillCenter(in: size, origin: origin)
 
-            switch step {
-
-            // ---------------------------------------------------------
-            // 0. 필터
-            // ---------------------------------------------------------
-
-            case 0:
-
-                CoachPill(
-                    "보고 싶은 다이어리만 골라서 볼 수 있어요"
+        CoachPill(
+            pillText(for: step),
+            big: step >= stepCount - 1
+        )
+        .background(
+            // 크기 실측 — 재기 전(=.zero)에는 숨겨서 좌상단에 한 프레임 번쩍이지 않게 한다.
+            GeometryReader { g in
+                Color.clear.preference(
+                    key: CoachPillSizeKey.self,
+                    value: g.size
                 )
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .bottomLeading
-                )
-                .padding(.leading, 8)
-                .padding(.bottom, 88)
-
-            // ---------------------------------------------------------
-            // 1. 내 위치
-            // ---------------------------------------------------------
-
-            case 1:
-
-                CoachPill(
-                    "시점을 현재 내 위치로 이동해요"
-                )
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .bottomTrailing
-                )
-                .padding(.trailing, 72)
-                .padding(.bottom, 196)
-
-            // ---------------------------------------------------------
-            // 2. 별자리
-            // ---------------------------------------------------------
-
-            case 2:
-
-                CoachPill(
-                    "별들을 이어 별자리를 만들어요"
-                )
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .bottomTrailing
-                )
-                .padding(.trailing, 72)
-                .padding(.bottom, 136)
-
-            // ---------------------------------------------------------
-            // 3. 몰입
-            // ---------------------------------------------------------
-
-            case 3:
-
-                CoachPill(
-                    "지도에만 집중해서 별들을 감상해요"
-                )
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .bottomTrailing
-                )
-                .padding(.trailing, 72)
-                .padding(.bottom, 76)
-
-            // ---------------------------------------------------------
-            // 4. 업로드
-            // ---------------------------------------------------------
-
-            case 4:
-
-                CoachPill(
-                    "이 버튼을 눌러 다이어리를 올려요"
-                )
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .bottomTrailing
-                )
-                .padding(.trailing, 72)
-                .padding(.bottom, 16)
-
-            // ---------------------------------------------------------
-            // 5. 메뉴
-            // ---------------------------------------------------------
-
-            case 5:
-
-                CoachPill(
-                    "내 다이어리 · 프로필 · 업적 · 친구 등\n여러 설정을 여기서 관리해요"
-                )
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .topLeading
-                )
-                .padding(.leading, 8)
-                .padding(.top, 66)
-
-            // ---------------------------------------------------------
-            // 6. 마무리
-            // ---------------------------------------------------------
-
-            default:
-
-                CoachPill(
-                    "지금부터 우주를 탐험하고,\n별들에 이야기를 남겨보세요!",
-                    big: true
-                )
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .center
-                )
-                .padding(.horizontal, 24)
+            }
+        )
+        .onPreferenceChange(CoachPillSizeKey.self) { newSize in
+            if newSize != .zero {
+                pillSize = newSize
             }
         }
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: .infinity
-        )
+        .position(center)
+        .opacity(pillSize == .zero ? 0 : 1)
+        .allowsHitTesting(false)
     }
 
     // MARK: - 다음 단계
@@ -505,6 +509,33 @@ struct MainOnboardingOverlay: View {
             deadline: .now() + 0.3
         ) {
             onDismiss()
+        }
+    }
+}
+
+// MARK: - 말풍선 배치
+
+/// 말풍선을 스포트라이트 원의 어느 쪽에 붙일지(Android `PillSide` 와 동일).
+enum CoachPillSide {
+
+    case above
+    case below
+    case leftOf
+    case center
+}
+
+/// 말풍선 실측 크기 전달용.
+struct CoachPillSizeKey: PreferenceKey {
+
+    static var defaultValue: CGSize = .zero
+
+    static func reduce(
+        value: inout CGSize,
+        nextValue: () -> CGSize
+    ) {
+        let next = nextValue()
+        if next != .zero {
+            value = next
         }
     }
 }

@@ -112,17 +112,22 @@ fun UserProfileScreen(
 ) {
     val myId = GoogleAuthHelper.currentUserId
 
-    // 대상의 공개 프로필(사진/이름/장착 칭호) 로드.
-    var photoUrl by remember(userId) { mutableStateOf("") }
-    var resolvedName by remember(userId) { mutableStateOf(userName) }
+    // 대상의 공개 프로필(사진/이름/장착 칭호) 로드 — 첫 페인트용 1회 조회.
+    var fetchedPhoto by remember(userId) { mutableStateOf("") }
+    var fetchedName by remember(userId) { mutableStateOf(userName) }
     var equippedTitleId by remember(userId) { mutableStateOf("") }
     LaunchedEffect(userId) {
         FirebaseFriendRepository().getProfile(userId)?.let {
-            photoUrl = it.profileImageUrl
-            if (it.userName.isNotBlank()) resolvedName = it.userName
+            fetchedPhoto = it.profileImageUrl
+            if (it.userName.isNotBlank()) fetchedName = it.userName
             equippedTitleId = it.equippedTitle
         }
     }
+    // 이름/사진의 최종 출처는 users/{uid} **실시간 구독**(UserDirectory) — 상대가 닉네임/프사를
+    // 바꾸면 화면을 열어둔 채로도 반영된다. 넘겨받은 인자/1회 조회값은 폴백일 뿐.
+    val display = com.chaminwoo.stary.core.util.rememberUserDisplay(userId, fetchedName, fetchedPhoto)
+    val photoUrl = display.photoUrl
+    val resolvedName = display.name
     // 칭호는 언어 전환에 맞춰 표시(로케일 해석)
     val equippedTitleName = LocalizedNames.equippedTitle(
         androidx.compose.ui.platform.LocalContext.current, equippedTitleId.ifBlank { null }

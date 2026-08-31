@@ -43,4 +43,24 @@ final class UserDirectory: ObservableObject {
     func photoUrl(_ userId: String) -> String? {
         cache[userId]?.photoUrl
     }
+
+    /// 현재 프로필 사진 URL. 아직 로드 전/없으면 폴백(문서에 박힌 스냅샷 사진).
+    func photoUrl(_ userId: String, fallback: String) -> String {
+        cache[userId]?.photoUrl ?? fallback
+    }
+}
+
+extension View {
+
+    /// 이 뷰가 떠 있는 동안 [userId] 의 현재 프로필(users/{uid})을 구독한다.
+    ///
+    /// ⚠️ **타인의 이름/사진을 그리는 행은 예외 없이 이걸 붙이고 `UserDirectory` 값을 쓴다.**
+    ///    문서에 박힌 스냅샷(diary.userName / notif.actorName / friend.photoUrl …)을 그대로 그리면
+    ///    상대가 닉네임·프사를 바꾼 뒤에도 옛 값(대개 구글 기본값)이 남는다.
+    func watchUser(_ userId: String) -> some View {
+        // View 프로토콜 확장은 @MainActor 격리가 아니므로 명시적으로 메인 액터에서 실행한다.
+        task(id: userId) {
+            await MainActor.run { UserDirectory.shared.ensureWatching(userId) }
+        }
+    }
 }

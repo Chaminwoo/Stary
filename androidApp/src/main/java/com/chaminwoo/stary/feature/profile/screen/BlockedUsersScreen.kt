@@ -177,6 +177,10 @@ private fun BlockedRow(
     onOpenProfile: () -> Unit,
     onUnblock: () -> Unit,
 ) {
+    // 차단 문서의 이름/사진은 차단 시점 스냅샷 → 현재 프로필로 표시(폴백은 스냅샷).
+    val display = com.chaminwoo.stary.core.util.rememberUserDisplay(
+        user.userId, user.userName, user.photoUrl
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -195,16 +199,16 @@ private fun BlockedRow(
                 modifier = Modifier.size(44.dp).clip(CircleShape).background(CardBgTop),
                 contentAlignment = Alignment.Center
             ) {
-                if (user.photoUrl.isNotBlank()) {
+                if (display.photoUrl.isNotBlank()) {
                     ThumbAsyncImage(
-                        model = user.photoUrl,
+                        model = display.photoUrl,
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize().clip(CircleShape),
                         sizePx = 96,
                     )
                 } else {
                     Text(
-                        user.userName.take(1).uppercase().ifBlank { "?" },
+                        display.name.take(1).uppercase().ifBlank { "?" },
                         color = Accent, fontFamily = MinSans, fontSize = 16.sp,
                         fontWeight = FontWeight.Light
                     )
@@ -213,7 +217,7 @@ private fun BlockedRow(
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    user.userName.ifBlank { stringResource(R.string.common_user) },
+                    display.name.ifBlank { stringResource(R.string.common_user) },
                     color = TextMain, fontFamily = MinSans, fontSize = 15.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )

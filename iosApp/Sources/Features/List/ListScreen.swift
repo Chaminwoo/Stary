@@ -116,6 +116,13 @@ struct ListScreen: View {
 struct DiaryCard: View {
     let diary: Diary
     var distance: Double?
+    /// 작성자 이름은 저장 시점 스냅샷이 아니라 users/{uid} 의 현재 닉네임으로(상세 화면과 동일 규칙).
+    @ObservedObject private var directory = UserDirectory.shared
+
+    private var authorName: String {
+        let name = directory.name(diary.userId, fallback: diary.userName)
+        return name.isEmpty ? LocaleManager.shared.t(.commonAnonymous) : name
+    }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -125,7 +132,7 @@ struct DiaryCard: View {
                     .font(.minSans(17))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
-                Text(diary.userName.isEmpty ? LocaleManager.shared.t(.commonAnonymous) : diary.userName)
+                Text(authorName)
                     .font(.minSans(12))
                     .foregroundStyle(Theme.textSecondary)
             }
@@ -147,6 +154,7 @@ struct DiaryCard: View {
         }
         .padding(14)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
+        .watchUser(diary.userId)
     }
 
     private func distanceLabel(_ m: Double) -> String {

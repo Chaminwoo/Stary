@@ -484,7 +484,10 @@ private fun ClusterDiaryCard(
             Spacer(Modifier.height(2.dp))
 
             Text(
-                text = diary.userName,
+                // 저장 시점 스냅샷이 아니라 작성자의 현재 닉네임(상세 화면과 동일 규칙).
+                text = com.chaminwoo.stary.core.util.rememberCurrentUserName(
+                    diary.userId, diary.userName
+                ),
                 color = MaterialTheme.colorScheme.secondary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Light,

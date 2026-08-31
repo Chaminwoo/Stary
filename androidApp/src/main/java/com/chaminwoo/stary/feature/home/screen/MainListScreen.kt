@@ -309,7 +309,9 @@ fun MainListScreen(
                                     )
                                 )
                                 Text(
-                                    friend.userName.ifBlank { friend.userId.take(8) },
+                                    com.chaminwoo.stary.core.util.rememberCurrentUserName(
+                                        friend.userId, friend.userName
+                                    ).ifBlank { friend.userId.take(8) },
                                     color = Color(0xFFF0F0F0), fontSize = 14.sp
                                 )
                             }

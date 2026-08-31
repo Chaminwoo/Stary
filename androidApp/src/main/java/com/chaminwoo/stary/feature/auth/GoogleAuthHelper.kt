@@ -88,7 +88,24 @@ object GoogleAuthHelper {
                 val appCtx = context.applicationContext
                 currentUserId?.let { uid ->
                     CoroutineScope(Dispatchers.IO).launch {
-                        val saved = FirebaseFriendRepository().getProfile(uid)
+                        // ⚠️ **"읽기 실패"와 "문서 없음"을 반드시 구분한다.**
+                        //    둘 다 null 로 뭉뚱그리면, 네트워크가 잠깐 안 될 때 아래 upsertProfile 이
+                        //    커스텀 닉네임/프로필 사진을 **구글 기본값으로 덮어써** 버린다.
+                        //    (다른 사람 화면에도 그 값이 그대로 보이므로 계정 전체가 구글 기본으로 되돌아간 것처럼 된다)
+                        val loaded: Pair<Boolean, UserProfile?> = try {
+                            val doc = staryFirestore
+                                .collection(StaryConfig.Collections.USERS).document(uid)
+                                .get().await()
+                            val profile =
+                                if (doc.exists()) doc.toObject(UserProfile::class.java)?.copy(userId = uid)
+                                else null
+                            true to profile
+                        } catch (e: Exception) {
+                            Log.w(TAG, "공개 프로필 조회 실패 — 프로필 기록을 건너뜀: ${e.localizedMessage}")
+                            false to null
+                        }
+                        val readOk = loaded.first
+                        val saved = loaded.second
                         // 이미 정해둔 닉네임(커스텀 포함)이 있으면 그걸 우선 — 구글 이름으로 덮어쓰지 않는다.
                         // (다른 기기에서 재로그인해도 닉네임이 유지되도록.)
                         val existing = saved?.userName?.takeIf { it.isNotBlank() }
@@ -100,13 +117,16 @@ object GoogleAuthHelper {
                         // (예전엔 아래 upsertProfile 이 항상 구글 사진으로 덮어써서 재로그인마다 사진이 초기화됐다.)
                         val existingPhoto = saved?.profileImageUrl?.takeIf { it.isNotBlank() }
                         if (existingPhoto != null) currentUserPhotoUrl = existingPhoto
-                        FirebaseFriendRepository().upsertProfile(
-                            UserProfile(
-                                userId = uid,
-                                userName = currentUserName ?: "",
-                                profileImageUrl = currentUserPhotoUrl ?: ""
+                        // 현재 값을 확실히 아는 경우에만 기록한다(읽기 실패 시엔 손대지 않는다).
+                        if (readOk) {
+                            FirebaseFriendRepository().upsertProfile(
+                                UserProfile(
+                                    userId = uid,
+                                    userName = currentUserName ?: "",
+                                    profileImageUrl = currentUserPhotoUrl ?: ""
+                                )
                             )
-                        )
+                        }
                         // 삭제 예약이 걸려 있으면 재로그인으로 취소(7일 유예 정책).
                         cancelPendingDeletion(uid)
                         // FCM 토큰 + authUid 저장 — 친구 새 글 푸시(Cloud Functions) 발송 대상 / 서버 계정삭제용

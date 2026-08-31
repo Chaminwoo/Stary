@@ -27,6 +27,17 @@ struct UserProfileScreen: View {
     /// 그 사람이 프로필에 띄우기로 선택(핀)한 다이어리 id — 타인 프로필엔 이 별들만 뜬다.
     @State private var pinnedIds: [String] = []
     @ObservedObject private var hidden = HiddenAchievementStore.shared
+    /// 이름/사진의 최종 출처는 users/{uid} **실시간 구독** — 넘겨받은 인자/1회 조회값은 폴백.
+    @ObservedObject private var directory = UserDirectory.shared
+
+    /// 화면 전체에서 쓰는 표시 이름(현재 닉네임 우선).
+    private var shownName: String { directory.name(userId, fallback: userName) }
+
+    /// 화면 전체에서 쓰는 프로필 사진(현재 사진 우선).
+    private var shownPhoto: String? {
+        let live = directory.photoUrl(userId)
+        return (live?.isEmpty == false) ? live : profileImageUrl
+    }
 
     private var isMe: Bool { userId == auth.uid }
 
@@ -61,7 +72,7 @@ struct UserProfileScreen: View {
             VStack(spacing: 14) {
                 avatar
                 HStack(spacing: 6) {
-                    Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
+                    Text(shownName.isEmpty ? locale.t(.unknownUser) : shownName)
                         .font(.minSans(26))
                         .foregroundStyle(Theme.textPrimary)
                     HiddenStarBadges(userId: userId, size: 13)
@@ -88,6 +99,7 @@ struct UserProfileScreen: View {
             }
         }
         .navigationTitle(locale.t(.profileTitle))
+        .watchUser(userId)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !isMe, auth.uid != nil {
@@ -111,11 +123,11 @@ struct UserProfileScreen: View {
             }
         }
         .navigationDestination(isPresented: $openChat) {
-            ChatScreen(friendId: userId, friendName: userName, myUid: auth.uid ?? "")
+            ChatScreen(friendId: userId, friendName: shownName, myUid: auth.uid ?? "")
         }
         // 프로필 사진 확대 보기(Android UserProfileScreen PhotoViewer 패리티).
         .fullScreenCover(isPresented: $showPhotoViewer) {
-            PhotoViewer(imageUrl: profileImageUrl ?? "") { showPhotoViewer = false }
+            PhotoViewer(imageUrl: shownPhoto ?? "") { showPhotoViewer = false }
         }
         .reportDialog(title: locale.t(.reportUser), isPresented: $showReportDialog) { reason, detail in
             guard let myUid = auth.uid else { return }
@@ -130,7 +142,7 @@ struct UserProfileScreen: View {
         .staryInfoDialog(locale.t(.toastReported), isPresented: $showReportedConfirm)
         // 차단 확인 — 무엇이 숨겨지는지(별/댓글) + 친구 해제를 미리 알린다(Android 패리티).
         .staryConfirmDialog(String(format: locale.t(.blockConfirmTitle),
-                                   userName.isEmpty ? locale.t(.unknownUser) : userName),
+                                   shownName.isEmpty ? locale.t(.unknownUser) : shownName),
                             isPresented: $showBlockConfirm,
                             message: locale.t(.blockConfirmMsg),
                             confirmTitle: locale.t(.blockAction),
@@ -160,8 +172,8 @@ struct UserProfileScreen: View {
             await ModerationRepository.unblock(userId: myUid, targetId: userId)
             isBlocked = false
         } else {
-            await ModerationRepository.block(userId: myUid, targetId: userId, targetName: userName,
-                                             targetPhotoUrl: profileImageUrl ?? "")
+            await ModerationRepository.block(userId: myUid, targetId: userId, targetName: shownName,
+                                             targetPhotoUrl: shownPhoto ?? "")
             isBlocked = true
             try? await FirestoreService.friends(of: myUid).document(userId).delete()
             try? await FirestoreService.friends(of: userId).document(myUid).delete()
@@ -173,7 +185,7 @@ struct UserProfileScreen: View {
         VStack(spacing: 10) {
             avatar
             HStack(spacing: 6) {
-                Text(userName.isEmpty ? locale.t(.unknownUser) : userName)
+                Text(shownName.isEmpty ? locale.t(.unknownUser) : shownName)
                     .font(.minSans(20))
                     .foregroundStyle(Theme.textPrimary)
                 // 히든 업적 달성자 전용 크리스탈 배지(34-4).
@@ -202,13 +214,13 @@ struct UserProfileScreen: View {
                                      center: .center, startRadius: 0, endRadius: 90))
                 .frame(width: 140, height: 140)
             Group {
-                if let url = profileImageUrl, !url.isEmpty {
+                if let url = shownPhoto, !url.isEmpty {
                     AsyncImage(url: URL(string: url)) { image in
                         image.resizable().scaledToFill()
                     } placeholder: { Theme.surfaceAlt }
                 } else {
                     Theme.surfaceAlt.overlay(
-                        Text(String((userName.isEmpty ? "?" : userName).prefix(1)))
+                        Text(String((shownName.isEmpty ? "?" : shownName).prefix(1)))
                             .font(.minSans(40))
                             .foregroundStyle(Theme.navyAccent)
                     )
@@ -219,7 +231,7 @@ struct UserProfileScreen: View {
             .clipShape(Circle())
             // 사진이 있으면 눌러서 크게 볼 수 있다(기본 이니셜일 땐 반응 없음).
             .onTapGesture {
-                if let url = profileImageUrl, !url.isEmpty { showPhotoViewer = true }
+                if let url = shownPhoto, !url.isEmpty { showPhotoViewer = true }
             }
         }
     }
@@ -312,7 +324,7 @@ struct UserProfileScreen: View {
         try? await ref.setData([
             "fromId": myUid, "fromName": auth.displayName,
             "fromPhotoUrl": "",
-            "toId": userId, "toName": userName,
+            "toId": userId, "toName": shownName,
             "createdAt": FirestoreService.nowMillis,
         ])
     }

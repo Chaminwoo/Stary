@@ -686,6 +686,8 @@ private struct FriendFilterPicker: View {
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var locale = LocaleManager.shared
+    /// 친구 이름은 친구 문서 스냅샷이 아니라 users/{uid} 의 현재 닉네임으로.
+    @ObservedObject private var directory = UserDirectory.shared
     @State private var selected: Set<String>
 
     init(friends: [Friend], initial: Set<String>, onConfirm: @escaping (Set<String>) -> Void) {
@@ -727,7 +729,7 @@ private struct FriendFilterPicker: View {
             if isSel { selected.remove(f.userId) } else { selected.insert(f.userId) }
         } label: {
             HStack(spacing: 12) {
-                Text(f.userName)
+                Text(directory.name(f.userId, fallback: f.userName))
                     .font(.minSans(15))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
@@ -738,6 +740,7 @@ private struct FriendFilterPicker: View {
             .background(isSel ? Theme.navyAccent.opacity(0.14) : Color.white.opacity(0.04),
                         in: RoundedRectangle(cornerRadius: 12))
         }
+        .watchUser(f.userId)
         .buttonStyle(.plain)
     }
 }

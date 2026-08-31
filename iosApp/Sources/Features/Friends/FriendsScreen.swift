@@ -10,6 +10,8 @@ struct FriendsScreen: View {
     @StateObject private var vm = FriendsViewModel()
     /// 읽음 기록 — 채팅 화면과 공유(행 탭 시 markRead).
     @ObservedObject private var readStore = ChatReadStore.shared
+    /// 친구/요청/검색 행의 이름은 문서 스냅샷이 아니라 users/{uid} 의 현재 닉네임으로.
+    @ObservedObject private var directory = UserDirectory.shared
     @State private var query = ""
     /// 하단 토스트(Android StaryToast 대응) — 친구 요청 전송/실패 피드백.
     @State private var toast: String?
@@ -80,7 +82,8 @@ struct FriendsScreen: View {
                         avatar(user.userName, photoUrl: user.profileImageUrl ?? "", userId: user.userId)
                     }
                     .buttonStyle(.plain)
-                    Text(user.userName).foregroundStyle(Theme.textPrimary)
+                    Text(directory.name(user.userId, fallback: user.userName))
+                        .foregroundStyle(Theme.textPrimary)
                     HiddenStarBadges(userId: user.userId, size: 11)
                     Spacer()
                     // 이미 친구/요청 보냄 → 상태 칩, 아니면 추가 버튼. (Android StatusChip 패리티)
@@ -165,7 +168,8 @@ struct FriendsScreen: View {
                         avatar(req.fromName, photoUrl: req.fromPhotoUrl, userId: req.fromId)
                     }
                     .buttonStyle(.plain)
-                    Text(req.fromName).foregroundStyle(Theme.textPrimary)
+                    Text(directory.name(req.fromId, fallback: req.fromName))
+                        .foregroundStyle(Theme.textPrimary)
                     Spacer()
                     Button(LocaleManager.shared.t(.friendAccept)) {
                         guard let uid = auth.uid else { return }
@@ -252,7 +256,9 @@ struct FriendsScreen: View {
             FriendAvatar(name: friend.userName, photoUrl: friend.photoUrl, userId: friend.userId, size: 52)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
-                    Text(friend.userName.isEmpty ? LocaleManager.shared.t(.friendNoName) : friend.userName)
+                    Text(directory.name(friend.userId, fallback: friend.userName).isEmpty
+                         ? LocaleManager.shared.t(.friendNoName)
+                         : directory.name(friend.userId, fallback: friend.userName))
                         .font(.minSans(15, .medium))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
@@ -305,11 +311,18 @@ private struct FriendAvatar: View {
     let userId: String
     var size: CGFloat = 36
     @State private var resolved: String?
+    @ObservedObject private var directory = UserDirectory.shared
 
+    /// **현재 프로필 사진이 최우선.** 스냅샷 photoUrl 은 폴백일 뿐 —
+    /// 예전엔 photoUrl 이 비어 있을 때만 조회해서, 낡은 구글 사진이 박혀 있으면 영영 그대로였다.
     private var effectiveUrl: String? {
+        if let live = directory.photoUrl(userId), !live.isEmpty { return live }
         if !photoUrl.isEmpty { return photoUrl }
         return resolved
     }
+
+    /// 사진이 없을 때 쓰는 이니셜도 현재 닉네임 기준.
+    private var shownName: String { directory.name(userId, fallback: name) }
 
     var body: some View {
         Group {
@@ -318,13 +331,14 @@ private struct FriendAvatar: View {
                 AvatarThumbView(url: url, pixelSize: size * 3)
             } else {
                 Theme.surfaceAlt.overlay(
-                    Text(String(name.prefix(1)).uppercased())
+                    Text(String(shownName.prefix(1)).uppercased())
                         .foregroundStyle(Theme.navyAccent).fontWeight(.medium)
                 )
             }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .watchUser(userId)
         .task(id: userId) {
             if photoUrl.isEmpty, !userId.isEmpty {
                 resolved = await ProfileImageCache.shared.url(for: userId)
