@@ -51,6 +51,75 @@ object LocalizedNames {
         "invite_bond" to R.string.title_invite_bond,
         "invite_beacon" to R.string.title_invite_beacon,
         "invite_flock" to R.string.title_invite_flock,
+        // 별 모양/색 보상 업적 — 칭호는 아니지만 업적 이름도 로케일 해석 대상.
+        "shape_flower" to R.string.ach_name_shape_flower,
+        "shape_gem" to R.string.ach_name_shape_gem,
+        "shape_moon" to R.string.ach_name_shape_moon,
+        "shape_planet" to R.string.ach_name_shape_planet,
+        "shape_farjourney" to R.string.ach_name_shape_farjourney,
+        "shape_border" to R.string.ach_name_shape_border,
+        "color_passion" to R.string.ach_name_color_passion,
+        "color_sunset" to R.string.ach_name_color_sunset,
+        "color_steady" to R.string.ach_name_color_steady,
+        "color_abyss" to R.string.ach_name_color_abyss,
+        "color_wanderer" to R.string.ach_name_color_wanderer,
+        "color_midnight" to R.string.ach_name_color_midnight,
+        "color_life" to R.string.ach_name_color_life,
+        "color_gold" to R.string.ach_name_color_gold,
+        "color_nebula" to R.string.ach_name_color_nebula,
+        "color_grad_aurora" to R.string.ach_name_color_grad_aurora,
+        "color_grad_emerald" to R.string.ach_name_color_grad_emerald,
+        "color_grad_sunset" to R.string.ach_name_color_grad_sunset,
+        "color_grad_glacier" to R.string.ach_name_color_grad_glacier,
+        "color_grad_dawn" to R.string.ach_name_color_grad_dawn,
+    )
+
+    /** 업적 달성 조건 문구 — 일반 + 별 모양/색 보상 + 히든 전부. */
+    private val conditionRes: Map<String, Int> = mapOf(
+        "first_step" to R.string.ach_cond_first_step,
+        "star_traveler" to R.string.ach_cond_star_traveler,
+        "storyteller" to R.string.ach_cond_storyteller,
+        "popular" to R.string.ach_cond_popular,
+        "watched_star" to R.string.ach_cond_watched_star,
+        "companion" to R.string.ach_cond_companion,
+        "pilgrim" to R.string.ach_cond_pilgrim,
+        "guide" to R.string.ach_cond_guide,
+        "invite_bond" to R.string.ach_cond_invite_bond,
+        "invite_beacon" to R.string.ach_cond_invite_beacon,
+        "invite_flock" to R.string.ach_cond_invite_flock,
+        "shape_flower" to R.string.ach_cond_shape_flower,
+        "shape_gem" to R.string.ach_cond_shape_gem,
+        "shape_moon" to R.string.ach_cond_shape_moon,
+        "shape_planet" to R.string.ach_cond_shape_planet,
+        "shape_farjourney" to R.string.ach_cond_shape_farjourney,
+        "shape_border" to R.string.ach_cond_shape_border,
+        "color_passion" to R.string.ach_cond_color_passion,
+        "color_sunset" to R.string.ach_cond_color_sunset,
+        "color_steady" to R.string.ach_cond_color_steady,
+        "color_abyss" to R.string.ach_cond_color_abyss,
+        "color_wanderer" to R.string.ach_cond_color_wanderer,
+        "color_midnight" to R.string.ach_cond_color_midnight,
+        "color_life" to R.string.ach_cond_color_life,
+        "color_gold" to R.string.ach_cond_color_gold,
+        "color_nebula" to R.string.ach_cond_color_nebula,
+        "color_grad_aurora" to R.string.ach_cond_color_grad_aurora,
+        "color_grad_emerald" to R.string.ach_cond_color_grad_emerald,
+        "color_grad_sunset" to R.string.ach_cond_color_grad_sunset,
+        "color_grad_glacier" to R.string.ach_cond_color_grad_glacier,
+        "color_grad_dawn" to R.string.ach_cond_color_grad_dawn,
+        // 히든 — 조건 문구는 달성 후에만 노출되지만 문구 자체는 동일하게 로케일 해석.
+        // (secret_word 의 키워드 '우주먼지' 는 판정에 쓰이는 실제 입력값이라 번역하지 않고 그대로 둔다)
+        "secret_word" to R.string.ach_cond_secret_word,
+        "remote_place" to R.string.ach_cond_remote_place,
+        "place_desert" to R.string.ach_cond_place_desert,
+        "place_trench" to R.string.ach_cond_place_trench,
+        "place_triangle" to R.string.ach_cond_place_triangle,
+        "all_rounder" to R.string.ach_cond_all_rounder,
+        "cosmic_rascal" to R.string.ach_cond_cosmic_rascal,
+        "lone_observer" to R.string.ach_cond_lone_observer,
+        "heart_frenzy" to R.string.ach_cond_heart_frenzy,
+        "melomaniac" to R.string.ach_cond_melomaniac,
+        "earth_pilgrim" to R.string.ach_cond_earth_pilgrim,
     )
 
     /** 음악 트랙 표시명(현재 언어). 매핑에 없으면 [fallback]. */
@@ -60,6 +129,10 @@ object LocalizedNames {
     /** 업적 id → 칭호 표시명(현재 언어). 매핑에 없으면 [fallback]. */
     fun title(context: Context, achievementId: String?, fallback: String? = null): String? =
         titleRes[achievementId]?.let { context.getString(it) } ?: fallback
+
+    /** 업적 id → 달성 조건 문구(현재 언어). 매핑에 없으면 [fallback](정의의 한국어 원문). */
+    fun condition(context: Context, achievementId: String?, fallback: String): String =
+        conditionRes[achievementId]?.let { context.getString(it) } ?: fallback
 
     /**
      * 장착 칭호 id → 표시명(현재 언어). 일반+히든+개척 통합.

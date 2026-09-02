@@ -701,7 +701,7 @@ private struct AchievementUnlockOverlay: View {
                 Text(displayName).font(.minSans(22)).foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
                 Spacer().frame(height: 6)
-                Text(achievement.condition).font(.minSans(13))
+                Text(LocalizedNames.condition(achievement.id, fallback: achievement.condition)).font(.minSans(13))
                     .foregroundStyle(Theme.textPrimary.opacity(0.6)).multilineTextAlignment(.center)
                 Spacer().frame(height: 16)
                 Text(rewardText).font(.minSans(13)).foregroundStyle(rewardColor)

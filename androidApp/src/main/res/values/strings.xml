@@ -366,4 +366,76 @@
     <string name="title_heart_frenzy">두근두근</string>
     <string name="title_melomaniac">별들의 오케스트라</string>
     <string name="title_earth_pilgrim">푸른 행성의 발자취</string>
+
+    <!-- 히든 업적 달성 팝업 -->
+    <string name="ach_hidden_unlocked">히든 업적 달성!</string>
+    <string name="ach_hidden_only_one">앱에서 단 한 명 — 당신이 처음입니다</string>
+
+    <!-- 업적 이름 — 별 모양/색 보상 (언어 전환 대응) -->
+    <string name="ach_name_shape_flower">별꽃을 피운 자</string>
+    <string name="ach_name_shape_gem">결정의 시간</string>
+    <string name="ach_name_shape_moon">달의 인도자</string>
+    <string name="ach_name_shape_planet">나만의 행성</string>
+    <string name="ach_name_shape_farjourney">머나먼 여정</string>
+    <string name="ach_name_shape_border">국경을 넘어</string>
+    <string name="ach_name_color_passion">정열의 한 방</string>
+    <string name="ach_name_color_sunset">노을 수집가</string>
+    <string name="ach_name_color_steady">꾸준한 관측자</string>
+    <string name="ach_name_color_abyss">심연의 탐구자</string>
+    <string name="ach_name_color_wanderer">대지의 방랑자</string>
+    <string name="ach_name_color_midnight">심야의 관측자</string>
+    <string name="ach_name_color_life">생명의 인연</string>
+    <string name="ach_name_color_gold">황금빛 발견</string>
+    <string name="ach_name_color_nebula">성운의 빛</string>
+    <string name="ach_name_color_grad_aurora">오로라의 주인</string>
+    <string name="ach_name_color_grad_emerald">수많은 벗</string>
+    <string name="ach_name_color_grad_sunset">백 개의 별빛</string>
+    <string name="ach_name_color_grad_glacier">은하의 정복자</string>
+    <string name="ach_name_color_grad_dawn">여명을 기다린 자</string>
+
+    <!-- 업적 달성 조건 문구 (언어 전환 대응) — 일반 -->
+    <string name="ach_cond_first_step">다이어리 1개 작성하기</string>
+    <string name="ach_cond_star_traveler">다른 사람의 다이어리 10개 열람하기</string>
+    <string name="ach_cond_storyteller">다이어리 10개 작성하기</string>
+    <string name="ach_cond_popular">좋아요 50개 받기</string>
+    <string name="ach_cond_watched_star">총 조회수 100 달성하기</string>
+    <string name="ach_cond_companion">친구 3명 만들기</string>
+    <string name="ach_cond_pilgrim">다이어리 30개 작성하기</string>
+    <string name="ach_cond_guide">좋아요 200개 받기</string>
+    <string name="ach_cond_invite_bond">초대를 받아 Stary 에 합류하기</string>
+    <string name="ach_cond_invite_beacon">친구 1명을 Stary 로 초대하기</string>
+    <string name="ach_cond_invite_flock">친구 5명을 Stary 로 초대하기</string>
+    <!-- 업적 달성 조건 문구 — 별 모양/색 보상 -->
+    <string name="ach_cond_shape_flower">좋아요 80개 받기</string>
+    <string name="ach_cond_shape_gem">서로 다른 14일에 기록하기</string>
+    <string name="ach_cond_shape_moon">총 조회수 500 달성하기</string>
+    <string name="ach_cond_shape_planet">서로 다른 30일에 기록하기</string>
+    <string name="ach_cond_shape_farjourney">기록 두 곳이 50km 이상 떨어지기</string>
+    <string name="ach_cond_shape_border">기록 두 곳이 1,000km 이상 떨어지기</string>
+    <string name="ach_cond_color_passion">한 다이어리에 좋아요 30개 받기</string>
+    <string name="ach_cond_color_sunset">다이어리 25개 작성하기</string>
+    <string name="ach_cond_color_steady">서로 다른 7일에 기록하기</string>
+    <string name="ach_cond_color_abyss">좋아요 150개 받기</string>
+    <string name="ach_cond_color_wanderer">기록 두 곳이 10km 이상 떨어지기</string>
+    <string name="ach_cond_color_midnight">자정~새벽(0~4시)에 5번 기록하기</string>
+    <string name="ach_cond_color_life">친구 5명 만들기</string>
+    <string name="ach_cond_color_gold">총 조회수 300 달성하기</string>
+    <string name="ach_cond_color_nebula">다이어리 50개 작성하기</string>
+    <string name="ach_cond_color_grad_aurora">좋아요 300개 받기</string>
+    <string name="ach_cond_color_grad_emerald">친구 20명 만들기</string>
+    <string name="ach_cond_color_grad_sunset">다이어리 100개 작성하기</string>
+    <string name="ach_cond_color_grad_glacier">총 조회수 1,000 달성하기</string>
+    <string name="ach_cond_color_grad_dawn">자정~새벽(0~4시)에 10번 기록하기</string>
+    <!-- 업적 달성 조건 문구 — 히든(달성 후에만 노출) -->
+    <string name="ach_cond_secret_word">다이어리 제목에 \'우주먼지\'를 넣기</string>
+    <string name="ach_cond_remote_place">남극 · 에베레스트 둘 중 한 곳에 별 남기기</string>
+    <string name="ach_cond_place_desert">사하라 사막에 별 남기기</string>
+    <string name="ach_cond_place_trench">마리아나 해구에 별 남기기</string>
+    <string name="ach_cond_place_triangle">버뮤다 삼각지대에 별 남기기</string>
+    <string name="ach_cond_all_rounder">히든을 제외한 모든 업적 달성하기</string>
+    <string name="ach_cond_cosmic_rascal">다른 사람의 다이어리 300개 열람하기</string>
+    <string name="ach_cond_lone_observer">친구 없이 다이어리 50개 작성하기</string>
+    <string name="ach_cond_heart_frenzy">프로필에서 나가지 않고 하트를 100번 두드리기</string>
+    <string name="ach_cond_melomaniac">배경음악 화면에서 나가지 않고 모든 곡 감상하기</string>
+    <string name="ach_cond_earth_pilgrim">세계 유명 관광지에 별을 남기고 다른 사람이 그 별을 열람하기</string>
 </resources>

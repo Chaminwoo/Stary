@@ -82,7 +82,7 @@ struct AchievementsScreen: View {
                          isPresented: Binding(get: { hiddenAlert != nil },
                                               set: { if !$0 { hiddenAlert = nil } }),
                          message: hiddenAlert.map { a in
-                             "\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n\(locale.t(.hiddenWonFirst))"
+                             "\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(LocalizedNames.condition(a.id, fallback: a.condition))\n\(locale.t(.hiddenWonFirst))"
                          }) { hiddenAlert = nil }
         .firstVisitInfo(key: "achievements", systemImage: "trophy.fill",
                         title: locale.t(.onbAchievementsTitle),
@@ -160,10 +160,10 @@ struct AchievementsScreen: View {
             Image(systemName: done ? "checkmark.seal.fill" : "lock.fill")
                 .foregroundStyle(done ? Theme.navyAccent : Theme.textFaint)
             VStack(alignment: .leading, spacing: 2) {
-                // 칭호 업적명(=칭호)은 언어 전환에 맞춰 표시(보상 업적은 매핑 밖 → 원문)
+                // 업적명·조건 모두 언어 전환에 맞춰 표시(칭호 업적 + 별 모양/색 보상 업적).
                 Text(LocalizedNames.title(ach.id, fallback: ach.name) ?? ach.name)
                     .font(.minSans(15)).foregroundStyle(Theme.textPrimary)
-                Text(ach.condition)
+                Text(LocalizedNames.condition(ach.id, fallback: ach.condition))
                     .font(.minSans(11)).foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -173,7 +173,7 @@ struct AchievementsScreen: View {
                 }
                 .font(.minSans(11)).tint(Theme.navyAccent)
             } else {
-                rewardBadge(ach.reward)
+                rewardBadge(ach)
             }
         }
         .opacity(done ? 1 : 0.6)
@@ -182,10 +182,11 @@ struct AchievementsScreen: View {
     }
 
     @ViewBuilder
-    private func rewardBadge(_ reward: Reward) -> some View {
-        switch reward {
+    private func rewardBadge(_ ach: Achievement) -> some View {
+        switch ach.reward {
         case .title(let n):
-            Text(n).font(.minSans(11)).foregroundStyle(Theme.textFaint)
+            Text(LocalizedNames.title(ach.id, fallback: n) ?? n)
+                .font(.minSans(11)).foregroundStyle(Theme.textFaint)
         case .shape(let t):
             StarView(type: t, colorIndex: 0, size: 22, glow: false)
         case .color(let c):
@@ -221,7 +222,7 @@ struct AchievementsScreen: View {
                     HiddenStarBadge(type: ach.badgeType, colorIndex: ach.badgeColor, size: 14)
                 }
                 // 조건은 달성 후에만 공개.
-                Text(claimed ? ach.condition : "???")
+                Text(claimed ? LocalizedNames.condition(ach.id, fallback: ach.condition) : "???")
                     .font(.minSans(11))
                     .foregroundStyle(claimed ? Theme.textSecondary : Color(hex: 0xB388FF).opacity(0.85))
                 if claimed {

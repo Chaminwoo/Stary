@@ -29,6 +29,8 @@ struct DetailScreen: View {
     @State private var editContent = ""
     @State private var editedTitle: String?
     @State private var editedContent: String?
+    /// 헤더 미디어(사진/영상/움짤) 로딩 완료 여부 — MediaLoadingFrame 페이드인 트리거.
+    @State private var mediaLoaded = false
 
     init(diary: Diary) {
         self.diary = diary
@@ -275,13 +277,28 @@ struct DetailScreen: View {
         // 본문/상호작용 게이트는 canOpen 으로 각각 적용된다.
         if !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
             // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 는 아래 플레이어)
-            RemoteGifView(urlString: diary.videoUrl)
+            MediaLoadingFrame(loaded: mediaLoaded) {
+                RemoteGifView(
+                    urlString: diary.videoUrl,
+                    suppressOwnPlaceholder: true,
+                    onLoaded: { mediaLoaded = true }
+                )
+            }
         } else if !diary.videoUrl.isEmpty, let vurl = URL(string: diary.videoUrl) {
-            LoopingVideoPlayer(url: vurl, muted: true)
+            MediaLoadingFrame(loaded: mediaLoaded) {
+                LoopingVideoPlayer(url: vurl, muted: true, onFirstFrameRendered: { mediaLoaded = true })
+            }
         } else if !diary.imageUrl.isEmpty {
-            AsyncImage(url: URL(string: diary.imageUrl)) { image in
-                image.resizable().scaledToFill()
-            } placeholder: { Theme.surfaceAlt }
+            MediaLoadingFrame(loaded: mediaLoaded) {
+                AsyncImage(url: URL(string: diary.imageUrl)) { phase in
+                    if case .success(let image) = phase {
+                        image.resizable().scaledToFill()
+                            .onAppear { mediaLoaded = true }
+                    } else {
+                        Color.clear
+                    }
+                }
+            }
         } else if let frame = BundleImage.named("image_frame") {
             // 사진/영상이 없으면 템플릿 이미지 — Android image_frame 대응.
             Image(uiImage: frame).resizable().scaledToFill()

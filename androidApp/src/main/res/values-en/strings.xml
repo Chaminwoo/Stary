@@ -363,4 +363,76 @@
     <string name="title_heart_frenzy">Heartbeat</string>
     <string name="title_melomaniac">Orchestra of the Stars</string>
     <string name="title_earth_pilgrim">Footprints on the Blue Planet</string>
+
+    <!-- Hidden achievement unlock popup -->
+    <string name="ach_hidden_unlocked">Hidden achievement unlocked!</string>
+    <string name="ach_hidden_only_one">Only one person in the app — you were first</string>
+
+    <!-- Achievement names — star shape/color rewards -->
+    <string name="ach_name_shape_flower">Starflower Bloomer</string>
+    <string name="ach_name_shape_gem">Crystal Moment</string>
+    <string name="ach_name_shape_moon">Guide of the Moon</string>
+    <string name="ach_name_shape_planet">My Own Planet</string>
+    <string name="ach_name_shape_farjourney">A Far Journey</string>
+    <string name="ach_name_shape_border">Crossing Borders</string>
+    <string name="ach_name_color_passion">A Burst of Passion</string>
+    <string name="ach_name_color_sunset">Sunset Collector</string>
+    <string name="ach_name_color_steady">Steady Observer</string>
+    <string name="ach_name_color_abyss">Explorer of the Abyss</string>
+    <string name="ach_name_color_wanderer">Wanderer of the Earth</string>
+    <string name="ach_name_color_midnight">Midnight Observer</string>
+    <string name="ach_name_color_life">Bond of Life</string>
+    <string name="ach_name_color_gold">Golden Discovery</string>
+    <string name="ach_name_color_nebula">Light of the Nebula</string>
+    <string name="ach_name_color_grad_aurora">Master of the Aurora</string>
+    <string name="ach_name_color_grad_emerald">Countless Friends</string>
+    <string name="ach_name_color_grad_sunset">A Hundred Starlights</string>
+    <string name="ach_name_color_grad_glacier">Conqueror of the Galaxy</string>
+    <string name="ach_name_color_grad_dawn">One Who Awaited the Dawn</string>
+
+    <!-- Achievement conditions — normal -->
+    <string name="ach_cond_first_step">Write 1 diary entry</string>
+    <string name="ach_cond_star_traveler">View 10 other people\'s diary entries</string>
+    <string name="ach_cond_storyteller">Write 10 diary entries</string>
+    <string name="ach_cond_popular">Receive 50 likes</string>
+    <string name="ach_cond_watched_star">Reach 100 total views</string>
+    <string name="ach_cond_companion">Make 3 friends</string>
+    <string name="ach_cond_pilgrim">Write 30 diary entries</string>
+    <string name="ach_cond_guide">Receive 200 likes</string>
+    <string name="ach_cond_invite_bond">Join Stary through an invite</string>
+    <string name="ach_cond_invite_beacon">Invite 1 friend to Stary</string>
+    <string name="ach_cond_invite_flock">Invite 5 friends to Stary</string>
+    <!-- Achievement conditions — star shape/color rewards -->
+    <string name="ach_cond_shape_flower">Receive 80 likes</string>
+    <string name="ach_cond_shape_gem">Post on 14 different days</string>
+    <string name="ach_cond_shape_moon">Reach 500 total views</string>
+    <string name="ach_cond_shape_planet">Post on 30 different days</string>
+    <string name="ach_cond_shape_farjourney">Have two entries 50km or more apart</string>
+    <string name="ach_cond_shape_border">Have two entries 1,000km or more apart</string>
+    <string name="ach_cond_color_passion">Receive 30 likes on a single diary entry</string>
+    <string name="ach_cond_color_sunset">Write 25 diary entries</string>
+    <string name="ach_cond_color_steady">Post on 7 different days</string>
+    <string name="ach_cond_color_abyss">Receive 150 likes</string>
+    <string name="ach_cond_color_wanderer">Have two entries 10km or more apart</string>
+    <string name="ach_cond_color_midnight">Post 5 times between midnight and dawn (0–4 AM)</string>
+    <string name="ach_cond_color_life">Make 5 friends</string>
+    <string name="ach_cond_color_gold">Reach 300 total views</string>
+    <string name="ach_cond_color_nebula">Write 50 diary entries</string>
+    <string name="ach_cond_color_grad_aurora">Receive 300 likes</string>
+    <string name="ach_cond_color_grad_emerald">Make 20 friends</string>
+    <string name="ach_cond_color_grad_sunset">Write 100 diary entries</string>
+    <string name="ach_cond_color_grad_glacier">Reach 1,000 total views</string>
+    <string name="ach_cond_color_grad_dawn">Post 10 times between midnight and dawn (0–4 AM)</string>
+    <!-- Achievement conditions — hidden (revealed only after unlock) -->
+    <string name="ach_cond_secret_word">Include “우주먼지” in a diary title</string>
+    <string name="ach_cond_remote_place">Leave a star in Antarctica or on Mount Everest</string>
+    <string name="ach_cond_place_desert">Leave a star in the Sahara Desert</string>
+    <string name="ach_cond_place_trench">Leave a star at the Mariana Trench</string>
+    <string name="ach_cond_place_triangle">Leave a star in the Bermuda Triangle</string>
+    <string name="ach_cond_all_rounder">Unlock every achievement except the hidden ones</string>
+    <string name="ach_cond_cosmic_rascal">View 300 other people\'s diary entries</string>
+    <string name="ach_cond_lone_observer">Write 50 diary entries with zero friends</string>
+    <string name="ach_cond_heart_frenzy">Tap the heart 100 times without leaving the profile screen</string>
+    <string name="ach_cond_melomaniac">Listen to every track without leaving the music screen</string>
+    <string name="ach_cond_earth_pilgrim">Leave a star at a famous world landmark and have someone else view it</string>
 </resources>

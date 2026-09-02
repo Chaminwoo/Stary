@@ -269,7 +269,7 @@ struct ProfileScreen: View {
                              isPresented: Binding(get: { hiddenAlert != nil },
                                                   set: { if !$0 { hiddenAlert = nil } }),
                              message: hiddenAlert.map { a in
-                                 "\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(a.condition)\n\(locale.t(.hiddenWonFirst))"
+                                 "\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(LocalizedNames.condition(a.id, fallback: a.condition))\n\(locale.t(.hiddenWonFirst))"
                              }) { hiddenAlert = nil }
         }
     }

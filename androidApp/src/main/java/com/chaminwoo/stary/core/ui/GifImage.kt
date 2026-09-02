@@ -15,12 +15,14 @@ fun GifImage(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
     contentDescription: String? = null,
+    onLoaded: () -> Unit = {},
 ) {
     AsyncImage(
         model = model,
         contentDescription = contentDescription,
         modifier = modifier,
         contentScale = contentScale,
+        onSuccess = { onLoaded() },
     )
 }
 

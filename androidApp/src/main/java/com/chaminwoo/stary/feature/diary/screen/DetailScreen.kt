@@ -314,28 +314,44 @@ fun DetailScreen(
 
             // ── 헤더: 사진(또는 placeholder) 위 스크림 + 별/작성자/날짜만 오버레이(제목은 본문으로) ──
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(ImageCropHelper.ASPECT)) {
+                // 별이 바뀔 때마다(id 기준) 로딩 배경(loading_dipper)부터 다시 보여준다.
+                var mediaLoaded by remember(currentDiary.id) { mutableStateOf(false) }
                 when {
                     // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 영상은 기존 플레이어 유지)
                     // 사진과 마찬가지로 탭하면 전체화면 뷰어로 열린다.
                     currentDiary.videoUrl.isNotEmpty() && com.chaminwoo.stary.core.ui.isGifUrl(currentDiary.videoUrl) ->
-                        com.chaminwoo.stary.core.ui.GifImage(
-                            model = currentDiary.videoUrl,
+                        com.chaminwoo.stary.core.ui.MediaLoadingFrame(
+                            loaded = mediaLoaded,
                             modifier = Modifier.fillMaxSize().clickable { showFullImage = true },
-                        )
-                    currentDiary.videoUrl.isNotEmpty() -> Box(
-                        modifier = Modifier.fillMaxSize().clickable { showFullImage = true }
+                        ) {
+                            com.chaminwoo.stary.core.ui.GifImage(
+                                model = currentDiary.videoUrl,
+                                modifier = Modifier.fillMaxSize(),
+                                onLoaded = { mediaLoaded = true },
+                            )
+                        }
+                    currentDiary.videoUrl.isNotEmpty() -> com.chaminwoo.stary.core.ui.MediaLoadingFrame(
+                        loaded = mediaLoaded,
+                        modifier = Modifier.fillMaxSize().clickable { showFullImage = true },
                     ) {
                         com.chaminwoo.stary.core.ui.LoopingVideoPlayer(
                             uri = android.net.Uri.parse(currentDiary.videoUrl),
                             modifier = Modifier.fillMaxSize(),
-                            muted = true
+                            muted = true,
+                            onFirstFrameRendered = { mediaLoaded = true },
                         )
                     }
-                    currentDiary.imageUrl.isNotEmpty() -> AsyncImage(
-                        model = currentDiary.imageUrl, contentDescription = stringResource(R.string.cd_view_photo),
+                    currentDiary.imageUrl.isNotEmpty() -> com.chaminwoo.stary.core.ui.MediaLoadingFrame(
+                        loaded = mediaLoaded,
                         modifier = Modifier.fillMaxSize().clickable { showFullImage = true },
-                        contentScale = ContentScale.Crop
-                    )
+                    ) {
+                        AsyncImage(
+                            model = currentDiary.imageUrl, contentDescription = stringResource(R.string.cd_view_photo),
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            onSuccess = { mediaLoaded = true },
+                        )
+                    }
                     else -> // 사진/영상이 없으면 템플릿 이미지(image_frame)를 대신 띄운다.
                         Image(
                             painter = painterResource(R.drawable.image_frame),

@@ -5,15 +5,24 @@ import UIKit
 /// 에셋 카탈로그를 쓰지 않으므로 `UIImage(named:)` 가 아닌 URL 로드가 필요하다. NSCache 로 1회만 디코드.
 enum BundleImage {
     private static let cache = NSCache<NSString, UIImage>()
+    private static let dataCache = NSCache<NSString, NSData>()
 
     static func named(_ name: String, ext: String = "webp") -> UIImage? {
         let key = "\(name).\(ext)" as NSString
         if let hit = cache.object(forKey: key) { return hit }
-        guard let url = Bundle.main.url(forResource: name, withExtension: ext),
-              let data = try? Data(contentsOf: url),
-              let img = UIImage(data: data) else { return nil }
+        guard let data = data(name, ext: ext), let img = UIImage(data: data) else { return nil }
         cache.setObject(img, forKey: key)
         return img
+    }
+
+    /// 번들 파일 원본 바이트 — 애니메이션 WebP 처럼 프레임을 직접 뽑아야 하는 경우에 쓴다.
+    static func data(_ name: String, ext: String = "webp") -> Data? {
+        let key = "data:\(name).\(ext)" as NSString
+        if let hit = dataCache.object(forKey: key) { return hit as Data }
+        guard let url = Bundle.main.url(forResource: name, withExtension: ext),
+              let data = try? Data(contentsOf: url) else { return nil }
+        dataCache.setObject(data as NSData, forKey: key)
+        return data
     }
 }
 

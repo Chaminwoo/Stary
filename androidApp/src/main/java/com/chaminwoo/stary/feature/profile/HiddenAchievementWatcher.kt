@@ -139,7 +139,10 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                     HiddenIconWithEffect(achievement, size = 46.dp)
                 }
                 Spacer(Modifier.height(14.dp))
-                Text("히든 업적 달성!", color = HiddenGold, fontSize = 15.sp, fontWeight = FontWeight.Light)
+                Text(
+                    androidx.compose.ui.res.stringResource(com.chaminwoo.stary.R.string.ach_hidden_unlocked),
+                    color = HiddenGold, fontSize = 15.sp, fontWeight = FontWeight.Light
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     com.chaminwoo.stary.core.util.LocalizedNames.title(
@@ -150,12 +153,15 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    achievement.condition, color = Color.White.copy(alpha = 0.62f),
+                    com.chaminwoo.stary.core.util.LocalizedNames.condition(
+                        androidx.compose.ui.platform.LocalContext.current, achievement.id, achievement.condition
+                    ),
+                    color = Color.White.copy(alpha = 0.62f),
                     fontSize = 13.sp, textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "앱에서 단 한 명 — 당신이 처음입니다",
+                    androidx.compose.ui.res.stringResource(com.chaminwoo.stary.R.string.ach_hidden_only_one),
                     color = HiddenPurple, fontSize = 12.sp, fontWeight = FontWeight.Normal,
                     textAlign = TextAlign.Center
                 )
@@ -169,7 +175,10 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                         .padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("확인", color = Color(0xFF0D0D0D), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        androidx.compose.ui.res.stringResource(com.chaminwoo.stary.R.string.common_confirm),
+                        color = Color(0xFF0D0D0D), fontSize = 15.sp, fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }

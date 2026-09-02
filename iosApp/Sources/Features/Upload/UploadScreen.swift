@@ -259,7 +259,7 @@ struct UploadScreen: View {
                 isLocked: { StarUnlocks.lockedShapeAch($0, unlocked) != nil },
                 onLocked: { t in
                     if let a = StarUnlocks.lockedShapeAch(t, unlocked) {
-                        showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name))
+                        showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name))
                     }
                 }
             ) { t in
@@ -284,7 +284,7 @@ struct UploadScreen: View {
                 isLocked: { StarUnlocks.lockedColorAch($0, unlocked) != nil },
                 onLocked: { c in
                     if let a = StarUnlocks.lockedColorAch(c, unlocked) {
-                        showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name))
+                        showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name))
                     }
                 }
             ) { c in
@@ -350,10 +350,10 @@ struct UploadScreen: View {
         }
         // 잠긴 별 모양/색이 다이얼 중앙에 온 채 저장되지 않도록 차단(#7).
         if let a = StarUnlocks.lockedShapeAch(starType, unlocked) {
-            showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name)); return
+            showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name)); return
         }
         if let a = StarUnlocks.lockedColorAch(starColor, unlocked) {
-            showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), a.name)); return
+            showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name)); return
         }
         // 하루 업로드 제한 — 오늘(로컬 자정 이후) 내가 올린 개수로 선차단.
         let startOfDay = Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)

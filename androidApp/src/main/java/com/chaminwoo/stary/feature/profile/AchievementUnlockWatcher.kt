@@ -302,7 +302,8 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    achievement.condition, color = Color.White.copy(alpha = 0.6f),
+                    LocalizedNames.condition(context, achievement.id, achievement.condition),
+                    color = Color.White.copy(alpha = 0.6f),
                     fontSize = 13.sp, textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(16.dp))

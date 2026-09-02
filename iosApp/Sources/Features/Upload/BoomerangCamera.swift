@@ -238,36 +238,46 @@ struct CameraPreviewView: UIViewRepresentable {
     func updateUIView(_ uiView: PreviewUIView, context: Context) {}
 }
 
-/// 애니메이션 GIF 표시(UIImageView.animatedImage) — 로컬 Data 재생.
+/// 애니메이션 GIF/WebP 표시(UIImageView.animatedImage) — 로컬 Data 재생.
 struct GifImageView: UIViewRepresentable {
     let data: Data
+    /// 기본은 채우기(움짤 프레임용). 스피너처럼 비율을 지켜야 하면 `.scaleAspectFit`.
+    var contentMode: UIView.ContentMode = .scaleAspectFill
+    /// 주면 프레임을 템플릿으로 바꿔 이 색으로 칠한다(밝은 버튼 위 스피너 대비용).
+    var tint: UIColor? = nil
 
     func makeUIView(context: Context) -> UIImageView {
         let iv = UIImageView()
-        iv.contentMode = .scaleAspectFill
+        iv.contentMode = contentMode
         iv.clipsToBounds = true
+        if let tint {
+            iv.tintColor = tint
+        }
         // SwiftUI 프레임을 따르도록(고유 크기로 레이아웃이 커지는 것 방지)
         iv.setContentHuggingPriority(.defaultLow, for: .horizontal)
         iv.setContentHuggingPriority(.defaultLow, for: .vertical)
         iv.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         iv.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
-        iv.image = GifImageView.animatedImage(from: data)
+        iv.image = GifImageView.animatedImage(from: data, template: tint != nil)
         context.coordinator.lastHash = data.hashValue
         return iv
     }
 
     func updateUIView(_ uiView: UIImageView, context: Context) {
+        uiView.contentMode = contentMode
+        if let tint { uiView.tintColor = tint }
         // 같은 데이터면 재디코드하지 않는다.
         guard context.coordinator.lastHash != data.hashValue else { return }
         context.coordinator.lastHash = data.hashValue
-        uiView.image = GifImageView.animatedImage(from: data)
+        uiView.image = GifImageView.animatedImage(from: data, template: tint != nil)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
     final class Coordinator { var lastHash: Int = 0 }
 
-    /// GIF Data → 프레임 지연 합산 animatedImage.
-    static func animatedImage(from data: Data) -> UIImage? {
+    /// GIF/애니메이션 WebP Data → 프레임 지연 합산 animatedImage.
+    /// [template] 이면 각 프레임을 템플릿으로 만들어 `tintColor` 로 칠할 수 있게 한다.
+    static func animatedImage(from data: Data, template: Bool = false) -> UIImage? {
         guard let src = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let count = CGImageSourceGetCount(src)
         var images: [UIImage] = []
@@ -275,12 +285,17 @@ struct GifImageView: UIViewRepresentable {
         for i in 0..<count {
             guard let cg = CGImageSourceCreateImageAtIndex(src, i, nil) else { continue }
             let props = CGImageSourceCopyPropertiesAtIndex(src, i, nil) as? [CFString: Any]
-            let gif = props?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
-            let unclamped = gif?[kCGImagePropertyGIFUnclampedDelayTime] as? Double
-            let delay = (unclamped.flatMap { $0 > 0 ? $0 : nil })
-                ?? (gif?[kCGImagePropertyGIFDelayTime] as? Double ?? 0.1)
+            // GIF 는 GIF 딕셔너리, 애니메이션 WebP 는 WebP 딕셔너리에 지연이 들어 있다.
+            let frame = (props?[kCGImagePropertyGIFDictionary] as? [CFString: Any])
+                ?? (props?[kCGImagePropertyWebPDictionary] as? [CFString: Any])
+            let unclamped = (frame?[kCGImagePropertyGIFUnclampedDelayTime] as? Double)
+                ?? (frame?[kCGImagePropertyWebPUnclampedDelayTime] as? Double)
+            let clamped = (frame?[kCGImagePropertyGIFDelayTime] as? Double)
+                ?? (frame?[kCGImagePropertyWebPDelayTime] as? Double)
+            let delay = (unclamped.flatMap { $0 > 0 ? $0 : nil }) ?? clamped ?? 0.1
             duration += delay
-            images.append(UIImage(cgImage: cg))
+            let img = UIImage(cgImage: cg)
+            images.append(template ? img.withRenderingMode(.alwaysTemplate) : img)
         }
         guard images.count > 1 else { return images.first }
         return UIImage.animatedImage(with: images, duration: duration)
@@ -290,19 +305,25 @@ struct GifImageView: UIViewRepresentable {
 /// 원격 GIF(부메랑 움짤) — URL 에서 데이터를 받아 재생. 상세 화면용.
 struct RemoteGifView: View {
     let urlString: String
+    /// 자체 로딩 배경(Theme.surfaceAlt) 대신 상위(MediaLoadingFrame)가 페이드인을 맡을 때 true.
+    var suppressOwnPlaceholder: Bool = false
+    var onLoaded: () -> Void = {}
     @State private var data: Data?
 
     var body: some View {
         Group {
             if let data {
                 GifImageView(data: data)
-            } else {
+            } else if !suppressOwnPlaceholder {
                 Theme.surfaceAlt.overlay(StarLoadingView(size: 32))
+            } else {
+                Color.clear
             }
         }
         .task(id: urlString) {
             guard let url = URL(string: urlString) else { return }
             data = try? await URLSession.shared.data(from: url).0
+            if data != nil { onLoaded() }
         }
     }
 }

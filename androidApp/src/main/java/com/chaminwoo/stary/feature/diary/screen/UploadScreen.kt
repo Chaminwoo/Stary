@@ -342,7 +342,7 @@ fun UploadScreen(
                 onLanded = { t ->
                     StarUnlocks.lockedShapeAch(t, unlockedIds)?.let {
                         com.chaminwoo.stary.core.ui.StaryToast.show(
-                            context.getString(R.string.toast_unlock_achievement, it.name)
+                            context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))
                         )
                     }
                 }
@@ -375,7 +375,7 @@ fun UploadScreen(
                 onLanded = { c ->
                     StarUnlocks.lockedColorAch(c, unlockedIds)?.let {
                         com.chaminwoo.stary.core.ui.StaryToast.show(
-                            context.getString(R.string.toast_unlock_achievement, it.name)
+                            context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))
                         )
                     }
                 }
@@ -449,10 +449,10 @@ fun UploadScreen(
                         }
                     }
                     StarUnlocks.lockedShapeAch(starType, unlockedIds)?.let {
-                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, it.name)); return@Button
+                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@Button
                     }
                     StarUnlocks.lockedColorAch(starColor, unlockedIds)?.let {
-                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, it.name)); return@Button
+                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@Button
                     }
                     coroutineScope.launch {
                         isUploading = true

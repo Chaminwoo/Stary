@@ -363,4 +363,76 @@
     <string name="title_heart_frenzy">ドキドキ</string>
     <string name="title_melomaniac">星々のオーケストラ</string>
     <string name="title_earth_pilgrim">青い惑星の足跡</string>
+
+    <!-- ヒドゥン実績の達成ポップアップ -->
+    <string name="ach_hidden_unlocked">ヒドゥン実績を達成!</string>
+    <string name="ach_hidden_only_one">アプリでただ一人 — あなたが最初です</string>
+
+    <!-- 実績名 — 星の形/色の報酬 -->
+    <string name="ach_name_shape_flower">星花を咲かせた者</string>
+    <string name="ach_name_shape_gem">結晶の刻</string>
+    <string name="ach_name_shape_moon">月の導き手</string>
+    <string name="ach_name_shape_planet">自分だけの惑星</string>
+    <string name="ach_name_shape_farjourney">遥かなる旅路</string>
+    <string name="ach_name_shape_border">国境を越えて</string>
+    <string name="ach_name_color_passion">情熱の一撃</string>
+    <string name="ach_name_color_sunset">夕焼けの収集家</string>
+    <string name="ach_name_color_steady">地道な観測者</string>
+    <string name="ach_name_color_abyss">深淵の探求者</string>
+    <string name="ach_name_color_wanderer">大地の放浪者</string>
+    <string name="ach_name_color_midnight">深夜の観測者</string>
+    <string name="ach_name_color_life">生命の縁</string>
+    <string name="ach_name_color_gold">黄金の発見</string>
+    <string name="ach_name_color_nebula">星雲の光</string>
+    <string name="ach_name_color_grad_aurora">オーロラの主</string>
+    <string name="ach_name_color_grad_emerald">数多の友</string>
+    <string name="ach_name_color_grad_sunset">百の星明かり</string>
+    <string name="ach_name_color_grad_glacier">銀河の征服者</string>
+    <string name="ach_name_color_grad_dawn">夜明けを待った者</string>
+
+    <!-- 実績の達成条件 — 通常 -->
+    <string name="ach_cond_first_step">日記を1件作成する</string>
+    <string name="ach_cond_star_traveler">他の人の日記を10件閲覧する</string>
+    <string name="ach_cond_storyteller">日記を10件作成する</string>
+    <string name="ach_cond_popular">いいねを50件もらう</string>
+    <string name="ach_cond_watched_star">累計閲覧数100を達成する</string>
+    <string name="ach_cond_companion">友達を3人作る</string>
+    <string name="ach_cond_pilgrim">日記を30件作成する</string>
+    <string name="ach_cond_guide">いいねを200件もらう</string>
+    <string name="ach_cond_invite_bond">招待を受けてStaryに参加する</string>
+    <string name="ach_cond_invite_beacon">友達を1人Staryに招待する</string>
+    <string name="ach_cond_invite_flock">友達を5人Staryに招待する</string>
+    <!-- 実績の達成条件 — 星の形/色の報酬 -->
+    <string name="ach_cond_shape_flower">いいねを80件もらう</string>
+    <string name="ach_cond_shape_gem">異なる14日に記録する</string>
+    <string name="ach_cond_shape_moon">累計閲覧数500を達成する</string>
+    <string name="ach_cond_shape_planet">異なる30日に記録する</string>
+    <string name="ach_cond_shape_farjourney">記録した2箇所の距離が50km以上離れる</string>
+    <string name="ach_cond_shape_border">記録した2箇所の距離が1,000km以上離れる</string>
+    <string name="ach_cond_color_passion">1件の日記でいいねを30件もらう</string>
+    <string name="ach_cond_color_sunset">日記を25件作成する</string>
+    <string name="ach_cond_color_steady">異なる7日に記録する</string>
+    <string name="ach_cond_color_abyss">いいねを150件もらう</string>
+    <string name="ach_cond_color_wanderer">記録した2箇所の距離が10km以上離れる</string>
+    <string name="ach_cond_color_midnight">深夜0時〜4時の間に5回記録する</string>
+    <string name="ach_cond_color_life">友達を5人作る</string>
+    <string name="ach_cond_color_gold">累計閲覧数300を達成する</string>
+    <string name="ach_cond_color_nebula">日記を50件作成する</string>
+    <string name="ach_cond_color_grad_aurora">いいねを300件もらう</string>
+    <string name="ach_cond_color_grad_emerald">友達を20人作る</string>
+    <string name="ach_cond_color_grad_sunset">日記を100件作成する</string>
+    <string name="ach_cond_color_grad_glacier">累計閲覧数1,000を達成する</string>
+    <string name="ach_cond_color_grad_dawn">深夜0時〜4時の間に10回記録する</string>
+    <!-- 実績の達成条件 — ヒドゥン(達成後にのみ公開) -->
+    <string name="ach_cond_secret_word">日記のタイトルに「우주먼지」を入れる</string>
+    <string name="ach_cond_remote_place">南極大陸かエベレストのどちらかに星を残す</string>
+    <string name="ach_cond_place_desert">サハラ砂漠に星を残す</string>
+    <string name="ach_cond_place_trench">マリアナ海溝に星を残す</string>
+    <string name="ach_cond_place_triangle">バミューダトライアングルに星を残す</string>
+    <string name="ach_cond_all_rounder">ヒドゥンを除くすべての実績を達成する</string>
+    <string name="ach_cond_cosmic_rascal">他の人の日記を300件閲覧する</string>
+    <string name="ach_cond_lone_observer">友達0人の状態で日記を50件作成する</string>
+    <string name="ach_cond_heart_frenzy">プロフィール画面を離れずにハートを100回タップする</string>
+    <string name="ach_cond_melomaniac">BGM画面を離れずにすべての曲を聴く</string>
+    <string name="ach_cond_earth_pilgrim">世界的に有名な観光地に星を残し、他の人にその星を閲覧してもらう</string>
 </resources>
