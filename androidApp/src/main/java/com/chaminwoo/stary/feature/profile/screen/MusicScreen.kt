@@ -119,8 +119,13 @@ fun MusicScreen(modifier: Modifier = Modifier) {
             // 다른 음악으로 바꾸면 그 곡의 처음부터 재생.
             MusicManager.playTrack(t.id, 0)
         } else {
+            // ⚠️ 업적 이름은 한국어로 정의돼 있어 **표시 시점에 로케일 해석**을 거쳐야 한다
+            //    (그냥 ach.name 을 넘기면 영어/일본어로 바꿔도 업적명만 한국어로 뜬다 — 2026-09-04 수정).
+            //    같은 화면의 잠금 힌트(music_locked_hint)와 업로드 화면 토스트는 이미 이 방식이다.
             val ach = Achievements.byId(t.unlockAchievementId)
-            StaryToast.show(context.getString(R.string.toast_unlock_achievement, ach?.name ?: context.getString(R.string.common_secret)))
+            val achName = com.chaminwoo.stary.core.util.LocalizedNames.title(context, ach?.id, ach?.name)
+                ?: context.getString(R.string.common_secret)
+            StaryToast.show(context.getString(R.string.toast_unlock_achievement, achName))
         }
     }
 

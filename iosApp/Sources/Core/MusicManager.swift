@@ -5,8 +5,8 @@ import SwiftUI
 ///
 /// - 기본 켜짐. 기본 음악 = [MusicCatalog.defaultId].
 /// - 트랙 전환은 [playTrack] (이어듣기용 위치 인자), 확정은 [commitSelectedTrack].
-/// - 효과음: 맷돌(다이얼) 그라인딩음([dialTick]/[dialRelease], 실제 회전 속도에 비례해 반복),
-///   다이어리 열람음([playOpenDiary], 배경음악보다 작게).
+/// - 효과음: 맷돌(다이얼) 그라인딩음(돌리는 동안 [dialTick] 이 회전 속도에 비례해 반복,
+///   놓으면 [dialRelease] 가 한 번만 끝까지), 다이어리 열람음([playOpenDiary], 배경음악보다 작게).
 final class MusicManager: ObservableObject {
     static let shared = MusicManager()
 
@@ -36,9 +36,6 @@ final class MusicManager: ObservableObject {
     /// (Android `MusicManager.DIAL_TICK_MIN_GAP_MS` 와 같은 값 — drift 금지.)
     private let dialTickMinGap: TimeInterval = 0.04
     private var lastDialTickAt: TimeInterval = 0
-    /// 놓았을 때 관성으로 잦아드는 "드르륵" 잔향 간격(초, 점점 벌어짐) — Android `DIAL_RELEASE_GAPS_MS` 패리티.
-    private let dialReleaseGaps: [TimeInterval] = [0.045, 0.070, 0.105, 0.150, 0.210]
-    private var dialReleaseGen = 0
 
     private init() {
         let d = UserDefaults.standard
@@ -153,27 +150,18 @@ final class MusicManager: ObservableObject {
     /// 가만히 잡고만 있으면(호출이 없으면) 아무 소리도 나지 않는다. Android `MusicManager.dialTick` 패리티.
     func dialTick() {
         guard enabled else { return }
-        dialReleaseGen += 1 // 다시 잡고 돌리기 시작하면 이전 놓음-잔향 예약은 세대 불일치로 자동 무효화
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastDialTickAt >= dialTickMinGap else { return }
         lastDialTickAt = now
         restartDial(volumeScale: 1)
     }
 
-    /// 놓았을 때 — 관성으로 점점 잦아드는 "드르륵" 잔향(간격 벌어짐 + 볼륨 감쇠 5회).
+    /// 놓았을 때 — 음원을 처음부터 **한 번만 끝까지** 울린다(중간에 자르지 않는다).
+    /// 예전엔 간격을 벌리며 5회 반복하는 잔향이었는데 너무 길고 어색해서 단발로 바꿨다(2026-09-04).
     /// Android `MusicManager.dialRelease` 패리티.
     func dialRelease() {
         guard enabled else { return }
-        dialReleaseGen += 1
-        scheduleDialRelease(index: 0, gen: dialReleaseGen)
-    }
-
-    private func scheduleDialRelease(index: Int, gen: Int) {
-        guard gen == dialReleaseGen, enabled, index < dialReleaseGaps.count else { return }
-        restartDial(volumeScale: 1 - Float(index) * 0.16)
-        DispatchQueue.main.asyncAfter(deadline: .now() + dialReleaseGaps[index]) { [weak self] in
-            self?.scheduleDialRelease(index: index + 1, gen: gen)
-        }
+        restartDial(volumeScale: 1)
     }
 
     /// 회전음을 처음부터 다시 재생. player 는 한 번 만들어 두고 되감아 쓴다(생성 지연 방지).
