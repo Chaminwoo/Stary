@@ -409,26 +409,19 @@ object ShareCardHelper {
     }
 
     /**
-     * 배경 — 밤하늘 이미지(`assets/share_card_bg.webp`) 센터크롭 + 별색 무드 틴트 + 하단 텍스트 스크림.
-     * 이미지 로드 실패 시 남색 그라데이션 폴백(카드는 항상 만들어진다).
+     * 배경 — 밤하늘 이미지(`assets/share_card_bg.webp`) 전체를 카드에 꽉 채워 그린다 + 별색 무드 틴트
+     * + 하단 텍스트 스크림. 이미지 로드 실패 시 남색 그라데이션 폴백(카드는 항상 만들어진다).
+     *
+     * ⚠️ **센터 크롭하지 않는다**(2026-09-04) — 배경 이미지에 테두리 장식(둥근 프레임 + 모서리 스파클)이
+     * 들어 있어서, 비율을 맞추려고 가장자리를 잘라내면 그 프레임이 잘려 나간다.
+     * 이미지는 카드 규격(`W`×`H`)에 맞춰 만들어 두고 여기서는 그대로 늘려 채운다.
      */
     private fun drawBackground(context: Context, canvas: Canvas, accent: Int, stageCx: Float, stageCy: Float) {
         val bg = cachedBg?.takeIf { !it.isRecycled } ?: runCatching {
             context.assets.open("share_card_bg.webp").use { BitmapFactory.decodeStream(it) }
         }.getOrNull()?.also { cachedBg = it }
         if (bg != null) {
-            val cardRatio = W.toFloat() / H
-            val srcRatio = bg.width.toFloat() / bg.height
-            val src = if (srcRatio > cardRatio) {
-                val cropW = (bg.height * cardRatio).toInt()
-                val x = (bg.width - cropW) / 2
-                Rect(x, 0, x + cropW, bg.height)
-            } else {
-                val cropH = (bg.width / cardRatio).toInt()
-                val yTop = (bg.height - cropH) / 2
-                Rect(0, yTop, bg.width, yTop + cropH)
-            }
-            canvas.drawBitmap(bg, src, Rect(0, 0, W, H), Paint(Paint.FILTER_BITMAP_FLAG))
+            canvas.drawBitmap(bg, null, Rect(0, 0, W, H), Paint(Paint.FILTER_BITMAP_FLAG))
         } else {
             canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), Paint().apply {
                 shader = LinearGradient(

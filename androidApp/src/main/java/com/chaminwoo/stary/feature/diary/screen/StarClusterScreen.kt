@@ -437,7 +437,9 @@ private fun ClusterDiaryCard(
                 bitmap = bgImage,
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
+                // ⚠️ Crop 이 아니라 FillBounds — 배경에 테두리 장식(둥근 프레임 + 모서리 스파클)이 있어서
+                //    비율을 맞추려 가장자리를 잘라내면 그 프레임이 사라진다(2026-09-04, iOS 도 동일하게 늘려 채움).
+                contentScale = ContentScale.FillBounds
             )
             Box(
                 modifier = Modifier
