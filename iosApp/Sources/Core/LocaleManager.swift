@@ -183,6 +183,12 @@ enum L10n: String {
     case listEmptyUnviewed, listEmpty, listSortNearby
     // 설정 > 도움말 다시 보기(Android settings_help* 패리티).
     case settingsHelp, settingsHelpReplay, settingsHelpReplayDesc
+    // 첫 실행 코치마크(Android coach_step_*/coach_skip 패리티) — 예전엔 하드코딩 한국어였다(2026-09-04 버그).
+    case coachStepFilter, coachStepLocation, coachStepConstellation, coachStepImmersive
+    case coachStepUpload, coachStepMenu, coachStepFinish, coachSkip
+    // 일일 알림(Android settings_daily_reminder* / daily_reminder_* 패리티).
+    case settingsDailyReminder, settingsDailyReminderDesc
+    case dailyReminderLunch, dailyReminderAfternoon, dailyReminderDinner, dailyReminderNight
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -202,6 +208,20 @@ enum L10n: String {
         case .settingsHelp:           return ("도움말", "Help", "ヘルプ")
         case .settingsHelpReplay:     return ("도움말 다시 보기", "Replay help guide", "ヘルプをもう一度見る")
         case .settingsHelpReplayDesc: return ("처음 봤던 사용법 안내를 지도에서 다시 재생해요", "Show the first-time walkthrough again on the map", "最初に表示された使い方ガイドを地図でもう一度再生します")
+        case .coachStepFilter:        return ("보고 싶은 다이어리만 골라서 볼 수 있어요", "Pick exactly which diaries you want to see", "見たい日記だけを選んで見ることができます")
+        case .coachStepLocation:      return ("시점을 현재 내 위치로 이동해요", "Move the view to your current location", "現在地に視点を移動します")
+        case .coachStepConstellation: return ("별들을 이어 별자리를 만들어요", "Connect stars to draw a constellation", "星をつないで星座を作ります")
+        case .coachStepImmersive:     return ("지도에만 집중해서 별들을 감상해요", "Focus on just the map and enjoy the stars", "地図だけに集中して星を眺めます")
+        case .coachStepUpload:        return ("이 버튼을 눌러 다이어리를 올려요", "Tap this button to add a diary", "このボタンを押して日記を投稿します")
+        case .coachStepMenu:          return ("내 다이어리 · 프로필 · 업적 · 친구 등\n여러 설정을 여기서 관리해요", "My Diary · Profile · Achievements · Friends and\nmore settings live here", "マイ日記・プロフィール・実績・フレンドなど\nさまざまな設定をここで管理します")
+        case .coachStepFinish:        return ("지금부터 우주를 탐험하고,\n별들에 이야기를 남겨보세요!", "Now go explore the universe\nand leave your stories among the stars!", "これから宇宙を探検して、\n星に物語を残してみましょう!")
+        case .coachSkip:              return ("건너뛰기", "Skip", "スキップ")
+        case .settingsDailyReminder:     return ("일일 알림", "Daily reminder", "デイリーリマインダー")
+        case .settingsDailyReminderDesc: return ("매일 한 번, 점심부터 밤 10시 사이 랜덤한 시각에 기록을 권해드려요", "Once a day, at a random time between lunch and 10pm, we'll nudge you to jot something down", "毎日1回、お昼から夜10時の間のランダムな時間に記録をお勧めします")
+        case .dailyReminderLunch:     return ("오늘 점심은 무엇을 드셨나요? Stary에 기록해보세요", "What did you have for lunch today? Record it on Stary", "今日のお昼は何を食べましたか?Staryに記録してみましょう")
+        case .dailyReminderAfternoon: return ("오늘 하루는 어떻게 보내고 계신가요? Stary에 기록해보세요", "How's your day going? Record it on Stary", "今日はどんな一日を過ごしていますか?Staryに記録してみましょう")
+        case .dailyReminderDinner:    return ("오늘 저녁은 무엇을 드셨나요? Stary에 기록해보세요", "What did you have for dinner today? Record it on Stary", "今日の夕食は何を食べましたか?Staryに記録してみましょう")
+        case .dailyReminderNight:     return ("오늘 하루를 별 하나에 남겨보세요", "Leave today behind as a star", "今日を星ひとつに残してみましょう")
         case .settingsAutosave:     return ("설정은 자동으로 저장돼요", "Settings are saved automatically", "設定は自動的に保存されます")
         case .languageDialogTitle:  return ("언어 선택", "Select language", "言語を選択")
         case .languageSystem:       return ("시스템 기본", "System default", "システムのデフォルト")

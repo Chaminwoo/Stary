@@ -11,6 +11,8 @@ enum PushRoute: Equatable {
     case chat(friendId: String, friendName: String)
     case diary(String)
     case friends
+    /// 일일 알림(오늘 기록 유도) 탭 → 업로드 화면. Android `EXTRA_OPEN_UPLOAD` 대응.
+    case upload
 }
 
 /// 푸시 탭 라우팅 요청 보관 — RootView 가 관찰해 push 한다.
@@ -179,7 +181,9 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
         let chatFriendId = info["chatFriendId"] as? String ?? ""
         let diaryId = info["diaryId"] as? String ?? ""
 
-        if !chatFriendId.isEmpty {
+        if type == "DAILY_REMINDER" {
+            PushRouter.shared.request(.upload)
+        } else if !chatFriendId.isEmpty {
             PushRouter.shared.request(.chat(friendId: chatFriendId,
                                             friendName: info["chatFriendName"] as? String ?? ""))
         } else if type == "FRIEND_REQUEST" {

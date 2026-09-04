@@ -114,3 +114,6 @@ iOS: `Features/Notifications/NotificationsScreen.swift`, `NotificationsViewModel
 | 토큰 해제(로그아웃) | `GoogleAuthHelper.clearFcmToken`(signOut 안에서) | `PushManager.clearToken(for:)`(AuthManager.signOut 안에서) |
 | 기기별 토큰 컬렉션 | shared `StaryConfig.Collections.FCM_TOKENS` | `AppConfig.Collections.fcmTokens` (**같은 값**) |
 | 남의 계정 알림 무시 | `StaryMessagingService` `recipientId` 비교 | `PushManager` `userInfo["recipientId"]` 비교 |
+| 일일 알림 창(점심~밤10시)/on-off | `push.DailyReminderScheduler`(AlarmManager) + `AppSettings.dailyReminderEnabled` | `DailyReminderScheduler`(UNCalendarNotificationTrigger) + `AppSettings.shared.dailyReminderEnabled` — **시간대 값 동일 유지** |
+| 일일 알림 재예약 시점 | 알림 발사 시(`DailyReminderReceiver`) + 재부팅(`BootReceiver`) — 앱이 안 켜져 있어도 시스템이 깨워 재예약 | 앱 시작(`AppDelegate`) + 포그라운드 복귀(`RootView` scenePhase) — **iOS 는 로컬 알림이 앱을 안 깨우므로 한동안 앱을 안 열면 다음날 재예약이 밀릴 수 있음(구조적 차이)** |
+| 일일 알림 탭 목적지 | `MainActivity.EXTRA_OPEN_UPLOAD` → `DeepLinkState.uploadNonce` | `PushRoute.upload` → `DrawerDest.upload` |

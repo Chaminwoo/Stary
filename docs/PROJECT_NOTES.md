@@ -2,7 +2,11 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.51 업로드 중 공개 범위 잠금 + 버전 1.3.8(15)** — Android BUILD SUCCESSFUL(2026-08-27), iOS 는 push 후 CI 검증 — 아래 8.51 참고.
+> 최종 갱신: **8.52 사용자 피드백 6건 + iOS Sign in with Apple** — 맷돌음 회전속도 연동 / 도움말 다시보기 /
+> 업로드 잠금 확장(별 모양·색) / 언어전환 버그(AppCompatDelegate 교체) / 일일 알림 신설 / 공유카드 렉+디자인
+> 다듬기(Android, iOS 공유카드는 미구현 확인 → TODO) + **Sign in with Apple**(Guideline 4.8, iOS 전용)
+> — Android BUILD SUCCESSFUL(2026-09-04), iOS 는 push(`5c00d1a`/`682fdd4`) 후 CI 검증 — 아래 8.52 참고.
+> 이전: **8.51 업로드 중 공개 범위 잠금 + 버전 1.3.8(15)** — Android BUILD SUCCESSFUL(2026-08-27), iOS 는 push 후 CI 검증 — 아래 8.51 참고.
 > 이전: **8.48 테스트 피드백 — 연출 3종 삭제(지도 유성/달 위상/사진 리빌) + 좋아요 버스트·수정/삭제 레이아웃 수정**
 > — Android BUILD SUCCESSFUL(2026-08-22), iOS 는 push 후 CI 검증 — 아래 8.48 참고.
 > 이전: **8.47 UI 체감 강화 7건 — 햅틱 / 좋아요 버스트 / 업적 보상 리빌 / 빈 화면 / 채팅 말풍선 /
@@ -45,6 +49,139 @@
 > + **named DB(stary-db) 연결 + firebase-bom 33.7.0 + Firebase Auth(Google/익명)** + 크래시 방어.
 > ℹ️ 배경음악: 8.21 에서 멀티트랙(`raw/bgm_*.mp3` 6개)+음악 선택 화면으로 개편(구 `ambient_music.mp3` 삭제). 아래 8.21 참고.
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
+
+---
+
+## 8.52 사용자 피드백 6건 + iOS Sign in with Apple (Android BUILD SUCCESSFUL 2026-09-04, iOS push 후 CI 검증)
+
+사용자 요청 6건 처리 + 세션 중 추가 요청(Apple App Store Guideline 4.8 대응 Sign in with Apple).
+
+### 1. 맷돌(음악 다이얼) 그라인딩음 — 회전 속도에 비례하도록 전면 교체
+- 기존엔 고정 300ms 타이머(`DIAL_REPEAT_MS`, 8.49 에서 도입)로 반복 재생 — 실제 손 움직임과 무관하게
+  항상 같은 속도로 울려서 "잡고 있기만 해도 계속 소리남" / "빨리 돌려도 안 빨라짐" 피드백.
+- **Android** `core/util/MusicManager.kt` : 타이머 삭제, `dialTick()`(각도 눈금 지날 때마다 호출 —
+  호출 빈도 자체가 회전 속도) + `dialRelease()`(놓았을 때 간격 벌어지고 볼륨 감쇠하는 "드르륵" 잔향 5회,
+  `DIAL_RELEASE_GAPS_MS`=45/70/105/150/210ms) 로 교체. `MusicScreen.kt` 의 `MusicDial` 은 트랙 1칸(step)을
+  `FINE_DIVISIONS`=5 등분한 눈금마다 `dialTick()` 호출(햅틱용 `tickedIndex`와는 별도의 `tickedFine`).
+- **iOS** `Core/MusicManager.swift`/`Features/Music/MusicScreen.swift` 동일 구조로 포팅
+  (`dialTick`/`dialRelease`/`dialTickMinGap`=0.04s/`dialReleaseGaps`/`fineDivisions`=5 — **값 동일 유지**).
+- 이 다이얼(원형, 트랙 선택)에만 적용 — 업로드 화면의 StarWheelPicker(선형 휠)는 대상 아님(사운드 자체가 없음).
+
+### 2. 설정 > 도움말 다시 보기
+- 지도 코치마크(`MainOnboardingOverlay`)를 아무 때나 다시 재생할 수 있는 버튼.
+- 신규 브리지 `OnboardingReplayState`(Android `core/util/`, iOS `Features/Map/`) — SettingsScreen 이
+  `request()` 호출 → MainScreen/RootView 가 감지해 지도로 이동 + 코치마크 표시 + `consume()`.
+  ⚠️ **iOS 는 첫 실행 자동 코치마크 트리거가 예전부터 주석 처리돼 있다**(`showCoachMark` 항상 false —
+  좌표(`coachFilterCenter` 등)가 아직 안 잡혔을 때 뜨는 문제 때문으로 추정, RootView.swift 주석 참고).
+  이번 "다시 보기" 버튼은 그 상태와 무관하게 정상 동작(수동 트리거라 좌표가 이미 채워진 뒤 호출됨).
+  자동 트리거 복원은 손대지 않았다(범위 밖).
+
+### 3. 업로드 중 잠금 확장 — 별 모양/색도
+- 8.51 에서 공개 범위만 잠갔던 것을 별 모양/색 휠 피커까지 확장.
+- Android `StarWheelPicker` 에 `enabled` 파라미터 추가(드래그 `pointerInput` 자체를 조건부로 붙임 +
+  개별 아이템 `clickable(enabled=...)` + `alpha 0.5`). iOS `WheelPicker` 는 `.allowsHitTesting(enabled)` +
+  `.opacity` (`.disabled()` 만으로는 커스텀 DragGesture/onTapGesture 가 안 막혀서 이 방식 사용).
+
+### 4. 언어 변경이 적용 안 되던 버그 수정 — 근본 원인
+- 증상: 설정에서 영어로 바꿔도 전체 UI 가 계속 한국어로 표시됨.
+- **원인**: `MainActivity.attachBaseContext` 에서 `Configuration` 을 수동으로 래핑하는 옛날 방식이었는데,
+  이 앱이 `targetSdk 36`(Android 13+) 이고 `values-en`/`values-ja` 를 갖고 있어 **시스템의 "앱별 언어" 기능
+  대상이 되면서, 수동 wrap 이 시스템이 추적하는 로케일(기본값=미설정→시스템 로케일 따라감)에 밀려
+  무시됐다** — Android 공식 문서가 경고하는 잘 알려진 충돌 패턴.
+- **수정**: `AppCompatDelegate.setApplicationLocales()`(AndroidX per-app language API, appcompat 는 이미
+  의존성에 있었음)로 교체. `MainActivity.attachBaseContext` 오버라이드 자체를 삭제.
+  - `res/xml/locales_config.xml`(ko/en/ja) 신설 + manifest `android:localeConfig` 로 시스템 API 33+ 에 지원
+    언어 명시.
+  - API 26~32 대비 `AppLocalesMetadataHolderService`(manifest, `autoStoreLocales=true`) 로 AppCompat 자체
+    저장소가 앱 시작 시 자동 적용하게 함 — 이 minSdk(26)라 33+ 전용 API 만으론 부족.
+  - `LocaleManager.kt` 의 `getLanguageTag`/`setLanguageTag` 가 이제 `AppCompatDelegate` 를 그대로 읽고/쓴다
+    (자체 SharedPreferences 저장 로직 삭제 — AppCompat 이 대신 관리). `setApplicationLocales` 호출이
+    액티비티 재구성까지 자동으로 처리해서 `SettingsScreen.kt` 의 수동 `recreate()` 호출도 제거했다
+    (같이 부르면 재구성이 두 번 겹쳐 깜빡일 수 있음).
+  - **iOS 는 이 버그가 없다** — `LocaleManager.swift` 가 시스템 Bundle 리소스 해석을 아예 안 쓰고
+    자체 `L10n` 문자열 딕셔너리를 직접 조회하는 방식이라 OS 의 "앱별 언어" 기능과 애초에 충돌할 여지가 없음.
+    iOS 변경 없음(해당 없음).
+
+### 5. 일일 알림(오늘 기록 유도) — 신규
+- 매일 1회, **점심(12시)~밤 10시 사이 랜덤 시각**(아침 제외)에 시간대별 문구로 알림
+  (12~14시=점심/15~17시=오후/18~19시=저녁/그 외=일반). 탭하면 업로드 화면으로 이동.
+- 설정 > 알림 섹션에 on/off 토글 추가(기본 켜짐, `AppSettings.dailyReminderEnabled`).
+- **Android** `push/DailyReminderScheduler.kt`(신규) — `AlarmManager.setAndAllowWhileIdle`(비정밀,
+  `SCHEDULE_EXACT_ALARM` 특수 권한 불필요) + 예약 시각을 prefs 에 저장해 `ensureScheduled()` 가 지났으면
+  재예약. `push/DailyReminderReceiver.kt`(신규) — 알림 표시 + 항상 다음 날짜 재예약.
+  `push/BootReceiver.kt`(신규) — 재부팅/앱 업데이트로 사라진 예약 복구(`RECEIVE_BOOT_COMPLETED` 권한 추가).
+  전용 알림 채널 `stary_daily_reminder`(사교 알림 채널과 분리 — 사용자가 이것만 따로 끌 수 있게).
+  딥링크: `MainActivity.EXTRA_OPEN_UPLOAD` → `DeepLinkState.uploadNonce` → `MainScreen` 이 Upload 로 이동.
+- **iOS** `Data/DailyReminderScheduler.swift`(신규) — `UNCalendarNotificationTrigger(repeats: false)` +
+  같은 예약 시각 저장/재확인 로직. **iOS 는 로컬 알림이 앱을 안 깨우므로**(Android AlarmManager 와 달리
+  브로드캐스트로 프로세스를 못 깨움) `AppDelegate.didFinishLaunching` + `RootView` scenePhase `.active`
+  전환마다 `ensureScheduled()` 를 불러 "앱을 열 때마다 확인"하는 방식으로 재예약한다 — 앱을 오래 안 열면
+  다음날 재예약이 밀릴 수 있는 **구조적 차이**(Android 는 이 문제가 없음, docs/code/11 참고).
+  딥링크: `PushRoute.upload`(신규 case) → `DrawerDest.upload`.
+- 값 조절 매핑은 `docs/code/11-notifications-push.md` 참고(같은 창 시간대/문구 유지 필수).
+
+### 6. 공유 카드 — 편집 렉 수정 + 디자인 다듬기(Android), iOS 는 애초에 미구현 확인
+- **렉 원인**: `ShareCardEditorDialog` 가 드래그 델타마다(60ms 스로틀) 1080×1920 풀 비트맵을 통째로
+  다시 그렸다 — 배경 webp 도 **매 프레임 asset 에서 새로 디코드**(캐시 없음)했던 게 가장 컸다.
+  - `ShareCardHelper.kt` : `drawBackground` 가 디코드한 배경을 `cachedBg`(프로세스 생애 캐시)에 담아 재사용.
+  - `ShareCardEditor.kt` : 드래그 "중"에는(`liveDragTarget != null`) 무거운 `renderCard` 재렌더를
+    아예 건너뛰고, 대신 이미 있던 "선택된 추가 별 점선 링" 오버레이를 **드래그 중인 대상 전체**
+    (무대/제목/위치/날짜/추가 별)로 일반화해 가볍게 따라 움직이게 했다(`targetFrac` 헬퍼).
+    손을 뗀 순간(`onDragEnd`/`onDragCancel` → `liveDragTarget = null`)에만 실제로 다시 렌더.
+- **디자인 다듬기**(톤 유지, 사용자가 방향 확정): 히어로 별 이중 글로우(넓고 옅게+좁고 진하게, 예전엔
+  같은 glow 를 실수로 두 번 그리던 코드였음), 제목에 은은한 상단→하단 라이트닝 그라데이션(완전 평면
+  흰색 대신), 지도 둘레 이중 링(흰 하이라이트+별색), 위치 캡슐 상단 유리질 하이라이트, 카드 전체
+  네 모서리를 아주 은은하게 눌러주는 비네트(`drawVignette`).
+- **iOS 공유 카드는 애초에 존재하지 않는다** — `docs/code/06-detail-cluster.md` 가 `Core/ShareCard.swift`
+  를 언급했지만 실제 파일이 없었다(문서 오기, 이번에 확인 후 정정). DetailScreen 에 공유 버튼 자체가 없음
+  (`Features/Map/StarClusterView.swift` 의 `ShareCardBackground` 는 겹친 별 카드 뷰어 장식 배경으로
+  같은 이미지만 재사용할 뿐 무관). **iOS TODO** — 렌더 파이프라인+드래그 편집 UI+인스타 공유를 통째로
+  새로 만들어야 하는 큰 작업이라 사용자 확인 후 이번 라운드에서는 보류.
+
+### 7. iOS Sign in with Apple 신설 (App Store 심사 Guideline 4.8 대응, iOS 전용)
+- Android 는 변경 없음(Google 로그인만 유지) — 사용자가 명시적으로 Android 는 건드리지 말라고 요청.
+- `Data/AuthManager.swift` : `prepareAppleSignInRequest`/`handleAppleSignInResult` 추가 — 기존
+  `signInWithGoogle` 과 동일하게 `Auth.auth().signIn(with:)` → 기존 `ensureProfile`(users/{uid} 생성/조회)
+  그대로 재사용. nonce(랜덤+SHA256) 로 재전송 방지.
+- Apple 은 **최초 인증에서만** fullName/email 을 내려준다 — 그 순간 `createProfileChangeRequest` 로
+  Firebase 표시명에 반영한 뒤 `ensureProfile` 을 다시 호출해 `users/{uid}.userName` 에 확실히 남긴다
+  (재로그인부턴 이름이 안 내려와서 최초 1회를 놓치면 영구 손실). 이메일(Hide My Email 의
+  `@privaterelay.appleid.com` 포함)은 Firebase 가 ID 토큰에서 직접 파싱해 `user.email` 에 채워주므로
+  별도 처리 불필요.
+- `Features/LoginView.swift` : Apple 공식 `SignInWithAppleButton`(`.white` 스타일, 커스텀 색 불가 —
+  Apple HIG 요구사항) 를 Google 버튼 아래에 추가.
+- `project.yml` entitlements 에 `com.apple.developer.applesignin: [Default]` 추가.
+- **⚠️ 수동 설정 필요(코드로 불가)**:
+  1. Firebase 콘솔 > Authentication > Sign-in method 에서 **Apple 프로바이더 활성화**(간단한 토글,
+     네이티브 토큰 검증만 쓰므로 Services ID/Key 업로드는 불필요).
+  2. Apple Developer 포털의 App ID(`com.chaminwoo.stary.ios`)에 **Sign In with Apple Capability** 켜기
+     (자동 서명(`-allowProvisioningUpdates`)이면 대부분 자동 반영되지만 최초 1회 확인 권장).
+
+### 건드린 파일(요약) — 상세 목록은 커밋 `5c00d1a`(6건 피드백)/`682fdd4`(Apple 로그인) 참고
+- Android: `MusicManager.kt`/`MusicScreen.kt`(다이얼), `OnboardingReplayState.kt`(신규)+`MainScreen.kt`+
+  `SettingsScreen.kt`(도움말 다시보기), `UploadScreen.kt`(잠금 확장), `LocaleManager.kt`+`MainActivity.kt`+
+  `locales_config.xml`+manifest(언어), `push/DailyReminderScheduler.kt`+`DailyReminderReceiver.kt`+
+  `BootReceiver.kt`(신규)+`NotificationChannels.kt`+`AppSettings.kt`+`StaryApplication.kt`+
+  `DeepLinkState.kt`+manifest(일일 알림), `ShareCardHelper.kt`+`ShareCardEditor.kt`(공유카드).
+- iOS: `Core/MusicManager.swift`+`Features/Music/MusicScreen.swift`(다이얼), `Features/Map/
+  OnboardingReplayState.swift`(신규)+`RootView.swift`(도움말 다시보기), `Features/Upload/
+  UploadScreen.swift`(잠금 확장), `Core/AppSettings.swift`+`Core/LocaleManager.swift`+`Data/
+  DailyReminderScheduler.swift`(신규)+`Data/PushManager.swift`+`AppDelegate.swift`+`RootView.swift`+
+  `Features/Profile/SettingsScreen.swift`(일일 알림), `Data/AuthManager.swift`+`Features/LoginView.swift`+
+  `project.yml`(Apple 로그인).
+
+### 8.52 후속 — 실기기 테스트 리포트 2건(2026-09-04, 위 4번 항목 관련)
+1. **언어 변경이 API 32 이하에서 반영 안 됨** — `AppCompatDelegate.setApplicationLocales()` 는 공식 문서상
+   **AppCompatActivity 여야만** API 32 이하에서 attachBaseContext 를 자동으로 가로채 재구성한다.
+   `MainActivity` 는 순수 `ComponentActivity` 라 값은 저장돼도 실제 리소스 재해석이 안 됐다.
+   → `MainActivity.attachBaseContext` 를 다시 추가하되, 이번엔 자체 prefs 가 아니라
+   `AppCompatDelegate.getApplicationLocales()`(시스템/AppCompat 저장소를 모두 읽어주는 단일 진입점)를
+   그대로 읽어 wrap — "우리 값"과 "시스템이 추적하는 값"이 항상 같은 소스라 예전(8.52 이전) 충돌은 재발하지
+   않는다. `SettingsScreen.kt` 언어 선택에도 `recreate()` 를 다시 붙였다(API 33+ 자동 재구성만 믿지 않음).
+2. **코치마크가 언어와 무관하게 항상 한국어로 뜸** — `MainOnboardingOverlay` 의 7개 안내 문구 + "건너뛰기"가
+   **하드코딩된 한국어 리터럴**이었다(리소스화가 안 된 채 남아 있던 기존 코드, 이번에 도움말 다시보기 기능으로
+   눈에 띔). Android `strings.xml` 의 `coach_step_*`/`coach_skip` 리소스로, iOS `LocaleManager.swift` 의
+   `L10n coachStep*`/`coachSkip` 케이스로 옮겼다(ko/en/ja 3언어).
 
 ---
 

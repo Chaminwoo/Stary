@@ -39,10 +39,12 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chaminwoo.stary.R
 import kotlin.math.roundToInt
 
 private val Mint = Color(0xFF6EE7B7)
@@ -146,15 +148,15 @@ fun MainOnboardingOverlay(onDismiss: () -> Unit) {
             // 안내 말풍선 — 단계 전환 시 크로스페이드. 위치는 위 스포트라이트(cx,cy,r) 에서 파생된다.
             Crossfade(targetState = step, animationSpec = tween(260), label = "coach-pill") { s ->
                 val text = when (s) {
-                    0 -> "보고 싶은 다이어리만 골라서 볼 수 있어요"
-                    1 -> "시점을 현재 내 위치로 이동해요"
-                    2 -> "별들을 이어 별자리를 만들어요"
+                    0 -> stringResource(R.string.coach_step_filter)
+                    1 -> stringResource(R.string.coach_step_location)
+                    2 -> stringResource(R.string.coach_step_constellation)
                     // ⚠️ 이 자리의 버튼은 **배경음악 토글이 아니라 몰입(지도만 보기)** 이다.
                     //    지도 FAB 이 음악 → 몰입으로 바뀐 뒤에도 문구가 음악으로 남아 있었다.
-                    3 -> "지도에만 집중해서 별들을 감상해요"
-                    4 -> "이 버튼을 눌러 다이어리를 올려요"
-                    5 -> "내 다이어리 · 프로필 · 업적 · 친구 등\n여러 설정을 여기서 관리해요"
-                    else -> "지금부터 우주를 탐험하고,\n별들에 이야기를 남겨보세요!"
+                    3 -> stringResource(R.string.coach_step_immersive)
+                    4 -> stringResource(R.string.coach_step_upload)
+                    5 -> stringResource(R.string.coach_step_menu)
+                    else -> stringResource(R.string.coach_step_finish)
                 }
                 // 필터는 화면 맨 아래라 위로, 메뉴는 맨 위라 아래로, 우측 FAB 은 왼쪽에 붙인다.
                 val side = when (s) {
@@ -174,7 +176,7 @@ fun MainOnboardingOverlay(onDismiss: () -> Unit) {
 
             // 건너뛰기 (우상단)
             Text(
-                "건너뛰기",
+                stringResource(R.string.coach_skip),
                 color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp,
                 modifier = Modifier
                     .align(Alignment.TopEnd)

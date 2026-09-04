@@ -2,8 +2,11 @@
 
 Android: `feature/diary/screen/DetailScreen.kt`, `StarClusterScreen.kt`, `ShareCardEditor.kt`,
 `feature/diary/InteractionViewModel.kt`, `core/util/ShareCardHelper.kt`
-iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Map/StarClusterView.swift`,
-`Core/ShareCard.swift`
+iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Map/StarClusterView.swift`.
+⚠️ **공유 카드(렌더+편집기+인스타 공유)는 iOS 에 아직 없다** — 아래 `ShareCard.swift` 언급은
+과거 계획 문서가 남긴 오기(실제로 그 파일은 존재하지 않는다, 2026-09 확인). `Features/Map/StarClusterView.swift`
+의 `ShareCardBackground` 는 겹친 별 카드 뷰어의 장식 배경으로 같은 이미지 파일만 재사용할 뿐,
+공유 카드 기능과는 무관하다. iOS TODO — PROJECT_NOTES.md 참고.
 
 ---
 
@@ -72,12 +75,14 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Ma
   (12 문서의 id=nil 버그 참고).
 - `StarClusterView.swift` : 겹친 별 카드 뷰어(자체 뒤로가기, 내비바 숨김). 카드 탭 → pop 후 0.35s
   뒤 상세 push(애니메이션 겹침 방지).
-- `ShareCard.swift` : 카드 렌더 + 편집 + 인스타 스토리 공유(Android 와 같은 규격/옵션).
+- **공유 카드(렌더/편집/인스타 공유) — 미구현.** Android `ShareCardEditor.kt`/`ShareCardHelper.kt`
+  전체에 대응하는 iOS 화면이 없다(DetailScreen 에 공유 버튼 자체가 없음). 만들려면 Android 쪽
+  렌더 파이프라인(배경 캐싱+지도 페더 마스크+텍스트 레이아웃+2026-09 다듬기 디테일)과 드래그 편집
+  UI(ShareCardEditor.kt)를 참고해 처음부터 구현해야 한다.
 
 ### 값 조절(패리티 매핑)
 | 항목 | Android | iOS |
 |---|---|---|
-| 카드 규격(1080×1920)/배치 클램프 | `ShareCardHelper.kt` | `ShareCard.swift` |
 | 공유 링크/딥링크 | shared `StaryConfig.shareLink` | `AppConfig` |
 | 히어로 비율(4:3) | `ImageCropHelper.ASPECT` 공용 | iOS 상수 |
 | 조회수 중복 방지 | `ViewCountSession`(세션 집합) | iOS 대응 로직(ViewedStore/세션) |

@@ -277,9 +277,11 @@ fun SettingsScreen(
                 onSelect = { tag ->
                     showLanguageDialog = false
                     if (tag != LocaleManager.getLanguageTag(context)) {
-                        // AppCompatDelegate.setApplicationLocales 가 액티비티 재구성까지 자동으로 처리한다
-                        // (수동 recreate() 를 또 부르면 재구성이 두 번 겹쳐 깜빡일 수 있어 호출하지 않는다).
                         LocaleManager.setLanguageTag(context, tag)
+                        // API 33+ 는 시스템이 자동으로 재구성하지만, API 32 이하는 MainActivity 가
+                        // AppCompatActivity 가 아니라 AppCompatDelegate 가 자동으로 못 살려서
+                        // 수동으로 recreate() 해야 실제로 화면에 반영된다(2026-09-04 테스트 리포트).
+                        context.findActivity()?.recreate()
                     }
                 }
             )
@@ -636,4 +638,14 @@ private fun StarThumb(enabled: Boolean, interactionSource: MutableInteractionSou
             modifier = Modifier.size(22.dp)
         )
     }
+}
+
+/** ContextWrapper 체인을 거슬러 올라가 Activity 를 찾는다(언어 변경 후 recreate 용). */
+private fun Context.findActivity(): android.app.Activity? {
+    var c: Context = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
 }

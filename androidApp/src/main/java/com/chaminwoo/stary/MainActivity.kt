@@ -1,25 +1,45 @@
 package com.chaminwoo.stary
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.chaminwoo.stary.core.designsystem.StaryTheme
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.home.screen.MainScreen
 
-// 인앱 언어(로케일) 적용은 더 이상 attachBaseContext 수동 래핑을 쓰지 않는다 — Android 13+ 의
-// 시스템 "앱별 언어" 기능과 충돌해 전환이 반영되지 않는 문제가 있었다(2026-09-03).
-// AndroidX per-app language API(`AppCompatDelegate.setApplicationLocales`, LocaleManager.kt)가
-// 앱 시작 시점에 자동으로 적용한다 — 자세한 내용은 core/util/LocaleManager.kt 참고.
+// 인앱 언어(로케일) 적용은 AndroidX per-app language API(`AppCompatDelegate.setApplicationLocales`,
+// core/util/LocaleManager.kt)를 쓴다 — Android 13+ 의 시스템 "앱별 언어" 기능과 충돌해 수동
+// Configuration 래핑이 무시되던 문제(2026-09-03) 때문에 도입했다.
+// ⚠️ 그런데 API 32 이하에서는 이 API 가 **AppCompatActivity 여야만** attachBaseContext 를 자동으로
+//    가로채 재구성한다(공식 문서에 명시된 제약) — `MainActivity` 는 순수 `ComponentActivity` 라
+//    API 32 이하에서는 값만 저장되고 실제로 반영되지 않았다(2026-09-04 테스트 리포트).
+//    그래서 아래 attachBaseContext 에서 `AppCompatDelegate.getApplicationLocales()`(시스템/AppCompat
+//    저장소 양쪽을 다 읽어주는 단일 진입점)를 직접 읽어 수동으로도 한 번 더 래핑한다 — 이번엔
+//    "우리가 정한 값"과 "시스템이 추적하는 값"이 항상 같은 소스에서 나오므로 8.52 이전의 충돌이 재발하지 않는다.
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        val locale = AppCompatDelegate.getApplicationLocales().takeIf { !it.isEmpty }?.get(0)
+        if (locale == null) {
+            super.attachBaseContext(newBase)
+            return
+        }
+        java.util.Locale.setDefault(locale)
+        val config = Configuration(newBase.resources.configuration)
+        config.setLocale(locale)
+        super.attachBaseContext(newBase.createConfigurationContext(config))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 

@@ -303,6 +303,16 @@
     <string name="user_unfriend_confirm">Remove %1$s from your friends?</string>
     <string name="user_unfriend_yes">Remove</string>
     <string name="user_unfriend_no">Keep</string>
+    <!-- First-run coach marks (MainOnboardingOverlay) -->
+    <string name="coach_step_filter">Pick exactly which diaries you want to see</string>
+    <string name="coach_step_location">Move the view to your current location</string>
+    <string name="coach_step_constellation">Connect stars to draw a constellation</string>
+    <string name="coach_step_immersive">Focus on just the map and enjoy the stars</string>
+    <string name="coach_step_upload">Tap this button to add a diary</string>
+    <string name="coach_step_menu">My Diary · Profile · Achievements · Friends and\nmore settings live here</string>
+    <string name="coach_step_finish">Now go explore the universe\nand leave your stories among the stars!</string>
+    <string name="coach_skip">Skip</string>
+
     <!-- First-visit info dialog (FirstVisitInfo) -->
     <string name="onb_button">Get started</string>
     <string name="onb_mydiary_title">My Diary</string>

@@ -305,6 +305,16 @@
     <string name="user_unfriend_confirm">정말 %1$s님을 삭제할까요?</string>
     <string name="user_unfriend_yes">친구 취소</string>
     <string name="user_unfriend_no">유지</string>
+    <!-- 첫 실행 코치마크(MainOnboardingOverlay) -->
+    <string name="coach_step_filter">보고 싶은 다이어리만 골라서 볼 수 있어요</string>
+    <string name="coach_step_location">시점을 현재 내 위치로 이동해요</string>
+    <string name="coach_step_constellation">별들을 이어 별자리를 만들어요</string>
+    <string name="coach_step_immersive">지도에만 집중해서 별들을 감상해요</string>
+    <string name="coach_step_upload">이 버튼을 눌러 다이어리를 올려요</string>
+    <string name="coach_step_menu">내 다이어리 · 프로필 · 업적 · 친구 등\n여러 설정을 여기서 관리해요</string>
+    <string name="coach_step_finish">지금부터 우주를 탐험하고,\n별들에 이야기를 남겨보세요!</string>
+    <string name="coach_skip">건너뛰기</string>
+
     <!-- 화면 첫 진입 설명창 (FirstVisitInfo) -->
     <string name="onb_button">시작하기</string>
     <string name="onb_mydiary_title">내 다이어리</string>

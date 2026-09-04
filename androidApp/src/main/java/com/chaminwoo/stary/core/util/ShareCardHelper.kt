@@ -68,6 +68,12 @@ object ShareCardHelper {
     private const val H = 1920
     private const val INSTAGRAM_PKG = "com.instagram.android"
 
+    /** 밤하늘 배경 이미지 디코드 캐시 — 고정 에셋이라 앱 생애 동안 1회만 디코드하면 된다.
+     *  편집 화면(ShareCardEditorDialog)이 드래그마다 [renderCard] 를 반복 호출하는데,
+     *  이 디코드 없이는 프레임마다 asset I/O + webp 디코드가 매번 새로 돌아 렉의 큰 원인이었다. */
+    @Volatile
+    private var cachedBg: Bitmap? = null
+
     /**
      * 카드에 추가로 얹는 장식 별(내 다이어리에서 가져온 별) — 개별 위치/크기 조절.
      * [xFrac]/[yFrac] 는 카드 내 상대 위치(0..1), [scale] 은 크기 배율(0.2..2.5).
@@ -348,6 +354,12 @@ object ShareCardHelper {
             .setEllipsize(TextUtils.TruncateAt.END)
             .setLineSpacing(0f, 1.06f)
             .build()
+        // 은은한 상단→하단 라이트닝(달빛이 스치는 느낌) — 완전 평면 흰색보다 입체감(2026-09 다듬기).
+        titlePaint.shader = LinearGradient(
+            0f, 0f, 0f, titleLayout.height.toFloat().coerceAtLeast(1f),
+            intArrayOf(Color.WHITE, ColorUtils.blendARGB(Color.WHITE, accent, 0.14f)),
+            floatArrayOf(0f, 1f), Shader.TileMode.CLAMP
+        )
         canvas.save()
         canvas.translate(
             W * options.titleXFrac.coerceIn(0.08f, 0.92f) - titleWidth / 2f,
@@ -380,7 +392,20 @@ object ShareCardHelper {
             canvas.drawText(date, W * options.dateXFrac.coerceIn(0.08f, 0.92f), baseline, datePaint)
         }
 
+        drawVignette(canvas)
+
         return out
+    }
+
+    /** 네 모서리를 아주 은은하게 눌러 카드에 "액자" 같은 마무리감을 준다(2026-09 다듬기). */
+    private fun drawVignette(canvas: Canvas) {
+        canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(
+                W / 2f, H / 2f, H * 0.75f,
+                intArrayOf(Color.TRANSPARENT, Color.argb(70, 0, 0, 4)),
+                floatArrayOf(0.72f, 1f), Shader.TileMode.CLAMP
+            )
+        })
     }
 
     /**
@@ -388,9 +413,9 @@ object ShareCardHelper {
      * 이미지 로드 실패 시 남색 그라데이션 폴백(카드는 항상 만들어진다).
      */
     private fun drawBackground(context: Context, canvas: Canvas, accent: Int, stageCx: Float, stageCy: Float) {
-        val bg = runCatching {
+        val bg = cachedBg?.takeIf { !it.isRecycled } ?: runCatching {
             context.assets.open("share_card_bg.webp").use { BitmapFactory.decodeStream(it) }
-        }.getOrNull()
+        }.getOrNull()?.also { cachedBg = it }
         if (bg != null) {
             val cardRatio = W.toFloat() / H
             val srcRatio = bg.width.toFloat() / bg.height
@@ -404,7 +429,6 @@ object ShareCardHelper {
                 Rect(0, yTop, bg.width, yTop + cropH)
             }
             canvas.drawBitmap(bg, src, Rect(0, 0, W, H), Paint(Paint.FILTER_BITMAP_FLAG))
-            bg.recycle()
         } else {
             canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), Paint().apply {
                 shader = LinearGradient(
@@ -463,11 +487,16 @@ object ShareCardHelper {
         canvas.drawBitmap(layer, cx - radius, cy - radius, Paint(Paint.FILTER_BITMAP_FLAG).apply { alpha = 150 })
         layer.recycle()
 
-        // 지도 둘레 얇은 별색 링 — "떠 있는 원" 느낌의 마무리
+        // 지도 둘레 이중 링 — 안쪽은 은은한 흰 하이라이트, 바깥은 별색으로 "떠 있는 원" 마무리감을 더한다.
+        canvas.drawCircle(cx, cy, radius * 0.665f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+            color = Color.argb(60, 255, 255, 255)
+        })
         canvas.drawCircle(cx, cy, radius * 0.68f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2f
-            color = ColorUtils.setAlphaComponent(accent, 70)
+            color = ColorUtils.setAlphaComponent(accent, 80)
         })
     }
 
@@ -490,12 +519,15 @@ object ShareCardHelper {
         val left = cx - starSize / 2f
         val top = cy - starSize / 2f
         val path = android.graphics.Path(StarStyle.starPath(diary.starType, starSize)).apply { offset(left, top) }
-        val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 이중 글로우(넓고 옅게 + 좁고 진하게) — 더 입체적인 발광감(2026-09 다듬기).
+        canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ColorUtils.setAlphaComponent(accent, 130)
+            maskFilter = BlurMaskFilter(28f, BlurMaskFilter.Blur.NORMAL)
+        })
+        canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accent
-            maskFilter = BlurMaskFilter(16f, BlurMaskFilter.Blur.NORMAL)
-        }
-        canvas.drawPath(path, glow)
-        canvas.drawPath(path, glow)
+            maskFilter = BlurMaskFilter(12f, BlurMaskFilter.Blur.NORMAL)
+        })
         StarStyle.drawCrystalFill(canvas, diary.starType, diary.starColor, left, top, starSize)
 
         // 작은 궤도 스파클 2개 — 정적이지만 "반짝" 포인트
@@ -552,6 +584,12 @@ object ShareCardHelper {
         canvas.drawRoundRect(rect, pillH / 2f, pillH / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = ColorUtils.setAlphaComponent(accent, 26)
         })
+        // 안쪽 상단 하이라이트 — 살짝 도드라진 유리질(글래스) 느낌(2026-09 다듬기).
+        canvas.drawRoundRect(
+            RectF(rect.left + 2f, rect.top + 2f, rect.right - 2f, rect.top + pillH * 0.5f),
+            pillH / 2f, pillH / 2f,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(24, 255, 255, 255) }
+        )
         canvas.drawRoundRect(rect, pillH / 2f, pillH / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2f

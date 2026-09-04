@@ -14,6 +14,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // 푸시(FCM/APNs) 델리게이트 연결. 권한 요청/토큰 저장은 로그인 후 PushManager.setUser 에서.
         PushManager.shared.configure()
 
+        // 일일 알림(오늘 기록 유도) — 이미 미래에 예약돼 있으면 아무 일도 하지 않는다(중복 예약 방지).
+        DailyReminderScheduler.ensureScheduled()
+
         return true
     }
 

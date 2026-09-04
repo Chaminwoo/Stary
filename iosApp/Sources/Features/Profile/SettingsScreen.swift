@@ -48,6 +48,11 @@ struct SettingsScreen: View {
                                   label: locale.t(.settingsNotifPopup),
                                   description: locale.t(.settingsNotifPopupDesc),
                                   isOn: settings.notificationsEnabled) { settings.updateNotificationsEnabled($0) }
+                        divider
+                        toggleRow(icon: "calendar.badge.clock",
+                                  label: locale.t(.settingsDailyReminder),
+                                  description: locale.t(.settingsDailyReminderDesc),
+                                  isOn: settings.dailyReminderEnabled) { settings.updateDailyReminderEnabled($0) }
                     }
 
                     // ── 언어 ──

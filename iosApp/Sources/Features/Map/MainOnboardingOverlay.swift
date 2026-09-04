@@ -150,7 +150,7 @@ struct MainOnboardingOverlay: View {
                 // 4. 건너뛰기
                 // =========================================================
 
-                Text("건너뛰기")
+                Text(LocaleManager.shared.t(.coachSkip))
                     .font(.minSans(13))
                     .foregroundStyle(.white.opacity(0.6))
                     .padding(6)
@@ -351,25 +351,25 @@ struct MainOnboardingOverlay: View {
         switch step {
 
         case 0:
-            return "보고 싶은 다이어리만 골라서 볼 수 있어요"
+            return LocaleManager.shared.t(.coachStepFilter)
 
         case 1:
-            return "시점을 현재 내 위치로 이동해요"
+            return LocaleManager.shared.t(.coachStepLocation)
 
         case 2:
-            return "별들을 이어 별자리를 만들어요"
+            return LocaleManager.shared.t(.coachStepConstellation)
 
         case 3:
-            return "지도에만 집중해서 별들을 감상해요"
+            return LocaleManager.shared.t(.coachStepImmersive)
 
         case 4:
-            return "이 버튼을 눌러 다이어리를 올려요"
+            return LocaleManager.shared.t(.coachStepUpload)
 
         case 5:
-            return "내 다이어리 · 프로필 · 업적 · 친구 등\n여러 설정을 여기서 관리해요"
+            return LocaleManager.shared.t(.coachStepMenu)
 
         default:
-            return "지금부터 우주를 탐험하고,\n별들에 이야기를 남겨보세요!"
+            return LocaleManager.shared.t(.coachStepFinish)
         }
     }
 

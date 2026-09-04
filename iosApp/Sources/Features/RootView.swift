@@ -229,6 +229,10 @@ struct MainTabView: View {
                 chatTarget = nil; diaryTarget = nil
                 path = NavigationPath()
                 path.append(DrawerDest.friends)
+            case .upload:
+                chatTarget = nil; diaryTarget = nil
+                path = NavigationPath()
+                path.append(DrawerDest.upload)
             }
             pushRouter.pending = nil
         }
@@ -284,7 +288,11 @@ struct MainTabView: View {
         .onChange(of: scenePhase) { phase in
             // 앱 백그라운드/복귀에 맞춰 배경음악 정지/이어재생(위치 보존)
             switch phase {
-            case .active: MusicManager.shared.resume()
+            case .active:
+                MusicManager.shared.resume()
+                // 일일 알림 예약이 지나 있으면(오래 안 켰던 경우 등) 다시 잡는다 — 로컬 알림은
+                // 한 번 울리면 자동 반복되지 않아 앱이 살아날 때마다 확인해야 한다.
+                DailyReminderScheduler.ensureScheduled()
             case .background, .inactive: MusicManager.shared.pause()
             @unknown default: break
             }

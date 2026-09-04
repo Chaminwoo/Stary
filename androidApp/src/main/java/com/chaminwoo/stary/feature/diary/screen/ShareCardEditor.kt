@@ -116,6 +116,9 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var selectedExtra by remember { mutableStateOf<Int?>(null) }
     var showPicker by remember { mutableStateOf(false) }
+    // 지금 드래그 중인 요소 — 드래그 동안은 무거운 전체 카드 재렌더를 건너뛰고(렉 원인) 이 값으로
+    // 가벼운 오버레이(점선 링)만 실시간으로 옮긴다. 놓는 순간에만 실제 카드에 반영해 다시 그린다.
+    var liveDragTarget by remember { mutableStateOf<DragTarget?>(null) }
     // 내 다이어리의 별 스타일(type,color) 목록 — 피커 최초 오픈 시 1회 로드.
     var myStars by remember { mutableStateOf<List<Pair<Int, Int>>?>(null) }
 
@@ -124,8 +127,12 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
         assets = withContext(Dispatchers.IO) { ShareCardHelper.prepareAssets(context, diary) }
     }
     // 옵션/자산 변경 → 미리보기 재렌더(드래그 연속 변경은 60ms 스로틀, 재시작 시 직전 대기 취소).
-    LaunchedEffect(options, assets) {
+    // ⚠️ 드래그 중(liveDragTarget != null)엔 건너뛴다 — 1080×1920 풀 비트맵 렌더를 프레임마다
+    //    돌리는 게 편집 렉의 원인이었다. 드래그 중엔 아래 오버레이(점선 링)만 가볍게 움직이고,
+    //    손을 뗀 순간(liveDragTarget = null 로 바뀌는 순간) 이 effect 가 다시 돌아 실제로 반영한다.
+    LaunchedEffect(options, assets, liveDragTarget) {
         val a = assets ?: return@LaunchedEffect
+        if (liveDragTarget != null) return@LaunchedEffect
         delay(60)
         preview = withContext(Dispatchers.Default) { ShareCardHelper.renderCard(context, diary, a, options) }
     }
@@ -202,8 +209,11 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
                                     detectDragGestures(
                                         onDragStart = { offset ->
                                             target = hitTarget(options, offset.x / size.width, offset.y / size.height)
+                                            liveDragTarget = target
                                             (target as? DragTarget.Extra)?.let { selectedExtra = it.index }
-                                        }
+                                        },
+                                        onDragEnd = { liveDragTarget = null },
+                                        onDragCancel = { liveDragTarget = null }
                                     ) { change, dragAmount ->
                                         change.consume()
                                         val dx = dragAmount.x / size.width
@@ -212,20 +222,26 @@ fun ShareCardEditorDialog(diary: Diary, onDismiss: () -> Unit) {
                                     }
                                 }
                         )
-                        // 선택된 추가 별 표시 — 점선 링
-                        selectedExtra?.let { idx ->
-                            options.extraStars.getOrNull(idx)?.let { star ->
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    drawCircle(
-                                        color = Color.White.copy(alpha = 0.75f),
-                                        radius = (26.dp.toPx() * star.scale).coerceIn(14.dp.toPx(), 64.dp.toPx()),
-                                        center = Offset(size.width * star.xFrac, size.height * star.yFrac),
-                                        style = Stroke(
-                                            width = 1.5.dp.toPx(),
-                                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
-                                        )
+                        // 드래그 중인 요소(실시간) 또는 탭으로 선택된 추가 별 — 점선 링으로 표시.
+                        // 드래그 중엔 무거운 비트맵 재렌더 없이 이 링만 움직여 즉각 반응하게 한다.
+                        val activeTarget = liveDragTarget ?: selectedExtra?.let { DragTarget.Extra(it) }
+                        val activeFrac = activeTarget?.let { targetFrac(options, it) }
+                        val activeRadiusDp = when (activeTarget) {
+                            is DragTarget.Extra -> options.extraStars.getOrNull(activeTarget.index)
+                                ?.let { (26f * it.scale).coerceIn(14f, 64f) } ?: 26f
+                            else -> 44f // 제목/위치/날짜/무대는 텍스트 크기가 제각각이라 고정 크기 링.
+                        }
+                        if (activeFrac != null) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                drawCircle(
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    radius = activeRadiusDp.dp.toPx(),
+                                    center = Offset(size.width * activeFrac.first, size.height * activeFrac.second),
+                                    style = Stroke(
+                                        width = 1.5.dp.toPx(),
+                                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
                                     )
-                                }
+                                )
                             }
                         }
                     }
@@ -489,6 +505,16 @@ private fun hitTarget(options: ShareCardHelper.ShareCardOptions, fx: Float, fy: 
     consider(DragTarget.Stage, options.stageXFrac, options.stageYFrac, 0.30f)
     return best
 }
+
+/** 대상 요소의 현재 상대 좌표(0..1) — 드래그 중 라이브 오버레이 위치 계산용. */
+private fun targetFrac(options: ShareCardHelper.ShareCardOptions, target: DragTarget): Pair<Float, Float>? =
+    when (target) {
+        DragTarget.Stage -> options.stageXFrac to options.stageYFrac
+        DragTarget.Title -> options.titleXFrac to options.titleYFrac
+        DragTarget.Location -> options.locationXFrac to options.locationYFrac
+        DragTarget.Date -> options.dateXFrac to options.dateYFrac
+        is DragTarget.Extra -> options.extraStars.getOrNull(target.index)?.let { it.xFrac to it.yFrac }
+    }
 
 /** 드래그 델타(정규화)를 대상 요소의 위치에 반영(렌더 클램프와 동일 범위). */
 private fun moveTarget(

@@ -303,6 +303,16 @@
     <string name="user_unfriend_confirm">%1$sさんとのフレンドを解除しますか？</string>
     <string name="user_unfriend_yes">解除</string>
     <string name="user_unfriend_no">キープ</string>
+    <!-- 初回起動コーチマーク (MainOnboardingOverlay) -->
+    <string name="coach_step_filter">見たい日記だけを選んで見ることができます</string>
+    <string name="coach_step_location">現在地に視点を移動します</string>
+    <string name="coach_step_constellation">星をつないで星座を作ります</string>
+    <string name="coach_step_immersive">地図だけに集中して星を眺めます</string>
+    <string name="coach_step_upload">このボタンを押して日記を投稿します</string>
+    <string name="coach_step_menu">マイ日記・プロフィール・実績・フレンドなど\nさまざまな設定をここで管理します</string>
+    <string name="coach_step_finish">これから宇宙を探検して、\n星に物語を残してみましょう!</string>
+    <string name="coach_skip">スキップ</string>
+
     <!-- 画面初回の説明ダイアログ (FirstVisitInfo) -->
     <string name="onb_button">はじめる</string>
     <string name="onb_mydiary_title">マイ日記</string>
