@@ -54,6 +54,8 @@ struct UploadScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 preview
+                // 업로드(저장) 진행 중에는 제목·본문·첨부를 모두 잠근다 — 저장에 쓰인 값과
+                // 화면에 보이는 값이 어긋나지 않게(공개 범위·별 모양/색과 동일한 정책).
                 field(LocaleManager.shared.t(.fieldTitle)) {
                     TextField("", text: $title).textFieldStyle(.plain)
                         .focused($focusedField, equals: .title)
@@ -63,6 +65,8 @@ struct UploadScreen: View {
                             if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
                         }
                 }
+                .disabled(saving)
+                .opacity(saving ? 0.5 : 1)
                 field(LocaleManager.shared.t(.uploadContentLabel)) {
                     TextField("", text: $content, axis: .vertical)
                         .lineLimit(4...8)
@@ -71,7 +75,12 @@ struct UploadScreen: View {
                             if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
                         }
                 }
+                .disabled(saving)
+                .opacity(saving ? 0.5 : 1)
+                // 사진 추가/다시 선택/삭제 + 크롭 드래그까지 한 번에 막는다.
+                // (크롭은 커스텀 DragGesture 라 .disabled() 로는 안 막혀 allowsHitTesting 을 쓴다 — WheelPicker 와 동일.)
                 photoSection
+                    .allowsHitTesting(!saving)
                 starPicker
                 colorPicker
                 visibilityPicker
@@ -199,12 +208,12 @@ struct UploadScreen: View {
         }
     }
 
-    /// 첨부 다시 고르기 — Android upload_reselect 대응.
+    /// 첨부 다시 고르기 — Android upload_reselect 대응. 업로드 중에는 흐려진다(잠금은 photoSection 에서).
     private var reselectButton: some View {
         Button { openMediaSourceSheet() } label: {
             Text(LocaleManager.shared.t(.uploadReselect))
                 .font(.minSans(13))
-                .foregroundStyle(Theme.textPrimary)
+                .foregroundStyle(Theme.textPrimary.opacity(saving ? 0.5 : 1))
         }
     }
 

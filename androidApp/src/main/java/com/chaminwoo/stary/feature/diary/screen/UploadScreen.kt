@@ -176,6 +176,12 @@ fun UploadScreen(
         focusedLabelColor    = MaterialTheme.colorScheme.secondary,
         unfocusedLabelColor  = MaterialTheme.colorScheme.secondary,
         cursorColor          = MaterialTheme.colorScheme.onBackground,
+        // 업로드 중 잠금(enabled=false) 상태 — Material 기본 disabled 색은 다크 테마에서 너무 흐려
+        // 읽기 힘들어서, 쓰던 색을 그대로 두고 살짝만 죽인다(별 휠의 alpha 0.5 와 같은 톤).
+        disabledTextColor      = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+        disabledBorderColor    = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+        disabledLabelColor     = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
+        disabledSupportingTextColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
     )
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
@@ -269,13 +275,24 @@ fun UploadScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                    .then(if (selectedImageUri == null && boomerangFrames.isEmpty()) Modifier.clickable { showImageSourceDialog = true } else Modifier),
+                    // 업로드 중에는 첨부를 새로 고르지 못하게 막는다(저장 중 값 변경 방지).
+                    .then(
+                        if (selectedImageUri == null && boomerangFrames.isEmpty())
+                            Modifier.clickable(enabled = !isUploading) { showImageSourceDialog = true }
+                        else Modifier
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 when {
                     // 사진도 3초 움짤도 같은 프레임 — 드래그로 위치, 두 손가락으로 확대/축소.
                     selectedImageUri != null || boomerangFrames.isNotEmpty() ->
-                        ImageCropFrame(controller = cropController, modifier = Modifier.matchParentSize())
+                        ImageCropFrame(
+                            controller = cropController,
+                            modifier = Modifier.matchParentSize(),
+                            // 크롭 결과는 저장 시작 시점에 이미 확정되므로, 업로드 중 드래그를 허용하면
+                            // 화면만 움직이고 실제 올라가는 그림은 그대로라 어긋난다.
+                            enabled = !isUploading,
+                        )
                     else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Filled.CameraAlt, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(36.dp))
                         Spacer(Modifier.height(8.dp))
@@ -287,8 +304,13 @@ fun UploadScreen(
             if (selectedImageUri != null || boomerangFrames.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { showImageSourceDialog = true }) {
-                        Text(stringResource(R.string.upload_reselect), color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp)
+                    // 업로드 중에는 사진 재선택 잠금.
+                    TextButton(onClick = { showImageSourceDialog = true }, enabled = !isUploading) {
+                        Text(
+                            stringResource(R.string.upload_reselect),
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = if (isUploading) 0.5f else 1f),
+                            fontSize = 13.sp
+                        )
                     }
                 }
             }
@@ -300,6 +322,8 @@ fun UploadScreen(
                 onValueChange = { title = it.take(StaryConfig.DIARY_TITLE_MAX_LEN) },
                 label = { Text(stringResource(R.string.field_title)) },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
+                // 업로드 중 제목 수정 잠금 — 저장에 쓰인 값과 화면이 어긋나지 않게(포커스/키보드도 함께 내려간다).
+                enabled = !isUploading,
                 shape = RoundedCornerShape(12.dp), colors = fieldColors,
                 supportingText = {
                     Text(
@@ -316,6 +340,8 @@ fun UploadScreen(
                 onValueChange = { content = it.take(StaryConfig.DIARY_CONTENT_MAX_LEN) },
                 label = { Text(stringResource(R.string.upload_content_label)) },
                 modifier = Modifier.fillMaxWidth().height(160.dp),
+                // 업로드 중 본문 수정 잠금(제목과 동일).
+                enabled = !isUploading,
                 shape = RoundedCornerShape(12.dp), colors = fieldColors,
                 supportingText = {
                     Text(
@@ -619,7 +645,12 @@ private class CropController {
  * 드래그/핀치로 위치·확대를 받는다. 움짤이면 프레임을 돌려가며 재생한다.
  */
 @Composable
-private fun ImageCropFrame(controller: CropController, modifier: Modifier) {
+private fun ImageCropFrame(
+    controller: CropController,
+    modifier: Modifier,
+    /** false 면 드래그/핀치를 막는다(업로드 진행 중 크롭 변경 방지). */
+    enabled: Boolean = true,
+) {
     // 움짤 재생 — 사진(1장)일 땐 돌지 않는다.
     val playbackSize = controller.playback.size
     LaunchedEffect(playbackSize) {
@@ -642,9 +673,11 @@ private fun ImageCropFrame(controller: CropController, modifier: Modifier) {
         }
         val image = bmp.asImageBitmap()
         Canvas(
-            modifier = Modifier.matchParentSize().pointerInput(controller.frames) {
-                detectTransformGestures { _, pan, zoom, _ -> controller.onTransform(zoom, pan) }
-            }
+            modifier = Modifier.matchParentSize().then(
+                if (enabled) Modifier.pointerInput(controller.frames) {
+                    detectTransformGestures { _, pan, zoom, _ -> controller.onTransform(zoom, pan) }
+                } else Modifier
+            )
         ) {
             val fw = size.width; val fh = size.height
             val dispScale = max(fw / bmp.width, fh / bmp.height) * controller.scale

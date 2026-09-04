@@ -54,8 +54,8 @@ android {
         applicationId = "com.chaminwoo.stary_ios"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.3.9"
+        versionCode = 18
+        versionName = "1.4.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // TODO: secrets.properties 에 실제 값 채우기 (커밋 금지)
