@@ -1,3 +1,4 @@
+import AuthenticationServices
 import AVFoundation
 import SwiftUI
 
@@ -66,6 +67,17 @@ struct LoginView: View {
                 StarDiaryButton(text: LocaleManager.shared.t(.loginGoogle)) {
                     Task { await auth.signInWithGoogle() }
                 }
+
+                // Sign in with Apple(App Store 심사 Guideline 4.8 대응) — Apple 공식 버튼 형태 그대로
+                // 노출해야 해서 StarDiaryButton 처럼 커스텀 스타일을 입히지 않는다(iOS 전용, Android 없음).
+                SignInWithAppleButton(.signIn) { request in
+                    auth.prepareAppleSignInRequest(request)
+                } onCompletion: { result in
+                    Task { await auth.handleAppleSignInResult(result) }
+                }
+                .signInWithAppleButtonStyle(.white)
+                .frame(height: 50)
+                .clipShape(Capsule())
 
                 Button {
                     // 로그인 없이 둘러보기 — 익명 세션은 best-effort, 실패해도 진입한다(Android 동일).

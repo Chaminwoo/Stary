@@ -84,6 +84,10 @@ targets:
       path: Stary.entitlements
       properties:
         aps-environment: development
+        # Sign in with Apple(App Store 심사 Guideline 4.8 대응) — Apple 개발자 포털의 App ID 에도
+        # 이 Capability 를 켜야 한다(자동 서명이면 -allowProvisioningUpdates 가 함께 반영).
+        com.apple.developer.applesignin:
+          - Default
     dependencies:
       - package: Firebase
         product: FirebaseAuth

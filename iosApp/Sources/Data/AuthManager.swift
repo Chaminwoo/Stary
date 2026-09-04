@@ -1,11 +1,15 @@
+import AuthenticationServices
+import CryptoKit
 import FirebaseAuth
 import FirebaseCore
 import FirebaseFirestore
 import GoogleSignIn
+import Security
 import SwiftUI
 
 /// 로그인 상태 단일 소스.
-/// - 익명 로그인(빠른 시작) + 구글 로그인(Firebase Auth credential) 지원.
+/// - 익명 로그인(빠른 시작) + 구글 로그인 + **Sign in with Apple**(Firebase Auth credential, iOS 전용
+///   — App Store 심사 Guideline 4.8 대응, Android 는 Google 로그인만 유지) 지원.
 /// - users/{uid} 프로필 문서를 보장한다.
 @MainActor
 final class AuthManager: ObservableObject {
@@ -97,6 +101,86 @@ final class AuthManager: ObservableObject {
             )
             try await Auth.auth().signIn(with: credential)
         }
+    }
+
+    /// Sign in with Apple 진행 중 재사용하는 raw nonce(재전송 공격 방지) —
+    /// [prepareAppleSignInRequest] 가 만들고 [handleAppleSignInResult] 가 검증에 쓴다.
+    private var currentAppleNonce: String?
+
+    /// `SignInWithAppleButton` 의 `onRequest` — 요청 스코프(이름/이메일)와 해시된 nonce 를 채운다.
+    func prepareAppleSignInRequest(_ request: ASAuthorizationAppleIDRequest) {
+        let nonce = Self.randomNonceString()
+        currentAppleNonce = nonce
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = Self.sha256(nonce)
+    }
+
+    /// `SignInWithAppleButton` 의 `onCompletion` → Firebase Auth credential 교환.
+    ///
+    /// ⚠️ Apple 은 **최초 인증 요청에서만** fullName/email 을 내려준다(재로그인부터는 nil) —
+    ///    그 순간을 놓치면 이름을 영구히 못 받으므로 여기서 바로 Firebase 표시명에 반영한다.
+    ///    이메일은 (Hide My Email 의 `@privaterelay.appleid.com` 포함) Firebase 가 ID 토큰에서
+    ///    직접 파싱해 `user.email` 에 채워주므로 별도 처리가 필요 없다.
+    func handleAppleSignInResult(_ result: Result<ASAuthorization, Error>) async {
+        switch result {
+        case .failure(let error):
+            // 사용자가 시트를 취소한 경우엔 에러 배너를 띄우지 않는다(Android 뒤로가기와 동일 취급).
+            if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
+                errorMessage = error.localizedDescription
+            }
+        case .success(let authorization):
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let tokenData = credential.identityToken,
+                  let idToken = String(data: tokenData, encoding: .utf8),
+                  let rawNonce = currentAppleNonce else {
+                errorMessage = "Apple 로그인 정보를 받지 못했어요."
+                return
+            }
+            let fullName = credential.fullName
+            await run {
+                let oauthCredential = OAuthProvider.credential(
+                    withProviderID: "apple.com",
+                    idToken: idToken,
+                    rawNonce: rawNonce
+                )
+                let authResult = try await Auth.auth().signIn(with: oauthCredential)
+                // 최초 로그인이고 Apple 이 이름을 내려줬으면 Firebase 표시명에 먼저 반영한 뒤,
+                // 그 값을 들고 ensureProfile 을 다시 불러 users/{uid}.userName 에 확실히 남긴다
+                // (구글 로그인과 동일한 로직 재사용 — 이름 없이 저장되는 것을 방지).
+                if let fullName {
+                    let name = PersonNameComponentsFormatter().string(from: fullName)
+                        .trimmingCharacters(in: .whitespaces)
+                    if !name.isEmpty {
+                        let change = authResult.user.createProfileChangeRequest()
+                        change.displayName = name
+                        try? await change.commitChanges()
+                        await self.ensureProfile(authResult.user)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func randomNonceString(length: Int = 32) -> String {
+        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        var remainingLength = length
+        while remainingLength > 0 {
+            var randoms = [UInt8](repeating: 0, count: 16)
+            let status = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
+            precondition(status == errSecSuccess, "SecRandomCopyBytes 실패")
+            for random in randoms where remainingLength > 0 {
+                if random < charset.count {
+                    result.append(charset[Int(random)])
+                    remainingLength -= 1
+                }
+            }
+        }
+        return result
+    }
+
+    private static func sha256(_ input: String) -> String {
+        SHA256.hash(data: Data(input.utf8)).compactMap { String(format: "%02x", $0) }.joined()
     }
 
     func signOut() {
