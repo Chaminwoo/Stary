@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱이 지원하는 인앱 언어 목록 — Android 13+(API 33+) 시스템 "앱별 언어" 기능이 이 목록을 사용한다.
+     core/util/LocaleManager.kt 의 SUPPORTED 와 값을 맞춰 유지한다(SYSTEM("") 제외 — 여긴 실제 로케일만). -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="ko" />
+    <locale android:name="en" />
+    <locale android:name="ja" />
+</locale-config>

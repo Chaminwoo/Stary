@@ -73,6 +73,27 @@ struct SettingsScreen: View {
                         .buttonStyle(.plain)
                     }
 
+                    // ── 도움말 ── 처음 보여줬던 코치마크(주요 컨트롤 안내)를 다시 재생.
+                    sectionLabel(locale.t(.settingsHelp), "questionmark.circle")
+                    glassCard {
+                        Button { OnboardingReplayState.shared.request() } label: {
+                            HStack(spacing: 14) {
+                                iconBadge("questionmark.circle", active: true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(locale.t(.settingsHelpReplay))
+                                        .font(.minSans(17)).foregroundStyle(Theme.textPrimary)
+                                    Text(locale.t(.settingsHelpReplayDesc))
+                                        .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption).foregroundStyle(Theme.textFaint)
+                            }
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     // ── 안전 ── (차단 목록: 차단한 사용자의 별/댓글은 앱 전체에서 숨겨진다)
                     sectionLabel(locale.t(.settingsSafety), "shield.lefthalf.filled")
                     glassCard {

@@ -216,6 +216,8 @@ fun MusicScreen(modifier: Modifier = Modifier) {
 // 별이 원 둘레에 놓이고, 드래그로 고리를 돌리면 위쪽(topAngle)에 온 트랙이 선택된다.
 // 원 안쪽 중앙엔 선택된 트랙의 별자리가 보인다.
 private const val DIAL_RING_RADIUS_DP = 124f  // 별 고리 반지름
+/** 트랙 한 칸(step) 을 몇 등분해서 맷돌 그라인딩음을 울릴지 — 클수록 더 촘촘하게 "드드드드". */
+private const val FINE_DIVISIONS = 5f
 
 @Composable
 private fun MusicDial(
@@ -236,6 +238,10 @@ private fun MusicDial(
     var angleOffset by remember { mutableFloatStateOf(-selectedIndex * step) }
     // 드래그 중 햅틱 눈금 중복 방지 — 마지막으로 딸깍한 트랙 인덱스.
     var tickedIndex by remember { mutableIntStateOf(selectedIndex) }
+    // 맷돌음(그라인딩) 전용 — 트랙 하나(step)보다 훨씬 촘촘한 눈금(FINE_DIVISIONS 등분)마다 울린다.
+    // 회전 "속도"가 아니라 실제 지나간 눈금 수만큼 호출되므로, 빨리 돌리면 자연히 빠르게 반복된다.
+    val fineStepAngle = step / FINE_DIVISIONS
+    var tickedFine by remember { mutableIntStateOf((-angleOffset / fineStepAngle).roundToInt()) }
     var dragging by remember { mutableStateOf(false) }
 
     fun indexAt(off: Float): Int = (((-off / step).roundToInt() % n) + n) % n
@@ -274,7 +280,7 @@ private fun MusicDial(
             val cx = size.width / 2f
             val cy = size.height / 2f
             detectDragGestures(
-                onDragStart = { dragging = true; MusicManager.setDialTurning(true) },
+                onDragStart = { dragging = true },
                 onDrag = { change, drag ->
                     change.consume()
                     val cur = change.position
@@ -284,15 +290,21 @@ private fun MusicDial(
                     if (d > Math.PI) d -= (2.0 * Math.PI).toFloat()
                     if (d < -Math.PI) d += (2.0 * Math.PI).toFloat()
                     angleOffset += d
-                    // 눈금(트랙 하나)을 지날 때마다 딸깍 — 회전 루프음과 짝을 이룬다.
+                    // 눈금(트랙 하나)을 지날 때마다 딸깍(햅틱).
                     val idx = indexAt(angleOffset)
                     if (idx != tickedIndex) {
                         tickedIndex = idx
                         com.chaminwoo.stary.core.util.Haptics.tick()
                     }
+                    // 맷돌 그라인딩음 — 실제로 지나간 촘촘한 눈금 수만큼만 호출(가만히 있으면 무음).
+                    val fine = (-angleOffset / fineStepAngle).roundToInt()
+                    if (fine != tickedFine) {
+                        tickedFine = fine
+                        MusicManager.dialTick()
+                    }
                 },
-                onDragEnd = { dragging = false; MusicManager.setDialTurning(false); settle() },
-                onDragCancel = { dragging = false; MusicManager.setDialTurning(false); settle() }
+                onDragEnd = { dragging = false; MusicManager.dialRelease(); settle() },
+                onDragCancel = { dragging = false; MusicManager.dialRelease(); settle() }
             )
         }
     ) {

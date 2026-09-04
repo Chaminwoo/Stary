@@ -35,6 +35,17 @@
     <string name="settings_notif_popup">알림 팝업</string>
     <string name="settings_notif_popup_desc">채팅·다이어리 알림을 상단 배너로 알려드려요</string>
     <string name="settings_language_desc">앱에 표시되는 언어를 선택해요</string>
+    <string name="settings_help">도움말</string>
+    <string name="settings_help_replay">도움말 다시 보기</string>
+    <string name="settings_help_replay_desc">처음 봤던 사용법 안내를 지도에서 다시 재생해요</string>
+    <string name="settings_daily_reminder">일일 알림</string>
+    <string name="settings_daily_reminder_desc">매일 한 번, 점심부터 밤 10시 사이 랜덤한 시각에 기록을 권해드려요</string>
+
+    <!-- 일일 알림 문구 — 울린 시각대에 맞춰 고른다(DailyReminderReceiver). -->
+    <string name="daily_reminder_lunch">오늘 점심은 무엇을 드셨나요? Stary에 기록해보세요</string>
+    <string name="daily_reminder_afternoon">오늘 하루는 어떻게 보내고 계신가요? Stary에 기록해보세요</string>
+    <string name="daily_reminder_dinner">오늘 저녁은 무엇을 드셨나요? Stary에 기록해보세요</string>
+    <string name="daily_reminder_night">오늘 하루를 별 하나에 남겨보세요</string>
     <string name="settings_autosave">설정은 자동으로 저장돼요</string>
     <string name="settings_account">계정</string>
     <string name="settings_delete_account">계정 삭제</string>

@@ -151,10 +151,15 @@ private struct MusicDial: View {
     @State private var didInit = false
     /// 드래그 중 햅틱 눈금 중복 방지 — 마지막으로 딸깍한 트랙 인덱스.
     @State private var tickedIndex = -1
+    /// 맷돌음(그라인딩) 전용 — 트랙 하나(step)보다 훨씬 촘촘한 눈금마다 울린다(Android FINE_DIVISIONS 패리티).
+    @State private var tickedFine = 0
 
     private let ringRadius: CGFloat = 124
     private var n: Int { tracks.count }
     private var step: Double { 2 * .pi / Double(n) }
+    /// 트랙 한 칸을 몇 등분해서 그라인딩음을 울릴지 — 클수록 더 촘촘하게 "드드드드".
+    private let fineDivisions: Double = 5
+    private var fineStepAngle: Double { step / fineDivisions }
     private let topAngle: Double = -.pi / 2
 
     var body: some View {
@@ -186,26 +191,35 @@ private struct MusicDial: View {
                             if d > .pi { d -= 2 * .pi }
                             if d < -.pi { d += 2 * .pi }
                             angleOffset += d
-                            // 눈금(트랙 하나)을 지날 때마다 딸깍 — 회전 루프음과 짝을 이룬다.
+                            // 눈금(트랙 하나)을 지날 때마다 딸깍(햅틱).
                             let idx = indexAt(angleOffset)
                             if idx != tickedIndex {
                                 tickedIndex = idx
                                 Haptics.tick()
                             }
+                            // 맷돌 그라인딩음 — 실제로 지나간 촘촘한 눈금 수만큼만 호출(가만히 있으면 무음).
+                            let fine = Int((-angleOffset / fineStepAngle).rounded())
+                            if fine != tickedFine {
+                                tickedFine = fine
+                                MusicManager.shared.dialTick()
+                            }
                         } else {
-                            MusicManager.shared.setDialTurning(true)
                             Haptics.prepare()
                         }
                         lastDragAngle = a
                     }
                     .onEnded { _ in
                         lastDragAngle = nil
-                        MusicManager.shared.setDialTurning(false)
+                        MusicManager.shared.dialRelease()
                         settle()
                     }
             )
             .onAppear {
-                if !didInit { angleOffset = -Double(initialIndex) * step; didInit = true }
+                if !didInit {
+                    angleOffset = -Double(initialIndex) * step
+                    tickedFine = Int((-angleOffset / fineStepAngle).rounded())
+                    didInit = true
+                }
             }
         }
     }

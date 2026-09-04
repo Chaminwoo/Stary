@@ -48,28 +48,25 @@ object MusicManager {
     private var openLoaded = false
     private const val OPEN_VOLUME = 0.35f
 
-    // 다이얼 회전 효과음(turning_dial.mp3).
-    //  - **돌리는 동안**: [DIAL_REPEAT_MS] 간격으로 처음부터 다시 재생 → 짧게 끊어지며 빠르게 반복된다
-    //    (음원 전체 길이만큼 기다리면 간격이 너무 벌어져 "돌아가는 느낌"이 안 난다).
-    //  - **놓거나 멈춘 뒤**: 반복만 멈추고 재생 중인 소리는 자르지 않아 **끝까지** 울린다(여운).
+    // 다이얼(맷돌) 회전 효과음(turning_dial.mp3).
+    //  - **돌리는 동안**: [dialTick] 이 실제 각도 눈금을 지날 때마다 호출되어 처음부터 다시 재생 —
+    //    고정 타이머가 아니라 호출 빈도 = 회전 속도라서 빠르게 돌리면 "드드드드" 촘촘해진다.
+    //  - **놓으면**: [dialRelease] 가 간격이 벌어지고 볼륨이 잦아드는 "드르륵" 잔향을 재생한다.
     // (SoundPool 대신 위치 제어/완료 콜백이 필요해 MediaPlayer 사용)
     private var dialPlayer: MediaPlayer? = null
     private var dialResId = 0
-    private var dialTurning = false
     private const val DIAL_VOLUME = 0.6f
 
-    /** 돌리는 동안 회전음을 다시 트는 간격(ms). 음원 길이보다 짧아야 "빠르게 반복"이 된다. */
-    private const val DIAL_REPEAT_MS = 300L
+    /** 맷돌 눈금음 최소 간격(ms) — 이보다 빠른 연속 호출은 뭉개짐 방지로 무시한다(체감상 사실상 무제한 속도). */
+    private const val DIAL_TICK_MIN_GAP_MS = 40L
+    private var lastDialTickAtMs = 0L
+
+    /** 놓았을 때 관성으로 잦아드는 "드르륵" 잔향 — 간격이 점점 벌어지는 5회 반복(볼륨도 함께 감쇠). */
+    private val DIAL_RELEASE_GAPS_MS = longArrayOf(45, 70, 105, 150, 210)
 
     private val dialHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    /** 돌리는 동안만 도는 반복 타이머 — [setDialTurning] false 에서 취소된다. */
-    private val dialRepeat = object : Runnable {
-        override fun run() {
-            if (!dialTurning || !enabled) return
-            restartDialSfx()
-            dialHandler.postDelayed(this, DIAL_REPEAT_MS)
-        }
-    }
+    /** [dialRelease] 진행 중 새로 [dialTick]/[dialRelease] 가 오면 이전 예약을 무효화하는 세대 카운터. */
+    private var dialReleaseGen = 0
 
     /** Compose 에서 관찰 가능한 on/off 상태. */
     var enabled by mutableStateOf(true)
@@ -167,31 +164,43 @@ object MusicManager {
     }
 
     /**
-     * 다이얼 회전 상태 알림.
-     *  - true(돌리기 시작): 회전음을 재생하고 [DIAL_REPEAT_MS] 간격으로 처음부터 다시 튼다(빠른 반복).
-     *  - false(놓음/멈춤): 반복만 멈춘다. **재생 중인 소리는 자르지 않아 끝까지 울린다.**
+     * 맷돌(다이얼) 눈금음 — **실제로 돌릴 때마다**(각도 눈금을 지날 때) 호출한다. 고정 타이머가 아니라
+     * 호출 빈도 자체가 회전 속도이므로, 빠르게 돌리면 자연히 "드드드드" 촘촘하게, 천천히 돌리면 드문드문
+     * 울린다. 가만히 잡고만 있으면(호출이 없으면) 아무 소리도 나지 않는다.
      * 음소거(enabled=false) 상태에선 출력하지 않는다.
      */
-    fun setDialTurning(turning: Boolean) {
-        if (turning && !enabled) return
-        if (dialTurning == turning) return
-        dialTurning = turning
-        if (turning) {
-            restartDialSfx()
-            dialHandler.removeCallbacks(dialRepeat)
-            dialHandler.postDelayed(dialRepeat, DIAL_REPEAT_MS)
-        } else {
-            // 반복만 취소 — 지금 울리는 소리는 그대로 끝까지 둔다(여운).
-            dialHandler.removeCallbacks(dialRepeat)
-        }
+    fun dialTick() {
+        if (!enabled) return
+        dialReleaseGen++ // 다시 잡고 돌리기 시작하면 이전 놓음-잔향 예약은 취소(gen 불일치로 자동 무효화)
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastDialTickAtMs < DIAL_TICK_MIN_GAP_MS) return
+        lastDialTickAtMs = now
+        restartDialSfx(1f)
+    }
+
+    /**
+     * 놓았을 때 — 관성으로 점점 잦아드는 "드르륵" 잔향(간격 벌어짐 + 볼륨 감쇠 5회).
+     * 음소거(enabled=false) 상태에선 출력하지 않는다.
+     */
+    fun dialRelease() {
+        if (!enabled) return
+        dialReleaseGen++
+        scheduleDialReleaseStep(0, dialReleaseGen)
+    }
+
+    private fun scheduleDialReleaseStep(index: Int, gen: Int) {
+        if (gen != dialReleaseGen || !enabled) return
+        if (index >= DIAL_RELEASE_GAPS_MS.size) return
+        restartDialSfx(1f - index * 0.16f)
+        dialHandler.postDelayed({ scheduleDialReleaseStep(index + 1, gen) }, DIAL_RELEASE_GAPS_MS[index])
     }
 
     /** 회전음을 처음부터 다시 재생. player 는 한 번 만들어 두고 seek 으로 되감는다(생성 지연 방지). */
-    private fun restartDialSfx() {
+    private fun restartDialSfx(volumeScale: Float) {
         val ctx = appContext ?: return
         if (dialResId == 0) dialResId = ctx.resources.getIdentifier("turning_dial", "raw", ctx.packageName)
         if (dialResId == 0) return // 음원 미존재 → 무동작
-        val vol = DIAL_VOLUME * sfxVolume
+        val vol = (DIAL_VOLUME * sfxVolume * volumeScale.coerceIn(0f, 1f))
         val existing = dialPlayer
         if (existing != null) {
             runCatching {
@@ -203,8 +212,7 @@ object MusicManager {
         }
         dialPlayer = MediaPlayer.create(ctx, dialResId)?.apply {
             setVolume(vol, vol)
-            // 음원이 반복 간격보다 짧을 때도 돌리는 동안 끊기지 않게 이어 붙인다.
-            setOnCompletionListener { if (dialTurning && enabled) { it.seekTo(0); it.start() } }
+            setOnCompletionListener { it.seekTo(0) } // 다음 dialTick/dialRelease 가 재사용
             start()
         }
     }
@@ -342,8 +350,7 @@ object MusicManager {
         soundPool = null
         windLoaded = false
         openLoaded = false
-        dialTurning = false
-        dialHandler.removeCallbacks(dialRepeat)
+        dialReleaseGen++ // 예약된 잔향 콜백 무효화
         dialPlayer?.release()
         dialPlayer = null
         initialized = false

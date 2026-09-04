@@ -5,7 +5,7 @@ import SwiftUI
 ///
 /// - 기본 켜짐. 기본 음악 = [MusicCatalog.defaultId].
 /// - 트랙 전환은 [playTrack] (이어듣기용 위치 인자), 확정은 [commitSelectedTrack].
-/// - 효과음: 다이얼 회전음([setDialTurning], 겹침 없이 끝나면 아직 돌리는 중일 때만 재생),
+/// - 효과음: 맷돌(다이얼) 그라인딩음([dialTick]/[dialRelease], 실제 회전 속도에 비례해 반복),
 ///   다이어리 열람음([playOpenDiary], 배경음악보다 작게).
 final class MusicManager: ObservableObject {
     static let shared = MusicManager()
@@ -31,12 +31,14 @@ final class MusicManager: ObservableObject {
     private var windPlayer: AVAudioPlayer?
     private var dialPlayer: AVAudioPlayer?
     private var dialDelegate: DialDelegate?
-    private var dialTurning = false
     private let dialBaseVolume: Float = 0.6
-    /// 돌리는 동안 회전음을 다시 트는 간격(초). 음원 길이보다 짧아야 "빠르게 반복"이 된다.
-    /// (Android `MusicManager.DIAL_REPEAT_MS` 와 같은 값 — drift 금지.)
-    private let dialRepeatInterval: TimeInterval = 0.3
-    private var dialRepeatTimer: Timer?
+    /// 맷돌 눈금음 최소 간격(초) — 이보다 빠른 연속 호출은 뭉개짐 방지로 무시한다.
+    /// (Android `MusicManager.DIAL_TICK_MIN_GAP_MS` 와 같은 값 — drift 금지.)
+    private let dialTickMinGap: TimeInterval = 0.04
+    private var lastDialTickAt: TimeInterval = 0
+    /// 놓았을 때 관성으로 잦아드는 "드르륵" 잔향 간격(초, 점점 벌어짐) — Android `DIAL_RELEASE_GAPS_MS` 패리티.
+    private let dialReleaseGaps: [TimeInterval] = [0.045, 0.070, 0.105, 0.150, 0.210]
+    private var dialReleaseGen = 0
 
     private init() {
         let d = UserDefaults.standard
@@ -146,39 +148,47 @@ final class MusicManager: ObservableObject {
         p.play()
     }
 
-    /// 다이얼 회전 상태 — Android `MusicManager.setDialTurning` 패리티.
-    ///  - true(돌리기 시작): 회전음을 재생하고 [dialRepeatInterval] 간격으로 처음부터 다시 튼다(빠른 반복).
-    ///  - false(놓음/멈춤): 반복만 멈춘다. **재생 중인 소리는 자르지 않아 끝까지 울린다**(여운).
-    func setDialTurning(_ turning: Bool) {
-        if turning && !enabled { return }
-        guard dialTurning != turning else { return }
-        dialTurning = turning
-        dialRepeatTimer?.invalidate()
-        dialRepeatTimer = nil
-        guard turning else { return }   // 놓았을 땐 반복만 멈추고 소리는 그대로 둔다.
-        restartDial()
-        dialRepeatTimer = Timer.scheduledTimer(withTimeInterval: dialRepeatInterval, repeats: true) { [weak self] t in
-            guard let self, self.dialTurning, self.enabled else { t.invalidate(); return }
-            self.restartDial()
+    /// 맷돌(다이얼) 눈금음 — **실제로 돌릴 때마다**(각도 눈금을 지날 때) 호출한다. 고정 타이머가 아니라
+    /// 호출 빈도 자체가 회전 속도이므로, 빠르게 돌리면 "드드드드" 촘촘하게, 천천히 돌리면 드문드문 울린다.
+    /// 가만히 잡고만 있으면(호출이 없으면) 아무 소리도 나지 않는다. Android `MusicManager.dialTick` 패리티.
+    func dialTick() {
+        guard enabled else { return }
+        dialReleaseGen += 1 // 다시 잡고 돌리기 시작하면 이전 놓음-잔향 예약은 세대 불일치로 자동 무효화
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastDialTickAt >= dialTickMinGap else { return }
+        lastDialTickAt = now
+        restartDial(volumeScale: 1)
+    }
+
+    /// 놓았을 때 — 관성으로 점점 잦아드는 "드르륵" 잔향(간격 벌어짐 + 볼륨 감쇠 5회).
+    /// Android `MusicManager.dialRelease` 패리티.
+    func dialRelease() {
+        guard enabled else { return }
+        dialReleaseGen += 1
+        scheduleDialRelease(index: 0, gen: dialReleaseGen)
+    }
+
+    private func scheduleDialRelease(index: Int, gen: Int) {
+        guard gen == dialReleaseGen, enabled, index < dialReleaseGaps.count else { return }
+        restartDial(volumeScale: 1 - Float(index) * 0.16)
+        DispatchQueue.main.asyncAfter(deadline: .now() + dialReleaseGaps[index]) { [weak self] in
+            self?.scheduleDialRelease(index: index + 1, gen: gen)
         }
     }
 
     /// 회전음을 처음부터 다시 재생. player 는 한 번 만들어 두고 되감아 쓴다(생성 지연 방지).
-    private func restartDial() {
+    private func restartDial(volumeScale: Float) {
         if dialPlayer == nil {
             guard let p = makePlayer("turning_dial") else { return }
-            // 음원이 반복 간격보다 짧을 때도 돌리는 동안 끊기지 않게 이어 붙인다.
             let del = DialDelegate { [weak self] in
-                guard let self, self.dialTurning, self.enabled else { return }
-                self.dialPlayer?.currentTime = 0
-                self.dialPlayer?.play()
+                self?.dialPlayer?.currentTime = 0 // 다음 dialTick/dialRelease 가 재사용
             }
             dialDelegate = del
             p.delegate = del
             dialPlayer = p
         }
         guard let p = dialPlayer else { return }
-        p.volume = dialBaseVolume * sfxVolume
+        p.volume = dialBaseVolume * sfxVolume * min(max(volumeScale, 0), 1)
         p.currentTime = 0
         p.play()
     }

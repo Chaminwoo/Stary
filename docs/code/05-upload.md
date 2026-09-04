@@ -15,7 +15,8 @@ iOS: `Features/Upload/UploadScreen.swift`, `BoomerangCamera.swift`, `BoomerangCa
 - `isAnonymous` : 익명 업로드 토글(작성자명 "익명").
 - `selectedImageUri` / `cameraUri` : 갤러리/카메라 사진(부메랑과 배타 — 하나만 첨부).
 - `boomerangFile` / `showBoomerangCapture` : 부메랑(3초 움짤) GIF 파일 / 촬영 화면 표시.
-- `isUploading` : 저장 진행 중(버튼 잠금 + 로딩 별).
+- `isUploading` : 저장 진행 중(버튼 잠금 + 로딩 별). **공개 범위 + 별 모양/색 3종 모두 이 동안 잠긴다**
+  (`StarWheelPicker(enabled = !isUploading)`, iOS `WheelPicker(enabled:)` — 2026-09 확장, 값 변경 방지).
 - `showImageSourceDialog` : 사진 추가 다이얼로그(사진 촬영/갤러리/부메랑 3택).
 - `myDiaries` : 내 다이어리 실시간 구독 — **하루 업로드 제한**(오늘 자정 이후 개수 ≥
   `StaryConfig.DAILY_UPLOAD_LIMIT`(10) 이면 저장 선차단) 판정용.

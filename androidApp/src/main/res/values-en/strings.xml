@@ -33,6 +33,17 @@
     <string name="settings_notif_popup">Notification banners</string>
     <string name="settings_notif_popup_desc">Show chat and diary alerts as a top banner</string>
     <string name="settings_language_desc">Choose the language shown in the app</string>
+    <string name="settings_help">Help</string>
+    <string name="settings_help_replay">Replay help guide</string>
+    <string name="settings_help_replay_desc">Show the first-time walkthrough again on the map</string>
+    <string name="settings_daily_reminder">Daily reminder</string>
+    <string name="settings_daily_reminder_desc">Once a day, at a random time between lunch and 10pm, we\'ll nudge you to jot something down</string>
+
+    <!-- Daily reminder body — picked by the hour it fires (DailyReminderReceiver). -->
+    <string name="daily_reminder_lunch">What did you have for lunch today? Record it on Stary</string>
+    <string name="daily_reminder_afternoon">How\'s your day going? Record it on Stary</string>
+    <string name="daily_reminder_dinner">What did you have for dinner today? Record it on Stary</string>
+    <string name="daily_reminder_night">Leave today behind as a star</string>
     <string name="settings_autosave">Settings are saved automatically</string>
     <string name="settings_account">Account</string>
     <string name="settings_delete_account">Delete account</string>

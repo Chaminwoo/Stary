@@ -181,6 +181,8 @@ enum L10n: String {
     case boomerFailed, uploadCropHint
     // 별 목록 화면(iOS 전용 화면 — 빈 상태/가까운순 정렬).
     case listEmptyUnviewed, listEmpty, listSortNearby
+    // 설정 > 도움말 다시 보기(Android settings_help* 패리티).
+    case settingsHelp, settingsHelpReplay, settingsHelpReplayDesc
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -197,6 +199,9 @@ enum L10n: String {
         case .settingsNotifPopup:   return ("알림 팝업", "Notification banners", "通知バナー")
         case .settingsNotifPopupDesc: return ("채팅·다이어리 알림을 상단 배너로 알려드려요", "Show chat and diary alerts as a top banner", "チャットや日記の通知を上部バナーで表示します")
         case .settingsLanguageDesc: return ("앱에 표시되는 언어를 선택해요", "Choose the language shown in the app", "アプリに表示される言語を選択します")
+        case .settingsHelp:           return ("도움말", "Help", "ヘルプ")
+        case .settingsHelpReplay:     return ("도움말 다시 보기", "Replay help guide", "ヘルプをもう一度見る")
+        case .settingsHelpReplayDesc: return ("처음 봤던 사용법 안내를 지도에서 다시 재생해요", "Show the first-time walkthrough again on the map", "最初に表示された使い方ガイドを地図でもう一度再生します")
         case .settingsAutosave:     return ("설정은 자동으로 저장돼요", "Settings are saved automatically", "設定は自動的に保存されます")
         case .languageDialogTitle:  return ("언어 선택", "Select language", "言語を選択")
         case .languageSystem:       return ("시스템 기본", "System default", "システムのデフォルト")

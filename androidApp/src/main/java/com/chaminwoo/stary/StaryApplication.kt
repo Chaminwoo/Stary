@@ -60,6 +60,9 @@ class StaryApplication : Application(), ImageLoaderFactory {
         // heads-up 알림 채널 사전 생성 — 종료/백그라운드에서 시스템이 표시하는 알림도 상단 배너로 뜨게.
         com.chaminwoo.stary.push.ensureStaryNotificationChannel(this)
 
+        // 일일 알림(오늘 기록 유도) — 이미 미래에 예약돼 있으면 아무 일도 하지 않는다(중복 예약 방지).
+        com.chaminwoo.stary.push.DailyReminderScheduler.ensureScheduled(this)
+
         // 앱 전면/후면 추적 — FCM 시스템 알림 vs 인앱 배너 이중 표시 방지에 사용.
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) = AppForeground.onResumed()

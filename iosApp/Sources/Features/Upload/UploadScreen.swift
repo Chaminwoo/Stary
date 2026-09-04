@@ -261,7 +261,9 @@ struct UploadScreen: View {
                     if let a = StarUnlocks.lockedShapeAch(t, unlocked) {
                         showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name))
                     }
-                }
+                },
+                // 업로드(저장) 진행 중에는 별 모양도 공개 범위와 마찬가지로 바꿀 수 없게 잠근다.
+                enabled: !saving
             ) { t in
                 ZStack {
                     StarView(type: t, colorIndex: starColor, size: 40, glow: false)
@@ -286,7 +288,9 @@ struct UploadScreen: View {
                     if let a = StarUnlocks.lockedColorAch(c, unlocked) {
                         showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name))
                     }
-                }
+                },
+                // 업로드(저장) 진행 중에는 별 색도 바꿀 수 없게 잠근다.
+                enabled: !saving
             ) { c in
                 ZStack {
                     Circle()
@@ -473,6 +477,9 @@ private struct WheelPicker<Content: View>: View {
     let itemSize: CGFloat
     var isLocked: (Int) -> Bool = { _ in false }
     var onLocked: (Int) -> Void = { _ in }
+    /// false 면 드래그/탭 모두 막는다(업로드 진행 중 값 변경 방지) — Android StarWheelPicker(enabled) 패리티.
+    /// `.disabled()` 만으로는 커스텀 DragGesture/onTapGesture 가 계속 반응하므로 allowsHitTesting 으로 막는다.
+    var enabled: Bool = true
     @ViewBuilder let item: (Int) -> Content
 
     /// 슬롯 간격 — 5개(중앙 ±2)가 보이도록 넉넉히.
@@ -529,6 +536,8 @@ private struct WheelPicker<Content: View>: View {
                     commit(steps: steps)
                 }
         )
+        .opacity(enabled ? 1 : 0.5)
+        .allowsHitTesting(enabled)
     }
 
     /// 놓은(또는 탭한) 지점의 항목을 **놓은 자리에서 그대로 중앙으로** 부드럽게 스냅한다.

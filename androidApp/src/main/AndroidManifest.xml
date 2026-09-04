@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 일일 알림(오늘 기록 유도) 재부팅 후 재예약용 — AlarmManager 알람은 재부팅 시 모두 사라진다. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- 햅틱(진동) 피드백 — 별 탭/파장/좋아요/업적. 런타임 요청이 없는 일반 권한. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
@@ -27,6 +29,7 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@drawable/app_image"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:roundIcon="@drawable/app_image"
         android:supportsRtl="true"
         android:theme="@style/Theme.Stary">
@@ -113,6 +116,34 @@
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
+        </service>
+
+        <!-- 일일 알림(오늘 기록 유도) — DailyReminderScheduler 가 예약한 알람이 여기로 울린다.
+             자체 PendingIntent 로만 트리거하므로 exported=false. -->
+        <receiver
+            android:name=".push.DailyReminderReceiver"
+            android:exported="false" />
+
+        <!-- 재부팅/앱 업데이트 시 사라진 일일 알림 예약을 복구. 시스템 브로드캐스트라 exported=true 필요. -->
+        <receiver
+            android:name=".push.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- API 26~32(시스템 앱별 언어 미지원 구간)에서 AppCompat 이 선택한 인앱 언어를 자체 저장소에
+             자동 저장/적용하게 하는 서비스 — 실제로 구동되지 않고 존재만으로 AppCompat 이 감지한다.
+             (minSdk=26 인데 API 33+ 전용 시스템 API 만 쓰면 그 아래에선 언어 전환이 재실행 후 풀린다.) -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
         </service>
     </application>
 

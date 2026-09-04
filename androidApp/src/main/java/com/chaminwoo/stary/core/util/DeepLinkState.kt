@@ -26,12 +26,17 @@ object DeepLinkState {
     var friendsNonce by mutableStateOf(0)
         private set
 
+    /** 일일 알림 탭 — 업로드 화면으로 보낼지. 소비할 때마다 nonce 가 올라간다. */
+    var uploadNonce by mutableStateOf(0)
+        private set
+
     /** 인텐트에서 읽은 딥링크 목적지를 등록(있는 것만). */
     fun request(
         diaryId: String? = null,
         chatFriendId: String? = null,
         chatFriendName: String? = null,
         openFriends: Boolean = false,
+        openUpload: Boolean = false,
     ) {
         if (!chatFriendId.isNullOrBlank()) {
             this.chatFriendId = chatFriendId
@@ -40,6 +45,8 @@ object DeepLinkState {
             this.diaryId = diaryId
         } else if (openFriends) {
             friendsNonce += 1
+        } else if (openUpload) {
+            uploadNonce += 1
         }
     }
 

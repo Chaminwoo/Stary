@@ -1,7 +1,6 @@
 package com.chaminwoo.stary
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -13,16 +12,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.chaminwoo.stary.core.designsystem.StaryTheme
-import com.chaminwoo.stary.core.util.LocaleManager
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.home.screen.MainScreen
 
+// 인앱 언어(로케일) 적용은 더 이상 attachBaseContext 수동 래핑을 쓰지 않는다 — Android 13+ 의
+// 시스템 "앱별 언어" 기능과 충돌해 전환이 반영되지 않는 문제가 있었다(2026-09-03).
+// AndroidX per-app language API(`AppCompatDelegate.setApplicationLocales`, LocaleManager.kt)가
+// 앱 시작 시점에 자동으로 적용한다 — 자세한 내용은 core/util/LocaleManager.kt 참고.
 class MainActivity : ComponentActivity() {
-    // 저장된 인앱 언어를 모든 리소스 해석 전에 적용(시스템 기본이면 원본 그대로).
-    override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(LocaleManager.wrap(newBase))
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -88,6 +85,7 @@ class MainActivity : ComponentActivity() {
             chatFriendId = intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID),
             chatFriendName = intent?.getStringExtra(EXTRA_CHAT_FRIEND_NAME),
             openFriends = intent?.getBooleanExtra(EXTRA_OPEN_FRIENDS, false) == true,
+            openUpload = intent?.getBooleanExtra(EXTRA_OPEN_UPLOAD, false) == true,
         )
         // 공유 랜딩(stary://diary/{id}) → 상세가 아닌 "지도 포커스"(카메라+파장)로.
         // 상세 직행이면 100m 열람 게이팅이 우회되므로 별 위치만 보여준다(체크리스트 30).
@@ -138,5 +136,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_CHAT_FRIEND_NAME = "chatFriendName"
         /** 친구 요청 푸시 탭 → 친구 화면(받은 요청)으로. */
         const val EXTRA_OPEN_FRIENDS = "openFriends"
+        /** 일일 알림 탭 → 업로드 화면으로. */
+        const val EXTRA_OPEN_UPLOAD = "openUpload"
     }
 }

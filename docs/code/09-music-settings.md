@@ -154,5 +154,6 @@ iOS: `Features/Music/MusicScreen.swift`, `Features/Profile/SettingsScreen.swift`
 | 언어 지원 목록 | `LocaleManager.SUPPORTED` | `LocaleManager.supported` |
 | 차단 목록 화면 | `BlockedUsersScreen.kt` | `BlockedUsersScreen.swift` |
 | 차단 저장 스키마 | `FirebaseModerationRepository` (`userName`/`photoUrl`/`createdAt`) | `ModerationRepository` (**필드 동일**) |
-| 다이얼 회전음 반복 간격 | `MusicManager.DIAL_REPEAT_MS`(300ms, Handler) | `MusicManager.dialRepeatInterval`(0.3s, Timer) — **같은 값 유지** |
-| 놓았을 때 회전음 | 반복만 취소, 재생 중인 소리는 끝까지(여운) | 동일 |
+| 맷돌(다이얼) 그라인딩음 — 회전 중 | `MusicManager.dialTick()`(각도 눈금 지날 때마다 호출 = 속도 비례, 최소 간격 `DIAL_TICK_MIN_GAP_MS`=40ms) | `MusicManager.dialTick()`(`dialTickMinGap`=0.04s) — **같은 값 유지** |
+| 맷돌(다이얼) 눈금 촘촘함(트랙 1칸당 등분 수) | `MusicScreen.kt` `FINE_DIVISIONS`=5 | `MusicScreen.swift` `fineDivisions`=5 |
+| 놓았을 때(드르륵 잔향) | `MusicManager.dialRelease()` — 간격 벌어짐+볼륨감쇠 5회(`DIAL_RELEASE_GAPS_MS`=45/70/105/150/210ms) | `MusicManager.dialRelease()`(`dialReleaseGaps`) — **같은 값 유지** |

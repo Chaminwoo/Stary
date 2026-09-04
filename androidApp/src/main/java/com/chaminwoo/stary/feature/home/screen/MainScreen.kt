@@ -87,6 +87,7 @@ import androidx.navigation.toRoute
 import com.chaminwoo.stary.core.ui.clickBounce
 import com.chaminwoo.stary.core.ui.raisedCosmicBorder
 import com.chaminwoo.stary.core.util.MapUiState
+import com.chaminwoo.stary.core.util.OnboardingReplayState
 import com.chaminwoo.stary.core.util.ProfilePinState
 import com.chaminwoo.stary.core.util.UserProfileActionState
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -216,6 +217,13 @@ fun MainScreen(
             navController.navigate(NavRoute.Friends)
         }
     }
+    // 일일 알림 탭 → 업로드 화면. nonce 가 올라갈 때만 이동(최초 0 은 무시).
+    androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.uploadNonce) {
+        if (com.chaminwoo.stary.core.util.DeepLinkState.uploadNonce > 0) {
+            showLogin = false
+            navController.navigate(NavRoute.Upload)
+        }
+    }
     // 친구 초대 딥링크(stary://invite/{uid}) 리딤 — 로그인 상태여야 소비. 비로그인이면 보관해 두고
     // 로그인 완료(showLogin 변경) 시 재시도한다. 결과는 토스트로 안내(체크리스트 31).
     androidx.compose.runtime.LaunchedEffect(
@@ -246,6 +254,15 @@ fun MainScreen(
         remember { context.getSharedPreferences("stary_onboarding", Context.MODE_PRIVATE) }
     var showOnboarding by androidx.compose.runtime.saveable.rememberSaveable {
         mutableStateOf(!onboardPrefs.getBoolean("main_coach_seen", false))
+    }
+
+    // 설정 > "도움말 다시 보기" — OnboardingReplayState 요청을 감지해 지도로 돌아가 코치마크를 재생.
+    androidx.compose.runtime.LaunchedEffect(OnboardingReplayState.requested) {
+        if (OnboardingReplayState.requested) {
+            showOnboarding = true
+            navController.navigate(NavRoute.Main) { popUpTo<NavRoute.Main> { inclusive = true } }
+            OnboardingReplayState.consume()
+        }
     }
 
     val userId = GoogleAuthHelper.currentUserId

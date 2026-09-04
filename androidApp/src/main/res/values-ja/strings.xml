@@ -33,6 +33,17 @@
     <string name="settings_notif_popup">通知バナー</string>
     <string name="settings_notif_popup_desc">チャットや日記の通知を上部バナーで表示します</string>
     <string name="settings_language_desc">アプリに表示される言語を選択します</string>
+    <string name="settings_help">ヘルプ</string>
+    <string name="settings_help_replay">ヘルプをもう一度見る</string>
+    <string name="settings_help_replay_desc">最初に表示された使い方ガイドを地図でもう一度再生します</string>
+    <string name="settings_daily_reminder">デイリーリマインダー</string>
+    <string name="settings_daily_reminder_desc">毎日1回、お昼から夜10時の間のランダムな時間に記録をお勧めします</string>
+
+    <!-- デイリーリマインダーの本文 — 鳴った時間帯で選ぶ(DailyReminderReceiver)。 -->
+    <string name="daily_reminder_lunch">今日のお昼は何を食べましたか?Staryに記録してみましょう</string>
+    <string name="daily_reminder_afternoon">今日はどんな一日を過ごしていますか?Staryに記録してみましょう</string>
+    <string name="daily_reminder_dinner">今日の夕食は何を食べましたか?Staryに記録してみましょう</string>
+    <string name="daily_reminder_night">今日を星ひとつに残してみましょう</string>
     <string name="settings_autosave">設定は自動的に保存されます</string>
     <string name="settings_account">アカウント</string>
     <string name="settings_delete_account">アカウント削除</string>

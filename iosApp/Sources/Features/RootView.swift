@@ -84,6 +84,8 @@ struct MainTabView: View {
     
     @State private var showCoachMark = false
     //@State private var showCoachMark = !UserDefaults.standard.bool(forKey: "main_coach_seen") 임시로 일단 지워둠
+    /// 설정 > "도움말 다시 보기" 브리지(Android OnboardingReplayState 패리티).
+    @ObservedObject private var onboardingReplay = OnboardingReplayState.shared
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -196,6 +198,17 @@ struct MainTabView: View {
                 chatTarget = nil
                 diaryTarget = nil
                 drawerOpen = false
+            }
+        }
+        // 설정 > 도움말 다시 보기 → 지도로 돌아가 코치마크 재생.
+        .onChange(of: onboardingReplay.requested) { requested in
+            if requested {
+                path = NavigationPath()
+                chatTarget = nil
+                diaryTarget = nil
+                drawerOpen = false
+                showCoachMark = true
+                onboardingReplay.consume()
             }
         }
         // 푸시 알림 탭 → 해당 화면으로. onReceive 는 구독 시점의 현재 값도 받으므로

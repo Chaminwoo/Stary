@@ -339,6 +339,8 @@ fun UploadScreen(
                 selection = starType,
                 onSelect = { starType = it },
                 itemSize = 40.dp,
+                // 업로드 진행 중에는 별 모양도 공개 범위와 마찬가지로 바꿀 수 없게 잠근다.
+                enabled = !isUploading,
                 onLanded = { t ->
                     StarUnlocks.lockedShapeAch(t, unlockedIds)?.let {
                         com.chaminwoo.stary.core.ui.StaryToast.show(
@@ -372,6 +374,8 @@ fun UploadScreen(
                 selection = starColor,
                 onSelect = { starColor = it },
                 itemSize = 32.dp,
+                // 업로드 진행 중에는 별 색도 바꿀 수 없게 잠근다.
+                enabled = !isUploading,
                 onLanded = { c ->
                     StarUnlocks.lockedColorAch(c, unlockedIds)?.let {
                         com.chaminwoo.stary.core.ui.StaryToast.show(
@@ -677,6 +681,8 @@ private fun StarWheelPicker(
     onSelect: (Int) -> Unit,
     itemSize: androidx.compose.ui.unit.Dp,
     onLanded: (Int) -> Unit,
+    /** false 면 드래그/탭 모두 막는다(업로드 진행 중 값 변경 방지) — 시각적으로도 살짝 어둡게. */
+    enabled: Boolean = true,
     item: @Composable (Int) -> Unit,
 ) {
     val density = LocalContext.current.resources.displayMetrics.density
@@ -719,31 +725,34 @@ private fun StarWheelPicker(
             .fillMaxWidth()
             .height(itemSize * 1.7f)
             .clipToBounds()
-            .pointerInput(count, selection) {
-                detectHorizontalDragGestures(
-                    onDragStart = { },
-                    onHorizontalDrag = { _, delta ->
-                        if (!settling) {
-                            coroutineScope.launch { drag.snapTo(drag.value + delta) }
-                            val step = (-drag.value / slotPx).roundToInt()
-                            if (step != tickedStep) {
-                                tickedStep = step
-                                com.chaminwoo.stary.core.util.Haptics.tick()
+            .alpha(if (enabled) 1f else 0.5f)
+            .then(
+                if (enabled) Modifier.pointerInput(count, selection) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { },
+                        onHorizontalDrag = { _, delta ->
+                            if (!settling) {
+                                coroutineScope.launch { drag.snapTo(drag.value + delta) }
+                                val step = (-drag.value / slotPx).roundToInt()
+                                if (step != tickedStep) {
+                                    tickedStep = step
+                                    com.chaminwoo.stary.core.util.Haptics.tick()
+                                }
                             }
+                        },
+                        onDragEnd = {
+                            val steps = (-drag.value / slotPx).roundToInt()
+                            tickedStep = 0
+                            commit(steps)
+                        },
+                        onDragCancel = {
+                            val steps = (-drag.value / slotPx).roundToInt()
+                            tickedStep = 0
+                            commit(steps)
                         }
-                    },
-                    onDragEnd = {
-                        val steps = (-drag.value / slotPx).roundToInt()
-                        tickedStep = 0
-                        commit(steps)
-                    },
-                    onDragCancel = {
-                        val steps = (-drag.value / slotPx).roundToInt()
-                        tickedStep = 0
-                        commit(steps)
-                    }
-                )
-            },
+                    )
+                } else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         // 중앙 강조 링(선택 자리).
@@ -768,6 +777,7 @@ private fun StarWheelPicker(
                         alpha = itemAlpha
                     }
                     .clickable(
+                        enabled = enabled,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { commit(off) },

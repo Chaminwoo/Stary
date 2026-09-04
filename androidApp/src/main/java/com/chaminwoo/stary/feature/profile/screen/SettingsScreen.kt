@@ -1,8 +1,6 @@
 ﻿package com.chaminwoo.stary.feature.profile.screen
 
-import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,7 +31,9 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MusicNote
@@ -187,6 +187,14 @@ fun SettingsScreen(
                     checked = AppSettings.notificationsEnabled,
                     onCheckedChange = { AppSettings.updateNotificationsEnabled(it) }
                 )
+                RowDivider()
+                ToggleRow(
+                    icon = Icons.Filled.EditCalendar,
+                    label = stringResource(R.string.settings_daily_reminder),
+                    description = stringResource(R.string.settings_daily_reminder_desc),
+                    checked = AppSettings.dailyReminderEnabled,
+                    onCheckedChange = { AppSettings.updateDailyReminderEnabled(it) }
+                )
             }
 
             // ── 언어 ──
@@ -198,6 +206,18 @@ fun SettingsScreen(
                     description = stringResource(R.string.settings_language_desc),
                     value = languageLabel(LocaleManager.getLanguageTag(context)),
                     onClick = { showLanguageDialog = true }
+                )
+            }
+
+            // ── 도움말 ── 처음 보여줬던 코치마크(주요 컨트롤 안내)를 다시 재생.
+            SectionLabel(stringResource(R.string.settings_help), Icons.AutoMirrored.Filled.HelpOutline)
+            GlassCard {
+                NavRow(
+                    icon = Icons.AutoMirrored.Filled.HelpOutline,
+                    label = stringResource(R.string.settings_help_replay),
+                    description = stringResource(R.string.settings_help_replay_desc),
+                    value = "",
+                    onClick = { com.chaminwoo.stary.core.util.OnboardingReplayState.request() }
                 )
             }
 
@@ -257,9 +277,9 @@ fun SettingsScreen(
                 onSelect = { tag ->
                     showLanguageDialog = false
                     if (tag != LocaleManager.getLanguageTag(context)) {
+                        // AppCompatDelegate.setApplicationLocales 가 액티비티 재구성까지 자동으로 처리한다
+                        // (수동 recreate() 를 또 부르면 재구성이 두 번 겹쳐 깜빡일 수 있어 호출하지 않는다).
                         LocaleManager.setLanguageTag(context, tag)
-                        // 액티비티를 다시 만들어 새 로케일로 전체 UI 를 다시 그린다.
-                        context.findActivity()?.recreate()
                     }
                 }
             )
@@ -352,16 +372,6 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (St
             }
         }
     }
-}
-
-/** ContextWrapper 체인을 거슬러 올라가 Activity 를 찾는다(언어 변경 후 recreate 용). */
-private fun Context.findActivity(): Activity? {
-    var c: Context = this
-    while (c is ContextWrapper) {
-        if (c is Activity) return c
-        c = c.baseContext
-    }
-    return null
 }
 
 /** 섹션 제목 — 작은 그라데이션 아이콘 + 민트 라벨. */
