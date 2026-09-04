@@ -170,14 +170,29 @@
   `Features/Profile/SettingsScreen.swift`(일일 알림), `Data/AuthManager.swift`+`Features/LoginView.swift`+
   `project.yml`(Apple 로그인).
 
-### 8.52 후속 — 실기기 테스트 리포트 2건(2026-09-04, 위 4번 항목 관련)
-1. **언어 변경이 API 32 이하에서 반영 안 됨** — `AppCompatDelegate.setApplicationLocales()` 는 공식 문서상
-   **AppCompatActivity 여야만** API 32 이하에서 attachBaseContext 를 자동으로 가로채 재구성한다.
-   `MainActivity` 는 순수 `ComponentActivity` 라 값은 저장돼도 실제 리소스 재해석이 안 됐다.
-   → `MainActivity.attachBaseContext` 를 다시 추가하되, 이번엔 자체 prefs 가 아니라
-   `AppCompatDelegate.getApplicationLocales()`(시스템/AppCompat 저장소를 모두 읽어주는 단일 진입점)를
-   그대로 읽어 wrap — "우리 값"과 "시스템이 추적하는 값"이 항상 같은 소스라 예전(8.52 이전) 충돌은 재발하지
-   않는다. `SettingsScreen.kt` 언어 선택에도 `recreate()` 를 다시 붙였다(API 33+ 자동 재구성만 믿지 않음).
+### 8.52 후속 — 실기기 테스트 리포트(2026-09-04, 위 4번 항목 관련)
+1. **언어 변경이 계속 "시스템 기본"에서 안 움직임 — 진짜 원인은 AppCompatDelegate 자체였다.**
+   `AppCompatDelegate.setApplicationLocales()` 는 내부적으로 **등록된 AppCompat 델리게이트
+   (= `AppCompatActivity`)** 를 훑어서 시스템 `LocaleManager` 서비스를 얻을 Context 를 찾는다.
+   이 앱의 `MainActivity` 는 순수 `ComponentActivity` 라 그 목록이 **항상 비어 있어** 호출이 조용히
+   무시됐다(→ `getApplicationLocales()` 도 계속 빈 값 → UI 는 영원히 "시스템 기본").
+   중간에 시도했던 "attachBaseContext 에서 `getApplicationLocales()` 를 읽어 wrap" 도 같은 이유로
+   무효였다(읽을 값 자체가 없음).
+   → **AppCompat 을 아예 걷어내고 버전별 실제 메커니즘을 직접 호출**하도록 `LocaleManager.kt` 재작성:
+   - **API 33+**: 시스템 `android.app.LocaleManager.applicationLocales` 를 직접 set/get.
+     시스템이 영속 저장 + 리소스 해석 + 액티비티 재구성까지 담당하므로 `wrap()` 은 이 구간에서 무동작
+     (이중 적용 금지). 8.52 이전의 "수동 wrap vs 시스템 값" 충돌도 자연히 사라진다 — 이제 우리가
+     시스템 값 자체를 바꾸기 때문.
+   - **API 26~32**: 시스템에 앱별 언어 기능이 없다 → 자체 prefs 저장 + `MainActivity.attachBaseContext`
+     의 `LocaleManager.wrap()` 으로 Configuration 을 덮어쓴다(원래 방식 그대로, 이 구간에선 문제없었음).
+   - manifest 의 `AppLocalesMetadataHolderService`(autoStoreLocales) 는 더 이상 안 쓰므로 제거.
+     `android:localeConfig` 는 유지(33+ 시스템 설정의 앱 언어 목록에 필요).
+   - `SettingsScreen.kt` 언어 선택 후 `recreate()` 유지(32 이하는 필수, 33+ 는 무해).
+   - `DailyReminderReceiver` 도 알림 문구를 `LocaleManager.wrap(context)` 로 뽑는다(32 이하에서
+     리시버 context 는 래핑되지 않아 시스템 언어로 나오던 문제).
+   ⚠️ 다른 방법으로 `MainActivity` 를 `AppCompatActivity` 로 바꾸는 선택지도 있었지만
+   (그러면 AppCompatDelegate 가 정상 동작한다) 테마가 `Theme.AppCompat` 계열이어야 하는 등 파급이 커서
+   택하지 않았다. **앞으로 AppCompatDelegate 계열 API(예: 야간모드 외 로케일)를 쓰려 한다면 이 제약을 먼저 확인할 것.**
 2. **코치마크가 언어와 무관하게 항상 한국어로 뜸** — `MainOnboardingOverlay` 의 7개 안내 문구 + "건너뛰기"가
    **하드코딩된 한국어 리터럴**이었다(리소스화가 안 된 채 남아 있던 기존 코드, 이번에 도움말 다시보기 기능으로
    눈에 띔). Android `strings.xml` 의 `coach_step_*`/`coach_skip` 리소스로, iOS `LocaleManager.swift` 의

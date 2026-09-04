@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import com.chaminwoo.stary.MainActivity
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.util.AppSettings
+import com.chaminwoo.stary.core.util.LocaleManager
 import java.util.Calendar
 
 /**
@@ -31,11 +32,15 @@ class DailyReminderReceiver : BroadcastReceiver() {
         DailyReminderScheduler.scheduleNext(context)
     }
 
-    private fun showNotification(context: Context) {
+    private fun showNotification(rawContext: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            ContextCompat.checkSelfPermission(rawContext, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
         ) return
+
+        // 알림 문구도 인앱 언어를 따르게 한다 — API 32 이하에서는 리시버 context 가 래핑되지 않아
+        // 시스템 언어로 나온다(33+ 는 시스템이 앱 로케일을 이미 적용해 두므로 wrap 이 무동작).
+        val context = LocaleManager.wrap(rawContext)
 
         ensureStaryNotificationChannel(context)
 

@@ -134,17 +134,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- API 26~32(시스템 앱별 언어 미지원 구간)에서 AppCompat 이 선택한 인앱 언어를 자체 저장소에
-             자동 저장/적용하게 하는 서비스 — 실제로 구동되지 않고 존재만으로 AppCompat 이 감지한다.
-             (minSdk=26 인데 API 33+ 전용 시스템 API 만 쓰면 그 아래에선 언어 전환이 재실행 후 풀린다.) -->
-        <service
-            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
-            android:enabled="false"
-            android:exported="false">
-            <meta-data
-                android:name="autoStoreLocales"
-                android:value="true" />
-        </service>
     </application>
 
 </manifest>
