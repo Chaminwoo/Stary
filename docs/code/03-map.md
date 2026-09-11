@@ -149,7 +149,10 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - `auraRadiusExpression` / `groundLightRadiusExpression` / `auraOpacityExpression` : 후광 수치.
 - `mergeByProximity(valid)` : 30m 지오 머지(줌 무관). `MERGE_PRIORITY` = 좋아요↓ → 오래된 순 → id.
 - `clusterTopLiked(map, reps, radiusPx)` : 화면 좌표 클러스터링(카메라 idle 마다).
-- `diaryFeature(...)` : 별 1개의 GeoJSON Feature(icon/alpha/sizeMult/near/phaseGroup/sparkleIcon/auraColor).
+- `diaryFeature(...)` : 별 1개의 GeoJSON Feature(icon/alpha/sizeMult/near/phaseGroup/sparkleIcon/auraColor/fresh).
+  `fresh` = `createdAt` 로부터 `FRESH_WINDOW_MS`(24시간) 이내인지 — `auraOpacityExpression()` 이 인기(sizeMult)
+  곡선과 fresh 바닥값(`FRESH_AURA_OPACITY`) 중 **더 큰 값**을 써서, 좋아요 0개인 신규 별도 옅게 오오라가 켜진다
+  (업적 리빌의 발광 톤을 정적으로 차용 — 회전 등 모션은 추가하지 않음, 2026-09-09).
 - `sparkleOffsetExpression` / `orbitOffsetExpression` : dp → 스프라이트 px 환산(밀도 무관 배치의 핵심).
 - `buildConstellationFeatures` : 뷰포트 별 최근접 연결 라인 생성.
 - `rememberMapViewWithLifecycle()` : ⚠️ `MapLibre.getInstance` 는 MapView 생성 전 1회 필수.

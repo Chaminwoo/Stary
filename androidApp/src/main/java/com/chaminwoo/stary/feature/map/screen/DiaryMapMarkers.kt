@@ -134,6 +134,10 @@ internal const val CLUSTER_RADIUS_DP = 4f
 internal const val LIKES_FOR_MAX_SIZE = 100
 internal const val MAX_LIKE_SIZE_MULT = 3f
 
+/** 신규 별(24시간 이내) 오오라 — 인기 오오라 최대치(0.42)보다 은은하게, 업적 리빌과 같은 "발광" 톤을 옅게 차용. */
+internal const val FRESH_WINDOW_MS = 86_400_000L
+internal const val FRESH_AURA_OPACITY = 0.16f
+
 /**
  * float/pulse 위상 그룹 수 — ⚠️ iconTranslate 는 레이어 전체 일괄 적용이라,
  * 마커를 id 해시 그룹으로 나눠 레이어별 위상을 달리해야 "따로따로" 부유한다.
@@ -297,13 +301,24 @@ internal fun groundLightRadiusExpression(): Expression {
     )
 }
 
-/** 오오라 불투명도: sizeMult 보간 — 인기 별만 두드러지게 발광한다. */
+/**
+ * 오오라 불투명도: sizeMult 보간(인기 별) 과 fresh 플래그(24시간 이내 신규 별) 중 **더 큰 값**.
+ * 좋아요 0개인 신규 별도 sizeMult=1 이라 인기 곡선만으로는 오오라가 0 이었는데, fresh 바닥값을
+ * 얹어 인기와 무관하게 옅게 빛나도록 한다(업적 리빌의 발광 톤을 정적으로 은은하게 차용 — 회전 등 모션은 없음).
+ */
 internal fun auraOpacityExpression(): Expression =
-    Expression.interpolate(
-        Expression.linear(), Expression.get("sizeMult"),
-        Expression.stop(1f, 0f),
-        Expression.stop(1.4f, 0.12f),
-        Expression.stop(3f, 0.42f),
+    Expression.max(
+        Expression.interpolate(
+            Expression.linear(), Expression.get("sizeMult"),
+            Expression.stop(1f, 0f),
+            Expression.stop(1.4f, 0.12f),
+            Expression.stop(3f, 0.42f),
+        ),
+        Expression.switchCase(
+            Expression.eq(Expression.get("fresh"), Expression.literal(true)),
+            Expression.literal(FRESH_AURA_OPACITY),
+            Expression.literal(0f),
+        )
     )
 
 /** 좋아요 수 → 별 크기 배율(1..[MAX_LIKE_SIZE_MULT]). */
@@ -408,6 +423,7 @@ internal fun diaryFeature(d: Diary, lng: Double, lat: Double, near: Boolean, alp
         addNumberProperty("phaseGroup", kotlin.math.abs(d.id.hashCode()) % PHASE_GROUPS)
         addNumberProperty("sizeMult", sizeMult)
         addStringProperty("auraColor", starColorHex(colorIdx))
+        addBooleanProperty("fresh", System.currentTimeMillis() - d.createdAt <= FRESH_WINDOW_MS)
         addNumberProperty("alpha", alpha)
         addStringProperty("icon", starIconId(d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1), colorIdx))
         addStringProperty("sparkleIcon", sparkleStarIconId(d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1), colorIdx))

@@ -109,6 +109,12 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="stary_default" />
 
+        <!-- 앱 종료 상태에서 시스템이 직접 그리는 알림의 기본 아이콘. 미지정 시 앱 아이콘(mipmap,
+             적응형 아이콘)을 그대로 쓰려다 실패해 상태바(접힌 상태)에 기본 아이콘이 뜨는 문제가 있었다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+
         <!-- FCM 수신 (푸시 발송은 Cloud Functions 필요 — 체크리스트 7/8) -->
         <service
             android:name=".push.StaryMessagingService"

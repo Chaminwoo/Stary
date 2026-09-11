@@ -84,7 +84,7 @@ class StaryMessagingService : FirebaseMessagingService() {
         // 알림 id: 채팅은 방(chatId)별로 묶어 누적되지 않게, 그 외는 diaryId 기준.
         val tag = message.data["chatId"] ?: diaryId
         val notification = NotificationCompat.Builder(this, STARY_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH) // heads-up (구버전 호환)

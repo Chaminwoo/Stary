@@ -64,7 +64,7 @@ class DailyReminderReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, STARY_DAILY_REMINDER_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.app_name))
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
