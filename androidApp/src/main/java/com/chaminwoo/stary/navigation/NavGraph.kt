@@ -14,8 +14,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.chaminwoo.stary.core.util.TutorialStarState
 import com.chaminwoo.stary.feature.diary.screen.DetailScreen
 import com.chaminwoo.stary.feature.diary.screen.NotificationScreen
+import com.chaminwoo.stary.feature.diary.screen.TutorialStarDetailScreen
 import com.chaminwoo.stary.feature.diary.screen.UploadScreen
 import com.chaminwoo.stary.feature.chat.screen.ChatScreen
 import com.chaminwoo.stary.feature.friend.screen.FriendScreen
@@ -185,15 +187,20 @@ fun NavGraph(
 
         composable<NavRoute.Detail> { backStackEntry ->
             val detailArgs: NavRoute.Detail = backStackEntry.toRoute()
-            DetailScreen(
-                diaryId = detailArgs.diaryId,
-                onBack = { navController.navigate(NavRoute.Main) {
-                    popUpTo<NavRoute.Main> { inclusive = true }
-                }},
-                onOpenProfile = { uid, uname ->
-                    navController.navigate(NavRoute.UserProfile(userId = uid, userName = uname))
-                }
-            )
+            // 웰컴 별 — 서버에 없는 튜토리얼 글이라 Firestore 를 타는 DetailScreen 대신 게시물형 전용 화면.
+            if (detailArgs.diaryId == TutorialStarState.DIARY_ID) {
+                TutorialStarDetailScreen(onBack = { navController.navigateUp() })
+            } else {
+                DetailScreen(
+                    diaryId = detailArgs.diaryId,
+                    onBack = { navController.navigate(NavRoute.Main) {
+                        popUpTo<NavRoute.Main> { inclusive = true }
+                    }},
+                    onOpenProfile = { uid, uname ->
+                        navController.navigate(NavRoute.UserProfile(userId = uid, userName = uname))
+                    }
+                )
+            }
         }
 
         composable<NavRoute.UserProfile> { backStackEntry ->

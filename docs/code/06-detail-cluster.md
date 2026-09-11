@@ -1,6 +1,6 @@
 # 06. 다이어리 상세 · 겹친 별 · 공유 카드
 
-Android: `feature/diary/screen/DetailScreen.kt`, `StarClusterScreen.kt`, `ShareCardEditor.kt`,
+Android: `feature/diary/screen/DetailScreen.kt`, `TutorialStarDetailScreen.kt`, `StarClusterScreen.kt`, `ShareCardEditor.kt`,
 `feature/diary/InteractionViewModel.kt`, `core/util/ShareCardHelper.kt`
 iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Map/StarClusterView.swift`.
 ⚠️ **공유 카드(렌더+편집기+인스타 공유)는 iOS 에 아직 없다** — 아래 `ShareCard.swift` 언급은
@@ -34,6 +34,22 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Ma
   이유로 별도 컴포저블 유지.
 - `FullScreenMediaViewer(mediaUrl, isVideo, onClose)` : 원본 비율(Fit) 전체화면 + 핀치 확대/드래그,
   mp4 는 소리와 함께 루프.
+
+## TutorialStarDetailScreen.kt — 웰컴 별(튜토리얼) 게시물
+- 첫 실행 기기에만 근처(약 40m)에 놓이는 클라이언트 전용 별(`core/util/TutorialStarState`)을 탭하면
+  일반 별과 같은 경로(파장 → `navigateToDetail("tutorial_star")`)로 오고, NavGraph 가 id 를 보고 이 화면으로 분기.
+  (예전엔 지도 위 안내 카드 다이얼로그였다 → 2026-09 게시물형으로 교체.)
+- `DetailScreen` 을 재사용하지 않는다 — Firestore 로드/조회수/좋아요·댓글 리스너가 diaryId 에 묶여 있어
+  가짜 id 로는 "불러오기 실패" 또는 쓰기가 나간다. **레이아웃만 흉내**(4:3 히어로 + 스크림 + 별·작성자·날짜 →
+  제목 → 본문 카드) — DetailScreen 레이아웃을 크게 바꾸면 여기도 맞출 것.
+- 히어로 = `loading_dipper`(북두칠성 애니메이션 WebP, 640×480 = 4:3, 89프레임 무한루프) — 실제 글의 로딩 플레이스홀더를
+  이 별의 "사진"으로 둔다. 좋아요/공유/댓글 없음, 하단 민트→블루 "확인" 버튼 = 지도로(`navigateUp`).
+- 모양/색/작성자는 `TutorialStarState.STAR_TYPE`(3)/`STAR_COLOR`(15 앰버골드)/`AUTHOR_NAME`("STARY") — 지도 마커와 공유.
+- 화면이 **열리는 순간** `markDone()` — 지도가 가려진 동안 마커가 빠져서, 돌아가면 별이 이미 없다
+  (나갈 때 지우면 퇴장 페이드 중 별이 뚝 사라지는 게 보인다).
+- ⚠️ 알려진 한계: 웰컴 별 30m 안에 실제 별이 있으면 30m 머지로 그 별 그룹에 흡수되고(0좋아요·최신이라 대표가 못 됨),
+  겹친 별 카드 뷰어는 Firestore 에서 못 찾는 id 를 버리므로 웰컴 별을 열 수 없다.
+- iOS: 웰컴 별 기능 자체가 아직 없음(TODO).
 
 ## InteractionViewModel.kt — 좋아요/댓글
 - `isLiked` / `likeCount` : `FirebaseLikeRepository` 실시간 관찰(StateFlow).

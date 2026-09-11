@@ -118,6 +118,7 @@ fun MainScreen(
     androidx.compose.runtime.DisposableEffect(musicLifecycleOwner) {
         com.chaminwoo.stary.core.util.MusicManager.init(context)
         com.chaminwoo.stary.core.util.AppSettings.init(context)
+        com.chaminwoo.stary.core.util.TutorialStarState.restore(context)
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
                 androidx.lifecycle.Lifecycle.Event.ON_START -> com.chaminwoo.stary.core.util.MusicManager.resume()
@@ -697,10 +698,13 @@ fun MainScreen(
         // 첫 로그인 코치마크 — 로그인한 상태에서 지도(Main) 화면에 처음 들어왔을 때 1회만.
         // (비로그인 둘러보기에선 표시하지 않는다)
         if (showOnboarding && !showLogin && userId != null && currentRoute is NavRoute.Main) {
-            MainOnboardingOverlay(onDismiss = {
-                onboardPrefs.edit().putBoolean("main_coach_seen", true).apply()
-                showOnboarding = false
-            })
+            MainOnboardingOverlay(
+                onDismiss = {
+                    onboardPrefs.edit().putBoolean("main_coach_seen", true).apply()
+                    showOnboarding = false
+                },
+                tutorialNeeded = !com.chaminwoo.stary.core.util.TutorialStarState.done,
+            )
         }
 
         // 지도만 보기(몰입) — 하단 중앙 X 로 복귀. 지도 위에 떠 있어 지도 조작은 그대로.

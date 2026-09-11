@@ -75,10 +75,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaminwoo.stary.BuildConfig
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.geo.LatLng
+import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.model.Friend
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapFocusState
 import com.chaminwoo.stary.core.util.MapUiState
+import com.chaminwoo.stary.core.util.TutorialStarState
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.data.repository.FirebaseViewedRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -137,6 +139,11 @@ fun MainListScreen(
         )
     }
     LaunchedEffect(liveLocation) { liveLocation?.let { currentLatLng = it } }
+
+    // 첫 실행 기기 전용 웰컴 별 — 실제 위치 fix 가 잡히면 그 근방에 1회 배치(TutorialStarState 참고).
+    LaunchedEffect(liveLocation, TutorialStarState.done) {
+        liveLocation?.let { TutorialStarState.ensurePlaced(context, it) }
+    }
 
     // 모의 위치(위치 조작 앱) 감지 시 1회 경고 — 조작된 좌표는 LocationHelper 가 이미 거부한다.
     val mockDetected by LocationHelper.mockDetected.collectAsState()
@@ -430,6 +437,27 @@ fun MainListScreen(
             .fillMaxSize()
             .then(devKeyModifier)
     ) {
+        // 웰컴 별(TutorialStarState) — 서버에 없는 클라이언트 전용 합성 다이어리라 필터와 무관하게
+        // filteredDiaries 뒤에 덧붙인다. 모양/색/작성자는 게시물 화면과 공유(TutorialStarState 상수).
+        val tutorialDiary = remember(TutorialStarState.latLng) {
+            TutorialStarState.latLng?.let { pos ->
+                Diary(
+                    id = TutorialStarState.DIARY_ID,
+                    userId = TutorialStarState.AUTHOR_ID,
+                    userName = TutorialStarState.AUTHOR_NAME,
+                    latitude = pos.latitude,
+                    longitude = pos.longitude,
+                    createdAt = System.currentTimeMillis(),
+                    starType = TutorialStarState.STAR_TYPE,
+                    starColor = TutorialStarState.STAR_COLOR,
+                    visibilityType = "public",
+                )
+            }
+        }
+        val mapDiaries = remember(filteredDiaries, tutorialDiary) {
+            tutorialDiary?.let { filteredDiaries + it } ?: filteredDiaries
+        }
+
         // 알림에서 요청된 다이어리로 카메라 이동 + 파장 — 좌표는 필터와 무관하게 전체 목록에서 찾는다.
         val focusTarget =
             remember(MapFocusState.pendingDiaryId, MapFocusState.pendingRoute, diaries) {
@@ -446,8 +474,9 @@ fun MainListScreen(
             }
 
         DiaryMap(
-            diaries = filteredDiaries,
+            diaries = mapDiaries,
             currentLatLng = currentLatLng,
+            // 웰컴 별도 일반 별과 같은 경로(파장 → Detail 라우트) — NavGraph 가 id 를 보고 튜토리얼 게시물로 분기.
             onDiaryClick = onItemClick,
             onClusterClick = onOpenCluster,
             onCreateClick = onCreateClick,

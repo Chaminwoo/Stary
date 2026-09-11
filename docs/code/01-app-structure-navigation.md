@@ -108,6 +108,8 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
   ```
   Notification 의 `onFocusDiaryOnMap` 만 `withRoute` 없이 카메라+파장만.
 - `Detail.onBack` 도 지도 복귀(`popUpTo Main inclusive`) — 깊은 스택을 접고 지도로.
+- `composable<NavRoute.Detail>` 는 `diaryId == TutorialStarState.DIARY_ID`(웰컴 별)이면 `DetailScreen` 대신
+  **`TutorialStarDetailScreen`**(서버에 없는 튜토리얼 게시물, 확인 = `navigateUp`)으로 분기한다 — 06 문서 참고.
 
 ## 전역 상태 브리지 (core/util) — 화면끼리 직접 못 부를 때 쓰는 싱글턴
 

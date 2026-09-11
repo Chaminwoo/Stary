@@ -66,9 +66,13 @@ private enum class PillSide { Above, Below, LeftOf, Center }
  *    기준 dp 상수로 따로 적혀 있어서, 지도 버튼이 바뀌어 원 좌표만 손보면 말풍선이 그대로 남아
  *    둘이 어긋났다. 지금은 말풍선이 [AnchoredCoachPill] 로 **그 단계의 원 좌표에서 계산**되므로
  *    원을 옮기면 말풍선이 따라오고, 기기/인셋/반응형 배율이 달라도 항상 붙어 있다.
+ *
+ * @param tutorialNeeded 웰컴 별([TutorialStarState])이 아직 필요한 상태(=이 기기에서 아직 소비 안 됨)면
+ *   마지막 단계 문구가 "근처에 별을 만들어 뒀다"는 안내로 바뀐다. 이미 소비됐으면(설정 > 도움말 다시 보기
+ *   재생 등) 새 별을 또 놓지 않으므로 기존 마무리 문구를 유지한다.
  */
 @Composable
-fun MainOnboardingOverlay(onDismiss: () -> Unit) {
+fun MainOnboardingOverlay(onDismiss: () -> Unit, tutorialNeeded: Boolean = false) {
     var step by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val statusTopPx = WindowInsets.statusBars.getTop(density).toFloat()
@@ -156,7 +160,8 @@ fun MainOnboardingOverlay(onDismiss: () -> Unit) {
                     3 -> stringResource(R.string.coach_step_immersive)
                     4 -> stringResource(R.string.coach_step_upload)
                     5 -> stringResource(R.string.coach_step_menu)
-                    else -> stringResource(R.string.coach_step_finish)
+                    else -> if (tutorialNeeded) stringResource(R.string.coach_step_finish_tutorial)
+                    else stringResource(R.string.coach_step_finish)
                 }
                 // 필터는 화면 맨 아래라 위로, 메뉴는 맨 위라 아래로, 우측 FAB 은 왼쪽에 붙인다.
                 val side = when (s) {

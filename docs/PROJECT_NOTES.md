@@ -2,7 +2,11 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.52 사용자 피드백 6건 + iOS Sign in with Apple** — 맷돌음 회전속도 연동 / 도움말 다시보기 /
+> 최종 갱신: **8.54 웰컴 별(튜토리얼 별) — 근처 안내 별 + 게시물형 열람** — Android BUILD SUCCESSFUL + 사용자 테스트 완료
+> (2026-09-11), 8.53 과 함께 push / iOS 는 CI 검증(웰컴 별 자체는 iOS 미구현 TODO) — 아래 8.54 참고.
+> 이전: **8.53 반투명 탑바(엣지투엣지) + 프로필 사진 = 벽/크게 보기** — Android BUILD SUCCESSFUL(2026-09-06),
+> 2026-09-11 테스트 완료 신호 후 8.54 와 함께 push — 아래 8.53 참고.
+> 이전: **8.52 사용자 피드백 6건 + iOS Sign in with Apple** — 맷돌음 회전속도 연동 / 도움말 다시보기 /
 > 업로드 잠금 확장(별 모양·색) / 언어전환 버그(AppCompatDelegate 교체) / 일일 알림 신설 / 공유카드 렉+디자인
 > 다듬기(Android, iOS 공유카드는 미구현 확인 → TODO) + **Sign in with Apple**(Guideline 4.8, iOS 전용)
 > — Android BUILD SUCCESSFUL(2026-09-04), iOS 는 push(`5c00d1a`/`682fdd4`) 후 CI 검증 — 아래 8.52 참고.
@@ -51,6 +55,102 @@
 > 이전: MapLibre+MapTiler 전환, applicationId 분리(`com.chaminwoo.stary_ios`), Firebase `momentdiary-f26c8`.
 
 ---
+
+## 8.54 웰컴 별(튜토리얼 별) — 근처 안내 별 + 게시물형 열람 (Android BUILD SUCCESSFUL + 사용자 테스트 완료 2026-09-11)
+
+첫 실행 기기에만 지도 근처에 "웰컴 별"을 하나 놓고, 탭하면 튜토리얼 **게시물**이 열린다.
+(별 배치·코치마크 문구는 이전 세션에서 만들어졌지만 문서화되지 않았던 것을 이번에 함께 정리.)
+
+### 동작
+- `core/util/TutorialStarState.kt`(신규, 전역 브리지 — `OnboardingReplayState` 패턴)
+  - `stary_onboarding` prefs(코치마크와 같은 파일)의 `tutorial_star_done` / `tutorial_star_lat` / `tutorial_star_lng`.
+  - `restore(context)` : `MainScreen` 진입 시 1회(MusicManager.init 옆).
+  - `ensurePlaced(context, near)` : 실제 위치 fix 가 오면(`MainListScreen` 의 `LaunchedEffect(liveLocation, done)`)
+    북·동으로 40m씩(대각 ≈56m — 100m 열람 범위 안) 떨어진 곳에 1회 고정·저장. 앱을 다시 켜도 같은 자리.
+  - `markDone(context)` : 영구 소비(좌표 삭제). 튜토리얼 게시물이 **열리는 순간** 호출된다.
+  - 상수 `STAR_TYPE`(3) / `STAR_COLOR`(15 앰버골드) / `AUTHOR_ID` / `AUTHOR_NAME`("STARY") — 지도 마커와 게시물 헤더가 공유.
+- `MainListScreen` : 좌표가 있으면 합성 `Diary(id = "tutorial_star")` 를 `filteredDiaries` 뒤에 붙여 `DiaryMap` 에
+  넘긴다(필터 무관). 탭은 일반 별과 같은 경로(100m 판정 → 파장 → `onItemClick` → `navigateToDetail`).
+- `NavGraph` `composable<Detail>` : id 가 `TutorialStarState.DIARY_ID` 면 `DetailScreen` 대신 `TutorialStarDetailScreen`.
+- `feature/diary/screen/TutorialStarDetailScreen.kt`(신규) : DetailScreen 레이아웃만 흉내 낸 게시물 —
+  4:3 히어로 = **`loading_dipper`**(상세 로딩 플레이스홀더, 북두칠성이 그려지는 애니메이션 WebP, 640×480·89프레임 무한루프) /
+  별·STARY·날짜 오버레이 / 제목 / 본문 카드 / 민트→블루 "확인"(= `navigateUp`). 좋아요·공유·댓글 없음.
+  - `DetailScreen` 을 재사용하지 않는 이유: Firestore 로드·조회수·좋아요/댓글 리스너가 diaryId 에 묶여 있어
+    가짜 id 로는 "불러오기 실패" 또는 가짜 쓰기가 나간다. DetailScreen 본체는 dex 레지스터 한계 크래시 이력이 있어 분기도 넣지 않았다.
+    **DetailScreen 레이아웃을 크게 바꾸면 이 화면도 맞출 것.**
+  - 열리는 순간 `markDone` — 지도가 가려진 동안 마커가 빠져서 돌아가면 이미 없다(나갈 때 지우면 퇴장 페이드 중 뚝 사라지는 게 보임).
+- 코치마크 `MainOnboardingOverlay(tutorialNeeded = !TutorialStarState.done)` : 마지막 문구가 `coach_step_finish_tutorial`
+  ("제가 근처에 별을 하나 만들었어요! 눌러서 들여다보세요")로 바뀐다. 이미 소비했으면(도움말 다시 보기) 기존 마무리 문구.
+- 문자열(ko/en/ja): `tutorial_star_title` = **"당신의 다이어리를 우주에, Stary"**(en "Your diary into the universe, Stary" /
+  ja "あなたの日記を宇宙へ、Stary"), `tutorial_star_msg`(게시물 본문 — 좌측 정렬 카드라 문단 `\n\n` 으로만 나눔), `tutorial_star_confirm`.
+- 처음엔 지도 위 안내 카드 다이얼로그(`TutorialStarDialog`)였는데 사용자 요청으로 게시물형으로 교체(다이얼로그 삭제).
+
+### 테스트 팁 — 이미 소비한 기기에서 다시 보기(코치마크도 함께 초기화, 로그인 유지)
+```
+adb shell am force-stop com.chaminwoo.stary_ios
+adb shell run-as com.chaminwoo.stary_ios rm shared_prefs/stary_onboarding.xml
+```
+⚠️ 앱 프로세스가 살아 있으면(FCM 등으로 재기동) 메모리의 prefs 가 다시 파일에 써질 수 있다 — 지운 뒤 `cat` 으로 확인.
+
+### 알려진 한계 / TODO
+- 웰컴 별 30m 안에 실제 별이 있으면 30m 머지에 흡수된다(0좋아요·최신이라 대표가 못 됨). 겹친 별 카드 뷰어는
+  Firestore 에 없는 id 를 버리므로 그 경우 웰컴 별을 열 수 없다.
+- **iOS 미구현** — 웰컴 별(배치·마커·코치마크 분기·게시물) 전체가 TODO. iOS 는 첫 실행 코치마크 자동 트리거도 꺼져 있다(8.52 참고).
+
+### 같이 push 된 미기록 변경(이전 세션 작업)
+- **신규 별 오오라**(`DiaryMapMarkers.kt`) : 24시간 이내 별은 좋아요 0개여도 `FRESH_AURA_OPACITY`(0.16) 오오라 — docs/code/03 참고.
+  **iOS 미반영(TODO).**
+- **알림 아이콘** `res/drawable/ic_notification.xml`(흰색 반짝이 벡터) : manifest 에 FCM 기본 알림 아이콘 meta-data +
+  `StaryMessagingService`/`DailyReminderReceiver` 의 smallIcon 을 mipmap → 이 벡터로(앱 종료 상태 알림에 기본 아이콘이 뜨던 문제).
+- 버전 `1.4.1(18) → 1.4.2(19)`.
+- iOS `LocaleManager.swift` 일일 알림 **한국어** 문구 3개(점심/저녁/밤) 변경 — ⚠️ Android `strings.xml` 은 예전 문구 그대로라
+  **drift 상태**. 의도 확인 후 한쪽으로 맞출 것.
+- 8.53 탑바 스크림: Android 가 테스트 중 더 진하게(`0xFF→0xEC→0xCC`) 바뀌어 있었는데 iOS 지도 상단바(`RootView`)는 옛 값이라
+  같은 값(1.0 / 0.925 / 0.80)으로 맞췄다.
+
+---
+
+## 8.53 반투명 탑바(엣지투엣지) + 프로필 사진 벽·크게 보기 (Android BUILD SUCCESSFUL 2026-09-06, 2026-09-11 8.54 와 함께 push)
+
+사용자 요청 2건.
+
+### 1. 상단 탑바 반투명화 — "하단 시스템 내비바처럼 뒤 UI 가 비치게"
+- 신설 `core/designsystem/TopBar.kt`
+  - `LocalTopBarInset : CompositionLocal<Dp>` — **상태바+탑바 높이**. `MainScreen` 의 Scaffold 가 제공.
+  - `TopBarScrim : Brush` — 세로 그라데이션 `0xFF → 0xEC → 0xCC` of `0x0D0D0D`(위=검정, 아래로 조금 옅게).
+    처음엔 `0xF2 → 0xCC → 0x4D` 였는데 테스트 중 더 진하게 조정됨 → iOS 지도 상단바도 같은 값으로 맞춤(8.54).
+    ⚠️ 지도는 MapLibre **SurfaceView** 라 Compose 로 캡처할 수 없어 **실제 배경 블러는 불가** → 스크림으로 대체.
+- `MainScreen.kt`
+  - `CenterAlignedTopAppBar` : `containerColor = Transparent` + `Modifier.background(TopBarScrim)`.
+  - NavHost 를 감싼 Box 에서 **`padding(top = paddingValues.calculateTopPadding())` 제거** →
+    각 화면이 **탑바 뒤까지 전체 화면**을 차지(배경이 탑바에 비친다). 대신
+    `CompositionLocalProvider(LocalTopBarInset provides ...)` 로 인셋을 내려보낸다.
+- **각 화면은 배경(이미지)만 탑바 뒤로 올리고 콘텐츠 레이어만 인셋만큼 내린다.**
+  - 스크롤 화면은 스크롤 안쪽 padding / `contentPadding` 으로 → 콘텐츠가 탑바 아래로 **흘러 들어가며** 사라진다:
+    Detail · Upload · Music · MyDiary(=`DiaryStarsBoard`, 타인 별 보드 공용) · Settings · Friends ·
+    Notification · BlockedUsers · Chat(메시지 리스트) · UserProfile(LazyColumn).
+  - 고정 헤더가 있는 화면은 인셋을 **뷰포트에** 걸어 잘리게: Achievements(탭바) · StarCluster(별 다이얼+뒤로가기).
+  - Profile 은 중앙 정렬이라 `offset(y = topInset/2 - 44.dp)` 로 "탑바 아래 영역의 가운데" 기준을 되돌렸다.
+- iOS: 시스템 내비바 `configureWithTransparentBackground()` + `UIBlurEffect(.systemUltraThinMaterialDark)` +
+  `0x0D0D0D` 55% (iOS 는 **진짜 블러 가능**). 지도 상단바는 `VStack` → **`MapScreen().safeAreaInset(edge:.top)`** 로 바꿔
+  지도(`ignoresSafeArea`)가 상단바 뒤까지 그려지게 하고, 배경은 Android 와 같은 값의 `LinearGradient`(+`.ignoresSafeArea(edges:.top)`).
+
+### 2. 프로필 사진(동그라미) = 벽 + 탭하면 크게 보기
+- `FloatingStatBox.kt` — 부유 아이콘 물리에 **원형 장애물** 추가.
+  - 새 파라미터 `obstacleCenterInRoot: Offset?` / `obstacleRadiusPx: Float`(루트 좌표계).
+    오버레이 자신의 `positionInRoot()` 를 `onGloballyPositioned` 로 잡아 내부 좌표로 변환(스크롤/인셋에 무관).
+  - `bounceOffCircle()` : 원 밖으로 밀어내고 **파고드는 속도 성분만** `WALL_REST` 로 반사.
+    물리 모드에선 튕김, **부유 모드에서도 밀어내고 그만큼 `anchorBase` 를 옮겨** 매 프레임 떠는 현상 방지.
+- `ProfileScreen.kt` / `UserProfileScreen.kt` : 아바타 원에 `onGloballyPositioned { boundsInRoot() }` 로
+  중심·반지름을 넘긴다. UserProfile 은 아바타가 LazyColumn 헤더라 **`DisposableEffect.onDispose` 에서 `null` 로 해제**
+  (스크롤로 사라진 뒤 유령 벽이 남지 않게).
+- **내 프로필 아바타 탭 = 사진 크게 보기**로 변경(기존엔 갤러리 열기).
+  - `core/ui/PhotoViewer.kt` 에 `onEdit: (() -> Unit)?` 추가 → 좌상단 **연필 버튼**이 사진 교체 진입점.
+  - 사진이 아직 없으면(기본 아이콘) 볼 게 없으므로 **바로 갤러리**. 새 문자열 `profile_photo_change`(ko/en/ja).
+- iOS: `FloatingEngine.setObstacle(center:radius:)` + `bounceOffObstacle` 동일 로직,
+  `PhotoViewer` 에 `onEdit`(연필), 아바타는 `PhotosPicker` → `Button`(크게 보기) + `.photosPicker(isPresented:)`.
+  ⚠️ `.offset` 은 `GeometryReader.frame(in:)` 에 잡히지 않을 수 있어 프로필/타인프로필의
+  `.offset(y:-44/-60)` 를 **같은 결과의 `.padding(.bottom, 88/120)`** 로 교체(벽 좌표가 어긋나지 않게).
 
 ## 8.52 사용자 피드백 6건 + iOS Sign in with Apple (Android BUILD SUCCESSFUL 2026-09-04, iOS push 후 CI 검증)
 

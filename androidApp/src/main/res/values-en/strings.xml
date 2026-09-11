@@ -312,7 +312,14 @@
     <string name="coach_step_upload">Tap this button to add a diary</string>
     <string name="coach_step_menu">My Diary · Profile · Achievements · Friends and\nmore settings live here</string>
     <string name="coach_step_finish">Now go explore the universe\nand leave your stories among the stars!</string>
+    <string name="coach_step_finish_tutorial">I placed a star nearby!\nTap it to take a look</string>
     <string name="coach_skip">Skip</string>
+
+    <!-- Welcome star (TutorialStarState) — a guide star placed nearby, first launch only. Opens as a post (TutorialStarDetailScreen).
+         msg is the post body card (left-aligned): split into paragraphs (\n\n) only, no mid-sentence breaks. -->
+    <string name="tutorial_star_title">Your diary into the universe, Stary</string>
+    <string name="tutorial_star_msg">Tap a star like this to read the story inside.\n\nYou can only open stars within 100m, so go find them on foot from now on.\n\nThis one\'s just a guide — it\'ll disappear once you check it.</string>
+    <string name="tutorial_star_confirm">Got it</string>
 
     <!-- First-visit info dialog (FirstVisitInfo) -->
     <string name="onb_button">Get started</string>
