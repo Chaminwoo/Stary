@@ -77,6 +77,7 @@ import androidx.compose.ui.platform.LocalDensity
 import com.chaminwoo.stary.core.designsystem.LocalScreenSize
 import com.chaminwoo.stary.core.designsystem.staryContentWidth
 import kotlin.math.abs
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 /**
  * 30m 안에서 합쳐진 별 무리 열람 화면 — 합쳐진 다이어리들을 우선순위
@@ -130,7 +131,7 @@ fun StarClusterScreen(
             onClick = onBack,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 4.dp, top = 4.dp)
+                .padding(start = 4.dp, top = LocalTopBarInset.current + 4.dp)
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
@@ -169,7 +170,7 @@ fun StarClusterScreen(
                     ?.index ?: 0
             }
         }
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().padding(top = LocalTopBarInset.current)) {
             Spacer(Modifier.height(18.dp))
 
             // 헤더 — 겹쳐진 별 모양들. 카드를 스와이프하면 **지금 보고 있는 별만 밝아지고 커진다**.

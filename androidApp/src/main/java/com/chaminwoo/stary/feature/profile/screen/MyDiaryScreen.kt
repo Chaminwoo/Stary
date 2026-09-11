@@ -76,6 +76,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 private val TextMuted = Color(0xFF8A8A8A)
 
@@ -152,7 +153,8 @@ fun DiaryStarsBoard(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = 32.dp)
+            // 반투명 탑바 뒤로 별자리 배경만 올라가고, 보드는 탑바 아래에서 시작.
+            .padding(top = LocalTopBarInset.current, bottom = 32.dp)
     ) {
         // 별자리 배경 + 바나나 다이얼 (박스 360: 터치/텍스트가 내려간 다이얼까지 닿게, 별자리는 상단 260 고정)
         Box(

@@ -55,6 +55,8 @@ import com.chaminwoo.stary.core.model.NotificationType
 import com.chaminwoo.stary.core.util.RelativeTime
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.NotificationViewModel
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
+import androidx.compose.foundation.layout.PaddingValues
 
 @Composable
 fun NotificationScreen(
@@ -106,7 +108,8 @@ fun NotificationScreen(
         return
     }
     LazyColumn(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = LocalTopBarInset.current)
     ) {
         items(visibleNotifs, key = { it.id }) { notif ->
             // animateItem(): 삭제되면 그 셀이 사라지며 아래 셀들이 빈 공간을 부드럽게 채운다.

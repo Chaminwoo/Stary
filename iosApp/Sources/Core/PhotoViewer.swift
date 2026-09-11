@@ -3,9 +3,13 @@ import SwiftUI
 /// 프로필 사진 등 단일 이미지를 화면 가득(원본 비율 Fit) 띄우는 뷰어 — Android `core.ui.PhotoViewer` 패리티.
 /// 탭하면 닫히고, 핀치 확대(1..5배) + 확대 상태에서 드래그 이동, 더블탭 확대/복귀.
 /// (`fullScreenCover` 로 띄운다 — 상세 화면의 FullScreenMediaViewer 와 같은 조작감.)
+///
+/// [onEdit] 를 주면 좌상단에 연필 버튼이 생긴다 — **내 프로필**에서 사진을 바꾸는 진입점
+/// (아바타 탭이 "크게 보기"로 바뀌었으므로 교체는 여기로 들어온다).
 struct PhotoViewer: View {
     let imageUrl: String
     var onClose: () -> Void
+    var onEdit: (() -> Void)? = nil
 
     @State private var scale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -27,6 +31,17 @@ struct PhotoViewer: View {
 
             VStack {
                 HStack {
+                    // 사진 교체(내 프로필에서만) — 누르면 뷰어를 닫고 사진 고르기를 연다.
+                    if let onEdit {
+                        Button(action: onEdit) {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 38, height: 38)
+                                .background(.black.opacity(0.35), in: Circle())
+                        }
+                        .padding(.leading, 14)
+                    }
                     Spacer()
                     Button(action: onClose) {
                         Image(systemName: "xmark")

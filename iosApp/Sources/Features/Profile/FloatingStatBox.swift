@@ -29,6 +29,11 @@ struct FloatingStatBox: View {
     var onTap: (Int) -> Void = { _ in }
     /// 이 세로 비율(프로필 사진/이름)을 가리지 않게 그 주변을 피해 배치.
     var avoidCenterYFraction: CGFloat = 0.5
+    /// 프로필 사진(동그라미) 중심 — 이 뷰와 **같은 좌표 공간**. 지정하면 그 원이 '벽'이 되어
+    /// 아이콘이 통과하지 못하고 튕겨 나온다. (Android `obstacleCenterInRoot` 패리티)
+    var obstacleCenter: CGPoint? = nil
+    /// 위 원의 반지름(pt). 0 이면 벽 없음.
+    var obstacleRadius: CGFloat = 0
 
     @StateObject private var engine = FloatingEngine()
 
@@ -70,7 +75,12 @@ struct FloatingStatBox: View {
                             .allowsHitTesting(false)
                     }
                 }
-                .onAppear { engine.configure(items: items, size: geo.size, avoidY: avoidCenterYFraction) }
+                .onAppear {
+                    engine.configure(items: items, size: geo.size, avoidY: avoidCenterYFraction)
+                    engine.setObstacle(center: obstacleCenter, radius: obstacleRadius)
+                }
+                .onChange(of: obstacleCenter) { c in engine.setObstacle(center: c, radius: obstacleRadius) }
+                .onChange(of: obstacleRadius) { r in engine.setObstacle(center: obstacleCenter, radius: r) }
                 .onChange(of: geo.size) { newSize in engine.configure(items: items, size: newSize, avoidY: avoidCenterYFraction) }
                 .onChange(of: items.map(\.count)) { _ in engine.updateItems(items) }
                 .onChange(of: items.count) { _ in engine.configure(items: items, size: geo.size, avoidY: avoidCenterYFraction) }
@@ -177,6 +187,9 @@ final class FloatingEngine: ObservableObject {
     private var items: [StatBubble] = []
     private var size: CGSize = .zero
     private var avoidY: CGFloat = 0.5
+    /// 프로필 사진 '벽'(뷰 좌표계). nil 이거나 반지름 0 이면 없음.
+    private var obstacleCenter: CGPoint?
+    private var obstacleRadius: CGFloat = 0
 
     // 입력/상호작용 상태.
     private var grabbed: Int?
@@ -204,6 +217,37 @@ final class FloatingEngine: ObservableObject {
     // MARK: 구성
 
     func updateItems(_ items: [StatBubble]) { self.items = items }
+
+    /// 프로필 사진 동그라미를 '벽'으로 등록한다(스크롤/레이아웃 변화 때마다 갱신).
+    func setObstacle(center: CGPoint?, radius: CGFloat) {
+        obstacleCenter = center
+        obstacleRadius = radius
+    }
+
+    /// 프로필 사진 원(움직이지 않는 벽)에서 밀어내고 튕긴다.
+    /// `pushOnly` 면(잡고 있거나 부유 중이면) 속도는 건드리지 않고 원 밖으로 밀어내기만 한다.
+    /// - Returns: 밀려난 보정량(부유 중 기준점 보정용).
+    @discardableResult
+    private func bounceOffObstacle(_ b: Body, r: CGFloat, pushOnly: Bool) -> CGPoint {
+        guard let c = obstacleCenter, obstacleRadius > 0 else { return .zero }
+        let dx = b.pos.x - c.x, dy = b.pos.y - c.y
+        let dist = hypot(dx, dy)
+        let minDist = obstacleRadius + r
+        if dist >= minDist { return .zero }
+        // 정확히 중심에 겹치면 방향이 없으므로 위쪽으로 밀어낸다.
+        var nx: CGFloat = 0, ny: CGFloat = -1
+        if dist >= 0.001 { nx = dx / dist; ny = dy / dist }
+        let before = b.pos
+        b.pos = CGPoint(x: c.x + nx * minDist, y: c.y + ny * minDist)
+        if !pushOnly {
+            let vn = b.vel.x * nx + b.vel.y * ny
+            if vn < 0 {                                  // 파고드는 성분만 반사
+                let k = (1 + wallRest) * vn
+                b.vel = CGPoint(x: b.vel.x - nx * k, y: b.vel.y - ny * k)
+            }
+        }
+        return CGPoint(x: b.pos.x - before.x, y: b.pos.y - before.y)
+    }
 
     func configure(items: [StatBubble], size: CGSize, avoidY: CGFloat) {
         self.items = items
@@ -294,6 +338,10 @@ final class FloatingEngine: ObservableObject {
                 if b.pos.y < r { b.pos.y = r; b.vel.y = -b.vel.y * wallRest }
                 else if b.pos.y > h - r { b.pos.y = h - r; b.vel.y = -b.vel.y * wallRest }
             }
+            // 프로필 사진(동그라미) 벽 튕김 — 잡은 아이콘은 밀려나기만 한다.
+            for (i, b) in bodies.enumerated() {
+                bounceOffObstacle(b, r: rad * richness(count(i)), pushOnly: i == grab)
+            }
             // 아이콘끼리 충돌.
             let n = bodies.count
             if n > 1 {
@@ -315,12 +363,16 @@ final class FloatingEngine: ObservableObject {
                 physicsActive = false
             }
         } else {
-            for b in bodies {
+            for (i, b) in bodies.enumerated() {
                 let ft = elapsed - b.floatT0
                 b.pos = CGPoint(
                     x: b.anchorBase.x + sin(ft * b.floatSpeed + b.phase) * b.floatAmp,
                     y: b.anchorBase.y + cos(ft * b.floatSpeed * 0.85 + b.phase) * b.floatAmp * 0.7
                 )
+                // 부유 중에도 프로필 사진 원은 파고들지 않게 — 밀려난 만큼 부유 기준점도 옮겨
+                // 매 프레임 다시 파고들었다 밀려나며 떠는 현상을 막는다.
+                let fix = bounceOffObstacle(b, r: rad * richness(count(i)), pushOnly: true)
+                b.anchorBase = CGPoint(x: b.anchorBase.x + fix.x, y: b.anchorBase.y + fix.y)
                 b.rot += b.rotIdleSpeed * dtF
             }
         }

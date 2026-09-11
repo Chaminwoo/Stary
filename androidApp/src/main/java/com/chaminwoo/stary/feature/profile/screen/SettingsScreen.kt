@@ -87,6 +87,7 @@ import com.chaminwoo.stary.core.util.MusicManager
 import com.chaminwoo.stary.data.repository.FirebaseModerationRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import kotlinx.coroutines.flow.flowOf
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val SoftRed = Color(0xFFFF6B6B)
@@ -140,7 +141,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(top = 18.dp, bottom = 40.dp),
+                .padding(top = LocalTopBarInset.current + 18.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp)
         ) {
             // ── 사운드 ──

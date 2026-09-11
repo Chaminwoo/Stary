@@ -86,6 +86,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.ProfilePinState
@@ -127,6 +132,8 @@ fun ProfileScreen(
     val profileVm: ProfileViewModel = viewModel(factory = ProfileViewModel.factory(userId))
     val profileImageUrl by profileVm.profileImageUrl.collectAsState()
     val isUploading by profileVm.isUploading.collectAsState()
+    // 실제로 보여줄 내 사진 — 커스텀 업로드본 > 구글 사진 > (없으면 기본 아이콘).
+    val myPhotoUrl: String? = profileImageUrl ?: GoogleAuthHelper.currentUserPhotoUrl
     // 고른 사진은 바로 올리지 않고 **조절 다이얼로그**(위치/확대)를 거쳐 정사각으로 잘라 올린다.
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     val galleryLauncher = rememberLauncherForActivityResult(GetContent()) { uri ->
@@ -164,6 +171,11 @@ fun ProfileScreen(
     // 즉시 반영을 위해 화면 로컬 상태로 들고 변경 시 함께 갱신한다.
     var displayName by remember(userId) { mutableStateOf(GoogleAuthHelper.currentUserName ?: userId.take(12)) }
     var showNicknameDialog by remember { mutableStateOf(false) }
+    // 프로필 사진 크게 보기(탭). 사진이 없으면 볼 게 없으므로 바로 갤러리로 간다.
+    var showPhotoViewer by remember { mutableStateOf(false) }
+    // 아바타 동그라미의 화면(루트) 상 위치·반지름 — 떠다니는 아이콘이 여기서 '벽'처럼 튕긴다.
+    var avatarCenterInRoot by remember { mutableStateOf<Offset?>(null) }
+    var avatarRadiusPx by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(userId) {
         pinnedIds = com.chaminwoo.stary.data.repository.FirebaseFriendRepository().getPinnedDiaries(userId)
     }
@@ -203,6 +215,9 @@ fun ProfileScreen(
         )
     }
 
+    // 반투명 탑바 뒤까지 배경을 채우고(비치도록), 콘텐츠만 그만큼 내린다.
+    val topInset = LocalTopBarInset.current
+
     Box(modifier = modifier.fillMaxSize()) {
         Image(
             painter = painterResource(R.drawable.mydiary_bg),
@@ -225,11 +240,12 @@ fun ProfileScreen(
         // ── 중앙: 아바타 + 이름 + 칭호 (위아래 빈 공간 비슷하게 수직 중앙) ──
         // zIndex(1f): 전체화면 FloatingStatBox 오버레이보다 위로 올려 아바타/이름/칭호 탭이 가려지지 않게
         // (Column 자체는 클릭을 소비하지 않으므로 빈 영역 탭은 아래 버블로 그대로 통과 — 19번 로그아웃과 동일 처리).
+        // (반투명 탑바 뒤로 배경이 올라오므로, 화면 중앙 기준을 탑바 아래 영역으로 되돌린다.)
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
                 .zIndex(1f)
-                .offset(y = (-44).dp)   // 화면 가운데보다 살짝 위
+                .offset(y = topInset / 2 - 44.dp)   // 탑바 아래 영역의 가운데보다 살짝 위
                 .fillMaxWidth()
                 .padding(horizontal = 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -251,19 +267,28 @@ fun ProfileScreen(
                             CircleShape
                         )
                 )
-                // 그라데이션 링
+                // 그라데이션 링 — 탭하면 사진을 크게 본다(사진이 없으면 바로 갤러리).
+                // 크게 보기 화면의 연필 버튼으로 사진을 바꿀 수 있다(타인 프로필과 같은 조작감).
                 Box(
                     modifier = Modifier
                         .size(154.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF0D0D0D), CircleShape)
-                        .clickable { galleryLauncher.launch("image/*") },
+                        // 이 원은 떠다니는 아이콘이 튕겨 나오는 '벽' — 화면상 위치·반지름을 넘긴다.
+                        .onGloballyPositioned {
+                            val b = it.boundsInRoot()
+                            avatarCenterInRoot = b.center
+                            avatarRadiusPx = minOf(b.width, b.height) / 2f
+                        }
+                        .clickable {
+                            if (myPhotoUrl != null) showPhotoViewer = true
+                            else galleryLauncher.launch("image/*")
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     when {
                         isUploading -> com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 28.dp, color = Accent)
-                        profileImageUrl != null -> com.chaminwoo.stary.core.ui.ThumbAsyncImage(profileImageUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), sizePx = 384)
-                        GoogleAuthHelper.currentUserPhotoUrl != null -> com.chaminwoo.stary.core.ui.ThumbAsyncImage(GoogleAuthHelper.currentUserPhotoUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), sizePx = 384)
+                        myPhotoUrl != null -> com.chaminwoo.stary.core.ui.ThumbAsyncImage(myPhotoUrl, stringResource(R.string.nav_profile), Modifier.fillMaxSize().clip(CircleShape), sizePx = 384)
                         else -> Icon(Icons.Filled.AccountCircle, stringResource(R.string.cd_default_profile), tint = Color(0xFF555555), modifier = Modifier.fillMaxSize())
                     }
                 }
@@ -367,8 +392,27 @@ fun ProfileScreen(
                     idx >= hiddenStart -> onOpenAchievements()
                 }
             },
-            avoidCenterYFraction = 0.5f // 화면 중앙의 프로필/이름 회피
+            modifier = Modifier.padding(top = topInset),
+            avoidCenterYFraction = 0.5f, // 화면 중앙의 프로필/이름 회피
+            // 프로필 사진 동그라미 = 벽. 아이콘이 사진 위를 덮지 않고 튕겨 나온다.
+            obstacleCenterInRoot = avatarCenterInRoot,
+            obstacleRadiusPx = avatarRadiusPx,
         )
+
+        // 프로필 사진 크게 보기 — 연필 버튼으로 사진 교체(기존 아바타 탭 동작)로 이어진다.
+        myPhotoUrl?.let { url ->
+            if (showPhotoViewer) {
+                com.chaminwoo.stary.core.ui.PhotoViewer(
+                    imageUrl = url,
+                    contentDescription = stringResource(R.string.cd_profile_photo, displayName),
+                    onClose = { showPhotoViewer = false },
+                    onEdit = {
+                        showPhotoViewer = false
+                        galleryLauncher.launch("image/*")
+                    },
+                )
+            }
+        }
 
         // ("별 올리기" + 버튼은 탑바로 이동 — ProfilePinState)
 

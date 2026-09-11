@@ -28,13 +28,18 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 
 ### 화면 구성(컴포넌트 연결)
 - 배경: `mydiary_bg` + 검정 0.82 틴트. `FirstVisitInfo("info_profile")` 1회 안내.
-- 중앙 Column(`zIndex(1f)` — 부유 아이콘 오버레이보다 위): 아바타(후광, 탭=사진 교체) →
+- 중앙 Column(`zIndex(1f)` — 부유 아이콘 오버레이보다 위, `offset(y = topInset/2 - 44.dp)` 로
+  **탑바 아래 영역**의 가운데 기준): 아바타(후광, **탭=사진 크게 보기**, 사진 없으면 갤러리) →
   닉네임(+`HiddenStarBadges`) → 칭호(히든이면 금색 『』, 탭=업적 화면).
 - 하단: 로그아웃 카드(`zIndex(1f)` 로 항상 눌리게).
 - `FloatingStatBox` 에 items = [하트(버스트), 친구, 다이어리(책), 업적(버스트)] + 핀 별 + 히든 아이콘,
   `onTap` = idx1→친구 화면 / idx2→내 다이어리 / idx3→업적 / 핀 별→`onOpenDiary(id)`
   (NavGraph 에서 `MapFocusState.request(id, withRoute=true)` — 지도 길찾기) / 히든→업적 화면.
 - `PinDiaryPicker` : 내 다이어리 중 최대 3개 토글 선택 → `FirebaseFriendRepository.setPinnedDiaries`.
+- **아바타 = 벽**: 아바타 원(154dp)에 `onGloballyPositioned { boundsInRoot() }` 로 중심·반지름을 잡아
+  `FloatingStatBox(obstacleCenterInRoot=, obstacleRadiusPx=)` 로 넘긴다 → 부유 아이콘이 사진을 덮지 않고 튕긴다.
+- **사진 크게 보기**: `showPhotoViewer` → `core/ui/PhotoViewer(onEdit = { 갤러리 })`.
+  연필(좌상단)이 **사진 교체** 진입점(예전 아바타 탭 동작). 사진이 없으면 아바타 탭이 바로 갤러리를 연다.
 
 ## FloatingStatBox.kt — 떠다니는 물리 아이콘 (프로필 공용)
 
@@ -52,6 +57,10 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 - 렌더: 벡터 아이콘도 `bakeCrystalIcon` 으로 크리스탈 파편 채움 비트맵 1회 베이크(80dp 2배 해상도),
   핀 별은 `bakeCrystalStar`. 히든 아이콘은 궤도 스파클 오라 + 이동 시 잔상 trail.
 - 물리 루프는 `physicsActive` 일 때만 충돌 계산(평상시엔 가벼운 sin 부유) — 렉 방지.
+- **원형 장애물(프로필 사진)**: `obstacleCenterInRoot`(루트 좌표) + `obstacleRadiusPx`.
+  오버레이 자신의 `positionInRoot()` 로 내부 좌표로 변환하므로 탑바 인셋/스크롤과 무관하게 맞는다.
+  `bounceOffCircle()` 이 원 밖으로 밀어내고 **파고드는 속도 성분만** `WALL_REST` 로 반사 —
+  부유 모드에서도 밀어내되 그만큼 `anchorBase` 를 옮겨 매 프레임 떠는 것을 막는다.
 
 ## UserProfileScreen.kt — 타인 프로필
 
@@ -67,6 +76,8 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 - `visibleDiaries` : 공개범위 필터(private=본인만, friends=본인·친구만) 적용된 목록.
 - `SideEffect` → `UserProfileActionState` 에 탑바 버튼 상태/콜백 등록(친구추가·취소/신고/차단),
   `DisposableEffect.onDispose` 에서 `reset()`.
+- 아바타 원(124dp)도 내 프로필과 같이 **부유 아이콘의 '벽'**. 단 여기선 아바타가 LazyColumn 헤더라
+  **헤더 item 의 `DisposableEffect.onDispose` 에서 중심을 `null` 로** 되돌린다(스크롤로 사라진 뒤 유령 벽 방지).
 
 ### 화면 구성
 - 헤더(아바타/이름/칭호) + `FloatingStatBox`:
@@ -115,7 +126,8 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
   `bubbles : [StatBubble]`(하트/친구/다이어리/업적 + 핀 별 + 히든 — Android 와 같은 구성).
 - `handleBubbleTap(idx)` : 친구/내 별/업적 push, **핀 별 → `MapFocusStore.request(id, withRoute: true)`**.
 - `runHiddenClaims()` : 자동 조건 히든 업적 선점 시도. `PinDiaryPicker` : 최대 3개 토글(Android 패리티).
-- 아바타 탭 → PhotosPicker 로 프로필 사진 교체(ImageUploader).
+- 아바타 탭 → **사진 크게 보기**(`PhotoViewer`), 그 안 연필 버튼 → `.photosPicker(isPresented:)` 로 교체(ImageUploader).
+  사진이 없으면 탭이 바로 사진 고르기. 아바타 원은 `FloatingStatBox(obstacleCenter:obstacleRadius:)` 의 '벽'.
 
 ### UserProfileScreen.swift (타인 프로필)
 - `visibleDiaries`(공개범위 필터) / `pinnedIds` / `friendsCount` / `isFriend`·`requested` /
@@ -148,4 +160,6 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 | 핀 별 탭 동작 | NavGraph `MapFocusState.request(id, withRoute=true)` | 각 화면 `MapFocusStore.request(diaryId:withRoute:)` |
 | 닉네임 20자 제한 | ProfileScreen 다이얼로그 | ProfileScreen `.onChange(of: nicknameDraft)` 선차단 |
 | 프로필 사진 크롭(위치·확대) | `core/ui/ProfilePhotoCropDialog.kt`(결과 640px 정사각) | `Features/Profile/ProfilePhotoCropView.swift` + `Core/ImageCrop.profileOutPixels` |
-| 타인 프로필 사진 확대 뷰어 | `core/ui/PhotoViewer.kt`(핀치 1~5배, 더블탭 2.5배) | `Core/PhotoViewer.swift` (**동작/배율 동일**) |
+| 프로필 사진 확대 뷰어(내/타인) | `core/ui/PhotoViewer.kt`(핀치 1~5배, 더블탭 2.5배, `onEdit`=연필) | `Core/PhotoViewer.swift` (**동작/배율 동일**, `onEdit`) |
+| 아바타 '벽' 반지름 | 아바타 원 크기(내 154dp / 타인 124dp)에서 자동 측정 | 내 150pt / 타인 96pt, `GeometryReader.frame(in:.named(...))` |
+| 중앙 블록 위치 | Profile `offset(y = topInset/2 - 44.dp)` | `.padding(.bottom, 88)`(내) / `120`(타인) — ⚠️ `.offset` 은 GeometryReader 좌표에 안 잡혀 padding 으로 |

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -36,11 +37,19 @@ import com.chaminwoo.stary.R
  * 프로필 사진 등 단일 이미지를 화면 가득(원본 비율 Fit) 띄우는 뷰어.
  * 탭/뒤로가기로 닫히고, 핀치 확대(1..5배) + 확대 상태에서 드래그 이동, 더블탭 확대/복귀.
  *
+ * [onEdit] 를 주면 좌상단에 연필 버튼이 생긴다 — **내 프로필**에서 사진을 바꾸는 진입점
+ * (아바타 탭이 "크게 보기"로 바뀌었으므로 교체는 여기로 들어온다).
+ *
  * (다이어리 상세의 `FullScreenMediaViewer` 와 같은 조작감 — 그쪽은 영상/움짤까지 다루므로 분리해 둔다.
  *  iOS 대응: `Core/PhotoViewer.swift` 의 `PhotoViewer`.)
  */
 @Composable
-fun PhotoViewer(imageUrl: String, contentDescription: String? = null, onClose: () -> Unit) {
+fun PhotoViewer(
+    imageUrl: String,
+    contentDescription: String? = null,
+    onClose: () -> Unit,
+    onEdit: (() -> Unit)? = null,
+) {
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -90,6 +99,23 @@ fun PhotoViewer(imageUrl: String, contentDescription: String? = null, onClose: (
                     .padding(12.dp)
             ) {
                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cd_close), tint = Color.White)
+            }
+
+            // 사진 교체(내 프로필에서만) — 누르면 뷰어를 닫고 갤러리를 연다.
+            onEdit?.let { edit ->
+                IconButton(
+                    onClick = edit,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .statusBarsPadding()
+                        .padding(12.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        contentDescription = stringResource(R.string.profile_photo_change),
+                        tint = Color.White
+                    )
+                }
             }
         }
     }

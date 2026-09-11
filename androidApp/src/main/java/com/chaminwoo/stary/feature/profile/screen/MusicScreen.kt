@@ -71,6 +71,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 private val MusicTextMuted = Color(0xFF8A8A8A)
 
@@ -159,7 +160,7 @@ fun MusicScreen(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp)
+                .padding(top = LocalTopBarInset.current, bottom = 32.dp)
         ) {
             // 다이얼 지름 = 화면 폭 비례(작은 폰에서 잘리지 않게 축소 / 태블릿에서 과도하게 작아 보이지
             // 않게 확대), 320dp(기존 S22+ 기준 크기) 를 기준으로 한 배율을 안쪽 별 배치·크기에도 그대로 적용.

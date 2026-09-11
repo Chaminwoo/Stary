@@ -94,6 +94,7 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.diary.InteractionViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 /** 앱 세션 동안 이미 조회수를 올린 다이어리 id 집합 — 같은 글 재진입 시 중복 카운트를 막는다. */
 private object ViewCountSession {
@@ -310,7 +311,10 @@ fun DetailScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(top = LocalTopBarInset.current)
+        ) {
 
             // ── 헤더: 사진(또는 placeholder) 위 스크림 + 별/작성자/날짜만 오버레이(제목은 본문으로) ──
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(ImageCropHelper.ASPECT)) {

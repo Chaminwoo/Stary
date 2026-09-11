@@ -80,6 +80,7 @@ import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.chat.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 /** 입력창 포커스·커서·전송 버튼 강조 — 앱 전역 남색 계열(구 민트 0xFF6EE7B7 대체). */
 private val Accent = Color(0xFF9FB3E8)
@@ -142,7 +143,11 @@ fun ChatScreen(
 
         Column(modifier = Modifier.fillMaxSize()) {
             if (messages.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                        .padding(top = LocalTopBarInset.current),
+                    contentAlignment = Alignment.Center
+                ) {
                     com.chaminwoo.stary.core.ui.StaryEmptyState(
                         title = stringResource(
                             R.string.chat_empty,
@@ -156,7 +161,11 @@ fun ChatScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     state = listState,
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 16.dp),
+                    // 메시지는 반투명 탑바 아래로 흘러 들어가며 사라진다(탑바 높이만큼 여백).
+                    contentPadding = PaddingValues(
+                        start = 14.dp, end = 14.dp,
+                        top = LocalTopBarInset.current + 16.dp, bottom = 16.dp
+                    ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(messages, key = { it.id }) { msg ->

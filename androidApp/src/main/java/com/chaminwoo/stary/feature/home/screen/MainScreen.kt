@@ -50,6 +50,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,7 +65,9 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Alignment
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 import com.chaminwoo.stary.core.designsystem.StaryResponsive
+import com.chaminwoo.stary.core.designsystem.TopBarScrim
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -402,8 +405,11 @@ fun MainScreen(
                 topBar = {
                     if (currentRoute.showTopBar && !MapUiState.mapOnly) {
                         CenterAlignedTopAppBar(
+                            // 반투명 탑바 — 컨테이너는 투명으로 두고 스크림 그라데이션을 직접 깐다.
+                            // (화면 배경/지도가 탑바 뒤까지 올라와 비치고, 아래로 갈수록 옅어져 이어진다.)
+                            modifier = Modifier.background(TopBarScrim),
                             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                                containerColor = Color(0xFF0D0D0D),
+                                containerColor = Color.Transparent,
                                 titleContentColor = Color(0xFFF0F0F0),
                                 navigationIconContentColor = Color(0xFFF0F0F0),
                                 actionIconContentColor = Color(0xFFF0F0F0)
@@ -645,12 +651,11 @@ fun MainScreen(
                                 navController.navigate(NavRoute.Upload)
                             }
                         )
+                        // 탑바가 반투명이라 화면은 **탑바 뒤까지** 전체를 차지한다(배경이 탑바에 비치도록).
+                        // 대신 각 화면의 콘텐츠 레이어가 LocalTopBarInset 만큼 내려간다.
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(
-                                    top = paddingValues.calculateTopPadding()
-                                )
                                 .background(
                                     if (currentRoute is NavRoute.Main)
                                         Color.Transparent
@@ -661,15 +666,19 @@ fun MainScreen(
                             // (배경은 이 Box 가 전체를 덮고, 폭 상한은 안쪽 NavGraph 에만 건다).
                             contentAlignment = Alignment.TopCenter,
                         ) {
-                            NavGraph(
-                                navController = navController,
-                                onLogout = onLogout,
-                                // 지도(Main)는 이 NavHost 뒤에서 전체 화면으로 따로 그려지므로
-                                // 폭 상한의 영향을 받지 않는다(Main 라우트는 빈 투명 레이어).
-                                modifier = Modifier
-                                    .widthIn(max = StaryResponsive.MAX_CONTENT_WIDTH_DP.dp)
-                                    .fillMaxSize()
-                            )
+                            CompositionLocalProvider(
+                                LocalTopBarInset provides paddingValues.calculateTopPadding()
+                            ) {
+                                NavGraph(
+                                    navController = navController,
+                                    onLogout = onLogout,
+                                    // 지도(Main)는 이 NavHost 뒤에서 전체 화면으로 따로 그려지므로
+                                    // 폭 상한의 영향을 받지 않는다(Main 라우트는 빈 투명 레이어).
+                                    modifier = Modifier
+                                        .widthIn(max = StaryResponsive.MAX_CONTENT_WIDTH_DP.dp)
+                                        .fillMaxSize()
+                                )
+                            }
                         }
                     }
                 }

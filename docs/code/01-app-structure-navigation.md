@@ -1,7 +1,8 @@
 # 01. 앱 구조 · 내비게이션
 
 Android: `MainActivity.kt`, `StaryApplication.kt`, `feature/home/screen/MainScreen.kt`,
-`navigation/NavGraph.kt`, `navigation/NavRoute.kt`, `core/util/`(전역 브리지)
+`navigation/NavGraph.kt`, `navigation/NavRoute.kt`, `core/util/`(전역 브리지),
+`core/designsystem/TopBar.kt`(반투명 탑바 스크림 + `LocalTopBarInset`)
 iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.swift`(TabRouter 포함),
 `Features/Map/MapChromeState.swift`
 
@@ -62,13 +63,19 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
 ### 화면 구성(컴포넌트 연결)
 - `ModalNavigationDrawer` 에 드로어 시트(0x111111, 우측 라운드 24)를 넘겨 좌측 메뉴를 만든다.
   항목: 내 다이어리/프로필/업적/배경음악/친구/설정 + 로그인 또는 로그아웃(`DrawerItem`).
-- `Scaffold.topBar` = `CenterAlignedTopAppBar`. 분기:
+- `Scaffold.topBar` = `CenterAlignedTopAppBar`. **반투명**(`containerColor=Transparent` +
+  `Modifier.background(TopBarScrim)`) — 뒤의 지도/화면 배경이 비쳐 이어져 보인다. 분기:
   - 루트(지도)면 햄버거, 아니면 뒤로가기(`navigateUp`).
   - 지도 라우트면 우측 하트(알림) + `unreadCount > 0` 시 빨간 점.
   - 내 프로필이면 `ProfilePinState` 의 + 버튼(핀 별 picker 열기).
   - 타인 프로필이면 `UserProfileActionState` 의 친구 추가/친구✓/요청됨 버튼 + ⋮(신고/차단) 메뉴.
   - 채팅/타인 프로필 제목 옆에 `HiddenStarBadges`(히든 업적 배지).
 - Scaffold 본문 : `if (contentReady) Box { MainListScreen(...); NavGraph(...) }`
+  - ⚠️ **탑바 인셋을 Box 에 padding 으로 먹이지 않는다.** 각 화면이 탑바 뒤까지 전체를 차지해야
+    배경이 반투명 탑바에 비친다. 대신 `CompositionLocalProvider(LocalTopBarInset provides
+    paddingValues.calculateTopPadding())` 로 인셋을 내려보내고, **각 화면이 콘텐츠 레이어에만**
+    `padding(top = LocalTopBarInset.current)`(또는 LazyColumn `contentPadding`)을 건다.
+    새 화면을 추가하면 여기도 똑같이 해야 제목이 탑바에 가리지 않는다.
   - **`MainListScreen`(지도)를 NavHost "뒤"에 깔아** 화면 전환에도 파괴되지 않게 한다(별 깜빡임 제거).
   - `MainListScreen` 에 `onItemClick→navigateToDetail`, `onOpenCluster→StarCluster`, `onCreateClick→Upload` 를 넘긴다.
 - 오버레이(위에서 아래 순): `StaryToastHost` > `InAppBannerHost` > `StarBirthHost`(별 탄생 연출)
@@ -173,6 +180,8 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
 ### 값 조절(패리티 매핑)
 | 항목 | Android | iOS |
 |---|---|---|
+| 탑바 반투명 정도 | `core/designsystem/TopBar.kt` `TopBarScrim`(0xFF→0xEC→0xCC of 0x0D0D0D) | 시스템 내비바 = `StaryApp.configureNavigationBarAppearance()`(블러+0x0D0D0D 55%), 지도 상단바 = `RootView.topBar` 의 LinearGradient(같은 값) |
+| 탑바 뒤 콘텐츠 인셋 | `LocalTopBarInset`(화면마다 콘텐츠에 padding) | `safeAreaInset(edge:.top)` / 시스템 safe area 자동 |
 | 화면 전환 연출 | `NavGraph.kt` ENTER/EXIT 상수 | NavigationStack 기본 push(별도 상수 없음) |
 | 드로어 폭/색 | `MainScreen.kt` ModalDrawerSheet(0x111111, 라운드 24) | `RootView.swift` drawerPanel(300pt, 0x111111, 라운드 24) |
 | 글쓰기 FAB 그라데이션 | `MainScreen.kt`/`DiaryMap.kt` (0x3A4676→0x111936, 56dp) | `RootView.swift` fab (같은 hex, 56pt) |

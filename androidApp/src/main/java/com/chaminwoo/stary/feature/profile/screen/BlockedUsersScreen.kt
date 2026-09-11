@@ -63,6 +63,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 private val Accent = Color(0xFF9FB3E8)
 private val SoftRed = Color(0xFFFF6B6B)
@@ -123,7 +124,10 @@ fun BlockedUsersScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+            contentPadding = PaddingValues(
+                start = 20.dp, end = 20.dp,
+                top = LocalTopBarInset.current + 18.dp, bottom = 18.dp
+            ),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {

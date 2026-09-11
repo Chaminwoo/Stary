@@ -44,6 +44,8 @@ import androidx.compose.ui.graphics.vector.VectorPainter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
@@ -133,6 +135,14 @@ fun FloatingStatBox(
     onTap: (index: Int) -> Unit = {},
     /** 이 y(세로 비율)의 프로필 사진·이름을 가리지 않도록 그 주변을 피해 랜덤 배치한다. */
     avoidCenterYFraction: Float = 0.5f,
+    /**
+     * 프로필 사진(동그라미) 중심 — **루트 좌표계** px. 지정하면 그 원이 '벽'이 되어
+     * 아이콘이 통과하지 못하고 튕겨 나온다. 스크롤로 위치가 변해도 매 프레임 최신값을 쓴다.
+     * (호출부는 아바타에 `onGloballyPositioned { boundsInRoot() }` 로 값을 넘긴다.)
+     */
+    obstacleCenterInRoot: Offset? = null,
+    /** 위 원의 반지름(px). 0 이면 벽 없음. */
+    obstacleRadiusPx: Float = 0f,
 ) {
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
@@ -157,13 +167,21 @@ fun FloatingStatBox(
 
     // 전체 화면을 덮는 오버레이 — 아이콘이 탑바 하단~화면 바닥, 양옆 끝까지 자유롭게 날아다니고 그 경계에서 튕긴다.
     // (아이콘 근처가 아닌 터치는 소비하지 않아 아래 콘텐츠가 그대로 눌린다.)
+    // 이 오버레이 자체의 루트 좌표 — 프로필 사진 원(루트 좌표)을 내부 좌표로 옮기는 데 쓴다.
+    var boxRootPos by remember { mutableStateOf(Offset.Zero) }
+
     BoxWithConstraints(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .onGloballyPositioned { boxRootPos = it.positionInRoot() }
     ) {
         val wPx = with(density) { maxWidth.toPx() }
         val hPx = with(density) { maxHeight.toPx() }
         val iconPx = with(density) { 40.dp.toPx() }
         val rad = iconPx / 2f
+        // 프로필 사진 '벽'(내부 좌표). 물리 루프는 재시작하지 않으므로 최신값을 읽도록 감싼다.
+        val obsCenter by rememberUpdatedState(obstacleCenterInRoot?.minus(boxRootPos))
+        val obsRadius by rememberUpdatedState(obstacleRadiusPx)
 
         val bodies = remember(n, wPx, hPx, avoidCenterYFraction) {
             val rnd = kotlin.random.Random(n * 977 + 3)
@@ -275,6 +293,12 @@ fun FloatingStatBox(
                         if (b.pos.y < r) { b.pos = Offset(b.pos.x, r); b.vel = Offset(b.vel.x, -b.vel.y * WALL_REST) }
                         else if (b.pos.y > hPx - r) { b.pos = Offset(b.pos.x, hPx - r); b.vel = Offset(b.vel.x, -b.vel.y * WALL_REST) }
                     }
+                    // 프로필 사진(동그라미) 벽 튕김 — 잡은 아이콘은 밀려나기만 한다.
+                    obsCenter?.let { oc ->
+                        if (obsRadius > 0f) for (i in bodies.indices) {
+                            bounceOffCircle(bodies[i], rad * richness(liveItems[i].count), oc, obsRadius, i == grabbed)
+                        }
+                    }
                     // 아이콘끼리 충돌 → 튕김
                     for (i in 0 until n) for (j in i + 1 until n) {
                         collide(bodies[i], bodies[j], i == grabbed, j == grabbed, grabbedVel, rad * richness(liveItems[i].count), rad * richness(liveItems[j].count))
@@ -291,12 +315,22 @@ fun FloatingStatBox(
                     }
                 } else {
                     // 가벼운 부유(물리 계산 없음)
-                    for (b in bodies) {
+                    for (i in bodies.indices) {
+                        val b = bodies[i]
                         val ft = elapsed - b.floatT0
                         b.pos = b.anchorBase + Offset(
                             sin(ft * b.floatSpeed + b.phase) * b.floatAmp,
                             cos(ft * b.floatSpeed * 0.85f + b.phase) * b.floatAmp * 0.7f
                         )
+                        // 부유 중에도 프로필 사진 원은 파고들지 않게 — 밀려난 만큼 부유 기준점도 옮겨
+                        // 매 프레임 다시 파고들었다 밀려나며 떠는 현상을 막는다.
+                        obsCenter?.let { oc ->
+                            if (obsRadius > 0f) {
+                                val before = b.pos
+                                bounceOffCircle(b, rad * richness(liveItems[i].count), oc, obsRadius, grabbed = true)
+                                b.anchorBase += (b.pos - before)
+                            }
+                        }
                         b.rot += b.rotIdleSpeed * dt
                     }
                 }
@@ -449,6 +483,23 @@ fun FloatingStatBox(
             }
         }
     }
+}
+
+/**
+ * 프로필 사진 원(움직이지 않는 '벽')에서 아이콘을 밀어내고 튕긴다.
+ * [grabbed] 면(손가락이 잡고 있거나 부유 중이면) 속도는 건드리지 않고 원 밖으로 밀어내기만 한다.
+ */
+private fun bounceOffCircle(b: Body, r: Float, center: Offset, obsR: Float, grabbed: Boolean) {
+    val delta = b.pos - center
+    val dist = delta.getDistance()
+    val minDist = obsR + r
+    if (dist >= minDist) return
+    // 정확히 중심에 겹치면 방향이 없으므로 위쪽으로 밀어낸다.
+    val nrm = if (dist < 0.001f) Offset(0f, -1f) else delta / dist
+    b.pos = center + nrm * minDist
+    if (grabbed) return
+    val vn = b.vel.dot(nrm)
+    if (vn < 0f) b.vel -= nrm * ((1f + WALL_REST) * vn)   // 파고드는 성분만 반사
 }
 
 /** 원형 두 아이콘 충돌 해소(위치 분리 + 법선 방향 속도 반발). 잡힌 아이콘은 무한질량(grabbedVel 로 밀어냄). */

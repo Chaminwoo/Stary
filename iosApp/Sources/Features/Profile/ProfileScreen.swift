@@ -30,6 +30,11 @@ struct ProfileScreen: View {
     @State private var nicknameDraft = ""
     @ObservedObject private var hidden = HiddenAchievementStore.shared
     @State private var hiddenAlert: HiddenAchievement?
+    /// 프로필 사진 크게 보기(아바타 탭). 사진이 없으면 볼 게 없으므로 바로 사진 고르기로 간다.
+    @State private var showPhotoViewer = false
+    @State private var showPhotoPicker = false
+    /// 아바타 동그라미의 화면상 사각형 — 떠다니는 아이콘이 여기서 '벽'처럼 튕긴다.
+    @State private var avatarCircle: CGRect = .zero
 
     private var mine: [Diary] { store.mine(uid: auth.uid).sorted { $0.createdAt > $1.createdAt } }
     private var othersViewedCount: Int {
@@ -129,10 +134,19 @@ struct ProfileScreen: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .offset(y: -44)
+                // ZStack 가운데 정렬 기준을 44pt 위로 — `.offset` 은 GeometryReader 좌표에 잡히지 않아
+                // 아바타 '벽' 위치가 어긋나므로 같은 결과의 아래 여백으로 올린다.
+                .padding(.bottom, 88)
 
                 // 떠다니는 통계 + 핀 별 (전체 화면 오버레이, 중앙/하단은 비켜서 배치)
-                FloatingStatBox(items: bubbles, onTap: handleBubbleTap, avoidCenterYFraction: 0.42)
+                // 프로필 사진 동그라미 = 벽. 아이콘이 사진 위를 덮지 않고 튕겨 나온다.
+                FloatingStatBox(
+                    items: bubbles,
+                    onTap: handleBubbleTap,
+                    avoidCenterYFraction: 0.42,
+                    obstacleCenter: avatarCircle.isEmpty ? nil : CGPoint(x: avatarCircle.midX, y: avatarCircle.midY),
+                    obstacleRadius: min(avatarCircle.width, avatarCircle.height) / 2
+                )
 
                 // 하단 로그아웃
                 VStack {
@@ -154,6 +168,7 @@ struct ProfileScreen: View {
                     .padding(.bottom, 10)
                 }
             }
+            .coordinateSpace(name: profileSpace)
             .navigationTitle(locale.t(.tabProfile))
             .navigationBarTitleDisplayMode(.inline)
             // Android 프로필 탑바 = 뒤로가기 + "프로필" + 우측 "+"(핀 별 고르기)만.
@@ -226,6 +241,17 @@ struct ProfileScreen: View {
                     pendingPhoto = PickedPhoto(image: ui)
                 }
             }
+            // 프로필 사진 크게 보기 — 연필 버튼으로 사진 교체(기존 아바타 탭 동작)로 이어진다.
+            .fullScreenCover(isPresented: $showPhotoViewer) {
+                PhotoViewer(imageUrl: profileImageUrl ?? "") {
+                    showPhotoViewer = false
+                } onEdit: {
+                    showPhotoViewer = false
+                    // 커버가 닫힌 뒤에 사진 고르기를 띄운다(모달이 겹쳐 무시되는 것 방지).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { showPhotoPicker = true }
+                }
+            }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
             // 사진 조절(위치·확대) → 확정된 정사각 이미지를 업로드한다(Android ProfilePhotoCropDialog 패리티).
             .fullScreenCover(item: $pendingPhoto) { picked in
                 ProfilePhotoCropView(image: picked.image) { cropped in
@@ -326,7 +352,11 @@ struct ProfileScreen: View {
     }
 
     private var avatar: some View {
-        PhotosPicker(selection: $photoItem, matching: .images) {
+        Button {
+            // 사진이 있으면 크게 보기, 없으면 바로 고르기(볼 게 없으므로).
+            if let url = profileImageUrl, !url.isEmpty { showPhotoViewer = true }
+            else { showPhotoPicker = true }
+        } label: {
             ZStack {
                 Circle()
                     .fill(RadialGradient(colors: [Theme.navyAccent.opacity(0.28), .clear],
@@ -336,6 +366,14 @@ struct ProfileScreen: View {
                 avatarImage
                     .frame(width: 150, height: 150)
                     .clipShape(Circle())
+                    // 이 원이 떠다니는 아이콘의 '벽' — 화면상 위치를 FloatingStatBox 와 같은 좌표계로 넘긴다.
+                    .background(
+                        GeometryReader { g in
+                            Color.clear
+                                .onAppear { avatarCircle = g.frame(in: .named(profileSpace)) }
+                                .onChange(of: g.frame(in: .named(profileSpace))) { avatarCircle = $0 }
+                        }
+                    )
             }
         }
         .buttonStyle(.plain)
@@ -357,6 +395,9 @@ struct ProfileScreen: View {
         }
     }
 }
+
+/// 아바타 원 위치와 떠다니는 아이콘 오버레이가 같은 좌표계를 쓰도록 하는 이름.
+private let profileSpace = "profileScreen"
 
 /// 아바타 150pt × 화면 배율 여유 — 다운샘플 캐시(AvatarThumbCache) 키에 쓰이는 픽셀 크기.
 private let avatarPixelSize: CGFloat = 384

@@ -90,31 +90,34 @@ struct MainTabView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                VStack(spacing: 0) {
-                    if !chrome.chromeHidden { topBar }
-                    MapScreen()
-                        .onPreferenceChange(
-                            CoachMarkPositionKey.self
-                        ) { positions in
+                // 상단바는 **safeAreaInset** 으로 얹는다 — 지도(ignoresSafeArea)는 그 뒤까지 그려져
+                // 반투명 상단바에 비치고, 지도 위 버튼들(안전영역 기준)은 그대로 상단바 아래에 놓인다.
+                // (Android: 화면이 탑바 뒤까지 차지하고 콘텐츠만 LocalTopBarInset 만큼 내려가는 것과 동일.)
+                MapScreen()
+                    .onPreferenceChange(
+                        CoachMarkPositionKey.self
+                    ) { positions in
 
-                            if let p = positions[CoachMarkAnchor.filter] {
-                                coachFilterCenter = p
-                            }
-
-                            if let p = positions[CoachMarkAnchor.location] {
-                                coachLocationCenter = p
-                            }
-
-                            if let p = positions[CoachMarkAnchor.constellation] {
-                                coachConstellationCenter = p
-                            }
-
-                            if let p = positions[CoachMarkAnchor.eye] {
-                                coachEyeCenter = p
-                            }
+                        if let p = positions[CoachMarkAnchor.filter] {
+                            coachFilterCenter = p
                         }
-                }
-                .background(Theme.background.ignoresSafeArea())
+
+                        if let p = positions[CoachMarkAnchor.location] {
+                            coachLocationCenter = p
+                        }
+
+                        if let p = positions[CoachMarkAnchor.constellation] {
+                            coachConstellationCenter = p
+                        }
+
+                        if let p = positions[CoachMarkAnchor.eye] {
+                            coachEyeCenter = p
+                        }
+                    }
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        if !chrome.chromeHidden { topBar }
+                    }
+                    .background(Theme.background.ignoresSafeArea())
 
                 // 업로드 버튼 파장 — FAB 아래(먼저) 그려 버튼은 연출 내내 위에 보인다(Android 동일).
                 if let warp = uploadWarp {
@@ -365,7 +368,20 @@ struct MainTabView: View {
         )
         .padding(.horizontal, 4)
         .frame(height: 56)
-        .background(Theme.background)
+        // 반투명 스크림 — 위(상태바)는 거의 검정, 아래로 갈수록 투명해져 지도와 이어진다.
+        // (Android `core.designsystem.TopBarScrim` 과 같은 값: 0xFF → 0xEC → 0xCC of 0x0D0D0D)
+        .background(
+            LinearGradient(
+                stops: [
+                    .init(color: Color(hex: 0x0D0D0D).opacity(1.0), location: 0),
+                    .init(color: Color(hex: 0x0D0D0D).opacity(0.925), location: 0.55),
+                    .init(color: Color(hex: 0x0D0D0D).opacity(0.80), location: 1),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+            // 상태바 영역까지 같은 스크림으로 덮는다(Android 탑바가 상태바 인셋을 포함하는 것과 동일).
+            .ignoresSafeArea(edges: .top)
+        )
     }
 
     // MARK: - 글쓰기 FAB (Android: 남색 그라데이션 56dp 원형 + 엠보스 테두리, 우하단)

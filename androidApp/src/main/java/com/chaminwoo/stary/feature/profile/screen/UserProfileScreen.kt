@@ -88,6 +88,11 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.friend.FriendViewModel
 import com.chaminwoo.stary.feature.profile.Achievements
 import com.chaminwoo.stary.feature.profile.rememberUserStats
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
@@ -184,6 +189,9 @@ fun UserProfileScreen(
     var showReportDialog by remember(userId) { mutableStateOf(false) }
     // 프로필 사진 탭 → 전체화면 확대 뷰어(사진이 있을 때만).
     var showPhotoViewer by remember(userId) { mutableStateOf(false) }
+    // 아바타 동그라미의 화면(루트) 상 위치·반지름 — 떠다니는 아이콘이 여기서 '벽'처럼 튕긴다.
+    var avatarCenterInRoot by remember(userId) { mutableStateOf<Offset?>(null) }
+    var avatarRadiusPx by remember(userId) { mutableFloatStateOf(0f) }
     // 차단은 되돌리기 번거로운 동작(친구 해제 포함)이라 확인 다이얼로그를 거친다. 해제는 바로.
     var showBlockDialog by remember(userId) { mutableStateOf(false) }
     val blockedMsg = stringResource(R.string.toast_blocked)
@@ -231,6 +239,9 @@ fun UserProfileScreen(
             }
         }
     }
+    // 반투명 탑바 뒤까지 배경을 채우고(비치도록), 콘텐츠만 그만큼 내린다.
+    val topInset = LocalTopBarInset.current
+
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF0D0D0D))) {
         Image(
             painter = painterResource(R.drawable.mydiary_bg),
@@ -242,11 +253,16 @@ fun UserProfileScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 40.dp, bottom = 40.dp),
+            contentPadding = PaddingValues(
+                start = 22.dp, end = 22.dp,
+                top = topInset + 40.dp, bottom = 40.dp
+            ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // ── 헤더: 아바타 + 이름 + 칭호 + 친구 액션 ──
             item {
+                // 헤더가 스크롤로 사라지면 '벽'도 함께 없앤다(마지막 위치에 유령 벽이 남지 않도록).
+                DisposableEffect(Unit) { onDispose { avatarCenterInRoot = null } }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(modifier = Modifier.size(150.dp), contentAlignment = Alignment.Center) {
                         Box(
@@ -265,6 +281,12 @@ fun UserProfileScreen(
                                 .size(124.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF0D0D0D), CircleShape)
+                                // 이 원은 떠다니는 아이콘이 튕겨 나오는 '벽' — 화면상 위치·반지름을 넘긴다.
+                                .onGloballyPositioned {
+                                    val b = it.boundsInRoot()
+                                    avatarCenterInRoot = b.center
+                                    avatarRadiusPx = minOf(b.width, b.height) / 2f
+                                }
                                 // 사진이 있으면 눌러서 크게 볼 수 있다(기본 아이콘일 땐 반응 없음).
                                 .then(
                                     if (photoUrl.isNotBlank())
@@ -374,7 +396,11 @@ fun UserProfileScreen(
                     // 히든 아이콘(idx >= hiddenStart)은 탭 시 버스트만(타인 프로필이라 업적 화면 이동 없음).
                 }
             },
-            avoidCenterYFraction = 0.25f // 상단의 프로필/이름 회피
+            modifier = Modifier.padding(top = topInset),
+            avoidCenterYFraction = 0.25f, // 상단의 프로필/이름 회피
+            // 프로필 사진 동그라미 = 벽. 아이콘이 사진 위를 덮지 않고 튕겨 나온다.
+            obstacleCenterInRoot = avatarCenterInRoot,
+            obstacleRadiusPx = avatarRadiusPx,
         )
 
         // 친구 취소 확인 다이얼로그 — 탑바의 "친구(사람✓)" 버튼을 누르면 뜬다.

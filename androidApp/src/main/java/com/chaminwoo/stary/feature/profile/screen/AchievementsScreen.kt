@@ -68,6 +68,7 @@ import com.chaminwoo.stary.feature.profile.Reward
 import com.chaminwoo.stary.feature.profile.StigmaStore
 import com.chaminwoo.stary.feature.profile.rememberUserStats
 import kotlinx.coroutines.launch
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val Gold = Color(0xFFFFD86F)
@@ -122,7 +123,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
             message = stringResource(R.string.onb_achievements_msg),
         )
 
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(top = LocalTopBarInset.current)) {
             TabBar(tab = tab, onSelect = { tab = it })
 
             when (tab) {

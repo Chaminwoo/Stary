@@ -3,6 +3,9 @@ import SwiftUI
 
 /// 타인 프로필 — 아바타/이름/장착 칭호 + 친구 액션(추가/채팅) + 그 사람의 별 목록.
 /// (Android UserProfileScreen 패리티. 댓글/작성자 탭에서 진입.)
+/// 아바타 원 위치와 떠다니는 아이콘 오버레이가 같은 좌표계를 쓰도록 하는 이름.
+private let userProfileSpace = "userProfileScreen"
+
 struct UserProfileScreen: View {
     let userId: String
     let userName: String
@@ -23,6 +26,8 @@ struct UserProfileScreen: View {
     @State private var showReportedConfirm = false
     /// 프로필 사진 탭 → 전체화면 확대 뷰어(사진이 있을 때만).
     @State private var showPhotoViewer = false
+    /// 아바타 동그라미의 화면상 사각형 — 떠다니는 아이콘이 여기서 '벽'처럼 튕긴다.
+    @State private var avatarCircle: CGRect = .zero
     @State private var friendsCount = 0
     /// 그 사람이 프로필에 띄우기로 선택(핀)한 다이어리 id — 타인 프로필엔 이 별들만 뜬다.
     @State private var pinnedIds: [String] = []
@@ -86,10 +91,19 @@ struct UserProfileScreen: View {
                         .shadow(color: titleColor.opacity(0.9), radius: hiddenT ? 16 : 12)
                 }
             }
-            .offset(y: -60)
+            // ZStack 가운데 정렬 기준을 60pt 위로 — `.offset` 은 GeometryReader 좌표에 잡히지 않아
+            // 아바타 '벽' 위치가 어긋나므로 같은 결과의 아래 여백으로 올린다.
+            .padding(.bottom, 120)
 
             // 떠다니는 통계/별 아이콘 (내 프로필과 동일한 FloatingStatBox — #6)
-            FloatingStatBox(items: bubbleData.items, onTap: handleBubbleTap, avoidCenterYFraction: 0.42)
+            // 프로필 사진 동그라미 = 벽. 아이콘이 사진 위를 덮지 않고 튕겨 나온다.
+            FloatingStatBox(
+                items: bubbleData.items,
+                onTap: handleBubbleTap,
+                avoidCenterYFraction: 0.42,
+                obstacleCenter: avatarCircle.isEmpty ? nil : CGPoint(x: avatarCircle.midX, y: avatarCircle.midY),
+                obstacleRadius: min(avatarCircle.width, avatarCircle.height) / 2
+            )
 
             // 하단: 친구 추가/채팅 액션
             VStack {
@@ -98,6 +112,7 @@ struct UserProfileScreen: View {
                     .padding(.bottom, 24)
             }
         }
+        .coordinateSpace(name: userProfileSpace)
         .navigationTitle(locale.t(.profileTitle))
         .watchUser(userId)
         .navigationBarTitleDisplayMode(.inline)
@@ -229,6 +244,14 @@ struct UserProfileScreen: View {
             // 프로필 사진 바깥 링(테두리)은 제거 — 후광만 남긴다(2026-07-17 사용자 지시).
             .frame(width: 96, height: 96)
             .clipShape(Circle())
+            // 이 원이 떠다니는 아이콘의 '벽' — 화면상 위치를 FloatingStatBox 와 같은 좌표계로 넘긴다.
+            .background(
+                GeometryReader { g in
+                    Color.clear
+                        .onAppear { avatarCircle = g.frame(in: .named(userProfileSpace)) }
+                        .onChange(of: g.frame(in: .named(userProfileSpace))) { avatarCircle = $0 }
+                }
+            )
             // 사진이 있으면 눌러서 크게 볼 수 있다(기본 이니셜일 땐 반응 없음).
             .onTapGesture {
                 if let url = shownPhoto, !url.isEmpty { showPhotoViewer = true }

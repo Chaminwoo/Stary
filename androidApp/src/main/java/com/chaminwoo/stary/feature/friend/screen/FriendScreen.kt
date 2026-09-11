@@ -73,6 +73,7 @@ import com.chaminwoo.stary.core.model.UserProfile
 import com.chaminwoo.stary.core.util.ChatReadStore
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.friend.FriendViewModel
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val SoftRed = Color(0xFFFF6B6B)
@@ -173,7 +174,10 @@ fun FriendScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 32.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp, end = 16.dp,
+                top = LocalTopBarInset.current + 20.dp, bottom = 32.dp
+            ),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // --- 검색 ---

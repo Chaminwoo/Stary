@@ -105,6 +105,7 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.roundToInt
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 // 공개 범위 선택지: (key, 라벨 문자열 리소스, 아이콘). 라벨은 화면에서 stringResource 로 해석(언어 반영).
 private val VisibilityOptions = listOf(
@@ -266,7 +267,8 @@ fun UploadScreen(
         )
 
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(top = LocalTopBarInset.current).padding(20.dp)
         ) {
             // 이미지 영역 — 디테일 화면과 동일한 고정 비율 프레임.
             // 사진 선택 시 이 프레임이 곧 '크롭될 영역'이며, 드래그/핀치로 위치·확대 지정.

@@ -66,6 +66,7 @@
     <string name="report_reason_other">기타</string>
     <string name="report_reason_detail_hint">사유를 적어주세요</string>
     <string name="profile_photo_adjust">프로필 사진 조절</string>
+    <string name="profile_photo_change">프로필 사진 변경</string>
     <string name="profile_photo_adjust_hint">드래그로 위치, 두 손가락으로 크기를 맞춰요</string>
     <string name="toast_reported">신고가 접수되었어요</string>
     <string name="block">차단</string>

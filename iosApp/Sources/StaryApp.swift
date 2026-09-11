@@ -23,12 +23,15 @@ struct StaryApp: App {
     }
 
     /// push 된 모든 화면의 시스템 내비바를 Android CenterAlignedTopAppBar 톤으로 통일 —
-    /// 배경 0x0D0D0D 불투명 + 구분선 없음 + 제목 **MinSans 18 SemiBold**/0xF0F0F0 + 뒤로가기 틴트 0xF0F0F0.
-    /// (Android MainScreen 의 상단바 제목: fontFamily=MinSans, 18.sp, FontWeight.SemiBold)
+    /// **반투명 검정 + 블러**(화면 배경이 비쳐 이어져 보이게) + 구분선 없음 +
+    /// 제목 **MinSans 18 SemiBold**/0xF0F0F0 + 뒤로가기 틴트 0xF0F0F0.
+    /// (Android MainScreen 의 상단바: `TopBarScrim` 그라데이션 위에 같은 제목 스타일)
     private static func configureNavigationBarAppearance() {
         let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(red: 0x0D / 255.0, green: 0x0D / 255.0, blue: 0x0D / 255.0, alpha: 1)
+        // 화면 배경(ScreenBackground 는 ignoresSafeArea)이 내비바 뒤로 올라와 비친다.
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+        appearance.backgroundColor = UIColor(red: 0x0D / 255.0, green: 0x0D / 255.0, blue: 0x0D / 255.0, alpha: 0.55)
         appearance.shadowColor = .clear
         let titleColor = UIColor(red: 0xF0 / 255.0, green: 0xF0 / 255.0, blue: 0xF0 / 255.0, alpha: 1)
         let titleFont = UIFont.minSans(18, .semibold)
