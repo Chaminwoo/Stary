@@ -8,6 +8,11 @@ import UserNotifications
 /// 써야 해서 `repeats: true` 캘린더 트리거(항상 같은 시/분)를 쓸 수 없다 — 대신 예약 시각을
 /// UserDefaults 에 같이 저장해 두고, [ensureScheduled] 가 그 시각이 이미 지났으면(알림이 울렸거나
 /// 앱이 오래 안 켜져 있었거나) 다음 예약을 다시 잡는다. 앱 시작/포그라운드 복귀마다 호출해도 안전.
+///
+/// ⚠️ `@MainActor` 필수 — 설정값(`AppSettings.shared`)과 문구(`LocaleManager.shared.t`)가 둘 다 메인 액터
+/// 격리라, 격리 없는 enum 에서 부르면 컴파일 에러(CI 에서 확인). 호출부(AppSettings 토글 / RootView scenePhase)는
+/// 모두 메인 액터라 추가 조치 불필요 — 백그라운드 콜백에서 부르게 되면 `Task { @MainActor in ... }` 로 감쌀 것.
+@MainActor
 enum DailyReminderScheduler {
     private static let requestId = "daily_reminder"
     private static let keyScheduledAt = "daily_reminder_scheduled_at"

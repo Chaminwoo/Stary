@@ -108,6 +108,13 @@ adb shell run-as com.chaminwoo.stary_ios rm shared_prefs/stary_onboarding.xml
 - 8.53 탑바 스크림: Android 가 테스트 중 더 진하게(`0xFF→0xEC→0xCC`) 바뀌어 있었는데 iOS 지도 상단바(`RootView`)는 옛 값이라
   같은 값(1.0 / 0.925 / 0.80)으로 맞췄다.
 
+### iOS CI 빨간불 1회 → 수정
+- push(`b4ef684`) 직후 iOS CI 실패 — 원인은 이번 변경이 아니라 **로컬에만 있던 `b5b80ac`(8.52 일일 알림 iOS)가 처음 CI 를 탄 것**.
+  `Data/DailyReminderScheduler.swift` 가 격리 없는 enum 에서 메인 액터 전용 `AppSettings.shared.dailyReminderEnabled` /
+  `LocaleManager.shared.t(...)` 를 불러 에러 5건 → enum 에 **`@MainActor`** 추가(호출부 2곳 모두 메인 액터라 추가 조치 불필요).
+- 8.52 문서의 "AppDelegate.didFinishLaunching 에서도 `ensureScheduled()`" 는 사실과 다름 — 실제 호출부는
+  `AppSettings` 토글과 `RootView` scenePhase `.active` 뿐(`.active` 가 앱 시작 때도 오므로 동작상 문제는 없음).
+
 ---
 
 ## 8.53 반투명 탑바(엣지투엣지) + 프로필 사진 벽·크게 보기 (Android BUILD SUCCESSFUL 2026-09-06, 2026-09-11 8.54 와 함께 push)
