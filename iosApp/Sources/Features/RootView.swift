@@ -130,7 +130,7 @@ struct MainTabView: View {
                     .allowsHitTesting(false)
                 }
 
-                if !chrome.chromeHidden { fab }
+                if !chrome.chromeHidden && !chrome.globeOpen { fab }
 
                 drawerLayer
 

@@ -1,7 +1,7 @@
 # 04. 3D 지구본(글로브)
 
 Android: `feature/globe/GlobeScreen.kt`, `feature/globe/GlobeRenderer.kt`
-iOS: `Features/Globe/GlobeScreen.swift`(SceneKit)
+iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Android GL 렌더러 1:1 포팅**) + `GlobeGeometry.swift`
 
 지도(03 문서)에서 줌을 `GLOBE_BUTTON_ZOOM(3.0)` 이하로 빼면 하단 "지구 보기" 버튼이 뜨고,
 눌러야만 진입한다(자동 전환 없음). 진입/복귀는 검정 디졸브 스크림(`globeScrim`)이 SurfaceView
@@ -45,23 +45,43 @@ iOS: `Features/Globe/GlobeScreen.swift`(SceneKit)
 
 ---
 
-## iOS 대응 — GlobeScreen.swift (SceneKit)
-- ⚠️ 노란 도시 야경 점광은 iOS 에선 **노드가 아니라 지구 emission 텍스처에 베이크** — 위 빌보드
-  문제는 플레어(좋아요 100+)에만 해당한다. 플레어는 `readsFromDepthBuffer = false` +
-  `.surface` 셰이더 모디파이어 지평선 컷(Android `SPRITE_VS` 와 동일 식) + `renderingOrder = 10`.
-- 커스텀 UV 구체(`sphereGeometry`) + 낮/밤 반구 셰이더 모디파이어 + 구름 + 별밭/은하수/유성 +
-  다이어리 별. 핀치 인 → `onRequestExit(lat, lng)` (MapScreen 이 `GlobeReturnCamera` 처리).
-- ⚠️ **법선(normals) 필수**: 커스텀 메쉬에 셰이더 모디파이어(`_surface.normal` 사용)를 얹으면서
-  법선 소스가 없으면 파이프라인 컴파일 실패로 **노드가 통째로 사라진다**(8.44 #12 — 지구 안 보임
-  버그의 원인). 새 커스텀 메쉬 추가 시 방사방향 단위법선을 꼭 넣을 것.
-- 지구 감광도 `원본×0.45` — Android `EARTH_BRIGHTNESS=0.45f` 와 동일 유지.
+## iOS 대응 — Metal 포팅 (2026-09, SceneKit 버전 대체)
+- 역사: 2026-07 SceneKit 버전(별밭·은하수·12궁을 구면 **텍스처에 구워** 넣은 방식)은 Android(카메라 정면 빌보드
+  스프라이트 수천 개)와 모양이 달랐고, 2026-08-09 `fba7329` 에서 통째로 제거됐다. 2026-09 사용자 요청
+  "안드로이드와 동일하게"로 **Android GL 렌더러를 Metal 로 1:1 옮겨** 복원.
+- `GlobeRenderer.swift` (MTKViewDelegate): Android 와 **같은 셰이더 식(MSL 로 번역) / 같은 정점 레이아웃
+  (스프라이트 12 float) / 같은 그리기 순서·블렌딩(ONE,ONE / SRC_ALPHA) / 같은 깊이 규칙(스프라이트는 깊이 무시,
+  지구 쓰기, 구름·트레일 테스트만)**. 투영은 GL 과 같은 fovy 42°·near 0.3·far 100 이되 깊이만 Metal NDC(0..1).
+  - **`JavaRandom`** = `java.util.Random` 비트 단위 복제(LCG 48비트 + nextGaussian 극좌표법) — 별밭 Random(7),
+    트레일 Random(11) 을 **같은 호출 순서**로 써서 별 위치/밝기가 Android 와 같다. ⚠️ buildStarfield 의 난수 호출
+    순서를 바꾸면 하늘 전체가 달라진다(Android 쪽도 마찬가지) — 양쪽 같이 고칠 것.
+  - 셰이더는 **런타임 컴파일**(`makeLibrary(source:)`) — CI 최신 Xcode 는 Metal 툴체인이 별도 컴포넌트라 `.metal`
+    파일이 빌드를 막을 수 있어서. 대신 MSL 오타는 CI 가 못 잡고 실행 시 init 이 nil(검정+힌트만) → 기기 확인 필수.
+  - 별자리 선: Metal 은 선 굵기가 1px 고정이라 GL_LINES(2px)를 **화면 공간 두께 사각형**으로(두께 0.77pt×배율).
+  - 텍스처: 색 공간은 GL 과 같게 감마 그대로(`.bgra8Unorm`, 로더 `SRGB: false`), 생성 텍스처(플레어/글로우/태양)는
+    CoreGraphics 프리멀티플라이드 RGBA + 밉맵. 지구/구름 JPG 는 **Android assets 파일을 project.yml 로 직접 참조**
+    (예전 iOS 사본은 7096px 로 달라 삭제).
+  - 셰이더 차이 1곳: MSL `smoothstep(1.0, 0.8, x)`(edge0≥edge1)은 정의되지 않아 `1 − smoothstep(0.8, 1.0, x)` 로(값 동일).
+- `GlobeGeometry.swift`: 순수 계산(스프라이트/선/원호 빌더, 행렬, 좌표) — **격리 없는 enum**. 렌더러가 MTKViewDelegate
+  채택으로 메인 액터 격리가 추론돼도 백그라운드 스프라이트 빌드가 컴파일되게 분리했다(여기에 UIKit/렌더러 참조 금지).
+- `GlobeScreen.swift`: MTKView 래퍼 + 제스처(드래그 degPerPx 0.075×((camDist−1)/2.2) × 화면 배율, 속도×0.55 /
+  핀치 camDist÷zoom / 아래 55% 탭 → X) + 힌트 4.2s·X 4s 자동 숨김. 백그라운드 진입 시 렌더 루프 정지.
+- 지도 연동(`MapScreen`/`MapLibreView`): 줌 ≤3.0 → "우주에서 보기" 알약 버튼, 진입/복귀 스크림 170/520·170/70/380ms,
+  복귀 시 내 위치 줌 15(`GlobeReturnCamera`). 가능 여부 콜백은 **바뀔 때 + 카메라 idle 때만**(매 프레임 SwiftUI 상태
+  갱신 금지 — 과거 지도 행 원인 후보). 다른 화면으로 나가면(onDisappear) 글로브 닫힘. 웰컴 별은 글로브에 안 넘긴다.
+- 크롬: Android 처럼 **상단바는 글로브 위에 남고**, 글쓰기 FAB 만 숨긴다(`MapChromeState.globeOpen`).
 
 ### 값 조절(패리티 매핑)
 | 항목 | Android | iOS |
 |---|---|---|
 | 진입 버튼 노출 줌(3.0)/최소 줌(2.4) | `DiaryMapMarkers` GLOBE_BUTTON_ZOOM·MAP_MIN_ZOOM | `MapLibreView` globeButtonZoom·mapMinZoom |
-| 지구 밝기(0.45) | `GlobeRenderer` EARTH_BRIGHTNESS | GlobeScreen 셰이더 계수 (**동일 값**) |
-| 근거리 클립면(0.3) | `GlobeRenderer` NEAR_PLANE | `camera.zNear` (**동일 값**) |
-| 지평선 컷(-0.02~0.22) | `SPRITE_VS` 의 vis | 플레어 `.surface` 모디파이어 (**동일 식**) |
-| 복귀 줌(4.0) | `MainListScreen` GlobeReturnCamera(…, 4.0, …) | `MapScreen.exitGlobe`(zoom: 4.0) |
-| 전환 스크림 시간 | MainListScreen 170ms/520·380ms | MapScreen enter/exitGlobe(0.17/0.52·0.38s) |
+| 지구 밝기(0.45) | `GlobeRenderer` EARTH_BRIGHTNESS | `GlobeRenderer.shaderSource` earthFragment (**동일 값**) |
+| 근거리 클립면(0.3) | `GlobeRenderer` NEAR_PLANE | `GlobeRenderer.nearPlane` (**동일 값**) |
+| 지평선 컷(-0.02~0.22) | `SPRITE_VS` 의 vis | MSL `spriteVertex` (**동일 식**) |
+| 카메라 거리/돌리/관성/자동회전 | companion ENTER/IDLE/MIN/MAX_DIST, stepSimulation | `GlobeRenderer` static + stepSimulation (**동일**) |
+| 별밭/은하수/12궁/반짝별 데이터 | buildStarfield(Random(7)) | buildStarfield(`JavaRandom(7)`, **같은 호출 순서**) |
+| 트레일 | buildTrails(Random(11)) + RING_FS | buildTrails(`JavaRandom(11)`) + MSL ringFragment |
+| 유성/잔류 파장 | METEOR_* / SPARK_* | `GlobeRenderer` 같은 이름 static (**동일 값**) |
+| 다이어리 스프라이트 | FLARE_* / GLOW_* | `GlobeGeometry` (**동일 값**) |
+| 복귀 카메라 | `DiaryMap` recenterToMyLocation(줌 15) | `MapLibreView` globeReturnCamera(내 위치 줌 15) |
+| 전환 스크림 시간 | MainListScreen 170ms/520·380ms | MapScreen enter/exitGlobe(0.17/0.52·0.07·0.38s) |

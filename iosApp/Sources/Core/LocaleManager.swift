@@ -203,6 +203,8 @@ enum L10n: String {
     case shareEditTitle, shareEditHint, shareEditFieldTitle
     case shareEditShowMap, shareEditShowLocation, shareEditShowDate
     case shareEditImportStars, shareEditStarSize, shareEditExtraStarSize, shareEditPickStar, shareEditNoStars
+    /// 3D 글로브(Android globe_hint / globe_open / globe_close).
+    case globeHint, globeOpen, globeClose
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -568,6 +570,9 @@ enum L10n: String {
         case .shareEditStarSize:    return ("별 크기", "Star size", "星の大きさ")
         case .shareEditExtraStarSize: return ("선택한 별", "Selected star", "選択した星")
         case .shareEditPickStar:    return ("가져올 별 선택", "Pick a star to add", "追加する星を選択")
+        case .globeHint:            return ("드래그로 회전 · 아래를 탭해 닫기", "Drag to rotate · Tap below to close", "ドラッグで回転 · 下をタップで閉じる")
+        case .globeOpen:            return ("우주에서 보기", "View globe", "地球を見る")
+        case .globeClose:           return ("지도로 돌아가기", "Back to map", "地図に戻る")
         case .shareEditNoStars:     return ("가져올 별이 없어요 — 다이어리를 먼저 남겨보세요",
                                             "No stars yet — leave a diary first",
                                             "追加できる星がありません — まずダイアリーを残しましょう")

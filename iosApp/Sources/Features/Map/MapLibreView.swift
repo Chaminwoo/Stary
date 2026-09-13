@@ -47,6 +47,16 @@ struct MapLibreView: UIViewRepresentable {
     /// 별자리 라인 토글.
     var constellationEnabled: Bool = false
 
+    // ⚠️ 멤버와이즈 init 인자 순서 = 선언 순서. MapScreen 호출 순서(constellationEnabled → 글로브 2개 → onWorldVoid)와 맞출 것.
+
+    /// 줌이 [globeButtonZoom] 이하면 (중심 위경도, true), 위로 올라오면 (_, _, false) 로 보고.
+    /// 호출부는 이 값으로 하단 "우주에서 보기" 버튼을 노출/숨김(자동 전환 없음 — 버튼으로만 진입).
+    /// ⚠️ 매 프레임 부르지 않는다 — 가능 여부가 바뀔 때 + (가능 상태에서) 카메라가 멈췄을 때만.
+    var onGlobeAvailability: ((_ lat: Double, _ lng: Double, _ available: Bool) -> Void)? = nil
+
+    /// 글로브 → 지도 복귀 카메라 요청(nonce 로 같은 요청 반복도 트리거). Android GlobeReturnCamera 패리티.
+    var globeReturnCamera: GlobeReturnCamera? = nil
+
     /// 세계(웹메르카토르) 상하 타일 한계 밖 "빈 공간"의 화면 경계 보고.
     var onWorldVoid: (
         (_ topY: CGFloat, _ bottomY: CGFloat, _ zoom: Double) -> Void
@@ -54,8 +64,11 @@ struct MapLibreView: UIViewRepresentable {
 
     // MARK: - Constants
 
-    /// 지도 최소 줌.
+    /// 지도 최소 줌(이 밑은 3D 글로브가 담당).
     static let mapMinZoom = 2.4
+
+    /// 하단 "우주에서 보기" 버튼 노출 줌(Android DiaryMap GLOBE_BUTTON_ZOOM 패리티).
+    static let globeButtonZoom = 3.0
 
     /// 지도 기본 기울기.
     static let baseTiltDeg: CGFloat = 25
@@ -206,6 +219,15 @@ struct MapLibreView: UIViewRepresentable {
             )
         }
 
+        // 글로브 → 지도 복귀 시 "내 위치로" 이동 1회(Android DiaryMap recenterToMyLocation 패리티).
+        // 실제 위치 fix 가 없으면 글로브에서 보던 좌표로 폴백. 줌은 Android DEFAULT_ZOOM(15).
+        if let req = globeReturnCamera,
+           req.nonce != context.coordinator.lastGlobeReturnNonce {
+            context.coordinator.lastGlobeReturnNonce = req.nonce
+            let target = userLocation ?? CLLocationCoordinate2D(latitude: req.lat, longitude: req.lng)
+            mapView.setCenter(target, zoomLevel: 15, animated: true)
+        }
+
         // 줌 요청.
         if zoomRequest.nonce
             != context.coordinator.lastZoomNonce {
@@ -319,6 +341,12 @@ struct MapLibreView: UIViewRepresentable {
 
         /// 마지막 포커스 좌표.
         var lastFocus: CLLocationCoordinate2D?
+
+        /// 마지막으로 처리한 글로브 복귀 요청 nonce.
+        var lastGlobeReturnNonce: Int = -1
+
+        /// 마지막으로 보고한 글로브 버튼 노출 여부(nil = 아직 보고 안 함).
+        var lastGlobeAvailable: Bool?
 
         /// 마지막 줌 요청 nonce.
         var lastZoomNonce: Int = 0
@@ -574,6 +602,19 @@ struct MapLibreView: UIViewRepresentable {
             applySatelliteZoomGate(mapView)
             applyStyleEffectZoom(mapView)
             reportWorldVoid(mapView)
+            reportGlobeAvailability(mapView, idle: false)
+        }
+
+        /// 줌 상태 보고 → 호출부가 하단 "우주에서 보기" 버튼 노출을 결정(자동 전환 없음).
+        /// 매 프레임 SwiftUI 상태를 흔들면 지도 전체가 다시 그려지므로(과거 행 원인 후보),
+        /// 가능 여부가 바뀔 때와 가능 상태에서 카메라가 멈췄을 때(중심 갱신)만 보고한다.
+        func reportGlobeAvailability(_ mapView: MLNMapView, idle: Bool) {
+            guard let cb = parent.onGlobeAvailability else { return }
+            let available = mapView.zoomLevel <= MapLibreView.globeButtonZoom
+            guard available != lastGlobeAvailable || (available && idle) else { return }
+            lastGlobeAvailable = available
+            let c = mapView.centerCoordinate
+            DispatchQueue.main.async { cb(c.latitude, c.longitude, available) }
         }
 
         func mapView(
@@ -587,6 +628,7 @@ struct MapLibreView: UIViewRepresentable {
             applySatelliteZoomGate(mapView)
             applyStyleEffectZoom(mapView)
             reportWorldVoid(mapView)
+            reportGlobeAvailability(mapView, idle: true)
 
             requestConstellationRebuild(
                 mapView
@@ -821,6 +863,14 @@ struct MapLibreView: UIViewRepresentable {
             )
         }
     }
+}
+
+/// 글로브에서 지도로 복귀할 때의 카메라 요청(nonce 로 같은 요청 반복도 트리거). Android GlobeReturnCamera 패리티.
+struct GlobeReturnCamera: Equatable {
+    let lat: Double
+    let lng: Double
+    let zoom: Double
+    let nonce: Int
 }
 
 // MARK: - Pioneer Annotation

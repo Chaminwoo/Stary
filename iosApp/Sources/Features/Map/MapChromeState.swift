@@ -15,6 +15,10 @@ final class MapChromeState: ObservableObject {
     /// (Android `MapUiState.mapOnly` 대응)
     @Published var mapOnly = false
 
+    /// 3D 글로브가 열려 있음 — **상단바는 그대로**(Android 도 반투명 탑바가 글로브 위에 남는다), 글쓰기 FAB 만 숨긴다
+    /// (Android 의 업로드 버튼은 지도 안에 있어 글로브 오버레이에 가려진다).
+    @Published var globeOpen = false
+
     /// 상단바/FAB 를 숨겨야 하는 상태(글로브 또는 몰입).
     var chromeHidden: Bool { hidden || mapOnly }
 }

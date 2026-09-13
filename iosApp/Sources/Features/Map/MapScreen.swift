@@ -67,6 +67,19 @@ struct MapScreen: View {
     @State private var voidBottomY: CGFloat = .greatestFiniteMagnitude
     @State private var voidZoom: Double = 0
 
+    // 3D 행성(글로브) — 줌을 충분히 빼면 하단 버튼이 뜨고, 눌러야 진입(Android MainListScreen 글로브 상태 패리티).
+    @State private var globeCenter: GlobeCenter?
+    @State private var globeReturn: GlobeReturnCamera?
+    /// 줌이 낮을 때 지도에서 보고되는 "우주에서 보기" 후보 중심(nil = 버튼 숨김).
+    @State private var globeButtonCenter: GlobeCenter?
+    /// 지도 ↔ 글로브 교체를 가리는 검정 디졸브 스크림.
+    @State private var globeScrim: Double = 0
+
+    private struct GlobeCenter: Equatable {
+        let lat: Double
+        let lng: Double
+    }
+
     /// 기간 컷오프(epoch ms) — 오늘=로컬 자정, 그 외=지금-N일.
     private var periodCutoffMs: Int64? {
         guard let d = periodDays else { return nil }
@@ -266,6 +279,38 @@ struct MapScreen: View {
         openWarp = DiaryOpenWarpData(snapshot: snapshot, origin: origin, members: members)
     }
 
+    /// 글로브에 넘길 별 — 웰컴 별(합성 다이어리)은 제외(Android 도 filteredDiaries 만 넘긴다).
+    private var globeDiaries: [Diary] {
+        shownDiaries.filter { $0.id != TutorialStarState.diaryId }
+    }
+
+    // MARK: 3D 글로브 전환 (Android MainListScreen: 진입 170ms→교체→520ms / 복귀 170ms→교체→70ms→380ms)
+    // ⚠️ DispatchQueue 클로저 대신 메인 액터 Task — @MainActor 객체(chrome) 접근이 격리 에러가 되지 않게.
+
+    private func enterGlobe(lat: Double, lng: Double) {
+        guard globeCenter == nil else { return }
+        withAnimation(.easeInOut(duration: 0.17)) { globeScrim = 1 }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            globeCenter = GlobeCenter(lat: lat, lng: lng)
+            chrome.globeOpen = true
+            withAnimation(.easeInOut(duration: 0.52)) { globeScrim = 0 }
+        }
+    }
+
+    /// 글로브 X → 지도 복귀(지도는 내 위치 줌 15로 이동 — MapLibreView globeReturnCamera).
+    private func exitGlobe(lat: Double, lng: Double) {
+        withAnimation(.easeInOut(duration: 0.17)) { globeScrim = 1 }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            globeReturn = GlobeReturnCamera(lat: lat, lng: lng, zoom: 4.0, nonce: (globeReturn?.nonce ?? 0) + 1)
+            globeCenter = nil
+            chrome.globeOpen = false
+            try? await Task.sleep(nanoseconds: 70_000_000) // 지도 카메라 점프가 프레임에 반영될 시간
+            withAnimation(.easeInOut(duration: 0.38)) { globeScrim = 0 }
+        }
+    }
+
     private func showToast(_ text: String) {
         toast = text
         Task {
@@ -289,6 +334,10 @@ struct MapScreen: View {
                 zoomRequest: zoomRequest,
                 recenterNonce: recenterNonce,
                 constellationEnabled: constellationOn,
+                onGlobeAvailability: { lat, lng, available in
+                    globeButtonCenter = available ? GlobeCenter(lat: lat, lng: lng) : nil
+                },
+                globeReturnCamera: globeReturn,
                 onWorldVoid: { top, bottom, zoom in
                     voidTopY = top
                     voidBottomY = bottom
@@ -441,6 +490,46 @@ struct MapScreen: View {
                 routeControls
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
+
+            // ── 하단 "우주에서 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
+            // (Android: 0xEE111120 알약 + 0x9FB3E8 0.5 테두리, Public 아이콘 + 13sp 흰 0.9, 가로 18·세로 11, 하단 24)
+            if let entry = globeButtonCenter, globeCenter == nil, !chrome.mapOnly {
+                Button { enterGlobe(lat: entry.lat, lng: entry.lng) } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "globe.asia.australia.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Theme.navyAccent)
+                        Text(locale.t(.globeOpen))
+                            .font(.minSans(13))
+                            .foregroundStyle(Color.white.opacity(0.9))
+                    }
+                    .padding(.horizontal, 18).padding(.vertical, 11)
+                    .background(Color(hex: 0x111120).opacity(0.93), in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.navyAccent.opacity(0.5), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 24)
+                .transition(.opacity)
+            }
+
+            // ── 3D 행성(글로브) 오버레이 — 지도와 지도 위 버튼을 덮는다(상단바는 RootView 소속이라 그대로 보인다) ──
+            if let center = globeCenter {
+                GlobeScreen(
+                    diaries: globeDiaries,
+                    startLat: center.lat,
+                    startLng: center.lng,
+                    onRequestExit: { lat, lng in exitGlobe(lat: lat, lng: lng) }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+            }
+            // 전환 스크림(검정 디졸브) — 지도 ↔ 글로브(Metal) 교체를 가린다.
+            if globeScrim > 0.001 {
+                Color.black.opacity(globeScrim)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
         }
         // 별 상세 — Android 처럼 전체 화면 push(NavRoute.Detail 대응).
         .navigationDestination(isPresented: Binding(
@@ -501,6 +590,15 @@ struct MapScreen: View {
             rootAppearedOnce = true
             handleFocus(focus.pendingDiaryId)
             pioneer.start() // 개척 퀘스트 현황 구독(체크리스트 32)
+        }
+        // 다른 화면으로 나가면(지도가 가려짐) 글로브를 닫는다 — 가려진 채 렌더 루프가 도는 낭비 방지 +
+        // "복귀하면 지도" 동작 유지(Android MainListScreen 의 mapVisible 감시와 동일).
+        .onDisappear {
+            if globeCenter != nil {
+                globeCenter = nil
+                globeScrim = 0
+                chrome.globeOpen = false
+            }
         }
         // 개척 비콘 탭 → 퀘스트 안내(체크리스트 32)
         .staryInfoDialog(pioneerMessage ?? "", isPresented: Binding(

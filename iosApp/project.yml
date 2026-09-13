@@ -40,6 +40,11 @@ targets:
       # 본문/UI 폰트는 Android 와 **같은 파일**을 그대로 번들에 넣는다(9MB 복제·드리프트 방지).
       - path: ../androidApp/src/main/res/font/min_sans.ttf
         buildPhase: resources
+      # 3D 글로브 지구/구름 텍스처도 Android assets 와 **같은 파일**을 참조(예전 iOS 사본은 7096px 로 달라 삭제, 2026-09).
+      - path: ../androidApp/src/main/assets/earth_blue_marble.jpg
+        buildPhase: resources
+      - path: ../androidApp/src/main/assets/earth_clouds.jpg
+        buildPhase: resources
     info:
       path: Sources/Info.plist
       properties:

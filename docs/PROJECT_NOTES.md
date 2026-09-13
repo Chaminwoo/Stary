@@ -2,8 +2,11 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.54 웰컴 별(튜토리얼 별) — 근처 안내 별 + 게시물형 열람** — Android BUILD SUCCESSFUL + 사용자 테스트 완료
-> (2026-09-11), 8.53 과 함께 push / iOS 는 CI 검증(웰컴 별 자체는 iOS 미구현 TODO) — 아래 8.54 참고.
+> 최종 갱신: **8.55 iOS 패리티 9건 + 3D 글로브 Metal 복원** — 웰컴 별/첫 코치마크/공유 카드/신규 별 오오라/채팅 빈 화면/
+> 모의 위치 경고/초대 결과 토스트/음량 별 thumb/일일 알림 문구 + Android GL 글로브의 Metal 1:1 포팅(2026-09-14, iOS 전용 —
+> Android 변경 없음). iOS 는 push 후 CI 컴파일 검증 + **실기기 확인 필요**(글로브 셰이더는 런타임 컴파일) — 아래 8.55 참고.
+> 이전: **8.54 웰컴 별(튜토리얼 별) — 근처 안내 별 + 게시물형 열람** — Android BUILD SUCCESSFUL + 사용자 테스트 완료
+> (2026-09-11), 8.53 과 함께 push — 아래 8.54 참고.
 > 이전: **8.53 반투명 탑바(엣지투엣지) + 프로필 사진 = 벽/크게 보기** — Android BUILD SUCCESSFUL(2026-09-06),
 > 2026-09-11 테스트 완료 신호 후 8.54 와 함께 push — 아래 8.53 참고.
 > 이전: **8.52 사용자 피드백 6건 + iOS Sign in with Apple** — 맷돌음 회전속도 연동 / 도움말 다시보기 /
@@ -56,6 +59,51 @@
 
 ---
 
+## 8.55 iOS 패리티 9건 + 3D 글로브 Metal 복원 (iOS 전용, 2026-09-14 — push 후 CI 검증 / 실기기 확인 대기)
+
+사용자 요청 "iOS 패리티 문제 찾아서 고쳐" → 문서의 iOS TODO 를 **코드와 대조**해 실제로 남은 것만 추렸다
+(지도 야경 스타일·마커 스파클·닉네임 20자·햅틱·채팅 삭제 링은 이미 구현돼 있어 제외). 이어서 "3D 글로브도 안드로이드와 동일하게".
+
+### 사용자 결정
+- 일일 알림 한국어 문구 drift → **Android 기존 문구로 통일**(iOS 를 되돌림).
+- 공유 카드: 2026-07-19 `e6e438e` 에서 iOS 공유를 직접 제거한 이력을 확인시켰는데도 **다시 만들기** 선택.
+- push: 패리티 로컬 커밋(`4cee324`) 후 **글로브까지 끝내고 한 번에 push·CI**.
+
+### 패리티 9건
+1. **웰컴 별** — `Features/Map/TutorialStarState.swift` + `Features/Detail/TutorialStarDetailScreen.swift`(Android 8.54 와 같은
+   40m 배치·열람 즉시 소비·loading_dipper 게시물). `MapScreen` 상세 `navigationDestination` 에서 id 로 분기.
+   iOS 는 겹친 별 카드가 Diary 를 그대로 받으므로 합성 다이어리에 제목을 채워 둠(Android 는 Firestore 조회라 빠짐).
+2. **첫 로그인 코치마크 자동 표시 복구** — `RootView.showCoachMark` 트리거가 "임시로" 꺼져 있었다. `maybeStartCoachMark()`
+   (로그인 + `main_coach_seen` 미기록 + 지도 루트, 0.6s 뒤 메인 액터 Task)로 복구 — 좌표가 늦게 와도 오버레이가 onChange 로 따라감.
+   마지막 문구는 웰컴 별 필요 시 `coachStepFinishTutorial`.
+3. **공유 카드** — `Core/ShareCard.swift`(ShareCardHelper CoreGraphics 포팅) + `Features/Detail/ShareCardEditorView.swift`
+   (드래그 편집기) + DetailScreen 공유 버튼. 인스타 = `instagram-stories://share` + 페이스트보드, 미설치 → 공유 시트.
+   project.yml: `INSTAGRAM_APP_ID`(빈 값 placeholder) + `LSApplicationQueriesSchemes: instagram-stories`. 상세는 docs/code/06.
+4. **신규 별 24h 오오라** — `MapStyleEffects` fresh(숫자 1/0) + max 표현식(docs/code/03).
+5. **채팅 첫 대화 빈 화면** — `StaryEmptyState`(4꼭지 스파클·민트) + 목록 등장 시 맨 아래 스크롤 보정.
+6. **모의 위치 경고 토스트** — `MapScreen` onChange(mockDetected) + 최초 onAppear.
+7. **초대 리딤 결과 안내** — `InviteStore.RedeemResult`(Android 5종) + **`Core/GlobalToast.swift` 신설**(전역 토스트,
+   RootView 가 NavigationStack 바깥 overlay 로 표시). 예전 iOS 는 결과를 조용히 버렸다.
+8. **설정 음량 슬라이더 별 thumb** — 커스텀 `StarVolumeSlider`(docs/code/09).
+9. **일일 알림 문구** — iOS 한국어 3개를 Android 문구로 되돌림.
+
+### 3D 글로브 — Android GL 렌더러의 Metal 1:1 포팅 (docs/code/04 상세)
+- iOS 글로브는 2026-08-09 `fba7329` 에서 통째로 제거돼 있었다(SceneKit 버전은 별밭·은하수를 텍스처에 구워 Android 와 모양이 달랐다).
+- 새 파일: `Features/Globe/GlobeRenderer.swift`(Metal, 셰이더 런타임 컴파일, `JavaRandom` = java.util.Random 복제로 **같은 하늘**),
+  `GlobeGeometry.swift`(격리 없는 순수 계산 enum), `GlobeScreen.swift`(MTKView + 제스처 + 힌트/X).
+- 지도 배선 복원: `MapLibreView.onGlobeAvailability`(바뀔 때 + idle 때만 보고) / `globeReturnCamera` / `GlobeReturnCamera`,
+  `MapScreen` 버튼·오버레이·스크림·onDisappear 닫기, 문자열 `globeHint/Open/Close`(Android 문구).
+- 크롬: 상단바 유지 + FAB 만 숨김(`MapChromeState.globeOpen`) — Android 와 같은 화면 구성.
+- 텍스처: `iosApp/Sources/Resources/earth_*.jpg`(7096px 등 Android 와 다른 사본) **삭제** → project.yml 이 Android assets 를 직접 참조.
+
+### ⚠️ 확인 필요(코드로 검증 불가)
+- 글로브 MSL 셰이더는 **실행 시** 컴파일된다 — CI 가 초록이어도 셰이더 오타가 있으면 글로브가 검정+힌트만 나온다.
+  기기에서 "우주에서 보기" 진입해 지구/별밭/은하수/유성/트레일이 Android 와 같게 보이는지 확인.
+- 공유 카드 인스타 링크 스티커는 `INSTAGRAM_APP_ID` 주입 전엔 붙지 않는다(Android 와 같은 정책 — 링크 복사 안내로 대체).
+- 사용자 Mac 에서 로컬 빌드 시 신규 Swift 파일이 많으니 `cd iosApp && xcodegen generate` 재실행.
+
+---
+
 ## 8.54 웰컴 별(튜토리얼 별) — 근처 안내 별 + 게시물형 열람 (Android BUILD SUCCESSFUL + 사용자 테스트 완료 2026-09-11)
 
 첫 실행 기기에만 지도 근처에 "웰컴 별"을 하나 놓고, 탭하면 튜토리얼 **게시물**이 열린다.
@@ -95,11 +143,11 @@ adb shell run-as com.chaminwoo.stary_ios rm shared_prefs/stary_onboarding.xml
 ### 알려진 한계 / TODO
 - 웰컴 별 30m 안에 실제 별이 있으면 30m 머지에 흡수된다(0좋아요·최신이라 대표가 못 됨). 겹친 별 카드 뷰어는
   Firestore 에 없는 id 를 버리므로 그 경우 웰컴 별을 열 수 없다.
-- **iOS 미구현** — 웰컴 별(배치·마커·코치마크 분기·게시물) 전체가 TODO. iOS 는 첫 실행 코치마크 자동 트리거도 꺼져 있다(8.52 참고).
+- ~~iOS 미구현~~ → **8.55 에서 구현**(웰컴 별 + 첫 로그인 코치마크 자동 표시 복구).
 
 ### 같이 push 된 미기록 변경(이전 세션 작업)
 - **신규 별 오오라**(`DiaryMapMarkers.kt`) : 24시간 이내 별은 좋아요 0개여도 `FRESH_AURA_OPACITY`(0.16) 오오라 — docs/code/03 참고.
-  **iOS 미반영(TODO).**
+  → **8.55 에서 iOS 반영.**
 - **알림 아이콘** `res/drawable/ic_notification.xml`(흰색 반짝이 벡터) : manifest 에 FCM 기본 알림 아이콘 meta-data +
   `StaryMessagingService`/`DailyReminderReceiver` 의 smallIcon 을 mipmap → 이 벡터로(앱 종료 상태 알림에 기본 아이콘이 뜨던 문제).
 - 버전 `1.4.1(18) → 1.4.2(19)`.
