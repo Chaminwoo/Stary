@@ -34,6 +34,9 @@ iOS: `Core/Theme.swift`, `AppFont.swift`, `StarStyle.swift`, `StarShape.swift`, 
 - `palette` / `gradients` / `isGradient(i)` / `gradientOf(i)` / `colorOf(i)`(대표색) / `colorsOf(i)`.
 - `fillShader(index, left, top, sizePx)` : 그라데이션 채움 Shader(단색이면 null).
 - `starPath(type, sizePx)` : 모양 Path. **모양 추가/수정은 여기 + iOS `StarShape.swift` 동시에.**
+  - 6 다이아몬드(결정): 2026-09 피드백으로 컷 라인 12개 → **거들 높이 중심(0.5, 0.40)에서 5갈래**
+    (테이블 양끝·컬릿 + 거들 가로선), 크기 `GEM_SCALE = 0.66`(세로 중심 0.53→0.5 로 보정, 선 두께 0.03×배율),
+    크리스탈 파편 밀도 `facetDensity(6) = 7`. iOS `StarShape.gemScale` / `StarCrystal.facetDensity` 같은 값.
 - `drawCrystalFill(canvas, type, colorIndex|colors, left, top, sizePx, alpha)` :
   실루엣 clip 후 내부를 불규칙 파편(크리스탈)으로 채우는 공용 렌더 —
   파편 메시는 결정론적 해시(같은 별=같은 무늬), 볼록 돔 셰이딩 + 좌상단 하이라이트.

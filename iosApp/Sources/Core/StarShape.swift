@@ -89,9 +89,16 @@ struct StarShape: Shape {
         return body.subtractingCompat(Path(ellipseIn: CGRect(x: c.x - hole, y: c.y - hole, width: hole * 2, height: hole * 2)))
     }
 
+    /// 결정(다이아몬드) 모양 크기 — Android StarStyle.GEM_SCALE 과 같은 값(2026-09 피드백).
+    private static let gemScale: CGFloat = 0.66
+
     private func gem(_ s: CGFloat) -> Path {
         // Android gemPath 와 동일: 컷 다이아몬드 실루엣 − 패싯(컷) 라인(스트로크를 채움 경로로 변환해 뺌).
-        func p(_ fx: CGFloat, _ fy: CGFloat) -> CGPoint { CGPoint(x: fx * s, y: fy * s) }
+        // 2026-09 단순화: 컷 라인 12개 → 거들 높이 중심에서 5갈래 + 크기 66%(세로 중심 0.53 → 0.5).
+        let k = StarShape.gemScale
+        func p(_ fx: CGFloat, _ fy: CGFloat) -> CGPoint {
+            CGPoint(x: (0.5 + (fx - 0.5) * k) * s, y: (0.5 + (fy - 0.53) * k) * s)
+        }
         let pts: [(CGFloat, CGFloat)] = [
             (0.31, 0.11), (0.69, 0.11), (0.84, 0.14), (0.97, 0.40),
             (0.50, 0.95), (0.03, 0.40), (0.16, 0.14),
@@ -103,21 +110,19 @@ struct StarShape: Shape {
         }
         outline.closeSubpath()
 
-        // 패싯 라인 — Android 와 같은 세그먼트(크라운 X자 + 거들 + 파빌리온).
+        // 패싯 라인 — Android 와 같은 5갈래(중심 → 테이블 양끝 · 컬릿 + 중심을 지나는 거들 가로선).
         var lines = Path()
         func seg(_ a: (CGFloat, CGFloat), _ b: (CGFloat, CGFloat)) {
             lines.move(to: p(a.0, a.1)); lines.addLine(to: p(b.0, b.1))
         }
-        let a: (CGFloat, CGFloat) = (0.50, 0.22)     // 크라운 중앙 수렴점
-        seg((0.03, 0.40), (0.97, 0.40))              // 거들(가로)
-        seg((0.31, 0.11), (0.69, 0.11))              // 테이블 윗변
-        seg((0.31, 0.11), a); seg((0.69, 0.11), a)   // 테이블 양끝 → 중앙점 A
-        seg(a, (0.40, 0.40)); seg(a, (0.60, 0.40))   // A → 거들 중앙 두 점
-        seg((0.31, 0.11), (0.29, 0.40)); seg((0.69, 0.11), (0.71, 0.40)) // 테이블 모서리 → 중간 거들점
-        seg((0.16, 0.14), (0.29, 0.40)); seg((0.84, 0.14), (0.71, 0.40)) // 어깨 → 중간 거들점
-        seg((0.29, 0.40), (0.50, 0.95)); seg((0.71, 0.40), (0.50, 0.95)) // 파빌리온 → 컬릿
+        let c: (CGFloat, CGFloat) = (0.50, 0.40)     // 중심(거들 높이)
+        seg(c, (0.31, 0.11))                         // → 테이블 왼끝
+        seg(c, (0.69, 0.11))                         // → 테이블 오른끝
+        seg(c, (0.50, 0.95))                         // → 컬릿
+        seg((0.03, 0.40), (0.97, 0.40))              // 거들 좌우
 
-        let lineFill = lines.strokedPath(StrokeStyle(lineWidth: s * 0.03, lineJoin: .miter))
+        // 선 두께도 모양과 같은 비율로 축소(Android strokeWidth = s·0.03·GEM_SCALE).
+        let lineFill = lines.strokedPath(StrokeStyle(lineWidth: s * 0.03 * k, lineJoin: .miter))
         return outline.subtractingCompat(lineFill)
     }
 

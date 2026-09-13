@@ -265,7 +265,8 @@ enum StarCrystal {
     private static func facetDensity(_ type: Int) -> Int {
         switch type {
         case 0, 4: return 10
-        case 1, 6, 7: return 10
+        case 6: return 7 // 결정: 5갈래 컷 면이 또렷하게(Android facetDensity 와 같은 값, 2026-09)
+        case 1, 7: return 10
         case 2, 5: return 12
         case 3: return 14
         default: return 12

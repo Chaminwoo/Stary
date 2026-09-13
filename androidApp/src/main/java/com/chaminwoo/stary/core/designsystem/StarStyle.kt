@@ -318,7 +318,8 @@ object StarStyle {
      */
     private fun facetDensity(type: Int): Int = when (type) {
         0, 4 -> 10
-        1, 6, 7 -> 10
+        6 -> 7 // 결정: 5갈래 컷 면이 또렷하게 읽히도록 파편을 성기게(2026-09)
+        1, 7 -> 10
         2, 5 -> 12
         3 -> 14
         else -> 12
@@ -348,12 +349,21 @@ object StarStyle {
         return Path().apply { op(body, hole, Path.Op.DIFFERENCE) }
     }
 
+    /** 결정(다이아몬드) 모양 크기 — 꽉 찬 다각형이라 뾰족한 별보다 무거워 보여 줄인다(2026-09 피드백, iOS 동일 값). */
+    private const val GEM_SCALE = 0.66f
+
     /**
      * 보석(다이아몬드) — 컷 다이아몬드 실루엣(테이블·거들·컬릿) 위에
      * 패싯(컷) 라인을 빈 공간으로 뚫어 면이 갈라져 보이게 한다.
+     *
+     * 2026-09 "결정 모양이 구리다" 피드백으로 단순화: 컷 라인 12개 → **거들 높이 중심에서 5갈래**
+     * (테이블 양끝 2 + 거들 좌우 2(=가로선) + 컬릿 1). 마커 크기(22~36px)에서 선이 뭉개지지 않는다.
+     * 크기는 [GEM_SCALE] 로 줄이고 세로 중심(원래 0.11~0.95 → 0.53)을 정사각 중앙으로 맞춘다.
      */
     private fun gemPath(s: Float): Path {
-        fun p(fx: Float, fy: Float) = (fx * s) to (fy * s)
+        // 원래 좌표계(0..1)를 중심 기준으로 GEM_SCALE 만큼 줄이고, 세로 중심 0.53 → 0.5 로 올린다.
+        fun p(fx: Float, fy: Float) =
+            ((0.5f + (fx - 0.5f) * GEM_SCALE) * s) to ((0.5f + (fy - 0.53f) * GEM_SCALE) * s)
 
         // 외곽: 테이블(윗면) + 좌우 어깨 → 거들(최대폭) → 컬릿(아래 한 점)
         val outline = Path().apply {
@@ -373,39 +383,23 @@ object StarStyle {
             close()
         }
 
-        // 패싯(컷) 라인 — diamond.jpg 문양. 이 선들을 빈 공간으로 뚫는다.
-        // 핵심: 크라운 중앙이 X자(테이블 양끝→중앙점 A→거들)로 갈라진다.
+        // 패싯(컷) 라인 — 거들 높이 중심점에서 5갈래. 이 선들을 빈 공간으로 뚫는다.
         val lines = Path().apply {
             fun seg(a: Pair<Float, Float>, b: Pair<Float, Float>) {
                 val (ax, ay) = p(a.first, a.second); val (bx, by) = p(b.first, b.second)
                 moveTo(ax, ay); lineTo(bx, by)
             }
-            val a = 0.50f to 0.22f      // 크라운 중앙 수렴점
-            // 거들(가로) — 크라운/파빌리온 경계
-            seg(0.03f to 0.40f, 0.97f to 0.40f)
-            // 크라운: 테이블 윗변
-            seg(0.31f to 0.11f, 0.69f to 0.11f)
-            // 크라운: 테이블 양끝 → 중앙점 A (역삼각 윗면)
-            seg(0.31f to 0.11f, a)
-            seg(0.69f to 0.11f, a)
-            // 크라운: 중앙점 A → 거들 중앙 두 점 (정삼각 — 중앙 패싯)
-            seg(a, 0.40f to 0.40f)
-            seg(a, 0.60f to 0.40f)
-            // 크라운: 테이블 모서리 → 중간 거들점
-            seg(0.31f to 0.11f, 0.29f to 0.40f)
-            seg(0.69f to 0.11f, 0.71f to 0.40f)
-            // 크라운: 어깨 → 중간 거들점
-            seg(0.16f to 0.14f, 0.29f to 0.40f)
-            seg(0.84f to 0.14f, 0.71f to 0.40f)
-            // 파빌리온: 중간 거들점 → 컬릿(중앙 큰 삼각 + 양옆 면)
-            seg(0.29f to 0.40f, 0.50f to 0.95f)
-            seg(0.71f to 0.40f, 0.50f to 0.95f)
+            val c = 0.50f to 0.40f      // 중심(거들 높이)
+            seg(c, 0.31f to 0.11f)      // → 테이블 왼끝
+            seg(c, 0.69f to 0.11f)      // → 테이블 오른끝
+            seg(c, 0.50f to 0.95f)      // → 컬릿
+            seg(0.03f to 0.40f, 0.97f to 0.40f) // 거들 좌우(중심을 지나는 가로선 = 좌·우 2갈래)
         }
-        // 선을 두께 있는 채움 경로로 변환 후 외곽에서 빼서 컷 라인을 만든다.
+        // 선을 두께 있는 채움 경로로 변환 후 외곽에서 빼서 컷 라인을 만든다(두께도 모양과 같은 비율로 축소).
         val lineFill = Path()
         android.graphics.Paint().apply {
             style = android.graphics.Paint.Style.STROKE
-            strokeWidth = s * 0.03f
+            strokeWidth = s * 0.03f * GEM_SCALE
             strokeJoin = android.graphics.Paint.Join.MITER
         }.getFillPath(lines, lineFill)
 
