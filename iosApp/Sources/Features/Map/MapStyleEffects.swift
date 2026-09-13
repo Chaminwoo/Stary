@@ -41,6 +41,9 @@ private enum StyleFx {
     /// 바닥 빛 웅덩이 불투명도(Android GROUND_LIGHT_OPACITY) + 지면 쪽 오프셋(GROUND_LIGHT_OFFSET_Y).
     static let groundLightOpacity = 0.30
     static let groundLightOffsetY = 8.0
+    /// 신규 별(24시간 이내) 오오라 — 좋아요 0개여도 옅게 발광(Android FRESH_WINDOW_MS / FRESH_AURA_OPACITY, 값 동일).
+    static let freshWindowMs: Int64 = 86_400_000
+    static let freshAuraOpacity = 0.16
 
     static let mint = UIColor(red: 0x6E / 255.0, green: 0xE7 / 255.0, blue: 0xB7 / 255.0, alpha: 1)
     static let brightLine = UIColor(red: 0xE6 / 255.0, green: 1.0, blue: 0xF4 / 255.0, alpha: 1)
@@ -161,8 +164,12 @@ extension MapLibreView.Coordinator {
         let aura = MLNCircleStyleLayer(identifier: StyleFx.auraLayerID, source: auraSource)
         aura.circleColor = auraColorExpr
         aura.circleRadius = radiusExpr([6: 2, 10: 6, 13: 14, 15: 26])
+        // 인기 곡선(sizeMult)과 신규 별 바닥값 중 큰 값 — Android auraOpacityExpression 패리티.
+        // fresh 는 숫자(1/0)로 넣는다(Bool↔NSNumber 비교 타입이 어긋나 항상 false 가 되는 일을 피하려고).
         aura.circleOpacity = NSExpression(mglJSONObject:
-            ["interpolate", ["linear"], ["get", "sizeMult"], 1, 0, 1.4, 0.12, 3, 0.42] as [Any])
+            ["max",
+             ["interpolate", ["linear"], ["get", "sizeMult"], 1, 0, 1.4, 0.12, 3, 0.42] as [Any],
+             ["*", ["get", "fresh"] as [Any], StyleFx.freshAuraOpacity] as [Any]] as [Any])
         aura.circleBlur = NSExpression(forConstantValue: 1.0)
         style.addLayer(aura)
 
@@ -282,14 +289,17 @@ extension MapLibreView.Coordinator {
         guard let style = styleRef,
               let src = style.source(withIdentifier: StyleFx.auraSourceID) as? MLNShapeSource
         else { return }
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
         let features: [MLNPointFeature] = (mapView.annotations ?? [])
             .compactMap { $0 as? DiaryAnnotation }
             .map { a in
                 let f = MLNPointFeature()
                 f.coordinate = a.coordinate
+                let fresh = nowMs - a.diary.createdAt <= StyleFx.freshWindowMs
                 f.attributes = [
                     "sizeMult": max(a.sizeMult, 1.0),
                     "auraColor": Self.starColorHex(a.diary.starColor),
+                    "fresh": fresh ? 1.0 : 0.0,
                 ]
                 return f
             }

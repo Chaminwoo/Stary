@@ -189,6 +189,20 @@ enum L10n: String {
     // 일일 알림(Android settings_daily_reminder* / daily_reminder_* 패리티).
     case settingsDailyReminder, settingsDailyReminderDesc
     case dailyReminderLunch, dailyReminderAfternoon, dailyReminderDinner, dailyReminderNight
+    /// 채팅 첫 대화 빈 화면(Android chat_empty — %@ = 상대 이름).
+    case chatEmpty
+    /// 모의 위치 감지 경고(Android location_mock_blocked).
+    case locationMockBlocked
+    /// 초대 리딤 결과(Android invite_* — MainScreen 토스트).
+    case inviteRedeemed, inviteAlready, inviteSelf, inviteTooOld, inviteFailed
+    /// 웰컴 별(Android coach_step_finish_tutorial / tutorial_star_*).
+    case coachStepFinishTutorial, tutorialStarTitle, tutorialStarMsg, tutorialStarConfirm
+    /// 공유 카드 편집/공유(Android share_edit_* / share_to_story / share_as_image / share_failed /
+    /// share_story_link_copied / share_diary_text(%@ = 링크)).
+    case shareDiaryWithLink, shareFailed, shareStoryLinkCopied, shareToStory, shareAsImage
+    case shareEditTitle, shareEditHint, shareEditFieldTitle
+    case shareEditShowMap, shareEditShowLocation, shareEditShowDate
+    case shareEditImportStars, shareEditStarSize, shareEditExtraStarSize, shareEditPickStar, shareEditNoStars
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -218,10 +232,10 @@ enum L10n: String {
         case .coachSkip:              return ("건너뛰기", "Skip", "スキップ")
         case .settingsDailyReminder:     return ("일일 알림", "Daily reminder", "デイリーリマインダー")
         case .settingsDailyReminderDesc: return ("매일 한 번, 점심부터 밤 10시 사이 랜덤한 시각에 기록을 권해드려요", "Once a day, at a random time between lunch and 10pm, we'll nudge you to jot something down", "毎日1回、お昼から夜10時の間のランダムな時間に記録をお勧めします")
-        case .dailyReminderLunch:     return ("오늘 점심은 무엇을 드셨나요?", "What did you have for lunch today? Record it on Stary", "今日のお昼は何を食べましたか?Staryに記録してみましょう")
+        case .dailyReminderLunch:     return ("오늘 점심은 무엇을 드셨나요? Stary에 기록해보세요", "What did you have for lunch today? Record it on Stary", "今日のお昼は何を食べましたか?Staryに記録してみましょう")
         case .dailyReminderAfternoon: return ("오늘 하루는 어떻게 보내고 계신가요? Stary에 기록해보세요", "How's your day going? Record it on Stary", "今日はどんな一日を過ごしていますか?Staryに記録してみましょう")
-        case .dailyReminderDinner:    return ("오늘 저녁 메뉴를 별 속에 남겨보세요?", "What did you have for dinner today? Record it on Stary", "今日の夕食は何を食べましたか?Staryに記録してみましょう")
-        case .dailyReminderNight:     return ("오늘 하루의 이야기를 별에 남겨보세요", "Leave today behind as a star", "今日を星ひとつに残してみましょう")
+        case .dailyReminderDinner:    return ("오늘 저녁은 무엇을 드셨나요? Stary에 기록해보세요", "What did you have for dinner today? Record it on Stary", "今日の夕食は何を食べましたか?Staryに記録してみましょう")
+        case .dailyReminderNight:     return ("오늘 하루를 별 하나에 남겨보세요", "Leave today behind as a star", "今日を星ひとつに残してみましょう")
         case .settingsAutosave:     return ("설정은 자동으로 저장돼요", "Settings are saved automatically", "設定は自動的に保存されます")
         case .languageDialogTitle:  return ("언어 선택", "Select language", "言語を選択")
         case .languageSystem:       return ("시스템 기본", "System default", "システムのデフォルト")
@@ -510,6 +524,53 @@ enum L10n: String {
         case .listEmptyUnviewed:    return ("안 본 별이 없어요. 모두 둘러봤네요!", "No unviewed stars — you've seen them all!", "未読の星はありません。全部見ましたね！")
         case .listEmpty:            return ("아직 별이 없어요. 첫 별을 남겨보세요.", "No stars yet. Leave your first one.", "まだ星がありません。最初の星を残しましょう。")
         case .listSortNearby:       return ("가까운순", "Nearest", "近い順")
+        case .chatEmpty:            return ("%@님과의 첫 메시지를 남겨보세요 ✦", "Send your first message to %@ ✦", "%@さんへ最初のメッセージを送りましょう ✦")
+        case .locationMockBlocked:  return ("모의 위치(위치 조작)가 감지되어 위치 기능이 제한돼요",
+                                            "Mock location detected — location features are limited",
+                                            "模擬位置（位置偽装）が検出されたため、位置機能を制限しています")
+        case .inviteRedeemed:       return ("초대 보상이 해금됐어요! 업적에서 새 칭호를 확인해 보세요",
+                                            "Invite reward unlocked! Check your new title in Achievements ✦",
+                                            "招待特典を獲得しました！実績で新しい称号を確認してください ✦")
+        case .inviteAlready:        return ("이미 초대를 사용한 계정이에요", "This account has already used an invite", "このアカウントはすでに招待を使用しています")
+        case .inviteSelf:           return ("자신의 초대 링크는 사용할 수 없어요", "You can't use your own invite link", "自分の招待リンクは使用できません")
+        case .inviteTooOld:         return ("초대 보상은 가입 7일 이내에만 받을 수 있어요",
+                                            "Invite rewards are only available within 7 days of signing up",
+                                            "招待特典は登録後7日以内のみ受け取れます")
+        case .inviteFailed:         return ("초대 확인에 실패했어요. 잠시 후 다시 시도해 주세요",
+                                            "Couldn't verify the invite. Please try again later",
+                                            "招待の確認に失敗しました。しばらくしてからお試しください")
+        case .coachStepFinishTutorial: return ("제가 근처에 별을 하나 만들었어요!\n눌러서 들여다보세요",
+                                               "I placed a star nearby!\nTap it to take a look",
+                                               "近くに星を一つ置いておきました!\nタップして覗いてみてください")
+        case .tutorialStarTitle:    return ("당신의 다이어리를 우주에, Stary", "Your diary into the universe, Stary", "あなたの日記を宇宙へ、Stary")
+        case .tutorialStarMsg:      return ("이렇게 별을 누르면 그 안에 담긴 이야기를 볼 수 있어요.\n\n열 수 있는 별은 100m 안에 있는 것뿐이니, 앞으로는 직접 걸어서 별을 찾아보세요.\n\n이 별은 안내용이라 확인하면 사라져요.",
+                                            "Tap a star like this to read the story inside.\n\nYou can only open stars within 100m, so go find them on foot from now on.\n\nThis one's just a guide — it'll disappear once you check it.",
+                                            "こうして星をタップすると、中に込められた物語が読めます。\n\n開けるのは100m以内の星だけなので、これからは歩いて星を探してみましょう。\n\nこの星は案内用なので、確認すると消えます。")
+        case .tutorialStarConfirm:  return ("확인", "Got it", "わかりました")
+        case .shareDiaryWithLink:   return ("제가 밤하늘에 별 하나를 남겼어요. Stary에서 함께 이 별을 열어보세요! \n%@",
+                                            "I left a star in the night sky. It only opens at that place ✦\n%@",
+                                            "夜空に星をひとつ残しました。この星はその場所でしか開けません ✦\n%@")
+        case .shareFailed:          return ("공유 준비에 실패했어요", "Couldn't prepare the share", "共有の準備に失敗しました")
+        case .shareStoryLinkCopied: return ("링크를 복사했어요 — 스토리에서 '링크 스티커'로 붙여넣으면 탭할 수 있어요",
+                                            "Link copied — paste it with the 'Link' sticker in your story to make it tappable",
+                                            "リンクをコピーしました — ストーリーの「リンク」スタンプで貼り付けるとタップできます")
+        case .shareToStory:         return ("SNS에 공유", "Share to Instagram Story", "Instagramストーリーズに共有")
+        case .shareAsImage:         return ("이미지로 공유", "Share as image", "画像として共有")
+        case .shareEditTitle:       return ("공유 카드 꾸미기", "Customize Share Card", "シェアカードを編集")
+        case .shareEditHint:        return ("별·제목·위치·날짜를 드래그해 자유롭게 배치해 보세요",
+                                            "Drag the star, title, location and date to place them freely",
+                                            "星・タイトル・場所・日付をドラッグして自由に配置できます")
+        case .shareEditFieldTitle:  return ("카드 제목", "Card title", "カードのタイトル")
+        case .shareEditShowMap:     return ("지도", "Map", "地図")
+        case .shareEditShowLocation: return ("위치", "Location", "場所")
+        case .shareEditShowDate:    return ("날짜", "Date", "日付")
+        case .shareEditImportStars: return ("내 다이어리에서 별 가져오기", "Add stars from my diary", "マイダイアリーから星を追加")
+        case .shareEditStarSize:    return ("별 크기", "Star size", "星の大きさ")
+        case .shareEditExtraStarSize: return ("선택한 별", "Selected star", "選択した星")
+        case .shareEditPickStar:    return ("가져올 별 선택", "Pick a star to add", "追加する星を選択")
+        case .shareEditNoStars:     return ("가져올 별이 없어요 — 다이어리를 먼저 남겨보세요",
+                                            "No stars yet — leave a diary first",
+                                            "追加できる星がありません — まずダイアリーを残しましょう")
         }
     }
 

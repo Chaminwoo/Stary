@@ -2,11 +2,10 @@
 
 Android: `feature/diary/screen/DetailScreen.kt`, `TutorialStarDetailScreen.kt`, `StarClusterScreen.kt`, `ShareCardEditor.kt`,
 `feature/diary/InteractionViewModel.kt`, `core/util/ShareCardHelper.kt`
-iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Map/StarClusterView.swift`.
-⚠️ **공유 카드(렌더+편집기+인스타 공유)는 iOS 에 아직 없다** — 아래 `ShareCard.swift` 언급은
-과거 계획 문서가 남긴 오기(실제로 그 파일은 존재하지 않는다, 2026-09 확인). `Features/Map/StarClusterView.swift`
-의 `ShareCardBackground` 는 겹친 별 카드 뷰어의 장식 배경으로 같은 이미지 파일만 재사용할 뿐,
-공유 카드 기능과는 무관하다. iOS TODO — PROJECT_NOTES.md 참고.
+iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `TutorialStarDetailScreen.swift`,
+`ShareCardEditorView.swift`, `Core/ShareCard.swift`, `Features/Map/StarClusterView.swift`.
+공유 카드는 2026-07-19 iOS 에서 한 번 제거(e6e438e)됐다가 **2026-09 사용자 결정으로 편집기까지 포함해 재구현**(아래 iOS 대응).
+배경 이미지 캐시 `ShareCardBackground` 는 여전히 `StarClusterView.swift` 에 있고 공유 카드/겹친 별 카드가 함께 쓴다.
 
 ---
 
@@ -49,7 +48,9 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Ma
   (나갈 때 지우면 퇴장 페이드 중 별이 뚝 사라지는 게 보인다).
 - ⚠️ 알려진 한계: 웰컴 별 30m 안에 실제 별이 있으면 30m 머지로 그 별 그룹에 흡수되고(0좋아요·최신이라 대표가 못 됨),
   겹친 별 카드 뷰어는 Firestore 에서 못 찾는 id 를 버리므로 웰컴 별을 열 수 없다.
-- iOS: 웰컴 별 기능 자체가 아직 없음(TODO).
+- iOS: `Features/Map/TutorialStarState.swift` + `Features/Detail/TutorialStarDetailScreen.swift` (같은 상수/40m 오프셋/
+  열리는 순간 소비). 분기는 `MapScreen` 의 상세 `navigationDestination`(id 비교). iOS 는 겹친 별 카드 뷰어가
+  Diary 를 그대로 받으므로 30m 머지에 흡수돼도 카드로 열린다(합성 다이어리에 제목을 채워 둔 이유).
 
 ## InteractionViewModel.kt — 좋아요/댓글
 - `isLiked` / `likeCount` : `FirebaseLikeRepository` 실시간 관찰(StateFlow).
@@ -91,10 +92,16 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `Features/Ma
   (12 문서의 id=nil 버그 참고).
 - `StarClusterView.swift` : 겹친 별 카드 뷰어(자체 뒤로가기, 내비바 숨김). 카드 탭 → pop 후 0.35s
   뒤 상세 push(애니메이션 겹침 방지).
-- **공유 카드(렌더/편집/인스타 공유) — 미구현.** Android `ShareCardEditor.kt`/`ShareCardHelper.kt`
-  전체에 대응하는 iOS 화면이 없다(DetailScreen 에 공유 버튼 자체가 없음). 만들려면 Android 쪽
-  렌더 파이프라인(배경 캐싱+지도 페더 마스크+텍스트 레이아웃+2026-09 다듬기 디테일)과 드래그 편집
-  UI(ShareCardEditor.kt)를 참고해 처음부터 구현해야 한다.
+- **공유 카드**: `Core/ShareCard.swift` = `ShareCardHelper.kt` 포팅(CoreGraphics, 1080×1920 픽셀 공간에서
+  **같은 좌표/알파/반경**) — 배경 늘려 채움 + 하단 스크림 + 무대 무드, 지도 타일 z4 스티칭 + 원형 페더(destinationIn)
+  + 이중 링, 히어로 별 이중 글로우(CG shadow) + `StarCrystal` + 스파클, 제목(투명 레이어 + sourceAtop 그라데이션,
+  `hangulWordPriority`), 위치 캡슐, 날짜, 비네트. `ShareCardOptions`/`ShareExtraStar` 필드·기본값 동일.
+  - 편집기 `ShareCardEditorView`(fullScreenCover): 드래그 대상 판정 반경·클램프 범위·추가 별 프리셋 동일,
+    드래그 중엔 재렌더 생략(점선 링만) + 60ms 스로틀 + `Task.detached` 렌더.
+  - 공유: 인스타 = `instagram-stories://share`(+`source_application`=Info.plist `INSTAGRAM_APP_ID`) + 페이스트보드
+    (배경 PNG, 앱 ID 있을 때만 contentURL, 링크 텍스트) + "링크 스티커로 붙여넣기" 안내 / 미설치 → `UIActivityViewController`.
+    `LSApplicationQueriesSchemes: instagram-stories` 필수(project.yml).
+  - ⚠️ 공유 본문은 `L10n.value(for:)` 원문 사용 — `LocaleManager.t` 는 한글에 U+2060 결합자를 넣어 다른 앱으로 나가면 안 된다.
 
 ### 값 조절(패리티 매핑)
 | 항목 | Android | iOS |

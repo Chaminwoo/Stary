@@ -25,6 +25,10 @@ struct MainOnboardingOverlay: View {
     let uploadCenter: CGPoint
     let menuCenter: CGPoint
 
+    /// 웰컴 별([TutorialStarState])이 아직 필요한 상태면 마지막 문구가 "근처에 별을 만들어 뒀다"로 바뀐다.
+    /// 이미 소비됐으면(도움말 다시 보기 재생 등) 기존 마무리 문구(Android tutorialNeeded 패리티).
+    var tutorialNeeded: Bool = false
+
     // MARK: - 종료
 
     let onDismiss: () -> Void
@@ -369,7 +373,7 @@ struct MainOnboardingOverlay: View {
             return LocaleManager.shared.t(.coachStepMenu)
 
         default:
-            return LocaleManager.shared.t(.coachStepFinish)
+            return LocaleManager.shared.t(tutorialNeeded ? .coachStepFinishTutorial : .coachStepFinish)
         }
     }
 

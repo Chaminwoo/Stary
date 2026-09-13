@@ -16,6 +16,8 @@ struct MapScreen: View {
     @EnvironmentObject var blocks: BlockStore
     @ObservedObject private var locale = LocaleManager.shared
     @ObservedObject private var focus = MapFocusStore.shared
+    /// 첫 실행 기기 전용 웰컴 별(Android TutorialStarState 패리티).
+    @ObservedObject private var tutorial = TutorialStarState.shared
     @State private var selected: Diary?
     /// 30m 안에서 겹친 별 무리(2개 이상) — 카드 뷰어 시트로 연다.
     @State private var cluster: ClusterSelection?
@@ -86,6 +88,8 @@ struct MapScreen: View {
         if myOnly { list = list.filter { $0.userId == auth.uid } }
         if !selectedFriendIds.isEmpty { list = list.filter { selectedFriendIds.contains($0.userId) } }
         if let cutoff = periodCutoffMs { list = list.filter { $0.createdAt >= cutoff } }
+        // 웰컴 별 — 서버에 없는 합성 다이어리라 필터와 무관하게 맨 뒤에 덧붙인다(Android mapDiaries 동일).
+        if let t = tutorial.diary { list.append(t) }
         return list
     }
 
@@ -442,7 +446,14 @@ struct MapScreen: View {
         .navigationDestination(isPresented: Binding(
             get: { selected != nil }, set: { if !$0 { selected = nil } }
         )) {
-            if let d = selected { DetailScreen(diary: d) }
+            if let d = selected {
+                // 웰컴 별 — Firestore 를 타는 DetailScreen 대신 게시물형 튜토리얼 화면(Android NavGraph 분기 패리티).
+                if d.id == TutorialStarState.diaryId {
+                    TutorialStarDetailScreen()
+                } else {
+                    DetailScreen(diary: d)
+                }
+            }
         }
         // 겹친 별 카드 뷰어 — 전체 화면 push(NavRoute.StarCluster 대응). 카드 탭 → 그 별의 상세로 이어서.
         .navigationDestination(isPresented: Binding(
@@ -465,6 +476,15 @@ struct MapScreen: View {
         .onChange(of: focus.pendingDiaryId) { id in
             handleFocus(id)
         }
+        // 웰컴 별 배치 — 실제 위치 fix 가 오면 그 근방에 1회(이미 놨거나 끝났으면 무시). Publisher 는 구독 시
+        // 현재 값도 주므로 이미 fix 가 있는 상태로 지도가 떠도 바로 놓인다.
+        .onReceive(location.$coordinate) { c in
+            if let c { tutorial.ensurePlaced(near: c) }
+        }
+        // 모의 위치 감지 시 1회 경고 — 조작된 좌표는 LocationManager 가 이미 거부한다(Android MainListScreen 패리티).
+        .onChange(of: location.mockDetected) { detected in
+            if detected { showToast(locale.t(.locationMockBlocked)) }
+        }
         // 다른 탭에서 길찾기 요청 → 지도 탭으로 전환되며 나타날 때 처리(숨김 동안 onChange 미수신 대비).
         .onAppear {
             // 하위 화면 → 지도(루트) 복귀: NavigationStack 루트는 파괴되지 않으므로(지도 유지)
@@ -473,6 +493,10 @@ struct MapScreen: View {
             // (Android MainScreen 라우트 전환 재센터 패리티)
             if rootAppearedOnce, focus.pendingDiaryId == nil, fullRoute.isEmpty {
                 recenterNonce += 1
+            }
+            // 지도가 뜨기 전에 이미 감지돼 있었으면 onChange 가 안 오므로 최초 1회만 여기서 안내.
+            if !rootAppearedOnce, location.mockDetected {
+                showToast(locale.t(.locationMockBlocked))
             }
             rootAppearedOnce = true
             handleFocus(focus.pendingDiaryId)

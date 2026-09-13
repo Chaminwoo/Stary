@@ -19,22 +19,53 @@ enum InviteStore {
         Task { await redeemPendingIfPossible(uid: AuthManager.appUserId(of: Auth.auth().currentUser)) }
     }
 
-    /// 보관된 초대를 리딤(로그인 상태일 때만 소비). 실패는 조용히 무시.
+    /// 리딤 결과 — Android `FirebaseInviteRepository.RedeemResult` 와 같은 5가지.
+    enum RedeemResult {
+        case success, already, isSelf, tooOld, failed
+
+        /// 결과 안내 문구 키(Android MainScreen 의 invite_* 토스트 매핑 동일).
+        var messageKey: L10n {
+            switch self {
+            case .success: return .inviteRedeemed
+            case .already: return .inviteAlready
+            case .isSelf:  return .inviteSelf
+            case .tooOld:  return .inviteTooOld
+            case .failed:  return .inviteFailed
+            }
+        }
+    }
+
+    /// 보관된 초대를 리딤(로그인 상태일 때만 소비)하고 결과를 전역 토스트로 안내한다(Android 패리티 —
+    /// 예전 iOS 는 결과를 조용히 버렸다). 보관된 초대가 없거나 비로그인이면 아무것도 안 한다.
     static func redeemPendingIfPossible(uid: String?) async {
         guard let uid, !uid.isEmpty, let inviter = pendingInviterId else { return }
         pendingInviterId = nil
-        guard inviter != uid else { return }
+        let result = await redeem(inviterId: inviter, redeemerId: uid)
+        await MainActor.run {
+            GlobalToast.shared.show(LocaleManager.shared.t(result.messageKey))
+        }
+    }
+
+    /// 초대 리딤 — 판정 순서까지 Android `redeem()` 과 동일(본인 → 가입 기간 → 이미 리딤 → 기록).
+    private static func redeem(inviterId: String, redeemerId: String) async -> RedeemResult {
+        guard !inviterId.isEmpty, !redeemerId.isEmpty else { return .failed }
+        guard inviterId != redeemerId else { return .isSelf }
         if let created = Auth.auth().currentUser?.metadata.creationDate,
            Date().timeIntervalSince(created) * 1000 > Double(AppConfig.inviteRedeemWindowMs) {
-            return
+            return .tooOld
         }
-        let doc = FirestoreService.invites.document(uid)
-        if let snap = try? await doc.getDocument(), snap.exists { return } // 이미 리딤
-        try? await doc.setData([
-            "inviterId": inviter,
-            "redeemerId": uid,
-            "createdAt": FirestoreService.nowMillis,
-        ])
+        let doc = FirestoreService.invites.document(redeemerId)
+        do {
+            if try await doc.getDocument().exists { return .already }
+            try await doc.setData([
+                "inviterId": inviterId,
+                "redeemerId": redeemerId,
+                "createdAt": FirestoreService.nowMillis,
+            ])
+            return .success
+        } catch {
+            return .failed
+        }
     }
 
     /// 업적 통계용 일회 조회 — (내가 초대해 가입시킨 수, 내가 리딤했는지).

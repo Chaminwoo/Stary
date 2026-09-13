@@ -35,20 +35,38 @@ struct ChatScreen: View {
         //    키보드 영역까지 키워서, 입력 바가 키보드 **뒤**에 깔린 채 올라오지 않았다(#5).
         //    .background 로 넣으면 배경은 화면 끝까지 그려지되 레이아웃(키보드 회피)에는 관여하지 않는다.
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(vm.messages) { msg in
-                            bubble(msg)
-                                .id(msg.id)
+            if vm.messages.isEmpty {
+                // 첫 대화 안내 — Android ChatScreen 의 StaryEmptyState(4꼭지 스파클 · 민트) 패리티.
+                StaryEmptyState(
+                    title: String(format: locale.t(.chatEmpty),
+                                  shownName.isEmpty ? locale.t(.commonFriend) : shownName),
+                    starType: 0,
+                    starColorIndex: 9
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(vm.messages) { msg in
+                                bubble(msg)
+                                    .id(msg.id)
+                            }
+                        }
+                        .padding(12)
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    // 빈 화면 → 목록으로 바뀌며 새로 생긴 ScrollView 는 0→N 변화를 못 보므로 등장 시 한 번 맨 아래로.
+                    .onAppear {
+                        // 레이아웃이 잡힌 다음 프레임에 스크롤(같은 프레임이면 LazyVStack 이 아직 비어 무시될 수 있다).
+                        DispatchQueue.main.async {
+                            if let last = vm.messages.last?.id { proxy.scrollTo(last, anchor: .bottom) }
                         }
                     }
-                    .padding(12)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .onChange(of: vm.messages.count) { _ in
-                    if let last = vm.messages.last?.id {
-                        withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+                    .onChange(of: vm.messages.count) { _ in
+                        if let last = vm.messages.last?.id {
+                            withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+                        }
                     }
                 }
             }

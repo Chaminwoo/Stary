@@ -260,10 +260,107 @@ struct SettingsScreen: View {
                     .padding(.horizontal, 12).padding(.vertical, 4)
                     .background(enabled ? Theme.navyAccent.opacity(0.14) : Color.white.opacity(0.05), in: Capsule())
             }
-            Slider(value: Binding(get: { Double(value) }, set: { onChange(Float($0)) }), in: 0...1)
-                .tint(Theme.navyAccent)
-                .disabled(!enabled)
+            StarVolumeSlider(value: value, enabled: enabled, onChange: onChange)
         }
         .padding(.vertical, 12)
+    }
+}
+
+/// 음량 슬라이더 — Android SettingsScreen `Slider(thumb = StarThumb, track = 그라데이션)` 패리티.
+/// SwiftUI `Slider` 는 thumb 를 바꿀 수 없어 직접 그린다(트랙/색/크기 값은 Android 와 동일).
+private struct StarVolumeSlider: View {
+    let value: Float
+    let enabled: Bool
+    let onChange: (Float) -> Void
+
+    @State private var dragging = false
+
+    /// Android StarThumb Box 40dp / 트랙 6dp.
+    private let thumbSize: CGFloat = 40
+    private let trackHeight: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { geo in
+            // thumb 중심이 트랙 양 끝(반지름만큼 안쪽) 사이를 오간다.
+            let usable = max(geo.size.width - thumbSize, 1)
+            let frac = CGFloat(min(max(value, 0), 1))
+            let thumbX = thumbSize / 2 + usable * frac
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(enabled ? Color(hex: 0x111726) : Color(hex: 0x0D1220))
+                    .frame(width: usable, height: trackHeight)
+                    .offset(x: thumbSize / 2)
+                if frac > 0 {
+                    Capsule()
+                        .fill(Self.activeFill(enabled))
+                        .frame(width: usable * frac, height: trackHeight)
+                        .offset(x: thumbSize / 2)
+                }
+                StarThumb(enabled: enabled, active: dragging)
+                    .position(x: thumbX, y: geo.size.height / 2)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { g in
+                        guard enabled else { return }
+                        if !dragging { dragging = true }
+                        let f = (g.location.x - thumbSize / 2) / usable
+                        onChange(Float(min(max(f, 0), 1)))
+                    }
+                    .onEnded { _ in dragging = false }
+            )
+        }
+        .frame(height: thumbSize)
+        .accessibilityElement()
+        .accessibilityValue("\(Int(value * 100))%")
+        .accessibilityAdjustableAction { direction in
+            guard enabled else { return }
+            switch direction {
+            case .increment: onChange(min(value + 0.1, 1))
+            case .decrement: onChange(max(value - 0.1, 0))
+            @unknown default: break
+            }
+        }
+    }
+
+    /// 활성 트랙 — 파랑→남색 그라데이션(Android AccentBrush), 비활성은 회남색 단색.
+    /// 그라데이션과 단색은 타입이 달라 `AnyShapeStyle` 로 지운다(ChatScreen bubbleFill 과 같은 이유).
+    private static func activeFill(_ enabled: Bool) -> AnyShapeStyle {
+        enabled
+            ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x3B82F6), Color(hex: 0x1E3A8A)],
+                                           startPoint: .leading, endPoint: .trailing))
+            : AnyShapeStyle(Color(hex: 0x3A434F))
+    }
+}
+
+/// 슬라이더 핸들 — 5꼭지 크리스탈 별 + 후광. 누르거나 끄는 동안 1.3배 확대·발광(Android StarThumb 패리티).
+private struct StarThumb: View {
+    let enabled: Bool
+    let active: Bool
+
+    var body: some View {
+        let accent = Theme.navyAccent
+        // Android glowAlpha: 비활성 0 / 누름·드래그 0.9 / 평상시 0.4.
+        let glow: Double = !enabled ? 0 : (active ? 0.9 : 0.4)
+        let starColor = enabled ? accent : Color(hex: 0x555555)
+        ZStack {
+            Circle()
+                .fill(RadialGradient(colors: [accent.opacity(glow), accent.opacity(glow * 0.35), .clear],
+                                     center: .center, startRadius: 0, endRadius: 20))
+            Canvas { ctx, size in
+                ctx.withCGContext { cg in
+                    StarCrystal.draw(in: cg, type: 1, colors: [UIColor(starColor)],
+                                     rect: CGRect(origin: .zero, size: size))
+                }
+            }
+            .frame(width: 22, height: 22)
+        }
+        .frame(width: 40, height: 40)
+        .scaleEffect(enabled && active ? 1.3 : 1)
+        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: active)
+        .animation(.easeOut(duration: 0.2), value: enabled)
+        .allowsHitTesting(false)
     }
 }

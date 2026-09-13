@@ -21,6 +21,8 @@ struct DetailScreen: View {
     @State private var showLoginRequired = false
     /// 사진/움짤/영상 전체화면 보기.
     @State private var showFullMedia = false
+    /// 공유 카드 편집 화면.
+    @State private var showShareEditor = false
     // 내 글 수정/삭제(Android 인라인 수정·삭제 대응). 수정 결과는 로컬 오버라이드로 즉시 반영.
     @Environment(\.dismiss) private var dismiss
     @State private var showEditDialog = false
@@ -372,7 +374,18 @@ struct DetailScreen: View {
                 guard auth.uid != nil else { showLoginRequired = true; return }
                 Task { await vm.toggleLike(uid: auth.uid, userName: auth.displayName) }
             }
-            // (공유 기능은 iOS 에서 제거됨 — 사용자 지시)
+            // 공유 → 공유 카드 편집 화면(Android ShareDiaryButton → ShareCardEditorDialog 패리티).
+            // (2026-07-19 에 한 번 제거했다가 2026-09 사용자 결정으로 편집기까지 포함해 재구현)
+            Button { showShareEditor = true } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel(LocaleManager.shared.t(.shareDiary))
+            .fullScreenCover(isPresented: $showShareEditor) {
+                ShareCardEditorView(diary: diary, myUid: auth.uid)
+            }
             Spacer()
             if isOwner {
                 Button(LocaleManager.shared.t(.commonEdit)) {

@@ -62,6 +62,12 @@ targets:
         # MapTiler 벡터 타일 키(야경 커스텀 스타일용 — Android secrets.properties 의 MAPTILER_KEY 와 동일 값).
         # 빈 값이면 지도는 키 불필요한 데모 스타일로 폴백.
         MAPTILER_KEY: $(MAPTILER_KEY)
+        # 인스타 스토리 공유의 source_application(Meta 앱 ID) — Android secrets.properties INSTAGRAM_APP_ID 와 같은 값.
+        # 빈 값이면 링크 스티커 자동 부착 없이 배경 이미지만 넘긴다(Android 와 동일 정책).
+        INSTAGRAM_APP_ID: $(INSTAGRAM_APP_ID)
+        # 인스타 설치 여부 확인(canOpenURL)에 필요 — 없으면 항상 false 가 나와 일반 공유로만 빠진다.
+        LSApplicationQueriesSchemes:
+          - instagram-stories
         # 커스텀 폰트(Android Type.kt 와 동일) — 영문 타이틀 PoetsenOne, 한글 본문/UI MinSans(가변).
         UIAppFonts:
           - poetsen_one_regular.ttf
@@ -114,6 +120,8 @@ targets:
         ORS_API_KEY: ""
         # MapTiler 키 placeholder(실제 값은 CI/xcconfig/Xcode 빌드 설정으로 주입 — 커밋 금지)
         MAPTILER_KEY: ""
+        # Meta(인스타) 앱 ID placeholder(실제 값은 CI/xcconfig 로 주입 — 커밋 금지)
+        INSTAGRAM_APP_ID: ""
         # KMP 공유 정적 프레임워크(embedAndSignAppleFrameworkForXcode 산출 경로)
         FRAMEWORK_SEARCH_PATHS:
           - $(inherited)

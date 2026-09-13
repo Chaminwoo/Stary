@@ -153,6 +153,8 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   `fresh` = `createdAt` 로부터 `FRESH_WINDOW_MS`(24시간) 이내인지 — `auraOpacityExpression()` 이 인기(sizeMult)
   곡선과 fresh 바닥값(`FRESH_AURA_OPACITY`) 중 **더 큰 값**을 써서, 좋아요 0개인 신규 별도 옅게 오오라가 켜진다
   (업적 리빌의 발광 톤을 정적으로 차용 — 회전 등 모션은 추가하지 않음, 2026-09-09).
+  iOS: `MapStyleEffects.swift` `StyleFx.freshWindowMs`/`freshAuraOpacity`(값 동일) — fresh 는 **숫자 1/0** 속성으로 넣고
+  `["max", 인기 보간, ["*", ["get","fresh"], 0.16]]` 로 계산(Bool↔NSNumber 비교 불일치 회피).
 - `sparkleOffsetExpression` / `orbitOffsetExpression` : dp → 스프라이트 px 환산(밀도 무관 배치의 핵심).
 - `buildConstellationFeatures` : 뷰포트 별 최근접 연결 라인 생성.
 - `rememberMapViewWithLifecycle()` : ⚠️ `MapLibre.getInstance` 는 MapView 생성 전 1회 필수.

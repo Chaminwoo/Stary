@@ -82,8 +82,10 @@ struct MainTabView: View {
     @State private var coachUploadCenter: CGPoint = .zero
     @State private var coachMenuCenter: CGPoint = .zero
     
+    /// 첫 실행 코치마크 표시 여부. 자동 표시는 [maybeStartCoachMark] 가 로그인 상태 + 미열람일 때 켠다.
+    /// (예전엔 초기값에서 바로 켜다가 버튼 좌표가 잡히기 전에 떠서 꺼 뒀었다 — 지금은 오버레이가 좌표 변화를
+    ///  onChange 로 따라가고, 켜는 시점도 레이아웃 뒤로 미뤄 Android 처럼 첫 로그인 때 자동으로 뜬다.)
     @State private var showCoachMark = false
-    //@State private var showCoachMark = !UserDefaults.standard.bool(forKey: "main_coach_seen") 임시로 일단 지워둠
     /// 설정 > "도움말 다시 보기" 브리지(Android OnboardingReplayState 패리티).
     @ObservedObject private var onboardingReplay = OnboardingReplayState.shared
 
@@ -156,7 +158,9 @@ struct MainTabView: View {
 
                         uploadCenter: coachUploadCenter,
 
-                        menuCenter: coachMenuCenter
+                        menuCenter: coachMenuCenter,
+
+                        tutorialNeeded: !TutorialStarState.shared.done
 
                     ) {
 
@@ -193,6 +197,8 @@ struct MainTabView: View {
                 if let d = diaryTarget { DetailScreen(diary: d) }
             }
         }
+        // 전역 토스트(Android StaryToastHost) — NavigationStack 바깥이라 push 된 화면 위에도 보인다.
+        .overlay { GlobalToastHost() }
 
         // 길찾기/포커스 요청 → 전부 pop 하고 지도(루트)로 (Android popUpTo Main 대응).
         .onChange(of: focus.pendingDiaryId) { id in
@@ -268,6 +274,7 @@ struct MainTabView: View {
             loadFriendsCount()
             // 푸시 권한 요청 + fcmToken 기록(= 서버 발송 대상 등록). Android 로그인 직후 동작과 동일.
             PushManager.shared.setUser(auth.uid)
+            maybeStartCoachMark()
         }
         .onChange(of: auth.uid) { newUid in
             store.startIfNeeded(uid: newUid)
@@ -284,6 +291,8 @@ struct MainTabView: View {
 
             // 로그인 전에 들어온 친구 초대 딥링크가 있으면 이제 리딤(체크리스트 31).
             Task { await InviteStore.redeemPendingIfPossible(uid: newUid) }
+            // 둘러보기 → 로그인한 경우에도 첫 코치마크(Android: userId != null 이 되는 순간 표시).
+            maybeStartCoachMark()
         }
         // 업적 해금 감시 — 내 통계(작성/좋아요/조회/친구/열람) 변화마다 재계산(내 것만 반영하는 Int 시그니처).
         .onChange(of: achievementSignature) { _ in syncAchievements() }
@@ -577,6 +586,23 @@ struct MainTabView: View {
             }
         }
         .staryContentWidth()
+    }
+
+    /// 첫 로그인 코치마크 자동 표시 — Android MainScreen 조건과 동일(로그인 + main_coach_seen 미기록 + 지도 화면).
+    /// 버튼 좌표(PreferenceKey/GeometryReader)가 첫 레이아웃 뒤에 들어오므로 잠깐 미뤄 켠다 —
+    /// 좌표가 그보다 늦게 와도 오버레이가 onChange 로 스포트라이트를 옮긴다.
+    private func maybeStartCoachMark() {
+        guard auth.uid != nil, !showCoachMark,
+              !UserDefaults.standard.bool(forKey: "main_coach_seen") else { return }
+        // DispatchQueue 클로저는 격리가 없어 @MainActor 객체(auth) 접근이 에러가 될 수 있다 → 메인 액터 Task.
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            // 그사이 로그아웃/다른 화면 진입/이미 표시됨이면 건너뛴다.
+            guard auth.uid != nil, !showCoachMark, path.isEmpty,
+                  chatTarget == nil, diaryTarget == nil,
+                  !UserDefaults.standard.bool(forKey: "main_coach_seen") else { return }
+            showCoachMark = true
+        }
     }
 
     private func startWatcher() {

@@ -136,7 +136,9 @@ iOS: `Features/Music/MusicScreen.swift`, `Features/Profile/SettingsScreen.swift`
 - 행/빈 화면/문구는 Android 와 동일. 해제는 `.alert(presenting:)` 확인 후 `ModerationRepository.unblock`.
 - 문구는 `L10n` 의 `navBlockedUsers`/`settingsSafety`/`settingsBlockedUsers(Desc)`/`blockedEmpty(Desc)`/
   `blockedHint`/`blockedAtFormat`/`blockConfirmTitle`/`blockConfirmMsg`/`unblockConfirmMsg`.
-- 볼륨 슬라이더는 시스템 Slider + navyAccent 틴트(별 thumb 는 Android 전용 — iOS TODO).
+- 볼륨 슬라이더 = 커스텀 `StarVolumeSlider`(SettingsScreen.swift private) — SwiftUI `Slider` 는 thumb 를 못 바꿔서 직접 그린다.
+  Android `StarThumb` 과 같은 값: 핸들 40pt(5꼭지 크리스탈 별 22pt, navyAccent / 비활성 0x555555), 후광 0.4 / 누름 0.9 / 비활성 0,
+  누름 1.3배, 트랙 6pt(0x111726 / 비활성 0x0D1220), 채움 파랑→남색(비활성 0x3A434F).
 
 ### AppSettings.swift / LocaleManager.swift
 - `AppSettings.shared.notificationsEnabled` : Android 와 같은 의미(UserDefaults 영속).
