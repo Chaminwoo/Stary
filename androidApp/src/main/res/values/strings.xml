@@ -125,8 +125,18 @@
     <string name="cd_send">전송</string>
     <string name="toast_comment_added">댓글을 남겼어요</string>
     <string name="toast_comment_deleted">댓글을 삭제했어요</string>
-    <string name="detail_interaction_locked">100m 이내에서 좋아요와 댓글을 남길 수 있어요</string>
     <string name="detail_locating">위치를 확인하는 중이에요…</string>
+    <!-- 100m 밖 게시물 잠금(2026-09-21) — 제목만 보이고 미디어/본문/댓글은 100m 접근 또는 광고로 열린다 -->
+    <string name="detail_locked_title">아직 잠겨 있는 이야기예요</string>
+    <string name="detail_locked_desc">사진과 이야기, 댓글은 %1$dm 이내로 다가가거나
+광고를 보면 볼 수 있어요</string>
+    <string name="detail_locked_media">가까이 가거나 광고를 보면 공개돼요</string>
+    <string name="detail_locked_distance">현재 %1$s 거리</string>
+    <string name="detail_watch_ad">광고 보고 열람하기</string>
+    <string name="detail_ad_playing">광고 재생 중…</string>
+    <string name="detail_ad_unlocked">이야기가 열렸어요</string>
+    <string name="detail_ad_not_finished">광고를 끝까지 봐야 열려요</string>
+    <string name="detail_ad_unavailable">지금은 광고를 불러올 수 없어요. 잠시 후 다시 시도해 주세요</string>
     <string name="detail_load_failed">다이어리를 불러올 수 없어요</string>
     <string name="cd_photo_original">사진 원본</string>
 
@@ -241,8 +251,6 @@
     <string name="map_constellation">별자리</string>
     <string name="map_only">지도만 보기</string>
     <string name="cd_create_diary">다이어리 생성</string>
-    <string name="map_open_range">%1$dm 이내에 있어야 열람할 수 있어요 \n(현재 %2$s)</string>
-    <string name="map_waiting_fix">현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요</string>
     <string name="share_diary">공유</string>
     <string name="share_to_story">SNS에 공유</string>
     <string name="share_as_image">이미지로 공유</string>
@@ -286,8 +294,6 @@
     <string name="nearby_star_title">근처에 아직 안 본 별이 있어요 ✦</string>
     <string name="nearby_star_body">약 %1$dm 앞 — 탭하면 지도에서 보여드릴게요</string>
     <string name="location_mock_blocked">모의 위치(위치 조작)가 감지되어 위치 기능이 제한돼요</string>
-    <string name="map_route_summary">도보 약 %1$d분 · %2$s</string>
-    <string name="map_route_cancel">길찾기 취소</string>
     <string name="globe_hint">드래그로 회전 · 아래를 탭해 닫기</string>
     <string name="globe_open">우주에서 보기</string>
     <string name="globe_close">지도로 돌아가기</string>

@@ -12,6 +12,8 @@ struct DetailScreen: View {
     @ObservedObject private var focus = MapFocusStore.shared
     // 작성자/댓글 이름·프사를 users/{uid} 의 "현재" 값으로 표시(스냅샷 아님) — Android UserDirectory 패리티.
     @ObservedObject private var directory = UserDirectory.shared
+    @ObservedObject private var adUnlock = AdUnlockStore.shared
+    @ObservedObject private var ads = AdsManager.shared
     @State private var didCountView = false
     @State private var commentText = ""
     @State private var profileTarget: ProfileTarget?
@@ -59,9 +61,16 @@ struct DetailScreen: View {
     }
 
     private var isOwner: Bool { diary.userId == auth.uid }
-    /// 실제 위치 fix(coordinate != nil) 전에는 열람 불가 — 기본좌표/저장좌표로 100m 판정하면
-    /// 이동·조작으로 우회될 수 있다(체크리스트 29, Android DiaryMap 게이팅 패리티).
-    private var canOpen: Bool { isOwner || (location.coordinate != nil && distanceM <= AppConfig.diaryOpenRadiusM) }
+    /// ── 열람 잠금(2026-09-21) ────────────────────────────────────────────────
+    /// 예전엔 100m 밖이면 지도에서 **진입 자체가 막혔다**. 이제는 누구나 들어와서 **제목까지** 보고,
+    /// 사진/본문/댓글은 ① 100m 이내 접근 ② 보상형 광고 시청 중 하나로 연다(내 글은 항상 열림).
+    /// 실제 위치 fix(coordinate != nil) 전에는 거리 판정을 하지 않는다 — 기본좌표/저장좌표로
+    /// 100m 을 재면 이동·조작으로 우회될 수 있다. (Android DetailScreen 패리티)
+    private var canOpen: Bool {
+        isOwner
+            || (location.coordinate != nil && distanceM <= AppConfig.diaryOpenRadiusM)
+            || (diary.id.map { adUnlock.isUnlocked($0) } ?? false)
+    }
     /// 차단한 사용자의 댓글은 숨긴다. (Android DetailScreen 패리티)
     private var visibleComments: [Comment] { vm.comments.filter { !blockedIds.contains($0.userId) } }
 
@@ -80,15 +89,13 @@ struct DetailScreen: View {
                             .font(.minSans(24, .semibold))
                             .foregroundStyle(Theme.textPrimary)
                         Spacer().frame(height: 16)
-                        bodyCard
+                        if canOpen { bodyCard } else { lockedContentCard }
                         Spacer().frame(height: 20)
                         if canOpen {
                             interactionRow
                             Divider().overlay(Theme.outline)
                             Spacer().frame(height: 16)
                             commentsSection
-                        } else {
-                            lockedNotice
                         }
                         Spacer().frame(height: 40)
                     }
@@ -275,9 +282,10 @@ struct DetailScreen: View {
 
     @ViewBuilder
     private var headerMedia: some View {
-        // ⚠️ 미디어는 게이팅 없이 표시(Android 헤더 동일) — 100m 게이트는 지도 탭 진입에서,
-        // 본문/상호작용 게이트는 canOpen 으로 각각 적용된다.
-        if !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
+        // ⚠️ 잠겨 있으면 원본 URL 을 **로드조차 하지 않는다** — 가리기만 하면 캐시/전체화면으로 새어나간다.
+        if !canOpen {
+            lockedHero
+        } else if !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
             // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 는 아래 플레이어)
             MediaLoadingFrame(loaded: mediaLoaded) {
                 RemoteGifView(
@@ -408,20 +416,89 @@ struct DetailScreen: View {
         .padding(.bottom, 8)
     }
 
-    /// 100m 밖 상호작용 잠금 안내 — Android 잠금 pill 대응.
-    private var lockedNotice: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "location")
-                .font(.system(size: 15)).foregroundStyle(Theme.textSecondary)
-            Text(location.coordinate == nil
-                 ? LocaleManager.shared.t(.detailLocating)
-                 : String(format: LocaleManager.shared.t(.mapOpenRange),
-                          Int(AppConfig.diaryOpenRadiusM), Geo.formatDistance(distanceM)))
-                .font(.minSans(13)).foregroundStyle(Theme.textSecondary)
+    /// 잠긴 글의 히어로(4:3) — 사진 대신 자물쇠 판. (Android `LockedHero` 패리티)
+    private var lockedHero: some View {
+        ZStack {
+            if let frame = BundleImage.named("image_frame") {
+                Image(uiImage: frame).resizable().scaledToFill()
+            } else {
+                Theme.surfaceAlt
+            }
+            LinearGradient(colors: [Color(hex: 0x0B0E14).opacity(0.90),
+                                    Color(hex: 0x0B0E14).opacity(0.95)],
+                           startPoint: .top, endPoint: .bottom)
+            VStack(spacing: 10) {
+                Image(systemName: "lock")
+                    .font(.system(size: 30))
+                    .foregroundStyle(accent.opacity(0.85))
+                Text(LocaleManager.shared.t(.detailLockedMedia))
+                    .font(.minSans(13))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        }
+    }
+
+    /// 잠긴 글의 본문 자리 — 왜 잠겼는지 + 여는 두 가지 방법(100m 접근 / 보상형 광고).
+    /// 광고 SDK 가 아직 안 붙은 동안에는(`AdsManager.isConfigured == false`) 버튼을 숨긴다.
+    /// (Android `LockedContentCard` 패리티)
+    private var lockedContentCard: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "lock")
+                .font(.system(size: 20))
+                .foregroundStyle(accent.opacity(0.9))
+            Text(LocaleManager.shared.t(.detailLockedTitle))
+                .font(.minSans(15, .semibold))
+                .foregroundStyle(Theme.textPrimary)
+            Text(String(format: LocaleManager.shared.t(.detailLockedDesc),
+                        Int(AppConfig.diaryOpenRadiusM)))
+                .font(.minSans(13))
+                .lineSpacing(6)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Theme.textSecondary)
+            HStack(spacing: 6) {
+                Image(systemName: "location")
+                    .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                Text(location.coordinate == nil
+                     ? LocaleManager.shared.t(.detailLocating)
+                     : String(format: LocaleManager.shared.t(.detailLockedDistance),
+                              Geo.formatDistance(distanceM)))
+                    .font(.minSans(12.5)).foregroundStyle(Theme.textSecondary)
+            }
+            if ads.isConfigured {
+                Button {
+                    guard let id = diary.id else { return }
+                    ads.showRewarded { rewarded in
+                        if rewarded { AdUnlockStore.shared.unlock(id) }
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.circle").font(.system(size: 16))
+                        Text(LocaleManager.shared.t(ads.showing ? .detailAdPlaying : .detailWatchAd))
+                            .font(.minSans(14))
+                    }
+                    .foregroundStyle(accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(accent.opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(accent.opacity(0.40), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(ads.showing)
+                .padding(.top, 6)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(14)
-        .background(Theme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
+        .padding(18)
+        .background(Color(hex: 0x14181C).opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16).strokeBorder(
+                LinearGradient(colors: [accent.opacity(0.45), accent.opacity(0.15)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing),
+                lineWidth: 1
+            )
+        )
+        .onAppear { ads.preload() }
     }
 
     private var commentsSection: some View {
@@ -552,6 +629,8 @@ private struct CommentAvatar: View {
     let userId: String
     let userName: String
     @ObservedObject private var directory = UserDirectory.shared
+    @ObservedObject private var adUnlock = AdUnlockStore.shared
+    @ObservedObject private var ads = AdsManager.shared
     @State private var thumb: UIImage?
 
     private var initial: String {

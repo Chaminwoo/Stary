@@ -25,9 +25,15 @@ val googleWebClientId: String = secretsProps.getProperty("GOOGLE_WEB_CLIENT_ID")
     ?: "TODO_ADD_GOOGLE_WEB_CLIENT_ID"
 val maptilerKey: String = secretsProps.getProperty("MAPTILER_KEY")
     ?: "TODO_ADD_MAPTILER_KEY"
-// OpenRouteService 도보 길찾기 키(무료 발급). 없으면 placeholder → 빌드는 되나 경로 호출은 401.
-val orsApiKey: String = secretsProps.getProperty("ORS_API_KEY")
-    ?: "TODO_ADD_ORS_API_KEY"
+// Unity Ads(보상형 광고) — Unity Dashboard > Monetization 에서 발급하는 Android 게임 ID.
+// 없으면 placeholder → 빌드는 되지만 광고는 자동 비활성(UnityAdsManager.isConfigured=false).
+val unityGameIdAndroid: String = secretsProps.getProperty("UNITY_GAME_ID_ANDROID")
+    ?: "TODO_ADD_UNITY_GAME_ID_ANDROID"
+// 보상형 광고 배치(Placement) ID. Unity 기본 보상형 배치 이름이 'Rewarded_Android' 라 그것을 기본값으로.
+val unityRewardedPlacement: String = secretsProps.getProperty("UNITY_REWARDED_PLACEMENT")
+    ?: "Rewarded_Android"
+// 광고 테스트 모드(true 면 항상 테스트 광고). 스토어 배포 전엔 반드시 false.
+val unityAdsTestMode: String = secretsProps.getProperty("UNITY_ADS_TEST_MODE") ?: "true"
 // 인스타그램 스토리 공유 링크스티커(content_url) 귀속용 Facebook App ID.
 // 없으면 빈 값 → 스토리에 카드 이미지는 올라가나 자동 링크스티커는 붙지 않는다(수동 추가 필요).
 // 발급: developers.facebook.com → 앱 생성 → 앱 ID. iOS 도 동일 값 사용.
@@ -54,18 +60,20 @@ android {
         applicationId = "com.chaminwoo.stary_ios"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
-        versionName = "1.4.2"
+        versionCode = 20
+        versionName = "1.4.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // TODO: secrets.properties 에 실제 값 채우기 (커밋 금지)
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         // MapTiler 벡터 타일 키 -> MapLibre 스타일 JSON 의 __MAPTILER_KEY__ 치환에 사용
         buildConfigField("String", "MAPTILER_KEY", "\"$maptilerKey\"")
-        // OpenRouteService 도보 길찾기 키
-        buildConfigField("String", "ORS_API_KEY", "\"$orsApiKey\"")
         // 인스타 스토리 링크스티커 귀속용 Facebook App ID (없으면 빈 값)
         buildConfigField("String", "INSTAGRAM_APP_ID", "\"$instagramAppId\"")
+        // Unity Ads(보상형) — 게임 ID / 보상형 배치 ID / 테스트 모드
+        buildConfigField("String", "UNITY_GAME_ID", "\"$unityGameIdAndroid\"")
+        buildConfigField("String", "UNITY_REWARDED_PLACEMENT", "\"$unityRewardedPlacement\"")
+        buildConfigField("boolean", "UNITY_ADS_TEST_MODE", unityAdsTestMode)
     }
 
     signingConfigs {
@@ -183,4 +191,8 @@ dependencies {
     // 지도: MapLibre GL Native (Google Maps 대체) + 위치
     implementation(libs.maplibre.android)
     implementation(libs.play.services.location)
+
+    // 광고: Unity Ads(보상형) — 100m 밖 게시물 열람 해제용.
+    // 게임 ID/배치 ID 는 secrets.properties 주입(BuildConfig) — 코드에 하드코딩 금지.
+    implementation("com.unity3d.ads:unity-ads:4.15.0")
 }

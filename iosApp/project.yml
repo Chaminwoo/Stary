@@ -62,8 +62,10 @@ targets:
           - UIInterfaceOrientationPortrait
         # 수출 규정(표준 암호화만 사용) — 심사 프롬프트 회피
         ITSAppUsesNonExemptEncryption: false
-        # OpenRouteService 도보 길찾기 키(빌드 설정으로 주입; 빈 값이면 길찾기 비활성)
-        ORS_API_KEY: $(ORS_API_KEY)
+        # Unity Ads(보상형) — 100m 밖 게시물 열람 해제. 빈 값이면 광고 UI 자체를 띄우지 않는다.
+        # ⚠️ Android 와 **다른 값**(같은 Unity 프로젝트의 iOS 게임 ID). SDK 연결은 iOS 광고 라운드에서.
+        UNITY_GAME_ID: $(UNITY_GAME_ID)
+        UNITY_REWARDED_PLACEMENT: $(UNITY_REWARDED_PLACEMENT)
         # MapTiler 벡터 타일 키(야경 커스텀 스타일용 — Android secrets.properties 의 MAPTILER_KEY 와 동일 값).
         # 빈 값이면 지도는 키 불필요한 데모 스타일로 폴백.
         MAPTILER_KEY: $(MAPTILER_KEY)
@@ -121,8 +123,9 @@ targets:
         # 구글 로그인 URL 스킴 — GoogleService-Info.plist 의 REVERSED_CLIENT_ID 와 반드시 동일.
         # (Firebase 에서 iOS 앱을 재등록/교체하면 이 값도 새 plist 의 REVERSED_CLIENT_ID 로 갱신할 것.)
         GOOGLE_REVERSED_CLIENT_ID: "com.googleusercontent.apps.7962996464-5l7ujh9t94uohohjvlqhrm6pj6efdvul"
-        # OpenRouteService 도보 길찾기 키 placeholder(실제 값은 CI/xcconfig 로 주입)
-        ORS_API_KEY: ""
+        # Unity Ads placeholder(실제 값은 CI/xcconfig 로 주입 — 커밋 금지)
+        UNITY_GAME_ID: ""
+        UNITY_REWARDED_PLACEMENT: "Rewarded_iOS"
         # MapTiler 키 placeholder(실제 값은 CI/xcconfig/Xcode 빌드 설정으로 주입 — 커밋 금지)
         MAPTILER_KEY: ""
         # Meta(인스타) 앱 ID placeholder(실제 값은 CI/xcconfig 로 주입 — 커밋 금지)

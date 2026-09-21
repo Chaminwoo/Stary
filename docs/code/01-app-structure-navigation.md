@@ -23,7 +23,7 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
 - `onNewIntent(intent)` : 앱이 살아있을 때 알림 탭(manifest `launchMode="singleTop"`) → 딥링크 재해석.
 - `handleDeepLinkIntent(intent)` : 딥링크 3종을 전역 상태에 등록만 한다(이동은 MainScreen 이 수행).
   - 푸시 extras(`diaryId`/`chatFriendId`) → `DeepLinkState.request(...)`
-  - `stary://diary/{id}` → `MapFocusState.request(id)` — **상세 직행이 아니라 지도 포커스**(100m 게이팅 우회 방지).
+  - `stary://diary/{id}` → `MapFocusState.request(id)` — **상세 직행이 아니라 지도 포커스**(별의 위치를 보여주는 동선 유지).
   - `stary://invite/{uid}` → `DeepLinkState.requestInvite(uid)` — 로그인 후 리딤.
 - `EXTRA_DIARY_ID` / `EXTRA_CHAT_FRIEND_ID` / `EXTRA_CHAT_FRIEND_NAME` : FCM 서비스가 알림 인텐트에 싣는 extra 키.
 
@@ -52,7 +52,7 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
 - `isMapRoute` / `wasMapRoute` : 지도(Main) 라우트 전환 감지 쌍. 전환 시
   ① `MapUiState.mapVisible` 갱신(가려짐 → 마커 애니 루프 휴면),
   ② **비지도 → 지도 복귀**면 `MapUiState.requestRecenter()` 로 "카메라만 내 위치로" 요청.
-  단 `MapFocusState.pendingDiaryId != null`(포커스/길찾기 예약) 또는 `MapUiState.routeActive`(경로 따라가는 중)면 건너뛴다.
+  단 `MapFocusState.pendingDiaryId != null`(포커스 예약)이면 그 로직이 카메라를 다루므로 건너뛴다.
 - `drawerState` / `coroutineScope` : 좌측 드로어 개폐.
 - `onboardPrefs` / `showOnboarding` : 첫 실행 코치마크 1회 노출(SharedPreferences `stary_onboarding`).
 - `userId` : `GoogleAuthHelper.currentUserId` — null 이면 비로그인(둘러보기).
@@ -103,10 +103,10 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
   이 라우트는 "지도가 보이는 상태" 표시일 뿐이고 터치는 아래 지도로 통과한다.
 - "지도로 돌아가 별 포커스" 패턴(4곳: Friends 행 별, Profile 핀 별, UserProfile 핀 별, UserDiaryStars 별):
   ```kotlin
-  MapFocusState.request(diaryId, withRoute = true)   // 길찾기 포함
+  MapFocusState.request(diaryId)   // 카메라 이동 + 파장 연출만
   navController.navigate(NavRoute.Main) { popUpTo<NavRoute.Main> { inclusive = true } }
   ```
-  Notification 의 `onFocusDiaryOnMap` 만 `withRoute` 없이 카메라+파장만.
+  Notification 의 `onFocusDiaryOnMap` 도 같다 — **5곳 모두 동일 동작**(도보 길찾기는 2026-09-21 전면 삭제).
 - `Detail.onBack` 도 지도 복귀(`popUpTo Main inclusive`) — 깊은 스택을 접고 지도로.
 - `composable<NavRoute.Detail>` 는 `diaryId == TutorialStarState.DIARY_ID`(웰컴 별)이면 `DetailScreen` 대신
   **`TutorialStarDetailScreen`**(서버에 없는 튜토리얼 게시물, 확인 = `navigateUp`)으로 분기한다 — 06 문서 참고.
@@ -117,14 +117,12 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
 - `mapOnly` : 몰입(지도만 보기) — true 면 탑바/필터/FAB 전부 숨김. `enterMapOnly()/exitMapOnly()`.
 - `mapVisible` : 지도(Main 라우트)가 화면에 보이는지 — MainScreen 이 갱신.
   DiaryMap 의 20fps 마커 애니 루프가 이 값이 false 면 휴면(GPU 절약).
-- `routeActive` : 도보 길찾기 경로 활성 여부 — DiaryMap 이 갱신. 활성 중엔 복귀 재센터 생략.
 - `recenterNonce` / `requestRecenter()` : "카메라만 내 위치로" 요청 카운터.
   MainScreen(라우트 전환)이 발급 → DiaryMap 이 `lastRecenterNonce` 와 비교해 1회 소비.
 
 ### MapFocusState
 - `pendingDiaryId` : 지도에 "이 다이어리로 카메라+파장" 요청(null=없음).
-- `pendingRoute` : true 면 파장 후 그 별까지 도보 길찾기 경로도 띄운다.
-- `request(diaryId, withRoute)` / `consume()` : 요청/소비. 소비는 지도(DiaryMap 파장 종료 시).
+- `request(diaryId)` / `consume()` : 요청/소비. 소비는 지도(DiaryMap 파장 종료 시).
 
 ### UserProfileActionState
 - 타인 프로필 화면의 친구/신고/차단 액션을 **MainScreen 탑바**에서 그리기 위한 브리지.
@@ -175,7 +173,7 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
 
 ### TabRouter / MapFocusStore / MapChromeState (Features/Map/)
 - `TabRouter.go(tab)` : `(tab, nonce)` 발행 — MainTabView 가 onChange 로 해석.
-- `MapFocusStore.request(diaryId, withRoute)` : Android `MapFocusState` 패리티.
+- `MapFocusStore.request(diaryId)` : Android `MapFocusState` 패리티.
   같은 id 재요청도 잡히도록 nil → id 순서로 발행. `consume()` 은 MapScreen 이.
 - `MapChromeState` : `hidden`(글로브) / `mapOnly`(몰입) / `chromeHidden`(둘 중 하나).
 

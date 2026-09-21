@@ -103,8 +103,6 @@ enum L10n: String {
     case navBlockedUsers, settingsSafety, settingsBlockedUsers, settingsBlockedUsersDesc
     case blockedEmpty, blockedEmptyDesc, blockedHint, blockedAtFormat
     case blockConfirmTitle, blockConfirmMsg, unblockConfirmMsg
-    // 도보 길찾기 — 친구 별 탭 진입 라운드.
-    case routeDirections, routeCancel, routeMinSuffix
     // 프로필 떠다니는 아이콘/핀 별 라운드.
     case navAchievements, profileMyStars, profilePinTitle, profilePinHint, commonSave
     case profileFriends, profileDiaries, profileAchievements, profileEmptyStars
@@ -140,7 +138,10 @@ enum L10n: String {
     // 지도 필터 스피드 다이얼(Android MainListScreen 대응).
     case filterAll, filterFriends, filterMine, filterPickFriends, filterFriendsN
     // 상세 화면(Android DetailScreen 대응).
-    case commonEdit, commonAnonymous, detailCommentsCount, commentPlaceholder, detailLocating, mapOpenRange
+    case commonEdit, commonAnonymous, detailCommentsCount, commentPlaceholder, detailLocating
+    // 100m 밖 게시물 잠금(2026-09-21) — 제목만 보이고 미디어/본문/댓글은 접근 또는 광고로 열린다.
+    case detailLockedTitle, detailLockedDesc, detailLockedMedia, detailLockedDistance
+    case detailWatchAd, detailAdPlaying, detailAdUnlocked, detailAdNotFinished, detailAdUnavailable
     // 내 다이어리 별자리 보드(Android MyDiaryScreen 대응).
     case sortLatest, sortPopular, sortDistance, mydiarySortCount, mydiaryEmpty
     case mydiaryViewList, mydiaryViewStars, commonUntitled
@@ -168,7 +169,6 @@ enum L10n: String {
     // 알림 행 문구(Android notif_* 대응 — %@ = 다이어리 제목).
     case notifLikeRow, notifCommentRow, notifFriendPostRow, notifFriendRequestRow
     // 지도 열람 게이팅(Android map_waiting_fix 대응).
-    case mapWaitingFix
     // 지도 우하단 버튼(Android map_constellation/map_only 대응).
     case mapConstellation, mapOnlyMode
     // 업적 목록 구분 헤더(Android AchievementsScreen 섹션 대응).
@@ -307,9 +307,6 @@ enum L10n: String {
         case .blockConfirmTitle:    return ("%@님을 차단할까요?", "Block %@?", "%@さんをブロックしますか？")
         case .blockConfirmMsg:      return ("차단하면 이 사용자의 별이 지도와 목록에서 사라지고 댓글도 보이지 않아요. 친구라면 친구 관계도 해제돼요. 설정 > 안전에서 언제든 해제할 수 있어요.", "Their stars disappear from the map and list and their comments stay hidden. If you are friends, the friendship is removed. You can undo this anytime in Settings > Safety.", "ブロックすると、この人の星が地図とリストから消え、コメントも表示されません。友だちの場合は友だち関係も解除されます。設定 > 安全 でいつでも解除できます。")
         case .unblockConfirmMsg:    return ("%@님의 차단을 해제할까요? 이 사용자의 별과 댓글이 다시 보여요.", "Unblock %@? Their stars and comments will show up again.", "%@さんのブロックを解除しますか？星とコメントが再び表示されます。")
-        case .routeDirections:      return ("길찾기", "Directions", "道案内")
-        case .routeCancel:          return ("길찾기 취소", "Cancel route", "案内をやめる")
-        case .routeMinSuffix:       return ("분", "min", "分")
         case .navAchievements:      return ("업적", "Achievements", "実績")
         case .profileMyStars:       return ("내 별", "My stars", "マイ星")
         case .profilePinTitle:      return ("프로필에 띄울 별", "Pin stars to profile", "プロフィールに飾る星")
@@ -419,14 +416,26 @@ enum L10n: String {
         case .filterFriendsN:       return ("친구 %d명", "%d friends", "友達%d人")
         case .commonEdit:           return ("수정", "Edit", "編集")
         case .commonAnonymous:      return ("익명", "Anonymous", "匿名")
-        // ⚠️ detailCommentsCount 는 %d(댓글 수), mapOpenRange 는 %1$d(반경 m)/%2$@(현재 거리 — 이미
-        // 포맷된 문자열, `Geo.formatDistance`)를 format 으로 채운다(Android `map_open_range` %2$s 패리티).
+        // ⚠️ detailCommentsCount 는 %d(댓글 수), detailLockedDesc 는 %1$d(반경 m),
+        // detailLockedDistance 는 %@(이미 포맷된 거리 — `Geo.formatDistance`)를 format 으로 채운다.
         case .detailCommentsCount:  return ("댓글 %d", "Comments %d", "コメント %d")
         case .commentPlaceholder:   return ("댓글을 입력하세요", "Write a comment", "コメントを入力")
         case .detailLocating:       return ("위치를 확인하는 중이에요…", "Checking your location…", "位置を確認しています…")
-        case .mapOpenRange:         return ("%1$dm 이내에 있어야 열람할 수 있어요 \n(현재 %2$@)",
-                                            "Get within %1$dm to open (now %2$@)",
-                                            "%1$dm以内で開けます（現在%2$@）")
+        case .detailLockedTitle:    return ("아직 잠겨 있는 이야기예요", "This story is still locked", "まだロックされた物語です")
+        case .detailLockedDesc:     return ("사진과 이야기, 댓글은 %1$dm 이내로 다가가거나\n광고를 보면 볼 수 있어요",
+                                            "Come within %1$dm or watch an ad\nto see the photo, story and comments",
+                                            "写真と本文、コメントは %1$dm 以内に近づくか\n広告を見ると閲覧できます")
+        case .detailLockedMedia:    return ("가까이 가거나 광고를 보면 공개돼요",
+                                            "Unlocks when you get closer or watch an ad",
+                                            "近づくか広告を見ると公開されます")
+        case .detailLockedDistance: return ("현재 %@ 거리", "%@ away", "現在 %@ の距離")
+        case .detailWatchAd:        return ("광고 보고 열람하기", "Watch an ad to unlock", "広告を見て閲覧する")
+        case .detailAdPlaying:      return ("광고 재생 중…", "Playing ad…", "広告を再生中…")
+        case .detailAdUnlocked:     return ("이야기가 열렸어요", "The story is unlocked", "物語が開きました")
+        case .detailAdNotFinished:  return ("광고를 끝까지 봐야 열려요", "Watch the whole ad to unlock it", "広告を最後まで見ると開きます")
+        case .detailAdUnavailable:  return ("지금은 광고를 불러올 수 없어요. 잠시 후 다시 시도해 주세요",
+                                            "No ad available right now. Please try again in a moment",
+                                            "今は広告を読み込めません。しばらくしてからお試しください")
         case .sortLatest:           return ("최신순", "Latest", "新着順")
         case .sortPopular:          return ("인기순", "Popular", "人気順")
         case .sortDistance:         return ("거리순", "Nearest", "距離順")
@@ -504,9 +513,6 @@ enum L10n: String {
         case .notifCommentRow:      return ("\"%@\"에 댓글을 남겼어요", "Commented on \"%@\"", "「%@」にコメントしました")
         case .notifFriendPostRow:   return ("새 다이어리 \"%@\"를 남겼어요", "Posted a new diary \"%@\"", "新しい日記「%@」を投稿しました")
         case .notifFriendRequestRow: return ("친구 요청을 보냈어요", "Sent you a friend request", "友達リクエストを送りました")
-        case .mapWaitingFix:        return ("현재 위치를 확인하는 중이에요. 잠시 후 다시 시도해 주세요",
-                                            "Locating you… please try again in a moment",
-                                            "現在地を確認しています。しばらくしてからお試しください")
         case .mapConstellation:     return ("별자리", "Constellations", "星座")
         case .mapOnlyMode:          return ("지도만 보기", "Map only", "地図のみ表示")
         case .achSectionTitles:     return ("칭호", "Titles", "称号")

@@ -460,16 +460,10 @@ fun MainListScreen(
 
         // 알림에서 요청된 다이어리로 카메라 이동 + 파장 — 좌표는 필터와 무관하게 전체 목록에서 찾는다.
         val focusTarget =
-            remember(MapFocusState.pendingDiaryId, MapFocusState.pendingRoute, diaries) {
+            remember(MapFocusState.pendingDiaryId, diaries) {
                 val id = MapFocusState.pendingDiaryId ?: return@remember null
                 diaries.firstOrNull { it.id == id }?.let {
-                    DiaryFocusTarget(
-                        it.latitude,
-                        it.longitude,
-                        it.starColor,
-                        it.id,
-                        MapFocusState.pendingRoute
-                    )
+                    DiaryFocusTarget(it.latitude, it.longitude, it.starColor, it.id)
                 }
             }
 

@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -175,8 +177,13 @@ fun DetailScreen(
     val distance = currentLatLng?.let {
         LocationHelper.distanceBetween(it.latitude, it.longitude, currentDiary.latitude, currentDiary.longitude)
     } ?: Float.MAX_VALUE
-    val isNear = distance <= 100f
+    val isNear = distance <= com.chaminwoo.stary.shared.config.StaryConfig.DIARY_OPEN_RADIUS_M
     val isMyDiary = currentDiary.userId == GoogleAuthHelper.currentUserId
+    // ── 열람 잠금(2026-09-21) ────────────────────────────────────────────────
+    // 예전엔 100m 밖이면 지도에서 **진입 자체가 막혔다**. 이제는 누구나 들어와서 **제목까지** 보고,
+    // 사진/본문/댓글은 ① 100m 이내 접근 ② 보상형 광고 시청 중 하나로 연다(내 글은 항상 열림).
+    val adUnlocked = com.chaminwoo.stary.core.util.AdUnlockStore.isUnlocked(context, diaryId)
+    val unlocked = isMyDiary || isNear || adUnlocked
     val userId = GoogleAuthHelper.currentUserId ?: ""
     val userName = GoogleAuthHelper.currentUserName ?: "익명"
     // 비로그인(둘러보기) 상태 — 댓글/좋아요/신고 등 상호작용은 잠그고 안내만 띄운다.
@@ -321,6 +328,8 @@ fun DetailScreen(
                 // 별이 바뀔 때마다(id 기준) 로딩 배경(loading_dipper)부터 다시 보여준다.
                 var mediaLoaded by remember(currentDiary.id) { mutableStateOf(false) }
                 when {
+                    // 잠김: 원본 URL 을 아예 로드하지 않는다(가리기만 하면 캐시/전체화면으로 새어나간다).
+                    !unlocked -> LockedHero(accent = accent)
                     // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 영상은 기존 플레이어 유지)
                     // 사진과 마찬가지로 탭하면 전체화면 뷰어로 열린다.
                     currentDiary.videoUrl.isNotEmpty() && com.chaminwoo.stary.core.ui.isGifUrl(currentDiary.videoUrl) ->
@@ -451,28 +460,37 @@ fun DetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 본문 카드
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xCC14181C))
-                        .border(
-                            1.dp,
-                            Brush.linearGradient(listOf(accent.copy(alpha = 0.45f), accent.copy(alpha = 0.15f))),
-                            RoundedCornerShape(16.dp)
+                // 본문 카드 — 잠겨 있으면 본문 대신 "100m 접근 / 광고 시청" 안내 카드.
+                if (unlocked) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xCC14181C))
+                            .border(
+                                1.dp,
+                                Brush.linearGradient(listOf(accent.copy(alpha = 0.45f), accent.copy(alpha = 0.15f))),
+                                RoundedCornerShape(16.dp)
+                            )
+                            .padding(18.dp)
+                    ) {
+                        Text(
+                            currentDiary.content, fontSize = 16.sp, lineHeight = 26.sp,
+                            color = MaterialTheme.colorScheme.onBackground
                         )
-                        .padding(18.dp)
-                ) {
-                    Text(
-                        currentDiary.content, fontSize = 16.sp, lineHeight = 26.sp,
-                        color = MaterialTheme.colorScheme.onBackground
+                    }
+                } else {
+                    LockedContentCard(
+                        accent = accent,
+                        diaryId = diaryId,
+                        locationKnown = locationKnown,
+                        distance = distance,
                     )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                if (isNear) {
+                if (unlocked) {
                     // 좋아요 + (내 글이면) 수정/삭제
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         // 하트 pop + 크리스탈 파편 버스트 + 숫자 롤링(LikeButton). 파편 색은 그 별의 색.
@@ -572,27 +590,6 @@ fun DetailScreen(
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     }
-                } else {
-                    // 100m 밖: 상호작용 잠금 안내
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            Icons.Outlined.LocationOn, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            if (!locationKnown) stringResource(R.string.detail_locating)
-                            else stringResource(R.string.detail_interaction_locked),
-                            fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(40.dp))
@@ -601,8 +598,9 @@ fun DetailScreen(
 
         // 사진/영상 전체화면 뷰어 — 잘린 헤더가 아니라 원본 전체를 보며 확대/이동 가능.
         // 영상(움짤/mp4)이 있으면 그것을, 없으면 사진을 띄운다(다이어리는 둘 중 하나만 갖는다).
+        // 잠긴 글은 히어로 자체가 자물쇠 판이라 여기로 올 일이 없지만, 잠금 중 상태가 남는 경우를 대비해 막는다.
         val fullMediaUrl = currentDiary.videoUrl.ifBlank { currentDiary.imageUrl }
-        if (showFullImage && fullMediaUrl.isNotEmpty()) {
+        if (unlocked && showFullImage && fullMediaUrl.isNotEmpty()) {
             FullScreenMediaViewer(
                 mediaUrl = fullMediaUrl,
                 // 움짤(GIF)은 Coil 이미지로 재생 — mp4(구버전 영상)만 플레이어가 필요하다.
@@ -612,6 +610,179 @@ fun DetailScreen(
             )
         }
     }
+}
+
+/**
+ * 잠긴 글의 히어로(4:3) — 사진 대신 자물쇠 판.
+ *
+ * ⚠️ 원본 미디어 URL 을 **로드조차 하지 않는다**. 흐림/덮개로 가리기만 하면 Coil 캐시·전체화면
+ * 뷰어·스크린샷으로 새어나간다.
+ */
+@Composable
+private fun LockedHero(accent: Color) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(R.drawable.image_frame),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+        // 내용을 읽을 수 없게 덮는 어두운 판(밤하늘 톤 유지).
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    listOf(Color(0xE60B0E14), Color(0xF20B0E14))
+                )
+            )
+        )
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                Icons.Outlined.Lock,
+                contentDescription = stringResource(R.string.detail_locked_title),
+                tint = accent.copy(alpha = 0.85f),
+                modifier = Modifier.size(34.dp),
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                stringResource(R.string.detail_locked_media),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        }
+    }
+}
+
+/**
+ * 잠긴 글의 본문 자리 — 왜 잠겼는지 + 여는 두 가지 방법(100m 접근 / 보상형 광고).
+ *
+ * 광고는 [com.chaminwoo.stary.core.ads.UnityAdsManager] (Unity Ads) 한 곳만 거친다.
+ * 게임 ID 가 주입되지 않았으면 광고 버튼을 아예 숨기고 "100m 접근" 안내만 남긴다.
+ * ⚠️ DetailScreen 본체에 인라인하지 말 것(아래 공유 버튼과 같은 dex 레지스터 이유).
+ */
+@Composable
+private fun LockedContentCard(
+    accent: Color,
+    diaryId: String,
+    locationKnown: Boolean,
+    distance: Float,
+) {
+    val context = LocalContext.current
+    val ads = com.chaminwoo.stary.core.ads.UnityAdsManager
+    // 화면에 들어온 순간 미리 로드 — 버튼을 눌렀을 때 기다림이 없다.
+    LaunchedEffect(ads.initialized) { ads.preload() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xCC14181C))
+            .border(
+                1.dp,
+                Brush.linearGradient(listOf(accent.copy(alpha = 0.45f), accent.copy(alpha = 0.15f))),
+                RoundedCornerShape(16.dp)
+            )
+            .padding(18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            Icons.Outlined.Lock, contentDescription = null,
+            tint = accent.copy(alpha = 0.9f), modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            stringResource(R.string.detail_locked_title),
+            fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            stringResource(
+                R.string.detail_locked_desc,
+                com.chaminwoo.stary.shared.config.StaryConfig.DIARY_OPEN_RADIUS_M.toInt()
+            ),
+            fontSize = 13.sp, lineHeight = 20.sp,
+            color = MaterialTheme.colorScheme.secondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        // 현재 거리 — 위치를 아직 못 잡았으면 "확인 중".
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.LocationOn, contentDescription = null,
+                tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(15.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                if (!locationKnown) stringResource(R.string.detail_locating)
+                else stringResource(R.string.detail_locked_distance, formatDistanceM(distance)),
+                fontSize = 12.5.sp, color = MaterialTheme.colorScheme.secondary,
+            )
+        }
+
+        if (ads.isConfigured) {
+            Spacer(modifier = Modifier.height(16.dp))
+            val busy = ads.showing
+            TextButton(
+                enabled = !busy,
+                onClick = {
+                    val activity = context.findHostActivity()
+                    if (activity == null) {
+                        com.chaminwoo.stary.core.ui.StaryToast.show(
+                            context.getString(R.string.detail_ad_unavailable)
+                        )
+                        return@TextButton
+                    }
+                    ads.showRewarded(activity) { rewarded ->
+                        if (rewarded) {
+                            com.chaminwoo.stary.core.util.AdUnlockStore.unlock(context, diaryId)
+                            com.chaminwoo.stary.core.ui.StaryToast.show(
+                                context.getString(R.string.detail_ad_unlocked)
+                            )
+                        } else {
+                            com.chaminwoo.stary.core.ui.StaryToast.show(
+                                context.getString(R.string.detail_ad_not_finished)
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(accent.copy(alpha = 0.16f))
+                    .border(1.dp, accent.copy(alpha = 0.40f), RoundedCornerShape(12.dp)),
+            ) {
+                Icon(
+                    Icons.Outlined.PlayCircle, contentDescription = null,
+                    tint = accent, modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    stringResource(
+                        if (busy) R.string.detail_ad_playing else R.string.detail_watch_ad
+                    ),
+                    fontSize = 14.sp, color = accent,
+                )
+            }
+        }
+    }
+}
+
+/** 거리 표기 — 1km 이상이면 소수 1자리 km, 그 미만이면 정수 m. */
+private fun formatDistanceM(meters: Float): String =
+    if (meters >= 1000f) String.format(Locale.getDefault(), "%.1fkm", meters / 1000f)
+    else "${meters.toInt()}m"
+
+/** ContextWrapper 체인을 거슬러 올라가 Activity 를 찾는다(광고 show 에 Activity 가 필요). */
+private fun android.content.Context.findHostActivity(): android.app.Activity? {
+    var c: android.content.Context = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
 }
 
 /**

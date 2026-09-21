@@ -62,7 +62,6 @@ import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapUiState
-import com.chaminwoo.stary.feature.map.OrsRouting
 import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive

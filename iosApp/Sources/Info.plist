@@ -45,8 +45,10 @@
 	<string>주변의 별(다이어리)을 지도에 표시하기 위해 위치가 필요해요.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>다이어리에 넣을 사진을 선택하기 위해 사진 보관함 접근이 필요해요.</string>
-	<key>ORS_API_KEY</key>
-	<string>$(ORS_API_KEY)</string>
+	<key>UNITY_GAME_ID</key>
+	<string>$(UNITY_GAME_ID)</string>
+	<key>UNITY_REWARDED_PLACEMENT</key>
+	<string>$(UNITY_REWARDED_PLACEMENT)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>poetsen_one_regular.ttf</string>

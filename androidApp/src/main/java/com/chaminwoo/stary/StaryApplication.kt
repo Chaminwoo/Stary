@@ -63,6 +63,10 @@ class StaryApplication : Application(), ImageLoaderFactory {
         // 일일 알림(오늘 기록 유도) — 이미 미래에 예약돼 있으면 아무 일도 하지 않는다(중복 예약 방지).
         com.chaminwoo.stary.push.DailyReminderScheduler.ensureScheduled(this)
 
+        // Unity Ads(보상형) 초기화 — 100m 밖 게시물 잠금 해제용.
+        // 게임 ID 가 없으면(placeholder) 내부에서 조용히 무시된다.
+        com.chaminwoo.stary.core.ads.UnityAdsManager.init(this)
+
         // 앱 전면/후면 추적 — FCM 시스템 알림 vs 인앱 배너 이중 표시 방지에 사용.
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) = AppForeground.onResumed()

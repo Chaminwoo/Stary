@@ -330,7 +330,7 @@ struct UserProfileScreen: View {
     ///  통계 버블은 동작 없음 — 하트/친구/업적은 버스트만.)
     private func handleBubbleTap(_ idx: Int) {
         if let d = bubbleData.diaryAt[idx], let id = d.id {
-            MapFocusStore.shared.request(diaryId: id, withRoute: true)
+            MapFocusStore.shared.request(diaryId: id)
         }
     }
 

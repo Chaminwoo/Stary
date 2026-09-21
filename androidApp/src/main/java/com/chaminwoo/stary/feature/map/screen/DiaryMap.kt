@@ -77,7 +77,6 @@ import com.chaminwoo.stary.core.ui.clickBounce
 import com.chaminwoo.stary.core.ui.raisedCosmicBorder
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapUiState
-import com.chaminwoo.stary.feature.map.OrsRouting
 import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -115,7 +114,6 @@ data class DiaryFocusTarget(
     val lng: Double,
     val colorIndex: Int,
     val diaryId: String,
-    val withRoute: Boolean = false,
 )
 
 /** 글로브에서 지도로 복귀할 때의 카메라 요청(nonce 로 같은 좌표 반복 요청도 트리거). */
@@ -126,17 +124,14 @@ data class GlobeReturnCamera(
     val nonce: Long,
 )
 
-/** 거리(미터) 표기 — 1km 이상이면 소수 1자리 km, 그 미만이면 정수 m. (예: 1234m → "1.2km", 340m → "340m") */
-private fun formatDistance(meters: Double): String =
-    if (meters >= 1000.0) String.format(Locale.getDefault(), "%.1fkm", meters / 1000.0)
-    else "${meters.roundToInt()}m"
-
 /**
  * MapLibre GL Native + MapTiler 벡터 타일 기반 밤하늘 지도.
  *
  * - 별 마커: GeoJSON + SymbolLayer(30m 지오 머지 → 화면 클러스터링 → 대표만 렌더).
  * - 100m 이내 별은 near 확대 + pulse, 전체 별은 float(부유) — [DiaryMapMarkers.kt] 지원 함수 참조.
- * - 별 탭: 100m 이내면 파장 연출 후 상세(겹친 별이면 카드 뷰어), 밖이면 거리 토스트.
+ * - 별 탭: 거리와 무관하게 파장 연출 후 상세(겹친 별이면 카드 뷰어).
+ *   100m 게이팅은 "진입 차단"이 아니라 **상세 화면의 내용 잠금**으로 옮겼다(2026-09-21) —
+ *   멀리 있는 별도 제목까지는 보이고, 미디어/본문/댓글은 100m 접근 또는 광고 시청으로 열린다.
  */
 @Composable
 fun DiaryMap(
@@ -175,11 +170,7 @@ fun DiaryMap(
     var orbitSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     val orbitFade = remember { Animatable(0f) }
     var constellationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
-    var routeSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var pioneerSource by remember { mutableStateOf<GeoJsonSource?>(null) }
-    val routeScope = rememberCoroutineScope()
-    // 도보 길찾기: 처음 받은 전체 경로(목적지까지)를 저장. null = 길찾기 비활성(X 취소 시).
-    var savedRoute by remember { mutableStateOf<List<Point>?>(null) }
     val addedIcons = remember { mutableSetOf<String>() }
     val isCameraMoving = remember { mutableStateOf(false) }
     // 저줌 대기 헤이즈 강도(0..1) — 줌이 HAZE_START_ZOOM 밑으로 내려갈수록 1에 접근.
@@ -239,7 +230,7 @@ fun DiaryMap(
     }
 
     // 다른 화면 → 지도 복귀 시 "내 위치로" — 지도는 NavHost 밖 상시 렌더라 재생성되지 않으므로
-    // MainScreen 이 라우트 전환 때 nonce 를 발급하면 카메라만 옮긴다(포커스/길찾기 중엔 발급 안 됨).
+    // MainScreen 이 라우트 전환 때 nonce 를 발급하면 카메라만 옮긴다(포커스 요청 중엔 발급 안 됨).
     // 초기값을 현재 nonce 로 잡아, 액티비티 재생성(언어 변경 등) 후 남은 옛 요청은 무시한다.
     var lastRecenterNonce by remember { mutableStateOf(MapUiState.recenterNonce) }
     LaunchedEffect(MapUiState.recenterNonce, mapRef) {
@@ -248,23 +239,6 @@ fun DiaryMap(
         lastRecenterNonce = MapUiState.recenterNonce
         recenterToMyLocation()
     }
-
-    // 도보 길찾기 — 전체 경로를 savedRoute 에 저장(X 취소까지 유지). ORS 실패 시 조용히 무시.
-    val requestRoute: (Double, Double) -> Unit = { destLat, destLng ->
-        val cur = currentLatLngRef.value
-        routeScope.launch {
-            val route = OrsRouting.walkingRoute(cur.latitude, cur.longitude, destLat, destLng) ?: return@launch
-            savedRoute = route.coordinates.map { Point.fromLngLat(it[0], it[1]) }
-            val mins = (route.durationS / 60.0).roundToInt().coerceAtLeast(1)
-            com.chaminwoo.stary.core.ui.StaryToast.show(
-                context.getString(R.string.map_route_summary, mins, formatDistance(route.distanceM.toDouble()))
-            )
-        }
-    }
-    val requestRouteRef = rememberUpdatedState(requestRoute)
-
-    // 길찾기 활성 여부를 전역에 알린다 — 경로를 따라가는 중엔 지도 복귀 재센터를 건너뛴다(MainScreen).
-    LaunchedEffect(savedRoute) { MapUiState.routeActive = savedRoute != null }
 
     // 파장 연출 종료 후 분기 — 업로드/별 열람/알림 포커스 공용(연출 그리는 위치가 달라 분리).
     val onWarpFinished: (DiaryOpenWarpData) -> Unit = { wd ->
@@ -350,7 +324,7 @@ fun DiaryMap(
                     val c = map.cameraPosition.target
                     cb(c?.latitude ?: 0.0, c?.longitude ?: 0.0, z <= GLOBE_BUTTON_ZOOM)
                 }
-                // 별 탭 → 100m 게이팅(안이면 파장+상세, 밖이면 거리 토스트)
+                // 별 탭 → 거리와 무관하게 파장 + 상세(잠금은 상세 화면이 담당, 2026-09-21)
                 map.addOnMapClickListener { point ->
                     val screen = map.projection.toScreenLocation(point)
                     val pioneer = map.queryRenderedFeatures(screen, PIONEER_LAYER).firstOrNull()
@@ -369,47 +343,26 @@ fun DiaryMap(
                     if (id != null) {
                         val diary = diariesRef.value.firstOrNull { it.id == id }
                         if (diary != null) {
-                            // ⚠️ 실제 위치 fix 전에는 열람 불가 — 폴백 좌표로 100m 판정하면 우회 가능.
-                            if (LocationHelper.getCurrentLatLng() == null) {
-                                com.chaminwoo.stary.core.ui.StaryToast.show(
-                                    context.getString(R.string.map_waiting_fix)
-                                )
-                                return@addOnMapClickListener true
-                            }
-                            val cur = currentLatLngRef.value
-                            val distance = LocationHelper.distanceBetween(
-                                cur.latitude, cur.longitude, diary.latitude, diary.longitude
+                            // 파장 중심 = 이 별의 화면상 위치(0..1)
+                            val sp = map.projection.toScreenLocation(
+                                MlLatLng(diary.latitude, diary.longitude)
                             )
-                            if (distance <= StaryConfig.DIARY_OPEN_RADIUS_M) {
-                                // 파장 중심 = 이 별의 화면상 위치(0..1)
-                                val sp = map.projection.toScreenLocation(
-                                    MlLatLng(diary.latitude, diary.longitude)
-                                )
-                                val w = mv.width.toFloat().coerceAtLeast(1f)
-                                val h = mv.height.toFloat().coerceAtLeast(1f)
-                                val ox = (sp.x / w).coerceIn(0f, 1f)
-                                val oy = (sp.y / h).coerceIn(0f, 1f)
-                                // 머지 그룹이 2개 이상이면 파장에 멤버 별 파티클을 얹고 카드 뷰어로.
-                                val group = mergeGroupsState.value[id] ?: listOf(diary)
-                                map.snapshot { bmp ->
-                                    com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
-                                    com.chaminwoo.stary.core.util.Haptics.warp() // 파장과 같은 결의 진동
+                            val w = mv.width.toFloat().coerceAtLeast(1f)
+                            val h = mv.height.toFloat().coerceAtLeast(1f)
+                            val ox = (sp.x / w).coerceIn(0f, 1f)
+                            val oy = (sp.y / h).coerceIn(0f, 1f)
+                            // 머지 그룹이 2개 이상이면 파장에 멤버 별 파티클을 얹고 카드 뷰어로.
+                            val group = mergeGroupsState.value[id] ?: listOf(diary)
+                            map.snapshot { bmp ->
+                                com.chaminwoo.stary.core.util.MusicManager.playOpenDiary()
+                                com.chaminwoo.stary.core.util.Haptics.warp() // 파장과 같은 결의 진동
 
-                                    warpState.value = DiaryOpenWarpData(
-                                        bmp, ox, oy, id, diary.starColor, navigateAfter = true,
-                                        burstStars = if (group.size > 1) {
-                                            group.take(12).map { it.starType to it.starColor }
-                                        } else emptyList(),
-                                        clusterIds = if (group.size > 1) group.map { it.id } else emptyList(),
-                                    )
-                                }
-                            } else {
-                                com.chaminwoo.stary.core.ui.StaryToast.show(
-                                    context.getString(
-                                        R.string.map_open_range,
-                                        StaryConfig.DIARY_OPEN_RADIUS_M.toInt(),
-                                        formatDistance(distance.toDouble())
-                                    )
+                                warpState.value = DiaryOpenWarpData(
+                                    bmp, ox, oy, id, diary.starColor, navigateAfter = true,
+                                    burstStars = if (group.size > 1) {
+                                        group.take(12).map { it.starType to it.starColor }
+                                    } else emptyList(),
+                                    clusterIds = if (group.size > 1) group.map { it.id } else emptyList(),
                                 )
                             }
                         }
@@ -474,42 +427,6 @@ fun DiaryMap(
                         )
                     )
                     constellationSource = cSrc
-
-                    // 도보 길찾기 경로 — 별자리 라인과 동일한 3겹(후광/글로우/얇은 밝은 선) 스타일.
-                    // 초기 빈 상태, 길찾기 요청 시 채워진다.
-                    val rSrc = GeoJsonSource(ROUTE_SOURCE, FeatureCollection.fromFeatures(emptyList()))
-                    style.addSource(rSrc)
-                    style.addLayer(
-                        LineLayer(ROUTE_HALO_LAYER, ROUTE_SOURCE).withProperties(
-                            PropertyFactory.lineColor("#6EE7B7"),
-                            PropertyFactory.lineWidth(16f),
-                            PropertyFactory.lineBlur(16f),
-                            PropertyFactory.lineOpacity(CONSTELLATION_HALO_OPACITY),
-                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
-                        )
-                    )
-                    style.addLayer(
-                        LineLayer(ROUTE_GLOW_LAYER, ROUTE_SOURCE).withProperties(
-                            PropertyFactory.lineColor("#6EE7B7"),
-                            PropertyFactory.lineWidth(8f),
-                            PropertyFactory.lineBlur(8f),
-                            PropertyFactory.lineOpacity(CONSTELLATION_GLOW_OPACITY),
-                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
-                        )
-                    )
-                    style.addLayer(
-                        LineLayer(ROUTE_LAYER, ROUTE_SOURCE).withProperties(
-                            PropertyFactory.lineColor("#E6FFF4"),
-                            PropertyFactory.lineWidth(1.7f),
-                            PropertyFactory.lineBlur(0.6f),
-                            PropertyFactory.lineOpacity(CONSTELLATION_LINE_OPACITY),
-                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
-                        )
-                    )
-                    routeSource = rSrc
 
                     // 다이어리 별 마커 source — 클러스터링은 클라이언트(화면 좌표)에서 처리.
                     val dSrc = GeoJsonSource(DIARY_SOURCE, FeatureCollection.fromFeatures(emptyList()))
@@ -878,25 +795,6 @@ fun DiaryMap(
             }
         }
         } // if (!MapUiState.mapOnly)
-
-        // 길찾기 취소 — 도보 경로 활성 시 하단 중앙 X 버튼(누르면 경로 제거).
-        if (savedRoute != null) {
-            FloatingActionButton(
-                onClick = { savedRoute = null },
-                shape = CircleShape,
-                containerColor = Color(0xFF0E1520),
-                contentColor = Color(0xFF86EFAC),
-                elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 30.dp)
-                    .size(52.dp)
-                    .clickBounce()
-                    .raisedCosmicBorder()
-            ) {
-                Icon(Icons.Filled.Close, contentDescription = context.getString(R.string.map_route_cancel))
-            }
-        }
 
         // 지도 왜곡 연출(별 열람/알림 포커스) — 스냅샷 이미지를 1초간 파장+울렁시킨 뒤 이동(세부는 멀쩡).
         // 업로드 연출과 달리 버튼까지 덮는 몰입 연출이라 버튼 위에 그린다.
@@ -1328,26 +1226,11 @@ fun DiaryMap(
                             bmp, 0.5f, 0.5f, target.diaryId, target.colorIndex, navigateAfter = false
                         )
                     }
-                    // 친구 별 탭(withRoute) → 파장과 함께 그 별까지 도보 길찾기 시작.
-                    if (target.withRoute) requestRouteRef.value(target.lat, target.lng)
                 }
                 override fun onCancel() {
                     onFocusHandledRef.value()
                 }
             }
         )
-    }
-
-    // 도보 길찾기 실시간 렌더 — 저장된 전체 경로에서 내 위치의 최근접점부터 목적지까지만 그린다.
-    // 지나온 길(출발점~최근접점)은 숨기고, 내 위치가 경로에서 떨어져 있으면 최근접점까지 직선으로 잇는다.
-    LaunchedEffect(currentLatLng, savedRoute, routeSource) {
-        val src = routeSource ?: return@LaunchedEffect
-        val full = savedRoute
-        if (full == null || full.size < 2) {
-            src.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-            return@LaunchedEffect
-        }
-        val me = Point.fromLngLat(currentLatLng.longitude, currentLatLng.latitude)
-        src.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(partialRouteFrom(full, me))))
     }
 }

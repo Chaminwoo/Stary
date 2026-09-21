@@ -323,7 +323,7 @@ struct ProfileScreen: View {
             let p = pinnedDiaries
             let hiddenStart = 4 + p.count
             if idx >= 4, idx < hiddenStart, let id = p[idx - 4].id {
-                MapFocusStore.shared.request(diaryId: id, withRoute: true)
+                MapFocusStore.shared.request(diaryId: id)
             } else if idx >= hiddenStart {
                 showAchievements = true
             }

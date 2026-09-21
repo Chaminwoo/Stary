@@ -1822,6 +1822,59 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
 - **웹 랜딩**(`web/index.html`): 미출시 상태라 스토어 버튼을 '준비 중'(비활성)으로. 출시 후 `STORE_URL_ANDROID/IOS` 상수만 채우면 활성화.
 - 버전: `versionCode 5` / `versionName 1.3.0`.
 
+## 8.50 길찾기 제거 · 100m 잠금 전환 · Unity Ads(안드) · 친구 최신 대화순 (BUILD SUCCESSFUL 2026-09-21)
+
+사용자 요청 3건 + 광고 도입. **Android 빌드 성공까지 확인, 실기기 테스트 대기.**
+
+### ① 친구 목록 최신 대화순
+- `FriendScreen.sortedFriends` = `friends.sortedByDescending { summaryByFriend[it.userId]?.updatedAt ?: 0L }`.
+  `sortedByDescending` 는 **안정 정렬**이라 대화 없는 친구(0)끼리는 원래 순서를 유지한다.
+- iOS `FriendsScreen.sortedFriends` 는 `enumerated()` + offset tiebreak 로 같은 규칙(Swift `sorted` 는 불안정).
+
+### ② 100m 게이팅 = "진입 차단" → **"상세 화면 내용 잠금"**
+- 지도(`DiaryMap` 클릭 리스너 / iOS `handleStarTap`)에서 **거리 판정·거리 토스트·"위치 확인 중" 토스트를 전부 제거**.
+  이제 어떤 별이든 탭하면 파장 → 상세로 들어간다.
+- 잠금은 `DetailScreen` 한 곳에서만: `unlocked = 내 글 || 100m 이내 || 광고로 해제`.
+  잠김이면 **제목만** 보이고 히어로 미디어·본문·좋아요/공유/신고·댓글이 전부 빠진다.
+  - `LockedHero` : 원본 미디어 URL 을 **로드조차 하지 않는다**. 덮개로 가리기만 하면 Coil/이미지 캐시와
+    전체화면 뷰어로 새어나간다. `FullScreenMediaViewer` 진입도 `unlocked` 로 한 번 더 막았다.
+  - `LockedContentCard` : 안내 + 현재 거리 + "광고 보고 열람하기"(광고 미설정이면 버튼 숨김).
+  - ⚠️ 둘 다 **별도 컴포저블** — DetailScreen 본체 인라인은 dex 레지스터(256) 한계로 VerifyError 이력이 있다.
+- `core/util/AdUnlockStore` : diaryId → 해제 시각(ms), **7일 TTL**, SharedPreferences + Compose 상태 맵.
+  iOS `Data/AdUnlockStore.swift` 가 같은 규칙(UserDefaults + ObservableObject).
+- 삭제된 문자열: `map_open_range`, `map_waiting_fix`, `detail_interaction_locked`(ko/en/ja + iOS L10n).
+  추가: `detail_locked_*`, `detail_watch_ad`, `detail_ad_*`.
+
+### ③ 도보 길찾기(OpenRouteService) **전면 삭제**
+| 삭제 | Android | iOS |
+|---|---|---|
+| API 클라이언트 | `feature/map/OrsRouting.kt` | `Features/Map/OrsRouting.swift` |
+| 경로 상태/렌더 | `savedRoute`·`requestRoute`·`routeSource`·경로 3겹 레이어·취소 X FAB·`partialRouteFrom` | `fullRoute`·`routeSummary`·`fetchRoute`·`cancelRoute`·`routeControls`·`partialRouteFrom`·`StyleFx.route*` |
+| 전역 플래그 | `MapUiState.routeActive`, `MapFocusState.pendingRoute` | `MapFocusStore.withRoute` |
+| 키 | `secrets.properties ORS_API_KEY` + `BuildConfig.ORS_API_KEY` | `project.yml`/`Info.plist` `ORS_API_KEY` |
+| 문자열 | `map_route_summary`, `map_route_cancel` | `routeDirections`, `routeCancel`, `routeMinSuffix` |
+- 친구 행 최근 별 / 프로필 핀 별 / 타인 프로필 핀 별 / UserDiaryStars / 알림 — **5곳 모두**
+  `MapFocusState.request(diaryId)` 하나로 통일(카메라 이동 + 파장만). `withRoute` 인자 자체가 사라졌다.
+
+### ④ Unity Ads (보상형) — **Android 만 연결**
+- SDK: `com.unity3d.ads:unity-ads:4.15.0` (Maven Central 최신).
+- `core/ads/UnityAdsManager` : 앱의 **유일한 광고 진입점**. `init`(StaryApplication 에서 1회) →
+  `preload`(잠긴 상세 진입 시) → `showRewarded(activity) { rewarded -> }`.
+  보상 판정은 `UnityAdsShowCompletionState.COMPLETED` 뿐(SKIPPED 는 보상 없음). 재생 후 자동 재로드.
+- 키 주입(하드코딩 금지): `secrets.properties` → `BuildConfig`
+  `UNITY_GAME_ID`(=`UNITY_GAME_ID_ANDROID`) / `UNITY_REWARDED_PLACEMENT` / `UNITY_ADS_TEST_MODE`.
+  게임 ID 가 비었거나 `TODO_` 면 `isConfigured == false` → **광고 UI 를 아예 안 그린다**(빈 버튼 방지).
+- ⚠️ **스토어 배포 전 `UNITY_ADS_TEST_MODE=false`.** true 로 올리면 수익이 0이고 정책 위반이다.
+- iOS: `Core/AdsManager.swift` 가 **스텁**(`isConfigured == false`, TODO 주석에 붙이는 절차 기재) +
+  `project.yml`/`Info.plist` 에 `UNITY_GAME_ID`/`UNITY_REWARDED_PLACEMENT` 자리 마련.
+  SDK(SPM `unity-ads-ios`) 연결은 **다음 iOS 라운드**(사용자 지시: 안드 먼저).
+
+### 사용자가 직접 해야 할 것
+1. Unity Dashboard 에서 프로젝트 생성 → Monetization 활성 → **Android 게임 ID** + 보상형 Ad Unit 발급
+   → `secrets.properties` 의 `UNITY_GAME_ID_ANDROID`/`UNITY_REWARDED_PLACEMENT` 채우기.
+2. (선택) openrouteservice.org 대시보드에서 더 이상 안 쓰는 ORS 키 폐기.
+   레포/로컬 `secrets.properties` 의 ORS 줄은 이미 제거됨. GitHub Actions 에는 ORS 시크릿이 없었다.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
@@ -1833,6 +1886,8 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
 - [x] 별가루 파티클 Canvas → MapLibre GeoJSON+SymbolLayer 전환(줌 6 이하 숨김) — 완료.
 - [ ] **FCM 푸시 발송 Function 배포(사용자)**: Blaze + `cd functions && npm install` + `firebase deploy --only functions`
       (코드는 `functions/index.js` 완료, REGION=stary-db 리전 확인).
+- [ ] **iOS Unity Ads SDK 연결**: `project.yml` packages 에 `unity-ads-ios` 추가 → `Core/AdsManager.swift` 의
+      TODO(initialize/preload/showRewarded) 구현 → 빌드설정에 iOS 게임 ID 주입. 계약(보상 = COMPLETED)은 Android 와 동일.
 - [ ] ViewModel 들이 Firebase* 구현 대신 공용 인터페이스 타입을 주입받도록 DI 정리(현재는 직접 생성).
 - [x] GitHub remote(`origin` = Chaminwoo/Stary) 연결 + 푸시 완료(main).
 
@@ -1845,4 +1900,5 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
 | 로그인/인증 | `feature/auth/GoogleAuthHelper.kt`, `LoginScreen.kt` |
 | 좌표/거리 공용 로직 | `shared/.../core/geo/LatLng.kt`, `GeoUtils.kt`, `core/util/LocationHelper.kt` |
 | 상수/설정/민감값 계약 | `shared/.../shared/config/StaryConfig.kt`, `Secrets.kt` |
-| 키/시크릿 주입 | `androidApp/build.gradle.kts`, `secrets.properties`(MAPTILER_KEY / GOOGLE_WEB_CLIENT_ID) |
+| 키/시크릿 주입 | `androidApp/build.gradle.kts`, `secrets.properties`(MAPTILER_KEY / GOOGLE_WEB_CLIENT_ID / UNITY_GAME_ID_ANDROID) |
+| 광고(보상형) | `core/ads/UnityAdsManager.kt`, `core/util/AdUnlockStore.kt`, `DetailScreen.LockedContentCard` |

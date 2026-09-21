@@ -22,12 +22,9 @@ object MapUiState {
      */
     var mapVisible by mutableStateOf(true)
 
-    /** 도보 길찾기 경로가 활성인지(DiaryMap 이 갱신) — 활성 중엔 지도 복귀 재센터를 건너뛴다. */
-    var routeActive by mutableStateOf(false)
-
     /**
      * 지도 복귀 시 "카메라만 내 위치로" 요청 nonce(0=요청 없음) — 다른 화면에서 지도로
-     * 돌아올 때 MainScreen 이 발급하고 DiaryMap 이 소비한다(포커스/길찾기 요청 시엔 발급 안 함).
+     * 돌아올 때 MainScreen 이 발급하고 DiaryMap 이 소비한다(포커스 요청 시엔 발급 안 함).
      */
     var recenterNonce by mutableStateOf(0L)
         private set
@@ -43,16 +40,11 @@ object MapUiState {
 object MapFocusState {
     var pendingDiaryId by mutableStateOf<String?>(null)
         private set
-    /** true 면 포커스(카메라+파장) 후 그 별까지 도보 길찾기 경로를 띄운다(친구 별 탭). */
-    var pendingRoute by mutableStateOf(false)
-        private set
 
-    fun request(diaryId: String, withRoute: Boolean = false) {
+    fun request(diaryId: String) {
         pendingDiaryId = diaryId
-        pendingRoute = withRoute
     }
     fun consume() {
         pendingDiaryId = null
-        pendingRoute = false
     }
 }

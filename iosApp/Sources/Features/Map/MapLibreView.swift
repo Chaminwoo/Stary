@@ -22,9 +22,6 @@ struct MapLibreView: UIViewRepresentable {
         _ snapshot: UIImage?
     ) -> Void
 
-    /// 도보 길찾기 경로(비었으면 표시 안 함).
-    var route: [CLLocationCoordinate2D] = []
-
     /// 외부에서 "이 좌표로 카메라 이동" 요청.
     /// 값이 바뀔 때 1회 애니메이션 이동.
     var focusTarget: CLLocationCoordinate2D?
@@ -312,8 +309,6 @@ struct MapLibreView: UIViewRepresentable {
         }
 
         // 스타일 이펙트.
-        context.coordinator.updateRouteShape()
-
         context.coordinator.setConstellation(
             enabled: constellationEnabled,
             mapView: mapView

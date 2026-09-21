@@ -33,8 +33,9 @@ adb shell am start -n com.chaminwoo.stary_ios/com.chaminwoo.stary.MainActivity
 - 재설치 시 `-r`(reinstall, 데이터 유지) 사용 — 지우고 새로 깔고 싶으면 먼저 `adb uninstall com.chaminwoo.stary_ios`.
 
 ### 1.3 현재 로컬 설정 상태(중요 — 실기능 테스트 전 확인)
-- `secrets.properties`(루트, gitignore 대상) — **`MAPTILER_KEY`/`GOOGLE_WEB_CLIENT_ID`/`ORS_API_KEY` 값이 채워져 있음** →
-  지도·구글 로그인·도보 길찾기가 **실제로 동작**한다(placeholder 아님).
+- `secrets.properties`(루트, gitignore 대상) — **`MAPTILER_KEY`/`GOOGLE_WEB_CLIENT_ID` 값이 채워져 있음** →
+  지도·구글 로그인이 **실제로 동작**한다(placeholder 아님).
+  `UNITY_GAME_ID_ANDROID` 는 비어 있으면 광고 UI 자체가 안 뜬다(잠금 안내만).
 - `androidApp/google-services.json` — **포크 전용 Firebase `momentdiary-f26c8`** 의 실제 설정 파일(더미 아님) →
   Firestore/Auth/Storage/FCM 전부 실제 백엔드로 붙는다. ⚠️ 원본 프로젝트(`momentdiary-52b78`)와는 무관.
 - 즉 지금 이 저장소를 그대로 `assembleDebug`→설치하면 **모든 핵심 기능이 실동작**한다. 별도 키 발급 불필요.

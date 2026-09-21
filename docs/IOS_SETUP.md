@@ -45,14 +45,18 @@ echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 
 ## 3. (선택) API 키 주입 — 커밋 금지
 
-키가 없어도 **빌드/실행은 된다**(지도는 데모 스타일 폴백, 길찾기는 비활성).
-실제 야경 지도/길찾기를 보려면 `iosApp/project.yml` 의 두 값을 채운다:
+키가 없어도 **빌드/실행은 된다**(지도는 데모 스타일 폴백, 광고 버튼은 숨김).
+실제 야경 지도/광고를 보려면 `iosApp/project.yml` 의 값을 채운다:
 
 ```yaml
 # iosApp/project.yml → targets.Stary.settings.base
-ORS_API_KEY: ""       # ← OpenRouteService 키 (Android secrets.properties 의 ORS 키와 동일 값)
-MAPTILER_KEY: ""      # ← MapTiler 키 (Android secrets.properties 의 MAPTILER_KEY 와 동일 값)
+MAPTILER_KEY: ""             # ← MapTiler 키 (Android secrets.properties 의 MAPTILER_KEY 와 동일 값)
+UNITY_GAME_ID: ""            # ← Unity Ads **iOS** 게임 ID (Android 값과 다르다 — 같은 프로젝트의 iOS 쪽)
+UNITY_REWARDED_PLACEMENT: "Rewarded_iOS"
 ```
+
+⚠️ Unity Ads **SDK 자체는 아직 iOS 에 붙지 않았다**(`Core/AdsManager.swift` 는 스텁).
+키만 넣어도 아직 광고는 안 뜬다 — SDK 연결은 iOS 광고 라운드에서.
 
 ⚠️ **이 변경은 절대 커밋하지 말 것**(§CLAUDE.md 민감값 규칙). 4단계 재생성(xcodegen) 후
 Xcode Build Settings 에서 직접 넣는 방법도 있지만, 재생성 때마다 지워지므로 project.yml 로컬 수정이 편하다.
@@ -103,7 +107,7 @@ open Stary.xcodeproj
 | `cannot find type '...' in scope` (예: DiaryOpenWarpData) | 4단계 `xcodegen generate` 재실행 누락 |
 | `the compiler is unable to type-check this expression in reasonable time` | 곱셈이 3개 이상 얽힌 한 줄 수식이 원인 — **부분식 여러 개로 분해**해서 작성한다(예: `MusicScreen.swift` / `MyDiaryBoardScreen.swift` 의 `magnitudePart · pulsePart · frequencyPart` 패턴). CGFloat·Double 혼합 `+` 도 모호성 에러 → Double 로 통일 후 마지막에 CGFloat |
 | 지도가 회색 데모 타일 | `MAPTILER_KEY` 미주입(3단계) — 기능 확인엔 지장 없음 |
-| 길찾기가 아무 반응 없음 | `ORS_API_KEY` 미주입(3단계) — 의도된 조용한 비활성 |
+| 잠긴 글에 광고 버튼이 없음 | iOS 는 Unity Ads SDK 미연결(`AdsManager.isConfigured == false`) — 의도된 상태 |
 
 ## 7. 코드 수정 시 규칙 (요약)
 

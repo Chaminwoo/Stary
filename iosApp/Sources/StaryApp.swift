@@ -19,6 +19,11 @@ struct StaryApp: App {
 
         print("🔥 Firebase 초기화 성공")
 
+        // Unity Ads(보상형) — 100m 밖 게시물 잠금 해제. SDK 미연결 동안엔 아무 일도 하지 않는다.
+        // (Android StaryApplication 의 UnityAdsManager.init 패리티)
+        // ⚠️ `MainActor.assumeIsolated` 는 iOS 17+ 라 배포 타깃(16.0)에서 못 쓴다 — Task 로 넘긴다.
+        Task { @MainActor in AdsManager.shared.initialize() }
+
         Self.configureNavigationBarAppearance()
     }
 

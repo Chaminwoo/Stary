@@ -47,12 +47,10 @@ struct MapScreen: View {
     @State private var constellationOn = false
     @ObservedObject private var chrome = MapChromeState.shared
 
-    // 도보 길찾기 상태.
+    // 포커스(카메라 이동) 대상.
     @State private var focusTarget: CLLocationCoordinate2D?
-    @State private var fullRoute: [CLLocationCoordinate2D] = []   // 처음 받은 전체 경로(X 취소까지 유지)
-    @State private var routeSummary: String?
 
-    // 별 포커스 "파동" 연출 — 화면 중앙(포커스된 별)에서 물결이 퍼진 뒤 길찾기가 뜬다.
+    // 별 포커스 "파동" 연출 — 화면 중앙(포커스된 별)에서 물결이 퍼진다.
     @State private var showWarp = false
     @State private var warpColor: Color = .white
     @State private var warpId = 0
@@ -251,29 +249,11 @@ struct MapScreen: View {
         }
     }
 
-    /// 실시간 위치 기준으로 "최근접점→목적지"만 남긴 경로(지나온 구간 제외).
-    private var partialRoute: [CLLocationCoordinate2D] {
-        guard fullRoute.count >= 2 else { return [] }
-        guard let me = location.coordinate else { return fullRoute }
-        return MapScreen.partialRouteFrom(full: fullRoute, me: me)
-    }
-
-    /// 별 탭 — Android DiaryMap 마커 클릭과 동일한 100m 게이팅:
-    /// 위치 불명 → 안내 토스트 / 100m 밖 → 거리 토스트 / 이내 → 파장(warp) 후 상세·카드 진입.
+    /// 별 탭 — Android DiaryMap 마커 클릭 패리티. 거리와 무관하게 파장(warp) 후 상세·카드 진입.
+    /// 100m 게이팅은 "진입 차단"이 아니라 **상세 화면의 내용 잠금**으로 옮겼다(2026-09-21).
     private func handleStarTap(members: [Diary], origin: CGPoint, snapshot: UIImage?) {
-        guard let rep = members.first else { return }
+        guard members.first != nil else { return }
         guard openWarp == nil else { return } // 파장 재생 중 중복 탭 무시
-        guard let me = location.coordinate else {
-            showToast(locale.t(.mapWaitingFix))
-            return
-        }
-        let dist = Geo.distanceMeters(lat1: me.latitude, lng1: me.longitude,
-                                      lat2: rep.latitude, lng2: rep.longitude)
-        guard dist <= AppConfig.diaryOpenRadiusM else {
-            showToast(String(format: locale.t(.mapOpenRange),
-                             Int(AppConfig.diaryOpenRadiusM), Geo.formatDistance(dist)))
-            return
-        }
         MusicManager.shared.playOpenDiary() // Android: 파장 시작과 함께 열람 효과음
         Haptics.warp()                       // 파장과 같은 결의 진동(Android DiaryMap 패리티)
         openWarp = DiaryOpenWarpData(snapshot: snapshot, origin: origin, members: members)
@@ -327,7 +307,6 @@ struct MapScreen: View {
                 onTapStar: { members, origin, snapshot in
                     handleStarTap(members: members, origin: origin, snapshot: snapshot)
                 },
-                route: partialRoute,
                 focusTarget: focusTarget,
                 pioneerCountries: pioneer.activeCountries,
                 onTapPioneer: { code in pioneerMessage = LocalizedNames.pioneerQuestMessage(code) },
@@ -485,12 +464,6 @@ struct MapScreen: View {
                 MapOnlyExitOverlay { chrome.mapOnly = false }
             }
 
-            // 길찾기 활성 시: 하단 요약 + 취소(X)
-            if !fullRoute.isEmpty {
-                routeControls
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            }
-
             // ── 하단 "우주에서 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
             // (Android: 0xEE111120 알약 + 0x9FB3E8 0.5 테두리, Public 아이콘 + 13sp 흰 0.9, 가로 18·세로 11, 하단 24)
             if let entry = globeButtonCenter, globeCenter == nil, !chrome.mapOnly {
@@ -574,13 +547,13 @@ struct MapScreen: View {
         .onChange(of: location.mockDetected) { detected in
             if detected { showToast(locale.t(.locationMockBlocked)) }
         }
-        // 다른 탭에서 길찾기 요청 → 지도 탭으로 전환되며 나타날 때 처리(숨김 동안 onChange 미수신 대비).
+        // 다른 탭에서 포커스 요청 → 지도 탭으로 전환되며 나타날 때 처리(숨김 동안 onChange 미수신 대비).
         .onAppear {
             // 하위 화면 → 지도(루트) 복귀: NavigationStack 루트는 파괴되지 않으므로(지도 유지)
-            // 카메라만 내 위치로 옮긴다. 최초 진입, 포커스/길찾기 요청 대기(아래 handleFocus 가
-            // 카메라를 다룸 — 반드시 이 검사보다 뒤에 소비), 도보 경로 진행 중엔 건너뛴다.
+            // 카메라만 내 위치로 옮긴다. 최초 진입, 포커스 요청 대기(아래 handleFocus 가
+            // 카메라를 다룸 — 반드시 이 검사보다 뒤에 소비) 중엔 건너뛴다.
             // (Android MainScreen 라우트 전환 재센터 패리티)
-            if rootAppearedOnce, focus.pendingDiaryId == nil, fullRoute.isEmpty {
+            if rootAppearedOnce, focus.pendingDiaryId == nil {
                 recenterNonce += 1
             }
             // 지도가 뜨기 전에 이미 감지돼 있었으면 onChange 가 안 오므로 최초 1회만 여기서 안내.
@@ -629,102 +602,20 @@ struct MapScreen: View {
         }
     }
 
-    /// 하단 길찾기 컨트롤 — 요약 칩 + 취소 버튼.
-    private var routeControls: some View {
-        VStack(spacing: 10) {
-            if let s = routeSummary {
-                Text(s)
-                    .font(.minSans(12, .medium))
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(Theme.surface.opacity(0.95), in: Capsule())
-                    .foregroundStyle(Color(red: 0.525, green: 0.937, blue: 0.675))
-                    .overlay(Capsule().strokeBorder(Color(red: 0.525, green: 0.937, blue: 0.675).opacity(0.5), lineWidth: 1))
-            }
-            Button {
-                cancelRoute()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.title3.bold())
-                    .frame(width: 52, height: 52)
-                    .background(Color(hex: 0x0E1520), in: Circle())
-                    .raisedCosmicBorder()
-                    .foregroundStyle(Color(red: 0.525, green: 0.937, blue: 0.675))
-            }
-            .accessibilityLabel(locale.t(.routeCancel))
-        }
-        .padding(.bottom, 30)
-    }
-
-    /// 포커스 요청 처리 — 대상 별 좌표로 카메라 이동 → 파동(물결) → (요청 시) 도보 길찾기.
+    /// 포커스 요청 처리 — 대상 별 좌표로 카메라 이동 → 파동(물결) 1회.
     private func handleFocus(_ id: String?) {
         guard let id, let d = store.diaries.first(where: { $0.id == id }) else { return }
         selected = nil // 열려 있던 상세 시트는 닫고 지도로
-        let dest = CLLocationCoordinate2D(latitude: d.latitude, longitude: d.longitude)
-        let wantRoute = focus.withRoute
-        focusTarget = dest
+        focusTarget = CLLocationCoordinate2D(latitude: d.latitude, longitude: d.longitude)
 
         // 파동 연출 1회 재생(다이어리에서 클릭한 느낌).
         warpColor = StarStyle.color(d.starColor)
         warpId += 1
         showWarp = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { showWarp = false }
-
-        if wantRoute {
-            // 파동이 먼저 퍼진 뒤 경로가 뜨도록 살짝 지연 후 요청.
-            Task {
-                try? await Task.sleep(nanoseconds: 650_000_000)
-                await fetchRoute(to: dest)
-            }
-        } else {
-            fullRoute = []
-            routeSummary = nil
-        }
         focus.consume()
     }
 
-    /// 현위치→목적지 도보 경로 요청(OpenRouteService). 키 미설정/실패 시 조용히 무시.
-    private func fetchRoute(to dest: CLLocationCoordinate2D) async {
-        guard let me = location.coordinate else { return }
-        guard let route = await OrsRouting.walkingRoute(start: me, end: dest) else { return }
-        fullRoute = route.coordinates
-        let mins = max(1, Int((route.durationS / 60).rounded()))
-        routeSummary = "\(mins)\(locale.t(.routeMinSuffix)) · \(Geo.formatDistance(route.distanceM))"
-    }
-
-    private func cancelRoute() {
-        fullRoute = []
-        routeSummary = nil
-    }
-
-    /// 전체 경로 [full] 에서 현재 위치 [me] 의 최근접 투영점을 찾아
-    /// "[me] → 최근접점 → 그 이후 ~ 목적지" 좌표열을 만든다(지나온 구간 제외).
-    /// 위경도를 경도 cos(위도) 보정 평면으로 근사. (Android DiaryMap.partialRouteFrom 패리티)
-    static func partialRouteFrom(full: [CLLocationCoordinate2D], me: CLLocationCoordinate2D) -> [CLLocationCoordinate2D] {
-        guard full.count >= 2 else { return full }
-        let kx = cos(me.latitude * .pi / 180)
-        func px(_ p: CLLocationCoordinate2D) -> Double { p.longitude * kx }
-        func py(_ p: CLLocationCoordinate2D) -> Double { p.latitude }
-        let mx = px(me), my = py(me)
-        var bestK = 0, bestT = 0.0, bestD = Double.greatestFiniteMagnitude
-        for i in 0..<(full.count - 1) {
-            let ax = px(full[i]), ay = py(full[i])
-            let bx = px(full[i + 1]), by = py(full[i + 1])
-            let dx = bx - ax, dy = by - ay
-            let len2 = dx * dx + dy * dy
-            let t = len2 < 1e-12 ? 0.0 : min(max(((mx - ax) * dx + (my - ay) * dy) / len2, 0.0), 1.0)
-            let cx = ax + t * dx, cy = ay + t * dy
-            let d = (mx - cx) * (mx - cx) + (my - cy) * (my - cy)
-            if d < bestD { bestD = d; bestK = i; bestT = t }
-        }
-        let a = full[bestK], b = full[bestK + 1]
-        let cLng = a.longitude + bestT * (b.longitude - a.longitude)
-        let cLat = a.latitude + bestT * (b.latitude - a.latitude)
-        var out: [CLLocationCoordinate2D] = [me, CLLocationCoordinate2D(latitude: cLat, longitude: cLng)]
-        if bestK + 1 < full.count {
-            out.append(contentsOf: full[(bestK + 1)...])
-        }
-        return out
-    }
 }
 
 /// 몰입(지도만 보기) 종료 오버레이 — 하단 중앙 X 버튼. 3초 뒤 자동 숨김, 그 자리를 다시

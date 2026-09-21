@@ -34,7 +34,7 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 - 하단: 로그아웃 카드(`zIndex(1f)` 로 항상 눌리게).
 - `FloatingStatBox` 에 items = [하트(버스트), 친구, 다이어리(책), 업적(버스트)] + 핀 별 + 히든 아이콘,
   `onTap` = idx1→친구 화면 / idx2→내 다이어리 / idx3→업적 / 핀 별→`onOpenDiary(id)`
-  (NavGraph 에서 `MapFocusState.request(id, withRoute=true)` — 지도 길찾기) / 히든→업적 화면.
+  (NavGraph 에서 `MapFocusState.request(id)` — 지도 카메라+파장) / 히든→업적 화면.
 - `PinDiaryPicker` : 내 다이어리 중 최대 3개 토글 선택 → `FirebaseFriendRepository.setPinnedDiaries`.
 - **아바타 = 벽**: 아바타 원(154dp)에 `onGloballyPositioned { boundsInRoot() }` 로 중심·반지름을 잡아
   `FloatingStatBox(obstacleCenterInRoot=, obstacleRadiusPx=)` 로 넘긴다 → 부유 아이콘이 사진을 덮지 않고 튕긴다.
@@ -67,7 +67,7 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 ### 상태/변수
 - `photoUrl` / `resolvedName` / `equippedTitleId` : 대상의 공개 프로필(사진/이름/칭호) 1회 로드.
 - `stats` / `theirDiaries` / `unlockedCount` : 대상 uid 기준 통계·다이어리·업적 수.
-- `pinnedIds` / `pinnedDiaries` : 그 사람이 핀한 다이어리 — 별로 떠 있고 **탭하면 지도 길찾기**.
+- `pinnedIds` / `pinnedDiaries` : 그 사람이 핀한 다이어리 — 별로 떠 있고 **탭하면 지도 포커스(카메라+파장)**.
 - `theirHiddenAch` : 그 사람이 달성한 히든 업적(전용 아이콘/파티클).
 - `vm : FriendViewModel` + `friends` / `isFriend` / `requested` / `showCancelDialog` : 친구 상태·요청.
 - `moderation` / `blockedIds` / `isBlocked` / `showReportDialog` / `showBlockDialog` : 차단/신고.
@@ -83,12 +83,12 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 - 헤더(아바타/이름/칭호) + `FloatingStatBox`:
   items = [하트(버스트), **친구(버스트)**, 다이어리(책), 편지(채팅), 업적(버스트)] + 핀 별 + 히든 아이콘.
   `onTap` = idx2→`UserDiaryStars` 화면 / idx3→친구면 채팅·아니면 "친구만 채팅" 토스트 /
-  핀 별→`onOpenDiary(id)`(NavGraph 가 `withRoute=true` 로 지도 길찾기) / 히든→버스트만.
+  핀 별→`onOpenDiary(id)`(NavGraph 가 지도 포커스) / 히든→버스트만.
 - 친구 취소 확인 / **차단 확인** / 신고 다이얼로그.
 
 ## UserDiaryStarsScreen.kt — "OO님의 별" (타인 다이어리 별 보드)
 - 내 다이어리 보드와 동일한 다이얼+부유 별 UI 재사용. 차이: **별 탭 → `onOpenMap(diaryId)`**
-  (NavGraph 에서 `MapFocusState.request(id, withRoute=true)` → 지도 카메라+파장+도보 길찾기).
+  (NavGraph 에서 `MapFocusState.request(id)` → 지도 카메라+파장).
 
 ## MyDiaryScreen.kt + DiaryStarBox.kt — 내 다이어리(별 보드)
 
@@ -134,7 +134,7 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
   `isBlocked`·신고 메뉴(툴바 ⋮) / `theirHiddenAch`.
 - `bubbleData` : [하트(버스트), **친구(버스트)**, 다이어리(책), 조회] + 핀 별 + 히든 아이콘.
 - `handleBubbleTap` : **핀 별 → `MapFocusStore.request(diaryId, withRoute: true)`** —
-  MainTabView 가 pendingDiaryId 변화를 보고 루트(지도)로 pop, MapScreen 이 카메라+파동+길찾기(03 문서).
+  MainTabView 가 pendingDiaryId 변화를 보고 루트(지도)로 pop, MapScreen 이 카메라+파동(03 문서).
 - 하단 `actionRow` : 본인/친구(채팅 버튼)/친구 요청 버튼.
 
 ### FloatingStatBox.swift
@@ -157,7 +157,7 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 | 핀 별 최대 수(3) | `PinDiaryPicker`(양쪽 하드코딩 3) | `PinDiaryPicker` |
 | 정렬 테마색(파랑/분홍/보라) | `MyDiaryScreen.kt` LatestBlue 등 | `MyDiaryBoardScreen.swift` 동일 hex |
 | 별자리 문양 좌표 | `MyDiaryScreen.kt` CONSTELLATIONS | `MyDiaryBoardScreen.swift` (**값 동일 유지**) |
-| 핀 별 탭 동작 | NavGraph `MapFocusState.request(id, withRoute=true)` | 각 화면 `MapFocusStore.request(diaryId:withRoute:)` |
+| 핀 별 탭 동작 | NavGraph `MapFocusState.request(id)` | 각 화면 `MapFocusStore.request(diaryId:)` |
 | 닉네임 20자 제한 | ProfileScreen 다이얼로그 | ProfileScreen `.onChange(of: nicknameDraft)` 선차단 |
 | 프로필 사진 크롭(위치·확대) | `core/ui/ProfilePhotoCropDialog.kt`(결과 640px 정사각) | `Features/Profile/ProfilePhotoCropView.swift` + `Core/ImageCrop.profileOutPixels` |
 | 프로필 사진 확대 뷰어(내/타인) | `core/ui/PhotoViewer.kt`(핀치 1~5배, 더블탭 2.5배, `onEdit`=연필) | `Core/PhotoViewer.swift` (**동작/배율 동일**, `onEdit`) |

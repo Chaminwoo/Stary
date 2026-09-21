@@ -185,9 +185,22 @@ struct FriendsScreen: View {
         }
     }
 
+    /// 친구 행 정렬 = **최신 대화순**(방 updatedAt 내림차순). 대화가 없는 친구는 0 이라 뒤로 밀리고,
+    /// 그들끼리는 원래 목록 순서를 유지한다. (Android FriendScreen `sortedFriends` 패리티)
+    private var sortedFriends: [Friend] {
+        vm.friends.enumerated()
+            .sorted { a, b in
+                let ta = vm.chatSummaries[a.element.userId]?.updatedAt ?? 0
+                let tb = vm.chatSummaries[b.element.userId]?.updatedAt ?? 0
+                return ta == tb ? a.offset < b.offset : ta > tb
+            }
+            .map(\.element)
+    }
+
     /// 친구 목록 — 메신저형 행(Android FriendRow 패리티):
     /// [프로필 사진] [이름 / 마지막 채팅 · 상대시간] [그 친구의 최근 별]. 행 탭 = 채팅.
-    /// 최근 별을 탭하면 지도로 가서 그 별까지 도보 길찾기(프로필 핀 별과 동일 동선).
+    /// 최근 별을 탭하면 지도로 가서 카메라 이동 + 파장 연출(프로필 핀 별과 동일 동선).
+    /// 순서 = **최신 대화순**([sortedFriends]).
     private var friendsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("\(LocaleManager.shared.t(.friendMyFriends)) \(vm.friends.count)").font(.minSans(17)).foregroundStyle(Theme.textPrimary)
@@ -199,7 +212,7 @@ struct FriendsScreen: View {
                                 starColorIndex: 9)  // 민트
                     .frame(height: 230)
             } else {
-                ForEach(vm.friends) { friend in
+                ForEach(sortedFriends) { friend in
                     ZStack(alignment: .trailing) {
                         NavigationLink(value: friend) {
                             friendRow(friend)
@@ -225,7 +238,7 @@ struct FriendsScreen: View {
                         // 최근 별 버튼은 행 위에 겹쳐 둔다 — 행(채팅)보다 먼저 탭을 받는다.
                         if let star = latestStar(of: friend.userId), let id = star.id {
                             Button {
-                                MapFocusStore.shared.request(diaryId: id, withRoute: true)
+                                MapFocusStore.shared.request(diaryId: id)
                             } label: {
                                 StarView(type: star.starType, colorIndex: star.starColor, size: 26)
                                     .frame(width: 40, height: 40)

@@ -30,10 +30,6 @@ private enum StyleFx {
     static let constellationNeighbors = 2
 
     /// 도보 길찾기 경로 — 별자리 선과 동일한 3겹(후광/글로우/얇은 밝은 선) 스타일(Android ROUTE_* 패리티).
-    static let routeSourceID = "walking-route"
-    static let routeHaloID = "walking-route-halo"
-    static let routeGlowID = "walking-route-glow"
-    static let routeLineID = "walking-route-line"
 
     static let auraSourceID = "diary-aura-src"
     static let auraLayerID = "diary-aura"
@@ -117,27 +113,6 @@ extension MapLibreView.Coordinator {
         style.addLayer(lineLayer(StyleFx.constellationGlowID, color: StyleFx.mint, width: 8, blur: 8))
         style.addLayer(lineLayer(StyleFx.constellationLineID, color: StyleFx.brightLine, width: 1.7, blur: 0.6))
 
-        // ── 도보 길찾기 경로 — 별자리 선과 동일한 3겹, 불투명도는 고정(경로 유무는 소스가 결정) ──
-        // (Android ROUTE_HALO/GLOW/LINE 레이어 패리티 — 별자리 위, 바닥광 아래.)
-        let rSource = MLNShapeSource(identifier: StyleFx.routeSourceID, features: [], options: nil)
-        style.addSource(rSource)
-        func routeLayer(_ id: String, color: UIColor, width: Double, blur: Double, opacity: Double) -> MLNLineStyleLayer {
-            let l = MLNLineStyleLayer(identifier: id, source: rSource)
-            l.lineColor = NSExpression(forConstantValue: color)
-            l.lineWidth = NSExpression(forConstantValue: width)
-            l.lineBlur = NSExpression(forConstantValue: blur)
-            l.lineOpacity = NSExpression(forConstantValue: opacity)
-            l.lineCap = NSExpression(forConstantValue: NSValue(mlnLineCap: .round))
-            l.lineJoin = NSExpression(forConstantValue: NSValue(mlnLineJoin: .round))
-            return l
-        }
-        style.addLayer(routeLayer(StyleFx.routeHaloID, color: StyleFx.mint, width: 16, blur: 16,
-                                  opacity: StyleFx.constellationHaloOpacity))
-        style.addLayer(routeLayer(StyleFx.routeGlowID, color: StyleFx.mint, width: 8, blur: 8,
-                                  opacity: StyleFx.constellationGlowOpacity))
-        style.addLayer(routeLayer(StyleFx.routeLineID, color: StyleFx.brightLine, width: 1.7, blur: 0.6,
-                                  opacity: StyleFx.constellationLineOpacity))
-
         // ── 별 후광 — Android 바닥광+오오라 2겹 패리티(별색, 줌 보간 스톱 동일) ──
         //  · 바닥 빛 웅덩이: 모든 별 밑에 은은하게(반경 0.6→7 × sizeMult, 지면 쪽 +8pt).
         //  · 오오라: 인기(큰) 별만 발광(불투명도 sizeMult 1→0 / 1.4→0.12 / 3→0.42, 반경 2→26 × sizeMult).
@@ -174,23 +149,8 @@ extension MapLibreView.Coordinator {
         style.addLayer(aura)
 
         refreshAuraFeatures(mapView)
-        updateRouteShape()
         reportWorldVoid(mapView)
         startTwinkleLoop()
-    }
-
-    /// 도보 경로 소스 갱신 — parent.route(최근접점→목적지 부분 경로)를 그대로 반영.
-    /// 비어 있으면 소스를 비워 레이어가 그리지 않는다(불투명도는 항상 고정).
-    func updateRouteShape() {
-        guard let style = styleRef,
-              let src = style.source(withIdentifier: StyleFx.routeSourceID) as? MLNShapeSource
-        else { return }
-        var coords = parent.route
-        guard coords.count >= 2 else {
-            src.shape = MLNShapeCollectionFeature(shapes: [])
-            return
-        }
-        src.shape = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
     }
 
     /// 뷰 해체 시 타이머/태스크 정리(순환 참조·유령 갱신 방지).

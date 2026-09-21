@@ -26,8 +26,11 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
 - 받은 요청 섹션: 수락/거절.
 - 친구 행(메신저 스타일): 아바타(탭=프로필) + 이름/최근 메시지 + 미읽음 파란 점(`ChatReadStore`) +
   **행 최우측 = 그 친구의 최근 공개 별**(비공개/익명 제외) — 탭하면
-  `onOpenDiaryOnMap(diaryId)` → NavGraph 가 `MapFocusState.request(id, withRoute=true)` 로
-  지도 파동+도보 길찾기. 행 탭 = 채팅.
+  `onOpenDiaryOnMap(diaryId)` → NavGraph 가 `MapFocusState.request(id)` 로
+  지도 카메라 이동 + 파장 연출(도보 길찾기는 2026-09-21 삭제). 행 탭 = 채팅.
+- **행 순서 = 최신 대화순**(`sortedFriends` = 방 `updatedAt` 내림차순, 2026-09-21).
+  대화가 없는 친구는 0 이라 뒤로 밀리고 그들끼리는 원래 순서 유지(안정 정렬).
+  iOS `FriendsScreen.sortedFriends` 가 같은 규칙(enumerated + offset tiebreak).
 - 친구 초대 링크 공유(체크리스트 31): `stary://invite/{내uid}` 링크 생성·공유 —
   받은 쪽은 로그인 후 자동 리딤(FirebaseInviteRepository, 12 문서).
 - `FirstVisitInfo("info_friends")` 1회 안내.
@@ -74,7 +77,7 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
 - `FriendsViewModel.swift` : friends/incoming/`outgoingIds`(요청됨 칩)/검색(공통 친구 정렬) —
   Android 와 같은 구성. 요청 전송 토스트(`friendRequestSent/Fail`).
 - `FriendsScreen.swift` : 메신저형 행(행 탭=채팅, 아바타 위 투명 버튼=프로필 push),
-  행 최우측 최근 별 버튼 → `MapFocusStore.request(diaryId, withRoute: true)`.
+  행 최우측 최근 별 버튼 → `MapFocusStore.request(diaryId:)`. 행 순서도 최신 대화순(Android 동일).
 - `ChatViewModel.swift` / `ChatScreen.swift` : 같은 chatId 규칙/1분 삭제/읽음 처리.
   채팅 타이틀(principal 툴바)에 `HiddenStarBadges`. 말풍선/삭제 링/등장 연출은 Android 와 동일
   (`SentAppear` ViewModifier + `DeleteWindowRing`). ⚠️ iOS 는 **빈 대화 안내가 아직 없다**(Android `chat_empty`) — TODO.

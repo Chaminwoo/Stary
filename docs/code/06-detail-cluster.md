@@ -11,6 +11,17 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `TutorialSta
 
 ## DetailScreen.kt — 다이어리 상세
 
+### ⚠️ 열람 잠금(2026-09-21 개편 — 여기가 100m 규칙의 **유일한** 집행 지점)
+예전엔 지도에서 100m 밖 별을 탭하면 거리 토스트로 **진입 자체가 막혔다**. 지금은 누구나 들어와서
+**제목까지** 보고, 그 외(히어로 미디어·본문·좋아요/공유/신고·댓글)는 잠긴다.
+- `unlocked = isMyDiary || isNear || adUnlocked` — `isNear` 는 `StaryConfig.DIARY_OPEN_RADIUS_M`(100m),
+  `adUnlocked` 는 `core/util/AdUnlockStore`(보상형 광고 시청 기록, **7일 TTL**, SharedPreferences).
+- 잠금 중에는 **원본 미디어 URL 을 로드조차 하지 않는다**(`LockedHero`). 흐림/덮개로 가리기만 하면
+  Coil 캐시·전체화면 뷰어로 새어나간다. `FullScreenMediaViewer` 도 `unlocked` 로 한 번 더 막는다.
+- 본문 자리에는 `LockedContentCard` — 안내 + 현재 거리 + **"광고 보고 열람하기"** 버튼.
+  버튼은 `UnityAdsManager.isConfigured`(게임 ID 주입됨)일 때만 보인다 → 키 없으면 "100m 접근" 안내만.
+- ⚠️ `LockedHero`/`LockedContentCard` 는 **별도 컴포저블 유지**(아래 dex 레지스터 이슈와 같은 이유).
+
 ### 구조(위 → 아래)
 1. **4:3 히어로 헤더** : 미디어(사진/움짤) 또는 `image_frame` + 가독성 스크림 +
    별·작성자(탭=프로필)·공개 배지·날짜 오버레이. 미디어 탭 → `FullScreenMediaViewer`.
@@ -23,7 +34,7 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `TutorialSta
    (터치 높이는 40dp 유지). iOS 는 `Spacer().frame(width: 16)` 로 같은 간격.
    ⚠️ 좋아요 토스트는 없앴다 — 버스트 자체가 피드백이라 중복이었다.
 4. 댓글: "댓글 N" 헤더 + `CommentItem` 목록 + 입력창. 댓글 작성자 탭=프로필, 내 댓글 삭제 가능.
-5. 100m 밖이면 잠금 pill(map_open_range) — 본문/댓글 가림.
+5. 잠겨 있으면 3·4 는 아예 그리지 않고, 2 의 본문 카드 자리에 `LockedContentCard` 만 남는다.
 
 ### 상태/변수(주요)
 - `ViewCountSession` : 앱 세션 동안 조회수를 올린 다이어리 id 집합(재진입 중복 카운트 방지).
@@ -86,8 +97,12 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `TutorialSta
 ---
 
 ## iOS 대응
-- `DetailScreen.swift` : Android 와 같은 구성(히어로/본문 카드/인라인 액션/댓글/잠금 pill/
+- `DetailScreen.swift` : Android 와 같은 구성(히어로/본문 카드/인라인 액션/댓글/
   `FullScreenMediaViewer`/`RemoteGifFitView`). push 진입(시트 아님).
+  잠금도 동일 — `canOpen = isOwner || 100m 이내 || AdUnlockStore.isUnlocked(id)`,
+  잠김이면 `lockedHero`(미디어 미로드) + `lockedContentCard`. 광고 버튼은 `AdsManager.isConfigured`
+  가 true 일 때만 — ⚠️ **iOS 는 아직 Unity Ads SDK 미연결**(`Core/AdsManager.swift` 가 자리만 잡아 둔
+  스텁, `isConfigured == false`). 다음 iOS 광고 라운드에서 TODO 자리를 채운다.
 - `DetailViewModel.swift` : 좋아요/댓글 리스너 — ⚠️ 모델 디코딩은 `@DocumentID` 명시 디코드 필수
   (12 문서의 id=nil 버그 참고).
 - `StarClusterView.swift` : 겹친 별 카드 뷰어(자체 뒤로가기, 내비바 숨김). 카드 탭 → pop 후 0.35s

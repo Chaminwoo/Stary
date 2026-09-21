@@ -18,7 +18,7 @@
 |---|---|
 | [01-app-structure-navigation.md](01-app-structure-navigation.md) | 앱 진입점, MainScreen(탑바/드로어), NavGraph/NavRoute, 전역 상태 브리지, iOS RootView/TabRouter |
 | [02-design-system.md](02-design-system.md) | 색/폰트/테마, 별 모양·크리스탈 렌더(StarStyle), 공용 UI(토스트/배너/로딩/별탄생 등) |
-| [03-map.md](03-map.md) | 지도 화면 전체 — MainListScreen(필터), DiaryMap(마커/애니/길찾기/파장), iOS MapScreen/MapLibreView |
+| [03-map.md](03-map.md) | 지도 화면 전체 — MainListScreen(필터), DiaryMap(마커/애니/파장), iOS MapScreen/MapLibreView |
 | [04-globe.md](04-globe.md) | 3D 지구본(글로브) — 진입/복귀, 렌더러 |
 | [05-upload.md](05-upload.md) | 업로드 화면 — 별 휠 피커, 사진 크롭, 부메랑 움짤 |
 | [06-detail-cluster.md](06-detail-cluster.md) | 다이어리 상세, 겹친 별 카드 뷰어, 좋아요/댓글, 공유 카드 |

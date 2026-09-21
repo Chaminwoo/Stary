@@ -62,7 +62,6 @@ import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapUiState
-import com.chaminwoo.stary.feature.map.OrsRouting
 import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -102,10 +101,6 @@ internal const val CONSTELLATION_SOURCE = "constellation-lines"
 internal const val CONSTELLATION_LAYER = "constellation-layer"
 internal const val CONSTELLATION_GLOW_LAYER = "constellation-glow-layer"
 internal const val CONSTELLATION_HALO_LAYER = "constellation-halo-layer"
-internal const val ROUTE_SOURCE = "walking-route"
-internal const val ROUTE_LAYER = "walking-route-layer"
-internal const val ROUTE_GLOW_LAYER = "walking-route-glow-layer"
-internal const val ROUTE_HALO_LAYER = "walking-route-halo-layer"
 // 도로 글린트 — 대시 위상을 흘려 빛이 도로를 따라 흐른다.
 // ⚠️ dash/gap 값(선 두께 배수)은 maplibre_style.json 의 line-dasharray 와 일치해야 한다.
 internal const val ROAD_GLINT_LAYER = "road-glint"
@@ -878,33 +873,3 @@ internal fun rememberMapViewWithLifecycle(): MapView {
     return mapView
 }
 
-/**
- * 저장된 전체 경로 [full] 에서 현재 위치 [me] 의 최근접 투영점을 찾아
- * "[me] → 최근접점 → 그 이후 ~ 목적지" 좌표열을 만든다(지나온 구간은 제외).
- * 위경도를 경도 cos(위도) 보정 평면으로 근사(도보 거리에선 충분히 정확).
- */
-internal fun partialRouteFrom(full: List<Point>, me: Point): List<Point> {
-    val kx = kotlin.math.cos(Math.toRadians(me.latitude()))
-    fun px(p: Point) = p.longitude() * kx
-    fun py(p: Point) = p.latitude()
-    val mx = px(me); val my = py(me)
-    var bestK = 0; var bestT = 0.0; var bestD = Double.MAX_VALUE
-    for (i in 0 until full.size - 1) {
-        val ax = px(full[i]); val ay = py(full[i])
-        val bx = px(full[i + 1]); val by = py(full[i + 1])
-        val dx = bx - ax; val dy = by - ay
-        val len2 = dx * dx + dy * dy
-        val t = if (len2 < 1e-12) 0.0 else (((mx - ax) * dx + (my - ay) * dy) / len2).coerceIn(0.0, 1.0)
-        val cx = ax + t * dx; val cy = ay + t * dy
-        val d = (mx - cx) * (mx - cx) + (my - cy) * (my - cy)
-        if (d < bestD) { bestD = d; bestK = i; bestT = t }
-    }
-    val a = full[bestK]; val b = full[bestK + 1]
-    val cLng = a.longitude() + bestT * (b.longitude() - a.longitude())
-    val cLat = a.latitude() + bestT * (b.latitude() - a.latitude())
-    val out = ArrayList<Point>(full.size - bestK + 2)
-    out.add(me)
-    out.add(Point.fromLngLat(cLng, cLat))
-    for (j in bestK + 1 until full.size) out.add(full[j])
-    return out
-}

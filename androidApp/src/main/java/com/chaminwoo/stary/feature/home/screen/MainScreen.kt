@@ -168,15 +168,13 @@ fun MainScreen(
     // 지도(MainListScreen)는 NavHost "밖" 하단 레이어로 상시 렌더된다 — 다른 화면으로 이동해도
     // 파괴되지 않아 복귀 시 지도 리로드/별 깜빡임이 없다. 여기서 라우트 전환을 감시해
     // ① 가려짐 여부(mapVisible)를 갱신하고 ② 지도로 돌아올 때 "카메라만 내 위치로"를 요청한다.
-    //    단 포커스/길찾기 요청(MapFocusState)이 대기 중이거나 도보 경로를 따라가는 중이면
-    //    그 로직이 카메라를 다루므로 재센터를 건너뛴다.
+    //    단 포커스 요청(MapFocusState)이 대기 중이면 그 로직이 카메라를 다루므로 재센터를 건너뛴다.
     val isMapRoute = currentRoute is NavRoute.Main
     var wasMapRoute by remember { mutableStateOf(true) }
     androidx.compose.runtime.LaunchedEffect(isMapRoute) {
         MapUiState.mapVisible = isMapRoute
         if (isMapRoute && !wasMapRoute &&
-            com.chaminwoo.stary.core.util.MapFocusState.pendingDiaryId == null &&
-            !MapUiState.routeActive
+            com.chaminwoo.stary.core.util.MapFocusState.pendingDiaryId == null
         ) {
             MapUiState.requestRecenter()
         }
