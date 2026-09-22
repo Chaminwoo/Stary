@@ -96,6 +96,9 @@ private val PULL_MAX = 16.dp
 /** 고무줄 강도 — 이만큼 끌면 [PULL_MAX] 의 약 63% 만큼 따라온다(클수록 덜 버틴다). */
 private val PULL_SOFT = 70.dp
 
+/** 길게 누르기 판정(디버그 도구 — 광고 테스트 스위트). */
+private const val LONG_PRESS_MS = 700L
+
 /**
  * 유튜브 로고 비율의 재생 아이콘 — 둥근 몸통(21×15, 반경 4.6) + 가운데 재생 삼각형 구멍.
  * Material `SmartDisplay` 는 모서리가 각져 유튜브 느낌이 안 나서 직접 그렸다(iOS `DiaryLockViews` 와 같은 좌표).
@@ -200,6 +203,10 @@ internal fun LockedContentCard(
             seed = lockSeed(diaryId, 1),
             contentDescription = stringResource(R.string.detail_watch_ad),
             onTap = { watchAdToUnlock(context, diaryId) },
+            // 디버그 빌드 전용: 길게 누르면 LevelPlay 테스트 스위트(네트워크별 연결/테스트 광고) — "No fill" 진단용.
+            onLongPress = if (BuildConfig.DEBUG) {
+                { context.findHostActivity()?.let { AdsManager.launchTestSuite(it) } }
+            } else null,
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
@@ -293,6 +300,8 @@ private fun CrystalPullIcon(
     contentDescription: String,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
+    /** null 이 아니면 움직이지 않고 [LONG_PRESS_MS] 이상 누르고 떼면 탭 대신 이것(디버그 도구용). */
+    onLongPress: (() -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
@@ -306,6 +315,7 @@ private fun CrystalPullIcon(
     val pull = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     val press = remember { Animatable(1f) }
     val latestOnTap by rememberUpdatedState(onTap)
+    val latestOnLongPress by rememberUpdatedState(onLongPress)
     val maxPullPx = with(density) { PULL_MAX.toPx() }
     val softPx = with(density) { PULL_SOFT.toPx() }
 
@@ -328,6 +338,7 @@ private fun CrystalPullIcon(
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume()
+                    val downAt = System.currentTimeMillis()
                     scope.launch { press.animateTo(1.06f, spring(stiffness = Spring.StiffnessMediumLow)) }
                     var dragged = false
                     while (true) {
@@ -350,7 +361,9 @@ private fun CrystalPullIcon(
                     scope.launch { pull.animateTo(Offset.Zero, spring(dampingRatio = 0.38f, stiffness = 380f)) }
                     if (!dragged) {
                         Haptics.light()
-                        latestOnTap()
+                        val held = System.currentTimeMillis() - downAt
+                        val longPress = latestOnLongPress
+                        if (longPress != null && held >= LONG_PRESS_MS) longPress() else latestOnTap()
                     }
                 }
             },

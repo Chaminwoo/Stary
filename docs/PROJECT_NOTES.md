@@ -2019,6 +2019,15 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 5. `secrets.properties` 에 `LEVELPLAY_APP_KEY_ANDROID=`, `LEVELPLAY_REWARDED_AD_UNIT_ANDROID=` 채우고 재빌드 요청.
 6. 출시 전: Play Console **데이터 보안**에 "광고 ID 수집" 표시(SDK 가 `AD_ID` 권한을 병합) + 광고 포함 앱 체크.
 
+### 8.59 후속 — 키 입력 후 실기기 결과 (2026-09-22)
+- `LevelPlay.init` **성공**(앱 키 정상). 보상형 로드는 매번 `509: Mediation No fill`.
+- 디버그 빌드에 `LevelPlay.setAdaptersDebug(true)` + 테스트 스위트(`is_test_suite`) 추가 후 로그: 받은 보상형 설정에
+  **네트워크(인스턴스)가 하나도 없고** Unity Ads 어댑터 초기화도 전혀 일어나지 않는다 → 코드 문제 아님,
+  **이 광고 단위에 켜진 광고 네트워크가 없음**(대시보드 설정 필요). 대시보드 변경은 반영까지 수십 분 걸릴 수 있다.
+- 진단 도구: 디버그 빌드에서 잠금 화면 **재생 아이콘을 0.7초 이상 누르고 떼면** LevelPlay 테스트 스위트
+  (`AdsManager.launchTestSuite`) — 네트워크별 연결 상태·테스트 광고 로드.
+- 테스트 기기 등록용 이 폰의 광고 ID(GAID)는 사용자에게 전달(문서엔 남기지 않음).
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +

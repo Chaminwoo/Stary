@@ -39,6 +39,7 @@ import java.lang.ref.WeakReference
  *   닫힌 뒤 [REWARD_GRACE_MS] 동안 보상 콜백을 기다렸다가 결과를 한 번만 넘긴다.
  * - LevelPlay 콜백은 메인 스레드 — 그대로 Compose 상태를 건드려도 된다.
  * - 테스트: LevelPlay 대시보드 Testing 에 이 기기를 테스트 기기로 등록하면 실광고 대신 테스트 광고(무효 트래픽 방지).
+ * - 디버그 빌드: 어댑터 로그 + 테스트 스위트([launchTestSuite], 재생 아이콘 길게 누르기).
  */
 object AdsManager {
 
@@ -102,6 +103,11 @@ object AdsManager {
         appContext = context.applicationContext
         if (initStarted || initialized || !isConfigured) return
         initStarted = true
+        if (BuildConfig.DEBUG) {
+            // 디버그 전용 진단: 네트워크(어댑터)별 로그 + LevelPlay 통합 테스트 스위트(초기화 **전에** 켜야 한다).
+            LevelPlay.setAdaptersDebug(true)
+            LevelPlay.setMetaData("is_test_suite", "enable")
+        }
         val request = LevelPlayInitRequest.Builder(appKey).build()
         LevelPlay.init(context.applicationContext, request, object : LevelPlayInitListener {
             override fun onInitSuccess(configuration: LevelPlayConfiguration) {
@@ -248,6 +254,15 @@ object AdsManager {
         } else {
             req.onUnavailable()
         }
+    }
+
+    /**
+     * **디버그 빌드 전용** — LevelPlay 통합 테스트 스위트(네트워크별 연결 상태 + 네트워크별 테스트 광고 로드/재생).
+     * "No fill" 원인(네트워크 미설정/비활성)을 찾을 때 쓴다. 잠금 화면 재생 아이콘을 길게 누르면 열린다.
+     */
+    fun launchTestSuite(context: Context) {
+        if (!BuildConfig.DEBUG || !initialized) return
+        LevelPlay.launchTestSuite(context)
     }
 
     private fun show(activity: Activity, ad: LevelPlayRewardedAd, onResult: (Boolean) -> Unit) {
