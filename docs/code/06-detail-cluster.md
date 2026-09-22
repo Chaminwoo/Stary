@@ -1,8 +1,8 @@
 # 06. 다이어리 상세 · 겹친 별 · 공유 카드
 
-Android: `feature/diary/screen/DetailScreen.kt`, `TutorialStarDetailScreen.kt`, `StarClusterScreen.kt`, `ShareCardEditor.kt`,
-`feature/diary/InteractionViewModel.kt`, `core/util/ShareCardHelper.kt`
-iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `TutorialStarDetailScreen.swift`,
+Android: `feature/diary/screen/DetailScreen.kt`, `DiaryLock.kt`, `TutorialStarDetailScreen.kt`, `StarClusterScreen.kt`, `ShareCardEditor.kt`,
+`feature/diary/InteractionViewModel.kt`, `core/util/ShareCardHelper.kt`, `core/util/DiaryUnlockStore.kt`
+iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewModel.swift`, `TutorialStarDetailScreen.swift`,
 `ShareCardEditorView.swift`, `Core/ShareCard.swift`, `Features/Map/StarClusterView.swift`.
 공유 카드는 2026-07-19 iOS 에서 한 번 제거(e6e438e)됐다가 **2026-09 사용자 결정으로 편집기까지 포함해 재구현**(아래 iOS 대응).
 배경 이미지 캐시 `ShareCardBackground` 는 여전히 `StarClusterView.swift` 에 있고 공유 카드/겹친 별 카드가 함께 쓴다.
@@ -11,16 +11,30 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `TutorialSta
 
 ## DetailScreen.kt — 다이어리 상세
 
-### ⚠️ 열람 잠금(2026-09-21 개편 — 여기가 100m 규칙의 **유일한** 집행 지점)
+### ⚠️ 열람 잠금(2026-09-21 도입 → 09-22 개편 — 여기가 100m 규칙의 **유일한** 집행 지점)
 예전엔 지도에서 100m 밖 별을 탭하면 거리 토스트로 **진입 자체가 막혔다**. 지금은 누구나 들어와서
 **제목까지** 보고, 그 외(히어로 미디어·본문·좋아요/공유/신고·댓글)는 잠긴다.
-- `unlocked = isMyDiary || isNear || adUnlocked` — `isNear` 는 `StaryConfig.DIARY_OPEN_RADIUS_M`(100m),
-  `adUnlocked` 는 `core/util/AdUnlockStore`(보상형 광고 시청 기록, **7일 TTL**, SharedPreferences).
-- 잠금 중에는 **원본 미디어 URL 을 로드조차 하지 않는다**(`LockedHero`). 흐림/덮개로 가리기만 하면
-  Coil 캐시·전체화면 뷰어로 새어나간다. `FullScreenMediaViewer` 도 `unlocked` 로 한 번 더 막는다.
-- 본문 자리에는 `LockedContentCard` — 안내 + 현재 거리 + **"광고 보고 열람하기"** 버튼.
-  버튼은 `UnityAdsManager.isConfigured`(게임 ID 주입됨)일 때만 보인다 → 키 없으면 "100m 접근" 안내만.
-- ⚠️ `LockedHero`/`LockedContentCard` 는 **별도 컴포저블 유지**(아래 dex 레지스터 이슈와 같은 이유).
+- `unlocked = isMyDiary || isNear || everUnlocked` — `isNear` 는 `StaryConfig.DIARY_OPEN_RADIUS_M`(100m),
+  `everUnlocked` 는 `core/util/DiaryUnlockStore`(**영구 해금** 기록, SharedPreferences `ad_unlock_store`).
+  - **한 번 열린 글은 계속 열린다**(09-22 "다이어리도 아예 해금 형식"): 광고를 끝까지 보거나 **100m 안에 한 번 들어오면**
+    (`LaunchedEffect(diaryId, isNear, isMyDiary)`) 기록 → 멀어져도 잠기지 않는다. 예전 7일 TTL 은 폐지,
+    TTL 시절 광고 기록도 같은 prefs 키라 그대로 영구 해금으로 승계.
+- **댓글 작성은 해금과 무관하게 무조건 100m 이내**(내 글 포함 — 예전 게이팅 선례와 동일).
+  `CommentInputRow`(같은 파일 private): 로그인 && `isNear` 가 아니면 입력창 비활성 + 자리표시 문구
+  "100m 이내에서만 댓글을 남길 수 있어요", 탭하면 `submitComment` 가 이유 토스트(로그인/100m). 댓글 **열람**은 해금이면 가능.
+- 잠금 UI 는 전부 **`DiaryLock.kt`**(dex 레지스터 이슈로 본체와 분리):
+  - `LockedHero` — **미디어가 있을 때만**: 미디어 로딩 플레이스홀더(`MediaLoadingFrame(loaded=false)` = loading_dipper)
+    + 35% 어둡게 + 가운데 **크리스탈 자물쇠**(`Icons.Filled.Lock`, 60dp). **미디어가 없으면 잠금 표시 없이** 일반 글과
+    같은 `image_frame`(DetailScreen `when` 의 else). 원본 미디어 URL 은 **로드조차 하지 않는다**(가리기만 하면 Coil 캐시·
+    전체화면 뷰어로 새어나감). `FullScreenMediaViewer` 도 `unlocked` 로 한 번 더 막는다.
+  - `LockedContentCard` — **크리스탈 재생 로고**(유튜브 비율 직접 그린 `PlayLogo` ImageVector, 56dp)
+    + "100m 이내로 다가가거나, / 광고를 통해 열어보세요!"(`detail_locked_title`, 쉼표 뒤 줄바꿈) + "현재 위치로부터 N"(`detail_locked_distance`).
+    **별도 "광고 보기" 버튼은 없다** — 아이콘이 버튼.
+  - `CrystalPullIcon` — 두 아이콘 공용. `bakeCrystalIcon`(프로필 부유 아이콘과 같은 파편 재질, 무늬 시드 = diaryId 해시)
+    + 뒤 후광 숨쉬기(1.6s). **제자리 고정**, 잡아당기면 `PULL_MAX(16dp)·(1−e^(−d/PULL_SOFT(70dp)))` 만큼만 끌려오고
+    당긴 쪽으로 최대 6° 기울며, 놓으면 `spring(0.38, 380)` 로 출렁이며 복귀. 터치 슬롭 안에서 떼면 **탭 → `watchAdToUnlock`**.
+  - `watchAdToUnlock` — 광고 미설정/초기화 전/로드 안 됨/Activity 없음 → "지금은 광고를 불러올 수 없어요" + 재로드.
+    끝까지 봄 → `DiaryUnlockStore.unlock` + `Haptics.celebrate()` + 토스트, 건너뜀 → "끝까지 봐야 열려요".
 
 ### 구조(위 → 아래)
 1. **4:3 히어로 헤더** : 미디어(사진/움짤) 또는 `image_frame` + 가독성 스크림 +
@@ -33,7 +47,7 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `TutorialSta
    `TextButton` 의 최소 폭 58dp 때문에 "수정 삭제" 사이가 과하게 벌어져서, 글자 폭 + 좌우 8dp 로 좁혔다
    (터치 높이는 40dp 유지). iOS 는 `Spacer().frame(width: 16)` 로 같은 간격.
    ⚠️ 좋아요 토스트는 없앴다 — 버스트 자체가 피드백이라 중복이었다.
-4. 댓글: "댓글 N" 헤더 + `CommentItem` 목록 + 입력창. 댓글 작성자 탭=프로필, 내 댓글 삭제 가능.
+4. 댓글: "댓글 N" 헤더 + `CommentInputRow`(100m 밖이면 잠김) + `CommentItem` 목록. 댓글 작성자 탭=프로필, 내 댓글 삭제 가능.
 5. 잠겨 있으면 3·4 는 아예 그리지 않고, 2 의 본문 카드 자리에 `LockedContentCard` 만 남는다.
 
 ### 상태/변수(주요)
@@ -99,10 +113,13 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `TutorialSta
 ## iOS 대응
 - `DetailScreen.swift` : Android 와 같은 구성(히어로/본문 카드/인라인 액션/댓글/
   `FullScreenMediaViewer`/`RemoteGifFitView`). push 진입(시트 아님).
-  잠금도 동일 — `canOpen = isOwner || 100m 이내 || AdUnlockStore.isUnlocked(id)`,
-  잠김이면 `lockedHero`(미디어 미로드) + `lockedContentCard`. 광고 버튼은 `AdsManager.isConfigured`
-  가 true 일 때만 — ⚠️ **iOS 는 아직 Unity Ads SDK 미연결**(`Core/AdsManager.swift` 가 자리만 잡아 둔
-  스텁, `isConfigured == false`). 다음 iOS 광고 라운드에서 TODO 자리를 채운다.
+  잠금도 동일 — `canOpen = isOwner || isNear || DiaryUnlockStore.isUnlocked(id)`(영구, `onAppear`/`onChange(of: isNear)`
+  에서 접근 해금 기록), `canComment = 로그인 && isNear`. 잠김이면 미디어 있을 때만 `lockedHero`(loading_dipper + 크리스탈
+  `lock.fill`) + `lockedContentCard`(크리스탈 재생 로고 `DiaryLock.playLogoPath` — Android `PlayLogo` 와 같은 24×24 좌표).
+  공용 부품은 `DiaryLockViews.swift`(`DiaryLock` 상수/시드/고무줄 + `CrystalPullIcon`), 경로 아이콘 베이크는
+  `StarCrystal.pathIconImage`. 시드는 Java `String.hashCode` 와 같은 식이라 두 플랫폼 무늬가 같다.
+  광고 결과·댓글 100m 안내는 `ToastView` 토스트. ⚠️ **iOS 는 아직 Unity Ads SDK 미연결**(`Core/AdsManager.swift`
+  스텁, `isConfigured == false`) → 아이콘을 탭하면 "광고를 불러올 수 없어요". 다음 iOS 광고 라운드에서 TODO 자리를 채운다.
 - `DetailViewModel.swift` : 좋아요/댓글 리스너 — ⚠️ 모델 디코딩은 `@DocumentID` 명시 디코드 필수
   (12 문서의 id=nil 버그 참고).
 - `StarClusterView.swift` : 겹친 별 카드 뷰어(자체 뒤로가기, 내비바 숨김). 카드 탭 → pop 후 0.35s
@@ -126,4 +143,6 @@ iOS: `Features/Detail/DetailScreen.swift`, `DetailViewModel.swift`, `TutorialSta
 | 조회수 중복 방지 | `ViewCountSession`(세션 집합) | iOS 대응 로직(ViewedStore/세션) |
 | 겹친 별 헤더(5개 이상 = 다이얼) | `StarClusterScreen.ClusterStarDial`(칸 30, 창 5칸, ±3, 아이콘 26) | `StarClusterView.starDial` (**수치 동일**) |
 | 4개 이하 헤더(고정 겹침 배치) | `StarClusterScreen` 의 else 분기 | `StarClusterView.fixedStars` |
+| 잠금 아이콘 고무줄 | `DiaryLock.kt` `PULL_MAX`(16dp) / `PULL_SOFT`(70dp) / `spring(0.38, 380)` / 최대 6° | `DiaryLock.pullMax`/`pullSoft` / `interpolatingSpring(380, 14.8)` (**수치 동일**) |
+| 잠금 아이콘 크기 | 자물쇠 60dp · 재생 로고 56dp · 터치 영역 ×1.7 | 60 · 56 · ×1.7 |
 | 신고 사유 + "기타" 상세 | `core/ui/ReportDialog.kt` `onSubmit(reason, detail)` / REPORT_DETAIL_MAX_LEN | `Features/ReportDialog.swift` `onPick(reason, detail)` — iOS 는 "기타"만 알럿 한 단계 더 |

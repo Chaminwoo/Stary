@@ -2,7 +2,9 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.55 iOS 패리티 9건 + 3D 글로브 Metal 복원** — 웰컴 별/첫 코치마크/공유 카드/신규 별 오오라/채팅 빈 화면/
+> 최종 갱신: **8.56 잠금 화면 개편**(크리스탈 자물쇠/재생 로고 고무줄 아이콘 · 영구 해금 · 댓글 무조건 100m · 다이아몬드 축소/세로선 제거)
+> — Android BUILD SUCCESSFUL(2026-09-22), 실기기 테스트 대기 · iOS 는 push 후 CI 검증. 8.50(길찾기 삭제·100m 잠금·Unity Ads)과 함께 push 전.
+> 이전: **8.55 iOS 패리티 9건 + 3D 글로브 Metal 복원** — 웰컴 별/첫 코치마크/공유 카드/신규 별 오오라/채팅 빈 화면/
 > 모의 위치 경고/초대 결과 토스트/음량 별 thumb/일일 알림 문구 + Android GL 글로브의 Metal 1:1 포팅(2026-09-14, iOS 전용 —
 > Android 변경 없음). iOS 는 push 후 CI 컴파일 검증 + **실기기 확인 필요**(글로브 셰이더는 런타임 컴파일) — 아래 8.55 참고.
 > 이전: **8.54 웰컴 별(튜토리얼 별) — 근처 안내 별 + 게시물형 열람** — Android BUILD SUCCESSFUL + 사용자 테스트 완료
@@ -1841,6 +1843,7 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
   - `LockedContentCard` : 안내 + 현재 거리 + "광고 보고 열람하기"(광고 미설정이면 버튼 숨김).
   - ⚠️ 둘 다 **별도 컴포저블** — DetailScreen 본체 인라인은 dex 레지스터(256) 한계로 VerifyError 이력이 있다.
 - `core/util/AdUnlockStore` : diaryId → 해제 시각(ms), **7일 TTL**, SharedPreferences + Compose 상태 맵.
+  (→ 8.56 에서 `DiaryUnlockStore` **영구 해금**으로 교체)
   iOS `Data/AdUnlockStore.swift` 가 같은 규칙(UserDefaults + ObservableObject).
 - 삭제된 문자열: `map_open_range`, `map_waiting_fix`, `detail_interaction_locked`(ko/en/ja + iOS L10n).
   추가: `detail_locked_*`, `detail_watch_ad`, `detail_ad_*`.
@@ -1875,6 +1878,40 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
 2. (선택) openrouteservice.org 대시보드에서 더 이상 안 쓰는 ORS 키 폐기.
    레포/로컬 `secrets.properties` 의 ORS 줄은 이미 제거됨. GitHub Actions 에는 ORS 시크릿이 없었다.
 
+## 8.56 잠금 화면 개편 — 크리스탈 자물쇠/재생 로고 · 고무줄 · 영구 해금 · 댓글 100m · 다이아몬드 축소 (BUILD SUCCESSFUL 2026-09-22, 실기기 테스트 대기)
+
+8.50 의 100m 잠금에 대한 사용자 피드백 라운드. Android `:androidApp:assembleDebug` **BUILD SUCCESSFUL**, iOS 는 같은 작업 단위로
+반영(push 후 CI 컴파일 검증 필요). 8.50 과 함께 아직 **push 전**(로컬 커밋만).
+
+### 사용자 요청 → 구현
+| 요청 | 구현 |
+|---|---|
+| 100m 밖 = 제목만, 미디어/본문/댓글은 광고로 | 8.50 구조 유지(`unlocked = 내 글 ∥ 100m ∥ 해금`) |
+| **댓글 작성은 무조건 100m 안** | `CommentInputRow`(Android) / `canComment`(iOS) — 해금돼도 100m 밖이면 입력 잠금 + "100m 이내에서만 댓글을 남길 수 있어요". **내 글도 포함**(8.50 이전 `isNear` 게이팅 선례 그대로) |
+| 미디어 있으면 영상 플레이스홀더 가운데 파편 자물쇠, 없으면 잠금 표시 제거 | `LockedHero` = `MediaLoadingFrame(loaded=false)`(loading_dipper) + 35% 어둡게 + 크리스탈 `Icons.Filled.Lock`/`lock.fill`. 미디어 없으면 일반 글과 같은 `image_frame` |
+| 본문 자물쇠 → 유튜브 같은 영상 로고(파편), 문구 교체 | 유튜브 비율 재생 로고를 **직접 그림**(Material `SmartDisplay` 는 모서리가 각져서 탈락) — 24×24 뷰포트 둥근 몸통 21×15(r 4.6) + 삼각형 구멍(EvenOdd). 문구 "100m 이내로 다가가거나,\n광고를 통해 열어보세요!" + "현재 위치로부터 N" |
+| 파편 아이콘: 고정, 잡아당기면 버티며 조금 끌려오고 놓으면 복귀, 탭 = 광고 | `CrystalPullIcon` — 끌린 거리 d → `16dp·(1−e^(−d/70dp))`, 최대 6° 기울기, 놓으면 `spring(0.38, 380)` 출렁 복귀, 터치 슬롭 안이면 탭 → 광고. 뒤 후광만 1.6s 숨쉬기(누를 수 있다는 힌트, 위치는 고정). **"광고 보고 열람하기" 버튼 삭제**(아이콘이 버튼) |
+| "다이어리도 아예 해금 형식" | **영구 해금**으로 해석: `AdUnlockStore`(7일 TTL) → `DiaryUnlockStore`(영구). 광고를 끝까지 보거나 **100m 안에 한 번 들어오면** 기록, 이후 멀어져도 열람 가능(댓글 작성만 100m). prefs 키 `ad_unlock_store` 유지 → 기존 광고 기록 승계 |
+| 다이아몬드 더 작게 + 가운데 선 제거 | `GEM_SCALE`/`gemScale` 0.66 → **0.56**, 중심→컬릿 **세로선 삭제**(크라운 V + 거들 가로선 = 💎 아이콘 형태) |
+
+### 파일
+- 신규: Android `feature/diary/screen/DiaryLock.kt`(LockedHero/LockedContentCard/CrystalPullIcon/PlayLogo/watchAdToUnlock —
+  DetailScreen 본체에서 분리, dex 레지스터 이슈), iOS `Features/Detail/DiaryLockViews.swift`(`DiaryLock` + `CrystalPullIcon`).
+- 이름 변경: `core/util/AdUnlockStore.kt` → `DiaryUnlockStore.kt`, iOS `Data/AdUnlockStore.swift` → `DiaryUnlockStore.swift`.
+- iOS `StarCrystal.pathIconImage(name:path:color:seed:size:)` 신설 — SF Symbol 에 없는 모양(재생 로고)을 경로로 파편 베이크.
+- 문자열: `detail_locked_title`(문구 교체, %1$d 반경) / `detail_locked_distance`("현재 위치로부터 %1$s") 변경,
+  `detail_comment_near_only` 추가, `detail_locked_desc`·`detail_locked_media`·`detail_ad_playing` 삭제(ko/en/ja + iOS L10n).
+  `detail_watch_ad` 는 아이콘 접근성 라벨로 남김.
+- `watchAdToUnlock`: 광고가 준비 안 됐으면(미설정/초기화 전/로드 전) "불러올 수 없어요" + 재로드 — 8.50 에선 이 경우
+  `showRewarded` 가 false 를 돌려 "끝까지 봐야 열려요"로 **잘못 안내**하던 것을 바로잡음. 보상 시 `Haptics.celebrate()`.
+- iOS: 광고 결과/댓글 100m 안내를 `ToastView` 토스트로(Android StaryToast 대응). `CommentAvatar` 의 불필요한
+  `AdUnlockStore`/`AdsManager` 관찰 제거(이름 변경으로 컴파일도 깨졌을 것).
+
+### 주의
+- 셸 스크립트(heredoc+python)로 문자열을 넣을 때 이스케이프 `\n` 이 실제 개행으로 바뀌어 들어간 적이 있다 —
+  문자열 리소스/L10n 의 `\n` 은 편집 후 원문으로 확인할 것(Android strings.xml 은 원시 개행이면 공백으로 접힌다).
+- iOS 는 아직 Unity Ads SDK 미연결 → 아이콘 탭 시 "광고를 불러올 수 없어요"(8.50 TODO 그대로).
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
@@ -1901,4 +1938,4 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
 | 좌표/거리 공용 로직 | `shared/.../core/geo/LatLng.kt`, `GeoUtils.kt`, `core/util/LocationHelper.kt` |
 | 상수/설정/민감값 계약 | `shared/.../shared/config/StaryConfig.kt`, `Secrets.kt` |
 | 키/시크릿 주입 | `androidApp/build.gradle.kts`, `secrets.properties`(MAPTILER_KEY / GOOGLE_WEB_CLIENT_ID / UNITY_GAME_ID_ANDROID) |
-| 광고(보상형) | `core/ads/UnityAdsManager.kt`, `core/util/AdUnlockStore.kt`, `DetailScreen.LockedContentCard` |
+| 광고(보상형)·열람 잠금 | `core/ads/UnityAdsManager.kt`, `core/util/DiaryUnlockStore.kt`, `feature/diary/screen/DiaryLock.kt` |

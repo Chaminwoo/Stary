@@ -139,9 +139,10 @@ enum L10n: String {
     case filterAll, filterFriends, filterMine, filterPickFriends, filterFriendsN
     // 상세 화면(Android DetailScreen 대응).
     case commonEdit, commonAnonymous, detailCommentsCount, commentPlaceholder, detailLocating
-    // 100m 밖 게시물 잠금(2026-09-21) — 제목만 보이고 미디어/본문/댓글은 접근 또는 광고로 열린다.
-    case detailLockedTitle, detailLockedDesc, detailLockedMedia, detailLockedDistance
-    case detailWatchAd, detailAdPlaying, detailAdUnlocked, detailAdNotFinished, detailAdUnavailable
+    // 100m 밖 게시물 잠금(2026-09-21, 09-22 개편) — 제목만 보이고 미디어/본문/댓글은 접근 또는 광고로 영구 해금.
+    // 댓글 작성은 해금과 무관하게 항상 100m 이내(detailCommentNearOnly).
+    case detailLockedTitle, detailLockedDistance, detailCommentNearOnly
+    case detailWatchAd, detailAdUnlocked, detailAdNotFinished, detailAdUnavailable
     // 내 다이어리 별자리 보드(Android MyDiaryScreen 대응).
     case sortLatest, sortPopular, sortDistance, mydiarySortCount, mydiaryEmpty
     case mydiaryViewList, mydiaryViewStars, commonUntitled
@@ -416,21 +417,19 @@ enum L10n: String {
         case .filterFriendsN:       return ("친구 %d명", "%d friends", "友達%d人")
         case .commonEdit:           return ("수정", "Edit", "編集")
         case .commonAnonymous:      return ("익명", "Anonymous", "匿名")
-        // ⚠️ detailCommentsCount 는 %d(댓글 수), detailLockedDesc 는 %1$d(반경 m),
+        // ⚠️ detailCommentsCount 는 %d(댓글 수), detailLockedTitle·detailCommentNearOnly 는 %1$d(반경 m),
         // detailLockedDistance 는 %@(이미 포맷된 거리 — `Geo.formatDistance`)를 format 으로 채운다.
         case .detailCommentsCount:  return ("댓글 %d", "Comments %d", "コメント %d")
         case .commentPlaceholder:   return ("댓글을 입력하세요", "Write a comment", "コメントを入力")
         case .detailLocating:       return ("위치를 확인하는 중이에요…", "Checking your location…", "位置を確認しています…")
-        case .detailLockedTitle:    return ("아직 잠겨 있는 이야기예요", "This story is still locked", "まだロックされた物語です")
-        case .detailLockedDesc:     return ("사진과 이야기, 댓글은 %1$dm 이내로 다가가거나\n광고를 보면 볼 수 있어요",
-                                            "Come within %1$dm or watch an ad\nto see the photo, story and comments",
-                                            "写真と本文、コメントは %1$dm 以内に近づくか\n広告を見ると閲覧できます")
-        case .detailLockedMedia:    return ("가까이 가거나 광고를 보면 공개돼요",
-                                            "Unlocks when you get closer or watch an ad",
-                                            "近づくか広告を見ると公開されます")
-        case .detailLockedDistance: return ("현재 %@ 거리", "%@ away", "現在 %@ の距離")
+        case .detailLockedTitle:    return ("%1$dm 이내로 다가가거나,\n광고를 통해 열어보세요!",
+                                            "Get within %1$dm,\nor watch an ad to open it!",
+                                            "%1$dm 以内に近づくか、\n広告を見て開いてみてください！")
+        case .detailLockedDistance: return ("현재 위치로부터 %@", "%@ from your current location", "現在地から %@")
+        case .detailCommentNearOnly: return ("%1$dm 이내에서만 댓글을 남길 수 있어요",
+                                             "You can comment only within %1$dm",
+                                             "コメントは %1$dm 以内でのみ書けます")
         case .detailWatchAd:        return ("광고 보고 열람하기", "Watch an ad to unlock", "広告を見て閲覧する")
-        case .detailAdPlaying:      return ("광고 재생 중…", "Playing ad…", "広告を再生中…")
         case .detailAdUnlocked:     return ("이야기가 열렸어요", "The story is unlocked", "物語が開きました")
         case .detailAdNotFinished:  return ("광고를 끝까지 봐야 열려요", "Watch the whole ad to unlock it", "広告を最後まで見ると開きます")
         case .detailAdUnavailable:  return ("지금은 광고를 불러올 수 없어요. 잠시 후 다시 시도해 주세요",

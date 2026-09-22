@@ -258,6 +258,34 @@ enum StarCrystal {
         return img
     }
 
+    /// [iconImage] 의 경로 버전 — SF Symbol 에 없는 모양(유튜브형 재생 로고 등)을 **24×24 뷰포트** 경로로 받아
+    /// 크리스탈 파편으로 채운다(Android 는 같은 좌표의 ImageVector → `bakeCrystalIcon`).
+    /// 경로 안쪽 구멍(재생 삼각형 등)은 even-odd 채움으로 뚫린다. [name] 은 캐시 키용 모양 이름.
+    static func pathIconImage(name: String, path: CGPath, color: UIColor, seed: Int, size: CGFloat) -> UIImage {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let key = "path-\(name)-\(seed)-\(Int(size.rounded()))-" +
+            "\(Int(r * 255))-\(Int(g * 255))-\(Int(b * 255))" as NSString
+        if let hit = imageCache.object(forKey: key) { return hit }
+
+        let rect = CGRect(x: 0, y: 0, width: size, height: size)
+        let facets = UIGraphicsImageRenderer(size: rect.size).image { ctx in
+            drawFacets(in: ctx.cgContext, seed: seed, colors: [color], rect: rect)
+        }
+        let img = UIGraphicsImageRenderer(size: rect.size).image { ctx in
+            let cg = ctx.cgContext
+            cg.saveGState()
+            cg.scaleBy(x: size / 24, y: size / 24)
+            cg.addPath(path)
+            cg.setFillColor(UIColor.white.cgColor)
+            cg.fillPath(using: .evenOdd)
+            cg.restoreGState()
+            facets.draw(in: rect, blendMode: .sourceIn, alpha: 1)
+        }
+        imageCache.setObject(img, forKey: key)
+        return img
+    }
+
     // MARK: - 메시 파라미터
 
     /// 파편 메시 밀도(링당 꼭짓점 수) — 실제 조각 수 = 1(코어) + 4n.

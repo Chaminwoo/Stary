@@ -12,8 +12,10 @@ struct DetailScreen: View {
     @ObservedObject private var focus = MapFocusStore.shared
     // 작성자/댓글 이름·프사를 users/{uid} 의 "현재" 값으로 표시(스냅샷 아님) — Android UserDirectory 패리티.
     @ObservedObject private var directory = UserDirectory.shared
-    @ObservedObject private var adUnlock = AdUnlockStore.shared
+    @ObservedObject private var unlockStore = DiaryUnlockStore.shared
     @ObservedObject private var ads = AdsManager.shared
+    /// 광고 결과·댓글 100m 안내 토스트(Android StaryToast 대응 — FriendsScreen 과 같은 ToastView 패턴).
+    @State private var toast: String?
     @State private var didCountView = false
     @State private var commentText = ""
     @State private var profileTarget: ProfileTarget?
@@ -61,15 +63,25 @@ struct DetailScreen: View {
     }
 
     private var isOwner: Bool { diary.userId == auth.uid }
-    /// ── 열람 잠금(2026-09-21) ────────────────────────────────────────────────
+    /// 100m 이내인가. 실제 위치 fix(coordinate != nil) 전에는 거리 판정을 하지 않는다 — 기본좌표/저장좌표로
+    /// 100m 을 재면 이동·조작으로 우회될 수 있다. (Android DetailScreen 패리티)
+    private var isNear: Bool {
+        location.coordinate != nil && distanceM <= AppConfig.diaryOpenRadiusM
+    }
+    /// ── 열람 잠금(2026-09-21, 09-22 영구 해금으로 개편) ─────────────────────────
     /// 예전엔 100m 밖이면 지도에서 **진입 자체가 막혔다**. 이제는 누구나 들어와서 **제목까지** 보고,
     /// 사진/본문/댓글은 ① 100m 이내 접근 ② 보상형 광고 시청 중 하나로 연다(내 글은 항상 열림).
-    /// 실제 위치 fix(coordinate != nil) 전에는 거리 판정을 하지 않는다 — 기본좌표/저장좌표로
-    /// 100m 을 재면 이동·조작으로 우회될 수 있다. (Android DetailScreen 패리티)
+    /// 한 번 열린 글은 `DiaryUnlockStore` 에 남아 **계속 열려 있다**(멀어져도). 잠금 UI 는 `DiaryLockViews.swift`.
+    /// ⚠️ 댓글 **작성**만은 해금과 무관하게 항상 100m 이내(`isNear`)에서만.
     private var canOpen: Bool {
-        isOwner
-            || (location.coordinate != nil && distanceM <= AppConfig.diaryOpenRadiusM)
-            || (diary.id.map { adUnlock.isUnlocked($0) } ?? false)
+        isOwner || isNear || (diary.id.map { unlockStore.isUnlocked($0) } ?? false)
+    }
+    /// 댓글을 쓸 수 있는가 — 로그인 && **무조건 100m 이내**(2026-09-22 사용자 지시, 내 글 포함).
+    private var canComment: Bool { auth.uid != nil && isNear }
+    /// 100m 이내에 들어온 순간 그 글을 영구 해금한다(내 글은 기록 불필요).
+    private func recordProximityUnlock() {
+        guard isNear, !isOwner, let id = diary.id else { return }
+        unlockStore.unlock(id)
     }
     /// 차단한 사용자의 댓글은 숨긴다. (Android DetailScreen 패리티)
     private var visibleComments: [Comment] { vm.comments.filter { !blockedIds.contains($0.userId) } }
@@ -102,7 +114,15 @@ struct DetailScreen: View {
                     .padding(.horizontal, 20)
                 }
             }
+            if let t = toast {
+                ToastView(text: t)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
+            }
         }
+        // 100m 이내에 들어오면 영구 해금 기록(Android LaunchedEffect(isNear) 패리티).
+        .onAppear { recordProximityUnlock() }
+        .onChange(of: isNear) { _ in recordProximityUnlock() }
         .fullScreenCover(isPresented: $showFullMedia) {
             FullScreenMediaViewer(
                 mediaUrl: diary.videoUrl.isEmpty ? diary.imageUrl : diary.videoUrl,
@@ -242,10 +262,11 @@ struct DetailScreen: View {
 
     // ── 헤더: 4:3 미디어 + 하단 스크림 + 별/작성자/날짜 오버레이 (Android 헤더 Box 대응) ──
 
+    /// 이 글에 미디어(사진/영상/움짤)가 있는가(열람 가능 여부와 무관).
+    private var diaryHasMedia: Bool { !(diary.imageUrl.isEmpty && diary.videoUrl.isEmpty) }
+
     /// 실제 미디어(사진/영상/움짤)가 있고 열람 가능한가 — 없으면 기본 템플릿(image_frame)만.
-    private var hasMedia: Bool {
-        canOpen && !(diary.imageUrl.isEmpty && diary.videoUrl.isEmpty)
-    }
+    private var hasMedia: Bool { canOpen && diaryHasMedia }
 
     private var heroHeader: some View {
         Color.clear
@@ -283,7 +304,8 @@ struct DetailScreen: View {
     @ViewBuilder
     private var headerMedia: some View {
         // ⚠️ 잠겨 있으면 원본 URL 을 **로드조차 하지 않는다** — 가리기만 하면 캐시/전체화면으로 새어나간다.
-        if !canOpen {
+        // 잠김 + 미디어 없음이면 잠금 표시 없이 아래 image_frame 분기(가릴 게 없다).
+        if !canOpen && diaryHasMedia {
             lockedHero
         } else if !diary.videoUrl.isEmpty, isGifUrl(diary.videoUrl) {
             // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 는 아래 플레이어)
@@ -416,45 +438,43 @@ struct DetailScreen: View {
         .padding(.bottom, 8)
     }
 
-    /// 잠긴 글의 히어로(4:3) — 사진 대신 자물쇠 판. (Android `LockedHero` 패리티)
+    /// 잠긴 글의 히어로(4:3) — **미디어가 있는 글에서만**. 미디어 로딩 플레이스홀더(loading_dipper) 위
+    /// 가운데 크리스탈 자물쇠(탭 = 광고, 잡아당기면 고무줄). (Android `DiaryLock.kt` `LockedHero` 패리티)
     private var lockedHero: some View {
         ZStack {
-            if let frame = BundleImage.named("image_frame") {
-                Image(uiImage: frame).resizable().scaledToFill()
-            } else {
-                Theme.surfaceAlt
-            }
-            LinearGradient(colors: [Color(hex: 0x0B0E14).opacity(0.90),
-                                    Color(hex: 0x0B0E14).opacity(0.95)],
-                           startPoint: .top, endPoint: .bottom)
-            VStack(spacing: 10) {
-                Image(systemName: "lock")
-                    .font(.system(size: 30))
-                    .foregroundStyle(accent.opacity(0.85))
-                Text(LocaleManager.shared.t(.detailLockedMedia))
-                    .font(.minSans(13))
-                    .foregroundStyle(Theme.textSecondary)
-            }
+            // loaded=false 고정 → 콘텐츠 없이 플레이스홀더만.
+            MediaLoadingFrame(loaded: false) { Color.clear }
+            // 자물쇠가 떠 보이도록 살짝만 어둡게(Android 0x590B0E14 ≈ 35%).
+            Color(hex: 0x0B0E14).opacity(0.35)
+            CrystalPullIcon(
+                image: DiaryLock.lockImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 0), size: 60),
+                color: accent,
+                iconSize: 60,
+                accessibilityText: LocaleManager.shared.t(.detailWatchAd),
+                onTap: watchAdToUnlock
+            )
         }
     }
 
-    /// 잠긴 글의 본문 자리 — 왜 잠겼는지 + 여는 두 가지 방법(100m 접근 / 보상형 광고).
-    /// 광고 SDK 가 아직 안 붙은 동안에는(`AdsManager.isConfigured == false`) 버튼을 숨긴다.
-    /// (Android `LockedContentCard` 패리티)
+    /// 잠긴 글의 본문 자리 — 크리스탈 재생 로고(탭 = 광고) + 여는 방법 + 현재 위치로부터의 거리.
+    /// 광고 SDK 가 아직 안 붙은 동안(`AdsManager.isConfigured == false`)에는 탭하면 "광고를 불러올 수 없어요" 안내.
+    /// (Android `DiaryLock.kt` `LockedContentCard` 패리티)
     private var lockedContentCard: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "lock")
-                .font(.system(size: 20))
-                .foregroundStyle(accent.opacity(0.9))
-            Text(LocaleManager.shared.t(.detailLockedTitle))
+        VStack(spacing: 0) {
+            CrystalPullIcon(
+                image: DiaryLock.playLogoImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 56),
+                color: accent,
+                iconSize: 56,
+                accessibilityText: LocaleManager.shared.t(.detailWatchAd),
+                onTap: watchAdToUnlock
+            )
+            Spacer().frame(height: 2)
+            Text(String(format: LocaleManager.shared.t(.detailLockedTitle), Int(AppConfig.diaryOpenRadiusM)))
                 .font(.minSans(15, .semibold))
-                .foregroundStyle(Theme.textPrimary)
-            Text(String(format: LocaleManager.shared.t(.detailLockedDesc),
-                        Int(AppConfig.diaryOpenRadiusM)))
-                .font(.minSans(13))
-                .lineSpacing(6)
+                .lineSpacing(5)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textPrimary)
+            Spacer().frame(height: 10)
             HStack(spacing: 6) {
                 Image(systemName: "location")
                     .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
@@ -464,32 +484,12 @@ struct DetailScreen: View {
                               Geo.formatDistance(distanceM)))
                     .font(.minSans(12.5)).foregroundStyle(Theme.textSecondary)
             }
-            if ads.isConfigured {
-                Button {
-                    guard let id = diary.id else { return }
-                    ads.showRewarded { rewarded in
-                        if rewarded { AdUnlockStore.shared.unlock(id) }
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "play.circle").font(.system(size: 16))
-                        Text(LocaleManager.shared.t(ads.showing ? .detailAdPlaying : .detailWatchAd))
-                            .font(.minSans(14))
-                    }
-                    .foregroundStyle(accent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(accent.opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(accent.opacity(0.40), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .disabled(ads.showing)
-                .padding(.top, 6)
-            }
         }
         .frame(maxWidth: .infinity)
-        .padding(18)
+        // 위쪽은 아이콘 터치 영역(후광 여백)이 이미 넉넉해서 얇게(Android 와 같은 값).
+        .padding(.horizontal, 18)
+        .padding(.top, 6)
+        .padding(.bottom, 18)
         .background(Color(hex: 0x14181C).opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16).strokeBorder(
@@ -501,14 +501,54 @@ struct DetailScreen: View {
         .onAppear { ads.preload() }
     }
 
+    /// 보상형 광고 → 끝까지 보면 이 글을 **영구 해금**(`DiaryUnlockStore`). (Android `watchAdToUnlock` 패리티)
+    private func watchAdToUnlock() {
+        guard let id = diary.id, !ads.showing else { return }
+        guard ads.isConfigured else {
+            showToast(LocaleManager.shared.t(.detailAdUnavailable))
+            return
+        }
+        ads.showRewarded { rewarded in
+            if rewarded {
+                DiaryUnlockStore.shared.unlock(id)
+                Haptics.celebrate()
+                showToast(LocaleManager.shared.t(.detailAdUnlocked))
+            } else {
+                showToast(LocaleManager.shared.t(.detailAdNotFinished))
+            }
+        }
+    }
+
+    private func showToast(_ text: String) {
+        toast = text
+        Task {
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            if toast == text { toast = nil }
+        }
+    }
+
+    /// 댓글을 못 쓰는 이유 안내 — 비로그인이면 로그인 팝업, 100m 밖이면 토스트.
+    private func explainCommentBlocked() {
+        if auth.uid == nil {
+            showLoginRequired = true
+        } else if !isNear {
+            showToast(String(format: LocaleManager.shared.t(.detailCommentNearOnly), Int(AppConfig.diaryOpenRadiusM)))
+        }
+    }
+
     private var commentsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             // "댓글 N" 헤더 — Android detail_comments_count 대응.
             Text(String(format: LocaleManager.shared.t(.detailCommentsCount), visibleComments.count))
                 .font(.minSans(14))
                 .foregroundStyle(Theme.textPrimary)
+            // 댓글 입력 — 로그인 && **100m 이내**일 때만(해금과 무관, 2026-09-22). 못 쓰면 잠그고 이유 안내.
+            // (Android CommentInputRow 패리티)
             HStack {
-                TextField(LocaleManager.shared.t(.commentPlaceholder), text: $commentText, axis: .vertical)
+                TextField(auth.uid != nil && !isNear
+                          ? String(format: LocaleManager.shared.t(.detailCommentNearOnly), Int(AppConfig.diaryOpenRadiusM))
+                          : LocaleManager.shared.t(.commentPlaceholder),
+                          text: $commentText, axis: .vertical)
                     .lineLimit(1...4)
                     .onChange(of: commentText) { v in
                         if v.count > AppConfig.commentMaxLen { commentText = String(v.prefix(AppConfig.commentMaxLen)) }
@@ -516,25 +556,25 @@ struct DetailScreen: View {
                     .padding(10)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                     .foregroundStyle(Theme.textPrimary)
-                    .disabled(auth.uid == nil) // 비로그인 시 입력 잠금
+                    .disabled(!canComment)
                     .overlay {
-                        if auth.uid == nil {
-                            // 비활성 필드는 터치를 안 받으므로 투명 오버레이로 로그인 안내.
+                        if !canComment {
+                            // 비활성 필드는 터치를 안 받으므로 투명 오버레이로 이유 안내(로그인 / 100m).
                             Color.clear
                                 .contentShape(Rectangle())
-                                .onTapGesture { showLoginRequired = true }
+                                .onTapGesture { explainCommentBlocked() }
                         }
                     }
                 Button {
-                    guard auth.uid != nil else { showLoginRequired = true; return }
+                    guard canComment else { explainCommentBlocked(); return }
                     let t = commentText
                     commentText = ""
                     Task { await vm.addComment(uid: auth.uid, userName: auth.displayName, text: t) }
                 } label: {
                     Image(systemName: "paperplane.fill")
-                        .foregroundStyle(commentText.isEmpty ? Theme.textFaint : Theme.mint)
+                        .foregroundStyle(!canComment || commentText.isEmpty ? Theme.textFaint : Theme.mint)
                 }
-                .disabled(auth.uid == nil || commentText.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(!canComment || commentText.trimmingCharacters(in: .whitespaces).isEmpty)
             }
 
             ForEach(visibleComments) { c in
@@ -629,8 +669,6 @@ private struct CommentAvatar: View {
     let userId: String
     let userName: String
     @ObservedObject private var directory = UserDirectory.shared
-    @ObservedObject private var adUnlock = AdUnlockStore.shared
-    @ObservedObject private var ads = AdsManager.shared
     @State private var thumb: UIImage?
 
     private var initial: String {

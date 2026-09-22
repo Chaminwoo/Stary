@@ -16,11 +16,11 @@ import com.unity3d.ads.UnityAdsShowOptions
 /**
  * Unity Ads(보상형 광고) 래퍼 — 앱에서 광고를 쓰는 **유일한 진입점**.
  *
- * 쓰는 곳: 100m 밖 게시물의 잠금 해제([com.chaminwoo.stary.core.util.AdUnlockStore]).
- * 흐름: [init] (앱 시작 1회) → [preload] (잠금 화면 진입 시) → [showRewarded] (버튼 탭).
+ * 쓰는 곳: 100m 밖 게시물의 잠금 해제([com.chaminwoo.stary.core.util.DiaryUnlockStore], DetailScreen `DiaryLock.kt`).
+ * 흐름: [init] (앱 시작 1회) → [preload] (잠금 화면 진입 시) → [showRewarded] (크리스탈 자물쇠/재생 아이콘 탭).
  *
  * - 게임 ID/배치 ID 는 `secrets.properties` → BuildConfig 주입(하드코딩 금지).
- *   키가 없으면 [isConfigured] 가 false → 호출부는 광고 버튼을 숨기고 "100m 접근" 안내만 남긴다.
+ *   키가 없으면 [isConfigured] 가 false → 호출부는 아이콘을 탭해도 광고 대신 "지금은 광고를 불러올 수 없어요" 안내.
  * - 보상 판정은 `UnityAdsShowCompletionState.COMPLETED` 뿐이다(건너뛰기(SKIPPED)는 보상 없음).
  * - Unity SDK 콜백은 메인 스레드로 온다 — 그대로 Compose 상태를 건드려도 된다.
  */
@@ -31,7 +31,7 @@ object UnityAdsManager {
     /** 보상형 배치 id(Unity Dashboard 의 Placement ID 와 철자까지 같아야 한다). */
     val rewardedPlacementId: String get() = BuildConfig.UNITY_REWARDED_PLACEMENT
 
-    /** 실제 게임 ID 가 주입됐는지(placeholder 가 아닌지) — false 면 광고 UI 를 아예 띄우지 않는다. */
+    /** 실제 게임 ID 가 주입됐는지(placeholder 가 아닌지) — false 면 광고를 띄우지 않는다. */
     val isConfigured: Boolean
         get() = BuildConfig.UNITY_GAME_ID.isNotBlank() && !BuildConfig.UNITY_GAME_ID.startsWith("TODO_")
 

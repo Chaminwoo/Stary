@@ -6,7 +6,8 @@ import SwiftUI
 /// ⚠️ **아직 SDK 가 붙지 않았다.** 사용자 결정에 따라 Android 광고를 먼저 완성하고,
 /// iOS 는 다음 라운드에서 UnityAds SPM 패키지(`unity-ads-ios`)를 `project.yml` 에 추가하고
 /// 아래 TODO 자리를 채운다. 그때까지 [isConfigured] 가 false 라
-/// 잠금 화면은 광고 버튼을 아예 띄우지 않고 "100m 접근" 안내만 보여준다(빈 버튼 방지).
+/// 잠금 화면의 크리스탈 자물쇠/재생 아이콘을 탭하면 "지금은 광고를 불러올 수 없어요" 안내만 뜬다
+/// (`DetailScreen.watchAdToUnlock`).
 ///
 /// 붙일 때 할 일(Android 와 같은 계약 유지):
 ///  1. `project.yml` packages 에 UnityAds 추가 + 타깃 dependencies 연결
@@ -30,10 +31,10 @@ final class AdsManager: ObservableObject {
         return v.isEmpty ? "Rewarded_iOS" : v
     }
 
-    /// 광고 UI 를 띄워도 되는지 — SDK 미연결이라 현재는 항상 false.
+    /// 광고를 띄울 수 있는지 — SDK 미연결이라 현재는 항상 false.
     var isConfigured: Bool { false }
 
-    /// 광고 재생 중(버튼 연타 방지).
+    /// 광고 재생 중(아이콘 연타 방지).
     @Published private(set) var showing = false
 
     /// 앱 시작 시 1회. SDK 연결 전에는 아무 일도 하지 않는다.

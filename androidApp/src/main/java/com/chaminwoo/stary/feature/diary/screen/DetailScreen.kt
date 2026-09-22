@@ -33,9 +33,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -179,11 +176,17 @@ fun DetailScreen(
     } ?: Float.MAX_VALUE
     val isNear = distance <= com.chaminwoo.stary.shared.config.StaryConfig.DIARY_OPEN_RADIUS_M
     val isMyDiary = currentDiary.userId == GoogleAuthHelper.currentUserId
-    // ── 열람 잠금(2026-09-21) ────────────────────────────────────────────────
+    // ── 열람 잠금(2026-09-21, 09-22 영구 해금으로 개편) ─────────────────────────
     // 예전엔 100m 밖이면 지도에서 **진입 자체가 막혔다**. 이제는 누구나 들어와서 **제목까지** 보고,
     // 사진/본문/댓글은 ① 100m 이내 접근 ② 보상형 광고 시청 중 하나로 연다(내 글은 항상 열림).
-    val adUnlocked = com.chaminwoo.stary.core.util.AdUnlockStore.isUnlocked(context, diaryId)
-    val unlocked = isMyDiary || isNear || adUnlocked
+    // 한 번 열린 글은 DiaryUnlockStore 에 남아 **계속 열려 있다**(멀어져도). 잠금 UI 는 DiaryLock.kt.
+    // ⚠️ 댓글 **작성**만은 해금과 무관하게 항상 100m 이내(isNear)에서만 — CommentInputRow.
+    val everUnlocked = com.chaminwoo.stary.core.util.DiaryUnlockStore.isUnlocked(context, diaryId)
+    val unlocked = isMyDiary || isNear || everUnlocked
+    LaunchedEffect(diaryId, isNear, isMyDiary) {
+        if (isNear && !isMyDiary) com.chaminwoo.stary.core.util.DiaryUnlockStore.unlock(context, diaryId)
+    }
+    val hasMedia = currentDiary.videoUrl.isNotEmpty() || currentDiary.imageUrl.isNotEmpty()
     val userId = GoogleAuthHelper.currentUserId ?: ""
     val userName = GoogleAuthHelper.currentUserName ?: "익명"
     // 비로그인(둘러보기) 상태 — 댓글/좋아요/신고 등 상호작용은 잠그고 안내만 띄운다.
@@ -219,10 +222,18 @@ fun DetailScreen(
     val reportScope = rememberCoroutineScope()
     val reportedMsg = stringResource(R.string.toast_reported)
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    // 전송 동작 단일화 — 전송 버튼과 키보드 '보내기' 액션이 같은 경로를 쓴다.
+    // 전송 동작 단일화 — 전송 버튼과 키보드 '보내기' 액션(그리고 잠긴 입력창 탭)이 같은 경로를 쓴다.
     val submitComment: () -> Unit = {
         if (!isLoggedIn) {
             requireLogin()
+        } else if (!isNear) {
+            // 댓글 작성은 해금(광고/예전 방문)과 무관하게 **무조건 100m 이내**(2026-09-22 사용자 지시, 내 글 포함).
+            com.chaminwoo.stary.core.ui.StaryToast.show(
+                context.getString(
+                    R.string.detail_comment_near_only,
+                    com.chaminwoo.stary.shared.config.StaryConfig.DIARY_OPEN_RADIUS_M.toInt()
+                )
+            )
         } else if (commentInput.isNotBlank()) {
             interactionVm.addComment(commentInput)
             commentInput = ""
@@ -328,8 +339,9 @@ fun DetailScreen(
                 // 별이 바뀔 때마다(id 기준) 로딩 배경(loading_dipper)부터 다시 보여준다.
                 var mediaLoaded by remember(currentDiary.id) { mutableStateOf(false) }
                 when {
-                    // 잠김: 원본 URL 을 아예 로드하지 않는다(가리기만 하면 캐시/전체화면으로 새어나간다).
-                    !unlocked -> LockedHero(accent = accent)
+                    // 잠김 + 미디어 있음: 원본 URL 을 아예 로드하지 않고 플레이스홀더 위 크리스탈 자물쇠(DiaryLock.kt).
+                    // 잠김 + 미디어 없음: 잠금 표시 없이 아래 else(image_frame) — 가릴 게 없다.
+                    !unlocked && hasMedia -> LockedHero(accent = accent, diaryId = diaryId)
                     // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 영상은 기존 플레이어 유지)
                     // 사진과 마찬가지로 탭하면 전체화면 뷰어로 열린다.
                     currentDiary.videoUrl.isNotEmpty() && com.chaminwoo.stary.core.ui.isGifUrl(currentDiary.videoUrl) ->
@@ -534,45 +546,16 @@ fun DetailScreen(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 댓글 입력 — 비로그인 시 입력 비활성 + 탭하면 로그인 안내
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            OutlinedTextField(
-                                value = commentInput,
-                                onValueChange = { commentInput = it.take(com.chaminwoo.stary.shared.config.StaryConfig.COMMENT_MAX_LEN) },
-                                placeholder = { Text(stringResource(R.string.comment_placeholder), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
-                                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                                enabled = isLoggedIn,
-                                shape = RoundedCornerShape(12.dp), colors = fieldColors,
-                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                    imeAction = androidx.compose.ui.text.input.ImeAction.Send
-                                ),
-                                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { submitComment() }),
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground)
-                            )
-                            if (!isLoggedIn) {
-                                // 비활성 필드는 터치를 안 받으므로 투명 오버레이로 안내 토스트를 띄운다.
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .clickable(
-                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                            indication = null
-                                        ) { requireLogin() }
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = { submitComment() },
-                            enabled = isLoggedIn && commentInput.isNotBlank()
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.cd_send),
-                                tint = if (isLoggedIn && commentInput.isNotBlank()) accent else MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                    }
+                    // 댓글 입력 — 비로그인 또는 100m 밖이면 입력 비활성 + 탭하면 이유 안내
+                    CommentInputRow(
+                        value = commentInput,
+                        onValueChange = { commentInput = it.take(com.chaminwoo.stary.shared.config.StaryConfig.COMMENT_MAX_LEN) },
+                        isLoggedIn = isLoggedIn,
+                        isNear = isNear,
+                        accent = accent,
+                        colors = fieldColors,
+                        onSubmit = submitComment,
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
 
                     comments.forEach { comment ->
@@ -613,176 +596,69 @@ fun DetailScreen(
 }
 
 /**
- * 잠긴 글의 히어로(4:3) — 사진 대신 자물쇠 판.
+ * 댓글 입력줄 — 입력창 + 전송 버튼.
  *
- * ⚠️ 원본 미디어 URL 을 **로드조차 하지 않는다**. 흐림/덮개로 가리기만 하면 Coil 캐시·전체화면
- * 뷰어·스크린샷으로 새어나간다.
+ * 쓸 수 있는 조건 = 로그인 && **100m 이내**(해금 여부와 무관, 2026-09-22). 못 쓰면 입력창을 잠그고
+ * 자리표시 문구로 이유를 보여주며, 잠긴 입력창을 탭하면 [onSubmit] 이 이유 토스트(로그인/100m)를 띄운다.
+ * ⚠️ DetailScreen 본체에 인라인하지 말 것(dex 레지스터 한계 — 아래 공유 버튼 주석 참고).
  */
 @Composable
-private fun LockedHero(accent: Color) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(R.drawable.image_frame),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
-        // 내용을 읽을 수 없게 덮는 어두운 판(밤하늘 톤 유지).
-        Box(
-            modifier = Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    listOf(Color(0xE60B0E14), Color(0xF20B0E14))
-                )
-            )
-        )
-        Column(
-            modifier = Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(
-                Icons.Outlined.Lock,
-                contentDescription = stringResource(R.string.detail_locked_title),
-                tint = accent.copy(alpha = 0.85f),
-                modifier = Modifier.size(34.dp),
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                stringResource(R.string.detail_locked_media),
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.secondary,
-            )
-        }
-    }
-}
-
-/**
- * 잠긴 글의 본문 자리 — 왜 잠겼는지 + 여는 두 가지 방법(100m 접근 / 보상형 광고).
- *
- * 광고는 [com.chaminwoo.stary.core.ads.UnityAdsManager] (Unity Ads) 한 곳만 거친다.
- * 게임 ID 가 주입되지 않았으면 광고 버튼을 아예 숨기고 "100m 접근" 안내만 남긴다.
- * ⚠️ DetailScreen 본체에 인라인하지 말 것(아래 공유 버튼과 같은 dex 레지스터 이유).
- */
-@Composable
-private fun LockedContentCard(
+private fun CommentInputRow(
+    value: String,
+    onValueChange: (String) -> Unit,
+    isLoggedIn: Boolean,
+    isNear: Boolean,
     accent: Color,
-    diaryId: String,
-    locationKnown: Boolean,
-    distance: Float,
+    colors: androidx.compose.material3.TextFieldColors,
+    onSubmit: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val ads = com.chaminwoo.stary.core.ads.UnityAdsManager
-    // 화면에 들어온 순간 미리 로드 — 버튼을 눌렀을 때 기다림이 없다.
-    LaunchedEffect(ads.initialized) { ads.preload() }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xCC14181C))
-            .border(
-                1.dp,
-                Brush.linearGradient(listOf(accent.copy(alpha = 0.45f), accent.copy(alpha = 0.15f))),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(
-            Icons.Outlined.Lock, contentDescription = null,
-            tint = accent.copy(alpha = 0.9f), modifier = Modifier.size(22.dp)
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            stringResource(R.string.detail_locked_title),
-            fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            stringResource(
-                R.string.detail_locked_desc,
-                com.chaminwoo.stary.shared.config.StaryConfig.DIARY_OPEN_RADIUS_M.toInt()
-            ),
-            fontSize = 13.sp, lineHeight = 20.sp,
-            color = MaterialTheme.colorScheme.secondary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        // 현재 거리 — 위치를 아직 못 잡았으면 "확인 중".
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Outlined.LocationOn, contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(15.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                if (!locationKnown) stringResource(R.string.detail_locating)
-                else stringResource(R.string.detail_locked_distance, formatDistanceM(distance)),
-                fontSize = 12.5.sp, color = MaterialTheme.colorScheme.secondary,
-            )
-        }
-
-        if (ads.isConfigured) {
-            Spacer(modifier = Modifier.height(16.dp))
-            val busy = ads.showing
-            TextButton(
-                enabled = !busy,
-                onClick = {
-                    val activity = context.findHostActivity()
-                    if (activity == null) {
-                        com.chaminwoo.stary.core.ui.StaryToast.show(
-                            context.getString(R.string.detail_ad_unavailable)
-                        )
-                        return@TextButton
-                    }
-                    ads.showRewarded(activity) { rewarded ->
-                        if (rewarded) {
-                            com.chaminwoo.stary.core.util.AdUnlockStore.unlock(context, diaryId)
-                            com.chaminwoo.stary.core.ui.StaryToast.show(
-                                context.getString(R.string.detail_ad_unlocked)
-                            )
-                        } else {
-                            com.chaminwoo.stary.core.ui.StaryToast.show(
-                                context.getString(R.string.detail_ad_not_finished)
-                            )
-                        }
-                    }
+    val canWrite = isLoggedIn && isNear
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = {
+                    Text(
+                        if (isLoggedIn && !isNear) stringResource(
+                            R.string.detail_comment_near_only,
+                            com.chaminwoo.stary.shared.config.StaryConfig.DIARY_OPEN_RADIUS_M.toInt()
+                        ) else stringResource(R.string.comment_placeholder),
+                        color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp
+                    )
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(accent.copy(alpha = 0.16f))
-                    .border(1.dp, accent.copy(alpha = 0.40f), RoundedCornerShape(12.dp)),
-            ) {
-                Icon(
-                    Icons.Outlined.PlayCircle, contentDescription = null,
-                    tint = accent, modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    stringResource(
-                        if (busy) R.string.detail_ad_playing else R.string.detail_watch_ad
-                    ),
-                    fontSize = 14.sp, color = accent,
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                enabled = canWrite,
+                shape = RoundedCornerShape(12.dp), colors = colors,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Send
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { onSubmit() }),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground)
+            )
+            if (!canWrite) {
+                // 비활성 필드는 터치를 안 받으므로 투명 오버레이로 이유 토스트를 띄운다.
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null
+                        ) { onSubmit() }
                 )
             }
         }
+        Spacer(modifier = Modifier.width(8.dp))
+        IconButton(
+            onClick = onSubmit,
+            enabled = canWrite && value.isNotBlank()
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.cd_send),
+                tint = if (canWrite && value.isNotBlank()) accent else MaterialTheme.colorScheme.secondary
+            )
+        }
     }
-}
-
-/** 거리 표기 — 1km 이상이면 소수 1자리 km, 그 미만이면 정수 m. */
-private fun formatDistanceM(meters: Float): String =
-    if (meters >= 1000f) String.format(Locale.getDefault(), "%.1fkm", meters / 1000f)
-    else "${meters.toInt()}m"
-
-/** ContextWrapper 체인을 거슬러 올라가 Activity 를 찾는다(광고 show 에 Activity 가 필요). */
-private fun android.content.Context.findHostActivity(): android.app.Activity? {
-    var c: android.content.Context = this
-    while (c is android.content.ContextWrapper) {
-        if (c is android.app.Activity) return c
-        c = c.baseContext
-    }
-    return null
 }
 
 /**

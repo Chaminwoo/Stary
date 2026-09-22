@@ -124,14 +124,11 @@
     <string name="toast_comment_added">コメントを投稿しました</string>
     <string name="toast_comment_deleted">コメントを削除しました</string>
     <string name="detail_locating">位置を確認しています…</string>
-    <!-- 100m 圏外の投稿ロック — タイトルのみ表示。写真・本文・コメントは接近または広告視聴で解放 -->
-    <string name="detail_locked_title">まだロックされた物語です</string>
-    <string name="detail_locked_desc">写真と本文、コメントは %1$dm 以内に近づくか
-広告を見ると閲覧できます</string>
-    <string name="detail_locked_media">近づくか広告を見ると公開されます</string>
-    <string name="detail_locked_distance">現在 %1$s の距離</string>
+    <!-- 100m 圏外の投稿ロック — タイトルのみ表示。写真・本文・コメントは接近または広告視聴で永久解放。コメント投稿は常に 100m 以内 -->
+    <string name="detail_locked_title">%1$dm 以内に近づくか、\n広告を見て開いてみてください！</string>
+    <string name="detail_locked_distance">現在地から %1$s</string>
+    <string name="detail_comment_near_only">コメントは %1$dm 以内でのみ書けます</string>
     <string name="detail_watch_ad">広告を見て閲覧する</string>
-    <string name="detail_ad_playing">広告を再生中…</string>
     <string name="detail_ad_unlocked">物語が開きました</string>
     <string name="detail_ad_not_finished">広告を最後まで見ると開きます</string>
     <string name="detail_ad_unavailable">今は広告を読み込めません。しばらくしてからお試しください</string>
