@@ -35,7 +35,8 @@ adb shell am start -n com.chaminwoo.stary_ios/com.chaminwoo.stary.MainActivity
 ### 1.3 현재 로컬 설정 상태(중요 — 실기능 테스트 전 확인)
 - `secrets.properties`(루트, gitignore 대상) — **`MAPTILER_KEY`/`GOOGLE_WEB_CLIENT_ID` 값이 채워져 있음** →
   지도·구글 로그인이 **실제로 동작**한다(placeholder 아님).
-  `UNITY_GAME_ID_ANDROID` 는 비어 있으면 광고 UI 자체가 안 뜬다(잠금 안내만).
+  `LEVELPLAY_APP_KEY_ANDROID` / `LEVELPLAY_REWARDED_AD_UNIT_ANDROID` 가 비어 있으면 광고가 꺼진다(재생 아이콘 탭 시 안내만,
+  디버그 빌드는 '키가 비어 있어요'). 광고 테스트 땐 LevelPlay 대시보드 Testing 에 이 폰을 **테스트 기기**로 등록할 것(실광고 클릭 = 무효 트래픽).
 - `androidApp/google-services.json` — **포크 전용 Firebase `momentdiary-f26c8`** 의 실제 설정 파일(더미 아님) →
   Firestore/Auth/Storage/FCM 전부 실제 백엔드로 붙는다. ⚠️ 원본 프로젝트(`momentdiary-52b78`)와는 무관.
 - 즉 지금 이 저장소를 그대로 `assembleDebug`→설치하면 **모든 핵심 기능이 실동작**한다. 별도 키 발급 불필요.

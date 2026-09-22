@@ -25,15 +25,13 @@ val googleWebClientId: String = secretsProps.getProperty("GOOGLE_WEB_CLIENT_ID")
     ?: "TODO_ADD_GOOGLE_WEB_CLIENT_ID"
 val maptilerKey: String = secretsProps.getProperty("MAPTILER_KEY")
     ?: "TODO_ADD_MAPTILER_KEY"
-// Unity Ads(보상형 광고) — Unity Dashboard > Monetization 에서 발급하는 Android 게임 ID.
-// 없으면 placeholder → 빌드는 되지만 광고는 자동 비활성(UnityAdsManager.isConfigured=false).
-val unityGameIdAndroid: String = secretsProps.getProperty("UNITY_GAME_ID_ANDROID")
-    ?: "TODO_ADD_UNITY_GAME_ID_ANDROID"
-// 보상형 광고 배치(Placement) ID. Unity 기본 보상형 배치 이름이 'Rewarded_Android' 라 그것을 기본값으로.
-val unityRewardedPlacement: String = secretsProps.getProperty("UNITY_REWARDED_PLACEMENT")
-    ?: "Rewarded_Android"
-// 광고 테스트 모드(true 면 항상 테스트 광고). 스토어 배포 전엔 반드시 false.
-val unityAdsTestMode: String = secretsProps.getProperty("UNITY_ADS_TEST_MODE") ?: "true"
+// 광고: Unity LevelPlay(미디에이션, 보상형) — LevelPlay 대시보드의 **Android 앱** 값 2개.
+// (Unity Ads SDK 직접 연동은 2026-01-31 로 수익화 지원 종료 → LevelPlay 경유가 유일한 길. 2026-09-22 전환)
+// 없으면 placeholder → 빌드는 되지만 광고는 자동 비활성(AdsManager.isConfigured=false).
+val levelPlayAppKeyAndroid: String = secretsProps.getProperty("LEVELPLAY_APP_KEY_ANDROID")
+    ?: "TODO_ADD_LEVELPLAY_APP_KEY_ANDROID"
+val levelPlayRewardedAdUnitAndroid: String = secretsProps.getProperty("LEVELPLAY_REWARDED_AD_UNIT_ANDROID")
+    ?: "TODO_ADD_LEVELPLAY_REWARDED_AD_UNIT_ANDROID"
 // 인스타그램 스토리 공유 링크스티커(content_url) 귀속용 Facebook App ID.
 // 없으면 빈 값 → 스토리에 카드 이미지는 올라가나 자동 링크스티커는 붙지 않는다(수동 추가 필요).
 // 발급: developers.facebook.com → 앱 생성 → 앱 ID. iOS 도 동일 값 사용.
@@ -71,9 +69,8 @@ android {
         // 인스타 스토리 링크스티커 귀속용 Facebook App ID (없으면 빈 값)
         buildConfigField("String", "INSTAGRAM_APP_ID", "\"$instagramAppId\"")
         // Unity Ads(보상형) — 게임 ID / 보상형 배치 ID / 테스트 모드
-        buildConfigField("String", "UNITY_GAME_ID", "\"$unityGameIdAndroid\"")
-        buildConfigField("String", "UNITY_REWARDED_PLACEMENT", "\"$unityRewardedPlacement\"")
-        buildConfigField("boolean", "UNITY_ADS_TEST_MODE", unityAdsTestMode)
+        buildConfigField("String", "LEVELPLAY_APP_KEY", "\"$levelPlayAppKeyAndroid\"")
+        buildConfigField("String", "LEVELPLAY_REWARDED_AD_UNIT", "\"$levelPlayRewardedAdUnitAndroid\"")
     }
 
     signingConfigs {
@@ -192,7 +189,13 @@ dependencies {
     implementation(libs.maplibre.android)
     implementation(libs.play.services.location)
 
-    // 광고: Unity Ads(보상형) — 100m 밖 게시물 열람 해제용.
-    // 게임 ID/배치 ID 는 secrets.properties 주입(BuildConfig) — 코드에 하드코딩 금지.
-    implementation("com.unity3d.ads:unity-ads:4.15.0")
+    // 광고: Unity LevelPlay(미디에이션) + Unity Ads 네트워크 — 100m 밖 게시물 열람 해제용 보상형.
+    // 앱 키/광고 단위 ID 는 secrets.properties 주입(BuildConfig) — 코드에 하드코딩 금지.
+    // Unity Ads 어댑터 POM 에 SDK 의존성이 없어 unity-ads 를 **직접** 명시해야 한다(어댑터 5.13.0 ↔ SDK 4.20.1 짝).
+    // play-services-ads-identifier / appset 은 LevelPlay 가이드 필수 항목(광고 ID·앱 세트 ID → 단가/빈도 제한).
+    implementation("com.unity3d.ads-mediation:mediation-sdk:9.6.0")
+    implementation("com.unity3d.ads-mediation:unityads-adapter:5.13.0")
+    implementation("com.unity3d.ads:unity-ads:4.20.1")
+    implementation("com.google.android.gms:play-services-ads-identifier:18.3.0")
+    implementation("com.google.android.gms:play-services-appset:16.1.0")
 }

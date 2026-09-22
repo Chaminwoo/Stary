@@ -230,8 +230,9 @@
 - [x] ~~백로그 2번 "길찾기 전부 삭제"~~ → **ORS foot-walking 부활**. `OrsRouting`(안드 HttpURLConnection / iOS URLSession, 의존성 0).
 - [x] **진입 = "친구 별 탭"** (별 직접 클릭은 길찾기 안 함): 친구 별(`UserDiaryStarsScreen`) 탭 → 지도 카메라+파동 후 길찾기. 전체 경로를 저장하고 **실시간 위치 기준 "최근접점→목적지" 구간만** 렌더(지나온 길 숨김, 경로와 떨어지면 최근접점까지 직선 연결), 하단 **X 취소** 버튼, **연초록 후광 실선**(점선 제거). `MapFocusState.withRoute` + `DiaryMap.partialRouteFrom`.
 - [x] ~~도보 길찾기(OpenRouteService)~~ — **2026-09-21 전면 삭제**(사용자 요청). 친구/프로필 별 탭은 카메라 이동 + 파장만.
-- [ ] **키(사용자)**: Unity Dashboard 보상형 광고 → 안드 `secrets.properties` `UNITY_GAME_ID_ANDROID=...`,
-  iOS `project.yml`/빌드설정 `UNITY_GAME_ID`. 미설정 시 광고 버튼 자동 숨김(100m 접근 안내만).
+- [ ] **키(사용자)**: Unity **LevelPlay** 보상형 광고(2026-09-22 Unity Ads 직접 연동 → LevelPlay 전환) →
+  안드 `secrets.properties` `LEVELPLAY_APP_KEY_ANDROID` / `LEVELPLAY_REWARDED_AD_UNIT_ANDROID`,
+  iOS `project.yml`/빌드설정 `LEVELPLAY_APP_KEY` / `LEVELPLAY_REWARDED_AD_UNIT`. 미설정 시 광고 꺼짐(탭하면 안내만).
 - [x] **iOS 진입점+실시간 부분경로+파동 구현(8.26-iOS)**: 전역 `MapFocusStore`+`TabRouter` 신설 → `UserProfileScreen` 친구 별 목록의 `figure.walk` 버튼 / **프로필 핀 별 탭** 이 지도 탭 전환 → **파동(`MapWarpOverlay` 동심원 물결) 후 ORS 길찾기**. `MapScreen` 이 `partialRouteFrom`(안드 동일)으로 실시간 "최근접점→목적지"만 렌더, 하단 요약+X 취소. `MapLibreView` `focusTarget` 1회 카메라 이동. ⚠️ 파동은 안드 스냅샷 메시 굴절의 **간이판**(링 파동). 자세히 = PROJECT_NOTES 8.26-iOS.
 - [x] **핀 별 = 파동+길찾기(안드 패리티)**: 사용자 요청 — 프로필 핀 별 탭도 다이어리 클릭처럼. 안드 `NavGraph` ProfileScreen `onOpenDiary` `withRoute=true`(BUILD SUCCESSFUL). 실작동엔 ORS 키 필요(안드 `secrets.properties` 설정됨 / iOS 빌드설정).
 

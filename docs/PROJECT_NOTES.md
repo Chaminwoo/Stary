@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.58 잠금 화면 2차**(히어로 캡션 · 십자 코너 프레임 · 광고 실패 원인 = 비딩 전용 Placement) — Android BUILD SUCCESSFUL·기기 설치(2026-09-22).
+> 최종 갱신: **8.59 광고를 Unity LevelPlay 로 전환**(Unity Ads 직접 연동 2026-01-31 지원 종료) — Android BUILD SUCCESSFUL·기기 설치, **LevelPlay 키 입력 대기**(2026-09-22).
+> 이전: **8.58 잠금 화면 2차**(히어로 캡션 · 십자 코너 프레임 · 광고 실패 원인 = 비딩 전용 Placement) — Android BUILD SUCCESSFUL·기기 설치(2026-09-22).
 > 이전: **8.57 iOS 열람 파장 지도 굴절 복원(Metal 메시, 런타임 셰이더) + 잠금 히어로 스크림 패리티** — iOS 전용, push 후 CI 검증.
 > 이전: **8.56 잠금 화면 개편**(크리스탈 자물쇠/재생 로고 고무줄 아이콘 · 영구 해금 · 댓글 무조건 100m · 다이아몬드 축소/세로선 제거)
 > — Android BUILD SUCCESSFUL(2026-09-22), 실기기 테스트 대기 · iOS 는 push 후 CI 검증. 8.50(길찾기 삭제·100m 잠금·Unity Ads)과 함께 push 전.
@@ -1982,6 +1983,42 @@ LevelPlay 등으로 돼 있으면 BP_ 비딩 Placement 만 생기므로, "미디
 만든 ID 를 `secrets.properties` 의 `UNITY_REWARDED_PLACEMENT` 에 넣고 재빌드. (LevelPlay 를 계속 쓸 거면 SDK 자체를
 LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 
+## 8.59 광고를 Unity LevelPlay 로 전환 (Android BUILD SUCCESSFUL + 기기 설치 2026-09-22 · 키 입력 대기)
+
+### 왜
+- 8.58 에서 광고 실패 원인이 **헤더 비딩 전용 Placement** 로 확인됐고, 사용자가 새로 만든 `stary_rewarded` 도 똑같이 비딩이었다.
+- Unity 공식 문서 확인: **2026-01-31 부로 Unity Ads SDK 직접 연동은 수익화 지원 종료**, 새 광고 단위는 **비딩으로만** 생성
+  (waterfall 은 생성·수정 불가). → 8.58 에서 권했던 "비딩 아닌 Placement 만들기"는 **불가능**. 사용자 결정: LevelPlay 로 처음부터.
+- 사용자가 원한 "광고 안에서 게임하는 광고"(플레이어블)는 광고 소재 형식이라 LevelPlay 로도 그대로 나온다(Unity Ads 가 입찰 참여).
+
+### 코드
+- 의존성: `com.unity3d.ads-mediation:mediation-sdk:9.6.0` + `unityads-adapter:5.13.0` + `com.unity3d.ads:unity-ads:4.20.1`
+  (어댑터 POM 에 SDK 의존성이 없어 **직접 명시**, 5.13.0 ↔ 4.20.1 짝) + `play-services-ads-identifier:18.3.0` / `appset:16.1.0`.
+  기존 `unity-ads:4.15.0` 단독 의존성 삭제.
+- `core/ads/UnityAdsManager.kt` → **`core/ads/AdsManager.kt`**(iOS `Core/AdsManager.swift` 와 같은 이름). 공개 계약 그대로:
+  `isConfigured` / `initialized` / `rewardedReady` / `showing` / `preload()` / `showRewardedWhenReady(...)` + `lastError`(디버그 안내).
+  - `LevelPlay.init(applicationContext, LevelPlayInitRequest.Builder(appKey).build(), listener)` — 실패 시 다음 preload/탭이 재초기화.
+  - `LevelPlayRewardedAd(adUnitId)` 는 **초기화 성공 뒤에만** 생성, 리스너는 로드 전에.
+  - 보상: `onAdRewarded` 만. LevelPlay 문서상 `onAdRewarded` 가 `onAdClosed` **뒤에** 올 수 있어 닫힌 뒤 1.5초 기다렸다 결과 1회(`ShowSession`).
+  - 닫힘/재생 실패 → 다음 광고 자동 로드. 로드 전 탭 → "불러오는 중" 후 최대 8초 대기(8.58 과 동일).
+- BuildConfig: `LEVELPLAY_APP_KEY` / `LEVELPLAY_REWARDED_AD_UNIT` (← `secrets.properties` 의 `LEVELPLAY_APP_KEY_ANDROID` /
+  `LEVELPLAY_REWARDED_AD_UNIT_ANDROID`). `UNITY_GAME_ID` / `UNITY_REWARDED_PLACEMENT` / `UNITY_ADS_TEST_MODE` 삭제.
+  로컬 `secrets.properties` 는 LevelPlay 빈 칸 추가 + 옛 UNITY_* 줄은 주석으로 보존.
+- `DiaryLock.watchAdToUnlock`: 디버그 빌드 토스트 = 키 미설정 / `lastError`(LevelPlay 오류 코드). `biddingOnlyPlacement` 삭제.
+- iOS(아직 SDK 없음 — 스텁): `AdsManager.swift` 가 `LEVELPLAY_APP_KEY` / `LEVELPLAY_REWARDED_AD_UNIT` 를 읽도록 + TODO 를
+  LevelPlay 기준으로(ATT/SKAdNetwork 포함). `project.yml`·`Info.plist` 키 이름 변경.
+- 테스트 모드 플래그는 없다(LevelPlay 에는 SDK 쪽 testMode 가 없음) → **대시보드에서 테스트 기기 등록**으로 테스트 광고.
+
+### 사용자가 해야 할 것
+1. LevelPlay(Unity Grow) → **Apps → Add app** 으로 Stary **Android** 앱 추가(패키지 `com.chaminwoo.stary_ios`,
+   스토어 미출시면 미출시 앱으로) → 발급되는 **App Key**.
+2. 그 앱의 **Ad units** 에서 형식 **Rewarded** 광고 단위(없으면 Create ad unit) → **Ad unit ID**.
+3. **Setup → SDK Networks → Unity Ads** 켜기(자동 설정/Add bidder 로 비딩 Placement 자동 생성) — 이게 있어야 Unity 광고(플레이어블 포함)가 입찰에 들어온다.
+   ironSource Ads 는 LevelPlay 기본 포함.
+4. **Testing(테스트 기기)** 에 본인 폰 등록 → 개발 중엔 테스트 광고만.
+5. `secrets.properties` 에 `LEVELPLAY_APP_KEY_ANDROID=`, `LEVELPLAY_REWARDED_AD_UNIT_ANDROID=` 채우고 재빌드 요청.
+6. 출시 전: Play Console **데이터 보안**에 "광고 ID 수집" 표시(SDK 가 `AD_ID` 권한을 병합) + 광고 포함 앱 체크.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
@@ -1993,10 +2030,10 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 - [x] 별가루 파티클 Canvas → MapLibre GeoJSON+SymbolLayer 전환(줌 6 이하 숨김) — 완료.
 - [ ] **FCM 푸시 발송 Function 배포(사용자)**: Blaze + `cd functions && npm install` + `firebase deploy --only functions`
       (코드는 `functions/index.js` 완료, REGION=stary-db 리전 확인).
-- [ ] **(사용자) Unity 비딩 아닌 보상형 Placement 생성** → `UNITY_REWARDED_PLACEMENT` 교체(8.58 ③). 현재 `BP_Rewarded_Android` 는 직접 로드 불가.
+- [ ] **(사용자) LevelPlay 앱 키 + 보상형 Ad unit ID** → `secrets.properties` `LEVELPLAY_APP_KEY_ANDROID` / `LEVELPLAY_REWARDED_AD_UNIT_ANDROID`(8.59). ~~비딩 아닌 Placement 생성~~ — Unity 가 더 이상 허용 안 함.
 - [ ] **iOS 파장 굴절 확장**: 알림 포커스(`MapWarpOverlay`) · 업로드 버튼 파장에도 `DiaryWarpMeshView` 적용(8.57 참고).
-- [ ] **iOS Unity Ads SDK 연결**: `project.yml` packages 에 `unity-ads-ios` 추가 → `Core/AdsManager.swift` 의
-      TODO(initialize/preload/showRewarded) 구현 → 빌드설정에 iOS 게임 ID 주입. 계약(보상 = COMPLETED)은 Android 와 동일.
+- [ ] **iOS LevelPlay SDK 연결**: LevelPlay 에 iOS 앱 추가(App Key·보상형 Ad unit) → `project.yml` 에 LevelPlay iOS SDK + Unity Ads 어댑터 →
+      `Core/AdsManager.swift` TODO 구현(ATT·SKAdNetwork 포함). 계약은 Android `AdsManager.kt` 와 동일(8.59).
 - [ ] ViewModel 들이 Firebase* 구현 대신 공용 인터페이스 타입을 주입받도록 DI 정리(현재는 직접 생성).
 - [x] GitHub remote(`origin` = Chaminwoo/Stary) 연결 + 푸시 완료(main).
 
@@ -2009,5 +2046,5 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 | 로그인/인증 | `feature/auth/GoogleAuthHelper.kt`, `LoginScreen.kt` |
 | 좌표/거리 공용 로직 | `shared/.../core/geo/LatLng.kt`, `GeoUtils.kt`, `core/util/LocationHelper.kt` |
 | 상수/설정/민감값 계약 | `shared/.../shared/config/StaryConfig.kt`, `Secrets.kt` |
-| 키/시크릿 주입 | `androidApp/build.gradle.kts`, `secrets.properties`(MAPTILER_KEY / GOOGLE_WEB_CLIENT_ID / UNITY_GAME_ID_ANDROID) |
-| 광고(보상형)·열람 잠금 | `core/ads/UnityAdsManager.kt`, `core/util/DiaryUnlockStore.kt`, `feature/diary/screen/DiaryLock.kt` |
+| 키/시크릿 주입 | `androidApp/build.gradle.kts`, `secrets.properties`(MAPTILER_KEY / GOOGLE_WEB_CLIENT_ID / LEVELPLAY_APP_KEY_ANDROID / LEVELPLAY_REWARDED_AD_UNIT_ANDROID) |
+| 광고(보상형, LevelPlay)·열람 잠금 | `core/ads/AdsManager.kt`, `core/util/DiaryUnlockStore.kt`, `feature/diary/screen/DiaryLock.kt` |

@@ -69,7 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.BuildConfig
 import com.chaminwoo.stary.R
-import com.chaminwoo.stary.core.ads.UnityAdsManager
+import com.chaminwoo.stary.core.ads.AdsManager
 import com.chaminwoo.stary.core.ui.MediaLoadingFrame
 import com.chaminwoo.stary.core.ui.StaryToast
 import com.chaminwoo.stary.core.ui.bakeCrystalIcon
@@ -180,7 +180,7 @@ internal fun LockedContentCard(
     distance: Float,
 ) {
     val context = LocalContext.current
-    val ads = UnityAdsManager
+    val ads = AdsManager
     // 화면에 들어온 순간 미리 로드 — 아이콘을 눌렀을 때 기다림이 없다.
     LaunchedEffect(ads.initialized) { ads.preload() }
 
@@ -397,12 +397,12 @@ private fun rubberBand(delta: Offset, maxPx: Float, softPx: Float): Offset {
 
 /**
  * 보상형 광고를 보여주고, 끝까지 보면 이 게시물을 **영구 해금**한다([DiaryUnlockStore]).
- * 아직 로드 전이면 "광고를 불러오는 중이에요" 후 도착 즉시 재생([UnityAdsManager.showRewardedWhenReady]).
+ * 아직 로드 전이면 "광고를 불러오는 중이에요" 후 도착 즉시 재생([AdsManager.showRewardedWhenReady]).
  * 키 없음/로드 실패/시간 초과/Activity 없음 → "지금은 광고를 불러올 수 없어요".
- * 디버그 빌드에서 원인이 **비딩 전용 Placement** 설정이면 그 사실을 그대로 알려 준다(릴리스엔 일반 안내만).
+ * 디버그 빌드에서는 원인(키 미설정 / LevelPlay 오류 코드)을 그대로 알려 준다(릴리스엔 일반 안내만).
  */
 internal fun watchAdToUnlock(context: Context, diaryId: String) {
-    val ads = UnityAdsManager
+    val ads = AdsManager
     if (ads.showing) return
     val activity = context.findHostActivity()
     if (activity == null) {
@@ -413,11 +413,16 @@ internal fun watchAdToUnlock(context: Context, diaryId: String) {
         activity = activity,
         onWaiting = { StaryToast.show(context.getString(R.string.detail_ad_loading)) },
         onUnavailable = {
+            // 디버그 빌드는 원인을 그대로(키 미설정 / LevelPlay 오류 코드) — 설정 문제를 바로 알 수 있게.
             StaryToast.show(
-                if (BuildConfig.DEBUG && ads.biddingOnlyPlacement)
-                    "[개발용] '${ads.rewardedPlacementId}' 는 비딩 전용 Placement 라 로드가 안 돼요 — " +
-                        "Unity 대시보드에서 일반 보상형 Placement 를 만들어 secrets 에 넣어 주세요"
-                else context.getString(R.string.detail_ad_unavailable)
+                when {
+                    !BuildConfig.DEBUG -> context.getString(R.string.detail_ad_unavailable)
+                    !ads.isConfigured ->
+                        "[개발용] LevelPlay 키가 비어 있어요 — secrets.properties 의 " +
+                            "LEVELPLAY_APP_KEY_ANDROID / LEVELPLAY_REWARDED_AD_UNIT_ANDROID"
+                    ads.lastError != null -> "[개발용] 광고 실패 — ${ads.lastError}"
+                    else -> context.getString(R.string.detail_ad_unavailable)
+                }
             )
         },
         onResult = { rewarded ->

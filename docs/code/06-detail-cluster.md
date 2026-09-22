@@ -37,9 +37,9 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
   - `CrystalPullIcon` — 재생 로고. `bakeCrystalIcon`(프로필 부유 아이콘과 같은 파편 재질, 무늬 시드 = diaryId 해시)
     + 뒤 후광 숨쉬기(1.6s). **제자리 고정**, 잡아당기면 `PULL_MAX(16dp)·(1−e^(−d/PULL_SOFT(70dp)))` 만큼만 끌려오고
     당긴 쪽으로 최대 6° 기울며, 놓으면 `spring(0.38, 380)` 로 출렁이며 복귀. 터치 슬롭 안에서 떼면 **탭 → `watchAdToUnlock`**.
-  - `watchAdToUnlock` → `UnityAdsManager.showRewardedWhenReady`: 로드돼 있으면 바로 재생, 아니면 "광고를 불러오는 중이에요"
+  - `watchAdToUnlock` → `core/ads/AdsManager.showRewardedWhenReady`(Unity **LevelPlay**): 로드돼 있으면 바로 재생, 아니면 "광고를 불러오는 중이에요"
     후 최대 8초 기다려 도착 즉시 재생. 키 없음/로드 실패/시간 초과/Activity 없음 → "지금은 광고를 불러올 수 없어요".
-    디버그 빌드에서 원인이 **비딩 전용 Placement**(`biddingOnlyPlacement`)면 그 사실을 토스트로 알려 준다.
+    디버그 빌드에서는 원인(키 미설정 / LevelPlay 오류 코드 `lastError`)을 토스트로 알려 준다.
     끝까지 봄 → `DiaryUnlockStore.unlock` + `Haptics.celebrate()` + 토스트, 건너뜀 → "끝까지 봐야 열려요".
 
 ### 구조(위 → 아래)

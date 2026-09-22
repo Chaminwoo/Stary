@@ -51,8 +51,8 @@ echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 ```yaml
 # iosApp/project.yml → targets.Stary.settings.base
 MAPTILER_KEY: ""             # ← MapTiler 키 (Android secrets.properties 의 MAPTILER_KEY 와 동일 값)
-UNITY_GAME_ID: ""            # ← Unity Ads **iOS** 게임 ID (Android 값과 다르다 — 같은 프로젝트의 iOS 쪽)
-UNITY_REWARDED_PLACEMENT: "Rewarded_iOS"
+LEVELPLAY_APP_KEY: ""        # ← LevelPlay 에 추가한 **iOS 앱**의 App Key (Android 값과 다르다)
+LEVELPLAY_REWARDED_AD_UNIT: "" # ← 그 iOS 앱의 보상형 Ad unit ID (SDK 연결은 iOS 광고 라운드에서)
 ```
 
 ⚠️ Unity Ads **SDK 자체는 아직 iOS 에 붙지 않았다**(`Core/AdsManager.swift` 는 스텁).
