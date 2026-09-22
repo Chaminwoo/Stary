@@ -2,6 +2,8 @@ package com.chaminwoo.stary.core.ads
 
 import android.app.Activity
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,12 +14,18 @@ import com.unity3d.ads.IUnityAdsLoadListener
 import com.unity3d.ads.IUnityAdsShowListener
 import com.unity3d.ads.UnityAds
 import com.unity3d.ads.UnityAdsShowOptions
+import java.lang.ref.WeakReference
 
 /**
  * Unity Ads(보상형 광고) 래퍼 — 앱에서 광고를 쓰는 **유일한 진입점**.
  *
  * 쓰는 곳: 100m 밖 게시물의 잠금 해제([com.chaminwoo.stary.core.util.DiaryUnlockStore], DetailScreen `DiaryLock.kt`).
- * 흐름: [init] (앱 시작 1회) → [preload] (잠금 화면 진입 시) → [showRewarded] (크리스탈 자물쇠/재생 아이콘 탭).
+ * 흐름: [init] (앱 시작 1회) → [preload] (잠금 화면 진입 시) → [showRewardedWhenReady] (재생 아이콘 탭).
+ *   아직 로드 중이면 최대 [WAIT_FOR_LOAD_MS] 기다렸다가 도착하는 즉시 재생한다(예전엔 바로 "불러올 수 없어요").
+ *
+ * ⚠️ Placement 는 **비딩이 아닌(waterfall) 보상형**이어야 한다. LevelPlay 등 미디에이션용으로 만들어진
+ *   헤더 비딩 Placement(예: `BP_Rewarded_Android`)는 SDK 직접 로드 시 `INVALID_ARGUMENT / adMarkup is missing`
+ *   으로 **항상** 실패한다(2026-09-22 실기기 로그로 확인) → [biddingOnlyPlacement].
  *
  * - 게임 ID/배치 ID 는 `secrets.properties` → BuildConfig 주입(하드코딩 금지).
  *   키가 없으면 [isConfigured] 가 false → 호출부는 아이콘을 탭해도 광고 대신 "지금은 광고를 불러올 수 없어요" 안내.
@@ -47,8 +55,27 @@ object UnityAdsManager {
     var showing by mutableStateOf(false)
         private set
 
+    /**
+     * 마지막 로드 실패가 "헤더 비딩 전용 Placement" 때문인가 — 설정 문제라 재시도해도 안 된다.
+     * true 면 탭해도 기다리지 않고 바로 안내(디버그 빌드는 원인까지 토스트).
+     */
+    var biddingOnlyPlacement by mutableStateOf(false)
+        private set
+
     private var initStarted = false
     private var loading = false
+
+    /** 탭했는데 아직 로드 전이면 이만큼 기다린다. */
+    private const val WAIT_FOR_LOAD_MS = 8_000L
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** 로드를 기다리는 재생 요청(최대 1개). Activity 는 약참조 — 기다리는 사이 화면이 닫혀도 새지 않게. */
+    private class PendingShow(
+        val activity: WeakReference<Activity>,
+        val onResult: (Boolean) -> Unit,
+        val onUnavailable: () -> Unit,
+    )
+    private var pending: PendingShow? = null
 
     /** 앱 시작 시 1회(StaryApplication). 키가 없으면 조용히 아무 것도 하지 않는다. */
     fun init(context: Context) {
@@ -69,6 +96,7 @@ object UnityAdsManager {
                     message: String?,
                 ) {
                     Log.w(TAG, "Unity Ads 초기화 실패: $error / $message")
+                    resolvePending(loaded = false)
                 }
             }
         )
@@ -87,6 +115,8 @@ object UnityAdsManager {
                 override fun onUnityAdsAdLoaded(placementId: String?) {
                     loading = false
                     rewardedReady = true
+                    biddingOnlyPlacement = false
+                    resolvePending(loaded = true)
                 }
 
                 override fun onUnityAdsFailedToLoad(
@@ -97,9 +127,64 @@ object UnityAdsManager {
                     loading = false
                     rewardedReady = false
                     Log.w(TAG, "보상형 광고 로드 실패($placementId): $error / $message")
+                    if (message?.contains("adMarkup", ignoreCase = true) == true) {
+                        biddingOnlyPlacement = true
+                        Log.e(
+                            TAG,
+                            "'$placementId' 는 헤더 비딩 전용 Placement 라 SDK 직접 로드가 안 된다. " +
+                                "Unity 대시보드에서 비딩이 아닌 보상형 Placement 를 만들어 " +
+                                "secrets.properties 의 UNITY_REWARDED_PLACEMENT 에 넣을 것."
+                        )
+                    }
+                    resolvePending(loaded = false)
                 }
             }
         )
+    }
+
+    /**
+     * 탭 → 광고. 이미 로드돼 있으면 바로 [showRewarded], 아니면 로드를 걸고 최대 [WAIT_FOR_LOAD_MS] 기다려
+     * 도착하는 즉시 재생한다(그동안 [onWaiting] 1회 — "광고를 불러오는 중이에요").
+     * 키 없음 / 재생 중 / 비딩 전용 Placement / 로드 실패·시간 초과면 [onUnavailable].
+     * 이미 기다리는 요청이 있으면 무시(연타 방지).
+     */
+    fun showRewardedWhenReady(
+        activity: Activity,
+        onWaiting: () -> Unit,
+        onUnavailable: () -> Unit,
+        onResult: (rewarded: Boolean) -> Unit,
+    ) {
+        if (!isConfigured || showing || biddingOnlyPlacement) {
+            onUnavailable()
+            return
+        }
+        if (initialized && rewardedReady) {
+            showRewarded(activity, onResult)
+            return
+        }
+        if (pending != null) return
+        val req = PendingShow(WeakReference(activity), onResult, onUnavailable)
+        pending = req
+        onWaiting()
+        preload() // 초기화 전이면 여기선 아무 일도 안 하고, 초기화 완료 콜백의 preload 가 이어받는다.
+        mainHandler.postDelayed({
+            if (pending === req) {
+                pending = null
+                req.onUnavailable()
+            }
+        }, WAIT_FOR_LOAD_MS)
+    }
+
+    /** 기다리던 재생 요청 처리 — 로드 성공이면 재생, 아니면 안내. */
+    private fun resolvePending(loaded: Boolean) {
+        val req = pending ?: return
+        pending = null
+        val activity = req.activity.get()
+        if (loaded && activity != null && !activity.isFinishing && !activity.isDestroyed) {
+            showRewarded(activity, req.onResult)
+        } else {
+            req.onUnavailable()
+        }
     }
 
     /**

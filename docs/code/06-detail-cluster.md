@@ -23,17 +23,23 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
   `CommentInputRow`(같은 파일 private): 로그인 && `isNear` 가 아니면 입력창 비활성 + 자리표시 문구
   "100m 이내에서만 댓글을 남길 수 있어요", 탭하면 `submitComment` 가 이유 토스트(로그인/100m). 댓글 **열람**은 해금이면 가능.
 - 잠금 UI 는 전부 **`DiaryLock.kt`**(dex 레지스터 이슈로 본체와 분리):
-  - `LockedHero` — **미디어가 있을 때만**: 미디어 로딩 플레이스홀더(`MediaLoadingFrame(loaded=false)` = loading_dipper)
-    + 35% 어둡게 + 가운데 **크리스탈 자물쇠**(`Icons.Filled.Lock`, 60dp). **미디어가 없으면 잠금 표시 없이** 일반 글과
-    같은 `image_frame`(DetailScreen `when` 의 else). 원본 미디어 URL 은 **로드조차 하지 않는다**(가리기만 하면 Coil 캐시·
-    전체화면 뷰어로 새어나감). `FullScreenMediaViewer` 도 `unlocked` 로 한 번 더 막는다.
-  - `LockedContentCard` — **크리스탈 재생 로고**(유튜브 비율 직접 그린 `PlayLogo` ImageVector, 56dp)
-    + "100m 이내로 다가가거나, / 광고를 통해 열어보세요!"(`detail_locked_title`, 쉼표 뒤 줄바꿈) + "현재 위치로부터 N"(`detail_locked_distance`).
-    **별도 "광고 보기" 버튼은 없다** — 아이콘이 버튼.
-  - `CrystalPullIcon` — 두 아이콘 공용. `bakeCrystalIcon`(프로필 부유 아이콘과 같은 파편 재질, 무늬 시드 = diaryId 해시)
+  - `LockedHero(isVideo)` — **미디어가 있을 때만**: 미디어 로딩 플레이스홀더(`MediaLoadingFrame(loaded=false)` = loading_dipper)
+    + 우하단(작성자·날짜 줄 바로 위, end 20 · bottom 52dp) **작은 캡션** "이 사진/영상은 잠겨 있어요"(`detail_locked_photo/video`).
+    색 = 별자리 선의 청보라를 밝힌 `0xE6AEBBDF` + 같은 계열 번짐 `0x997F93CC`(blur 14), 12sp · 자간 0.4.
+    별자리는 영상의 가로 14~88% · 세로 23~60% 라 캡션과 안 겹친다. (09-22: 가운데 크리스탈 자물쇠·35% 어둡게 판은 "예쁘지 않다"로 삭제)
+    **미디어가 없으면 잠금 표시 없이** 일반 글과 같은 `image_frame`(DetailScreen `when` 의 else). 원본 미디어 URL 은
+    **로드조차 하지 않는다**(가리기만 하면 Coil 캐시·전체화면 뷰어로 새어나감). `FullScreenMediaViewer` 도 `unlocked` 로 한 번 더 막는다.
+  - `LockedContentCard` — 카드(배경+테두리) 대신 **`cornerCrossFrame`**: 좌상단·우하단 두 모서리에만 헤어라인(0.75dp) 십자.
+    안쪽 팔 가로 64 · 세로 40dp(끝으로 사라짐), 바깥 팔 7dp, 교차점 점(1.3dp) + 반경 6dp 옅은 광. 색 = accent 에 흰색 18%.
+    레퍼런스(`references/내용 부분 레퍼런스.png`)의 렌즈 플레어·큰 후광은 일부러 뺐다("AI 티" 피드백).
+    안: **크리스탈 재생 로고**(유튜브 비율 직접 그린 `PlayLogo`, 54dp) + "100m 이내로 다가가거나, / 광고를 통해 열어보세요!"
+    (`detail_locked_title`, 14.5sp Medium) + "현재 위치로부터 N"(`detail_locked_distance`, 12sp tnum). **별도 "광고 보기" 버튼은 없다** — 아이콘이 버튼.
+  - `CrystalPullIcon` — 재생 로고. `bakeCrystalIcon`(프로필 부유 아이콘과 같은 파편 재질, 무늬 시드 = diaryId 해시)
     + 뒤 후광 숨쉬기(1.6s). **제자리 고정**, 잡아당기면 `PULL_MAX(16dp)·(1−e^(−d/PULL_SOFT(70dp)))` 만큼만 끌려오고
     당긴 쪽으로 최대 6° 기울며, 놓으면 `spring(0.38, 380)` 로 출렁이며 복귀. 터치 슬롭 안에서 떼면 **탭 → `watchAdToUnlock`**.
-  - `watchAdToUnlock` — 광고 미설정/초기화 전/로드 안 됨/Activity 없음 → "지금은 광고를 불러올 수 없어요" + 재로드.
+  - `watchAdToUnlock` → `UnityAdsManager.showRewardedWhenReady`: 로드돼 있으면 바로 재생, 아니면 "광고를 불러오는 중이에요"
+    후 최대 8초 기다려 도착 즉시 재생. 키 없음/로드 실패/시간 초과/Activity 없음 → "지금은 광고를 불러올 수 없어요".
+    디버그 빌드에서 원인이 **비딩 전용 Placement**(`biddingOnlyPlacement`)면 그 사실을 토스트로 알려 준다.
     끝까지 봄 → `DiaryUnlockStore.unlock` + `Haptics.celebrate()` + 토스트, 건너뜀 → "끝까지 봐야 열려요".
 
 ### 구조(위 → 아래)
@@ -114,8 +120,7 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
 - `DetailScreen.swift` : Android 와 같은 구성(히어로/본문 카드/인라인 액션/댓글/
   `FullScreenMediaViewer`/`RemoteGifFitView`). push 진입(시트 아님).
   잠금도 동일 — `canOpen = isOwner || isNear || DiaryUnlockStore.isUnlocked(id)`(영구, `onAppear`/`onChange(of: isNear)`
-  에서 접근 해금 기록), `canComment = 로그인 && isNear`. 잠김이면 미디어 있을 때만 `lockedHero`(loading_dipper + 크리스탈
-  `lock.fill`) + `lockedContentCard`(크리스탈 재생 로고 `DiaryLock.playLogoPath` — Android `PlayLogo` 와 같은 24×24 좌표).
+  에서 접근 해금 기록), `canComment = 로그인 && isNear`. 잠김이면 미디어 있을 때만 `lockedHero`(loading_dipper + 우하단 캡션) + `lockedContentCard`(크리스탈 재생 로고 `DiaryLock.playLogoPath` — Android `PlayLogo` 와 같은 24×24 좌표).
   공용 부품은 `DiaryLockViews.swift`(`DiaryLock` 상수/시드/고무줄 + `CrystalPullIcon`), 경로 아이콘 베이크는
   `StarCrystal.pathIconImage`. 시드는 Java `String.hashCode` 와 같은 식이라 두 플랫폼 무늬가 같다.
   광고 결과·댓글 100m 안내는 `ToastView` 토스트. ⚠️ **iOS 는 아직 Unity Ads SDK 미연결**(`Core/AdsManager.swift`
@@ -144,5 +149,6 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
 | 겹친 별 헤더(5개 이상 = 다이얼) | `StarClusterScreen.ClusterStarDial`(칸 30, 창 5칸, ±3, 아이콘 26) | `StarClusterView.starDial` (**수치 동일**) |
 | 4개 이하 헤더(고정 겹침 배치) | `StarClusterScreen` 의 else 분기 | `StarClusterView.fixedStars` |
 | 잠금 아이콘 고무줄 | `DiaryLock.kt` `PULL_MAX`(16dp) / `PULL_SOFT`(70dp) / `spring(0.38, 380)` / 최대 6° | `DiaryLock.pullMax`/`pullSoft` / `interpolatingSpring(380, 14.8)` (**수치 동일**) |
-| 잠금 아이콘 크기 | 자물쇠 60dp · 재생 로고 56dp · 터치 영역 ×1.7 | 60 · 56 · ×1.7 |
+| 잠금 아이콘/캡션 | 재생 로고 54dp · 터치 ×1.7 / 캡션 12sp `0xE6AEBBDF` end 20 · bottom 52 | 54 · ×1.7 / `DiaryLock.captionColor` 같은 값 |
+| 십자 코너 프레임 | `cornerCrossFrame` 0.75dp · 팔 64/40/7 · 점 1.3 · 광 6 | `CornerCrossFrame` (**수치 동일**) |
 | 신고 사유 + "기타" 상세 | `core/ui/ReportDialog.kt` `onSubmit(reason, detail)` / REPORT_DETAIL_MAX_LEN | `Features/ReportDialog.swift` `onPick(reason, detail)` — iOS 는 "기타"만 알럿 한 단계 더 |

@@ -15,6 +15,9 @@ import SwiftUI
 ///     (Android `secrets.properties` 와 **같은 Unity 프로젝트의 iOS 게임 ID** — 값은 서로 다르다)
 ///  3. 아래 `initialize` / `preload` / `showRewarded` 구현
 ///  4. 보상 판정은 `UnityAdsShowCompletionState.COMPLETED` 뿐(건너뛰기는 보상 없음)
+///  5. 탭 시 아직 로드 전이면 "광고를 불러오는 중이에요" 후 최대 8초 기다렸다 재생(Android `showRewardedWhenReady`)
+///  ⚠️ Placement 는 **비딩이 아닌(waterfall) 보상형**이어야 한다 — LevelPlay 용 헤더 비딩 Placement(`BP_…`)는
+///     SDK 직접 로드 시 `adMarkup is missing` 으로 항상 실패한다(2026-09-22 Android 실기기 로그로 확인).
 @MainActor
 final class AdsManager: ObservableObject {
     static let shared = AdsManager()

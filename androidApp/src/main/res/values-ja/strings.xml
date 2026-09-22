@@ -128,7 +128,10 @@
     <string name="detail_locked_title">%1$dm 以内に近づくか、\n広告を見て開いてみてください！</string>
     <string name="detail_locked_distance">現在地から %1$s</string>
     <string name="detail_comment_near_only">コメントは %1$dm 以内でのみ書けます</string>
+    <string name="detail_locked_photo">この写真はロックされています</string>
+    <string name="detail_locked_video">この動画はロックされています</string>
     <string name="detail_watch_ad">広告を見て閲覧する</string>
+    <string name="detail_ad_loading">広告を読み込んでいます…</string>
     <string name="detail_ad_unlocked">物語が開きました</string>
     <string name="detail_ad_not_finished">広告を最後まで見ると開きます</string>
     <string name="detail_ad_unavailable">今は広告を読み込めません。しばらくしてからお試しください</string>

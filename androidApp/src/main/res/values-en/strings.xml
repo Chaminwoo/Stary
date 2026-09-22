@@ -128,7 +128,10 @@
     <string name="detail_locked_title">Get within %1$dm,\nor watch an ad to open it!</string>
     <string name="detail_locked_distance">%1$s from your current location</string>
     <string name="detail_comment_near_only">You can comment only within %1$dm</string>
+    <string name="detail_locked_photo">This photo is locked</string>
+    <string name="detail_locked_video">This video is locked</string>
     <string name="detail_watch_ad">Watch an ad to unlock</string>
+    <string name="detail_ad_loading">Loading the ad…</string>
     <string name="detail_ad_unlocked">The story is unlocked</string>
     <string name="detail_ad_not_finished">Watch the whole ad to unlock it</string>
     <string name="detail_ad_unavailable">No ad available right now. Please try again in a moment</string>

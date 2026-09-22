@@ -3,10 +3,11 @@ import UIKit
 
 /// 100m 밖 게시물 잠금 UI — Android `feature/diary/screen/DiaryLock.kt` 패리티(2026-09-22 개편).
 ///
-/// - 히어로: 미디어가 **있을 때만** 미디어 로딩 플레이스홀더(loading_dipper) 가운데에 크리스탈 자물쇠.
+/// - 히어로: 미디어가 **있을 때만** 미디어 로딩 플레이스홀더(loading_dipper) + 우하단 작은 캡션 "이 사진/영상은 잠겨 있어요".
 ///   미디어가 없으면 잠금 표시 없이 일반 글과 같은 image_frame.
-/// - 본문 자리: 크리스탈 재생 로고(유튜브형) + "100m 이내로 다가가거나, 광고를 통해 열어보세요!" + 현재 거리.
-/// - 두 아이콘 모두 [CrystalPullIcon] — 제자리에 고정돼 있다가 잡아당기면 버티며 조금만 끌려오고,
+/// - 본문 자리: 좌상단·우하단 십자 코너([CornerCrossFrame]) 안에 크리스탈 재생 로고(유튜브형)
+///   + "100m 이내로 다가가거나, 광고를 통해 열어보세요!" + 현재 거리.
+/// - 재생 로고는 [CrystalPullIcon] — 제자리에 고정돼 있다가 잡아당기면 버티며 조금만 끌려오고,
 ///   놓으면 튕기듯 돌아간다. **탭 = 보상형 광고**. 따로 "광고 보기" 버튼은 없다.
 enum DiaryLock {
     /// 잡아당겼을 때 끌려오는 최대 거리 — Android `PULL_MAX`(16dp).
@@ -44,10 +45,10 @@ enum DiaryLock {
         return p
     }()
 
-    /// 크리스탈 자물쇠(히어로용).
-    static func lockImage(color: Color, seed: Int, size: CGFloat) -> UIImage {
-        StarCrystal.iconImage(systemName: "lock.fill", color: UIColor(color), seed: seed, size: size)
-    }
+    /// 잠긴 히어로 캡션 색 — 플레이스홀더 별자리 선의 청보라를 글자로 읽힐 만큼 밝힌 색 / 그 번짐.
+    /// Android `LOCK_CAPTION_COLOR`(0xE6AEBBDF) / `LOCK_CAPTION_GLOW`(0x997F93CC) 와 같은 값.
+    static let captionColor = Color(hex: 0xAEBBDF).opacity(0.90)
+    static let captionGlow = Color(hex: 0x7F93CC).opacity(0.60)
 
     /// 크리스탈 재생 로고(본문 카드용).
     static func playLogoImage(color: Color, seed: Int, size: CGFloat) -> UIImage {
@@ -124,5 +125,63 @@ struct CrystalPullIcon: View {
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { onTap() }
+    }
+}
+
+/// 십자 코너 프레임 — **좌상단·우하단 두 모서리에만** 가는 십자선(천체 관측 레티클 / 인쇄 재단선 느낌).
+/// Android `DiaryLock.kt` `cornerCrossFrame` 과 같은 수치: 헤어라인 0.75pt, 안쪽 팔 가로 64 · 세로 40(끝으로 사라짐),
+/// 바깥 팔 7, 교차점 점 반지름 1.3 + 반경 6 의 아주 옅은 광. 렌즈 플레어·큰 후광은 일부러 넣지 않는다.
+/// 바깥 팔이 요소 밖으로 7pt 나가므로 캔버스를 사방 [bleed] 만큼 키워 그린다(잘림 방지).
+struct CornerCrossFrame: View {
+    let color: Color
+
+    private let armH: CGFloat = 64
+    private let armV: CGFloat = 40
+    private let stub: CGFloat = 7
+    private let bleed: CGFloat = 10
+
+    var body: some View {
+        Canvas { ctx, size in
+            let b = bleed
+            cross(ctx, at: CGPoint(x: b, y: b), sx: 1, sy: 1)
+            cross(ctx, at: CGPoint(x: size.width - b, y: size.height - b), sx: -1, sy: -1)
+        }
+        .padding(-bleed)
+        .allowsHitTesting(false)
+    }
+
+    private func fadingLine(_ ctx: GraphicsContext, _ from: CGPoint, _ to: CGPoint, alpha: Double) {
+        var path = Path()
+        path.move(to: from)
+        path.addLine(to: to)
+        ctx.stroke(
+            path,
+            with: .linearGradient(
+                Gradient(colors: [color.opacity(alpha), color.opacity(0)]),
+                startPoint: from, endPoint: to
+            ),
+            lineWidth: 0.75
+        )
+    }
+
+    /// [p] 에 십자 하나 — [sx]/[sy] 는 요소 안쪽 방향(+1/−1).
+    private func cross(_ ctx: GraphicsContext, at p: CGPoint, sx: CGFloat, sy: CGFloat) {
+        fadingLine(ctx, p, CGPoint(x: p.x + sx * armH, y: p.y), alpha: 0.70)   // 안쪽 가로(길게)
+        fadingLine(ctx, p, CGPoint(x: p.x, y: p.y + sy * armV), alpha: 0.70)   // 안쪽 세로
+        fadingLine(ctx, p, CGPoint(x: p.x - sx * stub, y: p.y), alpha: 0.45)   // 바깥 가로(짧게)
+        fadingLine(ctx, p, CGPoint(x: p.x, y: p.y - sy * stub), alpha: 0.45)   // 바깥 세로
+        let glowR: CGFloat = 6
+        ctx.fill(
+            Path(ellipseIn: CGRect(x: p.x - glowR, y: p.y - glowR, width: glowR * 2, height: glowR * 2)),
+            with: .radialGradient(
+                Gradient(colors: [color.opacity(0.22), .clear]),
+                center: p, startRadius: 0, endRadius: glowR
+            )
+        )
+        let r: CGFloat = 1.3
+        ctx.fill(
+            Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
+            with: .color(color.blended(with: .white, fraction: 0.45))
+        )
     }
 }

@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.57 iOS 열람 파장 지도 굴절 복원(Metal 메시, 런타임 셰이더) + 잠금 히어로 스크림 패리티** — iOS 전용, push 후 CI 검증.
+> 최종 갱신: **8.58 잠금 화면 2차**(히어로 캡션 · 십자 코너 프레임 · 광고 실패 원인 = 비딩 전용 Placement) — Android BUILD SUCCESSFUL·기기 설치(2026-09-22).
+> 이전: **8.57 iOS 열람 파장 지도 굴절 복원(Metal 메시, 런타임 셰이더) + 잠금 히어로 스크림 패리티** — iOS 전용, push 후 CI 검증.
 > 이전: **8.56 잠금 화면 개편**(크리스탈 자물쇠/재생 로고 고무줄 아이콘 · 영구 해금 · 댓글 무조건 100m · 다이아몬드 축소/세로선 제거)
 > — Android BUILD SUCCESSFUL(2026-09-22), 실기기 테스트 대기 · iOS 는 push 후 CI 검증. 8.50(길찾기 삭제·100m 잠금·Unity Ads)과 함께 push 전.
 > 이전: **8.55 iOS 패리티 9건 + 3D 글로브 Metal 복원** — 웰컴 별/첫 코치마크/공유 카드/신규 별 오오라/채팅 빈 화면/
@@ -1943,6 +1944,44 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
 - 알림 포커스 파동(iOS `MapWarpOverlay` — 링만)과 업로드 버튼 파장(RootView, 스냅샷 없음)에도 같은 굴절 적용.
   포커스는 카메라 이동 완료 콜백(`setCenter(...completionHandler:)`) 뒤 스냅샷, 업로드는 지도 스냅샷을 RootView 로 넘길 통로가 필요.
 
+## 8.58 잠금 화면 2차 — 히어로 캡션 · 십자 코너 프레임 · 광고 "불러올 수 없어요" 원인 (Android BUILD SUCCESSFUL + 기기 설치 2026-09-22)
+
+사용자 피드백(실기기 스크린샷 `references/내용 부분 레퍼런스.png`): ① 상단 자물쇠가 예쁘지 않다 → 작은 글씨로
+② 하단 카드를 레퍼런스처럼 "작은 십자 테두리"로, 단 레퍼런스는 AI 티가 나니 전문적으로 ③ 광고를 누르면 "불러올 수 없어요".
+
+### ① 히어로 — 자물쇠 → 캡션
+- 크리스탈 자물쇠와 35% 어둡게 덮던 판 삭제. 플레이스홀더(loading_dipper)는 그대로 밝게.
+- 우하단(작성자·날짜 줄 바로 위) 캡션 "이 사진은 잠겨 있어요" / "이 영상은 잠겨 있어요"(`videoUrl` 유무).
+- 색은 **플레이스홀더에서 실제로 뽑았다**: 별자리 선 중심 ≈ #4E5C80, 글로우 ≈ #797F9F, 배경 ≈ #090F21 → 같은 청보라를
+  글자로 읽힐 만큼 밝힌 `#AEBBDF`(90%) + 번짐 `#7F93CC`(60%). 별자리 위치(가로 14~88% · 세로 23~60%)와 겹치지 않는 자리.
+
+### ② 본문 — 카드 → 십자 코너 프레임
+- 배경·둥근 테두리 삭제. 좌상단·우하단 **대각 두 모서리에만** 헤어라인 십자(천체 관측 레티클/재단선 느낌).
+  레퍼런스에서 "AI 티"의 원인인 렌즈 플레어·큰 후광은 빼고: 0.75dp 선, 안쪽 팔 64/40dp 가 끝으로 사라짐, 바깥 팔 7dp,
+  교차점엔 1.3dp 점 + 반경 6dp 의 아주 옅은 광만. 색 = 별색에 흰색 18%.
+- 타이포: 제목 14.5sp Medium(0.94), 거리 12sp 고정폭 숫자(tnum) — 위치가 갱신돼도 숫자가 흔들리지 않는다.
+- Android `DiaryLock.kt` `cornerCrossFrame` ↔ iOS `DiaryLockViews.swift` `CornerCrossFrame` 같은 수치.
+
+### ③ 광고 "지금은 광고를 불러올 수 없어요" — **원인: Placement 설정(코드 아님)**
+- 실기기 logcat: `Header bidding load invocation failed: adMarkup is missing; objectId is missing` →
+  `보상형 광고 로드 실패(BP_Rewarded_Android): INVALID_ARGUMENT`. `BP_Rewarded_Android` 는 **헤더 비딩 전용 Placement**
+  (LevelPlay 같은 미디에이션이 입찰 결과 adMarkup 을 넘겨줘야 로드됨)라 Unity Ads SDK 직접 `UnityAds.load` 로는 **항상 실패**.
+- `Rewarded_Android`(기본 waterfall 이름)로 바꿔 시험 → `No placement configured for id: Rewarded_Android` — 이 게임엔 없음.
+  시험 후 `secrets.properties` 는 원래 값(`BP_Rewarded_Android`)으로 **되돌려 둠**.
+- 코드 개선(설정이 고쳐지면 바로 효과):
+  - `UnityAdsManager.showRewardedWhenReady` — 로드 전 탭이면 "광고를 불러오는 중이에요"(`detail_ad_loading`) 후
+    최대 8초 기다려 도착 즉시 재생(예전엔 즉시 "불러올 수 없어요"). 대기 요청 1개·Activity 약참조.
+  - `biddingOnlyPlacement` — 로드 실패 메시지에 `adMarkup` 이 있으면 true: 기다리지 않고 바로 안내 +
+    `Log.e` 로 원인·해결법, **디버그 빌드는 토스트로도** 원인 표시(릴리스는 일반 안내).
+- `ACCESS_NETWORK_STATE` 권한 경고는 Unity AAR 매니페스트에 이미 있어 추가 불필요(남는 "missing permission" 경고는
+  READ_PHONE_STATE 계열 — 무시해도 됨).
+
+### 사용자가 해야 할 것(광고)
+Unity 대시보드(Monetization)에서 **비딩이 아닌 보상형 Placement(Ad Unit)** 를 하나 만든다 — 프로젝트 미디에이션 설정이
+LevelPlay 등으로 돼 있으면 BP_ 비딩 Placement 만 생기므로, "미디에이션 없음(Unity Ads 단독)" 쪽 Ad Unit 이어야 한다.
+만든 ID 를 `secrets.properties` 의 `UNITY_REWARDED_PLACEMENT` 에 넣고 재빌드. (LevelPlay 를 계속 쓸 거면 SDK 자체를
+LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
@@ -1954,6 +1993,7 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
 - [x] 별가루 파티클 Canvas → MapLibre GeoJSON+SymbolLayer 전환(줌 6 이하 숨김) — 완료.
 - [ ] **FCM 푸시 발송 Function 배포(사용자)**: Blaze + `cd functions && npm install` + `firebase deploy --only functions`
       (코드는 `functions/index.js` 완료, REGION=stary-db 리전 확인).
+- [ ] **(사용자) Unity 비딩 아닌 보상형 Placement 생성** → `UNITY_REWARDED_PLACEMENT` 교체(8.58 ③). 현재 `BP_Rewarded_Android` 는 직접 로드 불가.
 - [ ] **iOS 파장 굴절 확장**: 알림 포커스(`MapWarpOverlay`) · 업로드 버튼 파장에도 `DiaryWarpMeshView` 적용(8.57 참고).
 - [ ] **iOS Unity Ads SDK 연결**: `project.yml` packages 에 `unity-ads-ios` 추가 → `Core/AdsManager.swift` 의
       TODO(initialize/preload/showRewarded) 구현 → 빌드설정에 iOS 게임 ID 주입. 계약(보상 = COMPLETED)은 Android 와 동일.

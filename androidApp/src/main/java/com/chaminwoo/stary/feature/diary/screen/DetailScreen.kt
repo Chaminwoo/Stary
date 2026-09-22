@@ -339,9 +339,9 @@ fun DetailScreen(
                 // 별이 바뀔 때마다(id 기준) 로딩 배경(loading_dipper)부터 다시 보여준다.
                 var mediaLoaded by remember(currentDiary.id) { mutableStateOf(false) }
                 when {
-                    // 잠김 + 미디어 있음: 원본 URL 을 아예 로드하지 않고 플레이스홀더 위 크리스탈 자물쇠(DiaryLock.kt).
+                    // 잠김 + 미디어 있음: 원본 URL 을 아예 로드하지 않고 플레이스홀더 + "이 사진/영상은 잠겨 있어요"(DiaryLock.kt).
                     // 잠김 + 미디어 없음: 잠금 표시 없이 아래 else(image_frame) — 가릴 게 없다.
-                    !unlocked && hasMedia -> LockedHero(accent = accent, diaryId = diaryId)
+                    !unlocked && hasMedia -> LockedHero(isVideo = currentDiary.videoUrl.isNotEmpty())
                     // 부메랑 움짤(GIF) — 무한 루프 재생. (구버전 mp4 영상은 기존 플레이어 유지)
                     // 사진과 마찬가지로 탭하면 전체화면 뷰어로 열린다.
                     currentDiary.videoUrl.isNotEmpty() && com.chaminwoo.stary.core.ui.isGifUrl(currentDiary.videoUrl) ->

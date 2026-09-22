@@ -130,7 +130,10 @@
     <string name="detail_locked_title">%1$dm 이내로 다가가거나,\n광고를 통해 열어보세요!</string>
     <string name="detail_locked_distance">현재 위치로부터 %1$s</string>
     <string name="detail_comment_near_only">%1$dm 이내에서만 댓글을 남길 수 있어요</string>
+    <string name="detail_locked_photo">이 사진은 잠겨 있어요</string>
+    <string name="detail_locked_video">이 영상은 잠겨 있어요</string>
     <string name="detail_watch_ad">광고 보고 열람하기</string>
+    <string name="detail_ad_loading">광고를 불러오는 중이에요…</string>
     <string name="detail_ad_unlocked">이야기가 열렸어요</string>
     <string name="detail_ad_not_finished">광고를 끝까지 봐야 열려요</string>
     <string name="detail_ad_unavailable">지금은 광고를 불러올 수 없어요. 잠시 후 다시 시도해 주세요</string>

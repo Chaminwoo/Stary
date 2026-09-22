@@ -437,66 +437,67 @@ struct DetailScreen: View {
         .padding(.bottom, 8)
     }
 
-    /// 잠긴 글의 히어로(4:3) — **미디어가 있는 글에서만**. 미디어 로딩 플레이스홀더(loading_dipper) 위
-    /// 가운데 크리스탈 자물쇠(탭 = 광고, 잡아당기면 고무줄). (Android `DiaryLock.kt` `LockedHero` 패리티)
+    /// 잠긴 글의 히어로(4:3) — **미디어가 있는 글에서만**. 미디어 로딩 플레이스홀더(loading_dipper) +
+    /// 우하단(작성자 줄 바로 위) 작은 캡션 "이 사진/영상은 잠겨 있어요" — 별자리 선의 청보라를 밝힌 색 + 옅은 번짐.
+    /// 별자리는 영상의 가로 14~88% · 세로 23~60% 라 겹치지 않는다. (Android `DiaryLock.kt` `LockedHero` 패리티)
     private var lockedHero: some View {
-        ZStack {
+        ZStack(alignment: .bottomTrailing) {
             // loaded=false 고정 → 콘텐츠 없이 플레이스홀더만.
             MediaLoadingFrame(loaded: false) { Color.clear }
-            // 자물쇠가 떠 보이도록 살짝만 어둡게(Android 0x590B0E14 ≈ 35%).
-            Color(hex: 0x0B0E14).opacity(0.35)
-            CrystalPullIcon(
-                image: DiaryLock.lockImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 0), size: 60),
-                color: accent,
-                iconSize: 60,
-                accessibilityText: LocaleManager.shared.t(.detailWatchAd),
-                onTap: watchAdToUnlock
-            )
+            Text(LocaleManager.shared.t(isGifOrVideo ? .detailLockedVideo : .detailLockedPhoto))
+                .font(.minSans(12))
+                .tracking(0.4)
+                .foregroundStyle(DiaryLock.captionColor)
+                .shadow(color: DiaryLock.captionGlow, radius: 5)
+                // 아래 20(헤더 오버레이 여백) + 작성자 줄 ≈ 20 + 간격 12.
+                .padding(.trailing, 20)
+                .padding(.bottom, 52)
         }
     }
 
-    /// 잠긴 글의 본문 자리 — 크리스탈 재생 로고(탭 = 광고) + 여는 방법 + 현재 위치로부터의 거리.
+    /// 잠긴 글의 미디어가 영상(움짤/mp4)인가 — 캡션 "영상/사진" 구분용.
+    private var isGifOrVideo: Bool { !diary.videoUrl.isEmpty }
+
+    /// 잠긴 글의 본문 자리 — 좌상단·우하단 **십자 코너**(`CornerCrossFrame`) 안에 크리스탈 재생 로고(탭 = 광고)
+    /// + 여는 방법 + 현재 위치로부터의 거리. 카드 배경·테두리는 없다(2026-09-22 레퍼런스 재해석).
     /// 광고 SDK 가 아직 안 붙은 동안(`AdsManager.isConfigured == false`)에는 탭하면 "광고를 불러올 수 없어요" 안내.
-    /// (Android `DiaryLock.kt` `LockedContentCard` 패리티)
+    /// (Android `DiaryLock.kt` `LockedContentCard` 패리티 — 수치 동일)
     private var lockedContentCard: some View {
         VStack(spacing: 0) {
             CrystalPullIcon(
-                image: DiaryLock.playLogoImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 56),
+                image: DiaryLock.playLogoImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 54),
                 color: accent,
-                iconSize: 56,
+                iconSize: 54,
                 accessibilityText: LocaleManager.shared.t(.detailWatchAd),
                 onTap: watchAdToUnlock
             )
-            Spacer().frame(height: 2)
+            Spacer().frame(height: 6)
             Text(String(format: LocaleManager.shared.t(.detailLockedTitle), Int(AppConfig.diaryOpenRadiusM)))
-                .font(.minSans(15, .semibold))
-                .lineSpacing(5)
+                .font(.minSans(14.5, .medium))
+                .lineSpacing(7)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(Theme.textPrimary)
-            Spacer().frame(height: 10)
-            HStack(spacing: 6) {
+                .foregroundStyle(Theme.textPrimary.opacity(0.94))
+            Spacer().frame(height: 12)
+            HStack(spacing: 5) {
                 Image(systemName: "location")
-                    .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                    .font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
                 Text(location.coordinate == nil
                      ? LocaleManager.shared.t(.detailLocating)
                      : String(format: LocaleManager.shared.t(.detailLockedDistance),
                               Geo.formatDistance(distanceM)))
-                    .font(.minSans(12.5)).foregroundStyle(Theme.textSecondary)
+                    .font(.minSans(12))
+                    .tracking(0.2)
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.textSecondary)
             }
         }
         .frame(maxWidth: .infinity)
         // 위쪽은 아이콘 터치 영역(후광 여백)이 이미 넉넉해서 얇게(Android 와 같은 값).
-        .padding(.horizontal, 18)
-        .padding(.top, 6)
-        .padding(.bottom, 18)
-        .background(Color(hex: 0x14181C).opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16).strokeBorder(
-                LinearGradient(colors: [accent.opacity(0.45), accent.opacity(0.15)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing),
-                lineWidth: 1
-            )
-        )
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
+        .padding(.bottom, 30)
+        .background(CornerCrossFrame(color: accent.blended(with: .white, fraction: 0.18)))
+        .padding(.vertical, 8)
         .onAppear { ads.preload() }
     }
 
