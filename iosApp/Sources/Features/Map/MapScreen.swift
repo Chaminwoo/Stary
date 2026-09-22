@@ -256,7 +256,9 @@ struct MapScreen: View {
         guard openWarp == nil else { return } // 파장 재생 중 중복 탭 무시
         MusicManager.shared.playOpenDiary() // Android: 파장 시작과 함께 열람 효과음
         Haptics.warp()                       // 파장과 같은 결의 진동(Android DiaryMap 패리티)
-        openWarp = DiaryOpenWarpData(snapshot: snapshot, origin: origin, members: members)
+        // 빈(검정/투명) 스냅샷은 버린다 — 굴절시키면 연출 내내 화면이 까매진다. 없으면 링만 재생.
+        let usable = snapshot.flatMap { WarpMesh.isUsable($0) ? $0 : nil }
+        openWarp = DiaryOpenWarpData(snapshot: usable, origin: origin, members: members)
     }
 
     /// 글로브에 넘길 별 — 웰컴 별(합성 다이어리)은 제외(Android 도 filteredDiaries 만 넘긴다).
@@ -325,6 +327,16 @@ struct MapScreen: View {
             )
             .ignoresSafeArea()
 
+            // 다이어리 열람 파장의 지도 굴절 — 스냅샷을 별 위치에서 퍼지는 물결로 민다(Android drawBitmapMesh 패리티).
+            // 지도 **바로 위**에 둬서 바다 덮개·하늘·버튼은 그대로 위에 보이고, 링/버스트는 아래 DiaryOpenWarpView 가 그린다.
+            // 파장 끝(p=1)엔 변위 0 = 라이브 지도와 같은 그림이라 걷어낼 때 이음매가 없다.
+            if let w = openWarp, let snap = w.snapshot {
+                DiaryWarpMeshView(snapshot: snap, origin: w.origin, startedAt: w.startedAt)
+                    .id(w.id)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
+
             // 세계 상하 끝(타일 한계) 밖 빈 공간 — 물 레이어와 같은 색(줌 보간)으로 덮어
             // 바다가 이어진 것처럼 보이게 한다(Android 비네트 Canvas 의 바다색 덮기 패리티).
             worldVoidOverlay
@@ -344,7 +356,7 @@ struct MapScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // 다이어리 열람 파장(warp) — 지도 스냅샷 굴절 + 파장 링 + (겹친 별) 버스트.
+            // 다이어리 열람 파장(warp) — 파장 링 + (겹친 별) 버스트(지도 굴절은 위 DiaryWarpMeshView).
             // 끝나면 멤버 수에 따라 상세/겹친 별 카드로 진입(Android DiaryOpenWarp 흐름 동일).
             if let w = openWarp {
                 DiaryOpenWarpView(data: w) {

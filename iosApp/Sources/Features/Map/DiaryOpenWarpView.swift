@@ -4,7 +4,8 @@ import UIKit
 /// 다이어리 진입 직전 파장 연출 데이터 — Android `DiaryOpenWarpData` 대응.
 struct DiaryOpenWarpData: Identifiable {
     let id = UUID()
-    /// 탭 순간의 지도 스냅샷(캡처 실패 시 nil — 링/버스트만 재생).
+    /// 탭 순간의 지도 스냅샷(캡처 실패·빈 이미지면 nil — 링/버스트만 재생).
+    /// 있으면 MapScreen 이 지도 바로 위에 `DiaryWarpMeshView` 로 굴절시켜 깐다(Android drawBitmapMesh 대응).
     let snapshot: UIImage?
     /// 파장 시작 위치(화면 비율 0..1).
     let origin: CGPoint
@@ -21,19 +22,16 @@ struct DiaryOpenWarpData: Identifiable {
     }
 }
 
-/// 연출 전체 길이(s) — Android 1300ms 동일.
-private let warpDuration: Double = 0.6
-
-/// 다이어리 진입 파장 — 지도 스냅샷을 별 위치에서 퍼지는 물결로 굴절시키고
-/// 파장 링(후광+굴절 띠+가장자리 선)과 합쳐진 별 버스트 파티클을 얹는다.
-/// (Android `DiaryOpenWarp`(drawBitmapMesh) 대응 — iOS 는 CIBumpDistortion 으로 근사.)
+/// 다이어리 진입 파장의 **링 + 합쳐진 별 버스트** 레이어(버튼·토스트까지 덮는 위치에 둔다).
+/// 지도 굴절은 별도 레이어 `DiaryWarpMeshView`(Metal, 지도 바로 위)가 같은 시작 시각·이징으로 맡는다.
+/// 길이/이징 = `WarpTiming`(Android `tween(1300, FastOutSlowInEasing)`).
 struct DiaryOpenWarpView: View {
     let data: DiaryOpenWarpData
     let onFinished: () -> Void
 
     var body: some View {
         TimelineView(.animation) { tl in
-            let p = CGFloat(min(max(tl.date.timeIntervalSince(data.startedAt) / warpDuration, 0), 1))
+            let p = CGFloat(WarpTiming.progress(since: data.startedAt, now: tl.date))
             GeometryReader { geo in
                 let size = geo.size
                 let cx = size.width * data.origin.x
@@ -41,8 +39,7 @@ struct DiaryOpenWarpView: View {
                 let maxR = maxRadius(size: size, cx: cx, cy: cy)
                 let front = p * maxR
 
-                // 파장 링 + 합쳐진 별 버스트만 그린다(투명 오버레이 아래로 실제 지도가 그대로 비친다).
-                // 지도 스냅샷 굴절(Android drawBitmapMesh)은 Metal 툴체인 의존 때문에 iOS 에선 생략.
+                // 파장 링 + 합쳐진 별 버스트(투명 오버레이 — 아래로 굴절 중인 스냅샷/실제 지도가 비친다).
                 Canvas { ctx, sz in
                     drawEffects(ctx: ctx, size: sz, p: p, cx: cx, cy: cy, front: front)
                 }
@@ -52,7 +49,7 @@ struct DiaryOpenWarpView: View {
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .task(id: data.id) {
-            try? await Task.sleep(nanoseconds: UInt64(warpDuration * 1_000_000_000) + 50_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(WarpTiming.duration * 1_000_000_000) + 50_000_000)
             onFinished()
         }
     }

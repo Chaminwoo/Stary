@@ -265,8 +265,6 @@ struct DetailScreen: View {
     /// 이 글에 미디어(사진/영상/움짤)가 있는가(열람 가능 여부와 무관).
     private var diaryHasMedia: Bool { !(diary.imageUrl.isEmpty && diary.videoUrl.isEmpty) }
 
-    /// 실제 미디어(사진/영상/움짤)가 있고 열람 가능한가 — 없으면 기본 템플릿(image_frame)만.
-    private var hasMedia: Bool { canOpen && diaryHasMedia }
 
     private var heroHeader: some View {
         Color.clear
@@ -274,10 +272,11 @@ struct DetailScreen: View {
             .overlay { headerMedia }
             .clipped()
             .overlay(
-                // 하단 가독성 스크림은 **실제 미디어가 있을 때만** — 기본 템플릿 위에 덧씌우면
-                // 필터처럼 보여서(사용자 피드백 #5) 미디어 없을 땐 하단만 배경색으로 자연스럽게 잇는다.
+                // 하단 가독성 스크림은 **미디어 자리(실제 미디어 또는 잠금 플레이스홀더)일 때만** — 기본 템플릿 위에
+                // 덧씌우면 필터처럼 보여서(사용자 피드백 #5) 미디어 없을 땐 하단만 배경색으로 자연스럽게 잇는다.
+                // (잠긴 글도 미디어가 있으면 loading_dipper 플레이스홀더라 Android 처럼 진한 스크림)
                 Group {
-                    if hasMedia {
+                    if diaryHasMedia {
                         LinearGradient(stops: [
                             .init(color: .clear, location: 0),
                             .init(color: .black.opacity(0.4), location: 0.55),

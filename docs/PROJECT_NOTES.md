@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.56 잠금 화면 개편**(크리스탈 자물쇠/재생 로고 고무줄 아이콘 · 영구 해금 · 댓글 무조건 100m · 다이아몬드 축소/세로선 제거)
+> 최종 갱신: **8.57 iOS 열람 파장 지도 굴절 복원(Metal 메시, 런타임 셰이더) + 잠금 히어로 스크림 패리티** — iOS 전용, push 후 CI 검증.
+> 이전: **8.56 잠금 화면 개편**(크리스탈 자물쇠/재생 로고 고무줄 아이콘 · 영구 해금 · 댓글 무조건 100m · 다이아몬드 축소/세로선 제거)
 > — Android BUILD SUCCESSFUL(2026-09-22), 실기기 테스트 대기 · iOS 는 push 후 CI 검증. 8.50(길찾기 삭제·100m 잠금·Unity Ads)과 함께 push 전.
 > 이전: **8.55 iOS 패리티 9건 + 3D 글로브 Metal 복원** — 웰컴 별/첫 코치마크/공유 카드/신규 별 오오라/채팅 빈 화면/
 > 모의 위치 경고/초대 결과 토스트/음량 별 thumb/일일 알림 문구 + Android GL 글로브의 Metal 1:1 포팅(2026-09-14, iOS 전용 —
@@ -1912,6 +1913,36 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
   문자열 리소스/L10n 의 `\n` 은 편집 후 원문으로 확인할 것(Android strings.xml 은 원시 개행이면 공백으로 접힌다).
 - iOS 는 아직 Unity Ads SDK 미연결 → 아이콘 탭 시 "광고를 불러올 수 없어요"(8.50 TODO 그대로).
 
+## 8.57 iOS 열람 파장에 지도 굴절 복원(Metal 메시) + 잠금 히어로 스크림 패리티 (iOS 전용, 2026-09-22 — push 후 CI / 실기기 확인 대기)
+
+사용자 요청: "이번 작업 중 iOS 병행 안 한 것 확인" + "iOS 다이어리 열람 파장에 화면 왜곡이 없어 아쉽다 — 다른 방법으로라도".
+
+### 패리티 점검(8.56 범위)
+- 누락 1건 수정: 잠긴 글 + 미디어 있음일 때 iOS 히어로 하단 스크림이 "미디어 없음"용 옅은 그라데이션이었다
+  (iOS `hasMedia` 가 `canOpen` 을 포함) → `diaryHasMedia` 기준으로 바꿔 Android 처럼 진한 스크림. 안 쓰게 된 `hasMedia` 삭제.
+- 그 외 8.56 항목(영구 해금·댓글 100m·크리스탈 아이콘/고무줄·문구·다이아몬드)은 iOS 반영 확인. iOS 광고 SDK 는 기존 TODO 그대로.
+
+### 열람 파장 지도 굴절 — `Features/Map/DiaryWarpMesh.swift`(신규)
+- Android `DiaryOpenWarp` 는 지도 스냅샷을 `drawBitmapMesh`(14×14)로 방사형 굴절. iOS 는 예전 CIBumpDistortion 근사를
+  `1061e17` 에서 빼고 링만 남겨 두었다("Metal 툴체인 의존" 주석, 길이도 0.6s 로 단축).
+- 이번엔 **drawBitmapMesh 를 그대로 재현**: 같은 메시·같은 식·같은 픽셀 상수로 꼭짓점을 CPU 에서 매 프레임 계산 →
+  Metal 로 칸당 삼각형 2개에 스냅샷 텍스처. 셰이더는 글로브처럼 **런타임 컴파일**이라 .metal 빌드 단계가 없다.
+- 배치: `MapScreen` 에서 지도 **바로 위**(`DiaryWarpMeshView`, 투명 MTKView) — 바다 덮개/하늘/버튼은 그 위에 그대로.
+  링·버스트(`DiaryOpenWarpView`)는 기존 위치. 둘 다 `DiaryOpenWarpData.startedAt` + `WarpTiming`(1.3s, FastOutSlowIn)로 동기.
+  링도 이제 Android 처럼 **이징된** 진행도를 쓴다(예전 iOS 는 선형).
+- 안전장치: `WarpMesh.isUsable` — 스냅샷이 검정/투명이면 버리고 링만(drawHierarchy 가 Metal 지도를 못 찍는 경우 대비).
+  셰이더/파이프라인/텍스처 실패 시에도 투명(링만).
+- 길이 0.6s → **1.3s**(Android 와 동일). 업로드 버튼 파장(RootView)도 같은 `WarpTiming` 이라 1.3s 가 됐다.
+
+### ⚠️ 확인 필요(코드로 검증 불가)
+- 셰이더는 실행 시 컴파일 — CI 초록이어도 기기에서 별 탭 시 지도가 물결치는지 확인. 안 보이면 콘솔 `⚠️ Warp ...` 로그.
+- 스냅샷이 실제로 찍히는지(`isUsable` 에 걸려 링만 나오면 drawHierarchy 문제) — 그 경우 `MLNMapView` 의 Metal 레이어를
+  다른 방법으로 캡처해야 한다.
+
+### 남은 것(Android 는 되어 있음)
+- 알림 포커스 파동(iOS `MapWarpOverlay` — 링만)과 업로드 버튼 파장(RootView, 스냅샷 없음)에도 같은 굴절 적용.
+  포커스는 카메라 이동 완료 콜백(`setCenter(...completionHandler:)`) 뒤 스냅샷, 업로드는 지도 스냅샷을 RootView 로 넘길 통로가 필요.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
@@ -1923,6 +1954,7 @@ iOS 남은 패리티 중 **미조회(unviewed) 필터** 구현(Android MainListS
 - [x] 별가루 파티클 Canvas → MapLibre GeoJSON+SymbolLayer 전환(줌 6 이하 숨김) — 완료.
 - [ ] **FCM 푸시 발송 Function 배포(사용자)**: Blaze + `cd functions && npm install` + `firebase deploy --only functions`
       (코드는 `functions/index.js` 완료, REGION=stary-db 리전 확인).
+- [ ] **iOS 파장 굴절 확장**: 알림 포커스(`MapWarpOverlay`) · 업로드 버튼 파장에도 `DiaryWarpMeshView` 적용(8.57 참고).
 - [ ] **iOS Unity Ads SDK 연결**: `project.yml` packages 에 `unity-ads-ios` 추가 → `Core/AdsManager.swift` 의
       TODO(initialize/preload/showRewarded) 구현 → 빌드설정에 iOS 게임 ID 주입. 계약(보상 = COMPLETED)은 Android 와 동일.
 - [ ] ViewModel 들이 Firebase* 구현 대신 공용 인터페이스 타입을 주입받도록 DI 정리(현재는 직접 생성).

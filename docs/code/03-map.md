@@ -203,11 +203,25 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - `refreshAuraFeatures` : 대표 별 좌표+sizeMult+별색으로 후광(바닥광+오오라 2겹) 갱신.
 - `setConstellation`/`requestConstellationRebuild` : 토글 페이드/90ms 디바운스 재계산(Android 동일).
 
-### StarMerge.swift / StarImageRenderer.swift / DiaryOpenWarpView.swift
+### StarMerge.swift / StarImageRenderer.swift / DiaryOpenWarpView.swift / DiaryWarpMesh.swift
 - `StarMerge` : 30m 지오 머지 + 우선순위(좋아요↓→오래된 순) — Android `mergeByProximity` 패리티.
 - `StarImageRenderer` : 별 마커 UIImage 렌더/캐시(크리스탈 채움) — Android `starBitmap` 대응.
-- `DiaryOpenWarpView` : 지도 스냅샷 CIBumpDistortion 굴절 + 파장 링 + 겹친별 버스트(1.3s) —
-  Android `DiaryOpenWarp` 대응.
+- `DiaryOpenWarpView` : 파장 링(후광·굴절 띠·가장자리 선) + 겹친별 버스트 — 버튼·토스트까지 덮는 위치.
+  끝나면 `onFinished`(상세/카드 진입). Android `DiaryOpenWarp` 의 링/버스트 부분.
+- `DiaryWarpMesh.swift`(2026-09-22) : **지도 굴절** — Android `drawBitmapMesh` 의 Metal 포팅.
+  - `WarpMesh.vertices` : Android 와 **같은 14×14 메시 · 같은 식 · 같은 픽셀 상수**(진폭 46·(1−p), 밴드 220, 파수 0.045)로
+    꼭짓점을 매 프레임 CPU 계산 → 칸당 삼각형 2개로 스냅샷 텍스처를 입혀 GPU 로(`setVertexBytes` 3.6KB).
+  - 셰이더는 글로브처럼 **런타임 컴파일**(`makeLibrary(source:)`) — CI Xcode 의 Metal 툴체인 별도 컴포넌트 문제 회피.
+    실패하면 투명(링만 보임).
+  - `DiaryWarpMeshView`(MTKView, 투명 배경) 는 MapScreen 에서 **지도 바로 위**(바다 덮개·하늘·버튼 아래)에 깔린다 —
+    메시 가장자리가 밀린 틈으로는 라이브 지도가 비친다. p=1 에서 변위 0 이라 걷어낼 때 이음매 없음.
+  - `WarpMesh.isUsable` : 스냅샷을 12×12 로 줄여 가장 밝은 채널 ≤ 4 면 버린다(drawHierarchy 가 Metal 지도를 못 찍어
+    검정이 나오는 경우 1.3초 암전 방지) → 링만 재생.
+  - `WarpTiming` : 길이 1.3s + Android `FastOutSlowInEasing`(CubicBezier 0.4,0,0.2,1) — 링과 메시가 같은 시작 시각·이징.
+  - 이력: 예전 CIBumpDistortion(볼록 렌즈 1개, 매 프레임 CPU CGImage 24fps)은 `1061e17` 에서 삭제되고 길이도 0.6s 로
+    줄었었다 → 2026-09-22 메시 방식으로 복원하며 길이도 Android 와 같은 1.3s.
+  - ⚠️ 아직 굴절이 없는 곳: 알림 포커스 파동(`MapWarpOverlay` — 링만) / 업로드 버튼 파장(RootView, 스냅샷 nil).
+    Android 는 두 곳 모두 같은 메시 왜곡.
 
 ### 값 조절(패리티 매핑) — 지도에서 수치를 바꿀 때
 | 항목 | Android | iOS |
@@ -218,6 +232,7 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 | 별자리 선 색/불투명도/이웃 수 | CONSTELLATION_* 상수 | `StyleFx.constellation*` |
 | 바닥광/오오라 | GROUND_LIGHT_*·aura*Expression | `StyleFx.groundLight*`·refreshAuraFeatures |
 | 별 크기(좋아요/근접/줌) | likeSizeMult·starSizeExpression·STAR_SIZE_* | `DiaryAnnotation.markerSize`·어노테이션 transform(줌 보간 8→0.3/12→0.55/15→1.0) |
+| 열람 파장 굴절(메시 14×14, 진폭 46·(1−p), 밴드 220, 파수 0.045 — px) / 길이·이징 | `DiaryOpenWarp.kt` / `tween(1300, FastOutSlowInEasing)` | `DiaryWarpMesh.swift` `WarpMesh.vertices` / `WarpTiming`(**수치 동일**) |
 | 잠금 안내 문구 | `strings.xml` detail_locked_* / detail_watch_ad | `L10n` detailLocked*/detailWatchAd |
 | 야경 스타일 | `res/raw/maplibre_style.json` | iOS 번들 동일 파일 + Info.plist MAPTILER_KEY |
 | 복귀 재센터 예외 조건 | `MainScreen`(pendingDiaryId) | `MapScreen.onAppear`(pendingDiaryId) |
