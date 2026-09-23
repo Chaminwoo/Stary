@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.59 광고를 Unity LevelPlay 로 전환**(Unity Ads 직접 연동 2026-01-31 지원 종료) — Android BUILD SUCCESSFUL·기기 설치, **LevelPlay 키 입력 대기**(2026-09-22).
+> 최종 갱신: **8.60 광고 509 No fill 대응(AdMob 폴백) + 본문 프레임 통일** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
+> 이전: **8.59 광고를 Unity LevelPlay 로 전환**(Unity Ads 직접 연동 2026-01-31 지원 종료) — Android BUILD SUCCESSFUL·기기 설치, **LevelPlay 키 입력 대기**(2026-09-22).
 > 이전: **8.58 잠금 화면 2차**(히어로 캡션 · 십자 코너 프레임 · 광고 실패 원인 = 비딩 전용 Placement) — Android BUILD SUCCESSFUL·기기 설치(2026-09-22).
 > 이전: **8.57 iOS 열람 파장 지도 굴절 복원(Metal 메시, 런타임 셰이더) + 잠금 히어로 스크림 패리티** — iOS 전용, push 후 CI 검증.
 > 이전: **8.56 잠금 화면 개편**(크리스탈 자물쇠/재생 로고 고무줄 아이콘 · 영구 해금 · 댓글 무조건 100m · 다이아몬드 축소/세로선 제거)
@@ -2028,6 +2029,59 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
   (`AdsManager.launchTestSuite`) — 네트워크별 연결 상태·테스트 광고 로드.
 - 테스트 기기 등록용 이 폰의 광고 ID(GAID)는 사용자에게 전달(문서엔 남기지 않음).
 
+## 8.60 광고 509 No fill → AdMob 폴백 + 해금 본문도 십자 프레임 (Android BUILD SUCCESSFUL 2026-09-23 · 기기 테스트 대기)
+
+사용자: "① 아직 광고 버튼을 누르면 509 에러가 난다 ② 해금 이후의 본문 배경도 해금 전과 같은 형식(카드 → 좌상단·우하단 십자)으로."
+
+### ① 509 — 왜 코드로는 못 고치나, 그래서 무엇을 했나
+- SDK(mediation-sdk 9.6.0) 상수 확인: `IronSourceError.ERROR_CODE_NO_ADS_TO_SHOW = 509`, 메시지 "Mediation No fill".
+  즉 **"이 광고 단위에 입찰한 네트워크가 하나도 없다"** — 앱이 보내는 요청 문제가 아니라 **수요/대시보드** 결과다.
+  8.59 후속의 어댑터 로그(보상형 설정에 인스턴스 0개, Unity Ads 어댑터 초기화 안 됨)와 정확히 일치.
+- 점검해서 **원인에서 제외**한 것들(재확인 불필요):
+  - 키: `LEVELPLAY_APP_KEY_ANDROID`(9자) / `LEVELPLAY_REWARDED_AD_UNIT_ANDROID`(16자) 형식 정상, `init` 성공.
+  - SDK 버전: mediation-sdk **9.6.0 이 Maven 최신**(그 위 없음). 어댑터 5.13.0 + unity-ads 4.20.1 도 APK 에 정상 포함.
+  - `LevelPlayInitRequest.Builder` 에는 `withUserId` 뿐 — **ad format 을 선언하는 API 자체가 없다**(9.x 는 ad unit 기반).
+    "init 에 REWARDED 를 안 넣어서 빈 설정이 온다" 가설은 성립하지 않는다.
+  - LevelPlay 에는 **SDK 쪽 테스트 모드 플래그가 없다** → 대시보드 테스트 기기 등록만이 테스트 광고 경로.
+- 결론: LevelPlay 만으로는 대시보드가 고쳐질 때까지 해제 흐름 전체가 막힌다 → **두 번째 광고원(backfill)** 을 넣었다.
+
+### ① 코드 — `AdsManager` 2단 구성(LevelPlay → AdMob)
+- 새 파일 `core/ads/AdMobRewarded.kt`(internal): Google AdMob 보상형 로드/재생.
+  - 광고 단위: `secrets.properties` 의 `ADMOB_REWARDED_AD_UNIT_ANDROID` → 없으면 **디버그만** 구글 공식 테스트 단위
+    `ca-app-pub-3940256099942544/5224354917`(계정·심사 없이 **항상 채워짐**), **릴리즈는 폴백 자체가 꺼진다**.
+  - 앱 ID 는 매니페스트 필수(없으면 SDK 가 앱을 죽임) → `build.gradle.kts` 의 `manifestPlaceholders["ADMOB_APP_ID"]`
+    (미설정 시 구글 테스트 App ID `ca-app-pub-3940256099942544~3347511713`). 둘 다 구글 공개 개발용 상수 = 비밀 아님.
+  - AdMob 은 보상 콜백이 닫힘보다 **먼저** 오는 것이 보장돼 LevelPlay 같은 유예 시간이 필요 없다.
+- `AdsManager` 재구성(공개 계약 유지 + `diagnostics` 추가):
+  - `readySource()` = LevelPlay 준비됨 ? LEVELPLAY : (AdMob 준비됨 ? ADMOB : null). **LevelPlay 우선**(수익 경로 유지).
+  - LevelPlay `onAdLoadFailed`/`onInitFailed` → 즉시 `loadFallback()`. 폴백이 끝난 뒤에야 대기 중인 탭 요청을 정리한다.
+  - `isConfigured` = LevelPlay 키 **또는** 폴백 중 하나라도 가능 → 아이콘이 죽지 않는다.
+  - 대기 시간 `WAIT_FOR_LOAD_MS` 8초 → **12초**(LevelPlay 실패 후 폴백 로드까지 이어질 수 있어서).
+  - 509 는 `describeLoadError` 가 "입찰한 네트워크 없음(대시보드 인스턴스 연결 필요) → 폴백 시도" 로 풀어 쓴다.
+  - 디버그: `LevelPlay.validateIntegration()`(어댑터/매니페스트 통합 리포트 로그) + init 로그(ad unit·패키지).
+- `DiaryLock.watchAdToUnlock` 디버그 토스트 = `AdsManager.diagnostics`(LevelPlay 사유 + "폴백 …" 사유 한 줄).
+- 의존성 `com.google.android.gms:play-services-ads:25.5.0`(구글 Maven 최신), 매니페스트에 `APPLICATION_ID` 메타데이터.
+
+### ② 해금 본문도 십자 코너 프레임
+- `DiaryLock.cornerCrossFrame` 을 `private` → `internal` 로 열고, `DetailScreen` 본문 Box 가 같이 쓴다.
+  옛 `clip(RoundedCornerShape(16)) + background(0xCC14181C) + border(accent 그라데이션)` 카드 삭제.
+  새 값: `padding(vertical 8) → cornerCrossFrame(lerp(accent, White, 0.18)) → padding(h 18, v 18)`
+  (잠금 카드와 같은 색·같은 프레임 → 해금 전후로 본문 자리 형식이 바뀌지 않는다).
+- iOS `DetailScreen.swift` `bodyCard` 도 동일: `RoundedRectangle` 배경/테두리 → `.background(CornerCrossFrame(...))` + `.padding(.vertical, 8)`.
+- ⚠️ 프레임의 바깥 팔이 경계 밖 7dp 로 나가므로 **부모가 자르지 않는 곳**에서만 쓴다(본문 좌우 여백 20dp 안 — 조건 충족).
+
+### 사용자가 해야 할 것 (수익화하려면 — 폴백은 어디까지나 임시)
+1. **LevelPlay 대시보드**: Ad unit 에 네트워크 인스턴스를 **붙여야** 한다. SDK Networks 에서 네트워크를 켜는 것만으로는
+   부족하고, 해당 **앱 + 광고 단위**에 bidder/instance 를 토글해야 509 가 사라진다.
+   Unity Ads 는 `Setup → SDK Networks → Unity Ads` 에 **API Key + Organization Core ID** 를 넣고, 앱 행에서 `Add bidder`
+   (자동 설정이면 Key ID/Secret Key)로 Rewarded 를 켜야 한다. 문서상 **Unity Ads bidder 는 ironSource Ads bidder 의
+   상태를 따라간다** → ironSource Ads 가 그 포맷에서 꺼져 있으면 Unity Ads 도 안 붙는다. 둘 다 확인할 것.
+2. 개발 중 테스트 광고는 대시보드 **Testing → 테스트 기기(GAID)** 등록으로만 가능(SDK 플래그 없음).
+3. **AdMob 을 실제로 쓸 거면**: AdMob 계정 → 앱 등록(`com.chaminwoo.stary_ios`) → 보상형 광고 단위 생성 →
+   `secrets.properties` 의 `ADMOB_APP_ID_ANDROID` / `ADMOB_REWARDED_AD_UNIT_ANDROID` 채우기. 그래야 릴리즈에서도 폴백이 산다.
+   (LevelPlay 에 AdMob 을 네트워크로 붙이는 방법도 있으나, 그건 다시 대시보드 작업이라 이번 폴백과는 별개.)
+4. 출시 전: Play Console **데이터 보안**에 광고 ID 수집 표시(두 SDK 모두 `AD_ID` 권한 병합).
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
@@ -2039,10 +2093,14 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 - [x] 별가루 파티클 Canvas → MapLibre GeoJSON+SymbolLayer 전환(줌 6 이하 숨김) — 완료.
 - [ ] **FCM 푸시 발송 Function 배포(사용자)**: Blaze + `cd functions && npm install` + `firebase deploy --only functions`
       (코드는 `functions/index.js` 완료, REGION=stary-db 리전 확인).
-- [ ] **(사용자) LevelPlay 앱 키 + 보상형 Ad unit ID** → `secrets.properties` `LEVELPLAY_APP_KEY_ANDROID` / `LEVELPLAY_REWARDED_AD_UNIT_ANDROID`(8.59). ~~비딩 아닌 Placement 생성~~ — Unity 가 더 이상 허용 안 함.
+- [x] ~~(사용자) LevelPlay 앱 키 + 보상형 Ad unit ID~~ — 입력 완료(init 성공). 남은 건 **대시보드 인스턴스 연결**(아래).
+- [ ] **(사용자) LevelPlay 광고 단위에 네트워크 인스턴스 연결** — 이게 안 돼서 `509 No fill`(8.60). 앱 코드로는 해결 불가.
+- [ ] **(사용자·선택) AdMob 실제 값** → `secrets.properties` `ADMOB_APP_ID_ANDROID` / `ADMOB_REWARDED_AD_UNIT_ANDROID`.
+      지금은 디버그만 구글 테스트 광고로 동작하고 릴리즈에서는 폴백이 꺼져 있다(8.60).
 - [ ] **iOS 파장 굴절 확장**: 알림 포커스(`MapWarpOverlay`) · 업로드 버튼 파장에도 `DiaryWarpMeshView` 적용(8.57 참고).
 - [ ] **iOS LevelPlay SDK 연결**: LevelPlay 에 iOS 앱 추가(App Key·보상형 Ad unit) → `project.yml` 에 LevelPlay iOS SDK + Unity Ads 어댑터 →
       `Core/AdsManager.swift` TODO 구현(ATT·SKAdNetwork 포함). 계약은 Android `AdsManager.kt` 와 동일(8.59).
+      **+ AdMob 폴백도 같은 2단으로**(8.60 Android 추가분): `GoogleMobileAds` + `GADApplicationIdentifier` + 보상형 단위 주입.
 - [ ] ViewModel 들이 Firebase* 구현 대신 공용 인터페이스 타입을 주입받도록 DI 정리(현재는 직접 생성).
 - [x] GitHub remote(`origin` = Chaminwoo/Stary) 연결 + 푸시 완료(main).
 

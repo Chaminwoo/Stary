@@ -32,6 +32,15 @@ val levelPlayAppKeyAndroid: String = secretsProps.getProperty("LEVELPLAY_APP_KEY
     ?: "TODO_ADD_LEVELPLAY_APP_KEY_ANDROID"
 val levelPlayRewardedAdUnitAndroid: String = secretsProps.getProperty("LEVELPLAY_REWARDED_AD_UNIT_ANDROID")
     ?: "TODO_ADD_LEVELPLAY_REWARDED_AD_UNIT_ANDROID"
+// 광고 폴백: Google AdMob(보상형) — LevelPlay 가 `509 Mediation No fill` 일 때 대신 채운다(2026-09-23).
+//  - 값이 없으면: 디버그는 구글 공식 **테스트** 광고 단위로 동작(계정/대시보드 없이 항상 노출), 릴리즈는 폴백 자체가 꺼짐.
+//  - 앱 ID 는 매니페스트 필수값(없으면 SDK 가 시작 시 앱을 죽인다) → 미설정이면 구글 공식 테스트 App ID 를 주입.
+//    테스트 ID 2종은 구글이 공개한 개발용 상수라 비밀이 아니다(하드코딩 금지 규칙 대상 아님).
+val admobTestAppId = "ca-app-pub-3940256099942544~3347511713"
+val admobAppIdAndroid: String = secretsProps.getProperty("ADMOB_APP_ID_ANDROID")
+    ?.takeIf { it.isNotBlank() } ?: admobTestAppId
+val admobRewardedAdUnitAndroid: String = secretsProps.getProperty("ADMOB_REWARDED_AD_UNIT_ANDROID")
+    ?.takeIf { it.isNotBlank() } ?: "TODO_ADD_ADMOB_REWARDED_AD_UNIT_ANDROID"
 // 인스타그램 스토리 공유 링크스티커(content_url) 귀속용 Facebook App ID.
 // 없으면 빈 값 → 스토리에 카드 이미지는 올라가나 자동 링크스티커는 붙지 않는다(수동 추가 필요).
 // 발급: developers.facebook.com → 앱 생성 → 앱 ID. iOS 도 동일 값 사용.
@@ -71,6 +80,9 @@ android {
         // Unity Ads(보상형) — 게임 ID / 보상형 배치 ID / 테스트 모드
         buildConfigField("String", "LEVELPLAY_APP_KEY", "\"$levelPlayAppKeyAndroid\"")
         buildConfigField("String", "LEVELPLAY_REWARDED_AD_UNIT", "\"$levelPlayRewardedAdUnitAndroid\"")
+        // AdMob 폴백 — 보상형 단위는 BuildConfig, 앱 ID 는 매니페스트 메타데이터로.
+        buildConfigField("String", "ADMOB_REWARDED_AD_UNIT", "\"$admobRewardedAdUnitAndroid\"")
+        manifestPlaceholders["ADMOB_APP_ID"] = admobAppIdAndroid
     }
 
     signingConfigs {
@@ -198,4 +210,6 @@ dependencies {
     implementation("com.unity3d.ads:unity-ads:4.20.1")
     implementation("com.google.android.gms:play-services-ads-identifier:18.3.0")
     implementation("com.google.android.gms:play-services-appset:16.1.0")
+    // 광고 폴백: Google AdMob 보상형(LevelPlay no fill 대비). 광고 단위는 secrets 주입(미설정 시 디버그 한정 테스트 단위).
+    implementation("com.google.android.gms:play-services-ads:25.5.0")
 }

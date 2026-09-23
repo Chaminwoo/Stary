@@ -374,7 +374,9 @@ struct DetailScreen: View {
         }
     }
 
-    // ── 본문 카드 — Android: 0xCC14181C 배경 + accent 그라데이션 테두리 ──
+    // ── 본문 자리 — 해금 전(`lockedContentCard`)과 **같은 형식**: 카드 배경·테두리 대신
+    //    좌상단·우하단 십자 코너(`CornerCrossFrame`)로 영역만 암시한다(2026-09-23 사용자 지시).
+    //    Android `DetailScreen.kt` 본문 Box(`cornerCrossFrame`) 패리티 — 수치 동일.
 
     private var bodyCard: some View {
         Text((editedContent ?? diary.content).hangulWordWrapped)
@@ -383,14 +385,8 @@ struct DetailScreen: View {
             .foregroundStyle(Theme.textPrimary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
-            .background(Color(hex: 0x14181C).opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16).strokeBorder(
-                    LinearGradient(colors: [accent.opacity(0.45), accent.opacity(0.15)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: 1
-                )
-            )
+            .background(CornerCrossFrame(color: accent.blended(with: .white, fraction: 0.18)))
+            .padding(.vertical, 8)
     }
 
     // ── 좋아요/공유 + (내 글) 수정·삭제 / (남의 글) 신고 — Android 인라인 행 대응 ──

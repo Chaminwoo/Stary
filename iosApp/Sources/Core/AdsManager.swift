@@ -18,6 +18,10 @@ import SwiftUI
 ///  4. 보상 판정은 onAdRewarded 뿐 — 닫힘보다 늦게 올 수 있으니 닫힌 뒤 1.5초 기다렸다 결과 1회(Android 동일)
 ///  5. 탭 시 아직 로드 전이면 "광고를 불러오는 중이에요" 후 최대 8초 기다렸다 재생(Android `showRewardedWhenReady`)
 ///  6. iOS 는 ATT(앱 추적 투명성) 동의 팝업 + Info.plist `NSUserTrackingUsageDescription`, SKAdNetwork ID 목록 필요
+///  7. **AdMob 폴백도 같이**(2026-09-23 Android 추가분): Android 는 LevelPlay 가 `509 Mediation No fill` 일 때
+///     Google AdMob 보상형으로 backfill 한다(`AdMobRewarded.kt`). iOS 도 `GoogleMobileAds` + Info.plist
+///     `GADApplicationIdentifier` + `ADMOB_REWARDED_AD_UNIT` 주입으로 같은 2단 구성을 만든다.
+///     값이 없으면 디버그만 구글 공식 테스트 단위(`ca-app-pub-3940256099942544/1712485313` — iOS 보상형), 릴리즈는 폴백 off.
 @MainActor
 final class AdsManager: ObservableObject {
     static let shared = AdsManager()

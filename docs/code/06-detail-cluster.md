@@ -37,16 +37,18 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
   - `CrystalPullIcon` — 재생 로고. `bakeCrystalIcon`(프로필 부유 아이콘과 같은 파편 재질, 무늬 시드 = diaryId 해시)
     + 뒤 후광 숨쉬기(1.6s). **제자리 고정**, 잡아당기면 `PULL_MAX(16dp)·(1−e^(−d/PULL_SOFT(70dp)))` 만큼만 끌려오고
     당긴 쪽으로 최대 6° 기울며, 놓으면 `spring(0.38, 380)` 로 출렁이며 복귀. 터치 슬롭 안에서 떼면 **탭 → `watchAdToUnlock`**.
-  - `watchAdToUnlock` → `core/ads/AdsManager.showRewardedWhenReady`(Unity **LevelPlay**): 로드돼 있으면 바로 재생, 아니면 "광고를 불러오는 중이에요"
-    후 최대 8초 기다려 도착 즉시 재생. 키 없음/로드 실패/시간 초과/Activity 없음 → "지금은 광고를 불러올 수 없어요".
-    디버그 빌드에서는 원인(키 미설정 / LevelPlay 오류 코드 `lastError`)을 토스트로 알려 준다.
+  - `watchAdToUnlock` → `core/ads/AdsManager.showRewardedWhenReady`: 광고원은 **LevelPlay(기본) → AdMob(폴백)** 2단.
+    로드돼 있으면 바로 재생, 아니면 "광고를 불러오는 중이에요" 후 최대 **12초**(LevelPlay 실패 → 폴백 로드까지 이어질 수 있어
+    8→12초로 늘림) 기다려 도착 즉시 재생. 둘 다 실패/시간 초과/Activity 없음 → "지금은 광고를 불러올 수 없어요".
+    디버그 빌드에서는 원인(키 미설정 / `AdsManager.diagnostics` = LevelPlay 오류 + 폴백 오류)을 토스트로 알려 준다.
     끝까지 봄 → `DiaryUnlockStore.unlock` + `Haptics.celebrate()` + 토스트, 건너뜀 → "끝까지 봐야 열려요".
 
 ### 구조(위 → 아래)
 1. **4:3 히어로 헤더** : 미디어(사진/움짤) 또는 `image_frame` + 가독성 스크림 +
    별·작성자(탭=프로필)·공개 배지·날짜 오버레이. 미디어 탭 → `FullScreenMediaViewer`.
    ⚠️ 진입 시 사진이 깨지며 드러나던 **크리스탈 리빌은 삭제됨**(2026-08-22 사용자 테스트 피드백).
-2. 제목 / 본문 카드(0xCC14181C + accent 그라데이션 테두리).
+2. 제목 / **본문**(해금 여부와 무관하게 같은 형식 — 카드 배경·테두리 없이 `cornerCrossFrame` 십자 코너 안에 글만.
+   2026-09-23 사용자 지시로 옛 `0xCC14181C` + accent 그라데이션 테두리 카드에서 교체).
 3. 인라인 액션: 좋아요(`LikeButton` — 하트 pop + 크리스탈 파편 버스트 + 숫자 롤링, 파편 색 = 그 별의 색,
    02 문서) / 공유(`ShareDiaryButton`) / (내 글) 수정·삭제 / (남 글) 신고.
    수정·삭제·신고는 `TextButton` 이 아니라 **`CompactTextAction`**(같은 파일 private) —
@@ -54,7 +56,7 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
    (터치 높이는 40dp 유지). iOS 는 `Spacer().frame(width: 16)` 로 같은 간격.
    ⚠️ 좋아요 토스트는 없앴다 — 버스트 자체가 피드백이라 중복이었다.
 4. 댓글: "댓글 N" 헤더 + `CommentInputRow`(100m 밖이면 잠김) + `CommentItem` 목록. 댓글 작성자 탭=프로필, 내 댓글 삭제 가능.
-5. 잠겨 있으면 3·4 는 아예 그리지 않고, 2 의 본문 카드 자리에 `LockedContentCard` 만 남는다.
+5. 잠겨 있으면 3·4 는 아예 그리지 않고, 2 의 본문 자리에 `LockedContentCard` 만 남는다(프레임은 같아 해금 전후가 이어진다).
 
 ### 상태/변수(주요)
 - `ViewCountSession` : 앱 세션 동안 조회수를 올린 다이어리 id 집합(재진입 중복 카운트 방지).
@@ -150,5 +152,5 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
 | 4개 이하 헤더(고정 겹침 배치) | `StarClusterScreen` 의 else 분기 | `StarClusterView.fixedStars` |
 | 잠금 아이콘 고무줄 | `DiaryLock.kt` `PULL_MAX`(16dp) / `PULL_SOFT`(70dp) / `spring(0.38, 380)` / 최대 6° | `DiaryLock.pullMax`/`pullSoft` / `interpolatingSpring(380, 14.8)` (**수치 동일**) |
 | 잠금 아이콘/캡션 | 재생 로고 54dp · 터치 ×1.7 / 캡션 12sp `0xE6AEBBDF` end 20 · bottom 52 | 54 · ×1.7 / `DiaryLock.captionColor` 같은 값 |
-| 십자 코너 프레임 | `cornerCrossFrame` 0.75dp · 팔 64/40/7 · 점 1.3 · 광 6 | `CornerCrossFrame` (**수치 동일**) |
+| 십자 코너 프레임 | `cornerCrossFrame` 0.75dp · 팔 64/40/7 · 점 1.3 · 광 6 (잠금·해금 본문 **둘 다** 사용) | `CornerCrossFrame` (**수치 동일**) |
 | 신고 사유 + "기타" 상세 | `core/ui/ReportDialog.kt` `onSubmit(reason, detail)` / REPORT_DETAIL_MAX_LEN | `Features/ReportDialog.swift` `onPick(reason, detail)` — iOS 는 "기타"만 알럿 한 단계 더 |

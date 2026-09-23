@@ -3,7 +3,6 @@
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -63,6 +62,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -472,19 +472,16 @@ fun DetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 본문 카드 — 잠겨 있으면 본문 대신 "100m 접근 / 광고 시청" 안내 카드.
+                // 본문 자리 — 잠겨 있으면 본문 대신 "100m 접근 / 광고 시청" 안내.
+                // 해금 후에도 **형식은 그대로**: 카드(배경+둥근 테두리)가 아니라 좌상단·우하단 십자 코너
+                // 프레임([cornerCrossFrame]) 안에 본문만 놓는다(2026-09-23 사용자 지시).
                 if (unlocked) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xCC14181C))
-                            .border(
-                                1.dp,
-                                Brush.linearGradient(listOf(accent.copy(alpha = 0.45f), accent.copy(alpha = 0.15f))),
-                                RoundedCornerShape(16.dp)
-                            )
-                            .padding(18.dp)
+                            .padding(vertical = 8.dp)
+                            .cornerCrossFrame(lerp(accent, Color.White, 0.18f))
+                            .padding(horizontal = 18.dp, vertical = 18.dp)
                     ) {
                         Text(
                             currentDiary.content, fontSize = 16.sp, lineHeight = 26.sp,

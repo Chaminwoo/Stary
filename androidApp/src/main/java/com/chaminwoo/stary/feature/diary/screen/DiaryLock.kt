@@ -240,6 +240,9 @@ internal fun LockedContentCard(
 /**
  * 십자 코너 프레임 — **좌상단·우하단 두 모서리에만** 가는 십자선(천체 관측 레티클 / 인쇄 재단선 느낌).
  *
+ * 잠긴 본문([LockedContentCard])과 **해금된 본문**(`DetailScreen` 본문 카드)이 같이 쓴다 —
+ * 해금 전후로 본문 자리의 형식이 바뀌지 않게(2026-09-23 사용자 지시: 카드 배경·테두리 → 십자 코너).
+ *
  * 레퍼런스(렌즈 플레어 + 큰 후광)의 "AI 느낌"을 덜어내려고:
  * - 선은 헤어라인(0.75dp)만, 교차점에서 **안쪽 팔은 길게 서서히 사라지고**(가로 64dp · 세로 40dp) 바깥 팔은 7dp 로 짧게.
  * - 교차점엔 번짐 대신 작은 점 하나(+ 반경 6dp 의 아주 옅은 광) — 빛나는 별이 아니라 "눈금의 기준점".
@@ -247,7 +250,7 @@ internal fun LockedContentCard(
  * 바깥 팔은 요소 경계 밖으로 7dp 나가므로 부모가 자르지 않는 곳에서 쓴다(DetailScreen 본문 좌우 여백 20dp 안).
  * iOS `DiaryLockViews.swift` `CornerCrossFrame` 과 같은 수치.
  */
-private fun Modifier.cornerCrossFrame(color: Color): Modifier = drawBehind {
+internal fun Modifier.cornerCrossFrame(color: Color): Modifier = drawBehind {
     val stroke = 0.75.dp.toPx().coerceAtLeast(1f)
     val armH = 64.dp.toPx()
     val armV = 40.dp.toPx()
@@ -431,10 +434,10 @@ internal fun watchAdToUnlock(context: Context, diaryId: String) {
                 when {
                     !BuildConfig.DEBUG -> context.getString(R.string.detail_ad_unavailable)
                     !ads.isConfigured ->
-                        "[개발용] LevelPlay 키가 비어 있어요 — secrets.properties 의 " +
+                        "[개발용] 광고 키가 비어 있어요 — secrets.properties 의 " +
                             "LEVELPLAY_APP_KEY_ANDROID / LEVELPLAY_REWARDED_AD_UNIT_ANDROID"
-                    ads.lastError != null -> "[개발용] 광고 실패 — ${ads.lastError}"
-                    else -> context.getString(R.string.detail_ad_unavailable)
+                    // LevelPlay + 폴백(AdMob) 둘 다 실패한 사유를 한 줄로.
+                    else -> "[개발용] 광고 실패 — ${ads.diagnostics}"
                 }
             )
         },

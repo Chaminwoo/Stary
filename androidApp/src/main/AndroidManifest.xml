@@ -37,6 +37,12 @@
         <!-- 지도는 MapLibre + MapTiler 벡터 타일 사용. 키는 BuildConfig.MAPTILER_KEY 로 주입
              (Google Maps geo API_KEY 메타데이터 불필요). -->
 
+        <!-- 광고 폴백(AdMob) 앱 ID — SDK 가 앱 시작 시 이 값을 읽고, 없거나 형식이 틀리면 앱을 죽인다.
+             값은 build.gradle.kts 가 주입: secrets.properties 의 ADMOB_APP_ID_ANDROID, 없으면 구글 공식 테스트 App ID. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${ADMOB_APP_ID}" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
