@@ -320,7 +320,7 @@
     <!-- ウェルカムスター(TutorialStarState) — 初回起動端末でのみ近くに置かれる案内用の星。タップすると投稿(TutorialStarDetailScreen)で開く。
          msg は投稿本文カード(左寄せ)なので、文の途中では改行せず段落(\n\n)でのみ区切る。 -->
     <string name="tutorial_star_title">あなたの日記を宇宙へ、Stary</string>
-    <string name="tutorial_star_msg">こうして星をタップすると、中に込められた物語が読めます。\n\n開けるのは100m以内の星だけなので、これからは歩いて星を探してみましょう。\n\nこの星は案内用なので、確認すると消えます。</string>
+    <string name="tutorial_star_msg">こうして星をタップすると、中に込められた物語が読めます。\n\n一度開いた星は、遠く離れてもどこからでもまた開けます。\n\nさあ、宇宙にあなたの物語を残してみましょう!</string>
     <string name="tutorial_star_confirm">わかりました</string>
 
     <!-- 画面初回の説明ダイアログ (FirstVisitInfo) -->

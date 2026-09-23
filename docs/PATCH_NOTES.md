@@ -17,7 +17,8 @@
 ```
 · 100m 밖 게시물의 잠금 화면을 새로 다듬었습니다. 재생 아이콘을 누르면 광고를 보고 바로 열어볼 수 있어요.
 · 한 번 연 기록이 계속 남습니다. 광고를 끝까지 보거나 100m 안에 들어온 적이 있으면, 나중에 멀어져도 다시 볼 수 있어요. (댓글은 100m 이내에서만 남길 수 있습니다)
-· 열기 전과 후의 본문 화면 형식을 통일했습니다.
+· 열기 전과 후의 본문 화면 형식을 통일하고, 본문 글씨의 행간·줄바꿈을 다듬어 읽기 편하게 했습니다.
+· 튜토리얼 별에서 "한 번 열어본 별은 어디에서든 다시 열 수 있다"는 안내를 추가했습니다.
 · 결정 별 모양을 더 작고 단정하게 다듬었습니다.
 · 별을 열 때 지도가 물결치는 효과가 iOS 에도 돌아왔습니다.
 · 일일 알림이 매번 다른 시간, 다른 문장으로 찾아옵니다. 같은 시간대가 이틀 연속 오지 않아요.
@@ -28,7 +29,8 @@
 ```
 · Redesigned the lock screen for posts more than 100m away. Tap the play icon to watch an ad and open it right away.
 · Unlocks are now permanent. Once you've watched an ad to the end or come within 100m, you can keep reading it later from anywhere. (Comments still require being within 100m.)
-· The post body now looks the same before and after unlocking.
+· The post body now looks the same before and after unlocking, with easier line spacing and word wrapping.
+· The tutorial star now tells you that a star you've opened once can be reopened from anywhere.
 · The crystal star shape is smaller and cleaner.
 · The map ripple when opening a star is back on iOS.
 · The daily reminder now comes at a different time with a different line every day — never the same time slot two days in a row.
@@ -39,7 +41,8 @@
 ```
 · 100m以上離れた投稿のロック画面を作り直しました。再生アイコンをタップすると、広告を見てすぐに開けます。
 · 一度開いた記録が残るようになりました。広告を最後まで見るか、100m以内に入ったことがあれば、離れた後でも読み返せます（コメントは100m以内のみ）。
-· 開く前と開いた後で、本文画面の形式をそろえました。
+· 開く前と開いた後で本文画面の形式をそろえ、行間と折り返しを読みやすく調整しました。
+· チュートリアルの星に「一度開いた星はどこからでもまた開ける」という案内を追加しました。
 · 結晶の星の形を小さく整えました。
 · 星を開くときの地図のゆらぎがiOSにも戻りました。
 · デイリーリマインダーが毎回ちがう時間、ちがう言葉で届きます。同じ時間帯が二日続くことはありません。
@@ -69,6 +72,11 @@
 - 보상형 광고를 Unity Ads 직접 연동 → **Unity LevelPlay 미디에이션**으로 교체(Unity 의 직접 연동 수익화 지원 종료 대응).
 - 광고를 받지 못할 때를 위한 **대체 경로(폴백)** 추가 — 아이콘을 눌렀는데 아무 반응이 없는 상황을 줄였다.
 - 아직 불러오는 중이면 "광고를 불러오는 중이에요" 안내 후 도착하는 즉시 재생.
+
+**본문 읽기 편의**
+- 해금된 긴 본문이 순흑 배경 위에서 번져 보이던 것을 보완 — 카드를 되살리지 않고 **테두리 없는 옅은 읽기 면**을 깔고
+  행간(26→28)·줄바꿈(한글 어절 단위)·글자 밝기를 다듬었다. 십자 코너 형식은 그대로.
+- 튜토리얼 별 화면도 상세 화면과 같은 형식으로 맞췄다.
 
 **일일 알림**
 - 오던 시간대가 **낮 11시 ~ 밤 11시 반**으로 넓어지고, 성격이 다른 5구간(점심 무렵 / 오후 / 저녁·퇴근길 / 밤 / 자기 전)으로 나뉘었다.

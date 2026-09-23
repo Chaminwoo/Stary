@@ -49,6 +49,9 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
    ⚠️ 진입 시 사진이 깨지며 드러나던 **크리스탈 리빌은 삭제됨**(2026-08-22 사용자 테스트 피드백).
 2. 제목 / **본문**(해금 여부와 무관하게 같은 형식 — 카드 배경·테두리 없이 `cornerCrossFrame` 십자 코너 안에 글만.
    2026-09-23 사용자 지시로 옛 `0xCC14181C` + accent 그라데이션 테두리 카드에서 교체).
+   해금된 긴 본문은 순흑 배경 위에서 읽기 힘들어 **`readingSurface()`**(테두리 없는 옅은 면 + 위아래 페이드)를
+   십자 **아래에** 깔고 행간 28sp · `LineBreak.Paragraph` · 글자 alpha 0.93 으로 보완했다(2026-09-23 2차).
+   `Modifier` 순서는 `readingSurface()` → `cornerCrossFrame()` — 뒤집으면 면이 십자 팔을 덮는다.
 3. 인라인 액션: 좋아요(`LikeButton` — 하트 pop + 크리스탈 파편 버스트 + 숫자 롤링, 파편 색 = 그 별의 색,
    02 문서) / 공유(`ShareDiaryButton`) / (내 글) 수정·삭제 / (남 글) 신고.
    수정·삭제·신고는 `TextButton` 이 아니라 **`CompactTextAction`**(같은 파일 private) —
@@ -153,4 +156,6 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
 | 잠금 아이콘 고무줄 | `DiaryLock.kt` `PULL_MAX`(16dp) / `PULL_SOFT`(70dp) / `spring(0.38, 380)` / 최대 6° | `DiaryLock.pullMax`/`pullSoft` / `interpolatingSpring(380, 14.8)` (**수치 동일**) |
 | 잠금 아이콘/캡션 | 재생 로고 54dp · 터치 ×1.7 / 캡션 12sp `0xE6AEBBDF` end 20 · bottom 52 | 54 · ×1.7 / `DiaryLock.captionColor` 같은 값 |
 | 십자 코너 프레임 | `cornerCrossFrame` 0.75dp · 팔 64/40/7 · 점 1.3 · 광 6 (잠금·해금 본문 **둘 다** 사용) | `CornerCrossFrame` (**수치 동일**) |
+| 본문 읽기 면 | `readingSurface()` `#15191F` 70% · 위아래 18dp 페이드 · 안쪽 여백 20/22dp | `ReadingSurface` (**수치 동일**, `.background` 는 십자 **뒤에** 붙인다) |
+| 본문 타이포 | 16sp · 행간 28sp · 자간 0.1 · `LineBreak.Paragraph` · alpha 0.93 | `.minSans(16)` · `lineSpacing(10)` · `tracking(0.1)` · opacity 0.93 |
 | 신고 사유 + "기타" 상세 | `core/ui/ReportDialog.kt` `onSubmit(reason, detail)` / REPORT_DETAIL_MAX_LEN | `Features/ReportDialog.swift` `onPick(reason, detail)` — iOS 는 "기타"만 알럿 한 단계 더 |

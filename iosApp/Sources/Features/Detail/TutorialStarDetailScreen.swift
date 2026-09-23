@@ -90,23 +90,21 @@ struct TutorialStarDetailScreen: View {
             }
     }
 
-    // ── 본문 카드 — DetailScreen bodyCard 와 같은 배경/별색 테두리 ──
+    // ── 본문 — DetailScreen bodyCard 와 **같은 형식**(읽기 면 + 십자 코너, 카드/테두리 없음).
+    //    첫 화면이라 상세 화면과 다르게 보이면 곧바로 이질감이 생긴다.
 
     private var bodyCard: some View {
         Text(LocaleManager.shared.t(.tutorialStarMsg))
             .font(.minSans(16))
-            .lineSpacing(8)
-            .foregroundStyle(Theme.textPrimary)
+            .lineSpacing(10)
+            .tracking(0.1)
+            .foregroundStyle(Theme.textPrimary.opacity(0.93))
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(18)
-            .background(Color(hex: 0x14181C).opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16).strokeBorder(
-                    LinearGradient(colors: [accent.opacity(0.45), accent.opacity(0.15)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: 1
-                )
-            )
+            .padding(.horizontal, 20)
+            .padding(.vertical, 22)
+            .background(CornerCrossFrame(color: accent.blended(with: .white, fraction: 0.18)))
+            .background(ReadingSurface())
+            .padding(.vertical, 8)
     }
 
     /// 확인 → 지도로. 코치마크/첫 진입 안내(FirstVisitInfo)와 같은 민트→블루 버튼.

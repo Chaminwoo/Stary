@@ -1,7 +1,6 @@
 package com.chaminwoo.stary.feature.diary.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,11 +25,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -138,23 +140,25 @@ fun TutorialStarDetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 본문 카드 — DetailScreen 과 같은 배경/별색 그라데이션 테두리.
+                // 본문 — DetailScreen 본문과 **같은 형식**(읽기 면 + 십자 코너 프레임, 카드/테두리 없음).
+                // 첫 화면이라 상세 화면과 다르게 보이면 곧바로 이질감이 생긴다.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xCC14181C))
-                        .border(
-                            1.dp,
-                            Brush.linearGradient(listOf(accent.copy(alpha = 0.45f), accent.copy(alpha = 0.15f))),
-                            RoundedCornerShape(16.dp)
-                        )
-                        .padding(18.dp)
+                        .padding(vertical = 8.dp)
+                        .readingSurface()
+                        .cornerCrossFrame(lerp(accent, Color.White, 0.18f))
+                        .padding(horizontal = 20.dp, vertical = 22.dp)
                 ) {
                     Text(
                         stringResource(R.string.tutorial_star_msg),
-                        fontSize = 16.sp, lineHeight = 26.sp,
-                        color = MaterialTheme.colorScheme.onBackground
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            lineHeight = 28.sp,
+                            letterSpacing = 0.1.sp,
+                            lineBreak = LineBreak.Paragraph,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.93f),
+                        ),
                     )
                 }
 

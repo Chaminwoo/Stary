@@ -322,7 +322,7 @@
     <!-- 웰컴 별(TutorialStarState) — 첫 실행 기기에서만 근처에 놓이는 안내용 별. 탭하면 게시물(TutorialStarDetailScreen)로 열린다.
          msg 는 게시물 본문 카드(좌측 정렬)라 문장 중간 줄바꿈 없이 문단(\n\n)으로만 나눈다. -->
     <string name="tutorial_star_title">당신의 다이어리를 우주에, Stary</string>
-    <string name="tutorial_star_msg">이렇게 별을 누르면 그 안에 담긴 이야기를 볼 수 있어요.\n\n열 수 있는 별은 100m 안에 있는 것뿐이니, 앞으로는 직접 걸어서 별을 찾아보세요.\n\n이 별은 안내용이라 확인하면 사라져요.</string>
+    <string name="tutorial_star_msg">이렇게 별을 누르면 그 안에 담긴 이야기를 볼 수 있어요.\n\n한 번 열어본 별은 멀리 떨어져도 어디에서든 다시 열 수 있어요.\n\n이제 우주에 이야기를 남겨보세요!</string>
     <string name="tutorial_star_confirm">확인</string>
 
     <!-- 화면 첫 진입 설명창 (FirstVisitInfo) -->

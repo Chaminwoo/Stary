@@ -284,6 +284,33 @@ internal fun Modifier.cornerCrossFrame(color: Color): Modifier = drawBehind {
     cross(Offset(size.width, size.height), -1f, -1f)
 }
 
+/** 읽기 면의 색 — 순흑 배경(#0D0D0D)보다 한 톤만 밝은 남빛. 옛 본문 카드(#14181C)의 역할을 대신한다. */
+private val READING_SURFACE = Color(0xB315191F)
+
+/**
+ * 십자 프레임 **안쪽 읽기 면** — 테두리도 둥근 모서리도 없이 한 톤만 띄운다.
+ *
+ * 왜 필요한가(2026-09-23): 카드를 걷어내고 십자 코너만 남기니 잠금 화면(짧은 안내문)은 좋아졌는데,
+ * **해금된 긴 본문**은 순흑 배경 위에 바로 놓여 글자가 번져 보이고(할레이션) 문단의 경계도 사라져 읽기 힘들었다.
+ * 카드로 되돌리지 않으면서 대비만 회복하려고 **면만** 깔고, 위아래는 페이드해 가로 경계선이 생기지 않게 한다
+ * (좌우 끝은 십자 코너 지점과 정확히 맞물려 "이 십자가 이 면의 모서리"로 읽힌다).
+ *
+ * ⚠️ 호출 순서: `readingSurface()` 를 [cornerCrossFrame] **앞에** 둔다. 뒤에 두면 면이 십자 팔을 덮는다
+ * (Compose 의 draw 모디파이어는 체인 앞쪽이 먼저 = 아래에 그려진다).
+ */
+internal fun Modifier.readingSurface(): Modifier = drawBehind {
+    // 높이에 비례한 페이드(아주 짧은 본문에서도 면이 사라지지 않게 상한을 둔다).
+    val fade = (18.dp.toPx() / size.height.coerceAtLeast(1f)).coerceIn(0f, 0.45f)
+    drawRect(
+        brush = Brush.verticalGradient(
+            0f to Color.Transparent,
+            fade to READING_SURFACE,
+            1f - fade to READING_SURFACE,
+            1f to Color.Transparent,
+        )
+    )
+}
+
 /**
  * 크리스탈 파편으로 채운 아이콘(프로필 부유 아이콘과 같은 [bakeCrystalIcon] 재질) — **제자리 고정 + 고무줄**.
  *

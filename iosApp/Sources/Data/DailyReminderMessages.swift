@@ -51,7 +51,7 @@ enum DailyReminderMessages {
                 "오늘 점심, 뭐 드셨어요? 사진 한 장이면 충분해요",
                 "점심시간에 앉은 이 자리도 별이 될 수 있어요",
                 "오늘 아침부터 지금까지, 기억에 남은 순간이 있나요?",
-                "밥 먹다 문득 든 생각, 그것도 기록이에요",
+                "밥 먹다 문득 든 생각, 여기에 적어보세요!",
                 "지금 있는 곳의 창밖은 어떤가요?",
                 "오늘의 첫 별을 남겨볼까요?",
             ],
@@ -59,7 +59,7 @@ enum DailyReminderMessages {
                 "What's for lunch? One photo is plenty",
                 "Even this seat you're sitting in could become a star",
                 "Anything from this morning worth keeping?",
-                "That stray thought over lunch — that counts too",
+                "That thought that popped up over lunch — jot it down here!",
                 "What does it look like outside your window right now?",
                 "Shall we leave today's first star?",
             ],
@@ -67,7 +67,7 @@ enum DailyReminderMessages {
                 "今日のお昼、何を食べましたか?写真一枚で十分です",
                 "お昼に座っているこの場所も、星になります",
                 "今朝からここまで、心に残った瞬間はありますか?",
-                "食事中にふと浮かんだ考えも、立派な記録です",
+                "食事中にふと浮かんだ考え、ここに書いてみて!",
                 "今いる場所の窓の外は、どんな様子ですか?",
                 "今日最初の星を残してみませんか?",
             ]
@@ -76,7 +76,7 @@ enum DailyReminderMessages {
             ko: [
                 "오후의 공기는 어떤가요? 한 줄만 남겨도 좋아요",
                 "오늘 가장 오래 머문 곳은 어디였나요?",
-                "잠깐 고개 들어 하늘 한 번, 그리고 Stary 한 번",
+                "잠깐 고개 들어 하늘을 올려다보세요!",
                 "지나가다 본 것 중에 마음에 걸린 게 있나요?",
                 "커피 한 잔의 시간이면 별 하나를 남길 수 있어요",
                 "오늘 이 시간의 빛은 다시 오지 않아요",
@@ -84,7 +84,7 @@ enum DailyReminderMessages {
             en: [
                 "How's the afternoon air? A single line is enough",
                 "Where have you spent the most time today?",
-                "Look up at the sky for a second — then open Stary",
+                "Take a moment and look up at the sky!",
                 "Did anything you passed by stay with you?",
                 "One coffee's worth of time is enough for a star",
                 "This afternoon's light won't come around again",
@@ -92,7 +92,7 @@ enum DailyReminderMessages {
             ja: [
                 "午後の空気はどうですか?一行だけでも十分です",
                 "今日いちばん長くいた場所はどこですか?",
-                "少し顔を上げて空を、そしてStaryを",
+                "少し顔を上げて、空を見上げてみて!",
                 "通りすがりに心に留まったものはありましたか?",
                 "コーヒー一杯の時間で、星ひとつ残せます",
                 "今日のこの時間の光は、二度と来ません",
@@ -105,7 +105,7 @@ enum DailyReminderMessages {
                 "해 지는 색이 오늘은 어떤가요?",
                 "하루를 정리하기 딱 좋은 시간이에요",
                 "오늘 만난 사람, 다녀온 곳 — 하나만 골라보세요",
-                "매일 지나는 퇴근길도 누군가에겐 처음 보는 곳이에요",
+                "당신의 퇴근 루틴을 알려주세요!",
             ],
             en: [
                 "What did you have for dinner tonight?",
@@ -113,7 +113,7 @@ enum DailyReminderMessages {
                 "What color is the sunset today?",
                 "A good time to wrap up the day",
                 "Someone you met, somewhere you went — just pick one",
-                "The way home you walk every day is new to someone else",
+                "Tell us about your after-work routine!",
             ],
             ja: [
                 "今日の夕食は何を食べましたか?",
@@ -121,7 +121,7 @@ enum DailyReminderMessages {
                 "今日の夕焼けはどんな色ですか?",
                 "一日を整理するのに、ちょうどいい時間です",
                 "今日会った人、行った場所 — ひとつだけ選んでみて",
-                "毎日通る帰り道も、誰かには初めての場所です",
+                "あなたの退勤ルーティンを教えてください!",
             ]
         ),
         .night: (
@@ -131,7 +131,7 @@ enum DailyReminderMessages {
                 "지금 이 자리에 별 하나를 띄워둘까요?",
                 "오늘의 별자리에 아직 빈 자리가 있어요",
                 "사진 한 장이면 오늘이 남아요",
-                "밤이 깊기 전에, 짧게라도",
+                "밤이 깊기 전에 잠깐 쉬어보세요",
             ],
             en: [
                 "Leave today behind as a star",
@@ -139,7 +139,7 @@ enum DailyReminderMessages {
                 "Shall we float a star right where you are?",
                 "There's still an empty spot in today's constellation",
                 "One photo, and today stays",
-                "Before the night gets late — even just a line",
+                "Take a little break before the night gets late",
             ],
             ja: [
                 "今日を星ひとつに残してみましょう",
@@ -147,7 +147,7 @@ enum DailyReminderMessages {
                 "今いるこの場所に、星をひとつ浮かべませんか?",
                 "今日の星座には、まだ空いた席があります",
                 "写真一枚で、今日が残ります",
-                "夜が更ける前に、短くても",
+                "夜が更ける前に、少し休んでみませんか",
             ]
         ),
         .late: (
@@ -157,7 +157,7 @@ enum DailyReminderMessages {
                 "내일의 내가 오늘을 궁금해할 거예요",
                 "불 끄기 전에 남겨두면 내일 아침에 반짝여요",
                 "오늘 가장 조용했던 순간은 언제였나요?",
-                "하루의 마지막 5분을 오늘에게 주세요",
+                "오늘 하루도 고생 많았어요",
             ],
             en: [
                 "One line before bed — how was today?",
@@ -165,7 +165,7 @@ enum DailyReminderMessages {
                 "Tomorrow-you will wonder about today",
                 "Leave it before lights out and it'll be there in the morning",
                 "What was the quietest moment of your day?",
-                "Give the last five minutes of the day to today",
+                "You made it through today — well done",
             ],
             ja: [
                 "寝る前に一行だけ、今日はどうでしたか?",
@@ -173,7 +173,7 @@ enum DailyReminderMessages {
                 "明日の自分が、今日を知りたがります",
                 "電気を消す前に残しておけば、朝には光っています",
                 "今日いちばん静かだった瞬間はいつでしたか?",
-                "一日の最後の5分を、今日にあげてください",
+                "今日も一日おつかれさまでした",
             ]
         ),
     ]

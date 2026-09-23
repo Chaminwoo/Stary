@@ -381,11 +381,16 @@ struct DetailScreen: View {
     private var bodyCard: some View {
         Text((editedContent ?? diary.content).hangulWordWrapped)
             .font(.minSans(16))
-            .lineSpacing(8)
-            .foregroundStyle(Theme.textPrimary)
+            // 8 -> 10: 카드가 없어진 만큼 행간으로 문단을 잡아 준다(Android lineHeight 26 -> 28 대응).
+            .lineSpacing(10)
+            .tracking(0.1)
+            // 순흑 위 흰 글자는 번져 보인다 — 아주 살짝 낮춰 눈을 편하게(Android alpha 0.93 대응).
+            .foregroundStyle(Theme.textPrimary.opacity(0.93))
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(18)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 22)
             .background(CornerCrossFrame(color: accent.blended(with: .white, fraction: 0.18)))
+            .background(ReadingSurface())
             .padding(.vertical, 8)
     }
 

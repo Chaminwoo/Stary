@@ -5,7 +5,7 @@
         <item>What\'s for lunch? One photo is plenty</item>
         <item>Even this seat you\'re sitting in could become a star</item>
         <item>Anything from this morning worth keeping?</item>
-        <item>That stray thought over lunch — that counts too</item>
+        <item>That thought that popped up over lunch — jot it down here!</item>
         <item>What does it look like outside your window right now?</item>
         <item>Shall we leave today\'s first star?</item>
     </string-array>
@@ -13,7 +13,7 @@
     <string-array name="daily_reminder_afternoon">
         <item>How\'s the afternoon air? A single line is enough</item>
         <item>Where have you spent the most time today?</item>
-        <item>Look up at the sky for a second — then open Stary</item>
+        <item>Take a moment and look up at the sky!</item>
         <item>Did anything you passed by stay with you?</item>
         <item>One coffee\'s worth of time is enough for a star</item>
         <item>This afternoon\'s light won\'t come around again</item>
@@ -25,7 +25,7 @@
         <item>What color is the sunset today?</item>
         <item>A good time to wrap up the day</item>
         <item>Someone you met, somewhere you went — just pick one</item>
-        <item>The way home you walk every day is new to someone else</item>
+        <item>Tell us about your after-work routine!</item>
     </string-array>
 
     <string-array name="daily_reminder_night">
@@ -34,7 +34,7 @@
         <item>Shall we float a star right where you are?</item>
         <item>There\'s still an empty spot in today\'s constellation</item>
         <item>One photo, and today stays</item>
-        <item>Before the night gets late — even just a line</item>
+        <item>Take a little break before the night gets late</item>
     </string-array>
 
     <string-array name="daily_reminder_late">
@@ -43,6 +43,6 @@
         <item>Tomorrow-you will wonder about today</item>
         <item>Leave it before lights out and it\'ll be there in the morning</item>
         <item>What was the quietest moment of your day?</item>
-        <item>Give the last five minutes of the day to today</item>
+        <item>You made it through today — well done</item>
     </string-array>
 </resources>

@@ -5,7 +5,7 @@
         <item>今日のお昼、何を食べましたか?写真一枚で十分です</item>
         <item>お昼に座っているこの場所も、星になります</item>
         <item>今朝からここまで、心に残った瞬間はありますか?</item>
-        <item>食事中にふと浮かんだ考えも、立派な記録です</item>
+        <item>食事中にふと浮かんだ考え、ここに書いてみて!</item>
         <item>今いる場所の窓の外は、どんな様子ですか?</item>
         <item>今日最初の星を残してみませんか?</item>
     </string-array>
@@ -13,7 +13,7 @@
     <string-array name="daily_reminder_afternoon">
         <item>午後の空気はどうですか?一行だけでも十分です</item>
         <item>今日いちばん長くいた場所はどこですか?</item>
-        <item>少し顔を上げて空を、そしてStaryを</item>
+        <item>少し顔を上げて、空を見上げてみて!</item>
         <item>通りすがりに心に留まったものはありましたか?</item>
         <item>コーヒー一杯の時間で、星ひとつ残せます</item>
         <item>今日のこの時間の光は、二度と来ません</item>
@@ -25,7 +25,7 @@
         <item>今日の夕焼けはどんな色ですか?</item>
         <item>一日を整理するのに、ちょうどいい時間です</item>
         <item>今日会った人、行った場所 — ひとつだけ選んでみて</item>
-        <item>毎日通る帰り道も、誰かには初めての場所です</item>
+        <item>あなたの退勤ルーティンを教えてください!</item>
     </string-array>
 
     <string-array name="daily_reminder_night">
@@ -34,7 +34,7 @@
         <item>今いるこの場所に、星をひとつ浮かべませんか?</item>
         <item>今日の星座には、まだ空いた席があります</item>
         <item>写真一枚で、今日が残ります</item>
-        <item>夜が更ける前に、短くても</item>
+        <item>夜が更ける前に、少し休んでみませんか</item>
     </string-array>
 
     <string-array name="daily_reminder_late">
@@ -43,6 +43,6 @@
         <item>明日の自分が、今日を知りたがります</item>
         <item>電気を消す前に残しておけば、朝には光っています</item>
         <item>今日いちばん静かだった瞬間はいつでしたか?</item>
-        <item>一日の最後の5分を、今日にあげてください</item>
+        <item>今日も一日おつかれさまでした</item>
     </string-array>
 </resources>

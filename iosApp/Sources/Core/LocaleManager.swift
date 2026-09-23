@@ -547,9 +547,9 @@ enum L10n: String {
                                                "I placed a star nearby!\nTap it to take a look",
                                                "近くに星を一つ置いておきました!\nタップして覗いてみてください")
         case .tutorialStarTitle:    return ("당신의 다이어리를 우주에, Stary", "Your diary into the universe, Stary", "あなたの日記を宇宙へ、Stary")
-        case .tutorialStarMsg:      return ("이렇게 별을 누르면 그 안에 담긴 이야기를 볼 수 있어요.\n\n열 수 있는 별은 100m 안에 있는 것뿐이니, 앞으로는 직접 걸어서 별을 찾아보세요.\n\n이 별은 안내용이라 확인하면 사라져요.",
-                                            "Tap a star like this to read the story inside.\n\nYou can only open stars within 100m, so go find them on foot from now on.\n\nThis one's just a guide — it'll disappear once you check it.",
-                                            "こうして星をタップすると、中に込められた物語が読めます。\n\n開けるのは100m以内の星だけなので、これからは歩いて星を探してみましょう。\n\nこの星は案内用なので、確認すると消えます。")
+        case .tutorialStarMsg:      return ("이렇게 별을 누르면 그 안에 담긴 이야기를 볼 수 있어요.\n\n한 번 열어본 별은 멀리 떨어져도 어디에서든 다시 열 수 있어요.\n\n이제 우주에 이야기를 남겨보세요!",
+                                            "Tap a star like this to read the story inside.\n\nOnce you've opened a star, you can reopen it from anywhere — even far away.\n\nNow go leave your own story in the universe!",
+                                            "こうして星をタップすると、中に込められた物語が読めます。\n\n一度開いた星は、遠く離れてもどこからでもまた開けます。\n\nさあ、宇宙にあなたの物語を残してみましょう!")
         case .tutorialStarConfirm:  return ("확인", "Got it", "わかりました")
         case .shareDiaryWithLink:   return ("제가 밤하늘에 별 하나를 남겼어요. Stary에서 함께 이 별을 열어보세요! \n%@",
                                             "I left a star in the night sky. It only opens at that place ✦\n%@",

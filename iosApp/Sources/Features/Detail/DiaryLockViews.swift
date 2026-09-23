@@ -185,3 +185,37 @@ struct CornerCrossFrame: View {
         )
     }
 }
+
+/// 십자 프레임 **안쪽 읽기 면** — 테두리도 둥근 모서리도 없이 한 톤만 띄운다.
+/// Android `DiaryLock.kt` `Modifier.readingSurface()` 패리티(같은 색 `#15191F` 70%, 같은 18pt 페이드).
+///
+/// 왜: 카드를 걷어내고 십자 코너만 남기니 잠금 안내문(짧음)은 좋아졌는데 **해금된 긴 본문**은
+/// 순흑 배경 위에서 글자가 번져 보이고 문단 경계도 사라져 읽기 힘들었다. 카드로 되돌리지 않고
+/// 면만 깔되 위아래를 페이드해 가로 경계선이 생기지 않게 한다.
+///
+/// ⚠️ 쓰는 순서: `.background(CornerCrossFrame(...)).background(ReadingSurface())` —
+/// SwiftUI 는 **나중에 붙인 background 가 더 뒤**라, 이 순서라야 십자가 면 위에 온다.
+struct ReadingSurface: View {
+    /// 위아래로 면이 사라지는 구간(pt) — Android 와 같은 값.
+    private let fade: CGFloat = 18
+
+    var body: some View {
+        GeometryReader { geo in
+            let h = max(geo.size.height, 1)
+            let f = min(fade / h, 0.45)
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: Self.surface, location: f),
+                    .init(color: Self.surface, location: 1 - f),
+                    .init(color: .clear, location: 1),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// 순흑 배경(#0D0D0D)보다 한 톤만 밝은 남빛 — 옛 본문 카드(#14181C)의 역할을 대신한다.
+    private static let surface = Color(hex: 0x15191F).opacity(0.70)
+}

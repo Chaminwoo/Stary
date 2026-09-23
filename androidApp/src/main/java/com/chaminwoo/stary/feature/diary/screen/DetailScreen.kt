@@ -70,7 +70,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -480,12 +482,23 @@ fun DetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 8.dp)
+                            // 읽기 면을 **먼저**(아래에) 깔고 그 위에 십자 — 순서를 바꾸면 면이 십자 팔을 덮는다.
+                            .readingSurface()
                             .cornerCrossFrame(lerp(accent, Color.White, 0.18f))
-                            .padding(horizontal = 18.dp, vertical = 18.dp)
+                            .padding(horizontal = 20.dp, vertical = 22.dp)
                     ) {
                         Text(
-                            currentDiary.content, fontSize = 16.sp, lineHeight = 26.sp,
-                            color = MaterialTheme.colorScheme.onBackground
+                            currentDiary.content,
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                // 26 -> 28: 카드가 없어진 만큼 행간으로 문단을 잡아 준다(긴 한글 본문 가독성).
+                                lineHeight = 28.sp,
+                                letterSpacing = 0.1.sp,
+                                // 한글은 기본이 글자 단위 줄바꿈이라 어절이 잘린다 — 문단용 알고리즘으로.
+                                lineBreak = LineBreak.Paragraph,
+                                // 순흑 위 #F0F0F0 는 번져 보인다 — 아주 살짝 낮춰 눈을 편하게.
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.93f),
+                            ),
                         )
                     }
                 } else {
