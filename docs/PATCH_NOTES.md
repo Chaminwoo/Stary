@@ -11,43 +11,61 @@
 
 범위: `55f145a`(1.4.3) 이후. 잠금 화면 2차 개편 + 영구 해금 + 광고 경로 교체 + iOS 파장 굴절 복원 + 일일 알림 다양화.
 
-### 스토어 출시 노트 (붙여 넣기용)
+### 스토어 출시 노트 (붙여 넣기용 — ko-KR/en-IN/ja-JP/zh-CN, 1.4.2 형식 계승)
 
-**한국어**
 ```
-· 100m 밖 게시물의 잠금 화면을 새로 다듬었습니다. 재생 아이콘을 누르면 광고를 보고 바로 열어볼 수 있어요.
-· 한 번 연 기록이 계속 남습니다. 광고를 끝까지 보거나 100m 안에 들어온 적이 있으면, 나중에 멀어져도 다시 볼 수 있어요. (댓글은 100m 이내에서만 남길 수 있습니다)
-· 열기 전과 후의 본문 화면 형식을 통일하고, 본문 글씨의 행간·줄바꿈을 다듬어 읽기 편하게 했습니다.
-· 튜토리얼 별에서 "한 번 열어본 별은 어디에서든 다시 열 수 있다"는 안내를 추가했습니다.
-· 결정 별 모양을 더 작고 단정하게 다듬었습니다.
-· 별을 열 때 지도가 물결치는 효과가 iOS 에도 돌아왔습니다.
-· 일일 알림이 매번 다른 시간, 다른 문장으로 찾아옵니다. 같은 시간대가 이틀 연속 오지 않아요.
-· 광고가 더 안정적으로 재생되도록 개선했습니다.
+<ko-KR>
+[1.5.0 업데이트]
+
+• 100m 밖 게시물의 잠금 화면을 새로 다듬었어요. 재생 아이콘을 눌러 광고를 보면 바로 열어볼 수 있어요
+• 한 번 연 게시물은 기록이 남아요. 광고를 끝까지 보거나 100m 안에 들어온 적이 있으면, 이후엔 멀리서도 계속 볼 수 있어요
+• 잠금 전후 본문 화면의 형식을 통일하고, 줄 간격을 다듬어 읽기 편해졌어요
+• 튜토리얼 별에 "한 번 열어본 별은 어디에서든 다시 열 수 있어요"라는 안내를 추가했어요
+• 결정 별 모양을 더 작고 단정하게 다듬었어요
+• 별을 열 때 지도가 물결치는 효과가 iOS에도 적용됐어요
+• 매일 알림이 매번 다른 시간, 다른 문장으로 찾아와요. 같은 시간대가 이틀 연속 오지 않아요
+• 광고가 더 안정적으로 재생되도록 개선했어요
+</ko-KR>
+<en-IN>
+[1.5.0 Update]
+
+• Redesigned the lock screen for posts more than 100m away — tap the play icon and watch an ad to unlock it right away
+• Unlocks are now permanent. Once you've watched an ad to the end or come within 100m, you can keep reading from anywhere afterward
+• Unified the look of the post body before and after unlocking, and improved line spacing for easier reading
+• Added a tip to the tutorial star: a star you've opened once can be reopened from anywhere
+• Made the crystal star shape smaller and cleaner
+• The map ripple effect when opening a star is now on iOS too
+• The daily reminder now arrives at a different time with a different message each day — never the same time slot two days in a row
+• Improved rewarded ad playback reliability
+</en-IN>
+<ja-JP>
+【1.5.0 アップデート】
+
+• 100m以上離れた投稿のロック画面を作り直しました。再生アイコンをタップして広告を見ると、その場で開けます
+• 一度開いた投稿は記録が残ります。広告を最後まで見るか100m以内に入ったことがあれば、その後は離れていても読めます
+• 開く前と開いた後で本文画面の形式をそろえ、行間を調整して読みやすくしました
+• チュートリアルの星に「一度開いた星はどこからでもまた開けます」という案内を追加しました
+• 結晶の星の形を小さく、すっきり整えました
+• 星を開くときの地図のゆらぎ効果がiOSにも追加されました
+• デイリーリマインダーが毎回ちがう時間、ちがうメッセージで届きます。同じ時間帯が二日続くことはありません
+• 報酬型広告の再生の安定性を改善しました
+</ja-JP>
+<zh-CN>
+【1.5.0 更新】
+
+• 重新设计了 100m 以外帖子的锁定界面,点击播放图标观看广告即可立即解锁
+• 解锁记录将永久保留。只要完整观看过一次广告,或曾经靠近到 100m 以内,之后即使远离也能继续查看
+• 统一了解锁前后正文界面的样式,并调整了行距,阅读更加舒适
+• 新手引导之星新增提示:"曾经打开过的星星,无论身处何地都能再次打开"
+• 将水晶星形状调整得更小巧、更简洁
+• 打开星星时地图产生的水波效果现已支持 iOS
+• 每日提醒现在每次都会在不同的时间、以不同的文案出现,不会连续两天出现在同一时段
+• 改进了激励广告播放的稳定性
+</zh-CN>
 ```
 
-**English**
-```
-· Redesigned the lock screen for posts more than 100m away. Tap the play icon to watch an ad and open it right away.
-· Unlocks are now permanent. Once you've watched an ad to the end or come within 100m, you can keep reading it later from anywhere. (Comments still require being within 100m.)
-· The post body now looks the same before and after unlocking, with easier line spacing and word wrapping.
-· The tutorial star now tells you that a star you've opened once can be reopened from anywhere.
-· The crystal star shape is smaller and cleaner.
-· The map ripple when opening a star is back on iOS.
-· The daily reminder now comes at a different time with a different line every day — never the same time slot two days in a row.
-· More reliable rewarded ad playback.
-```
-
-**日本語**
-```
-· 100m以上離れた投稿のロック画面を作り直しました。再生アイコンをタップすると、広告を見てすぐに開けます。
-· 一度開いた記録が残るようになりました。広告を最後まで見るか、100m以内に入ったことがあれば、離れた後でも読み返せます（コメントは100m以内のみ）。
-· 開く前と開いた後で本文画面の形式をそろえ、行間と折り返しを読みやすく調整しました。
-· チュートリアルの星に「一度開いた星はどこからでもまた開ける」という案内を追加しました。
-· 結晶の星の形を小さく整えました。
-· 星を開くときの地図のゆらぎがiOSにも戻りました。
-· デイリーリマインダーが毎回ちがう時間、ちがう言葉で届きます。同じ時間帯が二日続くことはありません。
-· 報酬型広告の再生を安定させました。
-```
+> 참고: 앱 인앱 언어는 ko/en/ja 만 지원(zh 없음) — zh-CN 은 **스토어 등록정보(현지화) 전용**이라 인앱 문자열과는 별개다.
+> en-IN 태그는 1.4.2 원본을 그대로 따름(리전 로케일 — 굳이 en-US 로 바꾸지 않았다).
 
 ### 자세히
 
