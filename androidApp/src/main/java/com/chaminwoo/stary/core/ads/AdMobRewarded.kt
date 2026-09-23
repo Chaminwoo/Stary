@@ -20,9 +20,11 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
  * 그래서 잠금 해제 흐름 자체가 막히지 않도록 두 번째 광고원을 둔다.
  *
  * 어떤 광고가 나오나:
- * - **디버그 빌드 + 값 미설정** → 구글 공식 **테스트** 보상형 단위([TEST_REWARDED_UNIT]). 계정·심사·대시보드 없이
- *   항상 채워지므로 해제 흐름(광고 → 영구 해금)을 바로 확인할 수 있다. 수익은 당연히 0.
- * - **`secrets.properties` 에 `ADMOB_REWARDED_AD_UNIT_ANDROID` 를 넣으면** 디버그/릴리즈 모두 그 실제 단위.
+ * - **디버그 빌드 → 언제나** 구글 공식 **테스트** 보상형 단위([TEST_REWARDED_UNIT]). 계정·심사·대시보드 없이 항상
+ *   채워지므로 해제 흐름(광고 → 영구 해금)을 바로 확인할 수 있다. 수익은 0.
+ *   `secrets.properties` 에 실제 단위를 넣어도 디버그는 테스트 광고다 — 개발 중 실광고 요청/클릭은 구글 정책상
+ *   **무효 트래픽**이고, 스토어 미게시 앱은 `app-ads.txt` 인증이 불가능해 실제 단위는 어차피 no fill 이다(2026-09-23).
+ * - **릴리즈 + `ADMOB_REWARDED_AD_UNIT_ANDROID` 설정** → 그 실제 단위.
  * - **릴리즈 + 값 미설정** → [isConfigured] = false. 폴백은 아예 꺼진다(테스트 광고가 스토어에 나가지 않게).
  *
  * 앱 ID(`com.google.android.gms.ads.APPLICATION_ID`)는 매니페스트 필수값이라 `build.gradle.kts` 의
@@ -35,15 +37,12 @@ internal object AdMobRewarded {
     /** 구글이 공개한 Android 보상형 **테스트** 광고 단위 — 항상 채워진다(개발용, 비밀 아님). */
     private const val TEST_REWARDED_UNIT = "ca-app-pub-3940256099942544/5224354917"
 
-    /** 실제 주입값이 있으면 그것, 없으면 디버그에서만 테스트 단위, 릴리즈에서는 빈 값(=폴백 꺼짐). */
+    /** 디버그는 항상 테스트 단위, 릴리즈는 주입된 실제 단위(없으면 빈 값 = 폴백 꺼짐). */
     private val adUnitId: String
         get() {
+            if (BuildConfig.DEBUG) return TEST_REWARDED_UNIT
             val injected = BuildConfig.ADMOB_REWARDED_AD_UNIT
-            return when {
-                injected.isNotBlank() && !injected.startsWith("TODO_") -> injected
-                BuildConfig.DEBUG -> TEST_REWARDED_UNIT
-                else -> ""
-            }
+            return if (injected.isNotBlank() && !injected.startsWith("TODO_")) injected else ""
         }
 
     /** 폴백을 쓸 수 있는 빌드인지. */

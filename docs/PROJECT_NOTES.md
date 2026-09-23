@@ -2047,8 +2047,10 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 
 ### ① 코드 — `AdsManager` 2단 구성(LevelPlay → AdMob)
 - 새 파일 `core/ads/AdMobRewarded.kt`(internal): Google AdMob 보상형 로드/재생.
-  - 광고 단위: `secrets.properties` 의 `ADMOB_REWARDED_AD_UNIT_ANDROID` → 없으면 **디버그만** 구글 공식 테스트 단위
-    `ca-app-pub-3940256099942544/5224354917`(계정·심사 없이 **항상 채워짐**), **릴리즈는 폴백 자체가 꺼진다**.
+  - 광고 단위: **디버그는 언제나** 구글 공식 테스트 단위 `ca-app-pub-3940256099942544/5224354917`(항상 채워짐),
+    릴리즈만 `secrets.properties` 의 `ADMOB_REWARDED_AD_UNIT_ANDROID`(없으면 폴백 자체가 꺼진다).
+    ⚠️ 디버그에서 실제 단위를 쓰지 않는 이유: 개발 중 실광고 요청/클릭은 구글 정책상 **무효 트래픽**이고,
+    **스토어 미게시 앱은 `app-ads.txt` 인증이 불가능**해 실제 단위는 어차피 no fill 이다(아래 참고).
   - 앱 ID 는 매니페스트 필수(없으면 SDK 가 앱을 죽임) → `build.gradle.kts` 의 `manifestPlaceholders["ADMOB_APP_ID"]`
     (미설정 시 구글 테스트 App ID `ca-app-pub-3940256099942544~3347511713`). 둘 다 구글 공개 개발용 상수 = 비밀 아님.
   - AdMob 은 보상 콜백이 닫힘보다 **먼저** 오는 것이 보장돼 LevelPlay 같은 유예 시간이 필요 없다.
@@ -2077,9 +2079,15 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
    (자동 설정이면 Key ID/Secret Key)로 Rewarded 를 켜야 한다. 문서상 **Unity Ads bidder 는 ironSource Ads bidder 의
    상태를 따라간다** → ironSource Ads 가 그 포맷에서 꺼져 있으면 Unity Ads 도 안 붙는다. 둘 다 확인할 것.
 2. 개발 중 테스트 광고는 대시보드 **Testing → 테스트 기기(GAID)** 등록으로만 가능(SDK 플래그 없음).
-3. **AdMob 을 실제로 쓸 거면**: AdMob 계정 → 앱 등록(`com.chaminwoo.stary_ios`) → 보상형 광고 단위 생성 →
-   `secrets.properties` 의 `ADMOB_APP_ID_ANDROID` / `ADMOB_REWARDED_AD_UNIT_ANDROID` 채우기. 그래야 릴리즈에서도 폴백이 산다.
+3. **AdMob 을 실제로 쓸 거면**: AdMob 계정 → 앱 등록 → 보상형 광고 단위 생성 →
+   `secrets.properties` 의 `ADMOB_APP_ID_ANDROID` / `ADMOB_REWARDED_AD_UNIT_ANDROID` 채우기(릴리즈 전용).
    (LevelPlay 에 AdMob 을 네트워크로 붙이는 방법도 있으나, 그건 다시 대시보드 작업이라 이번 폴백과는 별개.)
+   - ⚠️ **AdMob "앱을 확인할 수 없습니다"(app-ads.txt 인증 실패)는 지금은 고칠 수 없고, 고칠 필요도 없다.**
+     구글 문서상 인증 조건이 ① 앱이 **Google Play/App Store 에 게시**돼 있고 ② **스토어 등록정보에 개발자 웹사이트**가
+     있고 ③ 그 도메인 루트에 `app-ads.txt` 가 있어야 하는 것 — Stary 는 미게시라 ①②가 성립하지 않는다.
+     파일을 어디에 올려도 크롤러가 볼 도메인이 없어 계속 실패한다. **Play 출시 시점에** 개발자 웹사이트를 등록하고
+     (도메인이 없으면 GitHub Pages 등) 그 루트에 AdMob 이 준 `google.com, pub-…, DIRECT, f08c47fec0942fa0` 한 줄을
+     올리면 된다. 미인증 상태에서는 실광고 게재가 제한되므로 그 전까지는 테스트 광고만 쓴다.
 4. 출시 전: Play Console **데이터 보안**에 광고 ID 수집 표시(두 SDK 모두 `AD_ID` 권한 병합).
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
