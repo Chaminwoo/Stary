@@ -6,6 +6,7 @@
 화면·기능별 유지보수 문서(변수/함수/컴포넌트 연결/iOS 값 조절 매핑)는 [`docs/code/`](docs/code/README.md) 참고
 — 특정 화면을 고칠 땐 해당 문서부터 읽고, **그 화면을 크게 바꾼 뒤에는 그 문서도 갱신**한다.
 기능 개발 로드맵/체크리스트는 [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md) 참고(초기 셋업은 완료됨).
+버전별 사용자 관점 변경 요약(스토어 출시 노트용)은 [`docs/PATCH_NOTES.md`](docs/PATCH_NOTES.md) — 새 버전을 낼 때 여기에 추가한다.
 실기기(Android USB / iOS TestFlight) 테스트 방법은 [`docs/DEVICE_TESTING.md`](docs/DEVICE_TESTING.md) 참고.
 
 ---
