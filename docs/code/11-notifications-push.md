@@ -75,6 +75,25 @@ iOS: `Features/Notifications/NotificationsScreen.swift`, `NotificationsViewModel
 
 ---
 
+## 일일 알림(오늘 기록 유도) — 2026-09-23 개편: 시간대·문구 둘 다 랜덤
+
+Android `push/DailyReminderScheduler.kt` + `DailyReminderReceiver.kt` + `res/values*/reminder_messages.xml`
+iOS `Data/DailyReminderScheduler.swift` + `Data/DailyReminderMessages.swift`
+
+**왜 바꿨나**: 예전엔 12~22시 균일 랜덤 + **시간대별 고정 문장 1개**(`daily_reminder_lunch` 등 4개)라
+며칠만 써도 문구가 외워졌다("또 그 문장") → 알림을 안 읽게 된다. 시간과 문장을 **같이** 흔든다.
+
+- **밴드(시간대) 5구간** — 낮 11:00 ~ 밤 23:30. 아침은 일부러 비워 둔다.
+  `NOON` 11:00–13:30 / `AFTERNOON` 13:30–17:00 / `EVENING` 17:00–19:30 / `NIGHT` 19:30–22:00 / `LATE` 22:00–23:30.
+  **직전에 쓴 밴드를 빼고** 고른다 → 같은 시간대가 이틀 연속 오지 않는다. 그 안에서 분·초는 랜덤.
+- **문구 풀**: 밴드마다 6문장(ko/en/ja). **직전에 쓴 문장을 빼고** 랜덤. 고른 위치는 밴드별로 prefs 에 저장.
+- prefs/UserDefaults 키: `daily_reminder_scheduled_at`(예약 시각) · `daily_reminder_last_band` ·
+  `daily_reminder_last_msg_<밴드>`.
+- **문구를 고르는 시점이 플랫폼마다 다르다**: Android 는 알람이 **울릴 때**(저장된 밴드로 풀을 찾음 —
+  Doze 로 늦게 울려도 의도한 시간대 문장이 나간다), iOS 는 로컬 알림 내용이 미리 확정돼야 해서 **예약할 때**.
+  ⚠️ Android 리시버는 **알림을 먼저 띄우고 그다음 재예약**해야 한다 — `scheduleNext` 가 `last_band` 를 덮어쓴다.
+- 문장을 추가/수정할 때는 **Android XML 과 iOS `DailyReminderMessages.table` 을 같은 순서로** 함께 고친다.
+
 ## 푸시가 안 올 때 — 확인 순서(경로가 길어서 반드시 위에서부터)
 
 메시지 1건이 기기에 뜨기까지: **문서 생성 → Functions 트리거 → 수신자 fcmToken 조회 → FCM 발송 →
@@ -114,6 +133,6 @@ iOS: `Features/Notifications/NotificationsScreen.swift`, `NotificationsViewModel
 | 토큰 해제(로그아웃) | `GoogleAuthHelper.clearFcmToken`(signOut 안에서) | `PushManager.clearToken(for:)`(AuthManager.signOut 안에서) |
 | 기기별 토큰 컬렉션 | shared `StaryConfig.Collections.FCM_TOKENS` | `AppConfig.Collections.fcmTokens` (**같은 값**) |
 | 남의 계정 알림 무시 | `StaryMessagingService` `recipientId` 비교 | `PushManager` `userInfo["recipientId"]` 비교 |
-| 일일 알림 창(점심~밤10시)/on-off | `push.DailyReminderScheduler`(AlarmManager) + `AppSettings.dailyReminderEnabled` | `DailyReminderScheduler`(UNCalendarNotificationTrigger) + `AppSettings.shared.dailyReminderEnabled` — **시간대 값 동일 유지** |
+| 일일 알림 밴드(11:00~23:30, 5구간)·문구 풀·on-off | `push.DailyReminderScheduler.Band`(AlarmManager) + `reminder_messages.xml` + `AppSettings.dailyReminderEnabled` | `DailyReminderMessages.Band`(UNCalendarNotificationTrigger) + `DailyReminderMessages.table` + `AppSettings.shared.dailyReminderEnabled` — **경계·문장 동일 유지** |
 | 일일 알림 재예약 시점 | 알림 발사 시(`DailyReminderReceiver`) + 재부팅(`BootReceiver`) — 앱이 안 켜져 있어도 시스템이 깨워 재예약 | 앱 시작(`AppDelegate`) + 포그라운드 복귀(`RootView` scenePhase) — **iOS 는 로컬 알림이 앱을 안 깨우므로 한동안 앱을 안 열면 다음날 재예약이 밀릴 수 있음(구조적 차이)** |
 | 일일 알림 탭 목적지 | `MainActivity.EXTRA_OPEN_UPLOAD` → `DeepLinkState.uploadNonce` | `PushRoute.upload` → `DrawerDest.upload` |

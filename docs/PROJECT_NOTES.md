@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.60 광고 509 No fill 대응(AdMob 폴백) + 본문 프레임 통일** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
+> 최종 갱신: **8.61 일일 알림 다양화**(시간대 5밴드 · 밴드별 문구 6개 · 연속 중복 배제) — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
+> 이전: **8.60 광고 509 No fill 대응(AdMob 폴백) + 본문 프레임 통일** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.59 광고를 Unity LevelPlay 로 전환**(Unity Ads 직접 연동 2026-01-31 지원 종료) — Android BUILD SUCCESSFUL·기기 설치, **LevelPlay 키 입력 대기**(2026-09-22).
 > 이전: **8.58 잠금 화면 2차**(히어로 캡션 · 십자 코너 프레임 · 광고 실패 원인 = 비딩 전용 Placement) — Android BUILD SUCCESSFUL·기기 설치(2026-09-22).
 > 이전: **8.57 iOS 열람 파장 지도 굴절 복원(Metal 메시, 런타임 셰이더) + 잠금 히어로 스크림 패리티** — iOS 전용, push 후 CI 검증.
@@ -2089,6 +2090,39 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
      (도메인이 없으면 GitHub Pages 등) 그 루트에 AdMob 이 준 `google.com, pub-…, DIRECT, f08c47fec0942fa0` 한 줄을
      올리면 된다. 미인증 상태에서는 실광고 게재가 제한되므로 그 전까지는 테스트 광고만 쓴다.
 4. 출시 전: Play Console **데이터 보안**에 광고 ID 수집 표시(두 SDK 모두 `AD_ID` 권한 병합).
+
+## 8.61 일일 알림 다양화 — 시간대 5밴드 · 문구 30개 · 연속 중복 배제 (Android BUILD SUCCESSFUL 2026-09-23 · 기기 테스트 대기)
+
+사용자: "일일 알람 시간과 문장 더 다양하게 추가해 — 지금 너무 예상되고 들어가기 싫어."
+
+### 진단
+- 기존: 12~22시 **균일 랜덤** + 시간대별 **고정 문장 1개**(`daily_reminder_lunch/afternoon/dinner/night`).
+  시각은 랜덤이었지만 문장이 4개뿐이라 며칠이면 외워지고, 시간대도 낮~밤 한 덩어리라 체감 변화가 없었다.
+
+### 바뀐 것 (Android + iOS 동시)
+- **시간대를 5개 밴드로**: `NOON` 11:00–13:30 / `AFTERNOON` 13:30–17:00 / `EVENING` 17:00–19:30 /
+  `NIGHT` 19:30–22:00 / `LATE` 22:00–23:30. 창이 12~22 → **11~23:30** 으로 넓어졌다(아침은 계속 제외).
+- **직전 밴드 배제**: 매번 5개 중 직전에 쓴 밴드를 빼고 고른다 → 같은 시간대가 이틀 연속 오지 않는다.
+  밴드 안에서 분·초는 그대로 랜덤.
+- **문구 풀**: 밴드당 6문장 × 5밴드 = **30문장**(ko/en/ja 각각). 직전에 쓴 문장은 다시 고르지 않는다.
+  - Android: `res/values/reminder_messages.xml` + `values-en` + `values-ja` 의 `<string-array>` 5개.
+  - iOS: `Sources/Data/DailyReminderMessages.swift`(밴드 enum + ko/en/ja 배열). L10n enum 에 30개를 넣는 대신
+    배열째 들고 있어 Android string-array 와 1:1 비교가 된다.
+- 옛 고정 문구 4종(`daily_reminder_*`)과 iOS `L10n.dailyReminder*` 케이스는 삭제.
+- 설정 설명(`settings_daily_reminder_desc` / `L10n.settingsDailyReminderDesc`) 을
+  "매번 다른 시간, 다른 문장으로 알려드려요" 로 교체(ko/en/ja).
+
+### 구조 메모
+- prefs/UserDefaults 키 추가: `daily_reminder_last_band`, `daily_reminder_last_msg_<밴드>`.
+- **문구를 고르는 시점이 플랫폼마다 다르다**: Android 는 알람이 울릴 때(저장해 둔 밴드로 풀을 찾는다 →
+  Doze 로 밀려 늦게 울려도 의도한 시간대 문장), iOS 는 로컬 알림 내용이 미리 확정돼야 해서 예약할 때.
+- ⚠️ `DailyReminderReceiver` 는 **알림을 먼저 띄우고 그다음 `scheduleNext()`** — 재예약이 `last_band` 를 덮어쓴다.
+- ⚠️ 함정(이번에 밟음): KDoc 안에 `res/values*/...` 라고 쓰면 `*/` 가 **블록 주석을 닫아** 파일 전체가 깨진다.
+  경로 글로브는 KDoc 에 쓰지 말 것(Kotlin 컴파일 에러가 "Expecting a top level declaration" 으로만 나와 원인이 안 보인다).
+
+### 문서
+- `docs/code/11-notifications-push.md` 에 "일일 알림" 절 신설 + 패리티 표 행 갱신.
+- `docs/PATCH_NOTES.md` 1.5.0 에 항목 추가(사용자가 versionCode 21 / versionName 1.5.0 으로 올림).
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데

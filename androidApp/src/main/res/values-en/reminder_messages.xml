@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 일일 알림 문구 풀(영어) — values/reminder_messages.xml 과 같은 순서. -->
+<resources>
+    <string-array name="daily_reminder_noon">
+        <item>What\'s for lunch? One photo is plenty</item>
+        <item>Even this seat you\'re sitting in could become a star</item>
+        <item>Anything from this morning worth keeping?</item>
+        <item>That stray thought over lunch — that counts too</item>
+        <item>What does it look like outside your window right now?</item>
+        <item>Shall we leave today\'s first star?</item>
+    </string-array>
+
+    <string-array name="daily_reminder_afternoon">
+        <item>How\'s the afternoon air? A single line is enough</item>
+        <item>Where have you spent the most time today?</item>
+        <item>Look up at the sky for a second — then open Stary</item>
+        <item>Did anything you passed by stay with you?</item>
+        <item>One coffee\'s worth of time is enough for a star</item>
+        <item>This afternoon\'s light won\'t come around again</item>
+    </string-array>
+
+    <string-array name="daily_reminder_evening">
+        <item>What did you have for dinner tonight?</item>
+        <item>On your way back — how was today?</item>
+        <item>What color is the sunset today?</item>
+        <item>A good time to wrap up the day</item>
+        <item>Someone you met, somewhere you went — just pick one</item>
+        <item>The way home you walk every day is new to someone else</item>
+    </string-array>
+
+    <string-array name="daily_reminder_night">
+        <item>Leave today behind as a star</item>
+        <item>If you remember one thing from today, what is it?</item>
+        <item>Shall we float a star right where you are?</item>
+        <item>There\'s still an empty spot in today\'s constellation</item>
+        <item>One photo, and today stays</item>
+        <item>Before the night gets late — even just a line</item>
+    </string-array>
+
+    <string-array name="daily_reminder_late">
+        <item>One line before bed — how was today?</item>
+        <item>Today was worth at least one star</item>
+        <item>Tomorrow-you will wonder about today</item>
+        <item>Leave it before lights out and it\'ll be there in the morning</item>
+        <item>What was the quietest moment of your day?</item>
+        <item>Give the last five minutes of the day to today</item>
+    </string-array>
+</resources>

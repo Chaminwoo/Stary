@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  일일 알림 문구 풀 — 시간대(밴드)별로 여러 개 중 하나를 랜덤으로 고른다(DailyReminderReceiver).
+  같은 밴드가 연달아 나와도 직전에 쓴 문장은 다시 안 고른다.
+  ⚠️ iOS `Sources/Data/DailyReminderMessages.swift` 와 **같은 문장·같은 순서**를 유지할 것(패리티).
+  문장을 추가/삭제할 때 개수는 언어별로 달라도 되지만(각자 랜덤), 양쪽 플랫폼은 맞춰 둔다.
+-->
+<resources>
+    <!-- 11:00~13:30 점심 무렵 -->
+    <string-array name="daily_reminder_noon">
+        <item>오늘 점심, 뭐 드셨어요? 사진 한 장이면 충분해요</item>
+        <item>점심시간에 앉은 이 자리도 별이 될 수 있어요</item>
+        <item>오늘 아침부터 지금까지, 기억에 남은 순간이 있나요?</item>
+        <item>밥 먹다 문득 든 생각, 그것도 기록이에요</item>
+        <item>지금 있는 곳의 창밖은 어떤가요?</item>
+        <item>오늘의 첫 별을 남겨볼까요?</item>
+    </string-array>
+
+    <!-- 13:30~17:00 오후 -->
+    <string-array name="daily_reminder_afternoon">
+        <item>오후의 공기는 어떤가요? 한 줄만 남겨도 좋아요</item>
+        <item>오늘 가장 오래 머문 곳은 어디였나요?</item>
+        <item>잠깐 고개 들어 하늘 한 번, 그리고 Stary 한 번</item>
+        <item>지나가다 본 것 중에 마음에 걸린 게 있나요?</item>
+        <item>커피 한 잔의 시간이면 별 하나를 남길 수 있어요</item>
+        <item>오늘 이 시간의 빛은 다시 오지 않아요</item>
+    </string-array>
+
+    <!-- 17:00~19:30 저녁·퇴근길 -->
+    <string-array name="daily_reminder_evening">
+        <item>오늘 저녁은 무엇을 드셨나요?</item>
+        <item>돌아가는 길, 오늘 하루는 어땠나요?</item>
+        <item>해 지는 색이 오늘은 어떤가요?</item>
+        <item>하루를 정리하기 딱 좋은 시간이에요</item>
+        <item>오늘 만난 사람, 다녀온 곳 — 하나만 골라보세요</item>
+        <item>매일 지나는 퇴근길도 누군가에겐 처음 보는 곳이에요</item>
+    </string-array>
+
+    <!-- 19:30~22:00 밤 -->
+    <string-array name="daily_reminder_night">
+        <item>오늘 하루를 별 하나에 남겨보세요</item>
+        <item>오늘 딱 하나만 기억한다면, 무엇일까요?</item>
+        <item>지금 이 자리에 별 하나를 띄워둘까요?</item>
+        <item>오늘의 별자리에 아직 빈 자리가 있어요</item>
+        <item>사진 한 장이면 오늘이 남아요</item>
+        <item>밤이 깊기 전에, 짧게라도</item>
+    </string-array>
+
+    <!-- 22:00~23:30 자기 전 -->
+    <string-array name="daily_reminder_late">
+        <item>자기 전에 딱 한 줄, 오늘은 어땠나요?</item>
+        <item>오늘 하루, 별 하나 값은 했잖아요</item>
+        <item>내일의 내가 오늘을 궁금해할 거예요</item>
+        <item>불 끄기 전에 남겨두면 내일 아침에 반짝여요</item>
+        <item>오늘 가장 조용했던 순간은 언제였나요?</item>
+        <item>하루의 마지막 5분을 오늘에게 주세요</item>
+    </string-array>
+</resources>

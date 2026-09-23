@@ -14,13 +14,14 @@ import com.chaminwoo.stary.MainActivity
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.util.AppSettings
 import com.chaminwoo.stary.core.util.LocaleManager
-import java.util.Calendar
 
 /**
  * [DailyReminderScheduler] 가 예약한 알람이 울리는 지점.
  *
- * 알림을 띄운 뒤(꺼져 있으면 생략) **항상** 다음 날짜의 랜덤 시각을 다시 예약한다 —
+ * 알림을 띄운 뒤(꺼져 있으면 생략) **항상** 다음 날짜를 다시 예약한다 —
  * 그래야 매일 계속된다(한 번 울리고 끝나는 `setAndAllowWhileIdle` 특성상 재예약은 필수).
+ * ⚠️ 순서 주의: 문구를 고를 때 쓰는 "예약된 밴드"를 [DailyReminderScheduler.scheduleNext] 가 덮어쓰므로
+ * **알림을 먼저 띄우고 그다음에 재예약**한다.
  */
 class DailyReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -44,15 +45,10 @@ class DailyReminderReceiver : BroadcastReceiver() {
 
         ensureStaryNotificationChannel(context)
 
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        val body = context.getString(
-            when (hour) {
-                in 12..14 -> R.string.daily_reminder_lunch
-                in 15..17 -> R.string.daily_reminder_afternoon
-                in 18..19 -> R.string.daily_reminder_dinner
-                else -> R.string.daily_reminder_night
-            }
-        )
+        // 문구는 **예약할 때 정해 둔 시간대**의 풀에서 고른다(직전에 쓴 문장은 제외) —
+        // 알람이 Doze 로 밀려 늦게 울려도 의도한 시간대의 문장이 나간다.
+        val band = DailyReminderScheduler.scheduledBand(context)
+        val body = DailyReminderScheduler.pickMessage(context, band)
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

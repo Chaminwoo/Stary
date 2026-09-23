@@ -189,7 +189,6 @@ enum L10n: String {
     case coachStepUpload, coachStepMenu, coachStepFinish, coachSkip
     // 일일 알림(Android settings_daily_reminder* / daily_reminder_* 패리티).
     case settingsDailyReminder, settingsDailyReminderDesc
-    case dailyReminderLunch, dailyReminderAfternoon, dailyReminderDinner, dailyReminderNight
     /// 채팅 첫 대화 빈 화면(Android chat_empty — %@ = 상대 이름).
     case chatEmpty
     /// 모의 위치 감지 경고(Android location_mock_blocked).
@@ -234,11 +233,7 @@ enum L10n: String {
         case .coachStepFinish:        return ("지금부터 우주를 탐험하고,\n별들에 이야기를 남겨보세요!", "Now go explore the universe\nand leave your stories among the stars!", "これから宇宙を探検して、\n星に物語を残してみましょう!")
         case .coachSkip:              return ("건너뛰기", "Skip", "スキップ")
         case .settingsDailyReminder:     return ("일일 알림", "Daily reminder", "デイリーリマインダー")
-        case .settingsDailyReminderDesc: return ("매일 한 번, 점심부터 밤 10시 사이 랜덤한 시각에 기록을 권해드려요", "Once a day, at a random time between lunch and 10pm, we'll nudge you to jot something down", "毎日1回、お昼から夜10時の間のランダムな時間に記録をお勧めします")
-        case .dailyReminderLunch:     return ("오늘 점심은 무엇을 드셨나요? Stary에 기록해보세요", "What did you have for lunch today? Record it on Stary", "今日のお昼は何を食べましたか?Staryに記録してみましょう")
-        case .dailyReminderAfternoon: return ("오늘 하루는 어떻게 보내고 계신가요? Stary에 기록해보세요", "How's your day going? Record it on Stary", "今日はどんな一日を過ごしていますか?Staryに記録してみましょう")
-        case .dailyReminderDinner:    return ("오늘 저녁은 무엇을 드셨나요? Stary에 기록해보세요", "What did you have for dinner today? Record it on Stary", "今日の夕食は何を食べましたか?Staryに記録してみましょう")
-        case .dailyReminderNight:     return ("오늘 하루를 별 하나에 남겨보세요", "Leave today behind as a star", "今日を星ひとつに残してみましょう")
+        case .settingsDailyReminderDesc: return ("매일 한 번, 낮부터 밤 사이 랜덤한 시각에 — 매번 다른 시간, 다른 문장으로 알려드려요", "Once a day at a random time between midday and late evening — a different time and a different line every day", "毎日1回、昼から夜の間のランダムな時間に — 毎回ちがう時間、ちがう言葉でお知らせします")
         case .settingsAutosave:     return ("설정은 자동으로 저장돼요", "Settings are saved automatically", "設定は自動的に保存されます")
         case .languageDialogTitle:  return ("언어 선택", "Select language", "言語を選択")
         case .languageSystem:       return ("시스템 기본", "System default", "システムのデフォルト")
