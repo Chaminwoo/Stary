@@ -37,6 +37,15 @@ object DiaryUnlockStore {
         return state.containsKey(diaryId)
     }
 
+    /**
+     * 해금된 게시물 id 전체 — 지도 "해금만" 필터(`MainListScreen`)가 쓴다.
+     * 상태 맵을 읽으므로 Compose 에서 호출하면 [unlock] 시 같이 갱신된다.
+     */
+    fun unlockedIds(context: Context): Set<String> {
+        ensureLoaded(context)
+        return state.keys.toSet()
+    }
+
     /** 광고 시청 완료 또는 100m 이내 접근 → 이 게시물을 영구 해금한다(이미 해금이면 무시). */
     fun unlock(context: Context, diaryId: String) {
         ensureLoaded(context)

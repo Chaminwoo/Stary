@@ -21,16 +21,24 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - `mockDetected` : 모의 위치(위치 조작 앱) 감지 → 1회 경고 토스트.
 - `userId` : 로그인 uid. `FirebaseAuth.AuthStateListener` 로 관찰(로그인 화면 뒤 미리 렌더된 화면이
   로그인 직후 리컴포즈되게 하는 장치).
-- 필터 상태: `unviewedOnly`(미조회만) / `friendsOnly`(친구만) / `myOnly`(나만보기)
+- 필터 상태: `unviewedOnly`(미조회만) / `friendsOnly`(친구만) / `myOnly`(나만보기) / `unlockedOnly`(해금만)
   / `selectedFriendIds`(친구 선택) / `periodDays`(기간: null=전체, 0=오늘, N=최근 N일)
   / `showFriendPicker` / `showPeriodPicker` / `speedDialExpanded`(필터 다이얼 펼침).
   상호배타 규칙: 나만보기 켜면 친구만/친구선택 해제, 그 반대도 동일.
+  **미조회만 ↔ 해금만도 상호배타** — 해금은 상세에 들어가야 기록되므로 둘을 같이 켜면 항상 빈 지도가 된다.
 - `viewedIds` : 내가 연 다이어리 id 집합(FirebaseViewedRepository).
+- `unlockedIds` : 영구 해금된 다이어리 id 집합(`DiaryUnlockStore.unlockedIds` — Compose 상태 맵이라 해금 즉시 갱신).
+- `unlockFix` : "해금만" 판정에 쓸 좌표. **실제 fix(`liveLocation`)만** 쓴다 — `currentLatLng` 는 마지막/기본
+  좌표 폴백이라 엉뚱한 곳의 별이 "근처"로 잡힌다. 필터가 꺼져 있으면 `null`(위치 갱신에 재계산 안 함),
+  켜져 있어도 **약 11m 격자로 반올림**해 GPS 지터마다 지도 레이어가 흔들리는 걸 막는다.
 - `friends` / `friendIds` : 내 친구 목록/id 집합 — friends 공개범위 판정에 사용.
 - `blockedIds` : 내가 차단한 uid 집합 — 그 사람 별은 지도/목록에서 숨김.
   iOS 는 `MapScreen.shownDiaries` 가 `BlockStore.blockedIds` 로 같은 필터를 적용한다(09 문서).
 - `filteredDiaries` : 위 조건을 모두 적용한 표시 대상. **공개범위(friends) 판정도 여기서**:
   `visibilityType != "friends" || 내 글 || 친구 글`.
+  **해금만**(`unlockedOnly`)은 `내 글 || unlockedIds 포함 || unlockFix 기준 100m 이내` —
+  DetailScreen 의 `unlocked = isMyDiary || isNear || everUnlocked` 와 **같은 규칙**이라,
+  이 필터로 보이는 별은 눌렀을 때 잠금 화면이 뜨지 않는다.
 - `globeCenter` / `globeReturn` / `globeButtonCenter` / `globeScrim` : 3D 글로브 진입 좌표 /
   복귀 카메라 요청 / "지구 보기" 버튼 노출 후보 중심 / 지도↔글로브 교체를 가리는 검정 디졸브(04 문서).
   `LaunchedEffect(MapUiState.mapVisible)` : 다른 화면으로 나가면 글로브 자동 종료(숨은 GLSurfaceView 낭비 방지).
@@ -45,7 +53,8 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   `onCreateClick(업로드)`, `focusDiary=focusTarget`, `onFocusHandled=MapFocusState.consume`,
   `showCreate=(로그인 시만)`, `onGlobeAvailability`, `globeReturnCamera` 를 넘긴다.
 - 좌하단 **필터 스피드 다이얼**: 메인 원형 버튼(나침반, 필터 활성 시 남색 강조) → 위로 알약 옵션들
-  (미조회만/친구만/나만보기/친구선택/기간별). "전체보기" 항목은 없음 — 활성 칩 재탭으로 해제.
+  (미조회만/**해금만**/친구만/나만보기/친구선택/기간별). "전체보기" 항목은 없음 — 활성 칩 재탭으로 해제.
+  해금만 아이콘은 `Icons.Filled.LockOpen`(iOS `lock.open`) — 나만보기의 `Lock` 과 짝.
 - 하단 중앙 "지구 보기" 버튼: `globeButtonCenter != null && globeCenter == null` 일 때만.
 - `GlobeScreen` 오버레이 + `globeScrim` 디졸브(04 문서).
 
@@ -170,13 +179,15 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 ## iOS 대응
 
 ### MapScreen.swift (= MainListScreen + DiaryMap 의 화면 로직)
-- 상태: `selected`(상세 push) / `cluster`(겹친별 push) / 필터 상태 일체(unviewedOnly·friendsOnly·
-  myOnly·selectedFriendIds·periodDays·speedDialExpanded — Android 와 동일 상호배타) /
+- 상태: `selected`(상세 push) / `cluster`(겹친별 push) / 필터 상태 일체(unviewedOnly·**unlockedOnly**·
+  friendsOnly·myOnly·selectedFriendIds·periodDays·speedDialExpanded — Android 와 동일 상호배타) /
   `zoomRequest`·`recenterNonce`(MapLibreView 커맨드 채널) / `rootAppearedOnce`(복귀 감지) /
   `constellationOn` / `focusTarget` / `showWarp`·`warpColor`·`warpId`
   (포커스 파동) / `openWarp`(열람 파장)·`toast` / `voidTopY·voidBottomY·voidZoom`(세계 밖 빈 공간) /
   `globeCenter`·`globeReturn`·`globeButtonCenter`·`globeScrim`(글로브).
 - `shownDiaries` : Android `filteredDiaries` 대응 필터 파이프라인.
+  해금만은 `DiaryUnlockStore.shared`(`@ObservedObject unlocks`) + `location.coordinate`(실제 fix만) 로 판정 —
+  Android 는 좌표를 11m 격자로 반올림해 `remember` 키로 쓰지만, iOS 는 computed property 라 별도 캐시 없이 매번 계산한다.
 - `handleStarTap(members, origin, snapshot)` : 거리 무관 → 파장(`DiaryOpenWarpData`) → 상세/카드.
 - `handleFocus(id)` : 포커스 요청 처리 — 카메라 이동 + 파동(MapWarpOverlay). 끝나면 `focus.consume()`.
 - `.onAppear` : **하위 화면 → 루트 복귀 감지 지점.** `rootAppearedOnce && pendingDiaryId == nil`

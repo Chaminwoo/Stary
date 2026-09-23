@@ -344,6 +344,7 @@
     <!-- 지도 필터 스피드다이얼 -->
     <string name="filter_all">전체보기</string>
     <string name="filter_unviewed">미조회만</string>
+    <string name="filter_unlocked">해금만</string>
     <string name="filter_friends">친구만</string>
     <string name="filter_mine">나만보기</string>
     <string name="filter_pick_friends">친구 선택</string>

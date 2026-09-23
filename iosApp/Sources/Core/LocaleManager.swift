@@ -83,6 +83,8 @@ enum L10n: String {
     case userNoTitle, userStarsHeader, userNoDiaries, unknownUser, profileTitle
     case statStars, statViews, statLikes
     case filterUnviewed
+    /// 지도 "해금만" 필터 — Android filter_unlocked 패리티.
+    case filterUnlocked
     // 계정 삭제 + 신고/차단 — Android 차단·신고 라운드 패리티.
     case commonCancel, commonDelete
     /// 다이어리 수정/삭제 팝업 문구 + 본문 입력 라벨(Android detail_* / field_content 대응).
@@ -259,6 +261,7 @@ enum L10n: String {
         case .statViews:            return ("조회", "Views", "閲覧")
         case .statLikes:            return ("좋아요", "Likes", "いいね")
         case .filterUnviewed:       return ("미조회만", "Unviewed", "未読のみ")
+        case .filterUnlocked:       return ("해금만", "Unlocked only", "解錠済みのみ")
         case .commonCancel:         return ("취소", "Cancel", "キャンセル")
         case .commonDelete:         return ("삭제", "Delete", "削除")
         case .detailEditTitle:      return ("다이어리 수정", "Edit diary", "日記を編集")

@@ -341,6 +341,7 @@
     <!-- 地図フィルター -->
     <string name="filter_all">すべて表示</string>
     <string name="filter_unviewed">未読のみ</string>
+    <string name="filter_unlocked">解錠済みのみ</string>
     <string name="filter_friends">友達のみ</string>
     <string name="filter_mine">自分のみ</string>
     <string name="filter_pick_friends">友達を選択</string>

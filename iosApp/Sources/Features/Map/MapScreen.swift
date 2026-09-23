@@ -31,6 +31,10 @@ struct MapScreen: View {
     @EnvironmentObject var auth: AuthManager
     @State private var friendsOnly = false
     @State private var myOnly = false
+    /// 해금만 — 잠금 없이 바로 열리는 별만(내 글 / 100m 이내 / 영구 해금). Android unlockedOnly 패리티.
+    @State private var unlockedOnly = false
+    /// 영구 해금 기록 — 해금되는 순간 지도 필터도 같이 갱신되게 관찰한다.
+    @ObservedObject private var unlocks = DiaryUnlockStore.shared
     @State private var selectedFriendIds: Set<String> = []
     @State private var showFriendPicker = false
     /// 내 친구 목록 — 친구만/친구선택 필터용 1회 로드.
@@ -97,6 +101,20 @@ struct MapScreen: View {
             list = list.filter { ids.contains($0.userId) }
         }
         if myOnly { list = list.filter { $0.userId == auth.uid } }
+        // 해금만: 내 글 / 이미 해금한 글 / 지금 100m 이내 — 셋 중 하나면 통과.
+        // (= 이 필터로 보이는 별은 눌렀을 때 잠금 화면이 뜨지 않는다. DetailScreen 의 unlocked 규칙과 동일)
+        // 100m 판정은 **실제 fix**(location.coordinate)만 — 없으면 거리로는 통과시키지 않는다.
+        if unlockedOnly {
+            let fix = location.coordinate
+            list = list.filter { d in
+                if d.userId == auth.uid { return true }
+                if let id = d.id, unlocks.isUnlocked(id) { return true }
+                guard let me = fix else { return false }
+                return Geo.distanceMeters(
+                    lat1: me.latitude, lng1: me.longitude, lat2: d.latitude, lng2: d.longitude
+                ) <= AppConfig.diaryOpenRadiusM
+            }
+        }
         if !selectedFriendIds.isEmpty { list = list.filter { selectedFriendIds.contains($0.userId) } }
         if let cutoff = periodCutoffMs { list = list.filter { $0.createdAt >= cutoff } }
         // 웰컴 별 — 서버에 없는 합성 다이어리라 필터와 무관하게 맨 뒤에 덧붙인다(Android mapDiaries 동일).
@@ -132,7 +150,8 @@ struct MapScreen: View {
 
     /// 필터가 하나라도 켜져 있는가(메인 FAB 민트 강조 — Android anyActive).
     private var anyFilterActive: Bool {
-        unviewedOnly || friendsOnly || myOnly || !selectedFriendIds.isEmpty || periodDays != nil
+        unviewedOnly || friendsOnly || myOnly || unlockedOnly
+            || !selectedFriendIds.isEmpty || periodDays != nil
     }
 
     /// 좌하단 필터 스피드 다이얼 — Android MainListScreen 대응.
@@ -143,7 +162,13 @@ struct MapScreen: View {
             if speedDialExpanded {
                 // "전체보기"는 기본 상태(필터 없음)와 같아 목록에서 제외 — 각 필터 재탭으로 해제(Android 동일).
                 filterPill(locale.t(.filterUnviewed), icon: "sparkles", active: unviewedOnly) {
-                    unviewedOnly.toggle(); if unviewedOnly { myOnly = false }
+                    // 미조회 ↔ 해금만은 서로 반대말(해금은 상세에 들어가야 기록된다) → 같이 켜면 항상 빈 지도.
+                    unviewedOnly.toggle()
+                    if unviewedOnly { myOnly = false; unlockedOnly = false }
+                }
+                // 해금만 — 눌렀을 때 잠금 화면이 뜨지 않는 별만 남긴다.
+                filterPill(locale.t(.filterUnlocked), icon: "lock.open", active: unlockedOnly) {
+                    unlockedOnly.toggle(); if unlockedOnly { unviewedOnly = false }
                 }
                 filterPill(locale.t(.filterFriends), icon: "person.2", active: friendsOnly) {
                     friendsOnly.toggle(); if friendsOnly { myOnly = false }

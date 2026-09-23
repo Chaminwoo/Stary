@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.FiberNew
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Schedule
@@ -77,6 +78,7 @@ import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.model.Friend
+import com.chaminwoo.stary.core.util.DiaryUnlockStore
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapFocusState
 import com.chaminwoo.stary.core.util.MapUiState
@@ -165,6 +167,8 @@ fun MainListScreen(
     var unviewedOnly by remember { mutableStateOf(false) }
     var friendsOnly by remember { mutableStateOf(false) }
     var myOnly by remember { mutableStateOf(false) }
+    // 해금만 — 잠금 없이 바로 열리는 별만(내 글 / 100m 이내 / 영구 해금). DetailScreen 의 unlocked 규칙과 동일.
+    var unlockedOnly by remember { mutableStateOf(false) }
     var showFriendPicker by remember { mutableStateOf(false) }
     var selectedFriendIds by remember { mutableStateOf(emptySet<String>()) }
     // 기간별 보기 — null=전체 기간, 0=오늘(로컬 자정 이후), 그 외 N=최근 N일
@@ -186,6 +190,18 @@ fun MainListScreen(
 
     val friendIds = remember(friends) { friends.map { it.userId }.toSet() }
 
+    // "해금만" 필터용 — 영구 해금 기록(상태 맵이라 해금되는 순간 이 화면도 갱신된다).
+    val unlockedIds = DiaryUnlockStore.unlockedIds(context)
+    // 100m 판정에 쓸 좌표는 **실제 fix**(liveLocation)만 — currentLatLng 는 마지막/기본 좌표 폴백이라
+    // 엉뚱한 곳의 별이 "근처"로 잡힐 수 있다. 필터가 꺼져 있으면 null 이라 위치가 갱신돼도 재계산하지 않고,
+    // 켜져 있어도 약 11m 격자로 반올림해 GPS 지터마다 목록/지도 레이어가 흔들리는 걸 막는다.
+    val unlockFix: LatLng? = if (unlockedOnly) liveLocation?.let {
+        LatLng(
+            Math.round(it.latitude * 10_000.0) / 10_000.0,
+            Math.round(it.longitude * 10_000.0) / 10_000.0,
+        )
+    } else null
+
     // 내가 차단한 사용자 — 그 사람의 별은 지도/목록에서 숨긴다.
     val blockedIds by remember(userId) {
         val uid = userId
@@ -199,6 +215,9 @@ fun MainListScreen(
         unviewedOnly,
         friendsOnly,
         myOnly,
+        unlockedOnly,
+        unlockedIds,
+        unlockFix,
         selectedFriendIds,
         viewedIds,
         friendIds,
@@ -219,9 +238,16 @@ fun MainListScreen(
         diaries.filter { diary ->
             val visibilityOk = diary.visibilityType != "friends" ||
                     diary.userId == userId || diary.userId in friendIds
+            // 해금만: 내 글 / 이미 해금한 글 / 지금 100m 이내 — 셋 중 하나면 통과.
+            // (= 이 필터로 보이는 별은 눌렀을 때 잠금 화면이 뜨지 않는다)
+            val unlockOk = !unlockedOnly || diary.userId == userId || diary.id in unlockedIds ||
+                    (unlockFix != null && LocationHelper.distanceBetween(
+                        unlockFix.latitude, unlockFix.longitude, diary.latitude, diary.longitude
+                    ) <= StaryConfig.DIARY_OPEN_RADIUS_M)
             val filterOk = (!unviewedOnly || diary.id !in viewedIds) &&
                     (!friendsOnly || diary.userId in friendIds) &&
                     (!myOnly || diary.userId == userId) &&
+                    unlockOk &&
                     (selectedFriendIds.isEmpty() || diary.userId in selectedFriendIds) &&
                     (periodCutoff == null || diary.createdAt >= periodCutoff)
             visibilityOk && filterOk && diary.userId !in blockedIds
@@ -487,7 +513,8 @@ fun MainListScreen(
         // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)
         if (userId != null && !MapUiState.mapOnly) {
             val anyActive =
-                unviewedOnly || friendsOnly || myOnly || selectedFriendIds.isNotEmpty() || periodDays != null
+                unviewedOnly || friendsOnly || myOnly || unlockedOnly ||
+                        selectedFriendIds.isNotEmpty() || periodDays != null
             val mint = Color(0xFF9FB3E8)
             val pillBg = Color(0xEE111120)
 
@@ -498,7 +525,17 @@ fun MainListScreen(
                     Icons.Filled.FiberNew,
                     unviewedOnly
                 ) {
-                    unviewedOnly = !unviewedOnly; if (unviewedOnly) myOnly = false
+                    // 미조회 ↔ 해금만은 서로 반대말(해금은 상세에 들어가야 기록된다) → 같이 켜면 항상 빈 지도.
+                    unviewedOnly = !unviewedOnly
+                    if (unviewedOnly) { myOnly = false; unlockedOnly = false }
+                },
+                // 해금만 — 눌렀을 때 잠금 화면이 뜨지 않는 별(내 글/해금/100m 이내)만 남긴다.
+                FilterOpt(
+                    stringResource(R.string.filter_unlocked),
+                    Icons.Filled.LockOpen,
+                    unlockedOnly
+                ) {
+                    unlockedOnly = !unlockedOnly; if (unlockedOnly) unviewedOnly = false
                 },
                 FilterOpt(
                     stringResource(R.string.filter_friends),

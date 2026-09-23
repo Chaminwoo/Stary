@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.62 해금 본문 가독성 보완 + 튜토리얼 문구 정리** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
+> 최종 갱신: **8.63 지도 "해금만" 필터 추가** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
+> 이전: **8.62 해금 본문 가독성 보완 + 튜토리얼 문구 정리** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.61 일일 알림 다양화**(시간대 5밴드 · 밴드별 문구 6개 · 연속 중복 배제) — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.60 광고 509 No fill 대응(AdMob 폴백) + 본문 프레임 통일** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.59 광고를 Unity LevelPlay 로 전환**(Unity Ads 직접 연동 2026-01-31 지원 종료) — Android BUILD SUCCESSFUL·기기 설치, **LevelPlay 키 입력 대기**(2026-09-22).
@@ -2161,6 +2162,35 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 - heredoc + python 으로 문자열 리소스를 고칠 때 `
 ` 이 **실제 개행**으로 바뀐다(8.56 과 동일 사고).
   → `BS = chr(92)` 로 역슬래시를 만들어 쓸 것. 편집 후에는 반드시 원문(`repr`)으로 확인.
+
+## 8.63 지도 "해금만" 필터 (Android BUILD SUCCESSFUL 2026-09-23 · 기기 테스트 대기)
+
+사용자: "지도 필터에 해금된 다이어리만 보는 필터 추가해."
+
+### 판정 규칙 — DetailScreen 과 같은 식을 쓴다
+`내 글 || 영구 해금(DiaryUnlockStore) || 지금 100m 이내` — DetailScreen 의
+`unlocked = isMyDiary || isNear || everUnlocked` 와 **같은 규칙**이다. 덕분에 계약이 한 줄로 설명된다:
+**이 필터로 보이는 별은 눌렀을 때 잠금 화면이 뜨지 않는다.**
+(해금 기록만 쓰면 "바로 옆에 있어 열 수 있는 별"이 빠져 필터가 거짓말을 하게 된다 — 그래서 100m 도 포함.)
+
+### Android
+- `DiaryUnlockStore.unlockedIds(context)` 신설 — 상태 맵(`mutableStateMapOf`)을 읽으므로 해금되는 순간 지도도 갱신.
+- `MainListScreen`: `unlockedOnly` 상태 + 다이얼 옵션(`Icons.Filled.LockOpen`) + `filteredDiaries` 조건 추가.
+- ⚠️ **100m 판정 좌표는 `liveLocation`(실제 fix)만** — `currentLatLng` 은 "지난 세션 마지막 위치 → 기본좌표(건국대)"
+  폴백이라 그대로 쓰면 아직 fix 가 없을 때 건국대 근처 별이 전부 "해금"으로 잡힌다.
+- ⚠️ 성능: 위치가 갱신될 때마다 `filteredDiaries` 가 다시 돌면 지도 레이어까지 매번 교체된다 →
+  `unlockFix` 는 **필터가 켜졌을 때만** 값이 있고(꺼지면 `null` = 키 불변), 켜져 있어도 **약 11m 격자로 반올림**한다.
+  100m 판정에 11m 오차는 무해하고, GPS 지터로 목록이 흔들리는 건 막는다.
+- **미조회만 ↔ 해금만 상호배타**: 해금은 상세에 들어가야 기록되므로(= 해금된 건 이미 조회됨) 둘을 같이 켜면
+  항상 빈 지도가 된다. 한쪽을 켜면 다른 쪽을 끈다(기존 나만보기 ↔ 친구만 패턴과 동일).
+- 문자열 `filter_unlocked`(ko "해금만" / en "Unlocked only" / ja "解錠済みのみ").
+
+### iOS
+- `MapScreen`: `unlockedOnly` + `@ObservedObject unlocks = DiaryUnlockStore.shared`,
+  `shownDiaries` 에 같은 조건(`Geo.distanceMeters` + `AppConfig.diaryOpenRadiusM`), 알약 아이콘 `lock.open`,
+  같은 상호배타. `L10n.filterUnlocked` 추가.
+- iOS 는 computed property 라 Android 의 격자 반올림/remember 키가 없다 — 필요해지면 그때 캐시를 넣는다
+  (현재 별 수에서는 매 렌더 필터링이 문제되지 않는다).
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데

@@ -341,6 +341,7 @@
     <!-- Map filter speed dial -->
     <string name="filter_all">Show all</string>
     <string name="filter_unviewed">Unviewed</string>
+    <string name="filter_unlocked">Unlocked only</string>
     <string name="filter_friends">Friends only</string>
     <string name="filter_mine">Only mine</string>
     <string name="filter_pick_friends">Pick friends</string>
