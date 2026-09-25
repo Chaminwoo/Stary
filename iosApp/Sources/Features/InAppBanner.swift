@@ -116,7 +116,7 @@ struct InAppBannerHost: View {
                     .frame(width: 38, height: 38)
                     .background(Theme.mint.opacity(0.16), in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(e.title.isEmpty ? "새 알림" : e.title)
+                    Text(e.title.isEmpty ? LocaleManager.shared.t(.bannerNewNotification) : e.title)
                         .font(.minSans(15))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)

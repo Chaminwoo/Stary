@@ -129,6 +129,15 @@ android {
         buildConfig = true
         viewBinding = true
     }
+    // ⚠️ 인앱 언어 전환 필수 — AAB(Play 스토어) 언어 분할을 끈다(2026-09-25, CLAUDE.md "언어 전환" 참고).
+    // 켜져 있으면 Play 가 **기기 언어의 리소스만** 설치해서(한국어 폰 = values/ 만), 설정에서 영어/일본어로
+    // 바꿔도 번역 리소스 자체가 없어 한국어로 폴백된다 → "한국어만 된다". USB 디버그 APK 는 전 언어가
+    // 들어 있어 재현되지 않는 게 함정. 문자열만이라 용량 증가는 수십 KB 수준.
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
 }
 
 dependencies {

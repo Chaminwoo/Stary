@@ -90,7 +90,7 @@ final class InAppWatcher: ObservableObject {
             // 방 메타의 lastSenderName 은 보낸 시점 스냅샷 → 상대의 현재 닉네임으로.
             UserDirectory.shared.ensureWatching(friendId)
             let live = UserDirectory.shared.name(friendId, fallback: c.lastSenderName)
-            let name = live.isEmpty ? "새 메시지" : live
+            let name = live.isEmpty ? LocaleManager.shared.t(.bannerNewMessage) : live
             InAppBanner.shared.show(title: name, body: c.lastMessage, kind: .chat, key: "\(c.chatId):\(c.updatedAt)") { [weak self] in
                 self?.onOpenChat?(friendId, name)
             }

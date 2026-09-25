@@ -36,7 +36,8 @@ class FriendViewModel(
     private val _isSearching = MutableStateFlow(false)
     val isSearching = _isSearching.asStateFlow()
 
-    private val _event = MutableSharedFlow<String>()
+    // 토스트 문구는 화면이 현재 언어로 푼다(뷰모델은 Context 를 들지 않는다).
+    private val _event = MutableSharedFlow<FriendMessage>()
     val event = _event.asSharedFlow()
 
     fun search(query: String) {
@@ -52,28 +53,34 @@ class FriendViewModel(
     fun sendRequest(to: UserProfile) {
         viewModelScope.launch {
             val ok = repository.sendRequest(me, to)
-            _event.emit(if (ok) "${to.userName}님에게 친구 요청을 보냈어요" else "요청 실패")
+            _event.emit(
+                if (ok) FriendMessage(com.chaminwoo.stary.R.string.friend_toast_request_sent, to.userName)
+                else FriendMessage(com.chaminwoo.stary.R.string.friend_toast_request_failed)
+            )
         }
     }
 
     fun accept(request: FriendRequest) {
         viewModelScope.launch {
             val ok = repository.acceptRequest(request)
-            _event.emit(if (ok) "${request.fromName}님과 친구가 되었어요" else "수락 실패")
+            _event.emit(
+                if (ok) FriendMessage(com.chaminwoo.stary.R.string.friend_toast_accepted, request.fromName)
+                else FriendMessage(com.chaminwoo.stary.R.string.friend_toast_accept_failed)
+            )
         }
     }
 
     fun decline(request: FriendRequest) {
         viewModelScope.launch {
             repository.declineRequest(request.id)
-            _event.emit("요청을 거절했어요")
+            _event.emit(FriendMessage(com.chaminwoo.stary.R.string.friend_toast_declined))
         }
     }
 
     fun remove(friendId: String, friendName: String) {
         viewModelScope.launch {
             repository.removeFriend(me.userId, friendId)
-            _event.emit("${friendName}님을 친구에서 삭제했어요")
+            _event.emit(FriendMessage(com.chaminwoo.stary.R.string.friend_toast_removed, friendName))
         }
     }
 
@@ -85,4 +92,9 @@ class FriendViewModel(
             }
         }
     }
+}
+
+/** 친구 기능 토스트 — 리소스 id + 인자. 화면에서 [resolve] 로 현재 언어 문자열을 만든다. */
+class FriendMessage(@androidx.annotation.StringRes val res: Int, private vararg val args: Any) {
+    fun resolve(context: android.content.Context): String = context.getString(res, *args)
 }

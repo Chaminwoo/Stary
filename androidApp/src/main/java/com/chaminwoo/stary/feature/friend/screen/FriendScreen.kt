@@ -140,7 +140,7 @@ fun FriendScreen(
     var lastSearched by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        vm.event.collect { com.chaminwoo.stary.core.ui.StaryToast.show(it) }
+        vm.event.collect { com.chaminwoo.stary.core.ui.StaryToast.show(it.resolve(context)) }
     }
 
     // 입력하면 타이핑 멈춘 뒤(350ms) 자동 검색 — 매번 엔터를 누르지 않아도 결과가 갱신된다.
@@ -561,7 +561,7 @@ private fun FriendRow(
             Spacer(Modifier.height(2.dp))
             if (lastMessage.isNotBlank()) {
                 Text(
-                    "$lastMessage · ${com.chaminwoo.stary.core.util.RelativeTime.format(lastAt)}",
+                    "$lastMessage · ${com.chaminwoo.stary.core.util.RelativeTime.format(androidx.compose.ui.platform.LocalContext.current, lastAt)}",
                     color = if (isUnread) Color.White else TextMuted, fontSize = 15.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )

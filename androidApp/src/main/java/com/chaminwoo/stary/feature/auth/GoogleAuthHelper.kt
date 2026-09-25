@@ -140,7 +140,7 @@ object GoogleAuthHelper {
                 null
             }
         } catch (e: Exception) {
-            lastSignInError = describeSignInFailure(e)
+            lastSignInError = describeSignInFailure(context, e)
             Log.e(TAG, "구글 로그인 실패: $lastSignInError", e)
             null
         }
@@ -157,10 +157,12 @@ object GoogleAuthHelper {
      * - `TYPE_USER_CANCELED` : 사용자가 시트를 닫음(정상).
      * - 그 밖(`TYPE_UNKNOWN`/`INTERRUPTED`) : 네트워크·Play 서비스 문제.
      */
-    private fun describeSignInFailure(e: Exception): String = when (e) {
-        is GetCredentialCancellationException -> "로그인을 취소했어요."
+    private fun describeSignInFailure(context: Context, e: Exception): String = when (e) {
+        is GetCredentialCancellationException -> context.getString(com.chaminwoo.stary.R.string.login_canceled)
+        // 괄호 안 진단(서명 지문/계정 없음)은 개발 확인용이라 번역하지 않는다.
         is NoCredentialException ->
-            "사용할 수 있는 구글 계정을 찾지 못했어요. (앱 서명 지문 미등록이거나 기기에 구글 계정이 없음)"
+            context.getString(com.chaminwoo.stary.R.string.login_no_account) +
+                " (app signing fingerprint not registered, or no Google account on device)"
         is GetCredentialException -> "구글 로그인 실패 [${e.type}] ${e.errorMessage ?: ""}"
         else -> "구글 로그인 실패 [${e::class.java.simpleName}] ${e.localizedMessage ?: ""}"
     }

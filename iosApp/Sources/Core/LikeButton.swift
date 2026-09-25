@@ -24,6 +24,7 @@ struct LikeButton: View {
                 if !isLiked {
                     fire()
                     Haptics.medium()
+                    MusicManager.shared.playLike() // 뽀옹 + 반짝(취소엔 무음) — Android LikeButton 패리티
                 }
                 onToggle()
             } label: {

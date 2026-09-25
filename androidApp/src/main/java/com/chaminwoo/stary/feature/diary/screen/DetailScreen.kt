@@ -141,8 +141,8 @@ fun DetailScreen(
 
     LaunchedEffect(Unit) {
         diaryViewModel.event.collect { message ->
-            if (message == "삭제 완료!") onBack?.invoke()
-            if (message == "수정 완료!") diary = repository.getDiaryById(diaryId)
+            if (message == com.chaminwoo.stary.feature.diary.DiaryEvent.DELETED) onBack?.invoke()
+            if (message == com.chaminwoo.stary.feature.diary.DiaryEvent.UPDATED) diary = repository.getDiaryById(diaryId)
         }
     }
 
@@ -792,7 +792,8 @@ private fun CommentItem(
     onOpenProfile: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val dateStr = remember(comment.createdAt) { com.chaminwoo.stary.core.util.RelativeTime.format(comment.createdAt) }
+    val relCtx = androidx.compose.ui.platform.LocalContext.current
+    val dateStr = remember(comment.createdAt) { com.chaminwoo.stary.core.util.RelativeTime.format(relCtx, comment.createdAt) }
 
     // 작성자 프로필 사진/이름은 users/{uid} 의 "현재" 값으로 표시(저장 시점 스냅샷 아님) — 실시간 갱신.
     val displayName = rememberCurrentUserName(comment.userId, comment.userName)

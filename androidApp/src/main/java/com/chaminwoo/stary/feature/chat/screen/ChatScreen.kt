@@ -103,7 +103,8 @@ fun ChatScreen(
         return
     }
 
-    val myName = remember { GoogleAuthHelper.currentUserName ?: "나" }
+    val meLabel = androidx.compose.ui.res.stringResource(com.chaminwoo.stary.R.string.chat_me)
+    val myName = remember { GoogleAuthHelper.currentUserName ?: meLabel }
     val vm: ChatViewModel = viewModel(
         key = "chat_$friendId",
         factory = ChatViewModel.factory(myId, myName, friendId)

@@ -246,8 +246,8 @@ fun UploadScreen(
     val starColorRef = androidx.compose.runtime.rememberUpdatedState(starColor)
     LaunchedEffect(Unit) {
         diaryViewModel.event.collect { msg ->
-            com.chaminwoo.stary.core.ui.StaryToast.show(msg)
-            if (msg == "저장 완료!") {
+            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(msg.messageRes))
+            if (msg == com.chaminwoo.stary.feature.diary.DiaryEvent.SAVED) {
                 pioneerClaimTarget?.let { (la, ln) ->
                     com.chaminwoo.stary.feature.profile.PioneerClaimHelper.attemptClaim(context, la, ln)
                 }

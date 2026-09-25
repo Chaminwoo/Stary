@@ -108,6 +108,16 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 - `DiaryStarBox(diaries, sortMode, onClick...)` : 별들을 공중에 띄우고 정렬 변경 시 그 순서대로
   하나씩 끌려와 재배치(easeOutCubic). 별은 `bakeStarBody` 로 후광+크리스탈을 1회 굽고 회전만 그린다.
 
+## StarLogScreen.kt — 별 도감(2026-09-25, 드로어 "내 다이어리" 바로 아래)
+해금한(`DiaryUnlockStore.unlockedAt`) **다른 사람의** 별을 화면 중앙 원 위에 모아 보기. iOS `Features/Profile/StarLogScreen.swift`.
+- 수치 `RING_*`(iOS `StarRingFx` 동일): 등장 1500ms(12시부터 시계 방향, 별 간격 최대 120ms) · 팝 260ms · 반지름 = 폭×0.40
+  (위아래 알약 피해 축소) · 별 12~34dp(둘레÷개수×0.62) · 선택 1.45배 · 터치 반경 ≥26dp.
+- 상태: `sort`(해금순/최신/거리/인기 — 거리는 고른 순간 위치 `anchor` 고정) · `friendsOnly` · `selectedFriendIds` · `selectedId`
+  (누른 채 지나간 별, 손 떼도 유지). `clock`/`revealStart` 는 Canvas 그리기 단계에서만 읽어 매 프레임 재구성 없이 다시 그린다.
+- 가운데: 선택 없으면 모은 별 수 + 안내, 있으면 제목(별 색 `readableOn` + 후광)·작성자·해금일·거리·"지도에서 보기"
+  (→ NavGraph 가 `MapFocusState.request` + Main 으로).
+- 뷰모델은 지도와 **같은 액티비티 범위** `DiaryViewModel`(바로 목록이 있음). 친구 선택은 `core/ui/FriendPickerDialog`(지도와 공용).
+
 ## MyScreen.kt — ⚠️ 구버전 화면(현재 NavGraph 미연결). 수정 금지·참고만.
 
 ## ProfileViewModel.kt / NicknameStore.kt

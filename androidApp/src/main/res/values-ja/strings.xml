@@ -467,4 +467,60 @@
     <string name="ach_cond_heart_frenzy">プロフィール画面を離れずにハートを100回タップする</string>
     <string name="ach_cond_melomaniac">BGM画面を離れずにすべての曲を聴く</string>
     <string name="ach_cond_earth_pilgrim">世界的に有名な観光地に星を残し、他の人にその星を閲覧してもらう</string>
+
+    <!-- 星の図鑑 (2026-09-25) -->
+    <string name="nav_star_log">星の図鑑</string>
+    <string name="starlog_sort_unlocked">解錠順</string>
+    <string name="starlog_count_label">集めた星</string>
+    <string name="starlog_hint">押したまま\n星をなぞってみてください</string>
+    <string name="starlog_author">%1$sさんの星</string>
+    <string name="starlog_meta">%1$sに解錠 · ここから%2$s</string>
+    <string name="starlog_meta_distance">ここから%1$s</string>
+    <string name="starlog_open_map">地図で見る</string>
+    <string name="starlog_empty_title">まだ集めた星がありません</string>
+    <string name="starlog_empty_desc">100m以内に近づくか広告で開いた\n誰かの星がここに集まります。</string>
+    <string name="starlog_filtered_empty">条件に合う星がありません</string>
+    <string name="onb_starlog_title">星の図鑑</string>
+    <string name="onb_starlog_msg">開いた誰かの星が\n円に集まります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。</string>
+
+    <!-- ハードコードされた韓国語をリソースへ移動 (2026-09-25) -->
+    <string name="login_google">Googleでログイン</string>
+    <string name="login_browse">ログインせずに見てみる</string>
+    <string name="login_please_wait">少々お待ちください</string>
+    <string name="login_canceled">ログインをキャンセルしました。</string>
+    <string name="login_no_account">使えるGoogleアカウントが見つかりませんでした。</string>
+    <string name="time_just_now">たった今</string>
+    <string name="time_minutes_ago">%1$d分前</string>
+    <string name="time_hours_ago">%1$d時間前</string>
+    <string name="time_days_ago">%1$d日前</string>
+    <string name="banner_someone">誰か</string>
+    <string name="banner_like">%1$sさんがいいねしました</string>
+    <string name="banner_comment">%1$sさんがコメントしました</string>
+    <string name="banner_friend_post">%1$sさんが新しい日記を投稿しました</string>
+    <string name="banner_friend_request">%1$sさんから友達リクエストが届きました</string>
+    <string name="banner_generic">%1$sさんからの新しい通知</string>
+    <string name="banner_new_message">新しいメッセージ</string>
+    <string name="banner_new_notification">新しい通知</string>
+    <string name="chat_me">自分</string>
+    <string name="cd_exit_map_only">地図のみ表示を終了</string>
+    <string name="nav_chat">チャット</string>
+    <string name="nav_user_stars">%1$sさんの星</string>
+    <string name="toast_diary_saved">保存しました！</string>
+    <string name="toast_diary_save_failed">保存できませんでした</string>
+    <string name="toast_diary_updated">修正しました！</string>
+    <string name="toast_diary_update_failed">修正できませんでした</string>
+    <string name="toast_diary_deleted">削除しました！</string>
+    <string name="toast_diary_delete_failed">削除できませんでした</string>
+    <string name="friend_toast_request_sent">%1$sさんに友達リクエストを送りました</string>
+    <string name="friend_toast_request_failed">リクエストに失敗しました</string>
+    <string name="friend_toast_accepted">%1$sさんと友達になりました</string>
+    <string name="friend_toast_accept_failed">承認に失敗しました</string>
+    <string name="friend_toast_declined">リクエストを断りました</string>
+    <string name="friend_toast_removed">%1$sさんを友達から削除しました</string>
+    <string name="channel_social_name">Staryの通知</string>
+    <string name="channel_social_desc">チャット・日記の通知</string>
+    <string name="channel_daily_name">Staryの毎日のお知らせ</string>
+    <string name="channel_daily_desc">一日一回、今日を記録しようというお知らせ</string>
+    <string name="push_fallback_body">新しいお知らせがあります</string>
+    <string name="nav_stars_fallback">星</string>
 </resources>

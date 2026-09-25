@@ -77,7 +77,8 @@ fun MapOnlyOverlay(onExit: () -> Unit) {
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Filled.Close, "지도만 보기 종료",
+                        Icons.Filled.Close,
+                        androidx.compose.ui.res.stringResource(com.chaminwoo.stary.R.string.cd_exit_map_only),
                         tint = Color.White, modifier = Modifier.size(26.dp)
                     )
                 }

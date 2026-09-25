@@ -67,6 +67,8 @@ fun StarBirthHost() {
         progress.snapTo(0f)
         // 별이 응축을 끝내고 발광하는 순간(0.45~0.62 구간 진입)에 축하 진동을 맞춘다.
         com.chaminwoo.stary.core.util.Haptics.celebrate()
+        // 유성이 내려와 안착 — 화음이 발광 순간(≈0.42s)에 오도록 음원 자체를 맞춰 두었다.
+        com.chaminwoo.stary.core.util.MusicManager.playStarBirth()
         progress.animateTo(1f, animationSpec = tween(BIRTH_MS, easing = LinearEasing))
         StarBirthState.clear()
     }

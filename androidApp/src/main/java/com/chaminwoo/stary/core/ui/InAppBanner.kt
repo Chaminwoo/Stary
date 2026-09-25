@@ -225,7 +225,7 @@ fun InAppBannerHost(modifier: Modifier = Modifier) {
                     }
                     Column(modifier = Modifier.padding(start = 12.dp)) {
                         Text(
-                            e.title.ifBlank { "새 알림" },
+                            e.title.ifBlank { androidx.compose.ui.res.stringResource(com.chaminwoo.stary.R.string.banner_new_notification) },
                             color = Color(0xFFF3F5FF), fontFamily = MinSans,
                             fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
                         )

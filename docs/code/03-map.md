@@ -102,8 +102,16 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   90ms 디바운스 → ① `mergeByProximity`(30m 지오 머지) → ② `clusterTopLiked`(화면 픽셀 클러스터)
   → 대표만 렌더. 배정표(id→대표) 전이를 320ms 보간(위치+투명도)해 합쳐짐/펼쳐짐이 부드럽다.
   이후 `settleOrbits()` 로 위성(멤버 미니 별) 페이드 인.
-- 별자리 `LaunchedEffect` : 켜져 있을 때만 화면에 보이는 별들로 최근접 `CONSTELLATION_NEIGHBORS`(2) 연결.
-  구성 바뀌면 짧게 페이드 아웃 → 새 구성 페이드 인.
+- **필터 전환 순차 등장**(2026-09-25) : 파라미터 `revealKey`(MainListScreen 의 필터 조합 리스트)가 바뀌면 클러스터링 effect 가
+  보간 대신 ① 떠 있던 별 `REVEAL_CLEAR_MS`(170) 걷어내기 ② 화면 안 별을 무작위 순서(키 해시 시드)로 `REVEAL_MIN/MAX_GAP_MS`(28~120)
+  간격, 총 `REVEAL_SPAN_MS`(1300) 동안 하나씩 팝(`REVEAL_POP_MS` 380, `revealPopScale` 0.35→1.18→1) + 별마다 `MusicManager.playSparkTick()`.
+  첫 표시·데이터/위치 갱신엔 없음. `lastShown`(마지막 source 입력) · `needsSettle`(끊긴 전이/등장 정착 보장).
+- 별자리 `LaunchedEffect` : 켜져 있을 때만 화면에 보이는 별들로 최근접 `CONSTELLATION_NEIGHBORS`(2) 연결(`buildConstellationEdges`).
+  **선 긋기**(2026-09-25): `planConstellationDraw` 가 화면 중앙에 가까운 별부터 다익스트라 도달 거리 순서를 정하고, 프레임 루프가
+  `CONSTELLATION_DRAW_DP_PER_SEC`(320, 전체 최대 `CONSTELLATION_DRAW_MAX_MS` 1800) 속도로 선을 늘린다. 선 머리 빛점 + 별 도착 플래시
+  (`CONSTELLATION_FLASH_MS` 560 / `_RADIUS_DP` 15, 소스 `constellation-fx`). `drawnEdges`(key → 방향·진행도)를 매 프레임 저장해
+  재계산 때 남는 선은 유지·새 선은 이어 자람·빠지는 선은 `CONSTELLATION_RETRACT_MS`(240) 되감기.
+  끄기는 별도 effect 가 레이어 불투명도 420ms 페이드 후 비운다.
 - **마커 애니메이션 루프(20fps, `delay(50)`)** : float 부유(sin, ±4dp) + pulse(1.0~1.2) + 바닥광 밝기 +
   스파클 궤도/게이트 + 위성 흔들림 + 파티클 트윙클 + 도로 글린트(대시 위상).
   쉬는 조건: 카메라 이동 중 / 앱 후면(`AppForeground`) / **지도 가려짐(`MapUiState.mapVisible=false`)** /
@@ -241,6 +249,8 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 | 기본 줌/틸트/글로브 버튼 줌 | `DiaryMapMarkers` DEFAULT_ZOOM·BASE_TILT_DEG·GLOBE_BUTTON_ZOOM | `MapLibreView` 카메라 코드·baseTiltDeg·globeButtonZoom |
 | 파티클 수/반경/시드 | PARTICLE_COUNT/RADIUS_M/SEED | `StyleFx.particleCount/RadiusM/Seed` |
 | 별자리 선 색/불투명도/이웃 수 | CONSTELLATION_* 상수 | `StyleFx.constellation*` |
+| 별자리 선 긋기 속도/상한/되감기/도착 플래시 | `CONSTELLATION_DRAW_*`·`_RETRACT_MS`·`_FLASH_*` + `planConstellationDraw` | `ConstellationDraw.swift` `ConstellationFx`(**값·알고리즘 동일**) |
+| 필터 전환 순차 등장(간격/팝/걷어내기) | `REVEAL_*` + `revealPopScale` | `MapStarReveal.swift` `StarRevealFx`(걷어내기 없음 — iOS 는 어노테이션 교체) |
 | 바닥광/오오라 | GROUND_LIGHT_*·aura*Expression | `StyleFx.groundLight*`·refreshAuraFeatures |
 | 별 크기(좋아요/근접/줌) | likeSizeMult·starSizeExpression·STAR_SIZE_* | `DiaryAnnotation.markerSize`·어노테이션 transform(줌 보간 8→0.3/12→0.55/15→1.0) |
 | 열람 파장 굴절(메시 14×14, 진폭 46·(1−p), 밴드 220, 파수 0.045 — px) / 길이·이징 | `DiaryOpenWarp.kt` / `tween(1300, FastOutSlowInEasing)` | `DiaryWarpMesh.swift` `WarpMesh.vertices` / `WarpTiming`(**수치 동일**) |

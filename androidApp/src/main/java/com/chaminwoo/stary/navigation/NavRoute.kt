@@ -69,6 +69,15 @@ sealed class NavRoute {
         override val showFab = false
     }
 
+    /** 별 도감 — 해금한(열어 본) 다른 사람의 별을 원으로 모아 보는 화면(드로어: 내 다이어리 바로 아래). */
+    @Serializable
+    data object StarLog : NavRoute() {
+        override val title = "별 도감"
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
     @Serializable
     data object Profile : NavRoute() {
         override val title = "프로필"

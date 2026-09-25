@@ -21,20 +21,24 @@ const val STARY_DAILY_REMINDER_CHANNEL_ID = "stary_daily_reminder"
  */
 fun ensureStaryNotificationChannel(context: Context) {
     val manager = context.getSystemService(NotificationManager::class.java) ?: return
-    if (manager.getNotificationChannel(STARY_CHANNEL_ID) == null) {
-        manager.createNotificationChannel(
-            NotificationChannel(STARY_CHANNEL_ID, "Stary 알림", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "채팅·다이어리 알림"
-            }
-        )
-    }
-    if (manager.getNotificationChannel(STARY_DAILY_REMINDER_CHANNEL_ID) == null) {
-        manager.createNotificationChannel(
-            NotificationChannel(
-                STARY_DAILY_REMINDER_CHANNEL_ID, "Stary 일일 알림", NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "매일 한 번, 오늘을 기록해보라는 알림"
-            }
-        )
-    }
+    // 이미 있는 채널에 다시 create 하면 **이름·설명만** 갱신된다(중요도 등 사용자 설정은 유지) —
+    // 그래서 존재 여부와 무관하게 매번 호출해 채널 이름이 현재 앱 언어를 따라가게 한다.
+    // API 32 이하는 applicationContext 가 인앱 언어로 래핑돼 있지 않아 wrap 으로 맞춘다(33+ 는 그대로).
+    val res = com.chaminwoo.stary.core.util.LocaleManager.wrap(context).resources
+    manager.createNotificationChannel(
+        NotificationChannel(
+            STARY_CHANNEL_ID, res.getString(com.chaminwoo.stary.R.string.channel_social_name),
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = res.getString(com.chaminwoo.stary.R.string.channel_social_desc)
+        }
+    )
+    manager.createNotificationChannel(
+        NotificationChannel(
+            STARY_DAILY_REMINDER_CHANNEL_ID, res.getString(com.chaminwoo.stary.R.string.channel_daily_name),
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = res.getString(com.chaminwoo.stary.R.string.channel_daily_desc)
+        }
+    )
 }

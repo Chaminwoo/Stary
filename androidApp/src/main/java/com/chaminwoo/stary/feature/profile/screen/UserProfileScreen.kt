@@ -170,8 +170,9 @@ fun UserProfileScreen(
     }
     val vm: FriendViewModel = viewModel(factory = FriendViewModel.factory(me))
     val friends by vm.friends.collectAsState()
+    val toastCtx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
-        vm.event.collect { com.chaminwoo.stary.core.ui.StaryToast.show(it) }
+        vm.event.collect { com.chaminwoo.stary.core.ui.StaryToast.show(it.resolve(toastCtx)) }
     }
 
     val isMe = myId != null && myId == userId
@@ -491,7 +492,8 @@ fun UserProfileScreen(
 /** 다이어리 한 줄 — 별 모양/색 + 제목/시간 + 좋아요·조회수. 탭하면 상세로. */
 @Composable
 private fun DiaryRow(d: Diary, onClick: () -> Unit) {
-    val timeStr = remember(d.createdAt) { RelativeTime.format(d.createdAt) }
+    val relCtx = androidx.compose.ui.platform.LocalContext.current
+    val timeStr = remember(d.createdAt) { RelativeTime.format(relCtx, d.createdAt) }
     Row(
         modifier = Modifier
             .fillMaxWidth()

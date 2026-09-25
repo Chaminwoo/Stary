@@ -35,7 +35,7 @@ private struct ChatTarget: Identifiable {
 
 /// 드로어(좌측 메뉴)/FAB 에서 여는 하위 화면 — Android `NavRoute` 대응.
 enum DrawerDest: Hashable {
-    case myDiary, profile, achievements, music, friends, settings, notifications, upload
+    case myDiary, starLog, profile, achievements, music, friends, settings, notifications, upload
 }
 
 /// 메인 홈 — Android `MainScreen` 대응.
@@ -60,6 +60,9 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var drawerOpen = false
+    /// 드로어 항목 순차 등장 트리거 — 열릴 때 true(항목마다 지연), 닫히면 false 로 되돌려 다음 열림 대비.
+    /// (Android MainScreen drawerReveal/drawerItemReveal 패리티 — 간격 45ms, 한 항목 300ms, 슬라이드 22pt)
+    @State private var drawerItemsIn = false
     @State private var path = NavigationPath()
     @State private var chatTarget: ChatTarget?
     @State private var diaryTarget: Diary?
@@ -482,6 +485,15 @@ struct MainTabView: View {
                 .offset(x: drawerOpen ? 0 : -320)
         }
         .animation(.easeOut(duration: 0.25), value: drawerOpen)
+        .onChange(of: drawerOpen) { open in
+            // 열리기 시작하는 순간 "스윽" + 항목들이 위에서부터 하나씩 스르륵(광고 레퍼런스). 닫힘은 무음.
+            if open {
+                MusicManager.shared.playDrawer()
+                drawerItemsIn = true
+            } else {
+                drawerItemsIn = false
+            }
+        }
     }
 
     private var drawerPanel: some View {
@@ -504,20 +516,22 @@ struct MainTabView: View {
             .padding(.leading, 12)
             .padding(.bottom, 3)
 
-            drawerItem(locale.t(.navMyDiary), "book.closed") { open(.myDiary) }
-            drawerItem(locale.t(.tabProfile), "person.fill") { open(.profile) }
-            drawerItem(locale.t(.navAchievements), "trophy.fill") { open(.achievements) }
-            drawerItem(locale.t(.navMusic), "music.note") { open(.music) }
-            drawerItem(locale.t(.tabFriends), "person.2.fill") { open(.friends) }
-            drawerItem(locale.t(.navSettings), "gearshape.fill") { open(.settings) }
+            drawerItem(locale.t(.navMyDiary), "book.closed", index: 0) { open(.myDiary) }
+            // 별 도감 — 해금한 다른 사람의 별을 원으로 모아 보기(내 다이어리 바로 아래, Android 동일 위치).
+            drawerItem(locale.t(.navStarLog), "star.circle.fill", index: 1) { open(.starLog) }
+            drawerItem(locale.t(.tabProfile), "person.fill", index: 2) { open(.profile) }
+            drawerItem(locale.t(.navAchievements), "trophy.fill", index: 3) { open(.achievements) }
+            drawerItem(locale.t(.navMusic), "music.note", index: 4) { open(.music) }
+            drawerItem(locale.t(.tabFriends), "person.2.fill", index: 5) { open(.friends) }
+            drawerItem(locale.t(.navSettings), "gearshape.fill", index: 6) { open(.settings) }
             // 둘러보기(게스트)면 "로그인" — 로그인 화면으로 되돌아간다. Android 드로어와 동일.
             if auth.isGuest && !auth.isSignedIn {
-                drawerItem(locale.t(.drawerLogin), "rectangle.portrait.and.arrow.right") {
+                drawerItem(locale.t(.drawerLogin), "rectangle.portrait.and.arrow.right", index: 7) {
                     withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
                     auth.exitGuest()
                 }
             } else {
-                drawerItem(locale.t(.drawerLogout), "rectangle.portrait.and.arrow.right", danger: true) {
+                drawerItem(locale.t(.drawerLogout), "rectangle.portrait.and.arrow.right", index: 7, danger: true) {
                     withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
                     auth.signOut()
                 }
@@ -540,7 +554,7 @@ struct MainTabView: View {
     }
 
     /// 드로어 항목 — Android NavigationDrawerItem(아이콘 22dp + 라벨 18sp) 대응.
-    private func drawerItem(_ label: String, _ icon: String,
+    private func drawerItem(_ label: String, _ icon: String, index: Int = 0,
                             danger: Bool = false, action: @escaping () -> Void) -> some View {
         let color: Color = danger ? Color(hex: 0xFF6B6B) : Theme.textPrimary
         return Button(action: action) {
@@ -559,6 +573,13 @@ struct MainTabView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // 순차 등장 — 순번 × 45ms 늦게 왼쪽에서 22pt 미끄러지며 나타난다.
+        .opacity(drawerItemsIn ? 1 : 0)
+        .offset(x: drawerItemsIn ? 0 : -22)
+        .animation(
+            drawerItemsIn ? Animation.easeOut(duration: 0.30).delay(0.045 * Double(index)) : nil,
+            value: drawerItemsIn
+        )
     }
 
     /// 드로어 항목 탭 — 닫고 push.
@@ -576,6 +597,7 @@ struct MainTabView: View {
         Group {
             switch dest {
             case .myDiary: MyStarsScreen()
+            case .starLog: StarLogScreen()
             case .profile: ProfileScreen()
             case .achievements: AchievementsEntry()
             case .music: MusicScreen()

@@ -470,4 +470,60 @@
     <string name="ach_cond_heart_frenzy">프로필에서 나가지 않고 하트를 100번 두드리기</string>
     <string name="ach_cond_melomaniac">배경음악 화면에서 나가지 않고 모든 곡 감상하기</string>
     <string name="ach_cond_earth_pilgrim">세계 유명 관광지에 별을 남기고 다른 사람이 그 별을 열람하기</string>
+
+    <!-- 별 도감(2026-09-25) — 해금한 다른 사람의 별을 원으로 모아 보기 -->
+    <string name="nav_star_log">별 도감</string>
+    <string name="starlog_sort_unlocked">해금순</string>
+    <string name="starlog_count_label">모은 별</string>
+    <string name="starlog_hint">별을 누른 채로\n훑어보세요</string>
+    <string name="starlog_author">%1$s님의 별</string>
+    <string name="starlog_meta">%1$s 해금 · 여기서 %2$s</string>
+    <string name="starlog_meta_distance">여기서 %1$s</string>
+    <string name="starlog_open_map">지도에서 보기</string>
+    <string name="starlog_empty_title">아직 모은 별이 없어요</string>
+    <string name="starlog_empty_desc">100m 안으로 다가가거나 광고로 열어 본\n다른 사람의 별이 여기에 모여요.</string>
+    <string name="starlog_filtered_empty">조건에 맞는 별이 없어요</string>
+    <string name="onb_starlog_title">별 도감</string>
+    <string name="onb_starlog_msg">열어 본 다른 사람의 별이\n원으로 모여요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.</string>
+
+    <!-- 하드코딩 한국어 → 리소스 이전(2026-09-25 언어 전환 재발 대응) -->
+    <string name="login_google">Google 계정으로 로그인</string>
+    <string name="login_browse">로그인 없이 둘러보기</string>
+    <string name="login_please_wait">잠시만 기다려주세요</string>
+    <string name="login_canceled">로그인을 취소했어요.</string>
+    <string name="login_no_account">사용할 수 있는 구글 계정을 찾지 못했어요.</string>
+    <string name="time_just_now">방금 전</string>
+    <string name="time_minutes_ago">%1$d분 전</string>
+    <string name="time_hours_ago">%1$d시간 전</string>
+    <string name="time_days_ago">%1$d일 전</string>
+    <string name="banner_someone">누군가</string>
+    <string name="banner_like">%1$s님이 좋아요를 눌렀어요</string>
+    <string name="banner_comment">%1$s님이 댓글을 남겼어요</string>
+    <string name="banner_friend_post">%1$s님이 새 다이어리를 올렸어요</string>
+    <string name="banner_friend_request">%1$s님이 친구 요청을 보냈어요</string>
+    <string name="banner_generic">%1$s님의 새 알림</string>
+    <string name="banner_new_message">새 메시지</string>
+    <string name="banner_new_notification">새 알림</string>
+    <string name="chat_me">나</string>
+    <string name="cd_exit_map_only">지도만 보기 종료</string>
+    <string name="nav_chat">채팅</string>
+    <string name="nav_user_stars">%1$s님의 별</string>
+    <string name="toast_diary_saved">저장 완료!</string>
+    <string name="toast_diary_save_failed">저장 실패</string>
+    <string name="toast_diary_updated">수정 완료!</string>
+    <string name="toast_diary_update_failed">수정 실패</string>
+    <string name="toast_diary_deleted">삭제 완료!</string>
+    <string name="toast_diary_delete_failed">삭제 실패</string>
+    <string name="friend_toast_request_sent">%1$s님에게 친구 요청을 보냈어요</string>
+    <string name="friend_toast_request_failed">요청 실패</string>
+    <string name="friend_toast_accepted">%1$s님과 친구가 되었어요</string>
+    <string name="friend_toast_accept_failed">수락 실패</string>
+    <string name="friend_toast_declined">요청을 거절했어요</string>
+    <string name="friend_toast_removed">%1$s님을 친구에서 삭제했어요</string>
+    <string name="channel_social_name">Stary 알림</string>
+    <string name="channel_social_desc">채팅·다이어리 알림</string>
+    <string name="channel_daily_name">Stary 일일 알림</string>
+    <string name="channel_daily_desc">매일 한 번, 오늘을 기록해보라는 알림</string>
+    <string name="push_fallback_body">새 소식이 있어요</string>
+    <string name="nav_stars_fallback">별</string>
 </resources>

@@ -62,7 +62,9 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
 
 ### 화면 구성(컴포넌트 연결)
 - `ModalNavigationDrawer` 에 드로어 시트(0x111111, 우측 라운드 24)를 넘겨 좌측 메뉴를 만든다.
-  항목: 내 다이어리/프로필/업적/배경음악/친구/설정 + 로그인 또는 로그아웃(`DrawerItem`).
+  항목: 내 다이어리/**별 도감**/프로필/업적/배경음악/친구/설정 + 로그인 또는 로그아웃(`DrawerItem`).
+  열릴 때 `MusicManager.playDrawer()` + 항목 순차 등장(`drawerReveal` 진행도 → `drawerItemReveal(total, index)`,
+  간격 45ms · 한 항목 300ms · 22dp 슬라이드 — iOS `drawerItemsIn` 과 같은 값).
 - `Scaffold.topBar` = `CenterAlignedTopAppBar`. **반투명**(`containerColor=Transparent` +
   `Modifier.background(TopBarScrim)`) — 뒤의 지도/화면 배경이 비쳐 이어져 보인다. 분기:
   - 루트(지도)면 햄버거, 아니면 뒤로가기(`navigateUp`).

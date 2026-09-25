@@ -152,6 +152,11 @@ fun DiaryMap(
     onGlobeAvailability: ((lat: Double, lng: Double, available: Boolean) -> Unit)? = null,
     /** 글로브 → 지도 복귀 카메라 요청. */
     globeReturnCamera: GlobeReturnCamera? = null,
+    /**
+     * 필터 조합 식별값 — 바뀌면 이번 목록을 "하나 둘" 순차 등장으로 다시 띄운다([REVEAL_SPAN_MS]).
+     * 첫 표시·데이터 갱신·카메라 이동에는 쓰지 않는다(값이 그대로면 기존 보간만).
+     */
+    revealKey: Any? = null,
 ) {
     val context = LocalContext.current
     val mapView = rememberMapViewWithLifecycle()
@@ -170,6 +175,8 @@ fun DiaryMap(
     var orbitSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     val orbitFade = remember { Animatable(0f) }
     var constellationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
+    // 별자리 선 머리 빛점 + 도착 플래시(선이 별에 닿는 순간 번지는 링)
+    var constellationFxSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var pioneerSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     val addedIcons = remember { mutableSetOf<String>() }
     val isCameraMoving = remember { mutableStateOf(false) }
@@ -427,6 +434,43 @@ fun DiaryMap(
                         )
                     )
                     constellationSource = cSrc
+
+                    // 별자리 FX — 뻗어 가는 선의 머리 빛점(tip) + 별 도착 플래시(flash). 별보다 아래.
+                    // 속성: kind("tip"/"flash"), a(불투명도 0..1), r(플래시 반경 dp).
+                    val fxSrc = GeoJsonSource(CONSTELLATION_FX_SOURCE, FeatureCollection.fromFeatures(emptyList()))
+                    style.addSource(fxSrc)
+                    style.addLayer(
+                        CircleLayer(CONSTELLATION_FLASH_LAYER, CONSTELLATION_FX_SOURCE).withProperties(
+                            PropertyFactory.circleRadius(Expression.get("r")),
+                            PropertyFactory.circleColor("#6EE7B7"),
+                            PropertyFactory.circleOpacity(
+                                Expression.product(Expression.literal(0.16f), Expression.get("a"))
+                            ),
+                            PropertyFactory.circleStrokeColor("#E6FFF4"),
+                            PropertyFactory.circleStrokeWidth(1.4f),
+                            PropertyFactory.circleStrokeOpacity(Expression.get("a")),
+                            PropertyFactory.circleBlur(0.15f),
+                        ).also { it.setFilter(Expression.eq(Expression.get("kind"), Expression.literal("flash"))) }
+                    )
+                    style.addLayer(
+                        CircleLayer(CONSTELLATION_TIP_HALO_LAYER, CONSTELLATION_FX_SOURCE).withProperties(
+                            PropertyFactory.circleRadius(9f),
+                            PropertyFactory.circleColor("#6EE7B7"),
+                            PropertyFactory.circleBlur(1f),
+                            PropertyFactory.circleOpacity(
+                                Expression.product(Expression.literal(0.55f), Expression.get("a"))
+                            ),
+                        ).also { it.setFilter(Expression.eq(Expression.get("kind"), Expression.literal("tip"))) }
+                    )
+                    style.addLayer(
+                        CircleLayer(CONSTELLATION_TIP_LAYER, CONSTELLATION_FX_SOURCE).withProperties(
+                            PropertyFactory.circleRadius(2.6f),
+                            PropertyFactory.circleColor("#F4FFF9"),
+                            PropertyFactory.circleBlur(0.4f),
+                            PropertyFactory.circleOpacity(Expression.get("a")),
+                        ).also { it.setFilter(Expression.eq(Expression.get("kind"), Expression.literal("tip"))) }
+                    )
+                    constellationFxSource = fxSrc
 
                     // 다이어리 별 마커 source — 클러스터링은 클라이언트(화면 좌표)에서 처리.
                     val dSrc = GeoJsonSource(DIARY_SOURCE, FeatureCollection.fromFeatures(emptyList()))
@@ -818,11 +862,18 @@ fun DiaryMap(
 
     // 다이어리/현재위치/카메라 변경 → ① 30m 지오 머지 → ② 화면 클러스터링 → 마커 갱신.
     // 합쳐짐/펼쳐짐은 배정표(id → 대표 id) 전이를 위치+투명도로 보간해 부드럽게.
+    // 필터가 바뀌면([revealKey]) 보간 대신 "하나 둘" 순차 등장(광고 연출)으로 다시 띄운다.
     var lastFeaturesKey by remember { mutableStateOf<Any?>(null) }
     var prevAssignment by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     // 직전에 표시한 별 크기(id → sizeMult) — 재클러스터로 크기가 바뀔 때 스냅 대신 전이로 보간하기 위함.
     var prevSizeMult by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
-    LaunchedEffect(diaries, styleRef, currentLatLng, cameraIdleTick) {
+    // 순차 등장 기준값 — 첫 컴포지션 값으로 시작하므로 앱 첫 진입엔 순차 등장이 없다(필터 전환 때만).
+    var lastRevealKey by remember { mutableStateOf(revealKey) }
+    // 지금 source 에 들어 있는 별(마지막 setGeoJson 입력) — 순차 등장 직전 걷어내기에 쓴다.
+    val lastShown = remember { ArrayList<ShownStar>() }
+    // 전이/등장이 도중에 끊겼는지(재시작이 같은 키로 조기 반환해 반쯤 투명한 별이 남는 것 방지).
+    var needsSettle by remember { mutableStateOf(false) }
+    LaunchedEffect(diaries, styleRef, currentLatLng, cameraIdleTick, revealKey) {
         val style = styleRef ?: return@LaunchedEffect
         val source = diarySource ?: return@LaunchedEffect
         val map = mapRef ?: return@LaunchedEffect
@@ -855,8 +906,9 @@ fun DiaryMap(
             d.id to (if (assignment[d.id] == d.id) repSizeMult(d) else mergeMult(d))
         }
 
+        val reveal = revealKey != lastRevealKey
         val key = reps.map { it.id } to nearIds
-        if (key == lastFeaturesKey) return@LaunchedEffect
+        if (key == lastFeaturesKey && !reveal && !needsSettle) return@LaunchedEffect
         lastFeaturesKey = key
 
         // 전이 중 흡수되는 별도 잠깐 보이므로 valid 전체의 아이콘을 등록
@@ -880,11 +932,19 @@ fun DiaryMap(
                 }
             }
 
+        // source 갱신은 전부 여기로 — 무엇이 떠 있는지(lastShown) 함께 기억한다.
+        fun emit(stars: List<ShownStar>) {
+            source.setGeoJson(FeatureCollection.fromFeatures(
+                stars.map { s -> diaryFeature(s.d, s.lng, s.lat, s.near, s.alpha, s.sizeMult) }
+            ))
+            lastShown.clear()
+            lastShown.addAll(stars)
+        }
+
         // 최종(정착) 상태: 대표만 alpha=1, 크기는 좋아요×클러스터 보너스
         fun settle() {
-            source.setGeoJson(FeatureCollection.fromFeatures(
-                reps.map { d -> diaryFeature(d, d.longitude, d.latitude, d.id in nearIds, 1f, repSizeMult(d)) }
-            ))
+            emit(reps.map { d -> ShownStar(d, d.longitude, d.latitude, d.id in nearIds, 1f, repSizeMult(d)) })
+            needsSettle = false
         }
 
         // 겹친 별 위성 — 정착 후 멤버 별들을 대표 곁에 띄우고 부드럽게 페이드 인.
@@ -893,10 +953,74 @@ fun DiaryMap(
             orbitFade.animateTo(1f, tween(650, easing = FastOutSlowInEasing))
         }
 
+        /** [durationMs] 동안 매 프레임 [frame](경과 ms) 호출. */
+        suspend fun animateFrames(durationMs: Long, frame: (elapsedMs: Long) -> Unit) {
+            var startNanos = 0L
+            var elapsed = 0L
+            do {
+                val now = withFrameNanos { it }
+                if (startNanos == 0L) startNanos = now
+                elapsed = (now - startNanos) / 1_000_000L
+                frame(elapsed.coerceAtMost(durationMs))
+            } while (elapsed < durationMs)
+        }
+
         val from = prevAssignment
         val fromSize = prevSizeMult
         prevAssignment = assignment
         prevSizeMult = curSizeMult
+
+        // ── 필터 전환: 이전 별을 짧게 걷어낸 뒤, 화면 안 별을 무작위 순서로 하나씩 "톡" 띄운다 ──
+        if (reveal) {
+            lastRevealKey = revealKey
+            needsSettle = true
+            orbitFade.snapTo(0f)
+            orbitSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+
+            val old = lastShown.toList()
+            if (old.isNotEmpty()) {
+                animateFrames(REVEAL_CLEAR_MS) { ms ->
+                    val k = 1f - ms.toFloat() / REVEAL_CLEAR_MS
+                    emit(old.map { it.copy(alpha = it.alpha * k) })
+                }
+            }
+
+            val bounds = map.projection.visibleRegion.latLngBounds
+            val onScreen = reps.filter { bounds.contains(MlLatLng(it.latitude, it.longitude)) }
+            // 필터 조합마다 다른(하지만 같은 조합이면 같은) 순서 — 매번 "무작위로 하나 둘"
+            val order = onScreen.shuffled(kotlin.random.Random(revealKey.hashCode()))
+            val gap = if (order.size <= 1) 0L
+            else (REVEAL_SPAN_MS / (order.size - 1)).coerceIn(REVEAL_MIN_GAP_MS, REVEAL_MAX_GAP_MS)
+            val startAt = HashMap<String, Long>(order.size * 2)
+            order.forEachIndexed { i, d -> startAt[d.id] = i * gap }
+            val total = (order.size - 1).coerceAtLeast(0) * gap + REVEAL_POP_MS
+            var sounded = 0
+            animateFrames(total) { ms ->
+                // 별이 뜨는 순간마다 "톡톡 반짝"(MusicManager 가 간격을 조절해 겹침/폭주 방지)
+                while (sounded < order.size && ms >= sounded * gap) {
+                    com.chaminwoo.stary.core.util.MusicManager.playSparkTick()
+                    sounded++
+                }
+                emit(reps.map { d ->
+                    val st = startAt[d.id]
+                    if (st == null) {
+                        // 화면 밖 별은 바로 제자리(패닝해도 비어 보이지 않게)
+                        ShownStar(d, d.longitude, d.latitude, d.id in nearIds, 1f, repSizeMult(d))
+                    } else {
+                        val u = ((ms - st).toFloat() / REVEAL_POP_MS).coerceIn(0f, 1f)
+                        val a = FastOutSlowInEasing.transform((u / 0.6f).coerceAtMost(1f))
+                        ShownStar(
+                            d, d.longitude, d.latitude, d.id in nearIds,
+                            alpha = if (u <= 0f) 0f else a,
+                            sizeMult = repSizeMult(d) * revealPopScale(u),
+                        )
+                    }
+                })
+            }
+            settle()
+            settleOrbits()
+            return@LaunchedEffect
+        }
 
         // 최초 1회는 애니메이션 없이 바로 표시
         if (from.isEmpty()) {
@@ -910,6 +1034,7 @@ fun DiaryMap(
 
         // 합쳐짐/펼쳐짐 보간: 각 별을 (이전 대표 위치 ↔ 새 대표 위치) 로 이동 + 투명도 페이드
         // 전환 동안 위성은 감춘다(멤버 별이 직접 날아드는 연출과 겹치지 않게) — 정착 후 다시 등장.
+        needsSettle = true
         orbitFade.snapTo(0f)
         orbitSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
         val durationNanos = 320_000_000.0
@@ -920,7 +1045,7 @@ fun DiaryMap(
             if (startNanos == 0L) startNanos = frame
             t = ((frame - startNanos) / durationNanos).toFloat().coerceIn(0f, 1f)
             val e = FastOutSlowInEasing.transform(t)
-            val feats = ArrayList<Feature>(mergedReps.size)
+            val stars = ArrayList<ShownStar>(mergedReps.size)
             for (d in mergedReps) {
                 val fromRep = from[d.id] ?: d.id
                 val toRep = assignment[d.id] ?: d.id
@@ -939,60 +1064,139 @@ fun DiaryMap(
                 val targetSm = curSizeMult[d.id] ?: (if (toRep == d.id) repSizeMult(d) else mergeMult(d))
                 val startSm = fromSize[d.id] ?: targetSm
                 val sm = startSm + (targetSm - startSm) * e
-                feats.add(diaryFeature(d, lng, lat, d.id in nearIds, a, sm))
+                stars.add(ShownStar(d, lng, lat, d.id in nearIds, a, sm))
             }
-            source.setGeoJson(FeatureCollection.fromFeatures(feats))
+            emit(stars)
         } while (t < 1f)
 
         settle()
         settleOrbits()
     }
 
-    // 별자리 라인 — 켜져 있을 때만 "지금 화면에 보이는 별"로 다시 계산해 채운다.
-    // 토글로 켤 때뿐 아니라 줌/이동(idle)으로 선 구성이 갱신될 때도 잠깐 사라졌다가
-    // 새 구성으로 페이드 인 — 즉시 스냅으로 바뀌는 어색함을 없앤다.
+    // 별자리 — 켜져 있을 때만 "지금 화면에 보이는 별"로 선을 계산하고, **한 별에서 다음 별로 뻗어 나가게** 긋는다.
+    // 켤 때: 화면 중앙에 가까운 별에서 출발해 그래프 거리 순으로 선이 자라고(머리 빛점), 선이 별에 닿으면 도착 플래시.
+    // 줌/이동(idle)으로 구성이 바뀌면: 남는 선은 그대로, 새 선은 기존 별자리에서 이어 자라고, 빠지는 선은 되감긴다.
+    // 끌 때: 예전처럼 레이어 불투명도 페이드 아웃(아래 별도 effect).
     val constellationFade = remember { Animatable(0f) }
-    var lastConstellationJson by remember { mutableStateOf<String?>(null) }
+    // 그려져 있는 선 — key → (방향 fromA, 진행도 p). 매 프레임 갱신해 도중에 끊겨도 이어서 그린다.
+    val drawnEdges = remember { HashMap<String, Pair<Boolean, Float>>() }
+    // 되감기용으로 선 모양(위경도)도 기억
+    val drawnGeometry = remember { HashMap<String, ConstellationEdge>() }
     LaunchedEffect(diaries, styleRef, constellationEnabled, cameraIdleTick) {
         val style = styleRef ?: return@LaunchedEffect
         val source = constellationSource ?: return@LaunchedEffect
+        val fxSource = constellationFxSource ?: return@LaunchedEffect
         val map = mapRef ?: return@LaunchedEffect
         if (!constellationEnabled) return@LaunchedEffect
-        delay(90) // 클러스터링과 동일하게 idle 디바운스(O(n²) 별자리 재계산 빈도 완화)
-        val features = buildConstellationFeatures(map, diaries, clusterRadiusPx, constellationMaxLinkPx)
-        val json = features.toJson()
-        if (json == lastConstellationJson) return@LaunchedEffect // 선 구성 그대로면 페이드 불필요
-        lastConstellationJson = json
         val halo = style.getLayer(CONSTELLATION_HALO_LAYER) as? LineLayer
         val glow = style.getLayer(CONSTELLATION_GLOW_LAYER) as? LineLayer
         val line = style.getLayer(CONSTELLATION_LAYER) as? LineLayer
-        fun apply(v: Float) {
-            halo?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_HALO_OPACITY * v))
-            glow?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_GLOW_OPACITY * v))
-            line?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_LINE_OPACITY * v))
+        // 켜진 동안 레이어는 항상 최대 불투명도 — 끄기 페이드 도중 다시 켠 경우도 여기서 복구된다.
+        if (constellationFade.value < 1f) {
+            constellationFade.snapTo(1f)
+            halo?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_HALO_OPACITY))
+            glow?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_GLOW_OPACITY))
+            line?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_LINE_OPACITY))
         }
-        // 이미 보이던 중의 갱신이면 짧게 페이드 아웃한 뒤 새 구성으로 교체.
-        if (constellationFade.value > 0f) {
-            constellationFade.animateTo(0f, tween(160, easing = FastOutSlowInEasing)) { apply(value) }
+        delay(90) // 클러스터링과 동일하게 idle 디바운스(O(n²) 별자리 재계산 빈도 완화)
+        val edges = buildConstellationEdges(map, diaries, clusterRadiusPx, constellationMaxLinkPx)
+        val newKeys = edges.mapTo(HashSet()) { it.key }
+        if (newKeys == drawnEdges.keys && drawnEdges.values.all { it.second >= 1f }) return@LaunchedEffect
+
+        val (plan, starts) = planConstellationDraw(
+            edges, drawnEdges, mapView.width / 2f, mapView.height / 2f,
+        )
+        edges.forEach { drawnGeometry[it.key] = it }
+        // 빠지는 선(되감기) — 지금 그려진 진행도에서 출발 별 쪽으로 줄어든다.
+        val retract = drawnEdges.filterKeys { it !in newKeys }.mapNotNull { (k, v) ->
+            drawnGeometry[k]?.let { Triple(it, v.first, v.second) }
         }
-        source.setGeoJson(features)
-        constellationFade.animateTo(1f, tween(550, easing = FastOutSlowInEasing)) { apply(value) }
+        val alreadyThere = HashSet<String>() // 이미 선이 닿아 있던 별 — 도착 플래시 생략
+        plan.forEach { if (it.progress(0f) >= 1f) { alreadyThere.add(it.fromId); alreadyThere.add(it.toId) } }
+
+        val basePxPerMs = CONSTELLATION_DRAW_DP_PER_SEC * screenDensity / 1000f
+        val totalPx = plan.maxOfOrNull { it.startPx + it.edge.lengthPx } ?: 0f
+        val pxPerMs = maxOf(basePxPerMs, totalPx / CONSTELLATION_DRAW_MAX_MS)
+        val flashStart = HashMap<String, Float>() // 별 id → 플래시 시작(ms)
+        starts.forEach { flashStart[it] = 0f } // 출발 별도 한 번 반짝
+        val nodePos = HashMap<String, Pair<Double, Double>>()
+        edges.forEach { nodePos[it.aId] = it.aLat to it.aLng; nodePos[it.bId] = it.bLat to it.bLng }
+
+        var t0 = 0L
+        while (true) {
+            val now = withFrameNanos { it }
+            if (t0 == 0L) t0 = now
+            val ms = (now - t0) / 1_000_000f
+            val dist = ms * pxPerMs
+            val lines = ArrayList<Feature>(plan.size + retract.size)
+            val fx = ArrayList<Feature>()
+            var busy = false
+            for (dr in plan) {
+                val p = dr.progress(dist)
+                if (p > 0f) drawnEdges[dr.edge.key] = dr.fromA to p
+                if (p <= 0f) { busy = true; continue }
+                val e = dr.edge
+                val (fLat, fLng, tLat, tLng) = if (dr.fromA) listOf(e.aLat, e.aLng, e.bLat, e.bLng)
+                else listOf(e.bLat, e.bLng, e.aLat, e.aLng)
+                val head = lerpOnMercator(fLat, fLng, tLat, tLng, p)
+                lines.add(Feature.fromGeometry(LineString.fromLngLats(listOf(Point.fromLngLat(fLng, fLat), head))))
+                if (p < 1f) {
+                    busy = true
+                    fx.add(Feature.fromGeometry(head).apply {
+                        addStringProperty("kind", "tip")
+                        // 도착 직전 살짝 사그라들어 플래시로 자연스럽게 이어진다
+                        addNumberProperty("a", (1f - ((p - 0.85f) / 0.15f).coerceIn(0f, 1f) * 0.6f))
+                    })
+                } else if (dr.toId !in alreadyThere && dr.toId !in flashStart) {
+                    // 방금 닿음 — 도착 시각은 선이 끝난 정확한 시점으로(프레임 지연 보정)
+                    flashStart[dr.toId] = (dr.startPx + e.lengthPx) / pxPerMs
+                }
+            }
+            for ((e, fromA, p0) in retract) {
+                val p = p0 * (1f - ms / CONSTELLATION_RETRACT_MS)
+                if (p <= 0f) { drawnEdges.remove(e.key); continue }
+                busy = true
+                drawnEdges[e.key] = fromA to p
+                val (fLat, fLng, tLat, tLng) = if (fromA) listOf(e.aLat, e.aLng, e.bLat, e.bLng)
+                else listOf(e.bLat, e.bLng, e.aLat, e.aLng)
+                lines.add(Feature.fromGeometry(LineString.fromLngLats(listOf(
+                    Point.fromLngLat(fLng, fLat), lerpOnMercator(fLat, fLng, tLat, tLng, p),
+                ))))
+            }
+            for ((id, st) in flashStart) {
+                val u = (ms - st) / CONSTELLATION_FLASH_MS
+                if (u < 0f || u >= 1f) { if (u < 1f) busy = true; continue }
+                busy = true
+                val (lat, lng) = nodePos[id] ?: continue
+                val ease = 1f - (1f - u) * (1f - u)
+                fx.add(Feature.fromGeometry(Point.fromLngLat(lng, lat)).apply {
+                    addStringProperty("kind", "flash")
+                    addNumberProperty("r", 3f + (CONSTELLATION_FLASH_RADIUS_DP - 3f) * ease)
+                    addNumberProperty("a", 0.9f * (1f - u) * (1f - u))
+                })
+            }
+            source.setGeoJson(FeatureCollection.fromFeatures(lines))
+            fxSource.setGeoJson(FeatureCollection.fromFeatures(fx))
+            if (!busy) break
+        }
     }
 
-    // 별자리 끄기 — 페이드 아웃이 끝난 뒤 GeoJSON 을 비운다(부드럽게 사라지도록).
+    // 별자리 끄기 — 레이어 페이드 아웃이 끝난 뒤 선을 비운다(부드럽게 사라지도록). 머리 빛점/플래시는 즉시 정리.
     LaunchedEffect(constellationEnabled, styleRef) {
         if (constellationEnabled) return@LaunchedEffect
         val style = styleRef ?: return@LaunchedEffect
+        constellationFxSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
         val halo = style.getLayer(CONSTELLATION_HALO_LAYER) as? LineLayer
         val glow = style.getLayer(CONSTELLATION_GLOW_LAYER) as? LineLayer
         val line = style.getLayer(CONSTELLATION_LAYER) as? LineLayer
-        constellationFade.animateTo(0f, tween(380, easing = FastOutSlowInEasing)) {
+        constellationFade.animateTo(0f, tween(420, easing = FastOutSlowInEasing)) {
             halo?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_HALO_OPACITY * value))
             glow?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_GLOW_OPACITY * value))
             line?.setProperties(PropertyFactory.lineOpacity(CONSTELLATION_LINE_OPACITY * value))
         }
         constellationSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-        lastConstellationJson = null
+        drawnEdges.clear()
+        drawnGeometry.clear()
     }
 
     // 마커 애니메이션 루프(20fps): float 부유 + pulse + 스파클 궤도 + 위성 공전 + 파티클 트윙클 + 도로 흐름.
@@ -1234,3 +1438,13 @@ fun DiaryMap(
         )
     }
 }
+
+/** 지도 source 에 넣은 별 1개의 입력값 — 마지막으로 무엇이 떠 있었는지 기억해 순차 등장 직전 걷어내는 데 쓴다. */
+private data class ShownStar(
+    val d: Diary,
+    val lng: Double,
+    val lat: Double,
+    val near: Boolean,
+    val alpha: Float,
+    val sizeMult: Float,
+)

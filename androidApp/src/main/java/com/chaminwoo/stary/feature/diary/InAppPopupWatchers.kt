@@ -36,6 +36,7 @@ fun NotificationPopupWatcher(
     //    ChatPopupWatcher 와 동일한 타임스탬프 기준으로 바꿔 근본 차단한다.
     val sinceTime = remember { System.currentTimeMillis() }
 
+    val bannerCtx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(notifications) {
         val list = notifications ?: return@LaunchedEffect
         list.filter { it.createdAt > sinceTime && it.id !in shownIds }
@@ -45,7 +46,7 @@ fun NotificationPopupWatcher(
                 // 전면일 때만 인앱 배너. 후면/종료 상태는 FCM 시스템 알림이 담당(이중 방지).
                 if (AppForeground.isForeground && AppSettings.notificationsEnabled) {
                     InAppBanner.show(
-                        title = notificationTitle(n),
+                        title = notificationTitle(bannerCtx, n),
                         body = n.content.ifBlank { n.diaryTitle },
                         kind = InAppBanner.Kind.NOTIFICATION,
                         key = "notif:${n.id}",
@@ -56,18 +57,20 @@ fun NotificationPopupWatcher(
     }
 }
 
-private fun notificationTitle(n: AppNotification): String {
+private fun notificationTitle(context: android.content.Context, n: AppNotification): String {
     // 알림 문서의 actorName 은 발생 시점 스냅샷 → 이미 구독 중인 상대라면 현재 이름으로 바꿔 띄운다.
     // (구독은 비동기라 첫 배너는 스냅샷일 수 있다 — 목록/상세는 항상 현재 이름으로 보인다)
     UserDirectory.ensureWatching(n.actorId)
-    val who = UserDirectory.name(n.actorId, n.actorName).ifBlank { "누군가" }
-    return when (n.type) {
-        NotificationType.LIKE.name -> "${who}님이 좋아요를 눌렀어요"
-        NotificationType.COMMENT.name -> "${who}님이 댓글을 남겼어요"
-        NotificationType.FRIEND_POST.name -> "${who}님이 새 다이어리를 올렸어요"
-        NotificationType.FRIEND_REQUEST.name -> "${who}님이 친구 요청을 보냈어요"
-        else -> "${who}님의 새 알림"
+    val who = UserDirectory.name(n.actorId, n.actorName)
+        .ifBlank { context.getString(com.chaminwoo.stary.R.string.banner_someone) }
+    val res = when (n.type) {
+        NotificationType.LIKE.name -> com.chaminwoo.stary.R.string.banner_like
+        NotificationType.COMMENT.name -> com.chaminwoo.stary.R.string.banner_comment
+        NotificationType.FRIEND_POST.name -> com.chaminwoo.stary.R.string.banner_friend_post
+        NotificationType.FRIEND_REQUEST.name -> com.chaminwoo.stary.R.string.banner_friend_request
+        else -> com.chaminwoo.stary.R.string.banner_generic
     }
+    return context.getString(res, who)
 }
 
 /**
@@ -92,6 +95,7 @@ fun ChatPopupWatcher(
     //    앱 실행 때마다 기존 채팅이 한 번씩 뜨던 원인(에뮬레이터와 무관). 타임스탬프 기준으로 근본 해결.
     val sinceTime = remember(userId) { System.currentTimeMillis() }
 
+    val chatBannerCtx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(chats) {
         chats.forEach { c ->
             if (c.updatedAt <= sinceTime) return@forEach // 와처 시작 전 메시지(=기존) → 무시
@@ -106,7 +110,7 @@ fun ChatPopupWatcher(
                 UserDirectory.ensureWatching(friendId)
                 val senderName = UserDirectory.name(friendId, c.lastSenderName)
                 InAppBanner.show(
-                    title = senderName.ifBlank { "새 메시지" },
+                    title = senderName.ifBlank { chatBannerCtx.getString(com.chaminwoo.stary.R.string.banner_new_message) },
                     body = c.lastMessage,
                     kind = InAppBanner.Kind.CHAT,
                     key = "${c.chatId}:${c.updatedAt}",

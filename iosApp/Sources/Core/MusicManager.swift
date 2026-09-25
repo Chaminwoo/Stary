@@ -37,6 +37,22 @@ final class MusicManager: ObservableObject {
     private let dialTickMinGap: TimeInterval = 0.04
     private var lastDialTickAt: TimeInterval = 0
 
+    // 연출용 짧은 효과음(2026-09-25 사용자 선택 — 후보는 tools/sfx 로 합성해 미리듣기 후 확정).
+    // Android MusicManager.playSparkTick/playStarBirth/playLike/playDrawer 패리티 — 볼륨·간격 값 동일 유지.
+    //  - sfx_spark_1~3 : 별이 하나 둘 떠오를 때(지도 필터 전환 · 별 도감 원) — 3종 중 직전과 다른 것.
+    //  - sfx_star_birth: 업로드 성공 별 탄생 · sfx_like: 좋아요 · sfx_drawer: 드로어 열기.
+    private var sfxData: [String: Data] = [:]
+    /// 재생 중 참조 유지 — 반짝임이 겹쳐 울리므로 여러 개를 들고 있는다(최대 8, Android SoundPool maxStreams 대응).
+    private var sfxPlayers: [AVAudioPlayer] = []
+    private let sparkBaseVolume: Float = 0.30
+    /// 별이 촘촘히 뜰 때 반짝임 폭주 방지 최소 간격(초) — Android SPARK_MIN_GAP_MS(55) 와 같은 값.
+    private let sparkMinGap: TimeInterval = 0.055
+    private var lastSparkAt: TimeInterval = 0
+    private var lastSparkIdx = -1
+    private let starBirthBaseVolume: Float = 0.55
+    private let likeBaseVolume: Float = 0.50
+    private let drawerBaseVolume: Float = 0.32
+
     private init() {
         let d = UserDefaults.standard
         enabled = (d.object(forKey: keyEnabled) as? Bool) ?? true
@@ -136,6 +152,47 @@ final class MusicManager: ObservableObject {
         openPlayer = p
         p.play()
     }
+
+    /// 미리 읽어 둔 짧은 효과음 1회 재생(겹쳐 울릴 수 있음). 음소거면 무음.
+    private func playSfx(_ name: String, volume: Float) {
+        guard enabled else { return }
+        let data: Data
+        if let cached = sfxData[name] {
+            data = cached
+        } else {
+            guard let url = Bundle.main.url(forResource: name, withExtension: "mp3"),
+                  let loaded = try? Data(contentsOf: url) else { return }
+            sfxData[name] = loaded
+            data = loaded
+        }
+        guard let p = try? AVAudioPlayer(data: data) else { return }
+        p.volume = volume * sfxVolume
+        sfxPlayers.removeAll { !$0.isPlaying }
+        if sfxPlayers.count >= 8 { sfxPlayers.removeFirst().stop() }
+        sfxPlayers.append(p)
+        p.play()
+    }
+
+    /// 별 하나가 "톡" 떠오를 때의 반짝임 — 지도 필터 전환 순차 등장 / 별 도감 원 등장에서 별마다 호출.
+    /// [sparkMinGap] 보다 촘촘한 호출은 건너뛴다(별이 수십 개여도 소리는 적당한 밀도).
+    func playSparkTick() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastSparkAt >= sparkMinGap else { return }
+        lastSparkAt = now
+        var idx = Int.random(in: 0..<3)
+        if idx == lastSparkIdx { idx = (idx + 1) % 3 }
+        lastSparkIdx = idx
+        playSfx("sfx_spark_\(idx + 1)", volume: sparkBaseVolume * Float.random(in: 0.75...1.0))
+    }
+
+    /// 업로드 성공 별 탄생 — 유성이 내려와 안착(화음이 발광 순간 ≈0.42s 에 맞춰진 음원).
+    func playStarBirth() { playSfx("sfx_star_birth", volume: starBirthBaseVolume) }
+
+    /// 좋아요를 눌렀을 때(취소엔 호출하지 않는다) — 뽀옹 + 반짝.
+    func playLike() { playSfx("sfx_like", volume: likeBaseVolume) }
+
+    /// 드로어(메뉴)가 열릴 때 — 스윽. 닫힐 때는 무음.
+    func playDrawer() { playSfx("sfx_drawer", volume: drawerBaseVolume) }
 
     /// 바람 효과음 — 내 다이어리 정렬 다이얼 선택 시(Android MusicManager.playWind 대응).
     func playWind() {

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DrawerValue
@@ -72,6 +73,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -142,6 +144,7 @@ fun MainScreen(
         currentDestination?.hasRoute<NavRoute.Main>() == true -> NavRoute.Main
         currentDestination?.hasRoute<NavRoute.Upload>() == true -> NavRoute.Upload
         currentDestination?.hasRoute<NavRoute.MyDiary>() == true -> NavRoute.MyDiary
+        currentDestination?.hasRoute<NavRoute.StarLog>() == true -> NavRoute.StarLog
         currentDestination?.hasRoute<NavRoute.Profile>() == true -> NavRoute.Profile
         currentDestination?.hasRoute<NavRoute.Achievements>() == true -> NavRoute.Achievements
         currentDestination?.hasRoute<NavRoute.Music>() == true -> NavRoute.Music
@@ -251,6 +254,21 @@ fun MainScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
 
+    // 드로어 열림 연출 — 열리기 시작하는 순간 "스윽" + 항목들이 위에서부터 하나씩 스르륵(광고 레퍼런스).
+    // 진행도 1개(0..1)를 두고 각 항목이 자기 순번만큼 늦게 따라온다([drawerItemReveal]). 닫힐 때는 그대로 둔다.
+    val drawerReveal = remember { androidx.compose.animation.core.Animatable(1f) }
+    androidx.compose.runtime.LaunchedEffect(drawerState.targetValue) {
+        if (drawerState.targetValue != DrawerValue.Open) return@LaunchedEffect
+        com.chaminwoo.stary.core.util.MusicManager.playDrawer()
+        drawerReveal.snapTo(0f)
+        drawerReveal.animateTo(
+            1f,
+            androidx.compose.animation.core.tween(
+                DRAWER_REVEAL_TOTAL_MS, easing = androidx.compose.animation.core.LinearEasing
+            ),
+        )
+    }
+
     // 첫 실행 코치마크(주요 컨트롤 안내) — SharedPreferences 로 1회만 노출.
     val onboardPrefs =
         remember { context.getSharedPreferences("stary_onboarding", Context.MODE_PRIVATE) }
@@ -344,35 +362,49 @@ fun MainScreen(
                             }
                         }
 
+                        val rv = drawerReveal.value
                         DrawerItem(
                             stringResource(R.string.nav_my_diary),
                             Icons.AutoMirrored.Filled.MenuBook,
-                            currentRoute is NavRoute.MyDiary
+                            currentRoute is NavRoute.MyDiary,
+                            reveal = drawerItemReveal(rv, 0),
                         ) { onNavigate(NavRoute.MyDiary) }
+                        // 별 도감 — 해금한(열어 본) 다른 사람의 별을 원으로 모아 보는 화면(내 다이어리 바로 아래).
+                        DrawerItem(
+                            stringResource(R.string.nav_star_log),
+                            Icons.Filled.Stars,
+                            currentRoute is NavRoute.StarLog,
+                            reveal = drawerItemReveal(rv, 1),
+                        ) { onNavigate(NavRoute.StarLog) }
                         DrawerItem(
                             stringResource(R.string.nav_profile),
                             Icons.Filled.Person,
-                            currentRoute is NavRoute.Profile
+                            currentRoute is NavRoute.Profile,
+                            reveal = drawerItemReveal(rv, 2),
                         ) { onNavigate(NavRoute.Profile) }
                         DrawerItem(
                             stringResource(R.string.nav_achievements),
                             Icons.Filled.EmojiEvents,
-                            currentRoute is NavRoute.Achievements
+                            currentRoute is NavRoute.Achievements,
+                            reveal = drawerItemReveal(rv, 3),
                         ) { onNavigate(NavRoute.Achievements) }
                         DrawerItem(
                             stringResource(R.string.nav_music),
                             Icons.Filled.MusicNote,
-                            currentRoute is NavRoute.Music
+                            currentRoute is NavRoute.Music,
+                            reveal = drawerItemReveal(rv, 4),
                         ) { onNavigate(NavRoute.Music) }
                         DrawerItem(
                             stringResource(R.string.nav_friends),
                             Icons.Filled.People,
-                            currentRoute is NavRoute.Friends
+                            currentRoute is NavRoute.Friends,
+                            reveal = drawerItemReveal(rv, 5),
                         ) { onNavigate(NavRoute.Friends) }
                         DrawerItem(
                             stringResource(R.string.nav_settings),
                             Icons.Filled.Settings,
-                            currentRoute is NavRoute.Settings
+                            currentRoute is NavRoute.Settings,
+                            reveal = drawerItemReveal(rv, 6),
                         ) { onNavigate(NavRoute.Settings) }
                         // 로그인 상태면 로그아웃, 아니면 로그인 항목 노출
                         if (GoogleAuthHelper.currentUserId == null) {
@@ -380,7 +412,8 @@ fun MainScreen(
                                 stringResource(R.string.drawer_login),
                                 Icons.AutoMirrored.Filled.Login,
                                 selected = false,
-                                alwaysAccent = true
+                                alwaysAccent = true,
+                                reveal = drawerItemReveal(rv, 7),
                             ) {
                                 coroutineScope.launch { drawerState.close() }
                                 showLogin = true
@@ -390,7 +423,8 @@ fun MainScreen(
                                 stringResource(R.string.drawer_logout),
                                 Icons.AutoMirrored.Filled.Logout,
                                 selected = false,
-                                danger = true
+                                danger = true,
+                                reveal = drawerItemReveal(rv, 7),
                             ) {
                                 onLogout()
                             }
@@ -623,7 +657,7 @@ fun MainScreen(
                             ) {
                                 Icon(
                                     Icons.Default.Add,
-                                    contentDescription = "글쓰기",
+                                    contentDescription = stringResource(R.string.cd_create_diary),
                                     tint = Color.White,
                                     modifier = Modifier.size(24.dp)
                                 )
@@ -782,12 +816,17 @@ private fun localizedTitle(route: NavRoute): String = when (route) {
     is NavRoute.Achievements -> stringResource(R.string.nav_achievements)
     is NavRoute.Music -> stringResource(R.string.nav_music)
     is NavRoute.MyDiary -> stringResource(R.string.nav_my_diary)
+    is NavRoute.StarLog -> stringResource(R.string.nav_star_log)
     is NavRoute.Notification -> stringResource(R.string.nav_notification)
     is NavRoute.Upload -> stringResource(R.string.nav_upload)
     is NavRoute.Detail -> stringResource(R.string.nav_detail)
     is NavRoute.StarCluster -> stringResource(R.string.nav_star_cluster)
     is NavRoute.UserProfile -> stringResource(R.string.nav_profile) // 타인 프로필도 탑바엔 "프로필"
-    else -> route.title // Chat(친구명) 등 동적 제목
+    is NavRoute.UserDiaryStars -> if (route.userName.isBlank()) stringResource(R.string.nav_stars_fallback)
+        else stringResource(R.string.nav_user_stars, route.userName)
+    is NavRoute.Chat -> route.friendName.ifBlank { stringResource(R.string.nav_chat) }
+    // ⚠️ NavRoute.title 은 한국어 하드코딩(라우트 식별용) — 탑바에 보이는 제목은 반드시 위에서 리소스로.
+    else -> route.title
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -798,6 +837,8 @@ private fun DrawerItem(
     selected: Boolean,
     alwaysAccent: Boolean = false,
     danger: Boolean = false,
+    /** 드로어 순차 등장 진행도(0..1) — [drawerItemReveal]. 1 = 제자리. */
+    reveal: Float = 1f,
     onClick: () -> Unit,
 ) {
     val color = when {
@@ -805,7 +846,12 @@ private fun DrawerItem(
         selected || alwaysAccent -> Color(0xFF9FB3E8)
         else -> Color(0xFFF0F0F0)
     }
+    val slidePx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
     NavigationDrawerItem(
+        modifier = Modifier.graphicsLayer {
+            alpha = reveal
+            translationX = -slidePx * (1f - reveal)
+        },
         icon = { Icon(icon, null, tint = color, modifier = Modifier.size(22.dp)) },
         label = {
             Text(
@@ -823,6 +869,18 @@ private fun DrawerItem(
             unselectedContainerColor = Color.Transparent
         )
     )
+}
+
+/** 드로어 항목 하나가 스르륵 들어오는 시간 / 항목 간 간격(ms). 전체 = 간격×(항목수−1) + 한 항목. */
+private const val DRAWER_ITEM_REVEAL_MS = 300
+private const val DRAWER_ITEM_STAGGER_MS = 45
+private const val DRAWER_REVEAL_TOTAL_MS = DRAWER_ITEM_STAGGER_MS * 7 + DRAWER_ITEM_REVEAL_MS
+
+/** 드로어 전체 진행도 [total](0..1) → [index] 번째 항목의 진행도(0..1, 감속 곡선). */
+private fun drawerItemReveal(total: Float, index: Int): Float {
+    val ms = total * DRAWER_REVEAL_TOTAL_MS - index * DRAWER_ITEM_STAGGER_MS
+    val u = (ms / DRAWER_ITEM_REVEAL_MS).coerceIn(0f, 1f)
+    return 1f - (1f - u) * (1f - u) * (1f - u)
 }
 
 @Preview

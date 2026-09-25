@@ -223,7 +223,8 @@ private fun SwipeToDeleteNotification(
 
 @Composable
 private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = null) {
-    val dateStr = remember(notif.createdAt) { RelativeTime.format(notif.createdAt) }
+    val relCtx = androidx.compose.ui.platform.LocalContext.current
+    val dateStr = remember(notif.createdAt) { RelativeTime.format(relCtx, notif.createdAt) }
     val isLike = notif.type == NotificationType.LIKE.name
     val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
     val isFriendRequest = notif.type == NotificationType.FRIEND_REQUEST.name

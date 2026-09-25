@@ -117,6 +117,46 @@ internal const val CONSTELLATION_LINE_OPACITY = 0.95f
 /** 별자리: 각 별을 화면상 가장 가까운 별 몇 개와 연결. */
 internal const val CONSTELLATION_NEIGHBORS = 2
 
+// ── 별자리 "선 긋기" 연출(2026-09-25, 광고 레퍼런스) ──────────────────────────────
+// 켜면 선이 한꺼번에 뜨지 않고 한 별에서 다음 별로 **뻗어 나간다**(화면 중앙에 가까운 별에서 출발,
+// 그래프 거리 순 = 빛이 별자리를 타고 흐르는 모양). 끌 때는 예전처럼 레이어 페이드 아웃.
+/** 선이 뻗는 기본 속도(dp/초). 네트워크가 크면 [CONSTELLATION_DRAW_MAX_MS] 안에 끝나도록 빨라진다. */
+internal const val CONSTELLATION_DRAW_DP_PER_SEC = 320f
+/** 전체 선 긋기 상한(ms) — 별이 아무리 많아도 이 시간 안에 다 그어진다. */
+internal const val CONSTELLATION_DRAW_MAX_MS = 1800f
+/** 줌/이동으로 빠지는 선이 되감기는 시간(ms). */
+internal const val CONSTELLATION_RETRACT_MS = 240f
+/** 선이 별에 닿는 순간 번지는 도착 플래시 — 지속(ms)/최대 반경(dp, MapLibre circle-radius 단위). */
+internal const val CONSTELLATION_FLASH_MS = 560f
+internal const val CONSTELLATION_FLASH_RADIUS_DP = 15f
+/** 선 끝(뻗어 가는 머리) 빛점 + 도착 플래시 소스/레이어. */
+internal const val CONSTELLATION_FX_SOURCE = "constellation-fx"
+internal const val CONSTELLATION_FLASH_LAYER = "constellation-flash-layer"
+internal const val CONSTELLATION_TIP_HALO_LAYER = "constellation-tip-halo-layer"
+internal const val CONSTELLATION_TIP_LAYER = "constellation-tip-layer"
+
+// ── 필터 전환 "별이 하나 둘" 순차 등장(2026-09-25, 광고 레퍼런스) ─────────────────
+/** 화면 안 별들이 모두 떠오르기까지(첫 별 시작 → 마지막 별 시작) 목표 시간(ms). */
+internal const val REVEAL_SPAN_MS = 1300L
+/** 별 사이 간격 하한/상한(ms) — 별이 적으면 느긋하게(하나 둘), 많으면 촘촘하게. */
+internal const val REVEAL_MIN_GAP_MS = 28L
+internal const val REVEAL_MAX_GAP_MS = 120L
+/** 별 하나가 톡 떠오르는 시간(ms) — 투명도 + 크기 팝(0.35 → 1.18 → 1). */
+internal const val REVEAL_POP_MS = 380L
+/** 순차 등장 직전, 이전 필터의 별을 걷어내는 시간(ms). */
+internal const val REVEAL_CLEAR_MS = 170L
+
+/** 순차 등장 팝 곡선 — u(0..1) → 크기 배율. 0.35 에서 튀어 올라 1.18 을 찍고 1 로 가라앉는다. */
+internal fun revealPopScale(u: Float): Float {
+    val x = u.coerceIn(0f, 1f)
+    return if (x < 0.55f) {
+        val k = 1f - (1f - x / 0.55f).let { it * it * it }
+        0.35f + (1.18f - 0.35f) * k
+    } else {
+        1.18f + (1f - 1.18f) * FastOutSlowInEasing.transform((x - 0.55f) / 0.45f)
+    }
+}
+
 /** 인기 별의 글로우 오오라(CircleLayer) id — 위상 그룹별(별과 같은 float 적용). */
 internal fun auraLayerId(group: Int) = "diary-aura-$group"
 /** 바닥 빛 웅덩이 id — 별과 달리 지점 고정이라 부유 시차로 "떠 있음"이 읽힌다. */
@@ -796,27 +836,39 @@ internal fun roadGlintDashArray(phase: Float): Array<Float> {
 }
 
 /**
- * 별자리 라인 GeoJSON — 뷰포트에 보이는 대표 별들을 가장 가까운
+ * 별자리 선 1개 — 두 대표 별(a, b). [key] 는 두 id 를 정렬해 이은 것(방향 무관 동일성).
+ * 화면 좌표(ax..by)는 계산 시점 기준 — 선 긋기 순서/속도 계산에만 쓰고, 실제 선은 위경도로 그린다.
+ */
+internal class ConstellationEdge(
+    val key: String,
+    val aId: String, val aLat: Double, val aLng: Double, val ax: Float, val ay: Float,
+    val bId: String, val bLat: Double, val bLng: Double, val bx: Float, val by: Float,
+) {
+    val lengthPx: Float get() = hypot(bx - ax, by - ay).coerceAtLeast(1f)
+}
+
+/**
+ * 별자리 선 목록 — 뷰포트에 보이는 대표 별들을 가장 가까운
  * [CONSTELLATION_NEIGHBORS] 개와 잇는다([maxLinkPx] 이내, 카메라 idle 마다 재계산).
  */
-internal fun buildConstellationFeatures(
+internal fun buildConstellationEdges(
     map: MapLibreMap,
     diaries: List<Diary>,
     radiusPx: Float,
     maxLinkPx: Float,
-): FeatureCollection {
+): List<ConstellationEdge> {
     val valid = diaries.filter { it.latitude != 0.0 && it.longitude != 0.0 }
-    if (valid.size < 2) return FeatureCollection.fromFeatures(emptyList())
+    if (valid.size < 2) return emptyList()
     // 마커와 동일한 순서(30m 머지 → 화면 클러스터링)로 실제 표시되는 대표만 사용
     val reps = clusterTopLiked(map, mergeByProximity(valid).reps, radiusPx).reps
     val bounds = map.projection.visibleRegion.latLngBounds
     val visible = reps.filter { bounds.contains(MlLatLng(it.latitude, it.longitude)) }
-    if (visible.size < 2) return FeatureCollection.fromFeatures(emptyList())
+    if (visible.size < 2) return emptyList()
 
     val screen = visible.map { map.projection.toScreenLocation(MlLatLng(it.latitude, it.longitude)) }
     val maxLink2 = maxLinkPx * maxLinkPx
-    val edges = HashSet<Long>() // i<j 를 i*N+j 로 인코딩해 중복 제거
-    val lines = mutableListOf<Feature>()
+    val seen = HashSet<Long>() // i<j 를 i*N+j 로 인코딩해 중복 제거
+    val out = mutableListOf<ConstellationEdge>()
     for (i in visible.indices) {
         val nearest = visible.indices
             .filter { it != i }
@@ -828,19 +880,115 @@ internal fun buildConstellationFeatures(
             .sortedBy { it.second }
             .take(CONSTELLATION_NEIGHBORS)
         for ((j, _) in nearest) {
-            val lo = minOf(i, j); val hi = maxOf(i, j)
-            if (!edges.add(lo.toLong() * visible.size + hi)) continue
-            lines.add(
-                Feature.fromGeometry(
-                    LineString.fromLngLats(listOf(
-                        Point.fromLngLat(visible[lo].longitude, visible[lo].latitude),
-                        Point.fromLngLat(visible[hi].longitude, visible[hi].latitude)
-                    ))
+            // 키가 id 정렬 기준이라 a/b 도 id 순서로 고정(재계산해도 같은 선은 같은 a/b)
+            val (lo, hi) = if (visible[i].id < visible[j].id) i to j else j to i
+            if (!seen.add(minOf(i, j).toLong() * visible.size + maxOf(i, j))) continue
+            val a = visible[lo]; val b = visible[hi]
+            out.add(
+                ConstellationEdge(
+                    key = a.id + "|" + b.id,
+                    aId = a.id, aLat = a.latitude, aLng = a.longitude, ax = screen[lo].x, ay = screen[lo].y,
+                    bId = b.id, bLat = b.latitude, bLng = b.longitude, bx = screen[hi].x, by = screen[hi].y,
                 )
             )
         }
     }
-    return FeatureCollection.fromFeatures(lines)
+    return out
+}
+
+/**
+ * 선 긋기 계획의 한 줄 — [fromA] 쪽 별에서 반대쪽으로 뻗는다.
+ * 진행도 p = ((d − [startPx]) / length) 를 0..1 로 자른 값(d = 경과시간 × 속도, px).
+ * 이미 일부 그려져 있던 선은 startPx 가 음수(= −p0·length)라 이어서 뻗는다.
+ */
+internal class ConstellationDraw(val edge: ConstellationEdge, val fromA: Boolean, val startPx: Float) {
+    fun progress(d: Float): Float = ((d - startPx) / edge.lengthPx).coerceIn(0f, 1f)
+    val fromId: String get() = if (fromA) edge.aId else edge.bId
+    val toId: String get() = if (fromA) edge.bId else edge.aId
+}
+
+/**
+ * 별자리를 "빛이 별을 타고 흐르듯" 긋는 순서를 정한다.
+ *
+ * - 이미 그려져 있던 선([drawn]: key → (fromA, p))은 그 방향 그대로 이어서 뻗고, 그 선의 출발 별은
+ *   도달 거리 0 = 새 선들의 출발점이 된다(줌/이동으로 선이 늘 때 기존 별자리에서 자라 나간다).
+ * - 그런 출발점이 없는 연결 덩어리는 **화면 중앙([cx],[cy])에 가장 가까운 별**에서 시작한다.
+ * - 각 별의 도달 거리 = 출발점에서 선을 타고 간 최단 화면 거리(다익스트라). 새 선은 도달 거리가 짧은
+ *   쪽 별에서 출발해 그 거리만큼 늦게 시작 → 속도가 일정하면 모든 선이 "이어서" 그어진다.
+ *
+ * @return 선별 계획 + 각 덩어리의 출발 별 id(도착 플래시를 출발 별에도 한 번 터뜨린다).
+ */
+internal fun planConstellationDraw(
+    edges: List<ConstellationEdge>,
+    drawn: Map<String, Pair<Boolean, Float>>,
+    cx: Float,
+    cy: Float,
+): Pair<List<ConstellationDraw>, List<String>> {
+    val adj = HashMap<String, MutableList<ConstellationEdge>>()
+    val pos = HashMap<String, Offset>()
+    for (e in edges) {
+        adj.getOrPut(e.aId) { mutableListOf() }.add(e)
+        adj.getOrPut(e.bId) { mutableListOf() }.add(e)
+        pos[e.aId] = Offset(e.ax, e.ay)
+        pos[e.bId] = Offset(e.bx, e.by)
+    }
+    val reach = HashMap<String, Float>()
+    fun seed(id: String, d: Float) { if (d < (reach[id] ?: Float.MAX_VALUE)) reach[id] = d }
+    for (e in edges) {
+        val (fromA, p) = drawn[e.key] ?: continue
+        seed(if (fromA) e.aId else e.bId, 0f)
+        seed(if (fromA) e.bId else e.aId, (1f - p) * e.lengthPx)
+    }
+    // 출발점이 없는 연결 덩어리 → 화면 중앙에 가장 가까운 별에서 시작
+    val starts = mutableListOf<String>()
+    val visited = HashSet<String>()
+    for (node in adj.keys) {
+        if (!visited.add(node)) continue
+        val comp = mutableListOf(node)
+        var k = 0
+        while (k < comp.size) {
+            for (e in adj[comp[k]].orEmpty()) {
+                val o = if (e.aId == comp[k]) e.bId else e.aId
+                if (visited.add(o)) comp.add(o)
+            }
+            k++
+        }
+        if (comp.none { it in reach }) {
+            val s = comp.minBy { id -> pos[id]!!.let { (it.x - cx) * (it.x - cx) + (it.y - cy) * (it.y - cy) } }
+            reach[s] = 0f
+            starts.add(s)
+        }
+    }
+    // 다익스트라(노드 수가 화면 안 별 수라 단순 선택 방식으로 충분)
+    val done = HashSet<String>()
+    while (true) {
+        val u = reach.entries.filter { it.key !in done }.minByOrNull { it.value }?.key ?: break
+        done.add(u)
+        val du = reach[u]!!
+        for (e in adj[u].orEmpty()) {
+            val v = if (e.aId == u) e.bId else e.aId
+            seed(v, du + e.lengthPx)
+        }
+    }
+    val plan = edges.map { e ->
+        val prev = drawn[e.key]
+        if (prev != null) {
+            ConstellationDraw(e, prev.first, -prev.second * e.lengthPx)
+        } else {
+            val ra = reach[e.aId] ?: 0f
+            val rb = reach[e.bId] ?: 0f
+            ConstellationDraw(e, fromA = ra <= rb, startPx = minOf(ra, rb))
+        }
+    }
+    return plan to starts
+}
+
+/** 웹 메르카토르 직선 위의 점 — 지도에 그려지는 직선과 정확히 겹치도록 위도는 메르카토르 y 로 보간. */
+internal fun lerpOnMercator(lat1: Double, lng1: Double, lat2: Double, lng2: Double, t: Float): Point {
+    fun y(lat: Double) = kotlin.math.ln(kotlin.math.tan(Math.PI / 4 + Math.toRadians(lat) / 2))
+    val yy = y(lat1) + (y(lat2) - y(lat1)) * t
+    val lat = Math.toDegrees(2 * kotlin.math.atan(kotlin.math.exp(yy)) - Math.PI / 2)
+    return Point.fromLngLat(lng1 + (lng2 - lng1) * t, lat)
 }
 
 /** MapView 를 Compose 생명주기에 묶어 반환. ⚠️ MapLibre.getInstance 는 MapView 생성 전 1회 필수. */

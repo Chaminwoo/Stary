@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.63 지도 "해금만" 필터 추가** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
+> 최종 갱신: **8.64 광고 레퍼런스 반영**(효과음 4종 · 필터 별 순차 등장 · 별자리 선 긋기+도착 플래시 · 드로어 순차 등장 · 별 도감 신설 · 언어 전환 3차 재발 = AAB 언어 분할) — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-25) · iOS 는 push 후 CI.
+> 이전: **8.63 지도 "해금만" 필터 추가** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.62 해금 본문 가독성 보완 + 튜토리얼 문구 정리** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.61 일일 알림 다양화**(시간대 5밴드 · 밴드별 문구 6개 · 연속 중복 배제) — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.60 광고 509 No fill 대응(AdMob 폴백) + 본문 프레임 통일** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
@@ -2192,7 +2193,70 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 - iOS 는 computed property 라 Android 의 격자 반올림/remember 키가 없다 — 필요해지면 그때 캐시를 넣는다
   (현재 별 수에서는 매 렌더 필터링이 문제되지 않는다).
 
+## 8.64 광고 레퍼런스 반영 — 효과음 4종 · 필터 별 순차 등장 · 별자리 선 긋기 · 별 도감 · 언어 전환 3차 재발 (Android BUILD SUCCESSFUL 2026-09-25 · 기기 테스트 대기 · iOS 는 push 후 CI)
+
+사용자: `references/stary_ad_9x16.mp4`(30초 광고)를 참고해 ① 효과음·UI 개선(보기 중 선택) ② 필터 바꾸면 별이 하나 둘
+③ 별자리 선이 별에서 별로 이어지게(끌 때는 페이드 유지) ④ 언어 변경 재발 + CLAUDE.md 경고 ⑤ 해금한 다이어리 모아 보기 메뉴.
+
+### 효과음 — 합성 후보 23종 → 사용자 선택 4종
+- 후보는 외부 샘플 없이 **코드로 합성**(`tools/sfx/synth.py`, numpy/scipy — 저작권 걱정 없음), 미리듣기 페이지(claude.ai artifact)로
+  들려준 뒤 선택: **B2 톡톡 반짝**(별이 뜰 때) · **E2 유성 안착**(별 탄생) · **F2 뽀옹+반짝**(좋아요) · **K1 스윽**(드로어 열기).
+  버튼 탭·별자리·해금·업적·전송·알림 배너는 "소리 없음" 선택.
+- 앱 에셋: `sfx_spark_1~3.mp3`(음높이 다른 3종 — 직전과 다른 것 무작위) · `sfx_star_birth.mp3`(화음을 StarBirth 발광 순간 0.42s 에 맞춰
+  다시 뽑음) · `sfx_like.mp3` · `sfx_drawer.mp3`. Android `res/raw/`, iOS `Sources/Resources/`(같은 파일). 재생성은 `python tools/sfx/app_assets.py`.
+- Android `MusicManager.playSparkTick/playStarBirth/playLike/playDrawer` — SoundPool(maxStreams 4→8) 미리 로드, `R.raw` 직접 참조라
+  `keep.xml` 불필요. 반짝임은 **55ms 최소 간격**(별이 수십 개여도 폭주 안 함) + 재생 속도 ±(음높이 흔들기).
+  iOS `MusicManager` 동일 함수(`AVAudioPlayer(data:)` 캐시 + 최대 8개 동시). 볼륨: 반짝 0.30 / 탄생 0.55 / 좋아요 0.50 / 드로어 0.32 × 효과음 볼륨.
+
+### 필터 전환 → 별이 "하나 둘" 순차 등장
+- Android `DiaryMap(revealKey=)` — `MainListScreen` 이 필터 조합(미조회/친구만/나만/해금만/친구선택/기간)을 리스트로 넘긴다.
+  값이 바뀌면 클러스터링 effect 가 보간 대신 ① 떠 있던 별 170ms 걷어내기 ② 화면 안 별을 **필터 조합마다 다른 무작위 순서**로
+  28~120ms 간격(총 ≈1.3s)으로 톡(투명도 + 크기 0.35→1.18→1, 380ms) + 별마다 반짝 소리. 화면 밖 별은 즉시.
+  **첫 진입·데이터 갱신·위치 갱신엔 연출 없음**(사용자가 "첫 진입 순차 등장"은 고르지 않음).
+- 부수 수정: 전이/등장이 도중에 끊기면(같은 키로 재시작 → 조기 return) 반쯤 투명한 별이 남을 수 있던 문제 → `needsSettle` 플래그로 반드시 정착.
+- iOS `MapStarReveal.swift`(신규) — 어노테이션 뷰의 `transform` 은 줌 배율이 쓰므로 **`layer.sublayerTransform`** 으로 크기 팝,
+  `alpha` 로 페이드, CADisplayLink 로 진행. 아직 안 뜬 별은 후광 CircleLayer 에서도 뺀다(`revealHidden`). 수치는 `StarRevealFx` = Android `REVEAL_*`.
+
+### 별자리 — 선이 별에서 별로 뻗어 나간다 + 도착 플래시
+- `buildConstellationEdges`(id 정렬 키) + `planConstellationDraw`: 화면 중앙에 가까운 별에서 출발, **다익스트라 도달 거리 순**으로
+  일정 속도(320dp/s, 전체 최대 1.8s)로 선이 자란다 → 빛이 별자리를 타고 흐르는 모양(광고 8~10초). 선 머리에 빛점(tip),
+  별에 닿는 순간 링이 번지는 **도착 플래시**(560ms, 15dp — 사용자 선택 UI 개선). 레이어: `constellation-fx` 소스 + flash/tipHalo/tip CircleLayer.
+- 줌/이동 재계산: 남는 선 그대로 · 새 선은 기존 별자리에서 이어서 자람 · 빠지는 선은 240ms 되감기. 진행도는 매 프레임 저장(도중에 끊겨도 이어 그림).
+- 끄기: 예전처럼 레이어 불투명도 페이드(380→420ms) 후 비움. iOS `ConstellationDraw.swift`(신규) + `MapStyleEffects` 동일 알고리즘.
+
+### 드로어 — 항목 순차 등장 + 스윽
+- 열리기 시작하는 순간 `sfx_drawer` + 항목이 위에서부터 45ms 간격으로 22dp 미끄러지며 페이드 인(한 항목 300ms). 닫힐 땐 무음·그대로.
+  Android `drawerReveal`/`drawerItemReveal()`, iOS `drawerItemsIn` + `.animation(...delay(0.045×i))`.
+
+### 별 도감(Star Log / 星の図鑑) — 신규 메뉴(내 다이어리 바로 아래)
+- 사용자 설계대로: 화면 중앙을 중심으로 한 **원 위에 해금한 다른 사람의 별**을 12시부터 시계 방향으로 빠르게(≈1.5s) 띄움(별마다 톡톡 반짝 +
+  원 가이드가 따라 쓸림) → **누른 채로 별 위를 지나가면** 그 별이 1.45배 + 후광, 원 가운데 제목·작성자·해금일·거리·**지도에서 보기**
+  (손 떼도 유지). 글씨는 별 색(어두운 별은 밝기 보정) + 같은 색 후광. 지도 버튼 = `MapFocusState.request`(카메라 + 파장).
+- 정렬: 해금순(기본)·최신순·거리순(정렬 고른 순간 위치로 고정)·인기순 / 필터: 친구만·친구 선택. 바꾸면 원을 다시 그린다.
+- 데이터: `DiaryUnlockStore.unlockedAt`(신규 접근자) ∩ 전체 목록(삭제·비공개·차단 제외), 내 글 제외. **기기 로컬** — 기기를 바꾸면 비어 있다.
+- Android `feature/profile/screen/StarLogScreen.kt`(지도와 같은 액티비티 범위 DiaryViewModel 재사용 → 바로 보임), `NavRoute.StarLog`,
+  친구 선택 다이얼로그를 `core/ui/FriendPickerDialog.kt` 로 추출(지도와 공용). iOS `Features/Profile/StarLogScreen.swift`(TimelineView+Canvas),
+  `DrawerDest.starLog`, `FriendFilterPicker` private 해제. 수치 `RING_*` ↔ `StarRingFx` 동일.
+
+### 언어 전환 3차 재발 — 원인: Play 스토어 AAB 언어 분할(+ 남은 하드코딩)
+- **핵심 원인**: `bundle.language.enableSplit` 기본값(true) → Play 는 기기 언어 리소스만 설치 → 한국어 폰에 설치된 스토어 빌드는
+  `values-en/ja` 자체가 없어 언어를 바꿔도 한국어로 폴백. 09-04 수정은 **USB 디버그 APK(전 언어 포함)** 로만 확인해서 못 잡았다.
+  → `androidApp/build.gradle.kts` 에 `bundle { language { enableSplit = false } }`.
+- 남아 있던 하드코딩 한국어 리소스화: 로그인 화면 버튼 3종 · 상대 시간(`RelativeTime` → Context 인자) · 인앱 배너 제목 5종 ·
+  친구 토스트(`FriendMessage`) · 다이어리 저장/수정/삭제 토스트(`DiaryEvent` enum — 예전엔 한국어 문자열을 **비교**까지 했다) ·
+  채팅 "나" · 접근성 설명 2 · 알림 채널 이름(매번 create 해서 현재 언어로 갱신) · 푸시 폴백 문구 · "OO님의 별"/채팅 탑바 제목.
+  iOS: `RelativeTime`(@MainActor + L10n), 인앱 배너 "새 알림/새 메시지".
+- **CLAUDE.md §2.5 에 재발 방지 체크리스트** 추가(메커니즘·AAB·하드코딩·3언어 동시·API32 이하 Context·확인 순서 + 점검 grep).
+
+### 확인 필요(실기기)
+- 필터 순차 등장/별자리 선 긋기의 체감 속도(REVEAL_* / CONSTELLATION_DRAW_*), 반짝 소리 밀도(55ms).
+- 별 도감: 별 수가 많을 때(50+) 별 크기 12dp 하한에서 드래그 선택 감도.
+- 언어: **Play 내부 테스트 트랙 설치본**에서 English/日本語 전환 확인(디버그 APK 로는 원인 재현 불가).
+- iOS: push 후 CI 컴파일(`ios.yml`) — 새 파일 4개(`MapStarReveal`/`ConstellationDraw`/`StarLogScreen`/효과음 mp3).
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
+- [ ] **(8.64) 언어 전환 — Play 내부 테스트 설치본에서 확인**(AAB 언어 분할 끔). 확인되면 CLAUDE.md §2.5 의 "3번 재발" 기록 유지.
+- [ ] (8.64) 별 도감 해금 기록은 기기 로컬 — 기기 변경/재설치 시 비어 있다. 필요하면 users/{uid}/unlocks 서버 동기화(스키마 추가) 검토.
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
       `INSTAGRAM_APP_ID` 주입, `UIPasteboard`(com.instagram.sharedSticker.backgroundImage) + `instagram-stories://share` 필요.

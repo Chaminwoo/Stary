@@ -59,6 +59,10 @@ struct MapLibreView: UIViewRepresentable {
         (_ topY: CGFloat, _ bottomY: CGFloat, _ zoom: Double) -> Void
     )? = nil
 
+    /// 필터 조합 식별값 — 바뀌면 지금 별들을 "하나 둘" 순차 등장으로 다시 띄운다(Android revealKey 패리티).
+    /// 첫 표시·데이터 갱신에는 쓰지 않는다(값이 그대로면 연출 없음). ⚠️ 멤버와이즈 init 순서상 맨 끝.
+    var revealKey: Int = 0
+
     // MARK: - Constants
 
     /// 지도 최소 줌(이 밑은 3D 글로브가 담당).
@@ -300,12 +304,23 @@ struct MapLibreView: UIViewRepresentable {
                     }
             )
 
+            // 필터가 바뀐 경우 — 새로 뜨는 별들을 숨긴 채 추가한 뒤 순차 등장시킨다(뷰가 생기기 전에 준비).
+            let reveal = context.coordinator.consumeRevealRequest(revealKey)
+            if reveal { context.coordinator.prepareStarReveal(toAdd, mapView: mapView, key: revealKey) }
+
             mapView.addAnnotations(toAdd)
 
             // 별 후광 갱신.
             context.coordinator.refreshAuraFeatures(
                 mapView
             )
+            if reveal { context.coordinator.startStarReveal(mapView) }
+        } else if context.coordinator.consumeRevealRequest(revealKey) {
+            // 필터가 바뀌었지만 보이는 별 구성이 그대로 — 같은 별들로 순차 등장만 다시.
+            let current = (mapView.annotations ?? []).compactMap { $0 as? DiaryAnnotation }
+            context.coordinator.prepareStarReveal(current, mapView: mapView, key: revealKey)
+            context.coordinator.refreshAuraFeatures(mapView)
+            context.coordinator.startStarReveal(mapView)
         }
 
         // 스타일 이펙트.
@@ -376,6 +391,26 @@ struct MapLibreView: UIViewRepresentable {
 
         /// 마지막 별자리 선 구성 키.
         var lastConstellationKey: String?
+
+        // ── 별자리 "선 긋기"(MapStyleEffects+ConstellationDraw) ──
+        /// 그려져 있는 선 — key → (fromA, 진행도). 매 프레임 갱신해 도중에 끊겨도 이어 그린다.
+        var constellationDrawn: [String: (fromA: Bool, p: Double)] = [:]
+        /// 되감기용 선 모양.
+        var constellationGeometry: [String: ConstellationEdgeIOS] = [:]
+        var constellationLink: CADisplayLink?
+        var constellationRun: ConstellationRun?
+
+        // ── 필터 전환 별 순차 등장(MapStarReveal) ──
+        /// 마지막으로 소비한 revealKey(nil = 아직 첫 표시 전 — 첫 표시엔 연출 없음).
+        var lastRevealKey: Int?
+        /// 별 id → 등장 시작 지연(초). 화면 밖 별은 없음(즉시 표시).
+        var revealDelays: [String: Double] = [:]
+        var revealSortedDelays: [Double] = []
+        var revealStart: CFTimeInterval = 0
+        var revealSounded = 0
+        var revealLink: CADisplayLink?
+        /// 아직 떠오르지 않은 별 — 후광(CircleLayer)도 이 별들은 빼고 그린다.
+        var revealHidden: Set<String> = []
 
         /// 마지막 세계 빈 공간 경계.
         var lastVoid: (
@@ -690,6 +725,7 @@ struct MapLibreView: UIViewRepresentable {
                         forZoom: mapView.zoomLevel
                     )
                 )
+                applyRevealState(to: v, id: d.diary.id ?? "")
 
                 return v
             }
@@ -704,6 +740,7 @@ struct MapLibreView: UIViewRepresentable {
                 ) {
 
                 reused.transform = scale
+                applyRevealState(to: reused, id: d.diary.id ?? "")
 
                 return reused
             }
@@ -715,6 +752,7 @@ struct MapLibreView: UIViewRepresentable {
                 )
 
             v.transform = scale
+            applyRevealState(to: v, id: d.diary.id ?? "")
 
             return v
         }

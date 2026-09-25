@@ -129,6 +129,18 @@ fun NavGraph(
             )
         }
 
+        composable<NavRoute.StarLog> {
+            com.chaminwoo.stary.feature.profile.screen.StarLogScreen(
+                onOpenMap = { diaryId ->
+                    // 도감의 "지도에서 보기" → 지도로 가서 그 별 위치로 카메라 + 파장(프로필 핀 별과 동일).
+                    com.chaminwoo.stary.core.util.MapFocusState.request(diaryId)
+                    navController.navigate(NavRoute.Main) {
+                        popUpTo<NavRoute.Main> { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable<NavRoute.Profile> {
             ProfileScreen(
                 onOpenAchievements = { navController.navigate(NavRoute.Achievements) },

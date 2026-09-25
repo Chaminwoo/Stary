@@ -61,6 +61,28 @@
   - 루트 `secrets.properties` 의 `MAPS_API_KEY`, `GOOGLE_WEB_CLIENT_ID`
   - `androidApp/google-services.json` (현재 더미 → 실제 새 Firebase 파일로 교체)
 
+## 2.5 ⚠️ 인앱 언어 전환 — "한국어밖에 안 된다" 3번 재발(2026-09-03 / 09-04 / 09-25). 건드리기 전에 반드시 읽을 것
+원인이 **한 군데가 아니라 여러 층에 엮여 있어서**, 한 층만 고치고 "해결"로 착각하면 다른 층에서 다시 터진다.
+언어·문자열·빌드 설정·`MainActivity`·`LocaleManager`·알림/리시버 코드를 바꿀 때는 아래를 **전부** 점검한다.
+1. **적용 메커니즘(Android)** — `core/util/LocaleManager.kt` 가 버전별로 다르게 처리한다.
+   API 33+ = 시스템 `android.app.LocaleManager.applicationLocales` 직접 set/get, API 26~32 = prefs + `MainActivity.attachBaseContext` 의 `wrap()`.
+   - **`AppCompatDelegate.setApplicationLocales` 금지** — `MainActivity` 가 `ComponentActivity` 라 조용히 무시된다(09-04 재발 원인).
+   - `attachBaseContext`/`LocaleManager` 를 고치면 **API 33+ 와 32 이하를 둘 다** 확인한다.
+2. **배포(Play AAB)** — `androidApp/build.gradle.kts` 의 `bundle { language { enableSplit = false } }` 를 **지우지 말 것**(09-25 재발 원인).
+   켜져 있으면 Play 가 기기 언어 리소스만 설치해서 스토어 설치본은 영어/일본어로 바꿔도 한국어로 폴백된다.
+   **USB 디버그 APK 에는 모든 언어가 들어 있어 재현되지 않는다** → 언어 관련 수정은 Play 내부 테스트 설치본으로도 확인.
+3. **하드코딩 한국어 금지** — UI 문자열은 `stringResource`/`context.getString`(Android), `locale.t(.키)`(iOS L10n).
+   - 뷰모델은 문자열을 만들지 말고 리소스 id/enum 을 내보낸다(`DiaryEvent`, `FriendMessage` 패턴). **문자열을 비교 로직에 쓰지 말 것**(예전 `"저장 완료!"` 비교).
+   - `NavRoute.title` 은 한국어 하드코딩(식별용) — 탑바 제목은 `MainScreen.localizedTitle()` 에서 리소스로. 새 라우트는 거기에 분기를 추가.
+   - 점검 명령(주석·로그 제외 후 남는 한국어 리터럴 확인 — 2026-09-25 기준 남은 건 로그/개발용 진단/DB 저장용 이름/미사용 `MyScreen.kt` 뿐):
+     `grep -rn '"[^"]*[가-힣][^"]*"' androidApp/src/main/java --include=*.kt | grep -v ':[0-9]*:\s*\(//\|\*\|/\*\)' | grep -v 'Log\.\|TestData'`
+4. **새 문자열 키는 3곳 동시** — `values/`·`values-en/`·`values-ja/strings.xml`(하나라도 빠지면 그 키만 한국어). iOS 는 `L10n` 케이스에 ko/en/ja 튜플 동시.
+   영어 `'` 는 XML 에서 `\'` 로(파이썬 heredoc 으로 편집할 때 이스케이프가 풀리는 함정 — PROJECT_NOTES 8.62 참고).
+5. **API 32 이하에서 `applicationContext` 는 인앱 언어가 안 먹는다** — 리시버·서비스·알림 채널·`RelativeTime` 등은
+   액티비티 Context 를 쓰거나 `LocaleManager.wrap(context)` 로 감싼다.
+6. **확인 순서(수정 후 필수)**: 설정에서 English/日本語 전환 → 로그인 화면·지도·드로어·설정·상세·알림 배너·토스트까지 훑기
+   → 가능하면 API 32 이하 에뮬레이터 1회 → 스토어(내부 테스트) 설치본 1회.
+
 ## 3. 마지막 검증 기준선
 - 최근 검증: `:androidApp:assembleDebug` → **BUILD SUCCESSFUL** (디버그 APK 생성).
 - 병합 매니페스트의 `com.google.android.geo.API_KEY` 가 placeholder(`TODO_ADD_YOUR_GOOGLE_MAPS_API_KEY`)로 정상 주입됨.

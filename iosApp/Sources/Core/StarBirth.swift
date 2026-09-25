@@ -26,6 +26,8 @@ final class StarBirthStore: ObservableObject {
     func trigger(starType: Int, starColor: Int) {
         event = Event(type: starType, colorIndex: starColor)
         Haptics.celebrate() // 별이 응축·발광하는 순간에 맞춘 축하 진동
+        // 유성이 내려와 안착 — 화음이 발광 순간(≈0.42s)에 오도록 음원 자체를 맞춰 두었다(Android 동일).
+        MusicManager.shared.playStarBirth()
     }
 
     func clear() { event = nil }

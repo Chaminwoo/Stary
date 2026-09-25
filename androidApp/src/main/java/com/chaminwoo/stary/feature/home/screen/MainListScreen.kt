@@ -300,70 +300,13 @@ fun MainListScreen(
         )
     }
 
-    // 친구 선택 다이얼로그
+    // 친구 선택 다이얼로그(별 도감과 공용 — core/ui/FriendPickerDialog)
     if (showFriendPicker) {
-        var tempSelected by remember { mutableStateOf(selectedFriendIds) }
-        AlertDialog(
-            onDismissRequest = { showFriendPicker = false },
-            containerColor = Color(0xFF1A1A1A),
-            title = {
-                Text(
-                    stringResource(R.string.filter_pick_friends),
-                    color = Color(0xFFF0F0F0),
-                    fontSize = 16.sp
-                )
-            },
-            text = {
-                if (friends.isEmpty()) {
-                    Text(
-                        stringResource(R.string.filter_no_friends),
-                        color = Color(0xFF8A8A8A),
-                        fontSize = 14.sp
-                    )
-                } else {
-                    Column {
-                        friends.forEach { friend ->
-                            val checked = friend.userId in tempSelected
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
-                            ) {
-                                Checkbox(
-                                    checked = checked,
-                                    onCheckedChange = {
-                                        tempSelected = if (it) tempSelected + friend.userId
-                                        else tempSelected - friend.userId
-                                    },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFF9FB3E8),
-                                        uncheckedColor = Color(0xFF8A8A8A)
-                                    )
-                                )
-                                Text(
-                                    com.chaminwoo.stary.core.util.rememberCurrentUserName(
-                                        friend.userId, friend.userName
-                                    ).ifBlank { friend.userId.take(8) },
-                                    color = Color(0xFFF0F0F0), fontSize = 14.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    selectedFriendIds = tempSelected; showFriendPicker = false
-                }) {
-                    Text(stringResource(R.string.filter_apply), color = Color(0xFF9FB3E8))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showFriendPicker = false }) {
-                    Text(stringResource(R.string.common_cancel), color = Color(0xFF8A8A8A))
-                }
-            }
+        com.chaminwoo.stary.core.ui.FriendPickerDialog(
+            friends = friends,
+            initial = selectedFriendIds,
+            onApply = { selectedFriendIds = it; showFriendPicker = false },
+            onDismiss = { showFriendPicker = false },
         )
     }
 
@@ -507,6 +450,11 @@ fun MainListScreen(
                 globeButtonCenter = if (available) lat to lng else null
             },
             globeReturnCamera = globeReturn,
+            // 필터 조합이 바뀌면 별이 "하나 둘" 순차로 다시 떠오른다(광고 연출). 위치 갱신(unlockFix)·
+            // 데이터 실시간 갱신은 여기 안 들어가므로 그때는 기존 합쳐짐/펼쳐짐 보간만 돈다.
+            revealKey = listOf(
+                unviewedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays,
+            ),
             modifier = modifier,
         )
 

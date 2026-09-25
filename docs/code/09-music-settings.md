@@ -24,6 +24,9 @@ iOS: `Features/Music/MusicScreen.swift`, `Features/Profile/SettingsScreen.swift`
   원래 트랙 복원). `commitSelectedTrack(id)` : 선택 확정 저장.
 - `setActive(value)` : on/off 저장+즉시 반영. `updateMusicVolume/updateSfxVolume(value)` :
   저장 + (BGM 은) 재생 중 플레이어에 즉시 반영.
+- 연출 효과음(2026-09-25, 합성 — `tools/sfx`): `playSparkTick()`(별이 하나 둘 뜰 때 — 필터 순차 등장·별 도감, 3종 무작위 +
+  55ms 최소 간격) · `playStarBirth()`(StarBirth) · `playLike()`(좋아요, 취소는 무음) · `playDrawer()`(드로어 열림).
+  SoundPool maxStreams 8. iOS `MusicManager` 같은 이름/볼륨(`AVAudioPlayer(data:)` 최대 8개).
 - 효과음: `playWind()`(다이얼/휠 바람) · `playOpenDiary()`(별 열람 파장) · `setDialTurning(turning)`
   (다이얼 회전 루프음). 전부 `enabled=false` 면 무음.
 

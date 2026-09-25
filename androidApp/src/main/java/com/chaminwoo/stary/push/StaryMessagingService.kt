@@ -56,7 +56,9 @@ class StaryMessagingService : FirebaseMessagingService() {
         val isFriendRequest = message.data["type"] ==
             com.chaminwoo.stary.core.model.NotificationType.FRIEND_REQUEST.name
         val title = message.data["title"] ?: message.notification?.title ?: "Stary"
-        val body = message.data["body"] ?: message.notification?.body ?: "새 소식이 있어요"
+        val body = message.data["body"] ?: message.notification?.body
+            ?: com.chaminwoo.stary.core.util.LocaleManager.wrap(this)
+                .getString(com.chaminwoo.stary.R.string.push_fallback_body)
 
         // heads-up 채널 보장(앱 시작 시 이미 만들지만 방어적으로).
         ensureStaryNotificationChannel(this)

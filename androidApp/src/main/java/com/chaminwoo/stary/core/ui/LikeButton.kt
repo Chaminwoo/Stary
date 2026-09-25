@@ -162,6 +162,7 @@ fun LikeButton(
                         if (willLike) {
                             burstNonce++
                             Haptics.medium()
+                            com.chaminwoo.stary.core.util.MusicManager.playLike() // 뽀옹 + 반짝(취소엔 무음)
                         }
                         onToggle()
                     },

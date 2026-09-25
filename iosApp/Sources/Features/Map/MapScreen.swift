@@ -36,6 +36,14 @@ struct MapScreen: View {
     /// 영구 해금 기록 — 해금되는 순간 지도 필터도 같이 갱신되게 관찰한다.
     @ObservedObject private var unlocks = DiaryUnlockStore.shared
     @State private var selectedFriendIds: Set<String> = []
+
+    /// 필터 조합 식별값 — 바뀌면 지도 별이 순차 등장으로 다시 뜬다(데이터·위치 갱신은 포함하지 않는다).
+    private var filterRevealKey: Int {
+        var h = Hasher()
+        h.combine(unviewedOnly); h.combine(friendsOnly); h.combine(myOnly); h.combine(unlockedOnly)
+        h.combine(selectedFriendIds); h.combine(periodDays)
+        return h.finalize()
+    }
     @State private var showFriendPicker = false
     /// 내 친구 목록 — 친구만/친구선택 필터용 1회 로드.
     @State private var myFriends: [Friend] = []
@@ -348,7 +356,9 @@ struct MapScreen: View {
                     voidTopY = top
                     voidBottomY = bottom
                     voidZoom = zoom
-                }
+                },
+                // 필터 조합이 바뀌면 별이 "하나 둘" 순차로 다시 떠오른다(Android DiaryMap revealKey 패리티).
+                revealKey: filterRevealKey
             )
             .ignoresSafeArea()
 
@@ -729,7 +739,8 @@ private struct MapWarpOverlay: View {
 }
 
 /// 친구 선택 필터 시트 — 체크 토글 후 저장. (Android 친구 선택 다이얼로그 대응)
-private struct FriendFilterPicker: View {
+/// (별 도감 StarLogScreen 에서도 같은 시트를 쓴다 — 2026-09-25 private 해제)
+struct FriendFilterPicker: View {
     let friends: [Friend]
     let initial: Set<String>
     let onConfirm: (Set<String>) -> Void

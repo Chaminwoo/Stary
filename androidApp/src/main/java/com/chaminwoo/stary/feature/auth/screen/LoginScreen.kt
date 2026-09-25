@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -242,7 +243,7 @@ fun LoginScreen(
                                 )
                         )
                         StarDiaryButton(
-                            text = "Google 계정으로 로그인",
+                            text = stringResource(R.string.login_google),
                             modifier = Modifier.fillMaxWidth(),
                             onClick = {
                                 coroutineScope.launch {
@@ -251,7 +252,8 @@ fun LoginScreen(
                                     // 실패 사유를 그대로 노출한다 — 예전엔 "잠시만 기다려주세요" 뿐이라
                                     // 실기기에서 왜 로그인이 안 되는지 확인할 방법이 없었다.
                                     else com.chaminwoo.stary.core.ui.StaryToast.show(
-                                        GoogleAuthHelper.lastSignInError ?: "잠시만 기다려주세요"
+                                        GoogleAuthHelper.lastSignInError
+                                            ?: context.getString(R.string.login_please_wait)
                                     )
                                 }
                             }
@@ -263,7 +265,7 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
                     ) {
                         Text(
-                            text = "로그인 없이 둘러보기",
+                            text = stringResource(R.string.login_browse),
                             color = MaterialTheme.colorScheme.secondary,
                             fontSize = 14.sp
                         )

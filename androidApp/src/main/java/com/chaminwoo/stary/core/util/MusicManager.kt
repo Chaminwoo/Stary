@@ -7,6 +7,7 @@ import android.media.SoundPool
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.chaminwoo.stary.R
 
 /**
  * 앱 전역 배경음악 관리자. (특정 화면에 묶이지 않고 모든 스크린에서 재생)
@@ -47,6 +48,23 @@ object MusicManager {
     private var openSoundId = 0
     private var openLoaded = false
     private const val OPEN_VOLUME = 0.35f
+
+    // 연출용 짧은 효과음(2026-09-25 사용자 선택 — 후보는 tools/sfx 로 합성, 미리듣기 후 확정).
+    //  - sfx_spark_1~3 : 별이 하나 둘 떠오를 때(지도 필터 전환 · 별 도감 원) "톡톡 반짝" — 3종 중 무작위.
+    //  - sfx_star_birth: 업로드 성공 별 탄생(유성이 내려와 안착) · sfx_like: 좋아요(뽀옹+반짝) · sfx_drawer: 드로어 열기(스윽).
+    // 모두 SoundPool 에 미리 로드(즉시·중복 재생). 로드 전 호출은 조용히 건너뛴다(연출 보조음이라 누락 허용).
+    private val SPARK_RES = intArrayOf(R.raw.sfx_spark_1, R.raw.sfx_spark_2, R.raw.sfx_spark_3)
+    private val EXTRA_SFX_RES = intArrayOf(R.raw.sfx_star_birth, R.raw.sfx_like, R.raw.sfx_drawer)
+    private val sfxSoundIds = HashMap<Int, Int>()   // resId → soundId
+    private val sfxLoaded = HashSet<Int>()          // 로드 완료된 soundId
+    private const val SPARK_VOLUME = 0.30f
+    /** 별이 촘촘히 뜰 때 반짝임이 폭주하지 않도록 최소 간격(ms) — 그보다 빠른 호출은 건너뛴다. */
+    private const val SPARK_MIN_GAP_MS = 55L
+    private var lastSparkAtMs = 0L
+    private var lastSparkIdx = -1
+    private const val STAR_BIRTH_VOLUME = 0.55f
+    private const val LIKE_VOLUME = 0.50f
+    private const val DRAWER_VOLUME = 0.32f
 
     // 다이얼(맷돌) 회전 효과음(turning_dial.mp3).
     //  - **돌리는 동안**: [dialTick] 이 실제 각도 눈금을 지날 때마다 호출되어 처음부터 다시 재생 —
@@ -96,17 +114,22 @@ object MusicManager {
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
-        soundPool = SoundPool.Builder().setMaxStreams(4).setAudioAttributes(attrs).build().apply {
+        // 별 순차 등장 반짝임이 겹쳐 울리므로 동시 스트림을 넉넉히(초과 시 SoundPool 이 가장 오래된 것을 끊는다).
+        soundPool = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attrs).build().apply {
             setOnLoadCompleteListener { _, sampleId, status ->
                 if (status != 0) return@setOnLoadCompleteListener
                 when (sampleId) {
                     windSoundId -> windLoaded = true
                     openSoundId -> openLoaded = true
+                    else -> sfxLoaded.add(sampleId)
                 }
             }
         }
         if (windResId != 0) windSoundId = soundPool?.load(ctx, windResId, 1) ?: 0
         if (openResId != 0) openSoundId = soundPool?.load(ctx, openResId, 1) ?: 0
+        (SPARK_RES + EXTRA_SFX_RES).forEach { res ->
+            soundPool?.load(ctx, res, 1)?.let { sfxSoundIds[res] = it }
+        }
     }
 
     private fun resIdFor(id: String?): Int {
@@ -155,6 +178,41 @@ object MusicManager {
             }
         }
     }
+
+    /** 미리 로드된 짧은 효과음 1회 재생. 음소거(enabled=false)거나 아직 로드 전이면 무동작. */
+    private fun playSfx(res: Int, volume: Float, rate: Float = 1f) {
+        if (!enabled) return
+        val sp = soundPool ?: return
+        val id = sfxSoundIds[res] ?: return
+        if (id !in sfxLoaded) return
+        val v = (volume * sfxVolume).coerceIn(0f, 1f)
+        sp.play(id, v, v, 1, 0, rate)
+    }
+
+    /**
+     * 별 하나가 "톡" 떠오를 때의 반짝임 — 지도 필터 전환 순차 등장 / 별 도감 원 등장에서 별마다 호출.
+     * 3종 중 직전과 다른 것을 고르고 재생 속도를 살짝 흔들어(음높이 ±) 기계적인 반복감을 없앤다.
+     * [SPARK_MIN_GAP_MS] 보다 촘촘한 호출은 건너뛴다(별이 수십 개여도 소리는 적당한 밀도).
+     */
+    fun playSparkTick() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastSparkAtMs < SPARK_MIN_GAP_MS) return
+        lastSparkAtMs = now
+        var idx = kotlin.random.Random.nextInt(SPARK_RES.size)
+        if (idx == lastSparkIdx) idx = (idx + 1) % SPARK_RES.size
+        lastSparkIdx = idx
+        val vol = SPARK_VOLUME * (0.75f + 0.25f * kotlin.random.Random.nextFloat())
+        playSfx(SPARK_RES[idx], vol, rate = 0.94f + 0.14f * kotlin.random.Random.nextFloat())
+    }
+
+    /** 업로드 성공 별 탄생 — 유성이 내려와 안착(화음이 StarBirth 발광 순간 ≈0.42s 에 맞춰져 있다). */
+    fun playStarBirth() = playSfx(R.raw.sfx_star_birth, STAR_BIRTH_VOLUME)
+
+    /** 좋아요를 눌렀을 때(취소 때는 호출하지 않는다) — 뽀옹 + 반짝. */
+    fun playLike() = playSfx(R.raw.sfx_like, LIKE_VOLUME)
+
+    /** 드로어(메뉴)가 열릴 때 — 스윽. 닫힐 때는 무음. */
+    fun playDrawer() = playSfx(R.raw.sfx_drawer, DRAWER_VOLUME)
 
     /**
      * 맷돌(다이얼) 눈금음 — **실제로 돌릴 때마다**(각도 눈금을 지날 때) 호출한다. 고정 타이머가 아니라
@@ -335,6 +393,8 @@ object MusicManager {
         soundPool = null
         windLoaded = false
         openLoaded = false
+        sfxSoundIds.clear()
+        sfxLoaded.clear()
         dialPlayer?.release()
         dialPlayer = null
         initialized = false

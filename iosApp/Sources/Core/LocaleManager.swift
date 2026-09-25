@@ -85,6 +85,13 @@ enum L10n: String {
     case filterUnviewed
     /// 지도 "해금만" 필터 — Android filter_unlocked 패리티.
     case filterUnlocked
+    // 별 도감(2026-09-25) — Android starlog_* / nav_star_log / onb_starlog_* 패리티.
+    case navStarLog, starlogSortUnlocked, starlogCountLabel, starlogHint, starlogAuthor
+    case starlogMeta, starlogMetaDistance, starlogOpenMap
+    case starlogEmptyTitle, starlogEmptyDesc, starlogFilteredEmpty, onbStarLogTitle, onbStarLogMsg
+    // 하드코딩 한국어 → L10n(2026-09-25 언어 전환 재발 대응) — Android time_* / banner_* 패리티.
+    case timeJustNow, timeMinutesAgo, timeHoursAgo, timeDaysAgo
+    case bannerNewNotification, bannerNewMessage
     // 계정 삭제 + 신고/차단 — Android 차단·신고 라운드 패리티.
     case commonCancel, commonDelete
     /// 다이어리 수정/삭제 팝업 문구 + 본문 입력 라벨(Android detail_* / field_content 대응).
@@ -581,6 +588,31 @@ enum L10n: String {
         case .shareEditNoStars:     return ("가져올 별이 없어요 — 다이어리를 먼저 남겨보세요",
                                             "No stars yet — leave a diary first",
                                             "追加できる星がありません — まずダイアリーを残しましょう")
+        // 별 도감 — Android values*/strings.xml starlog_* 와 문장 동일 유지(%1$s → %@, %1$d → %d).
+        case .navStarLog:           return ("별 도감", "Star Log", "星の図鑑")
+        case .starlogSortUnlocked:  return ("해금순", "Unlocked", "解錠順")
+        case .starlogCountLabel:    return ("모은 별", "Stars collected", "集めた星")
+        case .starlogHint:          return ("별을 누른 채로\n훑어보세요", "Press and slide\nacross the stars",
+                                            "押したまま\n星をなぞってみてください")
+        case .starlogAuthor:        return ("%@님의 별", "%@'s star", "%@さんの星")
+        case .starlogMeta:          return ("%@ 해금 · 여기서 %@", "Unlocked %@ · %@ away", "%@に解錠 · ここから%@")
+        case .starlogMetaDistance:  return ("여기서 %@", "%@ away", "ここから%@")
+        case .starlogOpenMap:       return ("지도에서 보기", "See on map", "地図で見る")
+        case .starlogEmptyTitle:    return ("아직 모은 별이 없어요", "No stars collected yet", "まだ集めた星がありません")
+        case .starlogEmptyDesc:     return ("100m 안으로 다가가거나 광고로 열어 본\n다른 사람의 별이 여기에 모여요.",
+                                            "Stars you open by coming within 100m\nor watching an ad gather here.",
+                                            "100m以内に近づくか広告で開いた\n誰かの星がここに集まります。")
+        case .starlogFilteredEmpty: return ("조건에 맞는 별이 없어요", "No stars match these filters", "条件に合う星がありません")
+        case .onbStarLogTitle:      return ("별 도감", "Star Log", "星の図鑑")
+        case .onbStarLogMsg:        return ("열어 본 다른 사람의 별이\n원으로 모여요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.",
+                                            "Stars you have opened\ngather in a circle.\nPress and slide over a star\nto see its story in the center.",
+                                            "開いた誰かの星が\n円に集まります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。")
+        case .timeJustNow:          return ("방금 전", "just now", "たった今")
+        case .timeMinutesAgo:       return ("%d분 전", "%d min ago", "%d分前")
+        case .timeHoursAgo:         return ("%d시간 전", "%dh ago", "%d時間前")
+        case .timeDaysAgo:          return ("%d일 전", "%dd ago", "%d日前")
+        case .bannerNewNotification: return ("새 알림", "New notification", "新しい通知")
+        case .bannerNewMessage:     return ("새 메시지", "New message", "新しいメッセージ")
         }
     }
 
