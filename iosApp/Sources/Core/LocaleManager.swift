@@ -89,6 +89,9 @@ enum L10n: String {
     case navStarLog, starlogSortUnlocked, starlogCountLabel, starlogHint, starlogAuthor
     case starlogMeta, starlogMetaDistance, starlogOpenMap
     case starlogEmptyTitle, starlogEmptyDesc, starlogFilteredEmpty, onbStarLogTitle, onbStarLogMsg
+    case starlogPermanentNote
+    // 새 버전 안내(앱 실행 시 스토어에 새 버전이 있으면) — Android update_* 패리티.
+    case updateTitle, updateMsg, updateGo, updateLater
     // 하드코딩 한국어 → L10n(2026-09-25 언어 전환 재발 대응) — Android time_* / banner_* 패리티.
     case timeJustNow, timeMinutesAgo, timeHoursAgo, timeDaysAgo
     case bannerNewNotification, bannerNewMessage
@@ -427,9 +430,9 @@ enum L10n: String {
         case .detailCommentsCount:  return ("댓글 %d", "Comments %d", "コメント %d")
         case .commentPlaceholder:   return ("댓글을 입력하세요", "Write a comment", "コメントを入力")
         case .detailLocating:       return ("위치를 확인하는 중이에요…", "Checking your location…", "位置を確認しています…")
-        case .detailLockedTitle:    return ("%1$dm 이내로 다가가거나,\n광고를 통해 열어보세요!",
-                                            "Get within %1$dm,\nor watch an ad to open it!",
-                                            "%1$dm 以内に近づくか、\n広告を見て開いてみてください！")
+        case .detailLockedTitle:    return ("%1$dm 이내로 다가가거나,\n광고를 통해 해금하세요!",
+                                            "Get within %1$dm,\nor unlock it with an ad!",
+                                            "%1$dm 以内に近づくか、\n広告を見て解錠してください！")
         case .detailLockedDistance: return ("현재 위치로부터 %@", "%@ from your current location", "現在地から %@")
         case .detailCommentNearOnly: return ("%1$dm 이내에서만 댓글을 남길 수 있어요",
                                              "You can comment only within %1$dm",
@@ -599,14 +602,24 @@ enum L10n: String {
         case .starlogMetaDistance:  return ("여기서 %@", "%@ away", "ここから%@")
         case .starlogOpenMap:       return ("지도에서 보기", "See on map", "地図で見る")
         case .starlogEmptyTitle:    return ("아직 모은 별이 없어요", "No stars collected yet", "まだ集めた星がありません")
-        case .starlogEmptyDesc:     return ("100m 안으로 다가가거나 광고로 열어 본\n다른 사람의 별이 여기에 모여요.",
-                                            "Stars you open by coming within 100m\nor watching an ad gather here.",
-                                            "100m以内に近づくか広告で開いた\n誰かの星がここに集まります。")
+        case .starlogEmptyDesc:     return ("100m 안으로 다가가거나 광고로 해금한\n다른 사람의 별이 여기에 모여요.\n광고로 해금한 다이어리는 별 도감에 영구히 남아요.",
+                                            "Stars you unlock by coming within 100m\nor watching an ad gather here.\nDiaries unlocked with an ad stay in your Star Log forever.",
+                                            "100m以内に近づくか広告で解錠した\n誰かの星がここに集まります。\n広告で解錠した日記は星の図鑑にずっと残ります。")
+        case .starlogPermanentNote: return ("광고로 해금한 다이어리는\n별 도감에 영구히 남아요",
+                                            "Diaries unlocked with an ad\nstay in your Star Log forever",
+                                            "広告で解錠した日記は\n星の図鑑にずっと残ります")
         case .starlogFilteredEmpty: return ("조건에 맞는 별이 없어요", "No stars match these filters", "条件に合う星がありません")
         case .onbStarLogTitle:      return ("별 도감", "Star Log", "星の図鑑")
-        case .onbStarLogMsg:        return ("열어 본 다른 사람의 별이\n원으로 모여요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.",
-                                            "Stars you have opened\ngather in a circle.\nPress and slide over a star\nto see its story in the center.",
-                                            "開いた誰かの星が\n円に集まります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。")
+        case .onbStarLogMsg:        return ("해금한 다른 사람의 별이\n원으로 모여요.\n광고로 해금한 다이어리는\n별 도감에 영구히 남아요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.",
+                                            "Stars you have unlocked\ngather in a circle.\nDiaries unlocked with an ad\nstay in your Star Log forever.\nPress and slide over a star\nto see its story in the center.",
+                                            "解錠した誰かの星が\n円に集まります。\n広告で解錠した日記は\n星の図鑑にずっと残ります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。")
+        // 새 버전 안내 — Android update_* 패리티(iOS 는 App Store 로 안내).
+        case .updateTitle:          return ("새 버전이 나왔어요", "A new version is out", "新しいバージョンが出ました")
+        case .updateMsg:            return ("더 반짝이는 Stary 가 준비됐어요.\nApp Store에서 업데이트해 주세요.",
+                                            "A brighter Stary is ready.\nPlease update it on the App Store.",
+                                            "もっと輝くStaryの準備ができました。\nApp Storeでアップデートしてください。")
+        case .updateGo:             return ("업데이트하러 가기", "Go to update", "アップデートする")
+        case .updateLater:          return ("나중에", "Later", "あとで")
         case .timeJustNow:          return ("방금 전", "just now", "たった今")
         case .timeMinutesAgo:       return ("%d분 전", "%d min ago", "%d分前")
         case .timeHoursAgo:         return ("%d시간 전", "%dh ago", "%d時間前")

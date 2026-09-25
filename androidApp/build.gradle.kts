@@ -221,4 +221,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-appset:16.1.0")
     // 광고 폴백: Google AdMob 보상형(LevelPlay no fill 대비). 광고 단위는 secrets 주입(미설정 시 디버그 한정 테스트 단위).
     implementation("com.google.android.gms:play-services-ads:25.5.0")
+
+    // 새 버전 안내 — Play 인앱 업데이트 API 로 "스토어에 더 새 버전이 있는지"만 확인하고,
+    // 안내·이동은 앱 자체 팝업(AppUpdatePrompt → 플레이 스토어 상세 화면)으로 한다(2026-09-25).
+    // ⚠️ Play 에서 설치한 앱에서만 동작한다(USB/디버그 설치본은 항상 "업데이트 없음" 또는 오류 → 조용히 무시).
+    implementation("com.google.android.play:app-update:2.1.0")
 }

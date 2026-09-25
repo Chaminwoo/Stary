@@ -14,6 +14,10 @@ struct RootView: View {
                 LoginView()
             }
         }
+        // 새 버전 안내 — 로그인/메인 어느 화면이든 맨 위에(Android MainScreen AppUpdatePromptHost 패리티).
+        .overlay { AppUpdatePromptOverlay() }
+        // 앱을 열 때(프로세스당 1회) App Store 에 새 버전이 있는지 확인.
+        .task { await AppUpdateChecker.shared.checkOnce() }
         .font(.minSans(16))   // 앱 기본 폰트(Android bodyLarge = MinSans 16sp 대응)
         // 시스템 글꼴 크기 상한 — 고정 높이 카드가 많아 그대로 두면 큰 글꼴에서 글자가 잘린다
         // (Android StaryResponsive.MAX_FONT_SCALE=1.15 대응).

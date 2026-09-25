@@ -85,6 +85,8 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - `didAutoCenter` : 최초 실행 시 "실제 fix 도착하면 내 위치로 1회 이동" 완료 여부.
 - `lastRecenterNonce` : `MapUiState.recenterNonce` 소비 기록 — 지도 복귀 재센터 1회 실행
   (초기값=현재 nonce 라 액티비티 재생성 후 남은 옛 요청은 무시).
+  ⚠️ 2026-09-25 부터 **별(상세/겹친 별)을 열러 나갔다 돌아온 경우엔 nonce 를 발급하지 않는다**(MainScreen `leftMapFor`,
+  iOS `MapScreen.leftForDiary`) — 보던 카메라 그대로. 드로어 메뉴·알림·업로드 등에서 돌아올 때만 내 위치로.
 
 ### 주요 함수/로직
 - `recenterToMyLocation()` : 내 위치로 `DEFAULT_ZOOM`+`BASE_TILT_DEG` 카메라 애니메이션.

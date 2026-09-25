@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.64 광고 레퍼런스 반영**(효과음 4종 · 필터 별 순차 등장 · 별자리 선 긋기+도착 플래시 · 드로어 순차 등장 · 별 도감 신설 · 언어 전환 3차 재발 = AAB 언어 분할) — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-25) · iOS 는 push 후 CI.
+> 최종 갱신: **8.65 별 도감 빛 제거 · 새 버전 안내 팝업 · 잠금 문구 "해금" · 상세 복귀 시 카메라 유지** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25) · iOS 는 push 후 CI.
+> 이전: **8.64 광고 레퍼런스 반영**(효과음 4종 · 필터 별 순차 등장 · 별자리 선 긋기+도착 플래시 · 드로어 순차 등장 · 별 도감 신설 · 언어 전환 3차 재발 = AAB 언어 분할) — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-25) · iOS 는 push 후 CI.
 > 이전: **8.63 지도 "해금만" 필터 추가** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.62 해금 본문 가독성 보완 + 튜토리얼 문구 정리** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.61 일일 알림 다양화**(시간대 5밴드 · 밴드별 문구 6개 · 연속 중복 배제) — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
@@ -2254,7 +2255,34 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 - 언어: **Play 내부 테스트 트랙 설치본**에서 English/日本語 전환 확인(디버그 APK 로는 원인 재현 불가).
 - iOS: push 후 CI 컴파일(`ios.yml`) — 새 파일 4개(`MapStarReveal`/`ConstellationDraw`/`StarLogScreen`/효과음 mp3).
 
+## 8.65 별 도감 빛 제거 · 새 버전 안내 팝업 · 잠금 문구 "해금" · 상세 복귀 시 카메라 유지 (Android BUILD SUCCESSFUL + 기기 설치 2026-09-25 · iOS 는 push 후 CI)
+
+사용자 요청 4건.
+
+1. **별 도감 원 등장 때 원주를 도는 민트 빛 머리 삭제**(Android `StarLogScreen` / iOS 동일). 옅은 흰 가이드 선은 유지.
+2. **새 버전 안내** — 앱을 열 때(프로세스당 1회) 스토어에 새 버전이 있으면 1.5초 뒤 팝업(첫 진입 설명창과 같은 카드) →
+   "업데이트하러 가기"(스토어 상세 화면) / "나중에"(이번 실행 동안 안 뜸).
+   - Android: `core/util/AppUpdateChecker.kt` + `core/ui/AppUpdatePrompt.kt`, 의존성 `com.google.android.play:app-update:2.1.0`.
+     Play 인앱 업데이트 API 로 **가용 여부만** 확인하고 이동은 `market://details?id=…`(없으면 웹). 호스트는 MainScreen 최상단.
+     ⚠️ **Play 에서 설치한 앱에서만 동작** — USB/디버그 설치본은 항상 "없음"(또는 오류 → 무시). 실제 확인은 내부 테스트 트랙에서
+     낮은 versionCode 설치 → 높은 versionCode 업로드. 모양만 볼 땐 디버그 빌드에서
+     `adb shell am start -n com.chaminwoo.stary_ios/com.chaminwoo.stary.MainActivity --ez debug_show_update true`(실기기에서 확인함).
+   - iOS: `Data/AppUpdateChecker.swift`(+ `AppUpdatePromptOverlay`) — iTunes lookup API(`bundleId`+기기 지역 country)의 version 을
+     `CFBundleShortVersionString` 과 점 단위 비교 → `itms-apps://…/id{trackId}`. RootView 최상단 overlay + `.task` 1회.
+     애플 lookup 은 CDN 캐시라 출시 직후 몇 시간 늦게 잡힐 수 있다. 그 나라 스토어에 앱이 없으면 0건 → 무시.
+3. **잠금 문구** "광고를 통해 열어보세요!" → **"광고를 통해 해금하세요!"**(en "or unlock it with an ad!", ja "広告を見て解錠してください！",
+   Android `detail_locked_title` + iOS `detailLockedTitle`). **별 도감에 "광고로 해금한 다이어리는 별 도감에 영구히 남아요"** 안내:
+   원 가운데(선택 전) 보조 문구 `starlog_permanent_note` + 첫 진입 설명창 + 빈 화면 설명.
+   (실제로는 100m 접근 해금도 영구지만, 문구는 사용자 요청대로 "광고로 해금한" 기준.)
+4. **지도 → 다이어리 상세 → 뒤로** 시 무조건 내 위치로 가던 것을 **보던 카메라 그대로**로.
+   - Android `MainScreen`: 지도를 떠나 처음 들어간 화면(`leftMapFor`)이 Detail/StarCluster 면 복귀 재센터 생략(상세에서 프로필 등으로
+     더 들어갔다 와도 같은 여정). 그 밖의 화면(드로어 메뉴·알림·업로드 등)에서 돌아오면 기존대로 내 위치.
+     ※ StarCluster 는 `currentRoute` 매핑이 없어 지도로 취급된다(기존 동작) — 카드 → 상세 → 뒤로 때도 이 규칙으로 재센터 생략.
+   - iOS `MapScreen`: 별 탭 파장 종료 시 `leftForDiary = true` → `onAppear` 재센터 생략, 상세·카드가 모두 닫히면 한 틱 뒤 해제.
+     카드 → 상세 넘어가는 0.35s 사이(루트가 잠깐 보임)는 `diaryHandoff` 로 플래그 유지.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
+- [ ] **(8.65) 새 버전 안내 실제 동작 확인** — Play 내부 테스트 트랙에서 구버전 설치 → 신버전 업로드 후 앱 실행. iOS 는 App Store 출시 후.
 - [ ] **(8.64) 언어 전환 — Play 내부 테스트 설치본에서 확인**(AAB 언어 분할 끔). 확인되면 CLAUDE.md §2.5 의 "3번 재발" 기록 유지.
 - [ ] (8.64) 별 도감 해금 기록은 기기 로컬 — 기기 변경/재설치 시 비어 있다. 필요하면 users/{uid}/unlocks 서버 동기화(스키마 추가) 검토.
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데

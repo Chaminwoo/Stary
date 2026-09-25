@@ -55,6 +55,11 @@ struct MapScreen: View {
     @State private var recenterNonce = 0
     /// 최초 onAppear 를 구분 — 이후의 onAppear = 하위 화면에서 지도(루트)로 복귀.
     @State private var rootAppearedOnce = false
+    /// 지도에서 별(상세/겹친 별 카드)을 열러 나갔는지 — 돌아왔을 때 재센터하지 않고 보던 카메라 유지
+    /// (2026-09-25 사용자 요청, Android MainScreen leftMapFor 패리티). 상세에서 더 들어갔다 와도 유지.
+    @State private var leftForDiary = false
+    /// 겹친 별 카드 → 상세로 넘어가는 사이(카드 pop 후 0.35s 뒤 상세 push) — 그 사이 루트가 잠깐 나타나도 플래그 유지.
+    @State private var diaryHandoff = false
     // 별자리 라인 토글(Android constellationEnabled) + 몰입(지도만 보기) 크롬 상태.
     @State private var constellationOn = false
     @ObservedObject private var chrome = MapChromeState.shared
@@ -396,6 +401,7 @@ struct MapScreen: View {
             if let w = openWarp {
                 DiaryOpenWarpView(data: w) {
                     openWarp = nil
+                    leftForDiary = true // 돌아와도 카메라 그대로(onAppear 재센터 생략)
                     if w.members.count > 1 {
                         cluster = ClusterSelection(members: w.members)
                     } else if let one = w.members.first {
@@ -572,9 +578,13 @@ struct MapScreen: View {
                 StarClusterView(
                     diaries: selection.members,
                     onOpenDiary: { diary in
+                        diaryHandoff = true
                         cluster = nil
                         // pop 애니메이션과 겹치지 않도록 한 틱 뒤에 상세를 연다.
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { selected = diary }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            selected = diary
+                            diaryHandoff = false
+                        }
                     },
                     onClose: { cluster = nil }
                 )
@@ -600,8 +610,13 @@ struct MapScreen: View {
             // 카메라만 내 위치로 옮긴다. 최초 진입, 포커스 요청 대기(아래 handleFocus 가
             // 카메라를 다룸 — 반드시 이 검사보다 뒤에 소비) 중엔 건너뛴다.
             // (Android MainScreen 라우트 전환 재센터 패리티)
-            if rootAppearedOnce, focus.pendingDiaryId == nil {
+            // 별(상세/카드)을 열러 나갔다 돌아온 경우는 보던 카메라 그대로 둔다.
+            if rootAppearedOnce, focus.pendingDiaryId == nil, !leftForDiary {
                 recenterNonce += 1
+            }
+            // 여정이 끝났으면(상세·카드 모두 닫힘) 플래그 해제 — pop 바인딩 반영 뒤에 보도록 한 틱 미룬다.
+            DispatchQueue.main.async {
+                if selected == nil, cluster == nil, !diaryHandoff { leftForDiary = false }
             }
             // 지도가 뜨기 전에 이미 감지돼 있었으면 onChange 가 안 오므로 최초 1회만 여기서 안내.
             if !rootAppearedOnce, location.mockDetected {

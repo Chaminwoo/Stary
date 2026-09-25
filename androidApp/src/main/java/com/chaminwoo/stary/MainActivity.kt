@@ -84,6 +84,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleDeepLinkIntent(intent: Intent?) {
+        // 디버그 전용: 새 버전 안내 팝업 모양 확인(스토어 설치본이 아니면 실제 확인은 항상 "업데이트 없음").
+        // adb shell am start -n com.chaminwoo.stary_ios/com.chaminwoo.stary.MainActivity --ez debug_show_update true
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra(EXTRA_DEBUG_SHOW_UPDATE, false) == true) {
+            com.chaminwoo.stary.core.util.AppUpdateChecker.debugShow()
+        }
         // 푸시 알림(extras) → 상세 화면 딥링크(본인 다이어리 알림이라 게이팅 무관).
         com.chaminwoo.stary.core.util.DeepLinkState.request(
             diaryId = intent?.getStringExtra(EXTRA_DIARY_ID),
@@ -143,5 +148,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_OPEN_FRIENDS = "openFriends"
         /** 일일 알림 탭 → 업로드 화면으로. */
         const val EXTRA_OPEN_UPLOAD = "openUpload"
+        /** (디버그 빌드 전용) 새 버전 안내 팝업 강제 표시. */
+        const val EXTRA_DEBUG_SHOW_UPDATE = "debug_show_update"
     }
 }

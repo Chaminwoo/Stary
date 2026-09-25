@@ -453,6 +453,7 @@ private fun StarRing(
             lastDraw[0] = now
 
             // 1) 원 가이드 — 드러나는 동안 12시부터 시계 방향으로 쓸고, 완성 뒤엔 아주 옅게 남는다.
+            //    (원주를 따라 돌던 민트 빛 머리는 2026-09-25 사용자 요청으로 삭제 — 옅은 흰 선만 남긴다.)
             val sweep = (elapsed / RING_REVEAL_MS).coerceIn(0f, 1f)
             val guideTopLeft = Offset(center.x - radius, center.y - radius)
             val guideSize = Size(radius * 2f, radius * 2f)
@@ -462,16 +463,6 @@ private fun StarRing(
                 topLeft = guideTopLeft, size = guideSize,
                 style = Stroke(width = 1.dp.toPx()),
             )
-            if (sweep < 1f && n > 0) {
-                val ha = Math.toRadians((-90f + 360f * sweep).toDouble())
-                val head = Offset(center.x + (cos(ha) * radius).toFloat(), center.y + (sin(ha) * radius).toFloat())
-                val hr = 16.dp.toPx()
-                drawCircle(
-                    Brush.radialGradient(listOf(Color(0xFF6EE7B7).copy(alpha = 0.45f), Color.Transparent), head, hr),
-                    radius = hr, center = head,
-                )
-            }
-
             // 2) 별 — 톡 떠오르기 + 은은한 반짝임 + 고른 별 확대·후광
             stars.forEachIndexed { i, d ->
                 val u = ((elapsed - ringAppearMs(i, n)) / RING_POP_MS).coerceIn(0f, 1f)
@@ -555,6 +546,13 @@ private fun CountPanel(count: Int) {
             stringResource(R.string.starlog_hint),
             color = TextSub.copy(alpha = 0.8f), fontFamily = MinSans, fontSize = 12.sp,
             textAlign = TextAlign.Center, lineHeight = 17.sp,
+        )
+        // 광고로 해금한 다이어리는 도감에 영구히 남는다는 안내(2026-09-25 사용자 요청) — 보조 문구라 한 톤 옅게.
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(R.string.starlog_permanent_note),
+            color = Color(0xFF9FB3E8).copy(alpha = 0.75f), fontFamily = MinSans, fontSize = 11.sp,
+            textAlign = TextAlign.Center, lineHeight = 15.sp,
         )
     }
 }

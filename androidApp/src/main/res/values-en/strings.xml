@@ -121,7 +121,7 @@
     <string name="toast_comment_deleted">Comment deleted</string>
     <string name="detail_locating">Checking your location…</string>
     <!-- Locked diary (beyond 100m): only the title shows; media/body/comments unlock for good by walking close or watching an ad. Writing comments always needs 100m -->
-    <string name="detail_locked_title">Get within %1$dm,\nor watch an ad to open it!</string>
+    <string name="detail_locked_title">Get within %1$dm,\nor unlock it with an ad!</string>
     <string name="detail_locked_distance">%1$s from your current location</string>
     <string name="detail_comment_near_only">You can comment only within %1$dm</string>
     <string name="detail_locked_photo">This photo is locked</string>
@@ -478,10 +478,11 @@
     <string name="starlog_meta_distance">%1$s away</string>
     <string name="starlog_open_map">See on map</string>
     <string name="starlog_empty_title">No stars collected yet</string>
-    <string name="starlog_empty_desc">Stars you open by coming within 100m\nor watching an ad gather here.</string>
+    <string name="starlog_empty_desc">Stars you unlock by coming within 100m\nor watching an ad gather here.\nDiaries unlocked with an ad stay in your Star Log forever.</string>
+    <string name="starlog_permanent_note">Diaries unlocked with an ad\nstay in your Star Log forever</string>
     <string name="starlog_filtered_empty">No stars match these filters</string>
     <string name="onb_starlog_title">Star Log</string>
-    <string name="onb_starlog_msg">Stars you have opened\ngather in a circle.\nPress and slide over a star\nto see its story in the center.</string>
+    <string name="onb_starlog_msg">Stars you have unlocked\ngather in a circle.\nDiaries unlocked with an ad\nstay in your Star Log forever.\nPress and slide over a star\nto see its story in the center.</string>
 
     <!-- Hardcoded Korean moved to resources (2026-09-25) -->
     <string name="login_google">Sign in with Google</string>
@@ -523,4 +524,10 @@
     <string name="channel_daily_desc">Once a day, a nudge to record today</string>
     <string name="push_fallback_body">Something new for you</string>
     <string name="nav_stars_fallback">Stars</string>
+
+    <!-- New version prompt (2026-09-25) -->
+    <string name="update_title">A new version is out</string>
+    <string name="update_msg">A brighter Stary is ready.\nPlease update it on the Play Store.</string>
+    <string name="update_go">Go to update</string>
+    <string name="update_later">Later</string>
 </resources>

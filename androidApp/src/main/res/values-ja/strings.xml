@@ -121,7 +121,7 @@
     <string name="toast_comment_deleted">コメントを削除しました</string>
     <string name="detail_locating">位置を確認しています…</string>
     <!-- 100m 圏外の投稿ロック — タイトルのみ表示。写真・本文・コメントは接近または広告視聴で永久解放。コメント投稿は常に 100m 以内 -->
-    <string name="detail_locked_title">%1$dm 以内に近づくか、\n広告を見て開いてみてください！</string>
+    <string name="detail_locked_title">%1$dm 以内に近づくか、\n広告を見て解錠してください！</string>
     <string name="detail_locked_distance">現在地から %1$s</string>
     <string name="detail_comment_near_only">コメントは %1$dm 以内でのみ書けます</string>
     <string name="detail_locked_photo">この写真はロックされています</string>
@@ -478,10 +478,11 @@
     <string name="starlog_meta_distance">ここから%1$s</string>
     <string name="starlog_open_map">地図で見る</string>
     <string name="starlog_empty_title">まだ集めた星がありません</string>
-    <string name="starlog_empty_desc">100m以内に近づくか広告で開いた\n誰かの星がここに集まります。</string>
+    <string name="starlog_empty_desc">100m以内に近づくか広告で解錠した\n誰かの星がここに集まります。\n広告で解錠した日記は星の図鑑にずっと残ります。</string>
+    <string name="starlog_permanent_note">広告で解錠した日記は\n星の図鑑にずっと残ります</string>
     <string name="starlog_filtered_empty">条件に合う星がありません</string>
     <string name="onb_starlog_title">星の図鑑</string>
-    <string name="onb_starlog_msg">開いた誰かの星が\n円に集まります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。</string>
+    <string name="onb_starlog_msg">解錠した誰かの星が\n円に集まります。\n広告で解錠した日記は\n星の図鑑にずっと残ります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。</string>
 
     <!-- ハードコードされた韓国語をリソースへ移動 (2026-09-25) -->
     <string name="login_google">Googleでログイン</string>
@@ -523,4 +524,10 @@
     <string name="channel_daily_desc">一日一回、今日を記録しようというお知らせ</string>
     <string name="push_fallback_body">新しいお知らせがあります</string>
     <string name="nav_stars_fallback">星</string>
+
+    <!-- 新バージョンのお知らせ (2026-09-25) -->
+    <string name="update_title">新しいバージョンが出ました</string>
+    <string name="update_msg">もっと輝くStaryの準備ができました。\nPlayストアでアップデートしてください。</string>
+    <string name="update_go">アップデートする</string>
+    <string name="update_later">あとで</string>
 </resources>

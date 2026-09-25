@@ -114,7 +114,8 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
   (위아래 알약 피해 축소) · 별 12~34dp(둘레÷개수×0.62) · 선택 1.45배 · 터치 반경 ≥26dp.
 - 상태: `sort`(해금순/최신/거리/인기 — 거리는 고른 순간 위치 `anchor` 고정) · `friendsOnly` · `selectedFriendIds` · `selectedId`
   (누른 채 지나간 별, 손 떼도 유지). `clock`/`revealStart` 는 Canvas 그리기 단계에서만 읽어 매 프레임 재구성 없이 다시 그린다.
-- 가운데: 선택 없으면 모은 별 수 + 안내, 있으면 제목(별 색 `readableOn` + 후광)·작성자·해금일·거리·"지도에서 보기"
+- 원 가이드는 옅은 흰 선만(원주를 도는 민트 빛 머리는 2026-09-25 삭제).
+- 가운데: 선택 없으면 모은 별 수 + 안내 + "광고로 해금한 다이어리는 별 도감에 영구히 남아요"(`starlog_permanent_note`), 있으면 제목(별 색 `readableOn` + 후광)·작성자·해금일·거리·"지도에서 보기"
   (→ NavGraph 가 `MapFocusState.request` + Main 으로).
 - 뷰모델은 지도와 **같은 액티비티 범위** `DiaryViewModel`(바로 목록이 있음). 친구 선택은 `core/ui/FriendPickerDialog`(지도와 공용).
 

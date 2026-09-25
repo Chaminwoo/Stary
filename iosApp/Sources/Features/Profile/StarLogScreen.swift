@@ -288,20 +288,12 @@ struct StarLogScreen: View {
         let n = stars.count
 
         // 1) 원 가이드 — 드러나는 동안 12시부터 시계 방향으로 쓸고, 완성 뒤엔 아주 옅게 남는다.
+        //    (원주를 따라 돌던 민트 빛 머리는 2026-09-25 사용자 요청으로 삭제 — Android 동일.)
         let sweep = min(max(elapsed / StarRingFx.revealMs, 0), 1)
         var guide = Path()
         guide.addArc(center: lay.center, radius: lay.radius,
                      startAngle: .degrees(-90), endAngle: .degrees(-90 + 360 * sweep), clockwise: false)
         ctx.stroke(guide, with: .color(.white.opacity(0.07)), lineWidth: 1)
-        if sweep < 1, n > 0 {
-            let ha = (-90 + 360 * sweep) * .pi / 180
-            let head = CGPoint(x: lay.center.x + CGFloat(cos(ha)) * lay.radius,
-                               y: lay.center.y + CGFloat(sin(ha)) * lay.radius)
-            let hr: CGFloat = 16
-            ctx.fill(Path(ellipseIn: CGRect(x: head.x - hr, y: head.y - hr, width: hr * 2, height: hr * 2)),
-                     with: .radialGradient(Gradient(colors: [Theme.mint.opacity(0.45), .clear]),
-                                           center: head, startRadius: 0, endRadius: hr))
-        }
 
         // 2) 별 — 톡 떠오르기 + 은은한 반짝임 + 고른 별 확대·후광
         let t = now.timeIntervalSinceReferenceDate
@@ -365,6 +357,12 @@ struct StarLogScreen: View {
                 .foregroundStyle(Theme.textSecondary.opacity(0.8))
                 .multilineTextAlignment(.center)
                 .padding(.top, 10)
+            // 광고로 해금한 다이어리는 도감에 영구히 남는다는 안내(Android starlog_permanent_note 패리티).
+            Text(locale.t(.starlogPermanentNote))
+                .font(.minSans(11))
+                .foregroundStyle(Theme.navyAccent.opacity(0.75))
+                .multilineTextAlignment(.center)
+                .padding(.top, 8)
         }
     }
 

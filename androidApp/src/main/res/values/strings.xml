@@ -123,7 +123,7 @@
     <string name="toast_comment_deleted">댓글을 삭제했어요</string>
     <string name="detail_locating">위치를 확인하는 중이에요…</string>
     <!-- 100m 밖 게시물 잠금(2026-09-21, 09-22 개편) — 제목만 보이고 미디어/본문/댓글은 100m 접근 또는 광고로 **영구 해금**. 댓글 작성은 항상 100m 이내 -->
-    <string name="detail_locked_title">%1$dm 이내로 다가가거나,\n광고를 통해 열어보세요!</string>
+    <string name="detail_locked_title">%1$dm 이내로 다가가거나,\n광고를 통해 해금하세요!</string>
     <string name="detail_locked_distance">현재 위치로부터 %1$s</string>
     <string name="detail_comment_near_only">%1$dm 이내에서만 댓글을 남길 수 있어요</string>
     <string name="detail_locked_photo">이 사진은 잠겨 있어요</string>
@@ -481,10 +481,11 @@
     <string name="starlog_meta_distance">여기서 %1$s</string>
     <string name="starlog_open_map">지도에서 보기</string>
     <string name="starlog_empty_title">아직 모은 별이 없어요</string>
-    <string name="starlog_empty_desc">100m 안으로 다가가거나 광고로 열어 본\n다른 사람의 별이 여기에 모여요.</string>
+    <string name="starlog_empty_desc">100m 안으로 다가가거나 광고로 해금한\n다른 사람의 별이 여기에 모여요.\n광고로 해금한 다이어리는 별 도감에 영구히 남아요.</string>
+    <string name="starlog_permanent_note">광고로 해금한 다이어리는\n별 도감에 영구히 남아요</string>
     <string name="starlog_filtered_empty">조건에 맞는 별이 없어요</string>
     <string name="onb_starlog_title">별 도감</string>
-    <string name="onb_starlog_msg">열어 본 다른 사람의 별이\n원으로 모여요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.</string>
+    <string name="onb_starlog_msg">해금한 다른 사람의 별이\n원으로 모여요.\n광고로 해금한 다이어리는\n별 도감에 영구히 남아요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.</string>
 
     <!-- 하드코딩 한국어 → 리소스 이전(2026-09-25 언어 전환 재발 대응) -->
     <string name="login_google">Google 계정으로 로그인</string>
@@ -526,4 +527,10 @@
     <string name="channel_daily_desc">매일 한 번, 오늘을 기록해보라는 알림</string>
     <string name="push_fallback_body">새 소식이 있어요</string>
     <string name="nav_stars_fallback">별</string>
+
+    <!-- 새 버전 안내(2026-09-25) — 앱을 열었을 때 Play 스토어에 새 버전이 있으면 -->
+    <string name="update_title">새 버전이 나왔어요</string>
+    <string name="update_msg">더 반짝이는 Stary 가 준비됐어요.\n플레이 스토어에서 업데이트해 주세요.</string>
+    <string name="update_go">업데이트하러 가기</string>
+    <string name="update_later">나중에</string>
 </resources>

@@ -172,14 +172,22 @@ fun MainScreen(
     // 파괴되지 않아 복귀 시 지도 리로드/별 깜빡임이 없다. 여기서 라우트 전환을 감시해
     // ① 가려짐 여부(mapVisible)를 갱신하고 ② 지도로 돌아올 때 "카메라만 내 위치로"를 요청한다.
     //    단 포커스 요청(MapFocusState)이 대기 중이면 그 로직이 카메라를 다루므로 재센터를 건너뛴다.
+    //    ③ **지도에서 별(다이어리)을 열러 나갔다가 돌아온 경우엔 재센터하지 않는다** — 보던 자리 그대로
+    //       (2026-09-25 사용자 요청). 기준은 "지도를 떠나 처음 들어간 화면"(leftMapFor)이 상세면 —
+    //       상세에서 작성자 프로필 등으로 더 들어갔다 돌아와도 같은 여정으로 본다.
+    //       (겹친 별 카드 화면 StarCluster 는 currentRoute 매핑이 없어 지도로 취급되므로 전환 자체가 없다.)
     val isMapRoute = currentRoute is NavRoute.Main
     var wasMapRoute by remember { mutableStateOf(true) }
+    var leftMapFor by remember { mutableStateOf<NavRoute?>(null) }
     androidx.compose.runtime.LaunchedEffect(isMapRoute) {
         MapUiState.mapVisible = isMapRoute
-        if (isMapRoute && !wasMapRoute &&
-            com.chaminwoo.stary.core.util.MapFocusState.pendingDiaryId == null
-        ) {
-            MapUiState.requestRecenter()
+        if (!isMapRoute && wasMapRoute) leftMapFor = currentRoute
+        if (isMapRoute && !wasMapRoute) {
+            val fromDiary = leftMapFor is NavRoute.Detail || leftMapFor is NavRoute.StarCluster
+            if (!fromDiary && com.chaminwoo.stary.core.util.MapFocusState.pendingDiaryId == null) {
+                MapUiState.requestRecenter()
+            }
+            leftMapFor = null
         }
         wasMapRoute = isMapRoute
     }
@@ -802,6 +810,11 @@ fun MainScreen(
         com.chaminwoo.stary.core.ui.InAppBannerHost()
         // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시
         com.chaminwoo.stary.core.ui.StaryToastHost()
+        // 새 버전 안내 — 앱을 열 때(프로세스당 1회) 스토어에 새 버전이 있으면 팝업 → 플레이 스토어로.
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            com.chaminwoo.stary.core.util.AppUpdateChecker.checkOnce(context)
+        }
+        com.chaminwoo.stary.core.ui.AppUpdatePromptHost()
     }
 }
 

@@ -86,6 +86,9 @@ iOS: `StaryApp.swift`, `Features/RootView.swift`, `Features/Map/MapFocusStore.sw
   `NotificationPopupWatcher`(FRIEND_POST 탭 → `MapFocusState.request` 후 지도 복귀), `ChatPopupWatcher`.
 - `localizedTitle(route)` : 라우트 → 번역된 탑바 제목(동적 제목인 Chat 은 `route.title` 그대로).
 - `DrawerItem(label, icon, selected, alwaysAccent, danger, onClick)` : 드로어 한 줄(선택=남색, 위험=빨강).
+- 새 버전 안내(2026-09-25): `LaunchedEffect(Unit) { AppUpdateChecker.checkOnce(context) }` + `AppUpdatePromptHost()`(최상단).
+  Play 인앱 업데이트 API 로 가용 여부만 보고 스토어 상세로 보낸다 — Play 설치본에서만 동작. iOS 는 RootView overlay + iTunes lookup.
+  디버그 확인: `adb shell am start -n com.chaminwoo.stary_ios/com.chaminwoo.stary.MainActivity --ez debug_show_update true`.
 
 ## NavRoute.kt — 타입세이프 라우트 정의
 
