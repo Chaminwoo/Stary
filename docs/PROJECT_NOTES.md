@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.65 별 도감 빛 제거 · 새 버전 안내 팝업 · 잠금 문구 "해금" · 상세 복귀 시 카메라 유지** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25) · iOS 는 push 후 CI.
+> 최종 갱신: **8.66 별자리 도착 플래시 반경 축소(15dp→7.5dp)** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25), iOS 값 동기화(push 후 CI).
+> 이전: **8.65 별 도감 빛 제거 · 새 버전 안내 팝업 · 잠금 문구 "해금" · 상세 복귀 시 카메라 유지** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25) · iOS 는 push 후 CI.
 > 이전: **8.64 광고 레퍼런스 반영**(효과음 4종 · 필터 별 순차 등장 · 별자리 선 긋기+도착 플래시 · 드로어 순차 등장 · 별 도감 신설 · 언어 전환 3차 재발 = AAB 언어 분할) — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-25) · iOS 는 push 후 CI.
 > 이전: **8.63 지도 "해금만" 필터 추가** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
 > 이전: **8.62 해금 본문 가독성 보완 + 튜토리얼 문구 정리** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
@@ -2280,6 +2281,11 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
      ※ StarCluster 는 `currentRoute` 매핑이 없어 지도로 취급된다(기존 동작) — 카드 → 상세 → 뒤로 때도 이 규칙으로 재센터 생략.
    - iOS `MapScreen`: 별 탭 파장 종료 시 `leftForDiary = true` → `onAppear` 재센터 생략, 상세·카드가 모두 닫히면 한 틱 뒤 해제.
      카드 → 상세 넘어가는 0.35s 사이(루트가 잠깐 보임)는 `diaryHandoff` 로 플래그 유지.
+
+## 8.66 별자리 도착 플래시 반경 축소 (Android BUILD SUCCESSFUL + 기기 설치 2026-09-25)
+
+사용자: "별자리 연결될 때 별에 퍼지는 원 모양 크기 반으로 줄여줘." — 8.64 에서 넣은 도착 플래시(선이 별에 닿는 순간 번지는 링)가 과했다는 피드백.
+`CONSTELLATION_FLASH_RADIUS_DP` 15 → **7.5**(Android `DiaryMapMarkers.kt` / iOS `ConstellationDraw.swift` `ConstellationFx.flashRadius` 동일 수정).
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **(8.65) 새 버전 안내 실제 동작 확인** — Play 내부 테스트 트랙에서 구버전 설치 → 신버전 업로드 후 앱 실행. iOS 는 App Store 출시 후.

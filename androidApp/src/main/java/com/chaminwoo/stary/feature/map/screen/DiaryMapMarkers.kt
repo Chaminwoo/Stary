@@ -128,7 +128,7 @@ internal const val CONSTELLATION_DRAW_MAX_MS = 1800f
 internal const val CONSTELLATION_RETRACT_MS = 240f
 /** 선이 별에 닿는 순간 번지는 도착 플래시 — 지속(ms)/최대 반경(dp, MapLibre circle-radius 단위). */
 internal const val CONSTELLATION_FLASH_MS = 560f
-internal const val CONSTELLATION_FLASH_RADIUS_DP = 15f
+internal const val CONSTELLATION_FLASH_RADIUS_DP = 7.5f
 /** 선 끝(뻗어 가는 머리) 빛점 + 도착 플래시 소스/레이어. */
 internal const val CONSTELLATION_FX_SOURCE = "constellation-fx"
 internal const val CONSTELLATION_FLASH_LAYER = "constellation-flash-layer"

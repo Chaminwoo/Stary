@@ -58,7 +58,7 @@ enum ConstellationFx {
     static let retractMs = 240.0
     /// 도착 플래시 지속(ms)/최대 반경(pt) — CONSTELLATION_FLASH_MS / _RADIUS_DP.
     static let flashMs = 560.0
-    static let flashRadius = 15.0
+    static let flashRadius = 7.5
 
     static let fxSourceID = "constellation-fx"
     static let flashLayerID = "constellation-flash"
