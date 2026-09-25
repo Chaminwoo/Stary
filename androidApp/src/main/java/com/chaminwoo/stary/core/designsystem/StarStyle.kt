@@ -318,7 +318,9 @@ object StarStyle {
      */
     private fun facetDensity(type: Int): Int = when (type) {
         0, 4 -> 10
-        6 -> 7 // 결정: 5갈래 컷 면이 또렷하게 읽히도록 파편을 성기게(2026-09)
+        // 결정: 컷 라인(💎 윤곽 안 검은 선)을 없앤 대신(2026-09-25) 파편을 더 촘촘하게 쪼개
+        // 무늬만으로 "컷 면이 많다"는 인상을 준다 — 성기던 7 → 16(다른 타입보다도 촘촘).
+        6 -> 16
         1, 7 -> 10
         2, 5 -> 12
         3 -> 14
@@ -356,12 +358,13 @@ object StarStyle {
     private const val GEM_SCALE = 0.56f
 
     /**
-     * 보석(다이아몬드) — 컷 다이아몬드 실루엣(테이블·거들·컬릿) 위에
-     * 패싯(컷) 라인을 빈 공간으로 뚫어 면이 갈라져 보이게 한다.
+     * 보석(다이아몬드) — 컷 다이아몬드 실루엣(테이블·거들·컬릿).
      *
      * 2026-09 "결정 모양이 구리다" 피드백으로 단순화: 컷 라인 12개 → 거들 높이 중심에서 5갈래
-     * → 2026-09-22 "가운데 선 제거": 중심→컬릿 세로선을 빼고 **크라운 V(테이블 양끝 → 중심) + 거들 가로선**만
-     * 남긴 전형적인 💎 아이콘 형태. 마커 크기(22~36px)에서 선이 뭉개지지 않는다.
+     * → 2026-09-22 "가운데 선 제거": 중심→컬릿 세로선을 빼고 크라운 V + 거들 가로선만.
+     * → **2026-09-25 "안쪽 검은 선 전부 제거"**: 패싯 라인을 실루엣에서 빼내던(DIFFERENCE) 방식이라
+     *   배경이 어두우면 그 틈이 검은 선으로 비쳤다 — 라인을 완전히 없애고, 대신 [facetDensity] 를
+     *   높여(7→16) 파편 무늬 자체가 촘촘해지면서 "컷 면이 많다"는 인상을 대신 준다.
      * 크기는 [GEM_SCALE] 로 줄이고 세로 중심(원래 0.11~0.95 → 0.53)을 정사각 중앙으로 맞춘다.
      */
     private fun gemPath(s: Float): Path {
@@ -370,7 +373,7 @@ object StarStyle {
             ((0.5f + (fx - 0.5f) * GEM_SCALE) * s) to ((0.5f + (fy - 0.53f) * GEM_SCALE) * s)
 
         // 외곽: 테이블(윗면) + 좌우 어깨 → 거들(최대폭) → 컬릿(아래 한 점)
-        val outline = Path().apply {
+        return Path().apply {
             val pts = listOf(
                 0.31f to 0.11f, // 테이블 좌
                 0.69f to 0.11f, // 테이블 우
@@ -386,28 +389,6 @@ object StarStyle {
             }
             close()
         }
-
-        // 패싯(컷) 라인 — 크라운 V + 거들 가로선. 이 선들을 빈 공간으로 뚫는다.
-        // (중심 → 컬릿 세로선은 2026-09-22 사용자 피드백 "가운데 선 제거"로 삭제)
-        val lines = Path().apply {
-            fun seg(a: Pair<Float, Float>, b: Pair<Float, Float>) {
-                val (ax, ay) = p(a.first, a.second); val (bx, by) = p(b.first, b.second)
-                moveTo(ax, ay); lineTo(bx, by)
-            }
-            val c = 0.50f to 0.40f      // 중심(거들 높이)
-            seg(c, 0.31f to 0.11f)      // → 테이블 왼끝
-            seg(c, 0.69f to 0.11f)      // → 테이블 오른끝
-            seg(0.03f to 0.40f, 0.97f to 0.40f) // 거들 가로선(좌우 끝까지)
-        }
-        // 선을 두께 있는 채움 경로로 변환 후 외곽에서 빼서 컷 라인을 만든다(두께도 모양과 같은 비율로 축소).
-        val lineFill = Path()
-        android.graphics.Paint().apply {
-            style = android.graphics.Paint.Style.STROKE
-            strokeWidth = s * 0.03f * GEM_SCALE
-            strokeJoin = android.graphics.Paint.Join.MITER
-        }.getFillPath(lines, lineFill)
-
-        return Path().apply { op(outline, lineFill, Path.Op.DIFFERENCE) }
     }
 
     /** 행성 — 본체 원 + 기울어진 고리(타원 밴드)의 합집합 실루엣. (planet.jpeg 참고) */

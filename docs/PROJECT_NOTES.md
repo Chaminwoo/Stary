@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.66 별자리 도착 플래시 반경 축소(15dp→7.5dp)** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25), iOS 값 동기화(push 후 CI).
+> 최종 갱신: **8.67 다이아몬드 결정 안쪽 검은 선 제거(파편 밀도로 대체) · 프로필 떠다니는 아이콘 충돌음** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25), iOS 값 동기화(push 후 CI, 충돌음은 Android 전용).
+> 이전: **8.66 별자리 도착 플래시 반경 축소(15dp→7.5dp)**
 > 이전: **8.65 별 도감 빛 제거 · 새 버전 안내 팝업 · 잠금 문구 "해금" · 상세 복귀 시 카메라 유지** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25) · iOS 는 push 후 CI.
 > 이전: **8.64 광고 레퍼런스 반영**(효과음 4종 · 필터 별 순차 등장 · 별자리 선 긋기+도착 플래시 · 드로어 순차 등장 · 별 도감 신설 · 언어 전환 3차 재발 = AAB 언어 분할) — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-25) · iOS 는 push 후 CI.
 > 이전: **8.63 지도 "해금만" 필터 추가** — Android BUILD SUCCESSFUL, 실기기 테스트 대기(2026-09-23).
@@ -2286,6 +2287,21 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 
 사용자: "별자리 연결될 때 별에 퍼지는 원 모양 크기 반으로 줄여줘." — 8.64 에서 넣은 도착 플래시(선이 별에 닿는 순간 번지는 링)가 과했다는 피드백.
 `CONSTELLATION_FLASH_RADIUS_DP` 15 → **7.5**(Android `DiaryMapMarkers.kt` / iOS `ConstellationDraw.swift` `ConstellationFx.flashRadius` 동일 수정).
+
+## 8.67 다이아몬드 결정 안쪽 검은 선 제거 + 프로필 떠다니는 아이콘 충돌음 (Android BUILD SUCCESSFUL + 기기 설치 2026-09-25)
+
+사용자 요청 2건.
+
+1. **다이아몬드(별 모양 6번) 안쪽 검은 선 삭제** — "크레딧 가능하면 파편화 깊이를 더 깊게 해서 무늬를 줘, 안쪽에 검은 선은 없어야해".
+   `gemPath`(Android `StarStyle.kt`)가 크라운 V + 거들 가로선을 실루엣에서 `Path.Op.DIFFERENCE` 로 **빼내는(구멍 뚫는)** 방식이라
+   어두운 배경에서 그 틈이 검은 선으로 비쳤다 — 원인. 선을 완전히 제거하고(외곽 실루엣만 반환), 대신
+   `facetDensity(6)` 를 7 → **16**(다른 타입보다도 촘촘)으로 올려 파편 무늬 자체가 컷 면처럼 읽히게 했다.
+   iOS `StarShape.swift` `gem()` / `StarCrystal.swift` `facetDensity` 동일 수정(값 drift 없음).
+2. **프로필 떠다니는 아이콘끼리 부딪힐 때 효과음** — 지도 필터 전환과 같은 "톡" 소리(`MusicManager.playSparkTick`) 재사용.
+   `FloatingStatBox.kt` 의 아이콘-아이콘 충돌 루프(`collide`)에 엣지 트리거를 추가: **직전 프레임엔 안 닿아 있다가 이번 프레임에
+   막 닿았고**, 서로 다가오던 상대 속도가 `ICON_COLLISION_SOUND_MIN_SPEED`(60px/s) 이상일 때만 1회 재생 — 눌려 붙어 있는 동안
+   계속 울리지 않는다. 잡혀서(손가락으로 드래그) 던져진 아이콘은 `vel` 이 안 갱신돼 `grabbedVel` 로 대신 속도를 잰다.
+   **Android 전용**(사용자 요청 — iOS 미반영, 필요해지면 `FloatingStatBox.swift` 의 동일 충돌 루프에 이식).
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **(8.65) 새 버전 안내 실제 동작 확인** — Play 내부 테스트 트랙에서 구버전 설치 → 신버전 업로드 후 앱 실행. iOS 는 App Store 출시 후.

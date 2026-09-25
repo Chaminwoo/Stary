@@ -110,6 +110,7 @@ private const val WALL_REST = 0.72f        // 벽 반발(튕김 시 에너지 �
 private const val BALL_REST = 0.82f        // 아이콘끼리 반발
 private const val STOP_SPEED = 10f         // px/s 미만이면 정지로 간주
 private const val MAX_FLING = 3600f        // 초기 속도 상한(과도한 드래그 방지)
+private const val ICON_COLLISION_SOUND_MIN_SPEED = 60f  // px/s — 이 이상으로 다가와 닿아야 "부딪힘" 소리
 
 private fun Offset.dot(o: Offset): Float = x * o.x + y * o.y
 private fun Offset.clampLen(max: Float): Offset {
@@ -219,6 +220,12 @@ fun FloatingStatBox(
             }
         }
 
+        // 아이콘끼리 부딪히는 순간의 효과음(2026-09-25 사용자 요청) — 지도 필터 전환과 같은 "톡" 소리
+        // (MusicManager.playSparkTick, 자체 55ms 최소 간격 있음). 매 프레임 겹침을 그냥 재생하면
+        // 눌려 붙어 있는 동안 계속 울리므로, "떨어져 있다가 막 닿은 순간"(엣지 트리거)에만 울리고
+        // 그마저도 다가오는 속도가 어느 정도(스치는 정도가 아니라 진짜 부딪힘) 이상일 때만 낸다.
+        val touching = remember(n) { BooleanArray(n * n) }
+
         val scope = rememberCoroutineScope()
         var tick by remember { mutableIntStateOf(0) }
         var animSec by remember { mutableFloatStateOf(0f) }   // 오라 파티클 애니메이션 시간(초)
@@ -299,9 +306,22 @@ fun FloatingStatBox(
                             bounceOffCircle(bodies[i], rad * richness(liveItems[i].count), oc, obsRadius, i == grabbed)
                         }
                     }
-                    // 아이콘끼리 충돌 → 튕김
+                    // 아이콘끼리 충돌 → 튕김 + (막 닿은 순간이고 세게 부딪혔으면) 효과음
                     for (i in 0 until n) for (j in i + 1 until n) {
-                        collide(bodies[i], bodies[j], i == grabbed, j == grabbed, grabbedVel, rad * richness(liveItems[i].count), rad * richness(liveItems[j].count))
+                        val ri = rad * richness(liveItems[i].count)
+                        val rj = rad * richness(liveItems[j].count)
+                        val nowTouching = (bodies[j].pos - bodies[i].pos).getDistance() < ri + rj
+                        val pairIdx = i * n + j
+                        if (nowTouching && !touching[pairIdx]) {
+                            // grabbed 인 쪽은 vel 이 갱신되지 않으므로(손가락 속도) grabbedVel 로 대신 잰다.
+                            val velI = if (i == grabbed) grabbedVel else bodies[i].vel
+                            val velJ = if (j == grabbed) grabbedVel else bodies[j].vel
+                            if ((velI - velJ).getDistance() >= ICON_COLLISION_SOUND_MIN_SPEED) {
+                                com.chaminwoo.stary.core.util.MusicManager.playSparkTick()
+                            }
+                        }
+                        touching[pairIdx] = nowTouching
+                        collide(bodies[i], bodies[j], i == grabbed, j == grabbed, grabbedVel, ri, rj)
                     }
                     // 정지 판정 — 잡은 게 없고 모두 느려지면 부유 모드로 복귀(기준점=착지 위치)
                     if (grabbed == null && bodies.all { it.vel.getDistance() < STOP_SPEED }) {

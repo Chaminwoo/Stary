@@ -94,9 +94,12 @@ struct StarShape: Shape {
     private static let gemScale: CGFloat = 0.56
 
     private func gem(_ s: CGFloat) -> Path {
-        // Android gemPath 와 동일: 컷 다이아몬드 실루엣 − 패싯(컷) 라인(스트로크를 채움 경로로 변환해 뺌).
+        // Android gemPath 와 동일: 컷 다이아몬드 실루엣.
         // 2026-09 단순화: 컷 라인 12개 → 거들 높이 중심에서 5갈래(세로 중심 0.53 → 0.5)
-        // → 2026-09-22 "가운데 선 제거": 중심→컬릿 세로선 삭제, 크라운 V + 거들 가로선만(💎 아이콘 형태).
+        // → 2026-09-22 "가운데 선 제거": 중심→컬릿 세로선 삭제, 크라운 V + 거들 가로선만.
+        // → 2026-09-25 "안쪽 검은 선 전부 제거": 패싯 라인(실루엣에서 빼내던 컷 라인)을 완전히 없앴다 —
+        //   어두운 배경에 검은 선으로 비쳤기 때문. 대신 StarCrystal.facetDensity(6) 를 7→16 으로 높여
+        //   파편 무늬가 촘촘해지면서 "컷 면이 많다"는 인상을 대신 준다(Android 와 값 동일).
         let k = StarShape.gemScale
         func p(_ fx: CGFloat, _ fy: CGFloat) -> CGPoint {
             CGPoint(x: (0.5 + (fx - 0.5) * k) * s, y: (0.5 + (fy - 0.53) * k) * s)
@@ -111,20 +114,7 @@ struct StarShape: Shape {
             if i == 0 { outline.move(to: pt) } else { outline.addLine(to: pt) }
         }
         outline.closeSubpath()
-
-        // 패싯 라인 — Android 와 같은 크라운 V(중심 → 테이블 양끝) + 거들 가로선.
-        var lines = Path()
-        func seg(_ a: (CGFloat, CGFloat), _ b: (CGFloat, CGFloat)) {
-            lines.move(to: p(a.0, a.1)); lines.addLine(to: p(b.0, b.1))
-        }
-        let c: (CGFloat, CGFloat) = (0.50, 0.40)     // 중심(거들 높이)
-        seg(c, (0.31, 0.11))                         // → 테이블 왼끝
-        seg(c, (0.69, 0.11))                         // → 테이블 오른끝
-        seg((0.03, 0.40), (0.97, 0.40))              // 거들 가로선
-
-        // 선 두께도 모양과 같은 비율로 축소(Android strokeWidth = s·0.03·GEM_SCALE).
-        let lineFill = lines.strokedPath(StrokeStyle(lineWidth: s * 0.03 * k, lineJoin: .miter))
-        return outline.subtractingCompat(lineFill)
+        return outline
     }
 
     private func crescent(_ s: CGFloat) -> Path {
