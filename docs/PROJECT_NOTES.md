@@ -2,7 +2,9 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.70 업적 38개 · 별 모양 12종 · 묶음 해금 팝업 · 시간 판정 현지화** — Android BUILD SUCCESSFUL(2026-09-26), 실기기 테스트 대기 · iOS 는 push 후 CI.
+> 최종 갱신: **8.72 앱 화면 녹화 기반 광고 12편**(`tools/ad/promo.py` → `references/ads/`, 앱 코드 변경 없음) — 사용자 검토 대기(2026-09-26).
+> 이전: **8.71 App Store 반려(1.2 UGC · 2.1 데모 계정) 대응 + 업적 이름 2차** — Android BUILD SUCCESSFUL·기기 설치(2026-09-26) · iOS 는 push 후 CI · Functions 배포 필요.
+> 이전: **8.70 업적 38개 · 별 모양 12종 · 묶음 해금 팝업 · 시간 판정 현지화** — Android BUILD SUCCESSFUL(2026-09-26).
 > 이전: **8.69 별 도감 = 열람한 모든 다이어리(해금 기록 서버 사본 + 잠금 이전 열람 합침)** — Android BUILD SUCCESSFUL(2026-09-26), 실기기 테스트 대기.
 > 이전: **8.68 유튜브 쇼츠용 시네마틱 광고 40초**(`tools/ad/cinematic.py` → `references/stary_cinematic_9x16.mp4`, 앱 코드 변경 없음) — 사용자 검토 대기(2026-09-25).
 > 이전: **8.67 다이아몬드 결정 안쪽 검은 선 제거(파편 밀도로 대체) · 프로필 떠다니는 아이콘 충돌음** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25), iOS 값 동기화(push 후 CI, 충돌음은 Android 전용).
@@ -2360,6 +2362,57 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
   iOS `StarStyle.swift`·`StarShape.swift`·`Achievements.swift`·`LocalizedNames.swift`·`LocaleManager.swift`·`RootView.swift`·
   `AchievementsScreen`·`ProfileScreen`·`MusicScreen`·`UploadScreen`(computeStats 에 uid/allDiaries/unlockedIds 전달).
 - 확인 필요(실기기): 새 모양이 지도 마커(작은 크기)에서 읽히는지 · 업데이트 직후 묶음 팝업 1장 · 숨김 업적 ??? · en/ja 전환 시 새 업적 이름.
+
+## 8.71 App Store 반려 대응 — Guideline 1.2(사용자 생성 콘텐츠) · 2.1(데모 계정) + 업적 이름 2차 (Android BUILD SUCCESSFUL·기기 설치 2026-09-26 · iOS 는 push 후 CI)
+심사(1.0 (8), 2026-09-23) 반려 사유 2건 + 사용자 "업적 이름이 구려졌다 → 세련되게, 같은 단어 반복 없이".
+
+### 2.1 데모 계정 — 구글 계정은 새 기기에서 "본인 확인" 단계가 떠서 심사자가 못 들어왔다
+- **iOS 전용 이메일(비밀번호) 로그인**: 로그인 화면 하단 작은 링크 "이메일로 로그인" → 시트(`LoginView.EmailLoginSheet`).
+  가입 기능은 없다 — 계정은 개발자가 Firebase Console(Authentication → 이메일/비밀번호 사용 설정 → 사용자 추가)에서만 만든다.
+  앱 데이터 id = FirebaseAuth uid(appUserId 의 비-Google 규칙, 규칙 isMe 통과).
+- **심사/데모 계정 전체 접근**: `AuthManager.isReviewAccount`(providerData 에 password) → 상세 100m 잠금·댓글 거리 제한 해제.
+  iOS 는 광고 SDK 가 아직 없어(`AdsManager` TODO) 심사자가 콘텐츠를 열 방법이 없었기 때문.
+- 이메일 형식: `아이디@도메인.확장자` 필수(실제로 받는 메일함일 필요는 없음 — 인증 메일을 보내지 않는다). 개인 메일은 쓰지 말 것(심사 노트에 남음).
+
+### 1.2 사용자 생성 콘텐츠 안전장치
+- **이용약관(EULA) 동의 게이트**: 로그인/Apple/이메일/둘러보기 전에 약관 팝업("동의하고 계속") — Android `core/ui/TermsDialog.kt` +
+  `core/util/TermsConsent.kt`, iOS `Data/TermsConsent.swift`(`TermsDialogCard`). 무관용 원칙·자동 필터·신고/차단·24시간 내 조치 명시(ko/en/ja).
+  이미 로그인된 사용자는 MainScreen / RootView 에서 한 번 받는다(거절 = 로그아웃). 동의 기록 = prefs `terms_accepted_v1` + `users/{uid}.termsAcceptedAt/termsVersion`.
+  설정 > 안전 > 이용약관 다시 보기. iOS 는 약관 동의 전 Apple 공식 버튼 탭을 투명 오버레이로 가로채 약관 → 동의 후 `startAppleSignIn()`(ASAuthorizationController) 으로 이어 간다.
+  약관 문구를 바꾸면 `TermsConsent.VERSION` 을 올린다(모두 재동의).
+- **부적절한 표현 필터** `ContentFilter`(Android core/util · iOS Core, 목록·규칙 동일): 다이어리(새 글·수정)·댓글·채팅·닉네임은 올리기 차단 +
+  지도/목록의 남의 글·남의 댓글 중 걸리는 것은 숨김. 한·일은 숫자·기호만 지우고 **단어 단위** 부분 문자열(공백을 지우면 "다시 발걸음" 오탐) +
+  한 글자 토막 연결("씨 발"), 영어는 단어 경계. 시발점/유니섹스 등 허용 목록. 뜻이 여럿인 말·자해 언급은 막지 않음.
+- **신고/차단 접근성**: 상세 화면 우상단 ⋮(iOS 툴바 ⋯) — 다이어리 신고 · 작성자 차단, **잠겨 있어도** 보인다. 댓글마다 ⋮ — 댓글 신고 · 작성자 차단.
+  작성자 차단 시 상세를 바로 닫는다(지도에서도 즉시 사라짐 — observeBlockedIds / BlockStore).
+- **차단 = 운영자 알림**: `block()` 이 reason="blocked" 신고(`reports`)를 함께 남긴다(+ 어디서 차단했는지 스냅샷).
+- **운영자 푸시** Functions `notifyAdminOnReport`(reports onCreate) → `ADMIN_EMAILS` 계정의 모든 기기로 즉시 푸시. 조치는 기존 `onReportAction`
+  (Console 에서 status = action_delete / action_ban). ⚠️ `firebase deploy --only functions` 해야 동작.
+
+### 업적 이름 2차(38개, ko/en/ja) — 밤하늘·기억 분위기, 단어 반복 없이
+작은 성좌 · 빛을 인화하다 · 재생되는 기억 · 부치지 못한 편지 · 여백의 한 줄 · 서랍 속 은하 · 나선의 연대기 · 궤도 진입 · 꺼지지 않는 등불 ·
+한 번의 삭망 · 백일몽 · 해보다 이른 걸음 · 꽃잎이 흩날린 하루 · 열두 개의 달 · 숫자가 나란히 선 순간 · 만월 아래 고양이 · 첫 페이지 · 고요한 밤 ·
+흩어진 좌표 · 나침반의 기억 · 골목의 성단 · 지평선 너머로 · 아무도 밟지 않은 눈밭 · 다시, 그 자리 · 작은 표본 상자 · 잠긴 문의 수집가 · 백 개의 우주 ·
+쌍성 · 잔잔한 박수 · 하트 성운 · 모두가 올려다본 별 · 창가의 대화 · 밤하늘 우체국 · 교신이 닿다 · 함께 공전하는 사이 · 변주곡 · 일곱 빛깔 너머 · 대관식.
+id 는 그대로(장착 칭호 유지).
+
+### 사용자가 할 일(재제출)
+1. Firebase Console → Authentication → 이메일/비밀번호 사용 설정 → 사용자 추가(예: appreview@stary-app.com). 2. App Store Connect 심사 정보에 그 계정.
+3. `firebase deploy --only functions`. 4. 실기기 화면 녹화(약관 동의 → 신고 → 차단)를 Notes 에. 5. iOS 빌드 번호 올려 재제출.
+
+## 8.72 앱 화면 녹화 기반 광고 12편 (도구·영상만, 앱 코드 변경 없음 — 2026-09-26 · 사용자 검토 대기)
+사용자: "시네마틱 아닌 장르로 몇 개, 퀄리티 좋게" → 선택: 기능 쇼케이스 · POV 쇼츠 · 수집/게임화 × 15초·30초 × 한국어·영어, 앱 화면은 사용자가 직접 녹화.
+- **소스**: `references/apprecord.mp4`(사용자 실기기 녹화 122초 1080x2340, **커밋 안 함**). 쓰는 구간: 지도·탭 0–2s, 잠금 상세 2.8–3.9s, 겹친 별 카드 8–10.5s,
+  상세(사진)·좋아요 14.4–17.2s(좋아요 16.2s), 내 다이어리 23–30s, 프로필 32–39s, 별 도감 43–49s, 업적 52–60s, 음악 65–71s, 별자리 80–87s, 필터 90–104s, 지구본 108–121s.
+  업로드·별 모양 휠 장면은 없어서 **코드 렌더**(크리스탈 별 21종 = 앱 StarStyle 좌표 이식, 업적 달성 카드 = AchievementUnlockDialog 재현).
+- **렌더러** `tools/ad/promo.py`(numpy/PIL + ffmpeg): 상태바·내비바를 잘라 폰 프레임(0.64배) ↔ 풀블리드(1.0배+) 카메라 이동, 키네틱 자막(한/영, [..] 강조색),
+  탭 링·반짝이 버스트·거리 카운트다운(POV, 102.7km → 80m 에서 민트), 별 모양 그리드(등장 → 3개 빼고 잠김 → 하나씩 해금 + 카운터), 엔드카드(로고·카피·CTA).
+  `--stills 이름 t…` 로 검수용 PNG, 기본 실행은 12편 병렬(6). BGM 템포 분석 `tools/ad/bgm_analyze.py` → 컷을 박자에 맞춤
+  (쇼케이스 tiny_explorer 95.7BPM · POV star_whisper 129BPM · 수집 cosmic_funk 129BPM). 오디오 = BGM + 앱 효과음 이벤트, loudnorm −14 LUFS.
+- **개인정보**: 녹화에 찍힌 다른 사람 이름(상세 작성자 줄 · 별 도감 "OO님의 별" · 카드 작성자)은 흐리게, 프로필 이름은 가명("새벽별"/"Stargazer"),
+  지구본의 한국어 조작 안내는 지움(`MASKS`). 친구 목록 화면은 쓰지 않았다.
+- **출력**: `references/ads/stary_{showcase|pov|collect}_{15|30}_{ko|en}.mp4`(1080x1920 · 30fps · H.264 CRF17 + AAC). **커밋 안 함**.
+- 한계: 영어판도 앱 UI 는 한국어(영어 UI 녹화가 없어서). 영어 UI 로 다시 녹화하면 같은 스크립트로 바로 재렌더 가능(구간 시각만 맞추면 됨).
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **(8.65) 새 버전 안내 실제 동작 확인** — Play 내부 테스트 트랙에서 구버전 설치 → 신버전 업로드 후 앱 실행. iOS 는 App Store 출시 후.
