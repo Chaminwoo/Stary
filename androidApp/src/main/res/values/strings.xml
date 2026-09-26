@@ -481,11 +481,11 @@
     <string name="starlog_meta_distance">여기서 %1$s</string>
     <string name="starlog_open_map">지도에서 보기</string>
     <string name="starlog_empty_title">아직 모은 별이 없어요</string>
-    <string name="starlog_empty_desc">100m 안으로 다가가거나 광고로 해금한\n다른 사람의 별이 여기에 모여요.\n광고로 해금한 다이어리는 별 도감에 영구히 남아요.</string>
-    <string name="starlog_permanent_note">광고로 해금한 다이어리는\n별 도감에 영구히 남아요</string>
+    <string name="starlog_empty_desc">100m 안으로 다가가거나 광고로 해금한\n다른 사람의 별이 여기에 모여요.\n한 번 열어 본 다이어리는 별 도감에 영구히 남아요.</string>
+    <string name="starlog_permanent_note">열어 본 다이어리는\n별 도감에 영구히 남아요</string>
     <string name="starlog_filtered_empty">조건에 맞는 별이 없어요</string>
     <string name="onb_starlog_title">별 도감</string>
-    <string name="onb_starlog_msg">해금한 다른 사람의 별이\n원으로 모여요.\n광고로 해금한 다이어리는\n별 도감에 영구히 남아요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.</string>
+    <string name="onb_starlog_msg">열어 본 다른 사람의 별이\n원으로 모여요.\n100m 안에서 열었든 광고로 열었든\n별 도감에 영구히 남아요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.</string>
 
     <!-- 하드코딩 한국어 → 리소스 이전(2026-09-25 언어 전환 재발 대응) -->
     <string name="login_google">Google 계정으로 로그인</string>

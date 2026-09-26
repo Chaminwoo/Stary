@@ -478,11 +478,11 @@
     <string name="starlog_meta_distance">%1$s away</string>
     <string name="starlog_open_map">See on map</string>
     <string name="starlog_empty_title">No stars collected yet</string>
-    <string name="starlog_empty_desc">Stars you unlock by coming within 100m\nor watching an ad gather here.\nDiaries unlocked with an ad stay in your Star Log forever.</string>
-    <string name="starlog_permanent_note">Diaries unlocked with an ad\nstay in your Star Log forever</string>
+    <string name="starlog_empty_desc">Stars you open by coming within 100m\nor watching an ad gather here.\nEvery diary you open stays in your Star Log forever.</string>
+    <string name="starlog_permanent_note">Every diary you open\nstays in your Star Log forever</string>
     <string name="starlog_filtered_empty">No stars match these filters</string>
     <string name="onb_starlog_title">Star Log</string>
-    <string name="onb_starlog_msg">Stars you have unlocked\ngather in a circle.\nDiaries unlocked with an ad\nstay in your Star Log forever.\nPress and slide over a star\nto see its story in the center.</string>
+    <string name="onb_starlog_msg">Stars you have opened\ngather in a circle.\nOpened within 100m or with an ad,\nthey stay in your Star Log forever.\nPress and slide over a star\nto see its story in the center.</string>
 
     <!-- Hardcoded Korean moved to resources (2026-09-25) -->
     <string name="login_google">Sign in with Google</string>

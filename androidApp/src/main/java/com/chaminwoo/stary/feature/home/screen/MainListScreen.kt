@@ -192,6 +192,10 @@ fun MainListScreen(
 
     // "해금만" 필터용 — 영구 해금 기록(상태 맵이라 해금되는 순간 이 화면도 갱신된다).
     val unlockedIds = DiaryUnlockStore.unlockedIds(context)
+    // 서버 해금 사본 + 잠금 이전 열람 기록을 로컬에 합친다(프로세스당 1회 — 별 도감·상세 잠금·이 필터 공용).
+    LaunchedEffect(userId) {
+        userId?.let { DiaryUnlockStore.syncWithServer(context, it) }
+    }
     // 100m 판정에 쓸 좌표는 **실제 fix**(liveLocation)만 — currentLatLng 는 마지막/기본 좌표 폴백이라
     // 엉뚱한 곳의 별이 "근처"로 잡힐 수 있다. 필터가 꺼져 있으면 null 이라 위치가 갱신돼도 재계산하지 않고,
     // 켜져 있어도 약 11m 격자로 반올림해 GPS 지터마다 목록/지도 레이어가 흔들리는 걸 막는다.

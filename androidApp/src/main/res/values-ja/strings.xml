@@ -478,11 +478,11 @@
     <string name="starlog_meta_distance">ここから%1$s</string>
     <string name="starlog_open_map">地図で見る</string>
     <string name="starlog_empty_title">まだ集めた星がありません</string>
-    <string name="starlog_empty_desc">100m以内に近づくか広告で解錠した\n誰かの星がここに集まります。\n広告で解錠した日記は星の図鑑にずっと残ります。</string>
-    <string name="starlog_permanent_note">広告で解錠した日記は\n星の図鑑にずっと残ります</string>
+    <string name="starlog_empty_desc">100m以内に近づくか広告で解錠した\n誰かの星がここに集まります。\n一度開いた日記は星の図鑑にずっと残ります。</string>
+    <string name="starlog_permanent_note">一度開いた日記は\n星の図鑑にずっと残ります</string>
     <string name="starlog_filtered_empty">条件に合う星がありません</string>
     <string name="onb_starlog_title">星の図鑑</string>
-    <string name="onb_starlog_msg">解錠した誰かの星が\n円に集まります。\n広告で解錠した日記は\n星の図鑑にずっと残ります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。</string>
+    <string name="onb_starlog_msg">開いた誰かの星が\n円に集まります。\n100m以内でも広告でも\n開いた日記は星の図鑑にずっと残ります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。</string>
 
     <!-- ハードコードされた韓国語をリソースへ移動 (2026-09-25) -->
     <string name="login_google">Googleでログイン</string>

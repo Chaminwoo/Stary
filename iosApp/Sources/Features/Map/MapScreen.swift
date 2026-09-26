@@ -262,6 +262,10 @@ struct MapScreen: View {
             }
         }
         .task(id: auth.uid) {
+            // 서버 해금 사본 + 잠금 이전 열람 기록을 로컬에 합친다(실행당 1회 — 별 도감·상세 잠금·"해금만" 필터 공용).
+            if let uid = auth.uid { await DiaryUnlockStore.shared.syncWithServer(uid: uid) }
+        }
+        .task(id: auth.uid) {
             // 친구만/친구선택 필터용 친구 목록 1회 로드(uid 바뀌면 재로드).
             guard let uid = auth.uid else { myFriends = []; return }
             let snap = try? await FirestoreService.friends(of: uid).getDocuments()

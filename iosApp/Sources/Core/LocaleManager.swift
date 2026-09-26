@@ -602,17 +602,17 @@ enum L10n: String {
         case .starlogMetaDistance:  return ("여기서 %@", "%@ away", "ここから%@")
         case .starlogOpenMap:       return ("지도에서 보기", "See on map", "地図で見る")
         case .starlogEmptyTitle:    return ("아직 모은 별이 없어요", "No stars collected yet", "まだ集めた星がありません")
-        case .starlogEmptyDesc:     return ("100m 안으로 다가가거나 광고로 해금한\n다른 사람의 별이 여기에 모여요.\n광고로 해금한 다이어리는 별 도감에 영구히 남아요.",
-                                            "Stars you unlock by coming within 100m\nor watching an ad gather here.\nDiaries unlocked with an ad stay in your Star Log forever.",
-                                            "100m以内に近づくか広告で解錠した\n誰かの星がここに集まります。\n広告で解錠した日記は星の図鑑にずっと残ります。")
-        case .starlogPermanentNote: return ("광고로 해금한 다이어리는\n별 도감에 영구히 남아요",
-                                            "Diaries unlocked with an ad\nstay in your Star Log forever",
-                                            "広告で解錠した日記は\n星の図鑑にずっと残ります")
+        case .starlogEmptyDesc:     return ("100m 안으로 다가가거나 광고로 해금한\n다른 사람의 별이 여기에 모여요.\n한 번 열어 본 다이어리는 별 도감에 영구히 남아요.",
+                                            "Stars you open by coming within 100m\nor watching an ad gather here.\nEvery diary you open stays in your Star Log forever.",
+                                            "100m以内に近づくか広告で解錠した\n誰かの星がここに集まります。\n一度開いた日記は星の図鑑にずっと残ります。")
+        case .starlogPermanentNote: return ("열어 본 다이어리는\n별 도감에 영구히 남아요",
+                                            "Every diary you open\nstays in your Star Log forever",
+                                            "一度開いた日記は\n星の図鑑にずっと残ります")
         case .starlogFilteredEmpty: return ("조건에 맞는 별이 없어요", "No stars match these filters", "条件に合う星がありません")
         case .onbStarLogTitle:      return ("별 도감", "Star Log", "星の図鑑")
-        case .onbStarLogMsg:        return ("해금한 다른 사람의 별이\n원으로 모여요.\n광고로 해금한 다이어리는\n별 도감에 영구히 남아요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.",
-                                            "Stars you have unlocked\ngather in a circle.\nDiaries unlocked with an ad\nstay in your Star Log forever.\nPress and slide over a star\nto see its story in the center.",
-                                            "解錠した誰かの星が\n円に集まります。\n広告で解錠した日記は\n星の図鑑にずっと残ります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。")
+        case .onbStarLogMsg:        return ("열어 본 다른 사람의 별이\n원으로 모여요.\n100m 안에서 열었든 광고로 열었든\n별 도감에 영구히 남아요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.",
+                                            "Stars you have opened\ngather in a circle.\nOpened within 100m or with an ad,\nthey stay in your Star Log forever.\nPress and slide over a star\nto see its story in the center.",
+                                            "開いた誰かの星が\n円に集まります。\n100m以内でも広告でも\n開いた日記は星の図鑑にずっと残ります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。")
         // 새 버전 안내 — Android update_* 패리티(iOS 는 App Store 로 안내).
         case .updateTitle:          return ("새 버전이 나왔어요", "A new version is out", "新しいバージョンが出ました")
         case .updateMsg:            return ("더 반짝이는 Stary 가 준비됐어요.\nApp Store에서 업데이트해 주세요.",

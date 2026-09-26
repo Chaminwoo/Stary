@@ -62,6 +62,13 @@ object StaryConfig {
     /** 다이어리 열람 가능 반경(미터). */
     const val DIARY_OPEN_RADIUS_M: Float = 100f
 
+    /**
+     * 상세 화면 **열람 잠금이 생긴 시각**(55f145a, 2026-09-21 12:31 KST) — epoch ms.
+     * 이보다 먼저 남은 열람 기록(`viewedDiaries.viewedAt`)은 잠금이 없던 시절이라 **본문까지 실제로 연 것**으로 보고
+     * 영구 해금·별 도감에 합친다(DiaryUnlockStore.syncWithServer). iOS AppConfig.diaryLockSinceMs 와 동기화.
+     */
+    const val DIARY_LOCK_SINCE_MS: Long = 1_789_961_494_000L
+
     /** 하루(로컬 자정 기준) 최대 업로드 개수. */
     const val DAILY_UPLOAD_LIMIT: Int = 10
 

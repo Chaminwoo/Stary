@@ -9,7 +9,8 @@ import UIKit
 //    글씨는 그 별의 색 + 같은 색 후광.
 //  · "지도에서 보기" → MapFocusStore(루트가 NavigationStack 을 비우고 카메라 + 파장) — 프로필 핀 별과 같은 로직.
 //  · 정렬(해금순/최신순/거리순/인기순) · 필터(친구만/친구 선택) — 바꿀 때마다 원을 다시 그린다.
-// 데이터 = DiaryUnlockStore(기기 로컬 영구 해금) ∩ 지금 존재하는 글(삭제·비공개·차단 제외). 내 글은 넣지 않는다.
+// 데이터 = DiaryUnlockStore(영구 해금) ∩ 지금 존재하는 글(삭제·비공개·차단 제외). 내 글은 넣지 않는다.
+//   해금 기록 = **실제로 열람한 모든 글** — 100m 접근 · 광고 · 잠금 이전(2026-09-21) 열람까지(서버 사본과 합침, 2026-09-26).
 
 /// 원 위 배치 순서(12시부터 시계 방향). Android StarLogSort 패리티.
 enum StarLogSort: CaseIterable {
@@ -147,6 +148,10 @@ struct StarLogScreen: View {
             FriendFilterPicker(friends: myFriends, initial: selectedFriendIds) { ids in
                 selectedFriendIds = ids
             }
+        }
+        .task(id: auth.uid) {
+            // 지도에서 이미 끝났으면 즉시 반환(실행당 1회) — 지도를 거치지 않고 들어온 경우 대비.
+            if let uid = auth.uid { await DiaryUnlockStore.shared.syncWithServer(uid: uid) }
         }
         .task(id: auth.uid) {
             guard let uid = auth.uid else { myFriends = []; return }

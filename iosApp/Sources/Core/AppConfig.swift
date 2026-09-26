@@ -35,6 +35,10 @@ enum AppConfig {
     /// 다이어리 열람 가능 반경(미터).
     static let diaryOpenRadiusM: Double = 100
 
+    /// 상세 화면 **열람 잠금이 생긴 시각**(2026-09-21 12:31 KST) — epoch ms. 이보다 먼저 남은 열람 기록은
+    /// 잠금이 없던 시절이라 본문까지 실제로 연 것으로 보고 영구 해금·별 도감에 합친다. (StaryConfig.DIARY_LOCK_SINCE_MS 와 동기화)
+    static let diaryLockSinceMs: Int64 = 1_789_961_494_000
+
     /// 하루(로컬 자정 기준) 최대 업로드 개수. (StaryConfig.DAILY_UPLOAD_LIMIT 와 동기화)
     static let dailyUploadLimit = 10
 

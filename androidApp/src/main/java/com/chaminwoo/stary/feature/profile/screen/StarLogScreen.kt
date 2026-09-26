@@ -130,7 +130,9 @@ import kotlin.math.sin
  *  - "지도에서 보기" → 지도로 돌아가 그 별 위치로 카메라 + 파장(MapFocusState — 프로필 핀 별과 같은 로직).
  *  - 정렬(해금순/최신순/거리순/인기순) · 필터(친구만/친구 선택) — 바꿀 때마다 원이 다시 그려진다.
  *
- * 데이터 = DiaryUnlockStore(기기 로컬 영구 해금 기록) ∩ 지금 존재하는 글(삭제·비공개 전환·차단 사용자 제외).
+ * 데이터 = DiaryUnlockStore(영구 해금 기록) ∩ 지금 존재하는 글(삭제·비공개 전환·차단 사용자 제외).
+ *   해금 기록 = **실제로 열람한 모든 글** — 100m 접근 · 광고 · 잠금이 생기기 전(2026-09-21)의 열람까지
+ *   (2026-09-26 "광고로 연 것만 뜬다" 피드백 → 서버 사본과 합침, DiaryUnlockStore.syncWithServer).
  * 내 글은 항상 열려 있으니 넣지 않는다(내 다이어리에 있다).
  * iOS: Features/Profile/StarLogScreen.swift — 아래 RING_* 수치를 그대로 복제해 둔다(값 drift 금지).
  */
@@ -211,6 +213,8 @@ private fun StarLogContent(userId: String, onOpenMap: (String) -> Unit) {
     } else viewModel(factory = DiaryViewModel.factory())
     val diaries by diaryViewModel.diaries.collectAsState()
     val unlockedAt = DiaryUnlockStore.unlockedAt(context)
+    // 지도에서 이미 끝났으면 즉시 반환(프로세스당 1회) — 지도를 거치지 않고 들어온 경우 대비.
+    LaunchedEffect(userId) { DiaryUnlockStore.syncWithServer(context, userId) }
     val friends by remember(userId) { FirebaseFriendRepository().observeFriends(userId) }
         .collectAsState(initial = emptyList<Friend>())
     val friendIds = remember(friends) { friends.mapTo(HashSet()) { it.userId } }
