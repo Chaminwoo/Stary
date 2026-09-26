@@ -177,6 +177,7 @@ enum L10n: String {
     case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
     /// 업적 달성 팝업 — Android ach_unlocked / ach_reward_* 패리티.
     case achUnlocked, achRewardTitle, achRewardShape, achRewardColor
+    case achUnlockedMany, achRewardTitleShort
     /// 빈 화면(StaryEmptyState) 문구 — Android notif_empty_desc / friend_empty_title / mydiary_empty_desc 패리티.
     case notifEmptyDesc, friendEmptyTitle, friendEmptyDesc
     // 알림 행 문구(Android notif_* 대응 — %@ = 다이어리 제목).
@@ -514,6 +515,8 @@ enum L10n: String {
         case .achRewardTitle:       return ("칭호 «%@» 획득", "Title «%@» earned", "称号「%@」を獲得")
         case .achRewardShape:       return ("새 별 모양 해금", "New star shape unlocked", "新しい星の形を解放")
         case .achRewardColor:       return ("새 별 색 해금", "New star color unlocked", "新しい星の色を解放")
+        case .achUnlockedMany:      return ("업적 %d개 달성!", "%d achievements unlocked!", "実績を%d個達成！")
+        case .achRewardTitleShort:  return ("칭호 획득", "Title earned", "称号を獲得")
         case .notifEmptyDesc:       return ("좋아요·댓글·친구의 새 별이 여기에 모여요.", "Likes, comments and your friends' new stars land here.", "いいね・コメント・友だちの新しい星がここに集まります。")
         case .friendEmptyTitle:     return ("아직 친구가 없어요", "No friends yet", "まだ友だちがいません")
         case .friendEmptyDesc:      return ("위 검색창에 이름을 넣어 친구를 찾아보세요.", "Search a name above to find someone.", "上の検索欄に名前を入れて探してみましょう。")

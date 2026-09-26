@@ -56,6 +56,8 @@ struct MainTabView: View {
     /// 상단바 하트의 미열람 배지용(목록 화면과 별개 인스턴스여도 같은 쿼리라 일관).
     @StateObject private var notifications = NotificationsViewModel()
     @ObservedObject private var router = TabRouter.shared
+    /// 별 도감 업적(연 글 수)이 해금 기록 변화에도 다시 판정되도록 관찰한다.
+    @ObservedObject private var unlockStore = DiaryUnlockStore.shared
     @ObservedObject private var focus = MapFocusStore.shared
     /// 푸시 알림 탭 → 채팅/상세/친구 화면 이동 요청(Android DeepLinkState 대응).
     @ObservedObject private var pushRouter = PushRouter.shared
@@ -73,7 +75,11 @@ struct MainTabView: View {
     // 일반 업적 해금 축하 팝업(Android AchievementUnlockWatcher 대응) — 큐 + 친구 수(스탯 계산용).
     @State private var friendsCount = 0
     @State private var friendsCountLoaded = false
-    @State private var achievementQueue: [Achievement] = []
+    /// 팝업 큐 — 한 칸 = 같은 때 달성한 업적 묶음(2개 이상이면 한 장에 목록으로).
+    @State private var achievementQueue: [[Achievement]] = []
+    /// 모으는 중인 새 업적 — 통계가 나눠 도착하므로 마지막 추가 뒤 1.2초 조용하면 한 묶음으로 큐에 넣는다.
+    @State private var pendingAchievements: [Achievement] = []
+    @State private var bundleTask: Task<Void, Never>?
     // 업로드 버튼 파장 연출(Android openCreate 워프 패리티) — FAB 바운스 + 코발트 파장 후 업로드로 이동.
     @State private var uploadWarp: DiaryOpenWarpData?
     @State private var fabScale: CGFloat = 1
@@ -145,10 +151,12 @@ struct MainTabView: View {
                 // 별 탄생 연출(34-8) — 업로드 성공 직후 지도 위에서 재생된다(터치 통과).
                 StarBirthHost()
 
-                if !showCoachMark, let ach = achievementQueue.first {
-                    AchievementUnlockOverlay(achievement: ach) {
+                if !showCoachMark, let group = achievementQueue.first, !group.isEmpty {
+                    AchievementUnlockOverlay(achievement: Self.bundleHero(group),
+                                             bundle: group.count > 1 ? group : []) {
                         if !achievementQueue.isEmpty { achievementQueue.removeFirst() }
                     }
+                    .id(group.map(\.id).joined(separator: ","))
                 }
 
                 if showCoachMark {
@@ -664,8 +672,12 @@ struct MainTabView: View {
         h.combine(mine.count)
         h.combine(mine.reduce(0) { $0 + $1.likeCount })
         h.combine(mine.reduce(0) { $0 + $1.viewCount })
+        h.combine(mine.reduce(0) { $0 + $1.commentCount })
         h.combine(friendsCount)
         h.combine(viewed.viewedIds.count)
+        // 2026-09-26 추가 업적 — 별 도감(연 글 수) · 이웃 별/눈밭(전체 글 수)
+        h.combine(unlockStore.unlockedAt.count)
+        h.combine(store.diaries.count)
         return h.finalize()
     }
 
@@ -686,7 +698,9 @@ struct MainTabView: View {
         let myDiaries = store.mine(uid: uid)
         let myIds = Set(myDiaries.compactMap { $0.id })
         let othersViewed = viewed.viewedIds.subtracting(myIds).count
-        let stats = Achievements.computeStats(diaries: myDiaries, friendsCount: friendsCount, viewedCount: othersViewed)
+        let stats = Achievements.computeStats(diaries: myDiaries, friendsCount: friendsCount, viewedCount: othersViewed,
+                                              uid: uid, allDiaries: store.diaries,
+                                              unlockedIds: Set(DiaryUnlockStore.shared.unlockedAt.keys))
         let unlocked = Achievements.unlockedIds(stats)
         let key = "ach_announced_\(uid)"
         let defaults = UserDefaults.standard
@@ -696,10 +710,24 @@ struct MainTabView: View {
         }
         let newIds = unlocked.subtracting(Set(stored))
         guard !newIds.isEmpty else { return }
-        let queuedIds = Set(achievementQueue.map { $0.id })
+        let queuedIds = Set(achievementQueue.flatMap { $0 }.map { $0.id } + pendingAchievements.map { $0.id })
         let newAch = Achievements.all.filter { newIds.contains($0.id) && !queuedIds.contains($0.id) }
-        achievementQueue.append(contentsOf: newAch)
         defaults.set(Array(Set(stored).union(unlocked)), forKey: key)
+        guard !newAch.isEmpty else { return }
+        pendingAchievements.append(contentsOf: newAch)
+        // 모으는 창 — 더 들어오면 타이머를 다시 건다(Android BUNDLE_WINDOW_MS = 1200 과 같은 값).
+        bundleTask?.cancel()
+        bundleTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard !Task.isCancelled, !pendingAchievements.isEmpty else { return }
+            achievementQueue.append(pendingAchievements)
+            pendingAchievements = []
+        }
+    }
+
+    /// 묶음 리빌에 띄울 대표 업적 — 새 별 모양이 있으면 그것, 없으면 첫 업적.
+    private static func bundleHero(_ group: [Achievement]) -> Achievement {
+        group.first { if case .shape = $0.reward { return true } else { return false } } ?? group[0]
     }
 }
 
@@ -718,6 +746,8 @@ private struct AchievementsEntry: View {
 /// 무엇을 얻었는지 업적 화면에 들어가야 알 수 있었다.
 private struct AchievementUnlockOverlay: View {
     let achievement: Achievement
+    /// 2개 이상이면 동시에 달성한 묶음 — 리빌은 [achievement](대표), 아래에 "업적 N개 달성!" + 목록.
+    var bundle: [Achievement] = []
     let onDismiss: () -> Void
     @ObservedObject private var locale = LocaleManager.shared
     @State private var pop: CGFloat = 0.6
@@ -785,18 +815,31 @@ private struct AchievementUnlockOverlay: View {
                 .frame(width: 132, height: 132)
 
                 Spacer().frame(height: 10)
-                Text(locale.t(.achUnlocked)).font(.minSans(15)).foregroundStyle(Theme.navyAccent)
-                Spacer().frame(height: 8)
-                Text(displayName).font(.minSans(22)).foregroundStyle(Theme.textPrimary)
-                    .multilineTextAlignment(.center)
-                Spacer().frame(height: 6)
-                Text(LocalizedNames.condition(achievement.id, fallback: achievement.condition)).font(.minSans(13))
-                    .foregroundStyle(Theme.textPrimary.opacity(0.6)).multilineTextAlignment(.center)
-                Spacer().frame(height: 16)
-                Text(rewardText).font(.minSans(13)).foregroundStyle(rewardColor)
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(rewardColor.opacity(0.12), in: Capsule())
-                    .overlay(Capsule().stroke(rewardColor.opacity(0.4), lineWidth: 1))
+                if bundle.count > 1 {
+                    Text(String(format: locale.t(.achUnlockedMany), bundle.count))
+                        .font(.minSans(17)).foregroundStyle(Theme.navyAccent)
+                    Spacer().frame(height: 14)
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(bundle) { BundleRow(achievement: $0) }
+                        }
+                    }
+                    .frame(maxHeight: 260)
+                    .fixedSize(horizontal: false, vertical: bundle.count <= 4)
+                } else {
+                    Text(locale.t(.achUnlocked)).font(.minSans(15)).foregroundStyle(Theme.navyAccent)
+                    Spacer().frame(height: 8)
+                    Text(displayName).font(.minSans(22)).foregroundStyle(Theme.textPrimary)
+                        .multilineTextAlignment(.center)
+                    Spacer().frame(height: 6)
+                    Text(LocalizedNames.condition(achievement.id, fallback: achievement.condition)).font(.minSans(13))
+                        .foregroundStyle(Theme.textPrimary.opacity(0.6)).multilineTextAlignment(.center)
+                    Spacer().frame(height: 16)
+                    Text(rewardText).font(.minSans(13)).foregroundStyle(rewardColor)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(rewardColor.opacity(0.12), in: Capsule())
+                        .overlay(Capsule().stroke(rewardColor.opacity(0.4), lineWidth: 1))
+                }
                 Spacer().frame(height: 22)
                 Button(action: onDismiss) {
                     Text(locale.t(.commonOk)).font(.minSans(15)).foregroundStyle(Color(hex: 0x0D0D0D))
@@ -826,6 +869,49 @@ private struct AchievementUnlockOverlay: View {
         reveal < 0.62
             ? CGFloat(0.7 + 0.48 * starAppear)
             : CGFloat(1.18 - 0.18 * min(max((reveal - 0.62) / 0.38, 0), 1))
+    }
+}
+
+/// 묶음 팝업의 업적 한 줄 — 보상 별(칭호 = 금색 8꼭지, 모양 = 금색 그 모양, 색 = 그 색 동그라미) · 이름 · 보상.
+/// (Android AchievementUnlockWatcher.BundleRow 패리티)
+private struct BundleRow: View {
+    let achievement: Achievement
+    @ObservedObject private var locale = LocaleManager.shared
+
+    private var color: Color {
+        if case .color(let c) = achievement.reward { return StarStyle.color(c) }
+        return StarStyle.color(15)
+    }
+    private var rewardText: String {
+        switch achievement.reward {
+        case .title: return locale.t(.achRewardTitleShort)
+        case .shape: return locale.t(.achRewardShape)
+        case .color: return locale.t(.achRewardColor)
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Group {
+                switch achievement.reward {
+                case .color(let c):
+                    Circle().fill(StarStyle.color(c)).frame(width: 24, height: 24)
+                case .shape(let t):
+                    Image(uiImage: StarCrystal.image(type: t, colorIndex: 15, size: 32))
+                        .resizable().frame(width: 32, height: 32)
+                case .title:
+                    Image(uiImage: StarCrystal.image(type: 3, colorIndex: 15, size: 30))
+                        .resizable().frame(width: 30, height: 30)
+                }
+            }
+            .frame(width: 34, height: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(LocalizedNames.title(achievement.id, fallback: achievement.name) ?? achievement.name)
+                    .font(.minSans(15)).foregroundStyle(Theme.textPrimary)
+                Text(rewardText).font(.minSans(12)).foregroundStyle(color)
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 

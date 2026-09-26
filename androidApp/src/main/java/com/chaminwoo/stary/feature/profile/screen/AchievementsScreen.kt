@@ -527,7 +527,9 @@ private fun TitleAchievementRow(
             }
         },
         title = com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.name)!!,
-        subtitle = com.chaminwoo.stary.core.util.LocalizedNames.condition(LocalContext.current, ach.id, ach.condition),
+        // 숨김 업적은 달성 전까지 조건을 ??? 로 가린다(이름은 힌트로 보여 준다).
+        subtitle = if (ach.hidden && !unlocked) "???"
+            else com.chaminwoo.stary.core.util.LocalizedNames.condition(LocalContext.current, ach.id, ach.condition),
         unlocked = unlocked,
         trailing = {
             when {
@@ -547,7 +549,9 @@ private fun RewardAchievementRow(ach: Achievement, unlocked: Boolean) {
         onClick = {},
         leading = { RewardPreview(ach.reward, unlocked) },
         title = com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.name)!!,
-        subtitle = com.chaminwoo.stary.core.util.LocalizedNames.condition(LocalContext.current, ach.id, ach.condition),
+        // 숨김 업적은 달성 전까지 조건을 ??? 로 가린다(이름은 힌트로 보여 준다).
+        subtitle = if (ach.hidden && !unlocked) "???"
+            else com.chaminwoo.stary.core.util.LocalizedNames.condition(LocalContext.current, ach.id, ach.condition),
         unlocked = unlocked,
         trailing = {
             if (unlocked) Text(stringResource(R.string.ach_obtained), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Light)

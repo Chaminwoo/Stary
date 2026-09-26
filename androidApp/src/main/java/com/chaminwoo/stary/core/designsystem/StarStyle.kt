@@ -2,9 +2,11 @@ package com.chaminwoo.stary.core.designsystem
 
 import android.graphics.Canvas
 import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RadialGradient
+import android.graphics.RectF
 import android.graphics.Shader
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -18,11 +20,12 @@ import kotlin.math.sin
  * 다이어리 별 마커의 종류(모양)×색상 팔레트.
  * 업로드 화면 피커와 지도 마커 렌더가 같은 정의를 공유한다.
  *
- * - 종류(starType 0..7): [starPath] — 0~4 별/스파클, 5~7 창의적 형태(꽃·보석·초승달).
+ * - 종류(starType 0..20): [starPath] — 0~4 별/스파클, 5~8 창의적 형태(꽃·보석·초승달·행성),
+ *   9~20 업적 보상 형태(2026-09-26 — 하트·혜성·눈꽃·벚꽃·태양·불꽃·열쇠·네잎클로버·왕관·나선 은하·고양이·종이비행기).
  * - 색상(starColor 0..20): 0~15 단색 / 16~20 2색 그라데이션(고난도 업적 보상).
  */
 object StarStyle {
-    const val TYPE_COUNT = 9
+    const val TYPE_COUNT = 21
     const val COLOR_COUNT = 21
 
     /**
@@ -83,18 +86,49 @@ object StarStyle {
         )
     }
 
+    /** [starPath] 기준 크기 — 이 크기로 한 번 만든 경로를 캐시해 두고 요청 크기로 배율만 준다. */
+    private const val PATH_BASE = 100f
+    private val pathCache = arrayOfNulls<Path>(TYPE_COUNT)
+
     /**
      * 별/형태 Path 생성. (sizePx × sizePx 정사각 중앙 기준)
      *
      * 0: 4꼭지 스파클 / 1: 5꼭지 별 / 2: 6꼭지 별 / 3: 8꼭지 가는 스파클 / 4: 다이아 스파클 /
      * 5: 꽃 / 6: 다이아몬드 / 7: 초승달 / 8: 행성  (5~8은 별 아닌 창의적 형태 — 수집 보상)
+     * 9: 하트 / 10: 혜성 / 11: 눈꽃 / 12: 벚꽃 / 13: 태양 / 14: 불꽃 / 15: 열쇠 / 16: 네잎클로버 /
+     * 17: 왕관 / 18: 나선 은하 / 19: 고양이 / 20: 종이비행기  (업적 보상, 2026-09-26)
+     *
+     * 9~20 은 부품 여러 개를 합집합(Path.op)으로 붙여 비싸므로, 모든 타입을 [PATH_BASE] 크기로 한 번만
+     * 만들어 캐시하고 매 호출엔 복사 + 배율만 준다(반환값은 항상 새 Path — 호출자가 offset 해도 안전).
      */
     fun starPath(type: Int, sizePx: Float): Path {
-        when (type.coerceIn(0, TYPE_COUNT - 1)) {
+        val t = type.coerceIn(0, TYPE_COUNT - 1)
+        val base = pathCache[t] ?: synchronized(pathCache) {
+            pathCache[t] ?: buildStarPath(t, PATH_BASE).also { pathCache[t] = it }
+        }
+        return Path(base).apply {
+            if (sizePx != PATH_BASE) transform(Matrix().apply { setScale(sizePx / PATH_BASE, sizePx / PATH_BASE) })
+        }
+    }
+
+    private fun buildStarPath(type: Int, sizePx: Float): Path {
+        when (type) {
             5 -> return flowerPath(sizePx)
             6 -> return gemPath(sizePx)
             7 -> return crescentPath(sizePx)
             8 -> return planetPath(sizePx)
+            9 -> return heartPath(sizePx)
+            10 -> return cometPath(sizePx)
+            11 -> return snowflakePath(sizePx)
+            12 -> return sakuraPath(sizePx)
+            13 -> return sunPath(sizePx)
+            14 -> return flamePath(sizePx)
+            15 -> return keyPath(sizePx)
+            16 -> return cloverPath(sizePx)
+            17 -> return crownPath(sizePx)
+            18 -> return galaxyPath(sizePx)
+            19 -> return catPath(sizePx)
+            20 -> return paperPlanePath(sizePx)
         }
 
         // 모든 별을 곡선(quad) 스파이크로 통일 — 직선 별(구 5각/6각)이 투박해 보여 재구성
@@ -420,4 +454,248 @@ object StarStyle {
             transform(android.graphics.Matrix().apply { postRotate(-22f, cx, cy) })
         }
     }
+
+    // ── 업적 보상 형태 9~20 (2026-09-26) ─────────────────────────────
+    // 모두 0..1 정사각 좌표로 부품을 그린 뒤 [UnitKit] 이 sizePx 로 확대하고, 부품끼리 합집합([union])/
+    // 차집합([minus])으로 실루엣을 만든다. iOS StarShape.swift 에 같은 좌표로 복제돼 있다(값 drift 금지).
+    // 미리보기(사용자 승인본): https://claude.ai/artifact/527iWoEcZmTADTyG953YXs
+
+    /** 0..1 좌표 부품 → 픽셀 경로. [scale] 은 정사각 중심 기준 배율(속이 꽉 찬 묵직한 형태를 줄일 때). */
+    private class UnitKit(s: Float, scale: Float = 1f) {
+        private val toPx = Matrix().apply { postScale(scale, scale, 0.5f, 0.5f); postScale(s, s) }
+
+        fun part(local: Matrix? = null, build: Path.() -> Unit): Path =
+            Path().apply(build).apply { local?.let { transform(it) }; transform(toPx) }
+
+        fun circle(x: Float, y: Float, r: Float, local: Matrix? = null) =
+            part(local) { addCircle(x, y, r, Path.Direction.CW) }
+
+        fun oval(x: Float, y: Float, rx: Float, ry: Float) =
+            part { addOval(RectF(x - rx, y - ry, x + rx, y + ry), Path.Direction.CW) }
+
+        fun rrect(x: Float, y: Float, w: Float, h: Float, r: Float, local: Matrix? = null) =
+            part(local) { addRoundRect(RectF(x, y, x + w, y + h), r, r, Path.Direction.CW) }
+
+        fun poly(xy: FloatArray) = part {
+            moveTo(xy[0], xy[1])
+            var i = 2
+            while (i < xy.size) { lineTo(xy[i], xy[i + 1]); i += 2 }
+            close()
+        }
+    }
+
+    private fun union(parts: List<Path>): Path =
+        parts.reduce { acc, p -> Path().apply { op(acc, p, Path.Op.UNION) } }
+
+    private fun Path.minus(vararg holes: Path): Path =
+        holes.fold(this) { acc, h -> Path().apply { op(acc, h, Path.Op.DIFFERENCE) } }
+
+    /** 원점 기준 부품 → 회전(도) 후 정사각 중앙으로 이동. */
+    private fun aroundCenter(deg: Float) = Matrix().apply { postRotate(deg); postTranslate(0.5f, 0.5f) }
+
+    /** 곡선 스파이크 별(0~4 와 같은 방식) — 임의 중심/반지름. */
+    private fun Path.sparkle(cx: Float, cy: Float, r: Float, innerRatio: Float, spikes: Int) {
+        val total = spikes * 2
+        fun ptX(i: Int, len: Float) = (cx + cos(Math.toRadians(i * 360.0 / total)) * len).toFloat()
+        fun ptY(i: Int, len: Float) = (cy + sin(Math.toRadians(i * 360.0 / total)) * len).toFloat()
+        moveTo(ptX(0, r), ptY(0, r))
+        for (i in 0 until spikes) {
+            val next = ((i + 1) % spikes) * 2
+            quadTo(ptX(i * 2 + 1, r * innerRatio), ptY(i * 2 + 1, r * innerRatio), ptX(next, r), ptY(next, r))
+        }
+        close()
+    }
+
+    /** 하트 윤곽(0..1, 뾰족한 끝 = (0.5, 0.84)). 네잎클로버 잎에도 쓴다. */
+    private fun Path.heartOutline() {
+        moveTo(0.5f, 0.84f)
+        cubicTo(0.14f, 0.62f, 0.06f, 0.42f, 0.14f, 0.28f)
+        cubicTo(0.23f, 0.12f, 0.43f, 0.13f, 0.5f, 0.30f)
+        cubicTo(0.57f, 0.13f, 0.77f, 0.12f, 0.86f, 0.28f)
+        cubicTo(0.94f, 0.42f, 0.86f, 0.62f, 0.5f, 0.84f)
+        close()
+    }
+
+    /** 9 하트 — 속이 꽉 찬 형태라 0.82 로 줄인다. */
+    private fun heartPath(s: Float): Path = UnitKit(s, 0.82f).part { heartOutline() }
+
+    /**
+     * 10 혜성 — 둥근 머리 + 살짝 휘며 가늘어지는 먼지 꼬리 + 틈을 두고 나란히 흐르는 가는 이온 꼬리 2줄
+     * + 머리 앞의 작은 반짝임(2026-09-26 "혜성만 더 디테일하게").
+     * 좌표는 머리 (0.64, 0.64) 기준 (a = 꼬리 방향 ↖ 성분, b = 옆 방향 ↗ 성분) 으로 적는다.
+     */
+    private fun cometPath(s: Float): Path {
+        val k = UnitKit(s)
+        val d = 0.70710677f
+        fun x(a: Float, b: Float) = 0.64f - a * d + b * d
+        fun y(a: Float, b: Float) = 0.64f - a * d - b * d
+        fun Path.m(a: Float, b: Float) = moveTo(x(a, b), y(a, b))
+        fun Path.q(ca: Float, cb: Float, a: Float, b: Float) = quadTo(x(ca, cb), y(ca, cb), x(a, b), y(a, b))
+        val head = k.circle(0.64f, 0.64f, 0.145f)
+        val tail = k.part { m(0f, 0.145f); q(0.36f, 0.14f, 0.76f, 0.05f); q(0.40f, -0.02f, 0f, -0.145f); close() }
+        // 이온 꼬리는 양 끝이 뾰족한 렌즈 모양(시작점 = 끝점) — 뭉툭하게 잘린 밑동이 없게.
+        val ionUpper = k.part { m(0.06f, 0.20f); q(0.30f, 0.26f, 0.62f, 0.20f); q(0.32f, 0.185f, 0.06f, 0.20f); close() }
+        val ionLower = k.part { m(0.08f, -0.19f); q(0.28f, -0.235f, 0.50f, -0.10f); q(0.30f, -0.155f, 0.08f, -0.19f); close() }
+        val glint = k.part { sparkle(x(-0.30f, 0f), y(-0.30f, 0f), 0.075f, 0.12f, 4) }
+        return union(listOf(head, tail, ionUpper, ionLower, glint))
+    }
+
+    /** 11 눈꽃 — 둥근 막대 팔 6개 + 팔마다 비스듬한 가지 2개 + 가운데 원. */
+    private fun snowflakePath(s: Float): Path {
+        val k = UnitKit(s)
+        val parts = mutableListOf(k.circle(0.5f, 0.5f, 0.10f))
+        for (i in 0 until 6) {
+            parts += k.rrect(-0.04f, -0.44f, 0.08f, 0.44f, 0.04f, aroundCenter(i * 60f))
+            for (sgn in intArrayOf(-1, 1)) {
+                val m = Matrix().apply {
+                    postRotate(sgn * 55f); postTranslate(0f, -0.24f); postRotate(i * 60f); postTranslate(0.5f, 0.5f)
+                }
+                parts += k.rrect(-0.034f, -0.15f, 0.068f, 0.15f, 0.034f, m)
+            }
+        }
+        return union(parts)
+    }
+
+    /** 12 벚꽃 — 끝이 살짝 갈라진 꽃잎 5장 + 가운데 원. */
+    private fun sakuraPath(s: Float): Path {
+        val k = UnitKit(s)
+        val parts = mutableListOf(k.circle(0.5f, 0.5f, 0.08f))
+        for (i in 0 until 5) {
+            parts += k.part(aroundCenter(i * 72f)) {
+                moveTo(0f, -0.05f)
+                cubicTo(-0.11f, -0.11f, -0.20f, -0.27f, -0.12f, -0.44f)
+                quadTo(-0.05f, -0.47f, 0f, -0.39f)
+                quadTo(0.05f, -0.47f, 0.12f, -0.44f)
+                cubicTo(0.20f, -0.27f, 0.11f, -0.11f, 0f, -0.05f)
+                close()
+            }
+        }
+        return union(parts)
+    }
+
+    /** 13 태양 — 원 + 떨어져 있는 곡선 광선 8갈래. */
+    private fun sunPath(s: Float): Path {
+        val k = UnitKit(s)
+        val parts = mutableListOf(k.circle(0.5f, 0.5f, 0.21f))
+        for (i in 0 until 8) {
+            parts += k.part(aroundCenter(i * 45f)) {
+                moveTo(-0.055f, -0.28f)
+                quadTo(-0.02f, -0.38f, 0f, -0.47f)
+                quadTo(0.02f, -0.38f, 0.055f, -0.28f)
+                close()
+            }
+        }
+        return union(parts)
+    }
+
+    /** 14 불꽃 — 옆으로 한 갈래 날름거리는 불꽃 + 아래쪽 속불(빈 물방울). */
+    private fun flamePath(s: Float): Path {
+        val k = UnitKit(s, 0.95f)
+        val outer = k.part {
+            moveTo(0.52f, 0.06f)
+            cubicTo(0.60f, 0.22f, 0.80f, 0.34f, 0.80f, 0.60f)
+            cubicTo(0.80f, 0.80f, 0.66f, 0.92f, 0.50f, 0.92f)
+            cubicTo(0.34f, 0.92f, 0.20f, 0.80f, 0.20f, 0.62f)
+            cubicTo(0.20f, 0.48f, 0.26f, 0.40f, 0.30f, 0.30f)
+            cubicTo(0.34f, 0.40f, 0.38f, 0.46f, 0.42f, 0.48f)
+            cubicTo(0.40f, 0.34f, 0.44f, 0.18f, 0.52f, 0.06f)
+            close()
+        }
+        val inner = k.part {
+            moveTo(0.50f, 0.54f)
+            cubicTo(0.57f, 0.63f, 0.63f, 0.69f, 0.62f, 0.78f)
+            cubicTo(0.61f, 0.86f, 0.39f, 0.86f, 0.38f, 0.78f)
+            cubicTo(0.37f, 0.69f, 0.43f, 0.63f, 0.50f, 0.54f)
+            close()
+        }
+        return outer.minus(inner)
+    }
+
+    /** 15 열쇠 — 고리(가운데 구멍) + 자루 + 이 2개, 45° 기울임. */
+    private fun keyPath(s: Float): Path {
+        val k = UnitKit(s)
+        val tilt = Matrix().apply { postRotate(45f, 0.5f, 0.5f) }
+        val body = union(listOf(
+            k.circle(0.5f, 0.24f, 0.18f, tilt),
+            k.rrect(0.455f, 0.38f, 0.09f, 0.52f, 0.03f, tilt),
+            k.rrect(0.5f, 0.72f, 0.18f, 0.06f, 0.02f, tilt),
+            k.rrect(0.5f, 0.82f, 0.13f, 0.06f, 0.02f, tilt),
+        ))
+        return body.minus(k.circle(0.5f, 0.24f, 0.075f, tilt))
+    }
+
+    /** 16 네잎클로버 — 하트 잎 4장(끝이 가운데로) + 오른쪽 아래로 휜 줄기. */
+    private fun cloverPath(s: Float): Path {
+        val k = UnitKit(s)
+        val parts = mutableListOf<Path>()
+        for (i in 0 until 4) {
+            val m = Matrix().apply {
+                postTranslate(-0.5f, -0.84f); postScale(0.5f, 0.5f); postTranslate(0f, -0.02f)
+                postRotate(i * 90f); postTranslate(0.5f, 0.5f)
+            }
+            parts += k.part(m) { heartOutline() }
+        }
+        parts += k.part {
+            moveTo(0.52f, 0.52f)
+            quadTo(0.66f, 0.70f, 0.80f, 0.87f)
+            lineTo(0.85f, 0.83f)
+            quadTo(0.70f, 0.67f, 0.57f, 0.49f)
+            close()
+        }
+        return union(parts)
+    }
+
+    /** 17 왕관 — 뾰족 세 개 몸통 + 아래 띠 + 꼭대기 구슬 3개. */
+    private fun crownPath(s: Float): Path {
+        val k = UnitKit(s, 0.92f)
+        return union(listOf(
+            k.poly(floatArrayOf(0.16f, 0.72f, 0.12f, 0.30f, 0.33f, 0.50f, 0.50f, 0.22f, 0.67f, 0.50f, 0.88f, 0.30f, 0.84f, 0.72f)),
+            k.rrect(0.16f, 0.70f, 0.68f, 0.12f, 0.03f),
+            k.circle(0.12f, 0.27f, 0.055f),
+            k.circle(0.5f, 0.19f, 0.06f),
+            k.circle(0.88f, 0.27f, 0.055f),
+        ))
+    }
+
+    /** 18 나선 은하 — 가운데 팽대부 + 가늘어지며 도는 팔 2개(극좌표 샘플링). */
+    private fun galaxyPath(s: Float): Path {
+        val k = UnitKit(s)
+        fun arm(start: Double): Path {
+            val n = 28
+            val outer = FloatArray((n + 1) * 2)
+            val inner = FloatArray((n + 1) * 2)
+            for (i in 0..n) {
+                val t = i / n.toDouble()
+                val th = start + t * 1.25 * Math.PI
+                val r = 0.10 + 0.34 * t
+                val ri = maxOf(0.0, r - (0.13 * Math.pow(1 - t, 0.8) + 0.006))
+                outer[i * 2] = (0.5 + r * cos(th)).toFloat(); outer[i * 2 + 1] = (0.5 + r * sin(th)).toFloat()
+                inner[i * 2] = (0.5 + ri * cos(th)).toFloat(); inner[i * 2 + 1] = (0.5 + ri * sin(th)).toFloat()
+            }
+            // 바깥 가장자리를 따라 나갔다가 안쪽 가장자리로 되돌아온다.
+            val pts = FloatArray(outer.size * 2)
+            outer.copyInto(pts)
+            for (i in 0..n) {
+                pts[outer.size + i * 2] = inner[(n - i) * 2]
+                pts[outer.size + i * 2 + 1] = inner[(n - i) * 2 + 1]
+            }
+            return k.poly(pts)
+        }
+        return union(listOf(k.circle(0.5f, 0.5f, 0.11f), arm(0.0), arm(Math.PI)))
+    }
+
+    /** 19 고양이 — 둥근 얼굴 + 뾰족 귀 2개 + 눈(빈 타원 2개). */
+    private fun catPath(s: Float): Path {
+        val k = UnitKit(s, 0.95f)
+        val head = union(listOf(
+            k.oval(0.5f, 0.6f, 0.34f, 0.27f),
+            k.part { moveTo(0.2f, 0.5f); lineTo(0.19f, 0.2f); quadTo(0.19f, 0.14f, 0.25f, 0.17f); lineTo(0.45f, 0.36f); close() },
+            k.part { moveTo(0.8f, 0.5f); lineTo(0.81f, 0.2f); quadTo(0.81f, 0.14f, 0.75f, 0.17f); lineTo(0.55f, 0.36f); close() },
+        ))
+        return head.minus(k.oval(0.38f, 0.6f, 0.045f, 0.065f), k.oval(0.62f, 0.6f, 0.045f, 0.065f))
+    }
+
+    /** 20 종이비행기 — 접힌 날개 실루엣(안쪽 접힌 선은 넣지 않는다 — 결정 모양 "검은 선" 피드백과 같은 이유). */
+    private fun paperPlanePath(s: Float): Path =
+        UnitKit(s).poly(floatArrayOf(0.92f, 0.14f, 0.07f, 0.47f, 0.37f, 0.57f, 0.45f, 0.88f, 0.56f, 0.66f, 0.78f, 0.77f))
 }

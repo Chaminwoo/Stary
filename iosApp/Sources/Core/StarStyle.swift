@@ -3,10 +3,10 @@ import SwiftUI
 /// 다이어리 별 마커의 종류(모양)×색상 팔레트.
 /// Android `core.designsystem.StarStyle` 의 Swift 포팅 — 정의를 양쪽이 공유한다.
 ///
-/// - 종류(starType 0..8): 0~4 별/스파클, 5~8 창의적 형태(꽃·보석·초승달·행성).
+/// - 종류(starType 0..20): 0~4 별/스파클, 5~8 창의적 형태(꽃·보석·초승달·행성), 9~20 업적 보상 형태(2026-09-26).
 /// - 색상(starColor 0..20): 0~15 단색 / 16~20 2색 그라데이션.
 enum StarStyle {
-    static let typeCount = 9
+    static let typeCount = 21
     static let colorCount = 21
     private static let gradStart = 16
 

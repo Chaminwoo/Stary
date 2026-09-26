@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.69 별 도감 = 열람한 모든 다이어리(해금 기록 서버 사본 + 잠금 이전 열람 합침)** — Android BUILD SUCCESSFUL(2026-09-26), 실기기 테스트 대기 · iOS 는 push 후 CI. 업적 38개·별 모양 12종 추가안은 사용자 승인 대기.
+> 최종 갱신: **8.70 업적 38개 · 별 모양 12종 · 묶음 해금 팝업 · 시간 판정 현지화** — Android BUILD SUCCESSFUL(2026-09-26), 실기기 테스트 대기 · iOS 는 push 후 CI.
+> 이전: **8.69 별 도감 = 열람한 모든 다이어리(해금 기록 서버 사본 + 잠금 이전 열람 합침)** — Android BUILD SUCCESSFUL(2026-09-26), 실기기 테스트 대기.
 > 이전: **8.68 유튜브 쇼츠용 시네마틱 광고 40초**(`tools/ad/cinematic.py` → `references/stary_cinematic_9x16.mp4`, 앱 코드 변경 없음) — 사용자 검토 대기(2026-09-25).
 > 이전: **8.67 다이아몬드 결정 안쪽 검은 선 제거(파편 밀도로 대체) · 프로필 떠다니는 아이콘 충돌음** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25), iOS 값 동기화(push 후 CI, 충돌음은 Android 전용).
 > 이전: **8.66 별자리 도착 플래시 반경 축소(15dp→7.5dp)**
@@ -2342,11 +2343,30 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
 - 한계: 로컬 저장소는 여전히 기기 공용(계정별 분리 아님) — 한 기기에서 계정을 바꾸면 기록이 섞일 수 있다(기존과 동일).
   잠금 이전 열람이라도 그 뒤 다시 열어 viewedAt 이 갱신된 문서는 증거가 사라져 복원되지 않는다(이번 sync 부터는 unlockedAt 으로 굳어 더 이상 유실 없음).
 
+## 8.70 업적 38개 · 별 모양 12종 · 묶음 해금 팝업 (Android BUILD SUCCESSFUL 2026-09-26 · 실기기 테스트 대기 · iOS 는 push 후 CI)
+사용자: "업적을 재밌게 많이 늘리고 별 모양도 늘려, 목록 먼저 보여주고 허락받고 추가" → 미리보기(https://claude.ai/artifact/527iWoEcZmTADTyG953YXs)
+검토 후 "혜성만 더 디테일하게, 모두 추가 / 계절 업적은 우리나라만 해당 → 삭제하고 대안 / 이름이 뻔하다 → 창의적으로 /
+묶음 팝업·현지 시간 추천대로".
+- **별 모양 9~20**: 하트·혜성·눈꽃·벚꽃·태양·불꽃·열쇠·네잎클로버·왕관·나선 은하·고양이·종이비행기. 전부 업적 보상.
+  혜성은 둥근 머리 + 휘어 가늘어지는 먼지 꼬리 + 틈을 둔 렌즈 모양 이온 꼬리 2줄 + 머리 앞 작은 반짝임으로 다듬었다.
+  `StarStyle.starPath` 는 이제 타입별 경로를 크기 100 으로 캐시(부품 union 이 비싸서). iOS `StarShape.cache` 동일.
+  ⚠️ 구버전 앱은 새 타입(9~20)을 행성(8)으로 그린다(coerceIn) — 업데이트하면 제 모양.
+- **업적 +38**(칭호 26 · 모양 12, 숨김 5): 기록/꾸준함/시간·특별한 날/여행·장소/별 도감/사랑받기·친구/꾸미기. 계절 3개(봄·겨울·사계절)는
+  빼고 → "꽃비가 내리는 날"(하루 3개, 벚꽃) · "아무도 밟지 않은 눈밭"(1km 안 첫 별 3개, 눈꽃) · "달력을 한 바퀴"(1~12월 모두).
+  익명 업적은 익명 게시 기능이 없어 "세 줄 요약도 길다"(본문 20자 이하)로 교체. 상세 규칙은 docs/code/08 문서.
+- **묶음 팝업**(1.2초 모으기 → 2개 이상이면 한 장에 목록) · **시간 판정 현지화**(심야/날짜 — UTC 버그 수정) · **숨김 업적 ??? 처리**.
+- 히든 업적 "은하의 정점"(일반 업적 전부)은 이제 69개를 채워야 한다(그대로 둠).
+- 파일: Android `StarStyle.kt`·`Achievements.kt`·`AchievementUnlockWatcher.kt`·`AchievementsScreen.kt`·`LocalizedNames.kt`·strings 3벌 /
+  iOS `StarStyle.swift`·`StarShape.swift`·`Achievements.swift`·`LocalizedNames.swift`·`LocaleManager.swift`·`RootView.swift`·
+  `AchievementsScreen`·`ProfileScreen`·`MusicScreen`·`UploadScreen`(computeStats 에 uid/allDiaries/unlockedIds 전달).
+- 확인 필요(실기기): 새 모양이 지도 마커(작은 크기)에서 읽히는지 · 업데이트 직후 묶음 팝업 1장 · 숨김 업적 ??? · en/ja 전환 시 새 업적 이름.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **(8.65) 새 버전 안내 실제 동작 확인** — Play 내부 테스트 트랙에서 구버전 설치 → 신버전 업로드 후 앱 실행. iOS 는 App Store 출시 후.
 - [ ] **(8.64) 언어 전환 — Play 내부 테스트 설치본에서 확인**(AAB 언어 분할 끔). 확인되면 CLAUDE.md §2.5 의 "3번 재발" 기록 유지.
 - [x] ~~(8.64) 별 도감 해금 기록은 기기 로컬~~ → 8.69 에서 `viewedDiaries.unlockedAt` 서버 사본으로 해결.
-- [ ] **(8.69) 업적 38개 · 별 모양 12종 추가안** — 미리보기 https://claude.ai/artifact/527iWoEcZmTADTyG953YXs , 사용자 승인 후 구현.
+- [x] ~~(8.69) 업적 38개 · 별 모양 12종 추가안~~ → 8.70 에서 구현.
+- [ ] (8.70) 1.5.2 버전 번호 올리기(versionCode 23) — 1.5.1 이 이미 스토어에 올라갔다면. 아니면 PATCH_NOTES 1.5.2 항목을 1.5.1 에 합친다.
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
       `INSTAGRAM_APP_ID` 주입, `UIPasteboard`(com.instagram.sharedSticker.backgroundImage) + `instagram-stories://share` 필요.

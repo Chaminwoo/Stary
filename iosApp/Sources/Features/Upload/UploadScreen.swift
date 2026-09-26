@@ -43,7 +43,8 @@ struct UploadScreen: View {
     private var unlocked: Set<String> {
         Achievements.unlockedIds(
             Achievements.computeStats(diaries: store.mine(uid: auth.uid),
-                                      friendsCount: friendsCount, viewedCount: 0)
+                                      friendsCount: friendsCount, viewedCount: 0,
+                                      uid: auth.uid, allDiaries: store.diaries, unlockedIds: Set(DiaryUnlockStore.shared.unlockedAt.keys))
         )
     }
 

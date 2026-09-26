@@ -22,6 +22,25 @@ iOS: `Core/Achievements.swift`, `Core/HiddenAchievements.swift`, `Data/HiddenAch
   `users.equippedTitle` 로 백필해 타인에게도 보인다.
 - `equippedTitleName(id)` : 일반+히든 통합 칭호 표시명 조회.
 
+### 2026-09-26 확장 — 업적 38개 · 별 모양 12종(9~20) · 묶음 팝업
+- 일반 업적 31 → **69**(칭호 26 + 별 모양 12 추가). 계절 업적은 나라(반구)마다 달라 넣지 않았다.
+  이름은 칭호 그대로 쓰이므로 짧고 재밌게(사용자 요청 "뻔하지 않게"). 문구는 `title_*`/`ach_name_*`/`ach_cond_*` 3벌 +
+  iOS `LocalizedNames` 표 — 새 업적을 넣을 땐 이 3곳(+ Android `LocalizedNames` 매핑)을 **동시에** 채운다(하나라도 빠지면 그 언어만 한국어).
+- **새 통계**(`UserStats` — iOS 동일 필드): 사진/영상/장문(500자)/단문(20자)/나만보기 수, 최장 연속 일수, 새벽(5~6시) 기록,
+  하루 최다, 기록한 달 수(1~12월), 11:11, 보름달 밤(월령 14.765±1일 · 18~6시), 1/1, 12/24·25, 1km 떨어진 장소 수(작성 순 탐욕),
+  반경 1km 최대 군집, 같은 자리(50m) 30일 뒤 재방문, **첫 발자국**(1km 안에 *먼저* 남겨진 남의 별 없음 — 나중에 누가 와도 유지),
+  **이웃 별**(남의 별 100m 안), **별 도감 수**(연 글 ∩ 지금 보이는 남의 글 — 남의 프로필에선 0), 한 글 최다 조회, 댓글 합(commentCount),
+  서로 다른 모양/색 수, `achievementsDone`(왕관용 — 왕관 자신 제외 달성 수, `Achievements.withAchievementCount`).
+  첫 발자국/이웃 별은 **전체 목록이 비어 있으면 판정 안 함**(내 글만 먼저 온 순간 오판 → 잘못된 해금 팝업 방지).
+- **시간 판정은 전부 기기 현지 시간**(java.time / Calendar.current). 예전 `nightPosts`·`distinctDays` 는 UTC 라 한국에선
+  오전 9시~오후 1시가 '심야'로 잡혔다 → 같이 고침(사용자 승인). 오전 기록으로 심야 색을 받았던 사람은 다시 잠길 수 있다.
+- **숨김 업적**(`hidden = true`, 5개: 소원 접수 완료·달빛에 홀린 고양이·카운트다운 끝·산타보다 먼저·우리 전에 여기 왔었지):
+  업적 화면에서 달성 전 조건이 `???`(이름은 힌트로 노출). 이번에 처음 쓰여 화면 처리를 추가했다(Android Title/RewardAchievementRow, iOS achievementRow).
+- **묶음 팝업**: `AchievementUnlockWatcher` 가 새 업적을 `pending` 에 모으고 마지막 추가 뒤 `BUNDLE_WINDOW_MS`(1200ms) 조용하면
+  한 묶음으로 큐에 넣는다 → 2개 이상이면 한 장("업적 N개 달성!" + 목록, 리빌은 새 별 모양 우선). iOS RootView 동일(`pendingAchievements` + `bundleTask`).
+  iOS 는 `achievementSignature` 에 댓글 합·해금 수·전체 글 수를 추가하고 `DiaryUnlockStore` 를 관찰한다.
+- 익명 게시는 기능이 없어(iOS 모델 주석: 제거됨) 익명 업적 대신 단문 업적(세 줄 요약도 길다).
+
 ## HiddenAchievements.kt — 히든 업적(전 앱 선착순 1명)
 
 - 개념: **앱 전체에서 단 한 사람만** 달성 가능한 특별 업적. 달성 전 조건은 `???`,

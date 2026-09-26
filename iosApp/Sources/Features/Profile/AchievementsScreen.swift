@@ -30,7 +30,8 @@ struct AchievementsScreen: View {
     }
     private var stats: UserStats {
         Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: othersViewedCount,
-                                  invitedFriends: invitedFriends, redeemedInvite: redeemedInvite)
+                                  invitedFriends: invitedFriends, redeemedInvite: redeemedInvite,
+                                  uid: auth.uid, allDiaries: store.diaries, unlockedIds: Set(DiaryUnlockStore.shared.unlockedAt.keys))
     }
     private var unlocked: Set<String> { Achievements.unlockedIds(stats) }
     private var allNormalDone: Bool {
@@ -163,7 +164,8 @@ struct AchievementsScreen: View {
                 // 업적명·조건 모두 언어 전환에 맞춰 표시(칭호 업적 + 별 모양/색 보상 업적).
                 Text(LocalizedNames.title(ach.id, fallback: ach.name) ?? ach.name)
                     .font(.minSans(15)).foregroundStyle(Theme.textPrimary)
-                Text(LocalizedNames.condition(ach.id, fallback: ach.condition))
+                // 숨김 업적은 달성 전까지 조건을 ??? 로 가린다(이름은 힌트로 보여 준다). Android 패리티.
+                Text(ach.hidden && !done ? "???" : LocalizedNames.condition(ach.id, fallback: ach.condition))
                     .font(.minSans(11)).foregroundStyle(Theme.textSecondary)
             }
             Spacer()

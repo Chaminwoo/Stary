@@ -42,7 +42,8 @@ struct ProfileScreen: View {
         return viewed.viewedIds.subtracting(myIds).count
     }
     private var stats: UserStats {
-        Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: othersViewedCount)
+        Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: othersViewedCount,
+                                  uid: auth.uid, allDiaries: store.diaries, unlockedIds: Set(DiaryUnlockStore.shared.unlockedAt.keys))
     }
     private var unlockedCount: Int { Achievements.unlockedIds(stats).count }
     // 칭호는 언어 전환에 맞춰 표시(정의는 한국어 데이터, 표시만 로케일 해석)

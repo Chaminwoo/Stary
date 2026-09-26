@@ -18,14 +18,20 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,6 +60,7 @@ import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.Haptics
 import com.chaminwoo.stary.core.util.LocalizedNames
+import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
@@ -63,8 +70,16 @@ private val Blue = Color(0xFF3B82F6)
 private val Navy = Color(0xFF1E3A8A) // 그라데이션 짝(파랑→남색)
 
 /**
+ * 새로 달성한 업적을 모으는 시간(ms) — 통계(내 글·전체 글·친구·해금 기록)가 여러 번에 나눠 도착하므로,
+ * 마지막 추가 뒤 이만큼 조용하면 그때까지 모인 업적을 **한 장의 팝업**으로 묶는다(2026-09-26 —
+ * 업데이트 직후 새 업적이 한꺼번에 달성될 때 팝업이 연달아 뜨지 않게). iOS RootView 도 같은 값.
+ */
+private const val BUNDLE_WINDOW_MS = 1200L
+
+/**
  * 업적 해금 감시기 — 사용자 통계가 바뀌어 새 업적이 달성되면 팝업을 띄운다.
  * 최초 1회는 이미 달성한 업적을 알림 없이 기준선으로 저장하고, 이후 새로 넘긴 업적만 알린다.
+ * 같은 때 여러 개가 달성되면 한 장에 모아 보여주고, 그 뒤 새로 달성하는 건 지금처럼 하나씩.
  * [userId] 가 있는(로그인) 상태에서만 호출한다. MainScreen 최상위에 두어 어느 화면에서든 동작.
  */
 @Composable
@@ -72,7 +87,8 @@ fun AchievementUnlockWatcher(userId: String, suppressed: Boolean = false) {
     val context = LocalContext.current
     val stats = rememberUserStats(userId)
     val unlocked = remember(stats) { Achievements.unlockedIds(stats) }
-    val queue = remember { mutableStateListOf<Achievement>() }
+    val queue = remember { mutableStateListOf<List<Achievement>>() }
+    val pending = remember { mutableStateListOf<Achievement>() }
 
     LaunchedEffect(unlocked, userId) {
         val prefs = context.getSharedPreferences("stary_prefs", Context.MODE_PRIVATE)
@@ -85,17 +101,27 @@ fun AchievementUnlockWatcher(userId: String, suppressed: Boolean = false) {
             val newIds = unlocked - stored
             if (newIds.isNotEmpty()) {
                 Achievements.all
-                    .filter { it.id in newIds && queue.none { q -> q.id == it.id } }
-                    .forEach { queue.add(it) }
+                    .filter { a -> a.id in newIds && pending.none { it.id == a.id } && queue.none { g -> g.any { it.id == a.id } } }
+                    .forEach { pending.add(it) }
                 prefs.edit().putStringSet(key, HashSet(stored + unlocked)).apply()
             }
         }
     }
 
+    // 모으는 창 — 새 업적이 더 들어오면 이 effect 가 다시 시작돼 창이 연장된다.
+    LaunchedEffect(pending.size) {
+        if (pending.isEmpty()) return@LaunchedEffect
+        delay(BUNDLE_WINDOW_MS)
+        queue.add(pending.toList())
+        pending.clear()
+    }
+
     // 코치마크(온보딩) 등 다른 오버레이가 떠 있는 동안엔 큐에 쌓아만 두고, 닫힌 뒤에 표시.
     if (!suppressed) {
-        queue.firstOrNull()?.let { ach ->
-            AchievementUnlockDialog(ach) { queue.removeAt(0) }
+        queue.firstOrNull()?.let { group ->
+            // 리빌에 띄울 대표 보상 — 새 별 모양이 있으면 그걸, 없으면 첫 업적.
+            val hero = group.firstOrNull { it.reward is Reward.Shape } ?: group.first()
+            AchievementUnlockDialog(hero, bundle = if (group.size > 1) group else emptyList()) { queue.removeAt(0) }
         }
     }
 }
@@ -113,9 +139,16 @@ private const val REVEAL_SHARDS = 14
  *  - 칭호 업적: 앰버골드 5꼭지 별(칭호는 형태가 없어 "빛나는 이름표" 대역).
  *  - 별 모양 업적: 해금된 모양을 앰버골드로.
  *  - 별 색 업적: 해금된 색을 기본 5꼭지 별로.
+ *
+ * [bundle] 이 2개 이상이면(동시에 여러 개 달성) 리빌은 [achievement](대표) 로 하고, 아래에
+ * "업적 N개 달성!" + 업적 목록(보상 별 · 이름 · 보상)을 스크롤로 보여준다.
  */
 @Composable
-private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> Unit) {
+private fun AchievementUnlockDialog(
+    achievement: Achievement,
+    bundle: List<Achievement> = emptyList(),
+    onDismiss: () -> Unit,
+) {
     val context = LocalContext.current
     val pop by animateFloatAsState(
         targetValue = 1f,
@@ -290,30 +323,47 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
                 }
 
                 Spacer(Modifier.height(10.dp))
-                Text(
-                    stringResource(R.string.ach_unlocked),
-                    color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Light
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    LocalizedNames.title(context, achievement.id, achievement.name) ?: achievement.name,
-                    color = Color.White, fontSize = 22.sp,
-                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    LocalizedNames.condition(context, achievement.id, achievement.condition),
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 13.sp, textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(16.dp))
-                Box(
-                    modifier = Modifier
-                        .background(rewardColor.copy(alpha = 0.12f), RoundedCornerShape(50))
-                        .border(1.dp, rewardColor.copy(alpha = 0.4f), RoundedCornerShape(50))
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(rewardText, color = rewardColor, fontSize = 13.sp, fontWeight = FontWeight.Normal)
+                if (bundle.size > 1) {
+                    Text(
+                        stringResource(R.string.ach_unlocked_many, bundle.size),
+                        color = Accent, fontSize = 17.sp, fontWeight = FontWeight.Normal
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 260.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        bundle.forEach { BundleRow(it) }
+                    }
+                } else {
+                    Text(
+                        stringResource(R.string.ach_unlocked),
+                        color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Light
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        LocalizedNames.title(context, achievement.id, achievement.name) ?: achievement.name,
+                        color = Color.White, fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        LocalizedNames.condition(context, achievement.id, achievement.condition),
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 13.sp, textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(rewardColor.copy(alpha = 0.12f), RoundedCornerShape(50))
+                            .border(1.dp, rewardColor.copy(alpha = 0.4f), RoundedCornerShape(50))
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(rewardText, color = rewardColor, fontSize = 13.sp, fontWeight = FontWeight.Normal)
+                    }
                 }
                 Spacer(Modifier.height(22.dp))
                 Box(
@@ -331,6 +381,36 @@ private fun AchievementUnlockDialog(achievement: Achievement, onDismiss: () -> U
                     )
                 }
             }
+        }
+    }
+}
+
+/** 묶음 팝업의 업적 한 줄 — 보상 별(칭호 = 금색 8꼭지, 모양 = 금색 그 모양, 색 = 그 색 동그라미) · 이름 · 보상. */
+@Composable
+private fun BundleRow(ach: Achievement) {
+    val context = LocalContext.current
+    val gold = 15
+    val color = StarStyle.colorOf((ach.reward as? Reward.StarColor)?.colorIndex ?: gold)
+    val rewardText = when (ach.reward) {
+        is Reward.Title -> stringResource(R.string.ach_reward_title_short)
+        is Reward.Shape -> stringResource(R.string.ach_reward_shape)
+        is Reward.StarColor -> stringResource(R.string.ach_reward_color)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(34.dp)) {
+            when (val r = ach.reward) {
+                is Reward.StarColor -> Box(Modifier.size(24.dp).clip(CircleShape).background(color))
+                is Reward.Shape -> StarShapeIcon(type = r.shapeType, colorIndex = gold, modifier = Modifier.size(32.dp))
+                is Reward.Title -> StarShapeIcon(type = 3, colorIndex = gold, modifier = Modifier.size(30.dp))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                LocalizedNames.title(context, ach.id, ach.name) ?: ach.name,
+                color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold
+            )
+            Text(rewardText, color = color, fontSize = 12.sp)
         }
     }
 }

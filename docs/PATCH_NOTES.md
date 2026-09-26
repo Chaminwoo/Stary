@@ -7,6 +7,53 @@
 
 ---
 
+## 1.5.2 (예정) — 미출시 · 실기기 테스트 대기
+
+범위: 8.69(별 도감 = 열람한 모든 다이어리) + 8.70(업적 38개 · 별 모양 12종 · 묶음 팝업). 1.5.1 이 아직 안 나갔다면 1.5.1 에 합쳐도 된다.
+
+### 스토어 출시 노트 (붙여 넣기용 — ko-KR/en-IN/ja-JP/zh-CN)
+
+```
+<ko-KR>
+[1.5.2 업데이트]
+
+• 새 업적 38개가 생겼어요. 연속 기록, 특별한 날, 여행, 별 도감 등 다양한 도전을 즐겨보세요 (숨겨진 업적도 있어요!)
+• 새 별 모양 12종 — 하트, 혜성, 눈꽃, 벚꽃, 태양, 불꽃, 열쇠, 네잎클로버, 왕관, 나선 은하, 고양이, 종이비행기를 업적으로 해금해보세요
+• 별 도감에 100m 안에서 연 다이어리와 광고로 연 다이어리가 모두 모여요. 기기를 바꿔도 그대로 남아요
+• 업적을 한꺼번에 여러 개 달성하면 한 장에 모아서 보여드려요
+• 심야 기록 업적이 기기 시간 기준으로 정확하게 판정되도록 고쳤어요
+</ko-KR>
+<en-IN>
+[1.5.2 Update]
+
+• 38 new achievements — streaks, special days, travel, your Star Log and more (some are hidden!)
+• 12 new star shapes to unlock through achievements: heart, comet, snowflake, cherry blossom, sun, flame, key, four-leaf clover, crown, spiral galaxy, cat and paper plane
+• Your Star Log now collects every diary you've opened, whether within 100m or with an ad, and keeps them even if you switch devices
+• Unlocking several achievements at once now shows them together on one card
+• Late-night achievements now use your device's local time
+</en-IN>
+<ja-JP>
+【1.5.2 アップデート】
+
+• 新しい実績を38個追加しました。連続記録、特別な日、旅、星の図鑑など、いろいろな挑戦を楽しんでください(隠し実績もあります!)
+• 新しい星の形を12種類追加 — ハート、彗星、雪の結晶、桜、太陽、炎、鍵、四つ葉のクローバー、王冠、渦巻銀河、猫、紙飛行機を実績で解放できます
+• 星の図鑑に、100m以内で開いた日記も広告で開いた日記もすべて集まります。機種変更しても残ります
+• 実績を一度にいくつも達成したときは、まとめて一枚で表示します
+• 深夜の記録の実績が端末の時刻で正しく判定されるように修正しました
+</ja-JP>
+<zh-CN>
+【1.5.2 更新】
+
+• 新增38项成就——连续记录、特别的日子、旅行、星星图鉴等多种挑战(还有隐藏成就!)
+• 新增12种星星形状,可通过成就解锁:爱心、彗星、雪花、樱花、太阳、火焰、钥匙、四叶草、王冠、螺旋星系、猫咪、纸飞机
+• 星星图鉴会收集你打开过的所有日记,无论是在100米内打开还是通过广告解锁,更换设备后也会保留
+• 同时达成多项成就时,会在一张卡片中一起展示
+• 深夜记录相关成就现按设备本地时间判定
+</zh-CN>
+```
+
+---
+
 ## 1.5.1 (versionCode 22) — 미출시 · 실기기 테스트 대기
 
 범위: `ef85793`(지도 "해금만" 필터) 이후. 광고 영상 레퍼런스 반영(효과음·연출) + 별 도감 신설 + 언어 전환 재발 수정 + 사용자 피드백 4건.

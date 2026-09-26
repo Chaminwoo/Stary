@@ -293,7 +293,10 @@ struct MusicScreen: View {
     private let tracks = MusicCatalog.tracks
 
     private var mine: [Diary] { store.mine(uid: auth.uid) }
-    private var stats: UserStats { Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: 0) }
+    private var stats: UserStats {
+        Achievements.computeStats(diaries: mine, friendsCount: friendsCount, viewedCount: 0,
+                                  uid: auth.uid, allDiaries: store.diaries, unlockedIds: Set(DiaryUnlockStore.shared.unlockedAt.keys))
+    }
     private var unlocked: Set<String> { Achievements.unlockedIds(stats) }
     private func isUnlocked(_ t: MusicCatalog.Track) -> Bool {
         guard let id = t.unlockAchievementId else { return true }

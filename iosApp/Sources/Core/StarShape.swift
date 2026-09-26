@@ -4,18 +4,27 @@ import SwiftUI
 ///
 /// 0: 4꼭지 스파클 / 1: 5꼭지 별 / 2: 6꼭지 별 / 3: 8꼭지 가는 스파클 / 4: 다이아 스파클 /
 /// 5: 꽃 / 6: 보석 / 7: 초승달 / 8: 행성
+/// 9: 하트 / 10: 혜성 / 11: 눈꽃 / 12: 벚꽃 / 13: 태양 / 14: 불꽃 / 15: 열쇠 / 16: 네잎클로버 /
+/// 17: 왕관 / 18: 나선 은하 / 19: 고양이 / 20: 종이비행기  (업적 보상, 2026-09-26)
 ///
-/// 5~8 형태는 Android `Path.Op` 와 동일한 boolean 연산(`union`/`subtracting`)으로 만든다 —
+/// 5~20 형태는 Android `Path.Op` 와 동일한 boolean 연산(`union`/`subtracting`)으로 만든다 —
 /// 결과 경로는 정규화되어 even-odd/non-zero 어느 채움 규칙에서도 같은 모양이다.
+/// 9~20 은 부품이 많아 비싸므로 모든 타입을 기준 크기(100)로 한 번만 만들어 캐시하고 배율만 준다
+/// (Android `StarStyle.starPath` 의 pathCache 패리티).
 struct StarShape: Shape {
     let type: Int
+
+    private static let cacheBase: CGFloat = 100
+    /// static let 은 지연 + 스레드 안전 초기화 — 어느 스레드에서 처음 그려도 한 번만 만든다.
+    private static let cache: [Path] = (0..<StarStyle.typeCount).map { StarShape(type: $0).build(s: cacheBase) }
 
     func path(in rect: CGRect) -> Path {
         let s = min(rect.width, rect.height)
         let origin = CGPoint(x: rect.midX - s / 2, y: rect.midY - s / 2)
-        var p = build(s: s)
-        p = p.applying(CGAffineTransform(translationX: origin.x, y: origin.y))
-        return p
+        let k = s / Self.cacheBase
+        return Self.cache[type.clamped(0, StarStyle.typeCount - 1)]
+            .applying(CGAffineTransform(scaleX: k, y: k).concatenating(
+                CGAffineTransform(translationX: origin.x, y: origin.y)))
     }
 
     private func build(s: CGFloat) -> Path {
@@ -24,6 +33,18 @@ struct StarShape: Shape {
         case 6: return gem(s)
         case 7: return crescent(s)
         case 8: return planet(s)
+        case 9: return heart(s)
+        case 10: return comet(s)
+        case 11: return snowflake(s)
+        case 12: return sakura(s)
+        case 13: return sun(s)
+        case 14: return flame(s)
+        case 15: return key(s)
+        case 16: return clover(s)
+        case 17: return crown(s)
+        case 18: return galaxy(s)
+        case 19: return cat(s)
+        case 20: return paperPlane(s)
         default: return polygonStar(type: type, s: s)
         }
     }
@@ -143,6 +164,277 @@ struct StarShape: Shape {
         let band = ringOuter.subtractingCompat(ringInner)
             .applying(CGAffineTransform(rotationAngle: -20 * .pi / 180).rotated(around: c))
         return body.unionCompat(band)
+    }
+
+    // MARK: - 9~20 업적 보상 형태 (2026-09-26)
+    // Android StarStyle 의 heartPath…paperPlanePath 와 **같은 0..1 좌표**(값 drift 금지).
+    // 부품을 0..1 로 그린 뒤 UnitKit 이 s 로 확대하고, 합집합/차집합으로 실루엣을 만든다.
+
+    /// 0..1 좌표 부품 → 픽셀 경로. `scale` 은 정사각 중심 기준 배율(속이 꽉 찬 형태를 줄일 때).
+    private struct UnitKit {
+        let toPx: CGAffineTransform
+
+        init(_ s: CGFloat, scale: CGFloat = 1) {
+            toPx = CGAffineTransform(translationX: -0.5, y: -0.5)
+                .concatenating(CGAffineTransform(scaleX: scale, y: scale))
+                .concatenating(CGAffineTransform(translationX: 0.5, y: 0.5))
+                .concatenating(CGAffineTransform(scaleX: s, y: s))
+        }
+
+        func part(_ local: CGAffineTransform = .identity, _ build: (inout Path) -> Void) -> Path {
+            var p = Path()
+            build(&p)
+            return p.applying(local.concatenating(toPx))
+        }
+        func circle(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat, _ local: CGAffineTransform = .identity) -> Path {
+            part(local) { $0.addEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)) }
+        }
+        func oval(_ x: CGFloat, _ y: CGFloat, _ rx: CGFloat, _ ry: CGFloat) -> Path {
+            part { $0.addEllipse(in: CGRect(x: x - rx, y: y - ry, width: rx * 2, height: ry * 2)) }
+        }
+        func rrect(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat,
+                   _ local: CGAffineTransform = .identity) -> Path {
+            part(local) { $0.addRoundedRect(in: CGRect(x: x, y: y, width: w, height: h), cornerSize: CGSize(width: r, height: r)) }
+        }
+        func poly(_ pts: [CGPoint]) -> Path {
+            part { p in
+                p.move(to: pts[0])
+                for pt in pts.dropFirst() { p.addLine(to: pt) }
+                p.closeSubpath()
+            }
+        }
+    }
+
+    private func union(_ parts: [Path]) -> Path {
+        parts.dropFirst().reduce(parts[0]) { $0.unionCompat($1) }
+    }
+
+    /// 원점 기준 부품 → 회전(도) 후 정사각 중앙으로 이동. (Android aroundCenter)
+    private func aroundCenter(_ deg: CGFloat) -> CGAffineTransform {
+        CGAffineTransform(rotationAngle: deg * .pi / 180).concatenating(CGAffineTransform(translationX: 0.5, y: 0.5))
+    }
+
+    /// 하트 윤곽(0..1, 뾰족한 끝 = (0.5, 0.84)). 네잎클로버 잎에도 쓴다.
+    private func heartOutline(_ p: inout Path) {
+        p.move(to: CGPoint(x: 0.5, y: 0.84))
+        p.addCurve(to: CGPoint(x: 0.14, y: 0.28), control1: CGPoint(x: 0.14, y: 0.62), control2: CGPoint(x: 0.06, y: 0.42))
+        p.addCurve(to: CGPoint(x: 0.5, y: 0.30), control1: CGPoint(x: 0.23, y: 0.12), control2: CGPoint(x: 0.43, y: 0.13))
+        p.addCurve(to: CGPoint(x: 0.86, y: 0.28), control1: CGPoint(x: 0.57, y: 0.13), control2: CGPoint(x: 0.77, y: 0.12))
+        p.addCurve(to: CGPoint(x: 0.5, y: 0.84), control1: CGPoint(x: 0.94, y: 0.42), control2: CGPoint(x: 0.86, y: 0.62))
+        p.closeSubpath()
+    }
+
+    /// 9 하트 — 속이 꽉 찬 형태라 0.82 로 줄인다.
+    private func heart(_ s: CGFloat) -> Path {
+        UnitKit(s, scale: 0.82).part { heartOutline(&$0) }
+    }
+
+    /// 10 혜성 — 둥근 머리 + 휘며 가늘어지는 먼지 꼬리 + 틈을 둔 이온 꼬리 2줄 + 머리 앞 작은 반짝임.
+    /// 좌표는 머리 (0.64, 0.64) 기준 (a = 꼬리 방향 ↖, b = 옆 방향 ↗). Android cometPath 와 동일.
+    private func comet(_ s: CGFloat) -> Path {
+        let k = UnitKit(s)
+        let d: CGFloat = 0.70710677
+        func pt(_ a: CGFloat, _ b: CGFloat) -> CGPoint { CGPoint(x: 0.64 - a * d + b * d, y: 0.64 - a * d - b * d) }
+        func band(_ m: (CGFloat, CGFloat), _ c1: (CGFloat, CGFloat), _ e1: (CGFloat, CGFloat),
+                  _ c2: (CGFloat, CGFloat), _ e2: (CGFloat, CGFloat)) -> Path {
+            k.part { p in
+                p.move(to: pt(m.0, m.1))
+                p.addQuadCurve(to: pt(e1.0, e1.1), control: pt(c1.0, c1.1))
+                p.addQuadCurve(to: pt(e2.0, e2.1), control: pt(c2.0, c2.1))
+                p.closeSubpath()
+            }
+        }
+        let head = k.circle(0.64, 0.64, 0.145)
+        let tail = band((0, 0.145), (0.36, 0.14), (0.76, 0.05), (0.40, -0.02), (0, -0.145))
+        // 이온 꼬리는 양 끝이 뾰족한 렌즈 모양(시작점 = 끝점) — 뭉툭하게 잘린 밑동이 없게.
+        let ionUpper = band((0.06, 0.20), (0.30, 0.26), (0.62, 0.20), (0.32, 0.185), (0.06, 0.20))
+        let ionLower = band((0.08, -0.19), (0.28, -0.235), (0.50, -0.10), (0.30, -0.155), (0.08, -0.19))
+        let g = pt(-0.30, 0)
+        let glint = k.part { p in sparkle(&p, cx: g.x, cy: g.y, r: 0.075, innerRatio: 0.12, spikes: 4) }
+        return union([head, tail, ionUpper, ionLower, glint])
+    }
+
+    /// 곡선 스파이크 별 — 임의 중심/반지름(0~4 와 같은 방식, 스파이크는 0° 부터).
+    private func sparkle(_ p: inout Path, cx: CGFloat, cy: CGFloat, r: CGFloat, innerRatio: CGFloat, spikes: Int) {
+        let total = spikes * 2
+        func at(_ i: Int, _ len: CGFloat) -> CGPoint {
+            let a = Double(i) * 2 * .pi / Double(total)
+            return CGPoint(x: cx + CGFloat(cos(a)) * len, y: cy + CGFloat(sin(a)) * len)
+        }
+        p.move(to: at(0, r))
+        for i in 0..<spikes {
+            p.addQuadCurve(to: at(((i + 1) % spikes) * 2, r), control: at(i * 2 + 1, r * innerRatio))
+        }
+        p.closeSubpath()
+    }
+
+    /// 11 눈꽃 — 둥근 막대 팔 6개 + 팔마다 비스듬한 가지 2개 + 가운데 원.
+    private func snowflake(_ s: CGFloat) -> Path {
+        let k = UnitKit(s)
+        var parts = [k.circle(0.5, 0.5, 0.10)]
+        for i in 0..<6 {
+            let arm = CGFloat(i) * 60
+            parts.append(k.rrect(-0.04, -0.44, 0.08, 0.44, 0.04, aroundCenter(arm)))
+            for sgn in [-1.0, 1.0] as [CGFloat] {
+                let m = CGAffineTransform(rotationAngle: sgn * 55 * .pi / 180)
+                    .concatenating(CGAffineTransform(translationX: 0, y: -0.24))
+                    .concatenating(aroundCenter(arm))
+                parts.append(k.rrect(-0.034, -0.15, 0.068, 0.15, 0.034, m))
+            }
+        }
+        return union(parts)
+    }
+
+    /// 12 벚꽃 — 끝이 살짝 갈라진 꽃잎 5장 + 가운데 원.
+    private func sakura(_ s: CGFloat) -> Path {
+        let k = UnitKit(s)
+        var parts = [k.circle(0.5, 0.5, 0.08)]
+        for i in 0..<5 {
+            parts.append(k.part(aroundCenter(CGFloat(i) * 72)) { p in
+                p.move(to: CGPoint(x: 0, y: -0.05))
+                p.addCurve(to: CGPoint(x: -0.12, y: -0.44), control1: CGPoint(x: -0.11, y: -0.11), control2: CGPoint(x: -0.20, y: -0.27))
+                p.addQuadCurve(to: CGPoint(x: 0, y: -0.39), control: CGPoint(x: -0.05, y: -0.47))
+                p.addQuadCurve(to: CGPoint(x: 0.12, y: -0.44), control: CGPoint(x: 0.05, y: -0.47))
+                p.addCurve(to: CGPoint(x: 0, y: -0.05), control1: CGPoint(x: 0.20, y: -0.27), control2: CGPoint(x: 0.11, y: -0.11))
+                p.closeSubpath()
+            })
+        }
+        return union(parts)
+    }
+
+    /// 13 태양 — 원 + 떨어져 있는 곡선 광선 8갈래.
+    private func sun(_ s: CGFloat) -> Path {
+        let k = UnitKit(s)
+        var parts = [k.circle(0.5, 0.5, 0.21)]
+        for i in 0..<8 {
+            parts.append(k.part(aroundCenter(CGFloat(i) * 45)) { p in
+                p.move(to: CGPoint(x: -0.055, y: -0.28))
+                p.addQuadCurve(to: CGPoint(x: 0, y: -0.47), control: CGPoint(x: -0.02, y: -0.38))
+                p.addQuadCurve(to: CGPoint(x: 0.055, y: -0.28), control: CGPoint(x: 0.02, y: -0.38))
+                p.closeSubpath()
+            })
+        }
+        return union(parts)
+    }
+
+    /// 14 불꽃 — 옆으로 한 갈래 날름거리는 불꽃 + 아래쪽 속불(빈 물방울).
+    private func flame(_ s: CGFloat) -> Path {
+        let k = UnitKit(s, scale: 0.95)
+        func c(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x, y: y) }
+        let outer = k.part { p in
+            p.move(to: c(0.52, 0.06))
+            p.addCurve(to: c(0.80, 0.60), control1: c(0.60, 0.22), control2: c(0.80, 0.34))
+            p.addCurve(to: c(0.50, 0.92), control1: c(0.80, 0.80), control2: c(0.66, 0.92))
+            p.addCurve(to: c(0.20, 0.62), control1: c(0.34, 0.92), control2: c(0.20, 0.80))
+            p.addCurve(to: c(0.30, 0.30), control1: c(0.20, 0.48), control2: c(0.26, 0.40))
+            p.addCurve(to: c(0.42, 0.48), control1: c(0.34, 0.40), control2: c(0.38, 0.46))
+            p.addCurve(to: c(0.52, 0.06), control1: c(0.40, 0.34), control2: c(0.44, 0.18))
+            p.closeSubpath()
+        }
+        let inner = k.part { p in
+            p.move(to: c(0.50, 0.54))
+            p.addCurve(to: c(0.62, 0.78), control1: c(0.57, 0.63), control2: c(0.63, 0.69))
+            p.addCurve(to: c(0.38, 0.78), control1: c(0.61, 0.86), control2: c(0.39, 0.86))
+            p.addCurve(to: c(0.50, 0.54), control1: c(0.37, 0.69), control2: c(0.43, 0.63))
+            p.closeSubpath()
+        }
+        return outer.subtractingCompat(inner)
+    }
+
+    /// 15 열쇠 — 고리(가운데 구멍) + 자루 + 이 2개, 45° 기울임.
+    private func key(_ s: CGFloat) -> Path {
+        let k = UnitKit(s)
+        let tilt = CGAffineTransform(rotationAngle: 45 * .pi / 180).rotated(around: CGPoint(x: 0.5, y: 0.5))
+        let body = union([
+            k.circle(0.5, 0.24, 0.18, tilt),
+            k.rrect(0.455, 0.38, 0.09, 0.52, 0.03, tilt),
+            k.rrect(0.5, 0.72, 0.18, 0.06, 0.02, tilt),
+            k.rrect(0.5, 0.82, 0.13, 0.06, 0.02, tilt),
+        ])
+        return body.subtractingCompat(k.circle(0.5, 0.24, 0.075, tilt))
+    }
+
+    /// 16 네잎클로버 — 하트 잎 4장(끝이 가운데로) + 오른쪽 아래로 휜 줄기.
+    private func clover(_ s: CGFloat) -> Path {
+        let k = UnitKit(s)
+        var parts: [Path] = []
+        for i in 0..<4 {
+            let m = CGAffineTransform(translationX: -0.5, y: -0.84)
+                .concatenating(CGAffineTransform(scaleX: 0.5, y: 0.5))
+                .concatenating(CGAffineTransform(translationX: 0, y: -0.02))
+                .concatenating(aroundCenter(CGFloat(i) * 90))
+            parts.append(k.part(m) { heartOutline(&$0) })
+        }
+        parts.append(k.part { p in
+            p.move(to: CGPoint(x: 0.52, y: 0.52))
+            p.addQuadCurve(to: CGPoint(x: 0.80, y: 0.87), control: CGPoint(x: 0.66, y: 0.70))
+            p.addLine(to: CGPoint(x: 0.85, y: 0.83))
+            p.addQuadCurve(to: CGPoint(x: 0.57, y: 0.49), control: CGPoint(x: 0.70, y: 0.67))
+            p.closeSubpath()
+        })
+        return union(parts)
+    }
+
+    /// 17 왕관 — 뾰족 세 개 몸통 + 아래 띠 + 꼭대기 구슬 3개.
+    private func crown(_ s: CGFloat) -> Path {
+        let k = UnitKit(s, scale: 0.92)
+        let body: [CGPoint] = [(0.16, 0.72), (0.12, 0.30), (0.33, 0.50), (0.50, 0.22), (0.67, 0.50), (0.88, 0.30), (0.84, 0.72)]
+            .map { CGPoint(x: $0.0, y: $0.1) }
+        return union([
+            k.poly(body),
+            k.rrect(0.16, 0.70, 0.68, 0.12, 0.03),
+            k.circle(0.12, 0.27, 0.055),
+            k.circle(0.5, 0.19, 0.06),
+            k.circle(0.88, 0.27, 0.055),
+        ])
+    }
+
+    /// 18 나선 은하 — 가운데 팽대부 + 가늘어지며 도는 팔 2개(극좌표 샘플링).
+    private func galaxy(_ s: CGFloat) -> Path {
+        let k = UnitKit(s)
+        func arm(_ start: Double) -> Path {
+            let n = 28
+            var outer: [CGPoint] = []
+            var inner: [CGPoint] = []
+            for i in 0...n {
+                let t = Double(i) / Double(n)
+                let th = start + t * 1.25 * .pi
+                let r = 0.10 + 0.34 * t
+                let ri = max(0, r - (0.13 * pow(1 - t, 0.8) + 0.006))
+                outer.append(CGPoint(x: 0.5 + r * cos(th), y: 0.5 + r * sin(th)))
+                inner.append(CGPoint(x: 0.5 + ri * cos(th), y: 0.5 + ri * sin(th)))
+            }
+            // 바깥 가장자리를 따라 나갔다가 안쪽 가장자리로 되돌아온다.
+            return k.poly(outer + inner.reversed())
+        }
+        return union([k.circle(0.5, 0.5, 0.11), arm(0), arm(.pi)])
+    }
+
+    /// 19 고양이 — 둥근 얼굴 + 뾰족 귀 2개 + 눈(빈 타원 2개).
+    private func cat(_ s: CGFloat) -> Path {
+        let k = UnitKit(s, scale: 0.95)
+        func ear(_ sx: CGFloat) -> Path {
+            // sx = 1 왼쪽 귀, -1 오른쪽 귀(가운데 0.5 기준 좌우 반전)
+            func c(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: 0.5 + (x - 0.5) * sx, y: y) }
+            return k.part { p in
+                p.move(to: c(0.2, 0.5))
+                p.addLine(to: c(0.19, 0.2))
+                p.addQuadCurve(to: c(0.25, 0.17), control: c(0.19, 0.14))
+                p.addLine(to: c(0.45, 0.36))
+                p.closeSubpath()
+            }
+        }
+        let head = union([k.oval(0.5, 0.6, 0.34, 0.27), ear(1), ear(-1)])
+        return head
+            .subtractingCompat(k.oval(0.38, 0.6, 0.045, 0.065))
+            .subtractingCompat(k.oval(0.62, 0.6, 0.045, 0.065))
+    }
+
+    /// 20 종이비행기 — 접힌 날개 실루엣(안쪽 접힌 선은 넣지 않는다 — 결정 모양 "검은 선" 피드백과 같은 이유).
+    private func paperPlane(_ s: CGFloat) -> Path {
+        let pts: [CGPoint] = [(0.92, 0.14), (0.07, 0.47), (0.37, 0.57), (0.45, 0.88), (0.56, 0.66), (0.78, 0.77)]
+            .map { CGPoint(x: $0.0, y: $0.1) }
+        return UnitKit(s).poly(pts)
     }
 }
 
