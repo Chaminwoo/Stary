@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
@@ -118,6 +119,7 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showTermsDialog by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
 
     // 차단한 사용자 수 — 안전 섹션 행의 우측 값. 비로그인이면 0.
@@ -233,6 +235,18 @@ fun SettingsScreen(
                     else stringResource(R.string.settings_blocked_count, blockedIds.size),
                     onClick = onOpenBlockedUsers
                 )
+                RowDivider()
+                // 이용약관(EULA) 다시 보기 — App Store Guideline 1.2(2026-09-26)
+                NavRow(
+                    icon = Icons.Filled.Description,
+                    label = stringResource(R.string.terms_view),
+                    description = stringResource(R.string.terms_view_desc),
+                    value = "",
+                    onClick = { showTermsDialog = true }
+                )
+            }
+            if (showTermsDialog) {
+                com.chaminwoo.stary.core.ui.TermsDialog(requireAgreement = false, onDismiss = { showTermsDialog = false })
             }
 
             // ── 계정 ──

@@ -178,6 +178,8 @@ enum L10n: String {
     /// 업적 달성 팝업 — Android ach_unlocked / ach_reward_* 패리티.
     case achUnlocked, achRewardTitle, achRewardShape, achRewardColor
     case achUnlockedMany, achRewardTitleShort
+    // App Store 1.2 UGC / 2.1 데모 계정 대응(2026-09-26)
+    case termsTitle, termsIntro, termsBody, termsAgree, termsDecline, termsView, termsViewDesc, contentBlocked, moreOptions, reportComment, blockUserNamed, loginEmail, emailField, passwordField, emailSignInAction, emailLoginFailed
     /// 빈 화면(StaryEmptyState) 문구 — Android notif_empty_desc / friend_empty_title / mydiary_empty_desc 패리티.
     case notifEmptyDesc, friendEmptyTitle, friendEmptyDesc
     // 알림 행 문구(Android notif_* 대응 — %@ = 다이어리 제목).
@@ -315,7 +317,7 @@ enum L10n: String {
         case .blockedHint:          return ("차단한 사용자의 별은 지도·목록에서 숨겨지고, 댓글도 보이지 않아요. 상대는 차단 사실을 알 수 없어요.", "Stars from blocked users are hidden on the map and in the list, and their comments stay hidden too. They are never told they were blocked.", "ブロックした人の星は地図・リストから隠れ、コメントも表示されません。相手にブロックは通知されません。")
         case .blockedAtFormat:      return ("%@ 차단", "Blocked %@", "%@ にブロック")
         case .blockConfirmTitle:    return ("%@님을 차단할까요?", "Block %@?", "%@さんをブロックしますか？")
-        case .blockConfirmMsg:      return ("차단하면 이 사용자의 별이 지도와 목록에서 사라지고 댓글도 보이지 않아요. 친구라면 친구 관계도 해제돼요. 설정 > 안전에서 언제든 해제할 수 있어요.", "Their stars disappear from the map and list and their comments stay hidden. If you are friends, the friendship is removed. You can undo this anytime in Settings > Safety.", "ブロックすると、この人の星が地図とリストから消え、コメントも表示されません。友だちの場合は友だち関係も解除されます。設定 > 安全 でいつでも解除できます。")
+        case .blockConfirmMsg:      return ("차단하면 이 사용자의 별과 댓글이 바로 사라지고, 운영자에게도 신고가 함께 전달돼요. 친구라면 친구 관계도 해제돼요. 설정 > 안전에서 언제든 해제할 수 있어요.", "Their stars and comments disappear right away, and the developer is notified as well. If you are friends, the friendship is removed. You can undo this anytime in Settings > Safety.", "ブロックすると、この人の星とコメントがすぐに消え、運営者にも通報が届きます。友だちの場合は友だち関係も解除されます。設定 > 安全 でいつでも解除できます。")
         case .unblockConfirmMsg:    return ("%@님의 차단을 해제할까요? 이 사용자의 별과 댓글이 다시 보여요.", "Unblock %@? Their stars and comments will show up again.", "%@さんのブロックを解除しますか？星とコメントが再び表示されます。")
         case .navAchievements:      return ("업적", "Achievements", "実績")
         case .profileMyStars:       return ("내 별", "My stars", "マイ星")
@@ -517,6 +519,22 @@ enum L10n: String {
         case .achRewardColor:       return ("새 별 색 해금", "New star color unlocked", "新しい星の色を解放")
         case .achUnlockedMany:      return ("업적 %d개 달성!", "%d achievements unlocked!", "実績を%d個達成！")
         case .achRewardTitleShort:  return ("칭호 획득", "Title earned", "称号を獲得")
+        case .termsTitle: return ("이용약관 (EULA)", "Terms of Use (EULA)", "利用規約(EULA)")
+        case .termsIntro: return ("Stary를 이용하려면 아래 약관에 동의해 주세요.", "Please agree to these terms to use Stary.", "Staryを利用するには、以下の規約に同意してください。")
+        case .termsBody: return ("1. 서비스\nStary는 지금 있는 곳에 다이어리(별)를 남기고 다른 사람과 나누는 서비스입니다. 이 약관에 동의해야 로그인하거나 둘러볼 수 있어요.\n\n2. 무관용 원칙\n불쾌하거나 부적절한 콘텐츠, 다른 사용자를 괴롭히는 행위는 절대 허용하지 않습니다. 욕설·혐오·차별 표현, 성적인 콘텐츠, 폭력이나 자해를 부추기는 내용, 괴롭힘·스토킹·위협, 다른 사람의 개인정보나 사진을 허락 없이 올리는 행위, 불법 행위, 스팸과 사칭이 모두 포함됩니다.\n\n3. 자동 필터\n부적절한 표현이 들어간 다이어리·댓글·메시지·닉네임은 올릴 수 없고, 그런 콘텐츠는 목록에서 걸러집니다.\n\n4. 신고와 차단\n모든 다이어리·댓글·사용자를 신고할 수 있고, 불쾌한 사용자는 차단할 수 있어요. 차단하면 그 사용자의 콘텐츠가 즉시 사라지고, 운영자에게도 함께 알려집니다.\n\n5. 운영자의 조치\n운영자는 신고를 24시간 안에 검토합니다. 약관을 어긴 콘텐츠는 삭제하고, 그 콘텐츠를 올린 사용자는 서비스에서 내보냅니다(계정 삭제).\n\n6. 내 콘텐츠\n내가 올린 콘텐츠의 책임은 나에게 있어요. 내가 권리를 가진 사진·영상만 올려 주세요.\n\n7. 위치 정보\n위치는 별을 남기고 가까운 별을 여는 데에만 쓰입니다.\n\n8. 이용 제한\n약관을 어기면 알림 없이 이용이 제한될 수 있습니다.", "1. The service\nStary lets you leave diary entries (stars) where you are and share them with others. You must agree to these terms before signing in or browsing.\n\n2. Zero tolerance\nObjectionable content and abusive users are not tolerated. This includes profanity, hate speech or discrimination, sexual content, content that encourages violence or self-harm, harassment, stalking or threats, posting other people's personal information or photos without permission, illegal activity, spam and impersonation.\n\n3. Automatic filtering\nDiaries, comments, messages and nicknames that contain objectionable words can't be posted, and such content is filtered out of your feed.\n\n4. Reporting and blocking\nYou can report any diary, comment or user, and block users who bother you. Blocking removes that user's content from your feed immediately and also notifies the developer.\n\n5. How we act\nWe review every report within 24 hours. Content that violates these terms is removed, and the user who posted it is ejected from the service (account deleted).\n\n6. Your content\nYou are responsible for what you post. Only upload photos and videos you have the rights to.\n\n7. Location\nYour location is only used to leave stars and open nearby ones.\n\n8. Suspension\nAccounts that violate these terms may be suspended without notice.", "1. サービス\nStaryは、今いる場所に日記(星)を残し、他の人と分かち合うサービスです。ログインや閲覧の前に、この規約への同意が必要です。\n\n2. 不適切な行為は一切認めません\n不快・不適切なコンテンツや、他のユーザーへの嫌がらせは一切認めません。暴言、ヘイト・差別表現、性的なコンテンツ、暴力や自傷をあおる内容、嫌がらせ・ストーカー行為・脅迫、他人の個人情報や写真の無断掲載、違法行為、スパム、なりすましがすべて含まれます。\n\n3. 自動フィルター\n不適切な表現を含む日記・コメント・メッセージ・ニックネームは投稿できず、そのようなコンテンツは一覧から除外されます。\n\n4. 通報とブロック\nすべての日記・コメント・ユーザーを通報でき、不快なユーザーはブロックできます。ブロックするとそのユーザーのコンテンツはすぐに表示されなくなり、運営者にも通知されます。\n\n5. 運営者の対応\n運営者は通報を24時間以内に確認します。規約に違反したコンテンツは削除し、投稿したユーザーはサービスから退会させます(アカウント削除)。\n\n6. 自分のコンテンツ\n投稿したコンテンツの責任は投稿者にあります。権利を持つ写真・動画だけを投稿してください。\n\n7. 位置情報\n位置情報は、星を残したり近くの星を開いたりするためだけに使われます。\n\n8. 利用制限\n規約に違反した場合、予告なく利用を制限することがあります。")
+        case .termsAgree: return ("동의하고 계속", "Agree and Continue", "同意して続ける")
+        case .termsDecline: return ("동의하지 않음", "Decline", "同意しない")
+        case .termsView: return ("이용약관", "Terms of Use", "利用規約")
+        case .termsViewDesc: return ("콘텐츠 규칙과 신고·차단 안내를 확인해요", "Content rules, reporting and blocking", "コンテンツのルールと通報・ブロックについて")
+        case .contentBlocked: return ("부적절한 표현이 들어 있어 올릴 수 없어요. 표현을 바꿔 주세요.", "This contains words that aren't allowed. Please rephrase it.", "不適切な表現が含まれているため投稿できません。表現を変えてください。")
+        case .moreOptions: return ("더보기", "More", "その他")
+        case .reportComment: return ("댓글 신고", "Report comment", "コメントを報告")
+        case .blockUserNamed: return ("%@님 차단", "Block %@", "%@さんをブロック")
+        case .loginEmail: return ("이메일로 로그인", "Sign in with email", "メールでログイン")
+        case .emailField: return ("이메일", "Email", "メールアドレス")
+        case .passwordField: return ("비밀번호", "Password", "パスワード")
+        case .emailSignInAction: return ("로그인", "Sign In", "ログイン")
+        case .emailLoginFailed: return ("이메일 또는 비밀번호가 올바르지 않아요.", "Incorrect email or password.", "メールアドレスまたはパスワードが正しくありません。")
         case .notifEmptyDesc:       return ("좋아요·댓글·친구의 새 별이 여기에 모여요.", "Likes, comments and your friends' new stars land here.", "いいね・コメント・友だちの新しい星がここに集まります。")
         case .friendEmptyTitle:     return ("아직 친구가 없어요", "No friends yet", "まだ友だちがいません")
         case .friendEmptyDesc:      return ("위 검색창에 이름을 넣어 친구를 찾아보세요.", "Search a name above to find someone.", "上の検索欄に名前を入れて探してみましょう。")

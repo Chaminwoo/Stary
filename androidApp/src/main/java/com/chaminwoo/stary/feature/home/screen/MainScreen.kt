@@ -735,9 +735,30 @@ fun MainScreen(
             )
         }
 
+        // 이용약관 동의 게이트(기존 로그인 사용자) — App Store Guideline 1.2(2026-09-26).
+        // 새 사용자는 로그인 화면에서 동의하지만, 이미 로그인돼 있던 사용자는 로그인 화면을 건너뛰므로 여기서 받는다.
+        // 동의하지 않으면 로그아웃(약관 없이 콘텐츠를 볼 수 없게). 동의했던 기기에서 로그인하면 서버 기록만 남긴다.
+        // 로그인 화면에서 막 동의하고 들어온 경우를 놓치지 않도록 오버레이가 닫힐 때(showLogin) 다시 읽는다.
+        var termsTick by remember { mutableStateOf(0) }
+        val termsAccepted = remember(showLogin, termsTick) { com.chaminwoo.stary.core.util.TermsConsent.isAccepted(context) }
+        androidx.compose.runtime.LaunchedEffect(userId, termsAccepted) {
+            if (userId != null && termsAccepted) com.chaminwoo.stary.core.util.TermsConsent.record(userId)
+        }
+        if (!showLogin && userId != null && !termsAccepted) {
+            com.chaminwoo.stary.core.ui.TermsDialog(
+                requireAgreement = true,
+                declineLabel = stringResource(R.string.drawer_logout),
+                onAgree = {
+                    com.chaminwoo.stary.core.util.TermsConsent.accept(context, userId)
+                    termsTick++
+                },
+                onDismiss = onLogout,
+            )
+        }
+
         // 첫 로그인 코치마크 — 로그인한 상태에서 지도(Main) 화면에 처음 들어왔을 때 1회만.
         // (비로그인 둘러보기에선 표시하지 않는다)
-        if (showOnboarding && !showLogin && userId != null && currentRoute is NavRoute.Main) {
+        if (showOnboarding && !showLogin && userId != null && termsAccepted && currentRoute is NavRoute.Main) {
             MainOnboardingOverlay(
                 onDismiss = {
                     onboardPrefs.edit().putBoolean("main_coach_seen", true).apply()

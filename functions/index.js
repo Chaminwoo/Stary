@@ -477,6 +477,51 @@ exports.onReportAction = onDocumentUpdated(
   }
 );
 
+/**
+ * 운영자(관리자) 계정 이메일 — StaryConfig.ADMIN_EMAILS / iOS AppConfig 와 동일하게 유지할 것.
+ * 신고·차단이 들어오면 이 계정이 로그인해 둔 모든 기기로 즉시 푸시한다(아래 notifyAdminOnReport).
+ */
+const ADMIN_EMAILS = ["chaalsdn0217@gmail.com"];
+
+/** 관리자 이메일 → 앱 사용자 id(Google 로그인이면 Google sub, 아니면 FirebaseAuth uid). 없으면 null. */
+async function adminAppUserId(email) {
+  try {
+    const u = await getAuth().getUserByEmail(email);
+    const google = (u.providerData || []).find((p) => p.providerId === "google.com");
+    return (google && google.uid) || u.uid;
+  } catch (e) {
+    logger.warn(`관리자 계정 조회 실패(${email}): ${e.code || e.message}`);
+    return null;
+  }
+}
+
+/**
+ * 신고 접수 즉시 운영자에게 푸시 — App Store Guideline 1.2 "24시간 이내 조치" 대응(2026-09-26).
+ * reports/{id} onCreate. 사용자가 차단해도 앱이 reason="blocked" 신고를 함께 남기므로 차단도 여기로 온다.
+ * 운영자는 Console 에서 status 를 action_delete / action_ban 으로 바꿔 조치한다(onReportAction).
+ */
+exports.notifyAdminOnReport = onDocumentCreated(
+  { document: `${REPORTS}/{reportId}`, database: DATABASE_ID, region: REGION },
+  async (event) => {
+    const r = event.data && event.data.data();
+    if (!r) return;
+    const kind = r.reason === "blocked" ? "차단" : "신고";
+    const what = { diary: "다이어리", comment: "댓글", user: "사용자" }[r.type] || r.type || "콘텐츠";
+    const target = r.targetTitle || r.targetContent || r.targetOwnerName || r.targetId || "";
+    const data = {
+      type: "ADMIN_REPORT",
+      reportId: String(event.params.reportId),
+      title: `[운영] 새 ${kind} — ${what}`,
+      body: `${String(target).slice(0, 80)} (사유: ${r.reason || "-"}) · 24시간 안에 검토해 주세요`,
+    };
+    for (const email of ADMIN_EMAILS) {
+      const uid = await adminAppUserId(email);
+      if (uid) await sendToUser(uid, data);
+    }
+    logger.info(`신고 ${event.params.reportId}(${r.type}/${r.reason}) → 운영자 알림`);
+  }
+);
+
 /** Firebase Storage 다운로드 URL 에서 객체 경로(diary_images/xxx.jpg)를 추출. 실패 시 null. */
 function storagePathFromUrl(url) {
   if (!url || typeof url !== "string") return null;

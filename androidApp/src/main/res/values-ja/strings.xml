@@ -50,6 +50,18 @@
     <string name="toast_deletion_scheduled">削除を予約しました。7日以内にログインするとキャンセルされます</string>
 
     <!-- 通報・ブロック -->
+    <!-- App Store 1.2 UGC 대응(2026-09-26): 이용약관 동의 · 콘텐츠 필터 · 신고/차단 -->
+    <string name="terms_title">利用規約(EULA)</string>
+    <string name="terms_intro">Staryを利用するには、以下の規約に同意してください。</string>
+    <string name="terms_body">1. サービス\nStaryは、今いる場所に日記(星)を残し、他の人と分かち合うサービスです。ログインや閲覧の前に、この規約への同意が必要です。\n\n2. 不適切な行為は一切認めません\n不快・不適切なコンテンツや、他のユーザーへの嫌がらせは一切認めません。暴言、ヘイト・差別表現、性的なコンテンツ、暴力や自傷をあおる内容、嫌がらせ・ストーカー行為・脅迫、他人の個人情報や写真の無断掲載、違法行為、スパム、なりすましがすべて含まれます。\n\n3. 自動フィルター\n不適切な表現を含む日記・コメント・メッセージ・ニックネームは投稿できず、そのようなコンテンツは一覧から除外されます。\n\n4. 通報とブロック\nすべての日記・コメント・ユーザーを通報でき、不快なユーザーはブロックできます。ブロックするとそのユーザーのコンテンツはすぐに表示されなくなり、運営者にも通知されます。\n\n5. 運営者の対応\n運営者は通報を24時間以内に確認します。規約に違反したコンテンツは削除し、投稿したユーザーはサービスから退会させます(アカウント削除)。\n\n6. 自分のコンテンツ\n投稿したコンテンツの責任は投稿者にあります。権利を持つ写真・動画だけを投稿してください。\n\n7. 位置情報\n位置情報は、星を残したり近くの星を開いたりするためだけに使われます。\n\n8. 利用制限\n規約に違反した場合、予告なく利用を制限することがあります。</string>
+    <string name="terms_agree">同意して続ける</string>
+    <string name="terms_decline">同意しない</string>
+    <string name="terms_view">利用規約</string>
+    <string name="terms_view_desc">コンテンツのルールと通報・ブロックについて</string>
+    <string name="content_blocked">不適切な表現が含まれているため投稿できません。表現を変えてください。</string>
+    <string name="more_options">その他</string>
+    <string name="report_comment">コメントを報告</string>
+    <string name="block_user_named">%1$sさんをブロック</string>
     <string name="report_user">ユーザーを報告</string>
     <string name="report_diary">日記を報告</string>
     <string name="report_submit">報告</string>
@@ -78,7 +90,7 @@
     <string name="blocked_hint">ブロックした人の星は地図・リストから隠れ、コメントも表示されません。相手にブロックは通知されません。</string>
     <string name="blocked_at">%1$s にブロック</string>
     <string name="block_confirm_title">%1$sさんをブロックしますか？</string>
-    <string name="block_confirm_msg">ブロックすると、この人の星が地図とリストから消え、コメントも表示されません。友だちの場合は友だち関係も解除されます。設定 &gt; 安全 でいつでも解除できます。</string>
+    <string name="block_confirm_msg">ブロックすると、この人の星とコメントがすぐに消え、運営者にも通報が届きます。友だちの場合は友だち関係も解除されます。設定 &gt; 安全 でいつでも解除できます。</string>
     <string name="unblock_confirm_msg">%1$sさんのブロックを解除しますか？星とコメントが再び表示されます。</string>
 
     <!-- 言語選択 -->
@@ -424,44 +436,44 @@
     <string name="ach_name_color_grad_glacier">銀河の征服者</string>
     <string name="ach_name_color_grad_dawn">夜明けを待った者</string>
     <!-- 2026-09-26 추가 업적 이름(칭호 = title_*, 별 모양 = ach_name_*) -->
-    <string name="title_count_five">片手で数えられる夜</string>
-    <string name="title_photo_ten">カシャッ、星ひとつ</string>
-    <string name="title_video_first">巻き戻せる夜</string>
-    <string name="title_long_letter">インクが足りない夜</string>
-    <string name="title_short_post">三行でも長すぎる</string>
+    <string name="title_count_five">小さな星座</string>
+    <string name="title_photo_ten">光を焼きつける</string>
+    <string name="title_video_first">再生される記憶</string>
+    <string name="title_long_letter">出せなかった手紙</string>
+    <string name="title_short_post">余白の一行</string>
     <string name="title_private_five">引き出しの中の銀河</string>
-    <string name="title_streak_three">三日坊主、撃破</string>
-    <string name="title_streak_month">月がひと回りする間</string>
-    <string name="title_days_hundred">百夜目の乾杯</string>
-    <string name="title_all_months">カレンダーをひと回り</string>
-    <string name="title_new_year">カウントダウンの後の一番星</string>
-    <string name="title_christmas">サンタより先に来た星</string>
-    <string name="title_places_five">路地ごとに星ひとつ</string>
-    <string name="title_places_twenty">地図の点つなぎ</string>
-    <string name="title_home_cluster">ここはわたしの縄張り</string>
-    <string name="title_revisit">前にもここに来たよね</string>
-    <string name="title_log_ten">ポケットがキラキラ</string>
-    <string name="title_log_hundred">世界の秘密、百個</string>
-    <string name="title_neighbor">おとなりの星にごあいさつ</string>
-    <string name="title_like_ten_one">ドキッ、十回</string>
-    <string name="title_views_one">うわさの星</string>
-    <string name="title_comments_ten">話しかけられる星</string>
-    <string name="title_friend_first">きみとわたし、双子星</string>
-    <string name="title_friends_ten">十人集まれば星座</string>
-    <string name="title_shapes_five">変身は無罪</string>
-    <string name="title_colors_eight">パレットをひっくり返した</string>
-    <string name="ach_name_shape_heart">ハートのお金持ち</string>
-    <string name="ach_name_shape_comet">時差ボケ中</string>
+    <string name="title_streak_three">軌道に乗る</string>
+    <string name="title_streak_month">ひとめぐりの月</string>
+    <string name="title_days_hundred">百日の夢</string>
+    <string name="title_all_months">十二の月</string>
+    <string name="title_new_year">最初のページ</string>
+    <string name="title_christmas">きよしこの夜</string>
+    <string name="title_places_five">散らばった座標</string>
+    <string name="title_places_twenty">羅針盤の記憶</string>
+    <string name="title_home_cluster">路地の星団</string>
+    <string name="title_revisit">もう一度、あの場所で</string>
+    <string name="title_log_ten">小さな標本箱</string>
+    <string name="title_log_hundred">百の宇宙</string>
+    <string name="title_neighbor">連星</string>
+    <string name="title_like_ten_one">ささやかな拍手</string>
+    <string name="title_views_one">みんなが見上げた星</string>
+    <string name="title_comments_ten">窓辺の会話</string>
+    <string name="title_friend_first">交信成立</string>
+    <string name="title_friends_ten">ともに公転する仲</string>
+    <string name="title_shapes_five">変奏曲</string>
+    <string name="title_colors_eight">七色の向こう</string>
+    <string name="ach_name_shape_heart">ハート星雲</string>
+    <string name="ach_name_shape_comet">地平線の向こうへ</string>
     <string name="ach_name_shape_snow">誰も踏んでいない雪原</string>
-    <string name="ach_name_shape_sakura">花びらの雨が降る日</string>
-    <string name="ach_name_shape_sun">太陽より早起き</string>
-    <string name="ach_name_shape_flame">7日目、まだ燃えてる</string>
-    <string name="ach_name_shape_key">鍵束が重い</string>
-    <string name="ach_name_shape_clover">願いごと、受付完了</string>
-    <string name="ach_name_shape_crown">王冠の重さに耐えよ</string>
-    <string name="ach_name_shape_galaxy">銀河がわたしに似てきた</string>
-    <string name="ach_name_shape_cat">月明かりに惑う猫</string>
-    <string name="ach_name_shape_plane">郵便受けがあふれそう</string>
+    <string name="ach_name_shape_sakura">花びらが舞った一日</string>
+    <string name="ach_name_shape_sun">日の出より早い足どり</string>
+    <string name="ach_name_shape_flame">消えない灯</string>
+    <string name="ach_name_shape_key">閉ざされた扉の収集家</string>
+    <string name="ach_name_shape_clover">数字がそろう瞬間</string>
+    <string name="ach_name_shape_crown">戴冠式</string>
+    <string name="ach_name_shape_galaxy">渦巻きの年代記</string>
+    <string name="ach_name_shape_cat">満月の下の猫</string>
+    <string name="ach_name_shape_plane">夜空の郵便局</string>
 
     <!-- 実績の達成条件 — 通常 -->
     <string name="ach_cond_first_step">日記を1件作成する</string>

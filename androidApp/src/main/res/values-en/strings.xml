@@ -50,6 +50,18 @@
     <string name="toast_deletion_scheduled">Deletion scheduled. Sign in within 7 days to cancel.</string>
 
     <!-- Report / block -->
+    <!-- App Store 1.2 UGC 대응(2026-09-26): 이용약관 동의 · 콘텐츠 필터 · 신고/차단 -->
+    <string name="terms_title">Terms of Use (EULA)</string>
+    <string name="terms_intro">Please agree to these terms to use Stary.</string>
+    <string name="terms_body">1. The service\nStary lets you leave diary entries (stars) where you are and share them with others. You must agree to these terms before signing in or browsing.\n\n2. Zero tolerance\nObjectionable content and abusive users are not tolerated. This includes profanity, hate speech or discrimination, sexual content, content that encourages violence or self-harm, harassment, stalking or threats, posting other people\'s personal information or photos without permission, illegal activity, spam and impersonation.\n\n3. Automatic filtering\nDiaries, comments, messages and nicknames that contain objectionable words can\'t be posted, and such content is filtered out of your feed.\n\n4. Reporting and blocking\nYou can report any diary, comment or user, and block users who bother you. Blocking removes that user\'s content from your feed immediately and also notifies the developer.\n\n5. How we act\nWe review every report within 24 hours. Content that violates these terms is removed, and the user who posted it is ejected from the service (account deleted).\n\n6. Your content\nYou are responsible for what you post. Only upload photos and videos you have the rights to.\n\n7. Location\nYour location is only used to leave stars and open nearby ones.\n\n8. Suspension\nAccounts that violate these terms may be suspended without notice.</string>
+    <string name="terms_agree">Agree and Continue</string>
+    <string name="terms_decline">Decline</string>
+    <string name="terms_view">Terms of Use</string>
+    <string name="terms_view_desc">Content rules, reporting and blocking</string>
+    <string name="content_blocked">This contains words that aren\'t allowed. Please rephrase it.</string>
+    <string name="more_options">More</string>
+    <string name="report_comment">Report comment</string>
+    <string name="block_user_named">Block %1$s</string>
     <string name="report_user">Report user</string>
     <string name="report_diary">Report diary</string>
     <string name="report_submit">Report</string>
@@ -78,7 +90,7 @@
     <string name="blocked_hint">Stars from blocked users are hidden on the map and in the list, and their comments stay hidden too. They are never told they were blocked.</string>
     <string name="blocked_at">Blocked %1$s</string>
     <string name="block_confirm_title">Block %1$s?</string>
-    <string name="block_confirm_msg">Their stars disappear from the map and list and their comments stay hidden. If you are friends, the friendship is removed. You can undo this anytime in Settings &gt; Safety.</string>
+    <string name="block_confirm_msg">Their stars and comments disappear right away, and the developer is notified as well. If you are friends, the friendship is removed. You can undo this anytime in Settings &gt; Safety.</string>
     <string name="unblock_confirm_msg">Unblock %1$s? Their stars and comments will show up again.</string>
 
     <!-- Language picker -->
@@ -424,44 +436,44 @@
     <string name="ach_name_color_grad_glacier">Conqueror of the Galaxy</string>
     <string name="ach_name_color_grad_dawn">One Who Awaited the Dawn</string>
     <!-- 2026-09-26 추가 업적 이름(칭호 = title_*, 별 모양 = ach_name_*) -->
-    <string name="title_count_five">Counted on One Hand</string>
-    <string name="title_photo_ten">Click, Another Star</string>
-    <string name="title_video_first">A Night You Can Rewind</string>
-    <string name="title_long_letter">Ran Out of Ink</string>
-    <string name="title_short_post">Even a TL;DR Is Too Long</string>
+    <string name="title_count_five">A Small Constellation</string>
+    <string name="title_photo_ten">Developing the Light</string>
+    <string name="title_video_first">Memory on Replay</string>
+    <string name="title_long_letter">The Unsent Letter</string>
+    <string name="title_short_post">A Single Line</string>
     <string name="title_private_five">A Galaxy in the Drawer</string>
-    <string name="title_streak_three">Beat the Three-Day Slump</string>
-    <string name="title_streak_month">One Lap of the Moon</string>
-    <string name="title_days_hundred">A Toast to the 100th Night</string>
-    <string name="title_all_months">Around the Calendar</string>
-    <string name="title_new_year">Countdown Over, First Star</string>
-    <string name="title_christmas">Here Before Santa</string>
-    <string name="title_places_five">A Star on Every Corner</string>
-    <string name="title_places_twenty">Connect the Dots</string>
-    <string name="title_home_cluster">This Is My Turf</string>
-    <string name="title_revisit">We\'ve Been Here Before</string>
-    <string name="title_log_ten">Pockets Full of Sparkles</string>
-    <string name="title_log_hundred">A Hundred Secrets of the World</string>
-    <string name="title_neighbor">Hello, Neighbor Star</string>
-    <string name="title_like_ten_one">Ten Heartbeats</string>
-    <string name="title_views_one">The Talk of the Town</string>
-    <string name="title_comments_ten">A Star People Talk To</string>
-    <string name="title_friend_first">You and Me, Twin Stars</string>
-    <string name="title_friends_ten">Ten Makes a Constellation</string>
-    <string name="title_shapes_five">Shape-Shifting Is No Crime</string>
-    <string name="title_colors_eight">Spilled the Palette</string>
-    <string name="ach_name_shape_heart">Rich in Hearts</string>
-    <string name="ach_name_shape_comet">Still Jet-Lagged</string>
+    <string name="title_streak_three">Into Orbit</string>
+    <string name="title_streak_month">One Lunar Cycle</string>
+    <string name="title_days_hundred">A Hundred-Day Dream</string>
+    <string name="title_all_months">Twelve Moons</string>
+    <string name="title_new_year">The First Page</string>
+    <string name="title_christmas">Silent Night</string>
+    <string name="title_places_five">Scattered Coordinates</string>
+    <string name="title_places_twenty">What the Compass Remembers</string>
+    <string name="title_home_cluster">A Cluster Close to Home</string>
+    <string name="title_revisit">Back to That Place</string>
+    <string name="title_log_ten">A Small Specimen Box</string>
+    <string name="title_log_hundred">A Hundred Universes</string>
+    <string name="title_neighbor">Binary Star</string>
+    <string name="title_like_ten_one">Gentle Applause</string>
+    <string name="title_views_one">Everyone Looked Up</string>
+    <string name="title_comments_ten">Talks by the Window</string>
+    <string name="title_friend_first">Contact Made</string>
+    <string name="title_friends_ten">Orbiting Together</string>
+    <string name="title_shapes_five">Variations</string>
+    <string name="title_colors_eight">Beyond the Rainbow</string>
+    <string name="ach_name_shape_heart">Heart Nebula</string>
+    <string name="ach_name_shape_comet">Beyond the Horizon</string>
     <string name="ach_name_shape_snow">Untouched Snow</string>
-    <string name="ach_name_shape_sakura">A Shower of Petals</string>
-    <string name="ach_name_shape_sun">Up Before the Sun</string>
-    <string name="ach_name_shape_flame">Day 7 and Still Burning</string>
-    <string name="ach_name_shape_key">A Heavy Ring of Keys</string>
-    <string name="ach_name_shape_clover">Wish Received</string>
-    <string name="ach_name_shape_crown">Bear the Weight of the Crown</string>
-    <string name="ach_name_shape_galaxy">The Galaxy Looks Like Me</string>
-    <string name="ach_name_shape_cat">Moonstruck Cat</string>
-    <string name="ach_name_shape_plane">My Mailbox Is Overflowing</string>
+    <string name="ach_name_shape_sakura">A Day of Falling Petals</string>
+    <string name="ach_name_shape_sun">Steps Before Sunrise</string>
+    <string name="ach_name_shape_flame">An Unfading Lamp</string>
+    <string name="ach_name_shape_key">Keeper of Locked Doors</string>
+    <string name="ach_name_shape_clover">When the Numbers Align</string>
+    <string name="ach_name_shape_crown">Coronation</string>
+    <string name="ach_name_shape_galaxy">Spiral Chronicle</string>
+    <string name="ach_name_shape_cat">Cat Under a Full Moon</string>
+    <string name="ach_name_shape_plane">Night Sky Post Office</string>
 
     <!-- Achievement conditions — normal -->
     <string name="ach_cond_first_step">Write 1 diary entry</string>

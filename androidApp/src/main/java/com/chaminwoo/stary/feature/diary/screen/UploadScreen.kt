@@ -466,6 +466,8 @@ fun UploadScreen(
             Button(
                 onClick = {
                     if (title.isBlank()) { com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@Button }
+                    // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다.
+                    if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(title, content)) { com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)); return@Button }
                     // 하루 업로드 제한(로그인 사용자 기준). 오늘 로컬 자정 이후 내가 올린 개수로 선차단.
                     if (isLoggedIn) {
                         val startOfDay = java.util.Calendar.getInstance().apply {

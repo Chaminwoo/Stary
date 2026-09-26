@@ -17,6 +17,17 @@ struct LoginView: View {
     @State private var showUI = false
     @State private var haloWidth: CGFloat = 100
 
+    // ── 이용약관(EULA) 동의 게이트 — App Store Guideline 1.2(2026-09-26), Android LoginScreen 패리티 ──
+    // 로그인/둘러보기를 누르면, 아직 동의하지 않았을 때 약관을 먼저 띄우고 "동의하고 계속" 뒤에 원래 동작을 잇는다.
+    @State private var termsAccepted = TermsConsent.isAccepted
+    @State private var pendingAction: (() -> Void)?
+    @State private var showTermsView = false
+    @State private var showEmailLogin = false
+
+    private func withConsent(_ action: @escaping () -> Void) {
+        if termsAccepted { action() } else { pendingAction = action }
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -36,7 +47,35 @@ struct LoginView: View {
             if auth.isBusy {
                 StarLoadingView(size: 40)   // 앱 공용 크리스탈 별 로딩(34-9)
             }
+
+            // 약관 — 동의 게이트(바깥 탭으로 닫히지 않음) / 읽기 전용 보기.
+            if let action = pendingAction {
+                termsLayer {
+                    TermsDialogCard(requireAgreement: true, onAgree: {
+                        TermsConsent.accept(uid: nil)
+                        termsAccepted = true
+                        pendingAction = nil
+                        action()
+                    }, onDismiss: { pendingAction = nil })
+                }
+            } else if showTermsView {
+                termsLayer {
+                    TermsDialogCard(requireAgreement: false, onDismiss: { showTermsView = false })
+                }
+            }
         }
+        .sheet(isPresented: $showEmailLogin) {
+            EmailLoginSheet()
+                .environmentObject(auth)
+        }
+    }
+
+    private func termsLayer<C: View>(@ViewBuilder _ card: () -> C) -> some View {
+        ZStack {
+            Color.black.opacity(StaryDialogStyle.scrimOpacity).ignoresSafeArea()
+            card()
+        }
+        .transition(.opacity)
     }
 
     // MARK: - 로그인 UI(로고 + 버튼)
@@ -65,7 +104,7 @@ struct LoginView: View {
             // 하단 버튼 영역.
             VStack(spacing: 8) {
                 StarDiaryButton(text: LocaleManager.shared.t(.loginGoogle)) {
-                    Task { await auth.signInWithGoogle() }
+                    withConsent { Task { await auth.signInWithGoogle() } }
                 }
 
                 // Sign in with Apple(App Store 심사 Guideline 4.8 대응) — Apple 공식 버튼 형태 그대로
@@ -78,10 +117,18 @@ struct LoginView: View {
                 .signInWithAppleButtonStyle(.white)
                 .frame(height: 50)
                 .clipShape(Capsule())
+                // 약관 동의 전에는 공식 버튼의 탭을 가로채 약관부터 — 동의하면 코드로 Apple 로그인을 이어 간다.
+                .overlay {
+                    if !termsAccepted {
+                        Color.clear
+                            .contentShape(Capsule())
+                            .onTapGesture { withConsent { auth.startAppleSignIn() } }
+                    }
+                }
 
                 Button {
                     // 로그인 없이 둘러보기 — 익명 세션은 best-effort, 실패해도 진입한다(Android 동일).
-                    Task { await auth.browseAsGuest() }
+                    withConsent { Task { await auth.browseAsGuest() } }
                 } label: {
                     Text(LocaleManager.shared.t(.loginBrowse))
                         .font(.minSans(14))
@@ -89,6 +136,20 @@ struct LoginView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                 }
+
+                // 이메일 로그인(심사용 데모 계정 — Guideline 2.1) · 이용약관 보기. 작은 글씨 링크 한 줄.
+                HStack(spacing: 14) {
+                    Button { withConsent { showEmailLogin = true } } label: {
+                        Text(LocaleManager.shared.t(.loginEmail))
+                    }
+                    Text("·")
+                    Button { showTermsView = true } label: {
+                        Text(LocaleManager.shared.t(.termsView)).underline()
+                    }
+                }
+                .font(.minSans(12))
+                .foregroundStyle(Theme.textSecondary)
+                .buttonStyle(.plain)
 
                 if let error = auth.errorMessage {
                     Text(error)
@@ -290,4 +351,84 @@ private struct IntroVideoView: UIViewRepresentable {
 private final class PlayerContainerView: UIView {
     override class var layerClass: AnyClass { AVPlayerLayer.self }
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+}
+
+// MARK: - 이메일 로그인(심사용 데모 계정)
+
+/// 이메일(비밀번호) 로그인 시트 — **App Store 심사용 데모 계정 전용**(Guideline 2.1, 2026-09-26).
+/// 가입 기능은 없다(계정은 개발자가 Firebase Console 에서 만든다). iOS 전용 — Android 는 Google 로그인만.
+private struct EmailLoginSheet: View {
+    @EnvironmentObject var auth: AuthManager
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var locale = LocaleManager.shared
+    @State private var email = ""
+    @State private var password = ""
+    @FocusState private var focused: Field?
+    private enum Field { case email, password }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(locale.t(.loginEmail))
+                .font(.minSans(18, .semibold)).foregroundStyle(Theme.textPrimary)
+                .padding(.bottom, 4)
+            field(locale.t(.emailField), text: $email, secure: false)
+                .textContentType(.username)
+                .keyboardType(.emailAddress)
+                .focused($focused, equals: .email)
+                .submitLabel(.next)
+                .onSubmit { focused = .password }
+            field(locale.t(.passwordField), text: $password, secure: true)
+                .textContentType(.password)
+                .focused($focused, equals: .password)
+                .submitLabel(.go)
+                .onSubmit(signIn)
+            if let error = auth.errorMessage {
+                Text(error).font(.minSans(12)).foregroundStyle(.red.opacity(0.9))
+            }
+            Button(action: signIn) {
+                Text(locale.t(.emailSignInAction))
+                    .font(.minSans(15, .semibold)).foregroundStyle(Color(hex: 0x0D0D0D))
+                    .frame(maxWidth: .infinity).padding(.vertical, 13)
+                    .background(Theme.mint.opacity(canSubmit ? 1 : 0.4), in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSubmit || auth.isBusy)
+            Spacer(minLength: 0)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.background.ignoresSafeArea())
+        .presentationDetents([.medium])
+        .onAppear {
+            auth.errorMessage = nil
+            focused = .email
+        }
+    }
+
+    private var canSubmit: Bool { email.contains("@") && !password.isEmpty }
+
+    private func signIn() {
+        guard canSubmit else { return }
+        Task {
+            if await auth.signInWithEmail(email: email, password: password) { dismiss() }
+        }
+    }
+
+    @ViewBuilder
+    private func field(_ placeholder: String, text: Binding<String>, secure: Bool) -> some View {
+        Group {
+            if secure {
+                SecureField(placeholder, text: text)
+            } else {
+                TextField(placeholder, text: text)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+        }
+        .font(.minSans(15))
+        .foregroundStyle(Theme.textPrimary)
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.outline, lineWidth: 1))
+    }
 }

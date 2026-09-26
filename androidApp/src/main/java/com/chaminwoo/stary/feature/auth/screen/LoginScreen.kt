@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
@@ -75,6 +76,28 @@ fun LoginScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var showUI by remember { mutableStateOf(immediate) }
+
+    // ── 이용약관(EULA) 동의 게이트 — App Store Guideline 1.2(2026-09-26) ──
+    // 로그인/둘러보기 버튼을 누르면, 아직 동의하지 않았을 때 약관을 먼저 띄우고 "동의하고 계속" 뒤에 원래 동작을 잇는다.
+    var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showTermsView by remember { mutableStateOf(false) }
+    val withConsent: (() -> Unit) -> Unit = { action ->
+        if (com.chaminwoo.stary.core.util.TermsConsent.isAccepted(context)) action() else pendingAction = action
+    }
+    pendingAction?.let { action ->
+        com.chaminwoo.stary.core.ui.TermsDialog(
+            requireAgreement = true,
+            onAgree = {
+                com.chaminwoo.stary.core.util.TermsConsent.accept(context, null)
+                pendingAction = null
+                action()
+            },
+            onDismiss = { pendingAction = null },
+        )
+    }
+    if (showTermsView) {
+        com.chaminwoo.stary.core.ui.TermsDialog(requireAgreement = false, onDismiss = { showTermsView = false })
+    }
 
     // 빛나는 후광 로고: UI 등장 시 폭이 살짝 부풀었다 가라앉으며 빛이 번지는 연출(키프레임 1회).
     val haloWidth by animateDpAsState(
@@ -245,7 +268,7 @@ fun LoginScreen(
                         StarDiaryButton(
                             text = stringResource(R.string.login_google),
                             modifier = Modifier.fillMaxWidth(),
-                            onClick = {
+                            onClick = { withConsent {
                                 coroutineScope.launch {
                                     val idToken = GoogleAuthHelper.signInWithGoogle(context)
                                     if (idToken != null) onLoginClick()
@@ -256,13 +279,13 @@ fun LoginScreen(
                                             ?: context.getString(R.string.login_please_wait)
                                     )
                                 }
-                            }
+                            } }
                         )
                     }
 
                     TextButton(
-                        onClick = onLoginClick,
-                        modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
+                        onClick = { withConsent(onLoginClick) },
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
                             text = stringResource(R.string.login_browse),
@@ -270,6 +293,17 @@ fun LoginScreen(
                             fontSize = 14.sp
                         )
                     }
+                    // 약관은 동의 전에도 언제든 읽어 볼 수 있게 — 작은 링크.
+                    Text(
+                        text = stringResource(R.string.terms_view),
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                        modifier = Modifier
+                            .navigationBarsPadding()
+                            .clickable { showTermsView = true }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
                 }
             }
         }

@@ -222,9 +222,13 @@ fun ChatScreen(
                         .clip(CircleShape)
                         .background(if (canSend) Accent else Color.White.copy(alpha = 0.08f))
                         .clickable(enabled = canSend) {
-                            com.chaminwoo.stary.core.util.Haptics.light()
-                            vm.send(input)
-                            input = ""
+                            if (com.chaminwoo.stary.core.util.ContentFilter.isObjectionable(input)) {
+                                com.chaminwoo.stary.core.ui.StaryToast.show(chatContext.getString(R.string.content_blocked)) // 부적절한 표현 필터(App Store 1.2)
+                            } else {
+                                com.chaminwoo.stary.core.util.Haptics.light()
+                                vm.send(input)
+                                input = ""
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {

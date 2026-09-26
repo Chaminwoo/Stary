@@ -8,13 +8,21 @@ enum ModerationRepository {
 
     /// 사용자 차단. fire-and-forget.
     /// 이름/사진은 차단 목록 화면에서 바로 보여주기 위한 차단 시점 스냅샷(Android `block(targetPhotoUrl=)` 패리티).
-    static func block(userId: String, targetId: String, targetName: String, targetPhotoUrl: String = "") async {
+    /// 차단은 **운영자에게도 알린다**(App Store Guideline 1.2 — "blocking should also notify the developer"):
+    /// reason="blocked" 신고를 함께 남겨 Console 목록 + 운영자 푸시(Functions notifyAdminOnReport)로 검토한다.
+    /// `context` = 어디서 차단했는지(다이어리/댓글 스냅샷) — 운영자 판단용. Android `block(context=)` 패리티.
+    static func block(userId: String, targetId: String, targetName: String, targetPhotoUrl: String = "",
+                      context: [String: Any] = [:]) async {
         guard !userId.isEmpty, !targetId.isEmpty, userId != targetId else { return }
         try? await FirestoreService.blocked(of: userId).document(targetId).setData([
             "userName": targetName,
             "photoUrl": targetPhotoUrl,
             "createdAt": FirestoreService.nowMillis,
         ])
+        var extra: [String: Any] = ["targetOwnerName": targetName, "source": "block"]
+        for (k, v) in context { extra[k] = v }
+        await report(reporterId: userId, type: "user", targetId: targetId, targetOwnerId: targetId,
+                     reason: "blocked", extra: extra)
     }
 
     /// 차단 해제.

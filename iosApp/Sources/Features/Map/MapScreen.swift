@@ -108,6 +108,8 @@ struct MapScreen: View {
     private var shownDiaries: [Diary] {
         // 차단한 사용자의 별은 어떤 필터 조합에서도 뜨지 않는다(가장 먼저 제외).
         var list = store.diaries.filter { !blocks.blockedIds.contains($0.userId) }
+        // 부적절한 표현이 든 **남의** 글은 걸러낸다(App Store 1.2 — Android MainListScreen 패리티).
+        list = list.filter { $0.userId == auth.uid || !ContentFilter.anyObjectionable($0.title, $0.content) }
         if unviewedOnly { list = list.filter { !viewed.viewedIds.contains($0.id ?? "") } }
         if friendsOnly {
             let ids = Set(myFriends.map { $0.userId })

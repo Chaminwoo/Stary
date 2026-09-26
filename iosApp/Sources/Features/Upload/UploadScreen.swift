@@ -362,6 +362,10 @@ struct UploadScreen: View {
         guard let uid = auth.uid else {
             showToast(LocaleManager.shared.t(.commonLoginRequired)); return
         }
+        // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다. Android 패리티.
+        if ContentFilter.anyObjectionable(title, content) {
+            showToast(LocaleManager.shared.t(.contentBlocked)); return
+        }
         // 잠긴 별 모양/색이 다이얼 중앙에 온 채 저장되지 않도록 차단(#7).
         if let a = StarUnlocks.lockedShapeAch(starType, unlocked) {
             showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name)); return

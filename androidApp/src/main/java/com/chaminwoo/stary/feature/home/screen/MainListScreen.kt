@@ -254,7 +254,9 @@ fun MainListScreen(
                     unlockOk &&
                     (selectedFriendIds.isEmpty() || diary.userId in selectedFriendIds) &&
                     (periodCutoff == null || diary.createdAt >= periodCutoff)
-            visibilityOk && filterOk && diary.userId !in blockedIds
+            // 부적절한 표현이 든 **남의** 글은 지도에서 걸러낸다(App Store 1.2 — 필터 이전 글·구버전 앱 글 대비).
+            visibilityOk && filterOk && diary.userId !in blockedIds &&
+                (diary.userId == userId || !com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(diary.title, diary.content))
         }
     }
 

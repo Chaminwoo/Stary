@@ -10,6 +10,7 @@ struct SettingsScreen: View {
     @ObservedObject private var locale = LocaleManager.shared
     @State private var showLanguagePicker = false
     @State private var showDeleteConfirm = false
+    @State private var showTerms = false
     @State private var showDeleteFailed = false
     @State private var deleting = false
 
@@ -124,6 +125,25 @@ struct SettingsScreen: View {
                             .padding(.vertical, 12)
                         }
                         .buttonStyle(.plain)
+                        divider
+                        // 이용약관(EULA) 다시 보기 — App Store Guideline 1.2(2026-09-26), Android 패리티.
+                        Button { showTerms = true } label: {
+                            HStack(spacing: 14) {
+                                iconBadge("doc.text", active: true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(locale.t(.termsView))
+                                        .font(.minSans(17)).foregroundStyle(Theme.textPrimary)
+                                    Text(locale.t(.termsViewDesc))
+                                        .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption).foregroundStyle(Theme.textFaint)
+                            }
+                            .padding(.vertical, 12)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     // ── 계정 ──
@@ -161,6 +181,9 @@ struct SettingsScreen: View {
                            options: LocaleManager.supported.map { tag in
                                StaryDialogOption(languageLabel(tag), action: { locale.setLanguage(tag) })
                            })
+        .staryDialog(isPresented: $showTerms) {
+            TermsDialogCard(requireAgreement: false, onDismiss: { showTerms = false })
+        }
         .staryConfirmDialog(locale.t(.settingsDeleteAccount), isPresented: $showDeleteConfirm,
                             message: locale.t(.settingsDeleteConfirmMsg),
                             confirmTitle: locale.t(.settingsDeleteAccount),

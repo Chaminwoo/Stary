@@ -27,6 +27,8 @@ struct ProfileScreen: View {
     @State private var showAchievements = false
     @State private var showMyStars = false
     @State private var showNicknameEditor = false
+    /// 닉네임에 부적절한 표현이 있어 저장을 막았을 때의 안내(App Store 1.2).
+    @State private var nicknameBlocked = false
     @State private var nicknameDraft = ""
     @ObservedObject private var hidden = HiddenAchievementStore.shared
     @State private var hiddenAlert: HiddenAchievement?
@@ -265,6 +267,7 @@ struct ProfileScreen: View {
             .firstVisitInfo(key: "profile", systemImage: "person.fill",
                             title: LocaleManager.shared.t(.onbProfileTitle),
                             message: LocaleManager.shared.t(.onbProfileMsg))
+            .staryInfoDialog(locale.t(.contentBlocked), isPresented: $nicknameBlocked)
             // 닉네임 변경 — Android NicknameEditDialog 와 같은 가운데 사각 팝업.
             .staryDialog(isPresented: $showNicknameEditor) {
                 StaryDialogCard(title: locale.t(.profileEditNickname)) {
@@ -288,6 +291,11 @@ struct ProfileScreen: View {
                     StaryDialogTextButton(locale.t(.commonSave), weight: .semibold) {
                         showNicknameEditor = false
                         let n = String(nicknameDraft.prefix(AppConfig.nicknameMaxLen))
+                        // 부적절한 표현 필터(App Store 1.2)
+                        if ContentFilter.isObjectionable(n) {
+                            DispatchQueue.main.async { nicknameBlocked = true }
+                            return
+                        }
                         Task { await auth.setNickname(n) }
                     }
                 }

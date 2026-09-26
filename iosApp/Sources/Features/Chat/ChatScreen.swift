@@ -185,6 +185,10 @@ struct ChatScreen: View {
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14))
                 .foregroundStyle(Theme.textPrimary)
             Button {
+                // 부적절한 표현 필터(App Store 1.2) — 입력은 남겨 고칠 수 있게.
+                if ContentFilter.isObjectionable(text) {
+                    showToast(locale.t(.contentBlocked)); return
+                }
                 let t = text
                 text = ""
                 Haptics.soft()

@@ -103,6 +103,51 @@ final class AuthManager: ObservableObject {
         }
     }
 
+    /// 이메일(비밀번호) 로그인 — **App Store 심사용 데모 계정 전용**(Guideline 2.1, 2026-09-26).
+    /// 구글 데모 계정은 새 기기에서 "본인 확인" 단계가 떠서 심사자가 통과하지 못했다 → 이메일 계정은 그 단계가 없다.
+    /// 앱에는 가입 화면이 없고, 계정은 개발자가 Firebase Console(Authentication → 사용자 추가)에서만 만든다.
+    /// 앱 데이터 id 는 FirebaseAuth uid(appUserId 의 비-Google 규칙). 성공하면 true.
+    func signInWithEmail(email: String, password: String) async -> Bool {
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+        do {
+            try await Auth.auth().signIn(withEmail: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                                         password: password)
+            return true
+        } catch {
+            errorMessage = LocaleManager.shared.t(.emailLoginFailed)
+            return false
+        }
+    }
+
+    /// 심사/데모 계정인가 — 이메일(비밀번호) 제공자로 로그인한 계정. 콘솔에서만 만들 수 있어 일반 사용자는 해당 없음.
+    /// 심사자가 **모든 기능**을 볼 수 있게 100m 잠금·댓글 거리 제한을 풀어 준다(DetailScreen).
+    var isReviewAccount: Bool {
+        _ = uid // uid 변화에 맞춰 다시 읽히도록(@Published 의존)
+        return Auth.auth().currentUser?.providerData.contains { $0.providerID == "password" } ?? false
+    }
+
+    /// Sign in with Apple 을 코드로 시작 — 이용약관 동의 직후 바로 이어가기 위해(LoginView).
+    /// (약관 동의 전에는 Apple 공식 버튼 위에 투명 버튼을 얹어 탭을 가로채고, 동의하면 여기로 이어진다.)
+    func startAppleSignIn() {
+        let request = ASAuthorizationAppleIDProvider().createRequest()
+        prepareAppleSignInRequest(request)
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        let delegate = AppleSignInDelegate { [weak self] result in
+            Task { @MainActor in
+                await self?.handleAppleSignInResult(result)
+                self?.appleDelegate = nil
+            }
+        }
+        appleDelegate = delegate
+        controller.delegate = delegate
+        controller.presentationContextProvider = delegate
+        controller.performRequests()
+    }
+    /// ASAuthorizationController 는 delegate 를 약하게 잡으므로 요청이 끝날 때까지 여기서 붙잡는다.
+    private var appleDelegate: AppleSignInDelegate?
+
     /// Sign in with Apple 진행 중 재사용하는 raw nonce(재전송 공격 방지) —
     /// [prepareAppleSignInRequest] 가 만들고 [handleAppleSignInResult] 가 검증에 쓴다.
     private var currentAppleNonce: String?
@@ -313,5 +358,31 @@ final class AuthManager: ObservableObject {
     enum AuthError: LocalizedError {
         case missingToken
         var errorDescription: String? { "구글 토큰을 받지 못했어요." }
+    }
+}
+
+/// [AuthManager.startAppleSignIn] 용 델리게이트 — 결과를 `SignInWithAppleButton` 과 같은 Result 형태로 넘긴다.
+final class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate,
+                                 ASAuthorizationControllerPresentationContextProviding {
+    private let completion: (Result<ASAuthorization, Error>) -> Void
+
+    init(completion: @escaping (Result<ASAuthorization, Error>) -> Void) {
+        self.completion = completion
+    }
+
+    func authorizationController(controller: ASAuthorizationController,
+                                 didCompleteWithAuthorization authorization: ASAuthorization) {
+        completion(.success(authorization))
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        completion(.failure(error))
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
     }
 }

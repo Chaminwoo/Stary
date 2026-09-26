@@ -4,6 +4,8 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject var auth: AuthManager
     @ObservedObject private var locale = LocaleManager.shared
+    /// 약관 동의 직후 다시 그리게 하는 신호(동의 여부 자체는 UserDefaults — 로그인 화면에서도 쓰므로).
+    @State private var termsTick = 0
 
     var body: some View {
         Group {
@@ -13,6 +15,28 @@ struct RootView: View {
             } else {
                 LoginView()
             }
+        }
+        // 이용약관 동의 게이트(기존 로그인 사용자) — App Store Guideline 1.2(2026-09-26), Android MainScreen 패리티.
+        // 새 사용자는 로그인 화면에서 동의하지만, 이미 로그인돼 있던 사용자는 로그인 화면을 건너뛰므로 여기서 받는다.
+        // 동의하지 않으면 로그아웃(약관 없이 콘텐츠를 볼 수 없게).
+        .overlay {
+            let _ = termsTick
+            if auth.isSignedIn && !TermsConsent.isAccepted {
+                ZStack {
+                    Color.black.opacity(StaryDialogStyle.scrimOpacity).ignoresSafeArea()
+                    TermsDialogCard(requireAgreement: true,
+                                    declineTitle: locale.t(.drawerLogout),
+                                    onAgree: {
+                                        TermsConsent.accept(uid: auth.uid)
+                                        termsTick += 1
+                                    },
+                                    onDismiss: { auth.signOut() })
+                }
+            }
+        }
+        // 동의했던 기기에서 로그인하면 서버 프로필에도 동의 기록을 남긴다.
+        .onChange(of: auth.uid) { uid in
+            if let uid, TermsConsent.isAccepted { TermsConsent.record(uid: uid) }
         }
         // 새 버전 안내 — 로그인/메인 어느 화면이든 맨 위에(Android MainScreen AppUpdatePromptHost 패리티).
         .overlay { AppUpdatePromptOverlay() }

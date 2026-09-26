@@ -21,6 +21,11 @@ struct DetailScreen: View {
     @State private var profileTarget: ProfileTarget?
     @State private var blockedIds: Set<String> = []
     @State private var showReportDialog = false
+    // ── 신고·차단(App Store 1.2) — 툴바 ⋯ 메뉴 · 댓글 ⋯ 메뉴 ──
+    @State private var blockTarget: DetailBlockTarget?
+    @State private var showBlockConfirm = false
+    @State private var reportingComment: Comment?
+    @State private var showCommentReport = false
     @State private var showReportedConfirm = false
     @State private var showLoginRequired = false
     /// 사진/움짤/영상 전체화면 보기.
@@ -73,18 +78,26 @@ struct DetailScreen: View {
     /// 사진/본문/댓글은 ① 100m 이내 접근 ② 보상형 광고 시청 중 하나로 연다(내 글은 항상 열림).
     /// 한 번 열린 글은 `DiaryUnlockStore` 에 남아 **계속 열려 있다**(멀어져도). 잠금 UI 는 `DiaryLockViews.swift`.
     /// ⚠️ 댓글 **작성**만은 해금과 무관하게 항상 100m 이내(`isNear`)에서만.
+    /// 심사/데모 계정(이메일 로그인)은 모든 기능을 볼 수 있게 잠금을 풀어 준다(App Store Guideline 2.1 — iOS 전용).
     private var canOpen: Bool {
-        isOwner || isNear || (diary.id.map { unlockStore.isUnlocked($0) } ?? false)
+        isOwner || isNear || auth.isReviewAccount || (diary.id.map { unlockStore.isUnlocked($0) } ?? false)
     }
     /// 댓글을 쓸 수 있는가 — 로그인 && **무조건 100m 이내**(2026-09-22 사용자 지시, 내 글 포함).
-    private var canComment: Bool { auth.uid != nil && isNear }
+    /// 심사/데모 계정은 거리 제한 없이 댓글을 써 볼 수 있다(App Store Guideline 2.1 — iOS 전용).
+    private var canComment: Bool { auth.uid != nil && (isNear || auth.isReviewAccount) }
     /// 100m 이내에 들어온 순간 그 글을 영구 해금한다(내 글은 기록 불필요).
     private func recordProximityUnlock() {
         guard isNear, !isOwner, let id = diary.id else { return }
         unlockStore.unlock(id)
     }
     /// 차단한 사용자의 댓글은 숨긴다. (Android DetailScreen 패리티)
-    private var visibleComments: [Comment] { vm.comments.filter { !blockedIds.contains($0.userId) } }
+    /// 부적절한 표현이 든 남의 댓글도 숨긴다(App Store 1.2 — Android 패리티).
+    private var visibleComments: [Comment] {
+        vm.comments.filter {
+            !blockedIds.contains($0.userId) &&
+                ($0.userId == auth.uid || !ContentFilter.isObjectionable($0.content))
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -132,7 +145,59 @@ struct DetailScreen: View {
         }
         .navigationTitle(LocaleManager.shared.t(.navDetail))
         .navigationBarTitleDisplayMode(.inline)
-        // (공유/신고/수정/삭제는 Android 처럼 좋아요 행 인라인 버튼 — 탑바 액션 없음)
+        // 더보기(⋯) — 다이어리 신고 · 작성자 차단. **잠겨 있어도** 보인다(제목만 보여도 신고할 수 있어야 — App Store 1.2).
+        // (공유/수정/삭제는 Android 처럼 좋아요 행 인라인 버튼)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if !isOwner && !diary.userId.isEmpty {
+                    Menu {
+                        Button {
+                            DispatchQueue.main.async {
+                                if auth.uid == nil { showLoginRequired = true } else { showReportDialog = true }
+                            }
+                        } label: {
+                            Label(LocaleManager.shared.t(.reportDiary), systemImage: "flag")
+                        }
+                        Button(role: .destructive) {
+                            askBlock(userId: diary.userId,
+                                     name: directory.name(diary.userId, fallback: diary.userName),
+                                     isDiaryAuthor: true,
+                                     context: ["diaryId": diary.id ?? "", "targetTitle": diary.title])
+                        } label: {
+                            Label(String(format: LocaleManager.shared.t(.blockUserNamed),
+                                         directory.name(diary.userId, fallback: diary.userName)),
+                                  systemImage: "hand.raised")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .foregroundStyle(Theme.textPrimary)
+                            .accessibilityLabel(LocaleManager.shared.t(.moreOptions))
+                    }
+                }
+            }
+        }
+        .staryConfirmDialog(String(format: LocaleManager.shared.t(.blockConfirmTitle), blockTarget?.name ?? ""),
+                            isPresented: $showBlockConfirm,
+                            message: LocaleManager.shared.t(.blockConfirmMsg),
+                            confirmTitle: LocaleManager.shared.t(.blockAction),
+                            destructive: true) {
+            performBlock()
+        }
+        .reportDialog(title: LocaleManager.shared.t(.reportComment), isPresented: $showCommentReport) { reason, detail in
+            guard let myUid = auth.uid, let c = reportingComment else { return }
+            Task {
+                var extra: [String: Any] = [
+                    "targetContent": String(c.content.prefix(280)),
+                    "targetOwnerName": c.userName,
+                    "diaryId": diary.id ?? "",
+                ]
+                if !detail.isEmpty { extra["reasonDetail"] = detail }
+                await ModerationRepository.report(reporterId: myUid, type: "comment",
+                                                  targetId: c.id ?? "", targetOwnerId: c.userId,
+                                                  reason: reason, extra: extra)
+                showReportedConfirm = true
+            }
+        }
         .reportDialog(title: LocaleManager.shared.t(.reportDiary), isPresented: $showReportDialog) { reason, detail in
             guard let myUid = auth.uid, let id = diary.id else { return }
             Task {
@@ -201,6 +266,10 @@ struct DetailScreen: View {
                     showEditDialog = false
                 }
                 StaryDialogTextButton(LocaleManager.shared.t(.commonSave), weight: .semibold) {
+                    // 부적절한 표현 필터(App Store 1.2)
+                    if ContentFilter.anyObjectionable(editTitle, editContent) {
+                        showToast(LocaleManager.shared.t(.contentBlocked)); return
+                    }
                     showEditDialog = false
                     let t = String(editTitle.prefix(AppConfig.diaryTitleMaxLen))
                     let c = String(editContent.prefix(AppConfig.diaryContentMaxLen))
@@ -568,6 +637,10 @@ struct DetailScreen: View {
                     }
                 Button {
                     guard canComment else { explainCommentBlocked(); return }
+                    // 부적절한 표현 필터(App Store 1.2) — 입력은 남겨 고칠 수 있게.
+                    if ContentFilter.isObjectionable(commentText) {
+                        showToast(LocaleManager.shared.t(.contentBlocked)); return
+                    }
                     let t = commentText
                     commentText = ""
                     Task { await vm.addComment(uid: auth.uid, userName: auth.displayName, text: t) }
@@ -604,6 +677,36 @@ struct DetailScreen: View {
                                 } label: {
                                     Image(systemName: "trash").font(.caption2).foregroundStyle(Theme.textFaint)
                                 }
+                            } else if !c.userId.isEmpty {
+                                // 남의 댓글 — ⋯ 로 신고 · 작성자 차단(App Store 1.2, Android 패리티).
+                                Menu {
+                                    Button {
+                                        DispatchQueue.main.async {
+                                            if auth.uid == nil { showLoginRequired = true; return }
+                                            reportingComment = c
+                                            showCommentReport = true
+                                        }
+                                    } label: {
+                                        Label(LocaleManager.shared.t(.reportComment), systemImage: "flag")
+                                    }
+                                    Button(role: .destructive) {
+                                        askBlock(userId: c.userId,
+                                                 name: directory.name(c.userId, fallback: c.userName),
+                                                 isDiaryAuthor: c.userId == diary.userId,
+                                                 context: ["diaryId": diary.id ?? "",
+                                                           "targetContent": String(c.content.prefix(280))])
+                                    } label: {
+                                        Label(String(format: LocaleManager.shared.t(.blockUserNamed),
+                                                     directory.name(c.userId, fallback: c.userName)),
+                                              systemImage: "hand.raised")
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(.caption).foregroundStyle(Theme.textFaint)
+                                        .frame(width: 28, height: 22)
+                                        .contentShape(Rectangle())
+                                        .accessibilityLabel(LocaleManager.shared.t(.moreOptions))
+                                }
                             }
                         }
                         Text(c.content.hangulWordWrapped).font(.minSans(14)).foregroundStyle(Theme.textPrimary)
@@ -614,6 +717,27 @@ struct DetailScreen: View {
                 // 카드 대신 구분선 — Android 댓글 목록(HorizontalDivider 구분) 대응.
                 Divider().overlay(Theme.outline).padding(.vertical, 8)
             }
+        }
+    }
+
+    /// 차단 확인을 띄운다(비로그인은 로그인 안내). 메뉴가 닫힌 다음 틱에 띄워야 표시가 씹히지 않는다.
+    private func askBlock(userId: String, name: String, isDiaryAuthor: Bool, context: [String: Any]) {
+        DispatchQueue.main.async {
+            guard auth.uid != nil else { showLoginRequired = true; return }
+            blockTarget = DetailBlockTarget(userId: userId, name: name, isDiaryAuthor: isDiaryAuthor, context: context)
+            showBlockConfirm = true
+        }
+    }
+
+    /// 차단 실행 — 즉시 숨김(댓글 목록은 로컬 blockedIds, 지도는 BlockStore 구독) + 운영자 알림(reason=blocked 신고).
+    /// 다이어리 작성자를 차단했으면 이 글도 더는 볼 수 없게 바로 닫는다. (Android DetailScreen 패리티)
+    private func performBlock() {
+        guard let myUid = auth.uid, let t = blockTarget else { return }
+        blockedIds.insert(t.userId)
+        Task {
+            await ModerationRepository.block(userId: myUid, targetId: t.userId, targetName: t.name, context: t.context)
+            showToast(LocaleManager.shared.t(.toastBlocked))
+            if t.isDiaryAuthor { dismiss() }
         }
     }
 
@@ -811,4 +935,12 @@ private struct GifFitImageView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIImageView, context: Context) {}
+}
+
+/// 차단 확인 대상 — 누구를(이름 포함), 다이어리 작성자인지, 운영자에게 넘길 스냅샷(어디서 차단했는지).
+private struct DetailBlockTarget {
+    let userId: String
+    let name: String
+    let isDiaryAuthor: Bool
+    let context: [String: Any]
 }

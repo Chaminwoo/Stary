@@ -69,8 +69,19 @@ class FirebaseModerationRepository {
         awaitClose { listener.remove() }
     }
 
-    /** 사용자 차단. 이름/사진은 차단 목록 화면에서 바로 보여주기 위한 스냅샷. */
-    suspend fun block(userId: String, targetId: String, targetName: String, targetPhotoUrl: String = "") {
+    /**
+     * 사용자 차단. 이름/사진은 차단 목록 화면에서 바로 보여주기 위한 스냅샷.
+     * 차단은 **운영자에게도 알린다**(App Store Guideline 1.2 — "blocking should also notify the developer"):
+     * reason="blocked" 신고를 함께 남겨 Console 목록 + 운영자 푸시(Functions notifyAdminOnReport)로 검토한다.
+     * 차단한 사람의 별·댓글은 [observeBlockedIds] 를 구독하는 화면들에서 즉시 사라진다.
+     */
+    suspend fun block(
+        userId: String,
+        targetId: String,
+        targetName: String,
+        targetPhotoUrl: String = "",
+        context: Map<String, Any?> = emptyMap(),
+    ) {
         if (userId.isBlank() || targetId.isBlank() || userId == targetId) return
         try {
             blockedCol(userId).document(targetId).set(
@@ -81,6 +92,7 @@ class FirebaseModerationRepository {
                 )
             ).await()
         } catch (_: Exception) {}
+        report(userId, "user", targetId, targetId, "blocked", mapOf("targetOwnerName" to targetName, "source" to "block") + context)
     }
 
     suspend fun unblock(userId: String, targetId: String) {

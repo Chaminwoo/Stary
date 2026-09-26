@@ -27,7 +27,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -218,9 +221,20 @@ fun DetailScreen(
         if (userId.isNotBlank()) com.chaminwoo.stary.data.repository.FirebaseModerationRepository().observeBlockedIds(userId)
         else kotlinx.coroutines.flow.flowOf(emptySet())
     }.collectAsState(initial = emptySet())
-    val comments = remember(allComments, blockedIds) { allComments.filter { it.userId !in blockedIds } }
+    // 부적절한 표현이 든 남의 댓글도 숨긴다(App Store 1.2).
+    val comments = remember(allComments, blockedIds) {
+        allComments.filter {
+            it.userId !in blockedIds &&
+                (it.userId == userId || !com.chaminwoo.stary.core.util.ContentFilter.isObjectionable(it.content))
+        }
+    }
     var commentInput by remember { mutableStateOf("") }
     var showReportDialog by remember { mutableStateOf(false) }
+    // ── 신고·차단(App Store 1.2) — 헤더 ⋮ 메뉴 · 댓글 ⋮ 메뉴 ──
+    var showMoreMenu by remember { mutableStateOf(false) }
+    /** 차단 확인 대상: (userId, 이름, 다이어리 작성자인가, 운영자용 스냅샷). */
+    var blockTarget by remember { mutableStateOf<BlockTarget?>(null) }
+    var reportingComment by remember { mutableStateOf<Comment?>(null) }
     val reportScope = rememberCoroutineScope()
     val reportedMsg = stringResource(R.string.toast_reported)
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -236,6 +250,8 @@ fun DetailScreen(
                     com.chaminwoo.stary.shared.config.StaryConfig.DIARY_OPEN_RADIUS_M.toInt()
                 )
             )
+        } else if (com.chaminwoo.stary.core.util.ContentFilter.isObjectionable(commentInput)) {
+            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)) // 부적절한 표현 필터(App Store 1.2)
         } else if (commentInput.isNotBlank()) {
             interactionVm.addComment(commentInput)
             commentInput = ""
@@ -294,12 +310,69 @@ fun DetailScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showEditDialog = false; diaryViewModel.updateDiary(currentDiary.copy(title = editTitle, content = editContent)) }) {
+                TextButton(onClick = {
+                    if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(editTitle, editContent)) com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)) // 부적절한 표현 필터(App Store 1.2)
+                    else { showEditDialog = false; diaryViewModel.updateDiary(currentDiary.copy(title = editTitle, content = editContent)) }
+                }) {
                     Text(stringResource(R.string.common_save), color = MaterialTheme.colorScheme.onBackground)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showEditDialog = false }) { Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary) }
+            }
+        )
+    }
+
+    blockTarget?.let { target ->
+        val name = target.name.ifBlank { stringResource(R.string.common_user) }
+        val blockedMsg = stringResource(R.string.toast_blocked)
+        AlertDialog(
+            onDismissRequest = { blockTarget = null },
+            containerColor = Color(0xFF14181C),
+            titleContentColor = MaterialTheme.colorScheme.onBackground,
+            textContentColor = MaterialTheme.colorScheme.secondary,
+            title = { Text(stringResource(R.string.block_confirm_title, name)) },
+            text = { Text(stringResource(R.string.block_confirm_msg)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    blockTarget = null
+                    if (userId.isNotBlank()) reportScope.launch {
+                        // 차단 = 즉시 숨김(observeBlockedIds) + 운영자 알림(reason=blocked 신고).
+                        com.chaminwoo.stary.data.repository.FirebaseModerationRepository()
+                            .block(userId, target.userId, target.name, context = target.context)
+                        com.chaminwoo.stary.core.ui.StaryToast.show(blockedMsg)
+                        // 다이어리 작성자를 차단했으면 이 글도 더는 볼 수 없게 바로 나간다(지도에서도 이미 사라짐).
+                        if (target.isDiaryAuthor) onBack?.invoke()
+                    }
+                }) { Text(stringResource(R.string.block), color = Color(0xFFFF6B6B)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { blockTarget = null }) {
+                    Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary)
+                }
+            }
+        )
+    }
+
+    reportingComment?.let { c ->
+        com.chaminwoo.stary.core.ui.ReportDialog(
+            title = stringResource(R.string.report_comment),
+            onDismiss = { reportingComment = null },
+            onSubmit = { reasonKey, reasonDetail ->
+                reportingComment = null
+                if (userId.isNotBlank()) reportScope.launch {
+                    com.chaminwoo.stary.data.repository.FirebaseModerationRepository()
+                        .report(
+                            userId, "comment", c.id, c.userId, reasonKey,
+                            mapOf(
+                                "targetContent" to c.content.take(280),
+                                "targetOwnerName" to c.userName,
+                                "diaryId" to currentDiary.id,
+                                "reasonDetail" to reasonDetail.ifBlank { null },
+                            )
+                        )
+                    com.chaminwoo.stary.core.ui.StaryToast.show(reportedMsg)
+                }
             }
         )
     }
@@ -404,6 +477,48 @@ fun DetailScreen(
                             )
                         )
                 )
+
+                // 더보기(⋮) — 다이어리 신고 · 작성자 차단. **잠겨 있어도** 보인다(제목만 보여도 신고할 수 있어야 — App Store 1.2).
+                if (!isMyDiary && currentDiary.userId.isNotBlank()) {
+                    val menuAuthor = rememberCurrentUserName(currentDiary.userId, currentDiary.userName)
+                    Box(modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.38f))
+                                .clickable { if (!isLoggedIn) requireLogin() else showMoreMenu = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more_options),
+                                tint = Color.White, modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false },
+                            containerColor = Color(0xFF14181C),
+                        ) {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(stringResource(R.string.report_diary), color = MaterialTheme.colorScheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Filled.Flag, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) },
+                                onClick = { showMoreMenu = false; showReportDialog = true },
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(stringResource(R.string.block_user_named, menuAuthor.ifBlank { stringResource(R.string.common_user) }), color = Color(0xFFFF6B6B)) },
+                                leadingIcon = { Icon(Icons.Filled.Block, contentDescription = null, tint = Color(0xFFFF6B6B)) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    blockTarget = BlockTarget(
+                                        userId = currentDiary.userId, name = menuAuthor, isDiaryAuthor = true,
+                                        context = mapOf("diaryId" to currentDiary.id, "targetTitle" to currentDiary.title),
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
 
                 // 오버레이 내용
                 Column(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(20.dp)) {
@@ -579,7 +694,15 @@ fun DetailScreen(
                             onDelete = {
                                 interactionVm.deleteComment(comment.id)
                                 com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_comment_deleted))
-                            }
+                            },
+                            onReport = { if (!isLoggedIn) requireLogin() else reportingComment = comment },
+                            onBlock = { name ->
+                                if (!isLoggedIn) requireLogin()
+                                else blockTarget = BlockTarget(
+                                    userId = comment.userId, name = name, isDiaryAuthor = comment.userId == currentDiary.userId,
+                                    context = mapOf("diaryId" to currentDiary.id, "targetContent" to comment.content.take(280)),
+                                )
+                            },
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     }
@@ -791,8 +914,11 @@ private fun CommentItem(
     accent: Color,
     onOpenProfile: () -> Unit,
     onDelete: () -> Unit,
+    onReport: () -> Unit = {},
+    onBlock: (name: String) -> Unit = {},
 ) {
     val relCtx = androidx.compose.ui.platform.LocalContext.current
+    var menuOpen by remember { mutableStateOf(false) }
     val dateStr = remember(comment.createdAt) { com.chaminwoo.stary.core.util.RelativeTime.format(relCtx, comment.createdAt) }
 
     // 작성자 프로필 사진/이름은 users/{uid} 의 "현재" 값으로 표시(저장 시점 스냅샷 아님) — 실시간 갱신.
@@ -852,6 +978,43 @@ private fun CommentItem(
         }
         if (isMyComment) {
             TextButton(onClick = onDelete) { Text(stringResource(R.string.common_delete), fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary) }
+        } else if (comment.userId.isNotBlank()) {
+            // 남의 댓글 — ⋮ 로 신고 · 작성자 차단(App Store 1.2).
+            Box {
+                Box(
+                    modifier = Modifier.size(32.dp).clip(CircleShape).clickable { menuOpen = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more_options),
+                        tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp)
+                    )
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    containerColor = Color(0xFF14181C),
+                ) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(stringResource(R.string.report_comment), color = MaterialTheme.colorScheme.onBackground) },
+                        leadingIcon = { Icon(Icons.Filled.Flag, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) },
+                        onClick = { menuOpen = false; onReport() },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(stringResource(R.string.block_user_named, displayName.ifBlank { stringResource(R.string.common_user) }), color = Color(0xFFFF6B6B)) },
+                        leadingIcon = { Icon(Icons.Filled.Block, contentDescription = null, tint = Color(0xFFFF6B6B)) },
+                        onClick = { menuOpen = false; onBlock(displayName) },
+                    )
+                }
+            }
         }
     }
 }
+
+/** 차단 확인 대상 — 누구를(이름 포함), 다이어리 작성자인지, 운영자에게 넘길 스냅샷(어디서 차단했는지). */
+private data class BlockTarget(
+    val userId: String,
+    val name: String,
+    val isDiaryAuthor: Boolean,
+    val context: Map<String, Any?> = emptyMap(),
+)

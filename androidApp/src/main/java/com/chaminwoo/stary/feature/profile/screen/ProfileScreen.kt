@@ -438,7 +438,9 @@ fun ProfileScreen(
                 onConfirm = { name ->
                     showNicknameDialog = false
                     val trimmed = name.trim()
-                    if (trimmed.isNotBlank() && trimmed != displayName) {
+                    if (com.chaminwoo.stary.core.util.ContentFilter.isObjectionable(trimmed)) {
+                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)) // 부적절한 표현 필터(App Store 1.2)
+                    } else if (trimmed.isNotBlank() && trimmed != displayName) {
                         displayName = trimmed
                         scope.launch { GoogleAuthHelper.setNickname(context, trimmed) }
                     }

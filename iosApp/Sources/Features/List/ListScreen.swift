@@ -6,6 +6,7 @@ struct ListScreen: View {
     @EnvironmentObject var location: LocationManager
     @EnvironmentObject var viewed: ViewedStore
     @EnvironmentObject var blocks: BlockStore
+    @EnvironmentObject var auth: AuthManager
     @ObservedObject private var locale = LocaleManager.shared
     @State private var nearbyFirst = false
     @State private var unviewedOnly = false
@@ -33,6 +34,8 @@ struct ListScreen: View {
     private var rows: [Diary] {
         // 차단한 사용자의 별은 숨긴다. (Android MainListScreen 패리티)
         var list = store.diaries.filter { !blocks.blockedIds.contains($0.userId) }
+        // 부적절한 표현이 든 **남의** 글은 걸러낸다(App Store 1.2 — Android MainListScreen 패리티).
+        list = list.filter { $0.userId == auth.uid || !ContentFilter.anyObjectionable($0.title, $0.content) }
         if unviewedOnly { list = list.filter { !viewed.viewedIds.contains($0.id ?? "") } }
         if let cutoff = periodCutoffMs { list = list.filter { $0.createdAt >= cutoff } }
         guard nearbyFirst else { return list }
