@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.68 유튜브 쇼츠용 시네마틱 광고 40초**(`tools/ad/cinematic.py` → `references/stary_cinematic_9x16.mp4`, 앱 코드 변경 없음) — 사용자 검토 대기(2026-09-25).
+> 최종 갱신: **8.69 별 도감 = 열람한 모든 다이어리(해금 기록 서버 사본 + 잠금 이전 열람 합침)** — Android BUILD SUCCESSFUL(2026-09-26), 실기기 테스트 대기 · iOS 는 push 후 CI. 업적 38개·별 모양 12종 추가안은 사용자 승인 대기.
+> 이전: **8.68 유튜브 쇼츠용 시네마틱 광고 40초**(`tools/ad/cinematic.py` → `references/stary_cinematic_9x16.mp4`, 앱 코드 변경 없음) — 사용자 검토 대기(2026-09-25).
 > 이전: **8.67 다이아몬드 결정 안쪽 검은 선 제거(파편 밀도로 대체) · 프로필 떠다니는 아이콘 충돌음** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25), iOS 값 동기화(push 후 CI, 충돌음은 Android 전용).
 > 이전: **8.66 별자리 도착 플래시 반경 축소(15dp→7.5dp)**
 > 이전: **8.65 별 도감 빛 제거 · 새 버전 안내 팝업 · 잠금 문구 "해금" · 상세 복귀 시 카메라 유지** — Android BUILD SUCCESSFUL·기기 설치(2026-09-25) · iOS 는 push 후 CI.
@@ -2323,10 +2324,29 @@ LevelPlay 미디에이션 SDK + 앱 키로 바꿔야 한다 — 별도 작업.)
   로고 벨 화음 · 밤 장면 저역 앰비언스.
 - 주의: 카피를 넣게 되면 쇼츠 UI 가 하단 ~20%·우측 버튼 열을 가린다 → 화면 상단 1/3 에.
 
+## 8.69 별 도감 — 열람한 모든 다이어리 표시 (Android BUILD SUCCESSFUL 2026-09-26 · 실기기 테스트 대기 · iOS 는 push 후 CI)
+사용자: "별 도감에 광고로 해금한 별만 뜬다 → 내 다이어리를 제외한 '열람'한 모든 다이어리(100m 안에서 연 것 + 광고로 연 것)."
+- **원인**: 별 도감 데이터는 `DiaryUnlockStore`(기기 로컬)뿐이었다. 100m 접근 해금은 09-22 부터만 기록됐고, 그 전(잠금이 없던 시절)에
+  연 글·다른 기기에서 연 글·재설치 전 기록은 빠져 있었다.
+- **해결**: 해금 기록을 서버에도 둔다 — `users/{uid}/viewedDiaries/{id}` 에 `unlockedAt` 필드 추가(스키마 추가만, 규칙 변경 불필요:
+  이 컬렉션은 본인 read/write 전체 허용). `markViewed` 는 **merge** 로 바꿈(덮어쓰기면 unlockedAt 이 지워짐).
+  `DiaryUnlockStore.syncWithServer` 가 ① 서버 unlockedAt ② 잠금 이전 열람(`viewedAt` < `DIARY_LOCK_SINCE_MS` = 2026-09-21 12:31 KST,
+  55f145a) 을 로컬에 합치고, ②는 서버에도 unlockedAt 으로 굳힘, 로컬 기록은 기기당 1회 서버로 이관.
+  → 별 도감뿐 아니라 **상세 잠금·지도 "해금만" 필터도 같은 기록**을 쓰므로, 예전에 읽었던 글은 멀리서도 다시 열린다(영구 해금 규칙과 일치).
+- 잠긴 채로 제목만 본 글(잠금 이후 viewedAt 만 있고 unlockedAt 없음)은 **넣지 않는다** — "연 것"만.
+- 안내 문구 "광고로 해금한 다이어리는…" → **"열어 본 다이어리는 별 도감에 영구히 남아요"**(`starlog_permanent_note`/`starlog_empty_desc`/
+  `onb_starlog_msg` ko/en/ja + iOS L10n 동일).
+- 파일: `StaryConfig.DIARY_LOCK_SINCE_MS` ↔ iOS `AppConfig.diaryLockSinceMs`, Android `FirebaseViewedRepository`(markUnlocked/fetchOpened)·
+  `DiaryUnlockStore`(write-through + sync)·`MainListScreen`/`StarLogScreen`(sync 호출), iOS `ViewedStore.swift`·`DiaryUnlockStore.swift`·
+  `MapScreen`/`StarLogScreen`(.task). 
+- 한계: 로컬 저장소는 여전히 기기 공용(계정별 분리 아님) — 한 기기에서 계정을 바꾸면 기록이 섞일 수 있다(기존과 동일).
+  잠금 이전 열람이라도 그 뒤 다시 열어 viewedAt 이 갱신된 문서는 증거가 사라져 복원되지 않는다(이번 sync 부터는 unlockedAt 으로 굳어 더 이상 유실 없음).
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **(8.65) 새 버전 안내 실제 동작 확인** — Play 내부 테스트 트랙에서 구버전 설치 → 신버전 업로드 후 앱 실행. iOS 는 App Store 출시 후.
 - [ ] **(8.64) 언어 전환 — Play 내부 테스트 설치본에서 확인**(AAB 언어 분할 끔). 확인되면 CLAUDE.md §2.5 의 "3번 재발" 기록 유지.
-- [ ] (8.64) 별 도감 해금 기록은 기기 로컬 — 기기 변경/재설치 시 비어 있다. 필요하면 users/{uid}/unlocks 서버 동기화(스키마 추가) 검토.
+- [x] ~~(8.64) 별 도감 해금 기록은 기기 로컬~~ → 8.69 에서 `viewedDiaries.unlockedAt` 서버 사본으로 해결.
+- [ ] **(8.69) 업적 38개 · 별 모양 12종 추가안** — 미리보기 https://claude.ai/artifact/527iWoEcZmTADTyG953YXs , 사용자 승인 후 구현.
 - [ ] **iOS: 공유 카드 편집 화면(`ShareCardEditor`) + 인스타 스토리 직접 공유 미구현** — Android 는 편집 화면 안의 인스타 버튼이 진입점인데
       iOS 는 `ShareCard.share()`(시스템 시트)만 있다. 이식 시 `project.yml` 에 `LSApplicationQueriesSchemes: [instagram-stories]` +
       `INSTAGRAM_APP_ID` 주입, `UIPasteboard`(com.instagram.sharedSticker.backgroundImage) + `instagram-stories://share` 필요.

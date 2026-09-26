@@ -16,6 +16,12 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
 **제목까지** 보고, 그 외(히어로 미디어·본문·좋아요/공유/신고·댓글)는 잠긴다.
 - `unlocked = isMyDiary || isNear || everUnlocked` — `isNear` 는 `StaryConfig.DIARY_OPEN_RADIUS_M`(100m),
   `everUnlocked` 는 `core/util/DiaryUnlockStore`(**영구 해금** 기록, SharedPreferences `ad_unlock_store`).
+  - **서버 사본(2026-09-26)**: `unlock()` 이 `users/{uid}/viewedDiaries/{id}.unlockedAt` 도 쓴다(merge — `markViewed` 도 merge 로 바뀜,
+    덮어쓰면 unlockedAt 이 지워진다). `syncWithServer(context, uid)` 가 서버 `unlockedAt` + **잠금 이전 열람**
+    (`viewedAt` < `StaryConfig.DIARY_LOCK_SINCE_MS` = 55f145a 커밋 시각, 잠금이 없던 시절이라 본문까지 연 것)을 로컬에 합치고,
+    잠금 이전 열람은 서버에도 `unlockedAt` 으로 굳힌다(다시 열면 viewedAt 이 갱신돼 증거가 사라지므로). 서버 사본이 없던 시절의
+    로컬 기록은 이 기기에서 처음 동기화하는 계정으로 1회 업로드(`__backfilled_uid`). 호출: MainListScreen·StarLogScreen `LaunchedEffect(userId)`.
+    iOS: `DiaryUnlockStore.syncWithServer(uid:)` + `ViewedRepository.markUnlocked/fetchOpened`(MapScreen·StarLogScreen `.task(id: auth.uid)`).
   - **한 번 열린 글은 계속 열린다**(09-22 "다이어리도 아예 해금 형식"): 광고를 끝까지 보거나 **100m 안에 한 번 들어오면**
     (`LaunchedEffect(diaryId, isNear, isMyDiary)`) 기록 → 멀어져도 잠기지 않는다. 예전 7일 TTL 은 폐지,
     TTL 시절 광고 기록도 같은 prefs 키라 그대로 영구 해금으로 승계.
