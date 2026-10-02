@@ -661,6 +661,8 @@ struct DetailScreen: View {
                 .disabled(!canComment || commentText.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .id(Self.commentInputId)
+            // 입력 줄(전송 버튼 포함)은 탭해도 키보드를 닫지 않는다(채팅 입력 바와 동일).
+            .keepsKeyboardOnTap("detailCommentInput")
 
             ForEach(visibleComments) { c in
                 HStack(alignment: .top, spacing: 10) {

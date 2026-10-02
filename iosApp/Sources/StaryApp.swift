@@ -24,6 +24,9 @@ struct StaryApp: App {
         // ⚠️ `MainActor.assumeIsolated` 는 iOS 17+ 라 배포 타깃(16.0)에서 못 쓴다 — Task 로 넘긴다.
         Task { @MainActor in AdsManager.shared.initialize() }
 
+        // 키보드 바깥 탭으로 닫기(iOS 전용 — Core/KeyboardDismissOnTap.swift).
+        Task { @MainActor in KeyboardDismissOnTap.shared.start() }
+
         Self.configureNavigationBarAppearance()
     }
 

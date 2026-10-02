@@ -101,24 +101,8 @@ struct UploadScreen: View {
         .background { ScreenBackground(name: "upload_bg", darken: 0.82) }
         .navigationTitle(LocaleManager.shared.t(.navUpload))
         .navigationBarTitleDisplayMode(.inline)
-        // 키보드 위 "완료" — 여러 줄 입력(본문)은 리턴키가 줄바꿈이라 이 버튼이 유일한 닫기 수단(#3).
-        // 작아서 누르기 어렵다는 피드백(2026-08-15) → 캡슐 버튼으로 키우고 키보드/가장자리에서 살짝 띄운다.
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button { focusedField = nil } label: {
-                    Text(LocaleManager.shared.t(.commonDone))
-                        .font(.minSans(17, .semibold))
-                        .foregroundStyle(Color(hex: 0x0D0D0D))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 9)
-                        .background(Theme.mint, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .padding(.trailing, 8)
-                .padding(.bottom, 6)
-            }
-        }
+        // (키보드 위 "완료" 버튼은 삭제 — 2026-10-02 사용자 결정. 본문은 리턴키가 줄바꿈이라
+        //  닫기는 바깥 영역 탭(KeyboardDismissOnTap) 또는 스크롤 드래그로 한다.)
         .overlay(alignment: .bottom) {
             if let toast { ToastView(text: toast) }
         }

@@ -206,6 +206,8 @@ struct ChatScreen: View {
             .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(12)
+        // 입력 바(전송 버튼 포함)는 탭해도 키보드를 닫지 않는다 — 연달아 보낼 때 키보드가 내려가지 않게.
+        .keepsKeyboardOnTap("chatInputBar")
         // ShapeStyle 오버로드라 배경색이 하단 안전영역(홈 인디케이터)까지 자연히 이어진다.
         // ⚠️ 여기에 ignoresSafeArea(.all) 짜리 뷰를 넣지 말 것 — 키보드 영역까지 무시해 입력 바가 안 올라온다.
         .background(Theme.background)
