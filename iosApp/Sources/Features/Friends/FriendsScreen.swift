@@ -27,8 +27,6 @@ struct FriendsScreen: View {
     // 루트(MainTabView)의 단일 NavigationStack 에 push 되므로 자체 스택은 두지 않는다(Android 단일 NavHost 대응).
     var body: some View {
         ZStack {
-            // Android FriendScreen 배경 — mydiary_bg + 검정 0.82 틴트.
-            ScreenBackground(name: "mydiary_bg", darken: 0.82)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     searchSection
@@ -44,6 +42,10 @@ struct FriendsScreen: View {
                     .allowsHitTesting(false)
             }
         }
+        // Android FriendScreen 배경 — mydiary_bg + 검정 0.82 틴트.
+        // ⚠️ ZStack 형제가 아니라 .background 로 — 형제면 스크롤 영역이 키보드 아래까지 늘어나
+        //    검색 중(키보드 열림)에 결과 목록 끝을 키보드 위로 끌어올릴 수 없다(UploadScreen 과 동일 이유).
+        .background { ScreenBackground(name: "mydiary_bg", darken: 0.82) }
         .navigationTitle(LocaleManager.shared.t(.tabFriends))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Friend.self) { friend in

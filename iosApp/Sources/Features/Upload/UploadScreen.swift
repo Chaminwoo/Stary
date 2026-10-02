@@ -52,45 +52,51 @@ struct UploadScreen: View {
     var body: some View {
         // ⚠️ 배경은 ZStack 형제가 아니라 .background 로 — ScreenBackground 의 ignoresSafeArea 가
         //    ZStack(=스크롤 영역)을 키보드 영역까지 늘리면, 키보드가 올라와도 입력칸이 안 밀려 가려진다.
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                preview
-                // 업로드(저장) 진행 중에는 제목·본문·첨부를 모두 잠근다 — 저장에 쓰인 값과
-                // 화면에 보이는 값이 어긋나지 않게(공개 범위·별 모양/색과 동일한 정책).
-                field(LocaleManager.shared.t(.fieldTitle)) {
-                    TextField("", text: $title).textFieldStyle(.plain)
-                        .focused($focusedField, equals: .title)
-                        .submitLabel(.done)                      // 한 줄 입력 → 리턴키로 바로 닫기
-                        .onSubmit { focusedField = nil }
-                        .onChange(of: title) { v in
-                            if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
-                        }
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    preview
+                    // 업로드(저장) 진행 중에는 제목·본문·첨부를 모두 잠근다 — 저장에 쓰인 값과
+                    // 화면에 보이는 값이 어긋나지 않게(공개 범위·별 모양/색과 동일한 정책).
+                    field(LocaleManager.shared.t(.fieldTitle)) {
+                        TextField("", text: $title).textFieldStyle(.plain)
+                            .focused($focusedField, equals: .title)
+                            .submitLabel(.done)                      // 한 줄 입력 → 리턴키로 바로 닫기
+                            .onSubmit { focusedField = nil }
+                            .onChange(of: title) { v in
+                                if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
+                            }
+                    }
+                    .disabled(saving)
+                    .opacity(saving ? 0.5 : 1)
+                    .id(Field.title)
+                    field(LocaleManager.shared.t(.uploadContentLabel)) {
+                        TextField("", text: $content, axis: .vertical)
+                            .lineLimit(4...8)
+                            .focused($focusedField, equals: .content)
+                            .onChange(of: content) { v in
+                                if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
+                            }
+                    }
+                    .disabled(saving)
+                    .opacity(saving ? 0.5 : 1)
+                    .id(Field.content)
+                    // 사진 추가/다시 선택/삭제 + 크롭 드래그까지 한 번에 막는다.
+                    // (크롭은 커스텀 DragGesture 라 .disabled() 로는 안 막혀 allowsHitTesting 을 쓴다 — WheelPicker 와 동일.)
+                    photoSection
+                        .allowsHitTesting(!saving)
+                    starPicker
+                    colorPicker
+                    visibilityPicker
+                    saveButton
                 }
-                .disabled(saving)
-                .opacity(saving ? 0.5 : 1)
-                field(LocaleManager.shared.t(.uploadContentLabel)) {
-                    TextField("", text: $content, axis: .vertical)
-                        .lineLimit(4...8)
-                        .focused($focusedField, equals: .content)
-                        .onChange(of: content) { v in
-                            if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
-                        }
-                }
-                .disabled(saving)
-                .opacity(saving ? 0.5 : 1)
-                // 사진 추가/다시 선택/삭제 + 크롭 드래그까지 한 번에 막는다.
-                // (크롭은 커스텀 DragGesture 라 .disabled() 로는 안 막혀 allowsHitTesting 을 쓴다 — WheelPicker 와 동일.)
-                photoSection
-                    .allowsHitTesting(!saving)
-                starPicker
-                colorPicker
-                visibilityPicker
-                saveButton
+                .padding(16)
             }
-            .padding(16)
+            // 스크롤(드래그)로도 키보드가 내려가게 — 긴 본문 입력 후 탈출구(#3).
+            .scrollDismissesKeyboard(.interactively)
+            // 제목/본문을 누르면 키보드가 다 올라온 뒤 그 칸을 보이는 영역 가운데로(키보드에 가려지던 문제).
+            .scrollToFocused(focusedField, proxy: proxy)
         }
-        // 스크롤(드래그)로도 키보드가 내려가게 — 긴 본문 입력 후 탈출구(#3).
-        .scrollDismissesKeyboard(.interactively)
         // 업로드 화면 배경 — Android upload_bg 이미지 + 검정 0.82 틴트 대응.
         .background { ScreenBackground(name: "upload_bg", darken: 0.82) }
         .navigationTitle(LocaleManager.shared.t(.navUpload))

@@ -9,6 +9,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -204,6 +205,9 @@ fun NavGraph(
                 TutorialStarDetailScreen(onBack = { navController.navigateUp() })
             } else {
                 DetailScreen(
+                    // 키보드 대응(댓글 입력) — 화면 전체를 키보드 높이만큼 줄여 스크롤이 입력칸을 따라가게.
+                    // DetailScreen 본체에 넣지 않고 여기서 주는 이유: 본체는 dex 레지스터 한계에 걸려 있다(DetailScreen.kt 주석).
+                    modifier = Modifier.imePadding(),
                     diaryId = detailArgs.diaryId,
                     onBack = { navController.navigate(NavRoute.Main) {
                         popUpTo<NavRoute.Main> { inclusive = true }

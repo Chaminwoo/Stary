@@ -18,6 +18,9 @@ struct DetailScreen: View {
     @State private var toast: String?
     @State private var didCountView = false
     @State private var commentText = ""
+    /// 댓글 입력칸 포커스 — 키보드가 올라오면 입력칸까지 스크롤(scrollToFocused).
+    @FocusState private var commentFocused: Bool
+    private static let commentInputId = "commentInput"
     @State private var profileTarget: ProfileTarget?
     @State private var blockedIds: Set<String> = []
     @State private var showReportDialog = false
@@ -102,30 +105,36 @@ struct DetailScreen: View {
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 0) {
-                    // ── 헤더: 4:3 미디어(없으면 image_frame) + 하단 스크림 + 별/작성자/날짜 오버레이 ──
-                    // (Android DetailScreen 헤더와 동일 구조 — 제목은 본문 영역으로 분리)
-                    heroHeader
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // ── 헤더: 4:3 미디어(없으면 image_frame) + 하단 스크림 + 별/작성자/날짜 오버레이 ──
+                        // (Android DetailScreen 헤더와 동일 구조 — 제목은 본문 영역으로 분리)
+                        heroHeader
 
-                    VStack(alignment: .leading, spacing: 0) {
-                        Spacer().frame(height: 18)
-                        Text(displayTitle)
-                            .font(.minSans(24, .semibold))
-                            .foregroundStyle(Theme.textPrimary)
-                        Spacer().frame(height: 16)
-                        if canOpen { bodyCard } else { lockedContentCard }
-                        Spacer().frame(height: 20)
-                        if canOpen {
-                            interactionRow
-                            Divider().overlay(Theme.outline)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Spacer().frame(height: 18)
+                            Text(displayTitle)
+                                .font(.minSans(24, .semibold))
+                                .foregroundStyle(Theme.textPrimary)
                             Spacer().frame(height: 16)
-                            commentsSection
+                            if canOpen { bodyCard } else { lockedContentCard }
+                            Spacer().frame(height: 20)
+                            if canOpen {
+                                interactionRow
+                                Divider().overlay(Theme.outline)
+                                Spacer().frame(height: 16)
+                                commentsSection
+                            }
+                            Spacer().frame(height: 40)
                         }
-                        Spacer().frame(height: 40)
+                        .padding(.horizontal, 20)
                     }
-                    .padding(.horizontal, 20)
                 }
+                // 댓글 입력칸은 화면 아래쪽이라 키보드에 가려진다 — 포커스되면 입력칸까지 스크롤,
+                // 여러 줄 입력(리턴=줄바꿈)이라 스크롤(드래그)로 키보드를 내릴 수 있게(Upload 와 동일).
+                .scrollDismissesKeyboard(.interactively)
+                .scrollToFocused(commentFocused ? Self.commentInputId : nil, proxy: proxy)
             }
             if let t = toast {
                 ToastView(text: t)
@@ -620,6 +629,7 @@ struct DetailScreen: View {
                           : LocaleManager.shared.t(.commentPlaceholder),
                           text: $commentText, axis: .vertical)
                     .lineLimit(1...4)
+                    .focused($commentFocused)
                     .onChange(of: commentText) { v in
                         if v.count > AppConfig.commentMaxLen { commentText = String(v.prefix(AppConfig.commentMaxLen)) }
                     }
@@ -650,6 +660,7 @@ struct DetailScreen: View {
                 }
                 .disabled(!canComment || commentText.trimmingCharacters(in: .whitespaces).isEmpty)
             }
+            .id(Self.commentInputId)
 
             ForEach(visibleComments) { c in
                 HStack(alignment: .top, spacing: 10) {

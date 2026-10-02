@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -266,8 +267,10 @@ fun UploadScreen(
             colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
         )
 
+        // 키보드 대응 — edge-to-edge 라 adjustResize 만으로는 창이 줄지 않는다. 스크롤 영역만 키보드 높이만큼
+        // 줄이면(imePadding) 포커스된 입력칸이 자동으로 보이는 곳까지 스크롤된다. 배경 이미지는 그대로(크롭 재계산 방지).
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            modifier = Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState())
                 .padding(top = LocalTopBarInset.current).padding(20.dp)
         ) {
             // 이미지 영역 — 디테일 화면과 동일한 고정 비율 프레임.
