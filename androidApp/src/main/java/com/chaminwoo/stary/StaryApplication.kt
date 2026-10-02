@@ -66,6 +66,10 @@ class StaryApplication : Application(), ImageLoaderFactory {
         // 보상형 광고(Unity LevelPlay) 초기화 — 100m 밖 게시물 잠금 해제용.
         // 앱 키/광고 단위 ID 가 없으면(placeholder) 내부에서 조용히 무시된다.
         com.chaminwoo.stary.core.ads.AdsManager.init(this)
+        // 광고제거 계정(adFree/{uid}) 감시 — 해당 계정은 잠긴 게시물을 광고 없이 바로 연다.
+        com.chaminwoo.stary.core.ads.AdFreeAccount.start()
+        // 첫 별 공지(firstStars) 읽음/숨김 기록 — 알림 화면·빨간 점에 합쳐진다.
+        com.chaminwoo.stary.data.repository.FirstStarFeed.init(this)
 
         // 앱 전면/후면 추적 — FCM 시스템 알림 vs 인앱 배너 이중 표시 방지에 사용.
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {

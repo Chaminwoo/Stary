@@ -120,6 +120,8 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
               let token = fcmToken, !token.isEmpty else { return }
         let authUid = Auth.auth().currentUser?.uid ?? ""
         Task {
+            // 이 기기의 앱 언어 — 서버가 전체 공지 푸시(첫 별)를 기기 언어로 보낼 때 쓴다(Android 패리티).
+            let lang = await MainActor.run { LocaleManager.shared.effectiveLanguage }
             do {
                 try await FirestoreService.users.document(uid).setData([
                     "fcmToken": token,
@@ -128,6 +130,7 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
                 try await FirestoreService.fcmTokens(of: uid).document(token).setData([
                     "platform": "ios",
                     "updatedAt": FirestoreService.nowMillis,
+                    "lang": lang,
                 ])
                 print("✅ fcmToken 저장 완료 users/\(uid) …\(token.suffix(8))")
             } catch {

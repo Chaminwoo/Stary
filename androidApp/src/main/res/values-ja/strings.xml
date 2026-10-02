@@ -141,6 +141,8 @@
     <string name="detail_locked_photo">この写真はロックされています</string>
     <string name="detail_locked_video">この動画はロックされています</string>
     <string name="detail_watch_ad">広告を見て閲覧する</string>
+    <string name="detail_open_now">今すぐ開く</string>
+    <string name="detail_locked_title_ad_free">%1$dm 以内に近づくか、\nタップしてすぐに開いてください！</string>
     <string name="detail_ad_loading">広告を読み込んでいます…</string>
     <string name="detail_ad_unlocked">物語が開きました</string>
     <string name="detail_ad_not_finished">広告を最後まで見ると開きます</string>
@@ -215,6 +217,7 @@
     <string name="notif_like">「%1$s」にいいねしました</string>
     <string name="notif_comment">「%1$s」にコメントしました</string>
     <string name="notif_friend_request">友達リクエストを送りました</string>
+    <string name="notif_first_star">世界に初めての星を残しました</string>
 
     <!-- マイ日記画面 -->
     <string name="mydiary_empty">まだ残した星がありません</string>

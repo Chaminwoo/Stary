@@ -73,6 +73,17 @@ object LocaleManager {
         return context.createConfigurationContext(config)
     }
 
+    /**
+     * 서버 푸시 문구 언어("ko"/"en"/"ja") — FCM 토큰 문서의 `lang` 으로 저장된다(GoogleAuthHelper.registerFcmToken).
+     * 앱 언어가 적용된 프로세스 기본 로케일 기준(33+ 는 시스템이, 32 이하는 [wrap] 이 setDefault 한다).
+     * 지원 외 언어는 앱이 기본 리소스(values = 한국어)를 쓰므로 "ko".
+     */
+    fun pushLanguage(): String = when (Locale.getDefault().language) {
+        "en" -> "en"
+        "ja" -> "ja"
+        else -> "ko"
+    }
+
     private fun storedTag(context: Context): String =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LANG, SYSTEM) ?: SYSTEM
 

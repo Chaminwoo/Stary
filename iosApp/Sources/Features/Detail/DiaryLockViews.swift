@@ -54,6 +54,30 @@ enum DiaryLock {
     static func playLogoImage(color: Color, seed: Int, size: CGFloat) -> UIImage {
         StarCrystal.pathIconImage(name: "play-logo", path: playLogoPath, color: UIColor(color), seed: seed, size: size)
     }
+
+    /// 열린 자물쇠(광고제거 계정의 "바로 열기", 24×24 뷰포트) — 몸통(15×11, 반경 2.4) + 열쇠 구멍 + 오른쪽이 들린 고리.
+    /// Android `DiaryLock.kt` 의 `OpenLockLogo` 와 같은 좌표. 열쇠 구멍은 even-odd 로 뚫린다.
+    static let openLockPath: CGPath = {
+        let p = CGMutablePath()
+        p.addRoundedRect(in: CGRect(x: 4.5, y: 10.5, width: 15, height: 11), cornerWidth: 2.4, cornerHeight: 2.4)
+        p.addEllipse(in: CGRect(x: 10.4, y: 14.0, width: 3.2, height: 3.2))
+        // 고리 — 왼쪽 기둥은 몸통에 닿고, 오른쪽은 짧게 끝나 열려 있다(바깥 호 → 안쪽 호를 되돌아오는 띠).
+        p.move(to: CGPoint(x: 6.9, y: 10.5))
+        p.addLine(to: CGPoint(x: 6.9, y: 7))
+        p.addArc(center: CGPoint(x: 12, y: 7), radius: 5.1, startAngle: .pi, endAngle: 0, clockwise: false)
+        p.addLine(to: CGPoint(x: 17.1, y: 8.2))
+        p.addLine(to: CGPoint(x: 14.9, y: 8.2))
+        p.addLine(to: CGPoint(x: 14.9, y: 7))
+        p.addArc(center: CGPoint(x: 12, y: 7), radius: 2.9, startAngle: 0, endAngle: .pi, clockwise: true)
+        p.addLine(to: CGPoint(x: 9.1, y: 10.5))
+        p.closeSubpath()
+        return p
+    }()
+
+    /// 크리스탈 열린 자물쇠(광고제거 계정 본문 카드용).
+    static func openLockImage(color: Color, seed: Int, size: CGFloat) -> UIImage {
+        StarCrystal.pathIconImage(name: "open-lock", path: openLockPath, color: UIColor(color), seed: seed, size: size)
+    }
 }
 
 /// 크리스탈 파편 아이콘 — **제자리 고정 + 고무줄**(Android `CrystalPullIcon` 패리티).

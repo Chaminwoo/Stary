@@ -141,6 +141,8 @@
     <string name="detail_locked_photo">This photo is locked</string>
     <string name="detail_locked_video">This video is locked</string>
     <string name="detail_watch_ad">Watch an ad to unlock</string>
+    <string name="detail_open_now">Open now</string>
+    <string name="detail_locked_title_ad_free">Get within %1$dm,\nor tap to open it now!</string>
     <string name="detail_ad_loading">Loading the ad…</string>
     <string name="detail_ad_unlocked">The story is unlocked</string>
     <string name="detail_ad_not_finished">Watch the whole ad to unlock it</string>
@@ -215,6 +217,7 @@
     <string name="notif_like">Liked \"%1$s\"</string>
     <string name="notif_comment">Commented on \"%1$s\"</string>
     <string name="notif_friend_request">Sent you a friend request</string>
+    <string name="notif_first_star">left their first star in the world</string>
 
     <!-- My Diary screen -->
     <string name="mydiary_empty">No stars of yours yet</string>

@@ -143,6 +143,8 @@
     <string name="detail_locked_photo">이 사진은 잠겨 있어요</string>
     <string name="detail_locked_video">이 영상은 잠겨 있어요</string>
     <string name="detail_watch_ad">광고 보고 열람하기</string>
+    <string name="detail_open_now">바로 열기</string>
+    <string name="detail_locked_title_ad_free">%1$dm 이내로 다가가거나,\n탭해서 바로 열어 보세요!</string>
     <string name="detail_ad_loading">광고를 불러오는 중이에요…</string>
     <string name="detail_ad_unlocked">이야기가 열렸어요</string>
     <string name="detail_ad_not_finished">광고를 끝까지 봐야 열려요</string>
@@ -217,6 +219,7 @@
     <string name="notif_like">\"%1$s\"를 좋아해요</string>
     <string name="notif_comment">\"%1$s\"에 댓글을 남겼어요</string>
     <string name="notif_friend_request">친구 요청을 보냈어요</string>
+    <string name="notif_first_star">세상에 첫 별을 남겼어요</string>
 
     <!-- 내 다이어리 화면 -->
     <string name="mydiary_empty">아직 남긴 별이 없어요</string>

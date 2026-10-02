@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.BuildConfig
 import com.chaminwoo.stary.R
+import com.chaminwoo.stary.core.ads.AdFreeAccount
 import com.chaminwoo.stary.core.ads.AdsManager
 import com.chaminwoo.stary.core.ui.MediaLoadingFrame
 import com.chaminwoo.stary.core.ui.StaryToast
@@ -129,6 +130,47 @@ private val PlayLogo: ImageVector by lazy {
     }.build()
 }
 
+/**
+ * 열린 자물쇠(광고제거 계정의 "바로 열기") — 몸통(15×11, 반경 2.4) + 열쇠 구멍 + 오른쪽이 들린 고리.
+ * [PlayLogo] 와 같은 크리스탈 재질로 굽는다. iOS `DiaryLock.openLockPath` 와 같은 좌표.
+ */
+private val OpenLockLogo: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "StaryOpenLock",
+        defaultWidth = 24.dp, defaultHeight = 24.dp,
+        viewportWidth = 24f, viewportHeight = 24f,
+    ).apply {
+        path(fill = SolidColor(Color.Black), pathFillType = PathFillType.EvenOdd) {
+            // 몸통
+            moveTo(6.9f, 10.5f)
+            lineTo(17.1f, 10.5f)
+            arcTo(2.4f, 2.4f, 0f, false, true, 19.5f, 12.9f)
+            lineTo(19.5f, 19.1f)
+            arcTo(2.4f, 2.4f, 0f, false, true, 17.1f, 21.5f)
+            lineTo(6.9f, 21.5f)
+            arcTo(2.4f, 2.4f, 0f, false, true, 4.5f, 19.1f)
+            lineTo(4.5f, 12.9f)
+            arcTo(2.4f, 2.4f, 0f, false, true, 6.9f, 10.5f)
+            close()
+            // 열쇠 구멍 — EvenOdd 라 몸통에서 뚫린다.
+            moveTo(10.4f, 15.6f)
+            arcTo(1.6f, 1.6f, 0f, true, true, 13.6f, 15.6f)
+            arcTo(1.6f, 1.6f, 0f, true, true, 10.4f, 15.6f)
+            close()
+            // 고리 — 왼쪽 기둥은 몸통에 닿고, 오른쪽은 짧게 끝나 열려 있다.
+            moveTo(6.9f, 10.5f)
+            lineTo(6.9f, 7f)
+            arcTo(5.1f, 5.1f, 0f, false, true, 17.1f, 7f)
+            lineTo(17.1f, 8.2f)
+            lineTo(14.9f, 8.2f)
+            lineTo(14.9f, 7f)
+            arcTo(2.9f, 2.9f, 0f, false, false, 9.1f, 7f)
+            lineTo(9.1f, 10.5f)
+            close()
+        }
+    }.build()
+}
+
 /** 파편 무늬 시드 — 게시물마다 다른 무늬, 같은 게시물은 항상 같은 무늬. */
 private fun lockSeed(diaryId: String, slot: Int): Int = (diaryId.hashCode() and 0x3FF) * 2 + slot
 
@@ -184,8 +226,10 @@ internal fun LockedContentCard(
 ) {
     val context = LocalContext.current
     val ads = AdsManager
-    // 화면에 들어온 순간 미리 로드 — 아이콘을 눌렀을 때 기다림이 없다.
-    LaunchedEffect(ads.initialized) { ads.preload() }
+    // 광고제거 계정 — 광고 없이 탭 한 번에 해금(아이콘·안내 문구도 광고 대신 "바로 열기").
+    val adFree = AdFreeAccount.active
+    // 화면에 들어온 순간 미리 로드 — 아이콘을 눌렀을 때 기다림이 없다(광고제거 계정은 광고를 받지 않는다).
+    LaunchedEffect(ads.initialized, adFree) { if (!adFree) ads.preload() }
 
     Column(
         modifier = Modifier
@@ -197,12 +241,12 @@ internal fun LockedContentCard(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         CrystalPullIcon(
-            icon = PlayLogo,
+            icon = if (adFree) OpenLockLogo else PlayLogo,
             color = accent,
             iconSize = 54.dp,
             seed = lockSeed(diaryId, 1),
-            contentDescription = stringResource(R.string.detail_watch_ad),
-            onTap = { watchAdToUnlock(context, diaryId) },
+            contentDescription = stringResource(if (adFree) R.string.detail_open_now else R.string.detail_watch_ad),
+            onTap = { if (adFree) unlockWithoutAd(context, diaryId) else watchAdToUnlock(context, diaryId) },
             // 디버그 빌드 전용: 길게 누르면 LevelPlay 테스트 스위트(네트워크별 연결/테스트 광고) — "No fill" 진단용.
             onLongPress = if (BuildConfig.DEBUG) {
                 { context.findHostActivity()?.let { AdsManager.launchTestSuite(it) } }
@@ -210,7 +254,10 @@ internal fun LockedContentCard(
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            stringResource(R.string.detail_locked_title, StaryConfig.DIARY_OPEN_RADIUS_M.toInt()),
+            stringResource(
+                if (adFree) R.string.detail_locked_title_ad_free else R.string.detail_locked_title,
+                StaryConfig.DIARY_OPEN_RADIUS_M.toInt()
+            ),
             fontSize = 14.5.sp, lineHeight = 23.sp, fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.94f),
             textAlign = TextAlign.Center,
@@ -478,6 +525,13 @@ internal fun watchAdToUnlock(context: Context, diaryId: String) {
             }
         },
     )
+}
+
+/** 광고제거 계정([AdFreeAccount]) — 광고 없이 바로 영구 해금(광고 시청 완료와 같은 결과·연출). */
+internal fun unlockWithoutAd(context: Context, diaryId: String) {
+    DiaryUnlockStore.unlock(context, diaryId)
+    Haptics.celebrate()
+    StaryToast.show(context.getString(R.string.detail_ad_unlocked))
 }
 
 /** 거리 표기 — 1km 이상이면 소수 1자리 km, 그 미만이면 정수 m. */

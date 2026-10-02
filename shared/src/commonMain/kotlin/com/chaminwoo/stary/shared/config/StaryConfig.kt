@@ -50,6 +50,16 @@ object StaryConfig {
         const val HIDDEN_ACHIEVEMENTS = "hiddenAchievements"
         /** 최상위: 친구 초대 리딤 기록 (문서 id = 초대받은 사람 uid — 계정당 1회, 체크리스트 31) */
         const val INVITES = "invites"
+        /**
+         * 최상위: 광고제거 계정(문서 id = appUserId) — 문서가 있으면 100m 밖 게시물을 광고 없이 바로 연다.
+         * 쓰기는 Firebase Console/Admin SDK 만(규칙상 클라이언트 쓰기 금지), 읽기는 본인만.
+         */
+        const val AD_FREE = "adFree"
+        /**
+         * 최상위: 첫 별 공지(문서 id = 작성자 appUserId — 계정당 1번). 서버(announceFirstStar)만 쓰고
+         * 로그인 세션은 모두 읽는다. 알림 화면에 "○○님이 세상에 첫 별을 남겼어요" 로 합쳐 보여 준다.
+         */
+        const val FIRST_STARS = "firstStars"
     }
 
     /**

@@ -310,7 +310,14 @@ object GoogleAuthHelper {
         userDoc.set(mapOf("fcmToken" to fcmToken, "authUid" to authUid), SetOptions.merge()).await()
         userDoc.collection(StaryConfig.Collections.FCM_TOKENS)
             .document(fcmToken)
-            .set(mapOf("platform" to "android", "updatedAt" to System.currentTimeMillis()))
+            .set(
+                mapOf(
+                    "platform" to "android",
+                    "updatedAt" to System.currentTimeMillis(),
+                    // 이 기기의 앱 언어 — 서버가 전체 공지 푸시(첫 별)를 기기 언어로 보낼 때 쓴다(없으면 한국어).
+                    "lang" to com.chaminwoo.stary.core.util.LocaleManager.pushLanguage(),
+                )
+            )
             .await()
     }
 

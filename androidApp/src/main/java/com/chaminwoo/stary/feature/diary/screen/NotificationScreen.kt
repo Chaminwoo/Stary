@@ -120,7 +120,9 @@ fun NotificationScreen(
                 }) {
                     // 새 다이어리(친구 글) 알림은 상세 대신 지도에서 그 위치로 날아가 파장을 낸다.
                     // 친구 요청 알림은 다이어리가 없으므로 친구 화면(받은 요청)으로 보낸다.
-                    val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
+                    // 첫 별 공지도 지도로 날아가 그 별을 보여 준다.
+                    val isFriendPost = notif.type == NotificationType.FRIEND_POST.name ||
+                        notif.type == NotificationType.FIRST_STAR.name
                     val isFriendRequest = notif.type == NotificationType.FRIEND_REQUEST.name
                     NotificationItem(
                         notif,
@@ -228,6 +230,7 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
     val isLike = notif.type == NotificationType.LIKE.name
     val isFriendPost = notif.type == NotificationType.FRIEND_POST.name
     val isFriendRequest = notif.type == NotificationType.FRIEND_REQUEST.name
+    val isFirstStar = notif.type == NotificationType.FIRST_STAR.name
 
     Row(
         modifier = Modifier
@@ -240,6 +243,7 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
         Text(
             when {
                 isFriendRequest -> "🙋"
+                isFirstStar -> "🌟"
                 isFriendPost -> "⭐"
                 isLike -> "❤️"
                 else -> "💬"
@@ -268,6 +272,7 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
             Text(
                 text = when {
                     isFriendRequest -> stringResource(R.string.notif_friend_request)
+                    isFirstStar -> stringResource(R.string.notif_first_star)
                     isFriendPost -> stringResource(R.string.notif_friend_post, notif.diaryTitle)
                     isLike -> stringResource(R.string.notif_like, notif.diaryTitle)
                     else -> stringResource(R.string.notif_comment, notif.diaryTitle)
@@ -275,7 +280,7 @@ private fun NotificationItem(notif: AppNotification, onClick: (() -> Unit)? = nu
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.secondary
             )
-            if (!isLike && !isFriendPost && !isFriendRequest && notif.content.isNotEmpty()) {
+            if (!isLike && !isFriendPost && !isFriendRequest && !isFirstStar && notif.content.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "\"${notif.content}\"",

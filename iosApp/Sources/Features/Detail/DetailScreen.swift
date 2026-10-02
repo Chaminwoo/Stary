@@ -14,6 +14,8 @@ struct DetailScreen: View {
     @ObservedObject private var directory = UserDirectory.shared
     @ObservedObject private var unlockStore = DiaryUnlockStore.shared
     @ObservedObject private var ads = AdsManager.shared
+    /// 광고제거 계정 — 잠긴 글을 광고 없이 탭 한 번에 연다(아이콘·안내 문구도 "바로 열기").
+    @ObservedObject private var adFree = AdFreeAccount.shared
     /// 광고 결과·댓글 100m 안내 토스트(Android StaryToast 대응 — FriendsScreen 과 같은 ToastView 패턴).
     @State private var toast: String?
     @State private var didCountView = false
@@ -544,14 +546,17 @@ struct DetailScreen: View {
     private var lockedContentCard: some View {
         VStack(spacing: 0) {
             CrystalPullIcon(
-                image: DiaryLock.playLogoImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 54),
+                image: adFree.active
+                    ? DiaryLock.openLockImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 54)
+                    : DiaryLock.playLogoImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 54),
                 color: accent,
                 iconSize: 54,
-                accessibilityText: LocaleManager.shared.t(.detailWatchAd),
-                onTap: watchAdToUnlock
+                accessibilityText: LocaleManager.shared.t(adFree.active ? .detailOpenNow : .detailWatchAd),
+                onTap: { if adFree.active { unlockWithoutAd() } else { watchAdToUnlock() } }
             )
             Spacer().frame(height: 6)
-            Text(String(format: LocaleManager.shared.t(.detailLockedTitle), Int(AppConfig.diaryOpenRadiusM)))
+            Text(String(format: LocaleManager.shared.t(adFree.active ? .detailLockedTitleAdFree : .detailLockedTitle),
+                        Int(AppConfig.diaryOpenRadiusM)))
                 .font(.minSans(14.5, .medium))
                 .lineSpacing(7)
                 .multilineTextAlignment(.center)
@@ -577,7 +582,16 @@ struct DetailScreen: View {
         .padding(.bottom, 30)
         .background(CornerCrossFrame(color: accent.blended(with: .white, fraction: 0.18)))
         .padding(.vertical, 8)
-        .onAppear { ads.preload() }
+        // 광고제거 계정은 광고를 받지 않는다.
+        .onAppear { if !adFree.active { ads.preload() } }
+    }
+
+    /// 광고제거 계정(`AdFreeAccount`) — 광고 없이 바로 영구 해금(광고 시청 완료와 같은 결과·연출). Android `unlockWithoutAd` 패리티.
+    private func unlockWithoutAd() {
+        guard let id = diary.id else { return }
+        DiaryUnlockStore.shared.unlock(id)
+        Haptics.celebrate()
+        showToast(LocaleManager.shared.t(.detailAdUnlocked))
     }
 
     /// 보상형 광고 → 끝까지 보면 이 글을 **영구 해금**(`DiaryUnlockStore`). (Android `watchAdToUnlock` 패리티)

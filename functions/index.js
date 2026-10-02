@@ -71,6 +71,11 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
       logger.warn(`diary ${diaryId}: userId 없음 → 발송 생략`);
       return;
     }
+    // 나만 보기 글은 아무에게도 알리지 않는다(친구 공개/전체 공개만 친구에게). 앱의 인앱 알림도 같은 규칙.
+    if (diary.visibilityType === "private") {
+      logger.info(`diary ${diaryId}: 나만 보기 → 발송 생략`);
+      return;
+    }
 
     const db = getFirestore(DATABASE_ID);
     const friendsSnap = await db
@@ -154,6 +159,123 @@ exports.notifyFriendsOnDiaryCreate = onDocumentCreated(
     logger.info(
       `diary ${diaryId}: ${success}/${targets.length} 발송 성공` +
         (deadTokenOwners.length ? `, 만료 토큰 ${deadTokenOwners.length}개 정리` : "")
+    );
+  }
+);
+
+/** 최상위: 첫 별 공지(문서 id = 작성자 appUserId — 계정당 1번). StaryConfig.FIRST_STARS 와 같은 값. */
+const FIRST_STARS = "firstStars";
+
+/**
+ * 첫 별 공지 푸시 문구 — 받는 기기의 앱 언어(users/{uid}/fcmTokens/{token}.lang, 앱이 토큰 저장 시 기록).
+ * lang 이 없으면(구버전 앱) 한국어. 앱 문자열 notif_first_star 와 뜻을 맞출 것.
+ */
+const FIRST_STAR_TEXT = {
+  ko: (name) => ({ title: "새로운 별이 떴어요", body: `${name}님이 세상에 첫 별을 남겼어요` }),
+  en: (name) => ({ title: "A new star is born", body: `${name} left their first star in the world` }),
+  ja: (name) => ({ title: "新しい星が生まれました", body: `${name}さんが世界に初めての星を残しました` }),
+};
+
+/**
+ * 첫 별 공지(2026-10-02) — 사용자가 **처음으로 전체 공개** 별을 올리면 모든 사용자에게 알린다.
+ *  - 공개 범위: 전체 공개만. 친구 공개는 친구에게만(notifyFriendsOnDiaryCreate), 나만 보기는 아무에게도.
+ *  - 판정: 이 작성자의 다른 전체 공개 별이 이미 있으면 첫 별이 아니다(기능 도입 전에 올린 별 포함).
+ *  - 계정당 1번: firstStars/{작성자} 를 create() — 이미 있으면 실패하므로 재시도·동시 업로드에도 한 번만.
+ *  - 알림 목록: 앱이 firstStars 를 직접 읽어 알림 화면에 합친다(사용자마다 문서를 만들지 않는다 — 사용자 수만큼 쓰기 방지).
+ *  - 푸시: 모든 기기 토큰(컬렉션 그룹 1회 조회)으로 기기 언어별 발송. 작성자 본인과 친구는 제외
+ *    (친구는 이미 "○○님의 새 별" 푸시를 받는다 — 같은 별로 두 번 울리지 않게).
+ */
+exports.announceFirstStar = onDocumentCreated(
+  {
+    document: "diaries/{diaryId}",
+    database: DATABASE_ID,
+    region: REGION,
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const diary = snap.data();
+    const diaryId = event.params.diaryId;
+    const authorId = diary.userId;
+    const authorName = (diary.userName || "").trim();
+    if (!authorId || !authorName) return;
+    if ((diary.visibilityType || "public") !== "public") return;
+
+    const db = getFirestore(DATABASE_ID);
+    const mine = await db.collection(DIARIES).where("userId", "==", authorId).get();
+    const hasOlderPublic = mine.docs.some(
+      (d) => d.id !== diaryId && (d.get("visibilityType") || "public") === "public"
+    );
+    if (hasOlderPublic) return;
+
+    try {
+      await db.collection(FIRST_STARS).doc(authorId).create({
+        actorId: authorId,
+        actorName: authorName,
+        diaryId,
+        diaryTitle: diary.title || "",
+        createdAt: Date.now(),
+      });
+    } catch (e) {
+      logger.info(`firstStar ${authorId}: 이미 공지됨 → 생략`);
+      return;
+    }
+
+    // 제외 대상: 작성자 본인 + 친구.
+    const friendsSnap = await db.collection(USERS).doc(authorId).collection(FRIENDS).get();
+    const excludedUids = new Set([authorId, ...friendsSnap.docs.map((d) => d.id)]);
+    const tokenSnap = await db.collectionGroup(FCM_TOKENS).get();
+    // 작성자 기기 토큰은 다른 계정 문서에 남아 있어도 제외(같은 기기로 계정을 바꿔 쓴 경우).
+    const authorTokens = new Set(
+      tokenSnap.docs
+        .filter((d) => d.ref.parent.parent && d.ref.parent.parent.id === authorId)
+        .map((d) => d.id)
+    );
+    const byLang = { ko: [], en: [], ja: [] };
+    const seen = new Set();
+    tokenSnap.docs.forEach((d) => {
+      const owner = d.ref.parent.parent;
+      if (!owner || excludedUids.has(owner.id) || authorTokens.has(d.id) || seen.has(d.id)) return;
+      seen.add(d.id);
+      const lang = byLang[d.get("lang")] ? d.get("lang") : "ko";
+      byLang[lang].push({ uid: owner.id, token: d.id });
+    });
+
+    const messaging = getMessaging();
+    let sent = 0;
+    let total = 0;
+    const dead = [];
+    for (const [lang, targets] of Object.entries(byLang)) {
+      if (targets.length === 0) continue;
+      const text = FIRST_STAR_TEXT[lang](authorName);
+      const data = { type: "FIRST_STAR", diaryId, title: text.title, body: text.body };
+      for (let i = 0; i < targets.length; i += FCM_BATCH) {
+        const batch = targets.slice(i, i + FCM_BATCH);
+        const res = await messaging.sendEachForMulticast({
+          tokens: batch.map((t) => t.token),
+          notification: { title: text.title, body: text.body },
+          data,
+          android: ANDROID_OPTS,
+          apns: APNS_OPTS,
+        });
+        total += batch.length;
+        sent += res.successCount;
+        res.responses.forEach((r, idx) => {
+          if (r.success) return;
+          const code = r.error && r.error.code;
+          if (
+            code === "messaging/registration-token-not-registered" ||
+            code === "messaging/invalid-registration-token"
+          ) {
+            dead.push(batch[idx]);
+          }
+        });
+      }
+    }
+    for (const t of dead) await pruneToken(db, t.uid, t.token);
+    logger.info(
+      `firstStar ${authorId}(${diaryId}): ${sent}/${total} 발송 성공` +
+        (dead.length ? `, 만료 토큰 ${dead.length}개 정리` : "")
     );
   }
 );

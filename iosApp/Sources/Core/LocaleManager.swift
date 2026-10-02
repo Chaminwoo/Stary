@@ -155,6 +155,7 @@ enum L10n: String {
     // 댓글 작성은 해금과 무관하게 항상 100m 이내(detailCommentNearOnly).
     case detailLockedTitle, detailLockedDistance, detailCommentNearOnly, detailLockedPhoto, detailLockedVideo
     case detailWatchAd, detailAdUnlocked, detailAdNotFinished, detailAdUnavailable
+    case detailOpenNow, detailLockedTitleAdFree, notifFirstStarRow
     // 내 다이어리 별자리 보드(Android MyDiaryScreen 대응).
     case sortLatest, sortPopular, sortDistance, mydiarySortCount, mydiaryEmpty
     case mydiaryViewList, mydiaryViewStars, commonUntitled
@@ -443,6 +444,11 @@ enum L10n: String {
         case .detailLockedPhoto:    return ("이 사진은 잠겨 있어요", "This photo is locked", "この写真はロックされています")
         case .detailLockedVideo:    return ("이 영상은 잠겨 있어요", "This video is locked", "この動画はロックされています")
         case .detailWatchAd:        return ("광고 보고 열람하기", "Watch an ad to unlock", "広告を見て閲覧する")
+        case .detailOpenNow:        return ("바로 열기", "Open now", "今すぐ開く")
+        case .detailLockedTitleAdFree: return ("%1$dm 이내로 다가가거나,\n탭해서 바로 열어 보세요!",
+                                               "Get within %1$dm,\nor tap to open it now!",
+                                               "%1$dm 以内に近づくか、\nタップしてすぐに開いてください！")
+        case .notifFirstStarRow:    return ("세상에 첫 별을 남겼어요", "left their first star in the world", "世界に初めての星を残しました")
         case .detailAdUnlocked:     return ("이야기가 열렸어요", "The story is unlocked", "物語が開きました")
         case .detailAdNotFinished:  return ("광고를 끝까지 봐야 열려요", "Watch the whole ad to unlock it", "広告を最後まで見ると開きます")
         case .detailAdUnavailable:  return ("지금은 광고를 불러올 수 없어요. 잠시 후 다시 시도해 주세요",

@@ -103,9 +103,14 @@ class FirebaseDiaryRepository : DiaryRepository {
         }
     }
 
-    /** 업로드 성공 시 친구들에게 FRIEND_POST 인앱 알림 생성 (실패해도 저장엔 영향 없음). */
+    /**
+     * 업로드 성공 시 친구들에게 FRIEND_POST 인앱 알림 생성 (실패해도 저장엔 영향 없음).
+     * 공개 범위: 전체/친구 공개 → 친구에게만, **나만 보기 → 아무에게도 알리지 않는다**(iOS UploadScreen 과 동일,
+     * 서버 푸시 notifyFriendsOnDiaryCreate 도 같은 규칙). 전체 공개 첫 별의 전체 공지는 서버(announceFirstStar) 담당.
+     */
     private suspend fun notifyFriendsOfPost(diary: Diary) {
         if (diary.userId.isBlank()) return
+        if (diary.visibilityType == "private") return
         try {
             val friendIds = staryFirestore
                 .collection(StaryConfig.Collections.USERS)

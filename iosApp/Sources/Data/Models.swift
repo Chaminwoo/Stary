@@ -372,7 +372,7 @@ struct AppNotification: Identifiable, Codable {
 
     @DocumentID var id: String?
 
-    // LIKE | COMMENT | FRIEND_POST
+    // LIKE | COMMENT | FRIEND_POST | FRIEND_REQUEST | FIRST_STAR(firstStars 공지를 앱이 합친 것 — FirstStarFeed)
     var type: String = "LIKE"
 
     var diaryId: String = ""
@@ -450,6 +450,8 @@ struct AppNotification: Identifiable, Codable {
             return String(format: LocaleManager.shared.t(.notifFriendPostRow), diaryTitle)
         case "FRIEND_REQUEST":
             return LocaleManager.shared.t(.notifFriendRequestRow)
+        case "FIRST_STAR":
+            return LocaleManager.shared.t(.notifFirstStarRow)
         default:
             return String(format: LocaleManager.shared.t(.notifLikeRow), diaryTitle)
         }
@@ -459,6 +461,7 @@ struct AppNotification: Identifiable, Codable {
     var emoji: String {
         switch type {
         case "FRIEND_REQUEST": return "🙋"
+        case "FIRST_STAR": return "🌟"
         case "FRIEND_POST": return "⭐"
         case "COMMENT": return "💬"
         default: return "❤️"

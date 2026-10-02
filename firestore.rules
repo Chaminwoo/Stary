@@ -213,6 +213,22 @@ match /chats/{chatId} {
       allow update, delete: if false;
     }
 
+    // ── 광고제거 계정(2026-10-02) ──────────────────────────────────────────
+    //  문서 id = appUserId. 문서가 있으면 100m 밖 게시물을 광고 없이 바로 연다(AdFreeAccount).
+    //  본인만 읽고, 쓰기는 Firebase Console/Admin SDK 만 — 사용자가 스스로 켤 수 없게(users 필드로 두지 않은 이유).
+    match /adFree/{userId} {
+      allow read: if isMe(userId);
+      allow write: if false;
+    }
+
+    // ── 첫 별 공지(2026-10-02) ───────────────────────────────────────────
+    //  문서 id = 작성자 appUserId(계정당 1번). 서버(announceFirstStar)만 쓰고 로그인 세션은 모두 읽는다
+    //  (알림 화면에 "○○님이 세상에 첫 별을 남겼어요" 로 합쳐 보여 준다). 전체 공개 별만 들어온다.
+    match /firstStars/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     // 그 외 경로는 모두 거부
     match /{document=**} {
       allow read, write: if false;

@@ -25,6 +25,10 @@ enum AppConfig {
         static let invites = "invites"          // 최상위 (친구 초대 리딤, 문서 id = 리딤한 사람 uid)
         /// users/{uid} 하위: 기기별 FCM 토큰(문서 id = 토큰). StaryConfig.FCM_TOKENS 와 같은 값.
         static let fcmTokens = "fcmTokens"
+        /// 최상위: 광고제거 계정(문서 id = appUserId). StaryConfig.AD_FREE 와 같은 값 — 쓰기는 콘솔/서버만.
+        static let adFree = "adFree"
+        /// 최상위: 첫 별 공지(문서 id = 작성자 appUserId). StaryConfig.FIRST_STARS 와 같은 값 — 서버만 쓴다.
+        static let firstStars = "firstStars"
     }
 
     /// 두 사용자 ID 로 결정적 채팅방 ID 생성(정렬 후 결합).

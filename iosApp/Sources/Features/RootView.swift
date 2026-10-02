@@ -313,11 +313,14 @@ struct MainTabView: View {
             loadFriendsCount()
             // 푸시 권한 요청 + fcmToken 기록(= 서버 발송 대상 등록). Android 로그인 직후 동작과 동일.
             PushManager.shared.setUser(auth.uid)
+            // 광고제거 계정(adFree/{uid}) 감시 — 해당 계정은 잠긴 게시물을 광고 없이 바로 연다.
+            AdFreeAccount.shared.watch(uid: auth.uid)
             maybeStartCoachMark()
         }
         .onChange(of: auth.uid) { newUid in
             store.startIfNeeded(uid: newUid)
             PushManager.shared.setUser(newUid)
+            AdFreeAccount.shared.watch(uid: newUid)
             if let uid = newUid {
                 viewed.start(uid: uid); blocks.start(uid: uid)
                 notifications.start(ownerId: uid)
