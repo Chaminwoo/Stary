@@ -1,0 +1,4 @@
+// 로컬 개발용 시크릿 자동 주입 — 커밋되는 건 이 파일(빈 틀)뿐이다.
+// 실제 키는 Local.secrets.xcconfig (gitignore, 커밋 금지)에 넣으면 아래 include 로 자동 반영된다.
+// 그 파일이 없어도(팀원 최초 클론, CI) 에러 없이 조용히 건너뛰고 MAPTILER_KEY 등은 빈 값(placeholder)으로 빌드된다.
+#include? "Local.secrets.xcconfig"
