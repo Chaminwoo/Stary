@@ -2414,6 +2414,27 @@ id 는 그대로(장착 칭호 유지).
 - **출력**: `references/ads/stary_{showcase|pov|collect}_{15|30}_{ko|en}.mp4`(1080x1920 · 30fps · H.264 CRF17 + AAC). **커밋 안 함**.
 - 한계: 영어판도 앱 UI 는 한국어(영어 UI 녹화가 없어서). 영어 UI 로 다시 녹화하면 같은 스크립트로 바로 재렌더 가능(구간 시각만 맞추면 됨).
 
+## 8.73 iOS 지도 별 부유·스파클 개별화 · 기본 틸트 · 열람 왜곡 강화 · 보상형 광고 연결 (iOS 코드만 — push 후 CI 컴파일 검증 대기 · 2026-10-04)
+사용자 iOS 테스트 피드백 5건. Android 는 건드리지 않음(빌드 영향 없음).
+1. **별 부유 없음** — 단일 별 뷰에는 float 애니메이션이 아예 없었다(머지 별만). 새 `Features/Map/MapStarViews.swift` 의 `StarMarkerView` 로 통합:
+   `zoomHost`(줌 배율) → `floatHost`(±4pt 부유) → 스파클/위성/대표 별. 어노테이션 뷰 자신의 transform 은 MapLibre 의 기울기 원근 배율 자리라 더 이상 건드리지 않는다.
+2. **스파클이 줌아웃에도 보이고 전부 똑같음** — 스파클 줌 게이트 추가(11→0, 13→1, `Coordinator.applyMarkerGate`) + 별마다 id 안정 해시(FNV-1a) 시드로
+   반경/속도/방향/타원 기울기/위상/반짝임이 전부 다름(예전: 위상이 전역 시계에 동기화돼 같은 모양). 위성도 앵커 회전·위상 랜덤.
+   `MapSparkle`/`MergedStarAnnotationView`/`SingleStarAnnotationView` 는 MapLibreView.swift 에서 삭제(MapStarViews.swift 로 이동·교체).
+3. **지도 안 눕혀짐** — `makeUIView` 의 `camera.pitch=25` 는 프레임 0 시점이라 안 먹었다. `Coordinator.ensureBaseTilt` 가 스타일/맵 로드 완료·카메라 이동 끝에서 보정.
+4. **열람 왜곡 약함** — 상수는 Android 와 같았지만 Metal 셰이더 컴파일이 탭 순간 동기 실행돼 가장 센 이징 앞부분이 소진됨 →
+   `WarpGPU.shared` 캐시 + `makeUIView` 프리웜. 진폭 46→75, 밴드 220→260(iOS 만 의도적으로 강하게). 스냅샷이 비면 `afterScreenUpdates:true` 로 1회 재시도.
+5. **100m 밖인데 전부 열림 / 광고** — 상세 잠금 코드 자체는 정상(`canOpen = owner || near(실제 fix + 100m 이내) || reviewAccount || unlockStore`).
+   "다 열림"의 가장 유력한 원인 = **`DiaryUnlockStore.syncWithServer` 의 "잠금 이전 열람" 승계**(2026-09-21 이전에 열어 본 글은 전부 해금 — 테스트 계정이 오래 썼다면 거의 전부) 또는
+   이메일 로그인(심사용 계정) 사용 / 내 글 / 시뮬레이터(내 위치=건국대 고정). DEBUG 콘솔 `🔒 [Lock] … 이유=` 로그로 글마다 확인 가능. 제품 규칙은 바꾸지 않음.
+   광고: `Core/AdsManager.swift`(+`LevelPlayRewarded.swift`, `AdMobRewarded.swift`) 실제 구현 — LevelPlay → AdMob 폴백, ATT, SKAdNetwork, project.yml SPM 패키지
+   (GoogleMobileAds 12.x · LevelPlay 9.6.x + UnityAds 어댑터 · `-ObjC`). 광고 키를 project.yml 에서 빼고 `Local.secrets.xcconfig` 로만 주입(target 설정이 xcconfig 를 덮어쓰던 문제).
+   CI 업로드 잡에 `Local.secrets.xcconfig` 생성 스텝 추가(GitHub Secrets). 사용자 할 일 전부: **`docs/IOS_ADS_SETUP.md`**.
+- 신규: `MapStarViews.swift`, `Core/AdMobRewarded.swift`, `Core/LevelPlayRewarded.swift`, `docs/IOS_ADS_SETUP.md`. L10n `detailAdLoading` 추가.
+- ⚠️ 불확실(Windows 컴파일 불가): LevelPlay Swift API(`LPMInitRequestBuilder`/`LevelPlay.initWith`/`LPMRewardedAd`·델리게이트 시그니처)와 AdMob 12.x API(`MobileAds.shared`/`RewardedAd.load(with:request:)`/`present(from:)`),
+  LevelPlay SPM 해석/링크. CI 가 빨개지면 해당 파일/패키지부터 확인(패키지 줄을 project.yml 에서 지워도 `#if canImport` 덕에 컴파일은 통과 — 광고만 꺼짐).
+- 실기기 확인: 별이 위아래로 둥실, 별마다 스파클 모양 다름·줌아웃 시 사라짐, 지도가 비스듬히 누움, 별 탭 시 화면 왜곡이 확연히 강함, 100m 밖 글 잠금(위 로그), 광고 키 넣은 뒤 광고 재생 후 해금.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **(8.65) 새 버전 안내 실제 동작 확인** — Play 내부 테스트 트랙에서 구버전 설치 → 신버전 업로드 후 앱 실행. iOS 는 App Store 출시 후.
 - [ ] **(8.64) 언어 전환 — Play 내부 테스트 설치본에서 확인**(AAB 언어 분할 끔). 확인되면 CLAUDE.md §2.5 의 "3번 재발" 기록 유지.

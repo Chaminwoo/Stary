@@ -4,7 +4,7 @@ Android: `feature/home/screen/MainListScreen.kt`, `feature/map/screen/DiaryMap.k
 `feature/map/screen/DiaryMapMarkers.kt`, `feature/map/screen/DiaryOpenWarp.kt`,
 `feature/home/screen/MapOnlyOverlay.kt`
 iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swift`,
-`DiaryOpenWarpView.swift`, `StarMerge.swift`, `StarImageRenderer.swift`
+`DiaryOpenWarpView.swift`, `StarMerge.swift`, `StarImageRenderer.swift`, `MapStarViews.swift`
 
 구조 한 줄 요약: `MainListScreen`(필터/글로브/포커스 준비) ⊃ `DiaryMap`(MapLibre 지도 본체)
 ⊃ `DiaryMapMarkers`(상수·표현식·비트맵 헬퍼). **지도는 MainScreen 이 NavHost 뒤에 상시 렌더**(01 문서).
@@ -212,9 +212,27 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   (project.yml 주입)로 치환한 임시 URL. 키 없으면 demotiles 폴백.
 - `Coordinator(MLNMapViewDelegate)` : 마커 어노테이션 관리 —
   `DiaryAnnotation`(대표+members+sizeMult, `markerSize` 40~100pt 0.25 단위 양자화, `imageKey` 공유),
-  `MergedStarAnnotationView`(대표+위성 함께 float — CABasicAnimation 벽시계 위상),
-  `SingleStarAnnotationView`(`scalesWithViewingDistance` 로 줌아웃 시 축소).
+  별 마커 뷰는 `MapStarViews.swift` 의 `StarMarkerView`(단일/겹친 공용, 2026-10-04 재작성 — 아래).
+- **기본 틸트(2026-10-04)** : `makeUIView` 는 프레임이 0 이라 `camera.pitch` 가 안 먹었다 →
+  `Coordinator.ensureBaseTilt` 가 `didFinishLoading style` / `mapViewDidFinishLoadingMap` / `regionDidChangeAnimated` 에서
+  pitch 가 `baseTiltDeg`(25°)에서 0.5° 이상 어긋나 있으면 다시 맞춘다(줌은 복원). `allowsTilting=false` 는 제스처만 막는다.
+- **줌/스파클/위성 게이트** : `applyStarZoomScale`(별 크기) · `applyMarkerGate`(스파클 11→0·13→1, 위성 11→0·13→최대) —
+  값이 바뀔 때만 뷰 순회. 새 뷰는 `viewFor` 에서 지금 줌 값으로 직접 맞춘다(캐시가 낡을 수 있음).
+- 열람 스냅샷: `didSelect` 가 `drawHierarchy(afterScreenUpdates:false)` → 쓸 수 없으면(`WarpMesh.isUsable`) `true` 로 1회 재시도.
+  (MapLibre Metal 의 `snapshot()` 은 nil 이라 drawHierarchy 가 유일한 길.)
+
 - `recenterNonce`/`zoomRequest` 는 `lastRecenterNonce` 등과 비교해 1회 소비(Android 와 같은 패턴).
+
+### MapStarViews.swift (2026-10-04) — 별 마커 뷰
+- 계층: `StarMarkerView(MLNAnnotationView)` → `zoomHost`(줌 배율 transform + 뷰 bounds 도 같이 줄여 탭 영역이 별 크기를 따름,
+  최소 28pt) → `floatHost`(위아래 부유 `transform.translation.y` ±4pt, 주기 2π/1.6s ±5%) → `sparkleHost`(줌 게이트 alpha) + 위성 + 대표 별.
+  ⚠️ **어노테이션 뷰 자신의 `transform`/`layer.transform` 은 건드리지 않는다** — MapLibre 가 `scalesWithViewingDistance` 로 기울기 원근 배율을 거기에 넣는다.
+  MapStarReveal 은 어노테이션 뷰의 alpha·`layer.sublayerTransform` 을 쓰므로 충돌 없음.
+- "별마다 다르게": id 의 **FNV-1a 안정 해시**(`StarMotionHash`, Swift `hashValue` 는 실행마다 달라서 금지) → `StarMotionRandom`(SplitMix64) —
+  부유 위상, 스파클 반경(x0.88~1.12)·속도(x0.8~1.25)·방향(안쪽 랜덤/바깥 반대)·타원 기울기(±0.5rad)·위상·반짝임(0.30~0.90, 각속도 2.4~3.45),
+  겹친 별 위성 앵커 회전·떠다니는 위상. 위상은 `timeOffset`(전역 시계에 동기화하면 전부 같은 모양이 됨).
+- 무한 CA 애니메이션은 `StarAnimJob` 목록으로 들고 `didMoveToWindow`(window 있음) + `willEnterForeground` 에서 빠진 것만 다시 건다.
+- 재사용(dequeue) 없음 — 별마다 자기 시드 모션을 가져야 한다.
 
 ### MapStyleEffects.swift (Coordinator extension)
 - `StyleFx` enum = **Android DiaryMapMarkers 상수 패리티 묶음**: particleCount 400/20km/시드 42,
@@ -230,10 +248,12 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - `DiaryOpenWarpView` : 파장 링(후광·굴절 띠·가장자리 선) + 겹친별 버스트 — 버튼·토스트까지 덮는 위치.
   끝나면 `onFinished`(상세/카드 진입). Android `DiaryOpenWarp` 의 링/버스트 부분.
 - `DiaryWarpMesh.swift`(2026-09-22) : **지도 굴절** — Android `drawBitmapMesh` 의 Metal 포팅.
-  - `WarpMesh.vertices` : Android 와 **같은 14×14 메시 · 같은 식 · 같은 픽셀 상수**(진폭 46·(1−p), 밴드 220, 파수 0.045)로
+  - `WarpMesh.vertices` : Android 와 **같은 14×14 메시 · 같은 식**, 단 **iOS 는 의도적으로 더 강하게**(2026-10-04 사용자 "왜곡 약함"):
+    진폭 `amplitudePx` 75·(1−p)(Android 46), 밴드 `bandPx` 260(Android 220), 파수 0.045 동일 — 모두 픽셀. 꼭짓점을
     꼭짓점을 매 프레임 CPU 계산 → 칸당 삼각형 2개로 스냅샷 텍스처를 입혀 GPU 로(`setVertexBytes` 3.6KB).
   - 셰이더는 글로브처럼 **런타임 컴파일**(`makeLibrary(source:)`) — CI Xcode 의 Metal 툴체인 별도 컴포넌트 문제 회피.
-    실패하면 투명(링만 보임).
+    실패하면 투명(링만 보임). **컴파일/파이프라인/샘플러/인덱스 버퍼는 `WarpGPU.shared`(static, 앱 생애 1회)** — `makeUIView` 에서
+    `WarpGPU.prewarm()` 으로 백그라운드 프리웜. (예전엔 탭 순간 동기 컴파일 + 시작 시각은 탭 시점 고정이라 가장 센 앞부분 이징이 첫 프레임 전에 소진돼 왜곡이 약해 보였다.) 탭마다는 텍스처 업로드만.
   - `DiaryWarpMeshView`(MTKView, 투명 배경) 는 MapScreen 에서 **지도 바로 위**(바다 덮개·하늘·버튼 아래)에 깔린다 —
     메시 가장자리가 밀린 틈으로는 라이브 지도가 비친다. p=1 에서 변위 0 이라 걷어낼 때 이음매 없음.
   - `WarpMesh.isUsable` : 스냅샷을 12×12 로 줄여 가장 밝은 채널 ≤ 4 면 버린다(drawHierarchy 가 Metal 지도를 못 찍어
@@ -248,19 +268,20 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 | 항목 | Android | iOS |
 |---|---|---|
 | 열람 반경 100m(= **상세 잠금 해제** 기준, 진입 차단 아님) | shared `StaryConfig.DIARY_OPEN_RADIUS_M` | `AppConfig.diaryOpenRadiusM` |
-| 기본 줌/틸트/글로브 버튼 줌 | `DiaryMapMarkers` DEFAULT_ZOOM·BASE_TILT_DEG·GLOBE_BUTTON_ZOOM | `MapLibreView` 카메라 코드·baseTiltDeg·globeButtonZoom |
+| 기본 줌/틸트/글로브 버튼 줌 | `DiaryMapMarkers` DEFAULT_ZOOM·BASE_TILT_DEG·GLOBE_BUTTON_ZOOM | `MapLibreView` 카메라 코드·baseTiltDeg(적용은 `Coordinator.ensureBaseTilt`)·globeButtonZoom |
+| 별 부유(±4dp, 2π/1.6s) / 스파클 줌 게이트 / 별마다 다른 모션 | `DiaryMap.kt` 애니 루프(위상 4그룹) · `sparkleSizeExpression` | `MapStarViews.swift` `StarMarkerView`·`MapSparkle.zoomOpacity`(위상은 id 해시 연속값 — Android 4그룹보다 더 다양) |
 | 파티클 수/반경/시드 | PARTICLE_COUNT/RADIUS_M/SEED | `StyleFx.particleCount/RadiusM/Seed` |
 | 별자리 선 색/불투명도/이웃 수 | CONSTELLATION_* 상수 | `StyleFx.constellation*` |
 | 별자리 선 긋기 속도/상한/되감기/도착 플래시 | `CONSTELLATION_DRAW_*`·`_RETRACT_MS`·`_FLASH_*` + `planConstellationDraw` | `ConstellationDraw.swift` `ConstellationFx`(**값·알고리즘 동일**) |
 | 필터 전환 순차 등장(간격/팝/걷어내기) | `REVEAL_*` + `revealPopScale` | `MapStarReveal.swift` `StarRevealFx`(걷어내기 없음 — iOS 는 어노테이션 교체) |
 | 바닥광/오오라 | GROUND_LIGHT_*·aura*Expression | `StyleFx.groundLight*`·refreshAuraFeatures |
 | 별 크기(좋아요/근접/줌) | likeSizeMult·starSizeExpression·STAR_SIZE_* | `DiaryAnnotation.markerSize`·어노테이션 transform(줌 보간 8→0.3/12→0.55/15→1.0) |
-| 열람 파장 굴절(메시 14×14, 진폭 46·(1−p), 밴드 220, 파수 0.045 — px) / 길이·이징 | `DiaryOpenWarp.kt` / `tween(1300, FastOutSlowInEasing)` | `DiaryWarpMesh.swift` `WarpMesh.vertices` / `WarpTiming`(**수치 동일**) |
+| 열람 파장 굴절(메시 14×14, 진폭 46·(1−p), 밴드 220, 파수 0.045 — px) / 길이·이징 | `DiaryOpenWarp.kt` / `tween(1300, FastOutSlowInEasing)` | `DiaryWarpMesh.swift` `WarpMesh.amplitudePx`=75 · `bandPx`=260 (**iOS 가 의도적으로 더 강함**, 2026-10-04) · 메시/파수/`WarpTiming` 동일 |
 | 잠금 안내 문구 | `strings.xml` detail_locked_* / detail_watch_ad | `L10n` detailLocked*/detailWatchAd |
 | 야경 스타일 | `res/raw/maplibre_style.json` | iOS 번들 동일 파일 + Info.plist MAPTILER_KEY |
 | 복귀 재센터 예외 조건 | `MainScreen`(pendingDiaryId) | `MapScreen.onAppear`(pendingDiaryId) |
 | 하늘(여명/황혼) 계산 | `shared/.../core/sky/SkyAlmanac.kt` | `Core/SkyAlmanac.swift` (**수식·상수 복제 — 함께 수정**) |
 | 하늘 렌더(황혼 그라데이션) | `feature/map/screen/SkyOverlay.kt` | `Features/Map/SkyOverlay.swift` (**값 동일**) |
-| 겹친 별 위성 부유 주기/위상 | `DiaryMapMarkers.kt` ORBIT_* + `DiaryMap.kt` 위성 틱(`sin(t(0.7+0.14i)+2.1i)` 등) | `MapLibreView.MergedStarAnnotationView` driftPeriods/driftPhases (**같은 식 — 함께 수정**) |
-| 위성이 보이기 시작하는 줌 | `orbitSizeExpression`(11→0, 13→0.5, 15→1) + 틱 게이트 `zoom > 11.1` | `MergedStarAnnotationView.satelliteOpacity(forZoom:)`(11→0, 13→최대) |
+| 겹친 별 위성 부유 주기/위상 | `DiaryMapMarkers.kt` ORBIT_* + `DiaryMap.kt` 위성 틱(`sin(t(0.7+0.14i)+2.1i)` 등) | `MapStarViews.StarMarkerView` driftPeriods/driftPhases (**같은 식 — 함께 수정**, 별마다 랜덤 오프셋 추가) |
+| 위성이 보이기 시작하는 줌 | `orbitSizeExpression`(11→0, 13→0.5, 15→1) + 틱 게이트 `zoom > 11.1` | `StarMarkerView.satelliteGateAlpha(forZoom:)`(11→0, 13→최대) |
 | 코치마크 버튼 좌표 | `MainOnboardingOverlay.kt` | `MainOnboardingOverlay.swift` — 버튼은 `.global`, 오버레이는 자기 global 원점을 빼서 보정(2026-08-24) |

@@ -95,6 +95,20 @@ struct DetailScreen: View {
         guard isNear, !isOwner, let id = diary.id else { return }
         unlockStore.unlock(id)
     }
+    /// DEBUG 전용 — 이 글이 왜 열려(또는 잠겨) 있는지 Xcode 콘솔에 한 줄 남긴다("100m 밖인데 다 열려 있다" 검증용).
+    /// 열린 이유: owner(내 글) / near(100m 이내) / reviewAccount(이메일 로그인 계정) / unlockStore(이전에 광고·접근·잠금 이전 열람으로 해금).
+    private func debugLogLockState() {
+        #if DEBUG
+        var reasons: [String] = []
+        if isOwner { reasons.append("owner(내 글)") }
+        if isNear { reasons.append(String(format: "near(%.0fm)", distanceM)) }
+        if auth.isReviewAccount { reasons.append("reviewAccount(이메일 로그인)") }
+        if let id = diary.id, let at = unlockStore.unlockedAt[id] { reasons.append("unlockStore(at=\(at))") }
+        let fix = location.coordinate != nil ? "fix" : "no-fix"
+        print("🔒 [Lock] id=\(diary.id ?? "-") canOpen=\(canOpen) distance=\(String(format: "%.0f", distanceM))m gps=\(fix) 이유=\(reasons.isEmpty ? "없음(잠김)" : reasons.joined(separator: ", "))")
+        #endif
+    }
+
     /// 차단한 사용자의 댓글은 숨긴다. (Android DetailScreen 패리티)
     /// 부적절한 표현이 든 남의 댓글도 숨긴다(App Store 1.2 — Android 패리티).
     private var visibleComments: [Comment] {
@@ -145,7 +159,10 @@ struct DetailScreen: View {
             }
         }
         // 100m 이내에 들어오면 영구 해금 기록(Android LaunchedEffect(isNear) 패리티).
-        .onAppear { recordProximityUnlock() }
+        .onAppear {
+            debugLogLockState() // ⚠️ recordProximityUnlock 보다 먼저 — 근접 해금이 먼저 기록되면 "왜 열렸나"가 가려진다
+            recordProximityUnlock()
+        }
         .onChange(of: isNear) { _ in recordProximityUnlock() }
         .fullScreenCover(isPresented: $showFullMedia) {
             FullScreenMediaViewer(
@@ -541,7 +558,7 @@ struct DetailScreen: View {
 
     /// 잠긴 글의 본문 자리 — 좌상단·우하단 **십자 코너**(`CornerCrossFrame`) 안에 크리스탈 재생 로고(탭 = 광고)
     /// + 여는 방법 + 현재 위치로부터의 거리. 카드 배경·테두리는 없다(2026-09-22 레퍼런스 재해석).
-    /// 광고 SDK 가 아직 안 붙은 동안(`AdsManager.isConfigured == false`)에는 탭하면 "광고를 불러올 수 없어요" 안내.
+    /// 광고 키가 없으면(`AdsManager.isConfigured == false` — docs/IOS_ADS_SETUP.md) 탭하면 "광고를 불러올 수 없어요" 안내.
     /// (Android `DiaryLock.kt` `LockedContentCard` 패리티 — 수치 동일)
     private var lockedContentCard: some View {
         VStack(spacing: 0) {
@@ -601,15 +618,20 @@ struct DetailScreen: View {
             showToast(LocaleManager.shared.t(.detailAdUnavailable))
             return
         }
-        ads.showRewarded { rewarded in
-            if rewarded {
-                DiaryUnlockStore.shared.unlock(id)
-                Haptics.celebrate()
-                showToast(LocaleManager.shared.t(.detailAdUnlocked))
-            } else {
-                showToast(LocaleManager.shared.t(.detailAdNotFinished))
+        // 아직 로드 전이면 "불러오는 중이에요" 안내 후 최대 12초 기다렸다 재생(Android showRewardedWhenReady 패리티).
+        ads.showRewardedWhenReady(
+            onWaiting: { showToast(LocaleManager.shared.t(.detailAdLoading)) },
+            onUnavailable: { showToast(LocaleManager.shared.t(.detailAdUnavailable)) },
+            onResult: { rewarded in
+                if rewarded {
+                    DiaryUnlockStore.shared.unlock(id)
+                    Haptics.celebrate()
+                    showToast(LocaleManager.shared.t(.detailAdUnlocked))
+                } else {
+                    showToast(LocaleManager.shared.t(.detailAdNotFinished))
+                }
             }
-        }
+        )
     }
 
     private func showToast(_ text: String) {

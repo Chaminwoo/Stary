@@ -8,6 +8,7 @@
 기능 개발 로드맵/체크리스트는 [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md) 참고(초기 셋업은 완료됨).
 버전별 사용자 관점 변경 요약(스토어 출시 노트용)은 [`docs/PATCH_NOTES.md`](docs/PATCH_NOTES.md) — 새 버전을 낼 때 여기에 추가한다.
 실기기(Android USB / iOS TestFlight) 테스트 방법은 [`docs/DEVICE_TESTING.md`](docs/DEVICE_TESTING.md) 참고.
+iOS 보상형 광고(LevelPlay/AdMob) 키·대시보드 등 사용자가 직접 할 일은 [`docs/IOS_ADS_SETUP.md`](docs/IOS_ADS_SETUP.md) 참고.
 
 ---
 

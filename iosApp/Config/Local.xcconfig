@@ -2,3 +2,8 @@
 // 실제 키는 Local.secrets.xcconfig (gitignore, 커밋 금지)에 넣으면 아래 include 로 자동 반영된다.
 // 그 파일이 없어도(팀원 최초 클론, CI) 에러 없이 조용히 건너뛰고 MAPTILER_KEY 등은 빈 값(placeholder)으로 빌드된다.
 #include? "Local.secrets.xcconfig"
+
+// 광고(AdMob) DEBUG 기본값 — 구글 공식 **테스트** 앱 ID(비밀 아님). 디버그 빌드는 이 값으로 항상 테스트 광고가 나온다
+// (AdMobRewarded 가 DEBUG 에선 테스트 광고 단위만 쓴다). Release 는 Local.secrets.xcconfig 의 ADMOB_APP_ID 를 써야 한다.
+// 값 정의는 docs/IOS_ADS_SETUP.md 참고. (Release 에 값이 없으면 AdMob 은 시작하지 않는다.)
+ADMOB_APP_ID[config=Debug] = ca-app-pub-3940256099942544~1458002511

@@ -165,10 +165,10 @@ struct MapLibreView: UIViewRepresentable {
             )
         }
 
-        // 기본 기울기.
-        let camera = mapView.camera
-        camera.pitch = Self.baseTiltDeg
-        mapView.setCamera(camera, animated: false)
+        // 기본 기울기는 여기서 못 준다(프레임이 0 이라 pitch 가 안 먹는다) —
+        // 스타일/맵 로드 완료·카메라 이동 끝에서 Coordinator.ensureBaseTilt 가 맞춘다.
+        // 열람 왜곡용 Metal 셰이더/파이프라인을 백그라운드에서 미리 컴파일(첫 탭 지연 방지).
+        WarpGPU.prewarm()
 
         // 회전/기울기 제스처 잠금.
         mapView.allowsRotating = false
@@ -427,8 +427,9 @@ struct MapLibreView: UIViewRepresentable {
         /// 저줌 게이트 상태.
         var lastGateZero = false
 
-        /// 마지막으로 적용한 위성 불투명도(줌 게이트) — 값이 바뀔 때만 순회한다.
-        var satelliteOpacity: CGFloat = -1
+        /// 마지막으로 적용한 스파클/위성 불투명도(줌 게이트) — 값이 바뀔 때만 순회한다.
+        var lastSparkleGate: CGFloat = -1
+        var lastSatelliteGate: CGFloat = -1
 
         init(_ parent: MapLibreView) {
             self.parent = parent
@@ -474,35 +475,34 @@ struct MapLibreView: UIViewRepresentable {
             return CGFloat(s)
         }
 
-        /// 겹친 별 위성 표시/숨김 — 줌이 낮으면(멀리 보면) 지운다. Android `orbitSizeExpression` 대응.
-        func applySatelliteZoomGate(
+        /// 스파클/겹친 별 위성 표시·숨김 — 줌이 낮으면(멀리 보면) 지운다. Android `sparkleSizeExpression`/`orbitSizeExpression` 대응.
+        /// 값이 바뀔 때만 뷰를 순회한다. 방금 만든 뷰는 순회 대상이 아니므로 viewFor 에서 `applyZoomGate` 로 따로 맞춘다.
+        func applyMarkerGate(
             _ mapView: MLNMapView
         ) {
 
-            let a =
-                MergedStarAnnotationView.satelliteOpacity(
-                    forZoom: mapView.zoomLevel
-                )
+            let sparkle = MapSparkle.zoomOpacity(forZoom: mapView.zoomLevel)
+            let satellite = StarMarkerView.satelliteGateAlpha(forZoom: mapView.zoomLevel)
 
             guard
-                abs(a - satelliteOpacity) > 0.01
+                abs(sparkle - lastSparkleGate) > 0.01
+                    || abs(satellite - lastSatelliteGate) > 0.01
             else {
                 return
             }
 
-            satelliteOpacity = a
+            lastSparkleGate = sparkle
+            lastSatelliteGate = satellite
 
             for annotation in mapView.annotations ?? [] {
 
                 guard
-                    let v = mapView.view(
-                        for: annotation
-                    ) as? MergedStarAnnotationView
+                    let v = mapView.view(for: annotation) as? StarMarkerView
                 else {
                     continue
                 }
 
-                v.applySatelliteOpacity(a)
+                v.applyZoomGate(sparkle: sparkle, satellite: satellite)
             }
         }
 
@@ -522,23 +522,54 @@ struct MapLibreView: UIViewRepresentable {
 
             starZoomScale = s
 
+            // ⚠️ 어노테이션 뷰 자신의 transform 은 건드리지 않는다(MapLibre 가 기울기 원근 배율을 layer.transform 에 넣는다).
+            // 줌 배율은 StarMarkerView 안쪽 zoomHost 가 맡는다.
             for annotation in mapView.annotations ?? [] {
 
                 guard
                     annotation is DiaryAnnotation,
                     let v = mapView.view(
                         for: annotation
-                    )
+                    ) as? StarMarkerView
                 else {
                     continue
                 }
 
-                v.transform =
-                    CGAffineTransform(
-                        scaleX: s,
-                        y: s
-                    )
+                v.applyZoomScale(s)
             }
+        }
+
+        // MARK: Base Tilt
+
+        /// 기본 기울기(Android BASE_TILT_DEG=25) 보장 — makeUIView 시점엔 프레임이 0 이라 setCamera 의 pitch 가 안 먹으므로,
+        /// 레이아웃 후(스타일/맵 로드 완료, 카메라 이동 끝)에 pitch 가 어긋나 있으면 다시 맞춘다. 줌/중심은 그대로.
+        func ensureBaseTilt(
+            _ mapView: MLNMapView
+        ) {
+
+            guard
+                mapView.bounds.height > 0,
+                abs(mapView.camera.pitch - MapLibreView.baseTiltDeg) > 0.5
+            else {
+                return
+            }
+
+            let zoom = mapView.zoomLevel
+            let cam = mapView.camera
+
+            cam.pitch = MapLibreView.baseTiltDeg
+            mapView.setCamera(cam, animated: false)
+
+            // altitude 기준으로 다시 풀리며 줌이 미세하게 어긋날 수 있다 — 원래 줌으로 복원.
+            if abs(mapView.zoomLevel - zoom) > 0.01 {
+                mapView.setZoomLevel(zoom, animated: false)
+            }
+        }
+
+        func mapViewDidFinishLoadingMap(
+            _ mapView: MLNMapView
+        ) {
+            ensureBaseTilt(mapView)
         }
 
         // MARK: World Void
@@ -629,7 +660,7 @@ struct MapLibreView: UIViewRepresentable {
             isCameraMoving = true
 
             applyStarZoomScale(mapView)
-            applySatelliteZoomGate(mapView)
+            applyMarkerGate(mapView)
             applyStyleEffectZoom(mapView)
             reportWorldVoid(mapView)
             reportGlobeAvailability(mapView, idle: false)
@@ -654,8 +685,9 @@ struct MapLibreView: UIViewRepresentable {
 
             isCameraMoving = false
 
+            ensureBaseTilt(mapView)
             applyStarZoomScale(mapView)
-            applySatelliteZoomGate(mapView)
+            applyMarkerGate(mapView)
             applyStyleEffectZoom(mapView)
             reportWorldVoid(mapView)
             reportGlobeAvailability(mapView, idle: true)
@@ -703,55 +735,20 @@ struct MapLibreView: UIViewRepresentable {
                 return nil
             }
 
-            let scale =
-                CGAffineTransform(
-                    scaleX: starZoomScale,
-                    y: starZoomScale
-                )
+            // 별마다 자기 모션(시드)을 가져야 하므로 재사용(dequeue) 안 함.
+            // 줌 배율은 캐시(starZoomScale)가 낡았을 수 있어 지금 줌에서 직접 계산한다.
+            let zoom = mapView.zoomLevel
 
-            // 머지된 별.
-            if d.members.count > 1 {
+            let v = StarMarkerView(annotation: d)
 
-                let v =
-                    MergedStarAnnotationView(
-                        annotation: d
-                    )
+            v.applyZoomScale(Self.starScale(forZoom: zoom))
 
-                v.transform = scale
+            // 지금 줌의 스파클/위성 게이트를 바로 반영(방금 만든 뷰는 순회 대상이 아니었다).
+            v.applyZoomGate(
+                sparkle: MapSparkle.zoomOpacity(forZoom: zoom),
+                satellite: StarMarkerView.satelliteGateAlpha(forZoom: zoom)
+            )
 
-                // 지금 줌의 위성 게이트를 바로 반영(방금 만든 뷰는 순회 대상이 아니었다).
-                v.applySatelliteOpacity(
-                    MergedStarAnnotationView.satelliteOpacity(
-                        forZoom: mapView.zoomLevel
-                    )
-                )
-                applyRevealState(to: v, id: d.diary.id ?? "")
-
-                return v
-            }
-
-            // 단일 별.
-            let id =
-                "single-\(d.imageKey)"
-
-            if let reused =
-                mapView.dequeueReusableAnnotationView(
-                    withIdentifier: id
-                ) {
-
-                reused.transform = scale
-                applyRevealState(to: reused, id: d.diary.id ?? "")
-
-                return reused
-            }
-
-            let v =
-                SingleStarAnnotationView(
-                    annotation: d,
-                    reuseIdentifier: id
-                )
-
-            v.transform = scale
             applyRevealState(to: v, id: d.diary.id ?? "")
 
             return v
@@ -864,16 +861,24 @@ struct MapLibreView: UIViewRepresentable {
                         )
                     )
 
-                let snapshot =
+                // MLNMapView 는 snapshot API 가 Metal 에서 nil 이라 drawHierarchy 가 유일한 길.
+                // 첫 시도(afterScreenUpdates: false)가 검정/투명이면 한 번 더 화면 갱신을 기다려 찍는다.
+                func capture(_ afterUpdates: Bool) -> UIImage {
                     UIGraphicsImageRenderer(
                         bounds: mapView.bounds
                     ).image { _ in
-
                         mapView.drawHierarchy(
                             in: mapView.bounds,
-                            afterScreenUpdates: false
+                            afterScreenUpdates: afterUpdates
                         )
                     }
+                }
+
+                var snapshot = capture(false)
+
+                if !WarpMesh.isUsable(snapshot) {
+                    snapshot = capture(true)
+                }
 
                 parent.onTapStar(
                     d.members,
@@ -932,729 +937,6 @@ final class PioneerAnnotation:
         self.title = nil
 
         super.init()
-    }
-}
-
-// MARK: - Map Sparkle
-
-/// 별 마커 곁을 도는 스파클 파티클.
-enum MapSparkle {
-
-    /// 큰 별 기준.
-    static let bigStarThreshold: Double = 1.75
-
-    /// 최대 궤도 영역 비율.
-    static let maxOrbitExtentRatio: CGFloat =
-        0.62 + 0.16
-
-    /// sizeMult에 따른 파티클 수.
-    static func particleCount(
-        sizeMult: Double
-    ) -> Int {
-
-        if sizeMult >= 2.6 {
-            return 3
-        }
-
-        if sizeMult >= 1.6 {
-            return 2
-        }
-
-        return 1
-    }
-
-    /// 공전 파티클 설치.
-    static func install(
-        on host: UIView,
-        center: CGPoint,
-        markerSize: CGFloat,
-        sizeMult: Double,
-        starType: Int,
-        starColor: Int
-    ) {
-
-        let count =
-            particleCount(
-                sizeMult: sizeMult
-            )
-
-        let big =
-            sizeMult >= bigStarThreshold
-
-        let radii: [CGFloat] = [
-            markerSize * 0.42,
-            markerSize * 0.56,
-            markerSize * 0.62
-        ]
-
-        let sizes: [CGFloat] = [
-            markerSize * 0.30,
-            markerSize * 0.24,
-            markerSize * 0.16
-        ]
-
-        let periods: [Double] = [
-            2 * .pi / 1.1,
-            2 * .pi / 0.8,
-            2 * .pi / 1.5
-        ]
-
-        let clockwise: [Bool] = [
-            true,
-            false,
-            true
-        ]
-
-        for set in 0..<count {
-
-            let size =
-                sizes[set]
-
-            let image =
-                big
-                ? StarImageRenderer.image(
-                    type: starType,
-                    colorIndex: starColor,
-                    size: size
-                )
-                : whiteSparkle(
-                    size: size
-                )
-
-            let iv =
-                UIImageView(
-                    image: image
-                )
-
-            iv.bounds =
-                CGRect(
-                    x: 0,
-                    y: 0,
-                    width: size,
-                    height: size
-                )
-
-            iv.center = center
-            iv.alpha = 0.95
-
-            host.addSubview(iv)
-
-            addOrbit(
-                to: iv,
-                center: center,
-                radius: radii[set],
-                period: periods[set],
-                clockwise: clockwise[set],
-                phaseFraction:
-                    Double(set) * 0.37
-            )
-        }
-    }
-
-    private static func addOrbit(
-        to view: UIView,
-        center: CGPoint,
-        radius: CGFloat,
-        period: Double,
-        clockwise: Bool,
-        phaseFraction: Double
-    ) {
-
-        let ySquash: CGFloat = 0.55
-
-        let rect =
-            CGRect(
-                x: center.x - radius,
-                y: center.y - radius * ySquash,
-                width: radius * 2,
-                height: radius * ySquash * 2
-            )
-
-        let oval =
-            UIBezierPath(
-                ovalIn: rect
-            )
-
-        let path =
-            clockwise
-            ? oval
-            : oval.reversing()
-
-        let anim =
-            CAKeyframeAnimation(
-                keyPath: "position"
-            )
-
-        anim.path = path.cgPath
-        anim.duration = period
-        anim.calculationMode = .paced
-        anim.repeatCount = .infinity
-        anim.isRemovedOnCompletion = false
-
-        anim.timeOffset =
-            (
-                CACurrentMediaTime()
-                + phaseFraction * period
-            )
-            .truncatingRemainder(
-                dividingBy: period
-            )
-
-        view.layer.add(
-            anim,
-            forKey: "orbit"
-        )
-    }
-
-    // MARK: White Sparkle
-
-    private static var whiteCache:
-        [Int: UIImage] = [:]
-
-    private static func whiteSparkle(
-        size: CGFloat
-    ) -> UIImage {
-
-        let key =
-            Int(size.rounded())
-
-        if let cached =
-            whiteCache[key] {
-            return cached
-        }
-
-        let px =
-            CGFloat(
-                max(key, 1)
-            )
-
-        let img =
-            UIGraphicsImageRenderer(
-                size: CGSize(
-                    width: px,
-                    height: px
-                )
-            ).image { ctx in
-
-                let cg =
-                    ctx.cgContext
-
-                let body =
-                    px * 0.68
-
-                let rect =
-                    CGRect(
-                        x: (px - body) / 2,
-                        y: (px - body) / 2,
-                        width: body,
-                        height: body
-                    )
-
-                let path =
-                    StarShape(
-                        type: 0
-                    ).path(
-                        in: rect
-                    ).cgPath
-
-                cg.setShadow(
-                    offset: .zero,
-                    blur: px * 0.18,
-                    color:
-                        UIColor.white
-                        .withAlphaComponent(0.9)
-                        .cgColor
-                )
-
-                cg.setFillColor(
-                    UIColor.white.cgColor
-                )
-
-                cg.addPath(path)
-
-                cg.fillPath(
-                    using: .evenOdd
-                )
-            }
-
-        whiteCache[key] = img
-
-        return img
-    }
-}
-
-// MARK: - Merged Star Annotation View
-
-/// 겹친 별(머지) 마커 뷰.
-final class MergedStarAnnotationView:
-    MLNAnnotationView {
-
-    private static let maxOrbitStars = 4
-
-    private static let anchorAngles: [CGFloat] = [
-        -0.6,
-        2.3,
-        4.1,
-        1.1
-    ]
-
-    // 위성 부유 주기/위상 — Android `DiaryMap` 의 위성 식과 같은 값(값 drift 금지):
-    //   driftX = sin(t × (0.7 + 0.14i) + i × 2.1) × 0.8
-    //   driftY = sin(t × (1.15 + 0.18i) + i × 1.4) × 1.0
-    // 주기 = 2π / 각속도, 위상 = (i × 위상상수) / 2π (0..1 비율).
-    // ⚠️ 위상까지 주지 않으면 **모든 위성이 같은 순간 같은 방향으로** 움직여 한 덩어리로 보인다.
-    private static let driftPeriodsX: [Double] = [
-        2 * Double.pi / 0.70,
-        2 * Double.pi / 0.84,
-        2 * Double.pi / 0.98,
-        2 * Double.pi / 1.12
-    ]
-
-    private static let driftPeriodsY: [Double] = [
-        2 * Double.pi / 1.15,
-        2 * Double.pi / 1.33,
-        2 * Double.pi / 1.51,
-        2 * Double.pi / 1.69
-    ]
-
-    private static let driftPhasesX: [Double] = [0, 2.1, 4.2, 6.3].map {
-        ($0 / (2 * Double.pi)).truncatingRemainder(dividingBy: 1)
-    }
-
-    private static let driftPhasesY: [Double] = [0, 1.4, 2.8, 4.2].map {
-        ($0 / (2 * Double.pi)).truncatingRemainder(dividingBy: 1)
-    }
-
-    private static let satSize: CGFloat = 16
-
-    /// 위성 기본 불투명도(줌 게이트가 열렸을 때).
-    static let satelliteAlpha: CGFloat = 0.92
-
-    /// 위성이 보이기 시작하는 줌 / 완전히 드러나는 줌 —
-    /// Android `orbitSizeExpression`(줌 11 이하 0) + 부유 갱신 게이트(zoom > 11.1) 대응.
-    /// 멀리서 겹침을 식별할 일은 없으므로 저줌에선 잡동사니처럼 보이지 않게 지운다.
-    static let satelliteMinZoom: Double = 11
-    static let satelliteFullZoom: Double = 13
-
-    /// 줌 → 위성 불투명도(0 = 안 보임).
-    static func satelliteOpacity(forZoom zoom: Double) -> CGFloat {
-        guard zoom > satelliteMinZoom else { return 0 }
-        guard zoom < satelliteFullZoom else { return satelliteAlpha }
-        let t = (zoom - satelliteMinZoom) / (satelliteFullZoom - satelliteMinZoom)
-        return satelliteAlpha * CGFloat(t)
-    }
-
-    private static let driftAmpX: CGFloat = 0.8
-    private static let driftAmpY: CGFloat = 1.0
-
-    private static let floatAmp: CGFloat = 4.0
-
-    private static let floatPeriod: Double =
-        2 * .pi / 1.6
-
-    private static let floatPhaseGroups = 4
-
-    private var satellites:
-        [(view: UIImageView, index: Int)] = []
-
-    private let repId: String
-
-    private static func radius(
-        markerSize: CGFloat,
-        satIndex: Int
-    ) -> CGFloat {
-
-        markerSize * 0.09
-        + 0.5
-        + CGFloat(satIndex) * 1.0
-    }
-
-    init(annotation: DiaryAnnotation) {
-
-        let markerSize =
-            annotation.markerSize
-
-        let members =
-            Array(
-                annotation.members
-                    .dropFirst()
-                    .prefix(Self.maxOrbitStars)
-            )
-
-        let maxRadius =
-            Self.radius(
-                markerSize: markerSize,
-                satIndex:
-                    max(
-                        members.count - 1,
-                        0
-                    )
-            )
-
-        let satExtent =
-            maxRadius
-            + Self.satSize / 2
-            + Self.driftAmpY
-            + Self.floatAmp
-
-        let orbitExtent =
-            markerSize
-            * MapSparkle.maxOrbitExtentRatio
-            + Self.floatAmp
-
-        let side =
-            max(
-                satExtent,
-                orbitExtent
-            ) * 1.8
-
-        // Diary.id가 String?이라는 기존 코드 가정.
-        self.repId =
-            annotation.diary.id ?? ""
-
-        super.init(
-            reuseIdentifier: nil
-        )
-
-        frame =
-            CGRect(
-                x: 0,
-                y: 0,
-                width: side,
-                height: side
-            )
-
-        backgroundColor = .clear
-        clipsToBounds = false
-        scalesWithViewingDistance = true
-
-        // 스파클 먼저 설치.
-        MapSparkle.install(
-            on: self,
-            center:
-                CGPoint(
-                    x: side / 2,
-                    y: side / 2
-                ),
-            markerSize: markerSize,
-            sizeMult: annotation.sizeMult,
-            starType: annotation.diary.starType,
-            starColor: annotation.diary.starColor
-        )
-
-        // 위성.
-        for (i, m)
-            in members.enumerated() {
-
-            let iv =
-                UIImageView(
-                    image:
-                        StarImageRenderer.image(
-                            type: m.starType,
-                            colorIndex: m.starColor,
-                            size: Self.satSize
-                        )
-                )
-
-            iv.bounds =
-                CGRect(
-                    x: 0,
-                    y: 0,
-                    width: Self.satSize,
-                    height: Self.satSize
-                )
-
-            let ang =
-                Self.anchorAngles[i]
-
-            let r =
-                Self.radius(
-                    markerSize: markerSize,
-                    satIndex: i
-                )
-
-            iv.center =
-                CGPoint(
-                    x:
-                        side / 2
-                        + cos(ang) * r,
-                    y:
-                        side / 2
-                        + sin(ang)
-                        * 0.55
-                        * r
-                )
-
-            iv.alpha = Self.satelliteAlpha
-
-            addSubview(iv)
-
-            satellites.append(
-                (
-                    view: iv,
-                    index: i
-                )
-            )
-        }
-
-        // 대표 별.
-        let rep =
-            UIImageView(
-                image:
-                    StarImageRenderer.image(
-                        type:
-                            annotation.diary.starType,
-                        colorIndex:
-                            annotation.diary.starColor,
-                        size: markerSize
-                    )
-            )
-
-        rep.frame =
-            CGRect(
-                x:
-                    (side - markerSize) / 2,
-                y:
-                    (side - markerSize) / 2,
-                width: markerSize,
-                height: markerSize
-            )
-
-        addSubview(rep)
-    }
-
-    required init?(
-        coder: NSCoder
-    ) {
-        fatalError(
-            "init(coder:) is not supported"
-        )
-    }
-
-    override func didMoveToWindow() {
-
-        super.didMoveToWindow()
-
-        guard window != nil else {
-            return
-        }
-
-        installFloat()
-    }
-
-    private func installFloat() {
-
-        let now =
-            CACurrentMediaTime()
-
-        if layer.animation(
-            forKey: "float"
-        ) == nil {
-
-            let group =
-                Int(
-                    UInt(
-                        bitPattern:
-                            repId.hashValue
-                    )
-                    % UInt(
-                        Self.floatPhaseGroups
-                    )
-                )
-
-            let phase =
-                Double(group)
-                / Double(
-                    Self.floatPhaseGroups
-                )
-
-            layer.add(
-                Self.drift(
-                    keyPath:
-                        "transform.translation.y",
-                    amp: Self.floatAmp,
-                    period: Self.floatPeriod,
-                    now: now,
-                    phaseFraction: phase
-                ),
-                forKey: "float"
-            )
-        }
-
-        for (iv, i)
-            in satellites {
-
-            guard
-                iv.layer.animation(
-                    forKey: "drift-x"
-                ) == nil
-            else {
-                continue
-            }
-
-            iv.layer.add(
-                Self.drift(
-                    keyPath:
-                        "transform.translation.x",
-                    amp: Self.driftAmpX,
-                    period:
-                        Self.driftPeriodsX[i],
-                    now: now,
-                    phaseFraction:
-                        Self.driftPhasesX[i]
-                ),
-                forKey: "drift-x"
-            )
-
-            iv.layer.add(
-                Self.drift(
-                    keyPath:
-                        "transform.translation.y",
-                    amp: Self.driftAmpY,
-                    period:
-                        Self.driftPeriodsY[i],
-                    now: now,
-                    phaseFraction:
-                        Self.driftPhasesY[i]
-                ),
-                forKey: "drift-y"
-            )
-        }
-    }
-
-    /// 줌 게이트 반영 — 일정 줌 이하로 빼면 위성이 사라진다(Android 패리티).
-    func applySatelliteOpacity(
-        _ alpha: CGFloat
-    ) {
-        for (iv, _) in satellites {
-            iv.alpha = alpha
-        }
-    }
-
-    private static func drift(
-        keyPath: String,
-        amp: CGFloat,
-        period: Double,
-        now: Double,
-        phaseFraction: Double = 0
-    ) -> CABasicAnimation {
-
-        let a =
-            CABasicAnimation(
-                keyPath: keyPath
-            )
-
-        a.fromValue = -amp
-        a.toValue = amp
-        a.duration = period / 2
-        a.autoreverses = true
-        a.repeatCount = .infinity
-
-        a.timingFunction =
-            CAMediaTimingFunction(
-                name: .easeInEaseOut
-            )
-
-        a.timeOffset =
-            (
-                now
-                + phaseFraction * period
-            )
-            .truncatingRemainder(
-                dividingBy: period
-            )
-
-        return a
-    }
-}
-
-// MARK: - Single Star Annotation View
-
-/// 단일 별 마커 뷰.
-final class SingleStarAnnotationView:
-    MLNAnnotationView {
-
-    init(
-        annotation: DiaryAnnotation,
-        reuseIdentifier: String
-    ) {
-
-        let markerSize =
-            annotation.markerSize
-
-        let box =
-            (
-                markerSize / 2
-                + markerSize
-                * MapSparkle.maxOrbitExtentRatio
-            ) * 2
-
-        super.init(
-            reuseIdentifier: reuseIdentifier
-        )
-
-        frame =
-            CGRect(
-                x: 0,
-                y: 0,
-                width: box,
-                height: box
-            )
-
-        backgroundColor = .clear
-        clipsToBounds = false
-        scalesWithViewingDistance = true
-
-        let center =
-            CGPoint(
-                x: box / 2,
-                y: box / 2
-            )
-
-        // 파티클 먼저.
-        MapSparkle.install(
-            on: self,
-            center: center,
-            markerSize: markerSize,
-            sizeMult: annotation.sizeMult,
-            starType: annotation.diary.starType,
-            starColor: annotation.diary.starColor
-        )
-
-        // 대표 별.
-        let iv =
-            UIImageView(
-                image:
-                    StarImageRenderer.image(
-                        type:
-                            annotation.diary.starType,
-                        colorIndex:
-                            annotation.diary.starColor,
-                        size: markerSize
-                    )
-            )
-
-        iv.frame =
-            CGRect(
-                x:
-                    center.x - markerSize / 2,
-                y:
-                    center.y - markerSize / 2,
-                width: markerSize,
-                height: markerSize
-            )
-
-        iv.contentMode = .scaleAspectFit
-
-        addSubview(iv)
-    }
-
-    required init?(
-        coder: NSCoder
-    ) {
-        fatalError(
-            "init(coder:) is not supported"
-        )
     }
 }
 

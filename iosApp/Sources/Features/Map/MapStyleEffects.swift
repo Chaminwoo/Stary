@@ -71,6 +71,7 @@ extension MapLibreView.Coordinator {
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         styleRef = style
         mapRef = mapView
+        ensureBaseTilt(mapView) // 기본 기울기(25°) — 프레임이 잡힌 뒤라 여기서부터 pitch 가 먹는다
         guard style.source(withIdentifier: StyleFx.particleSourceID) == nil else { return }
 
         // ── 별가루 파티클 — 시작 위치 기준 1회 생성, 이후 갱신 없음(Android 동일) ──

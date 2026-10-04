@@ -134,8 +134,13 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
   에서 접근 해금 기록), `canComment = 로그인 && isNear`. 잠김이면 미디어 있을 때만 `lockedHero`(loading_dipper + 우하단 캡션) + `lockedContentCard`(크리스탈 재생 로고 `DiaryLock.playLogoPath` — Android `PlayLogo` 와 같은 24×24 좌표).
   공용 부품은 `DiaryLockViews.swift`(`DiaryLock` 상수/시드/고무줄 + `CrystalPullIcon`), 경로 아이콘 베이크는
   `StarCrystal.pathIconImage`. 시드는 Java `String.hashCode` 와 같은 식이라 두 플랫폼 무늬가 같다.
-  광고 결과·댓글 100m 안내는 `ToastView` 토스트. ⚠️ **iOS 는 아직 Unity Ads SDK 미연결**(`Core/AdsManager.swift`
-  스텁, `isConfigured == false`) → 아이콘을 탭하면 "광고를 불러올 수 없어요". 다음 iOS 광고 라운드에서 TODO 자리를 채운다.
+  광고 결과·댓글 100m 안내는 `ToastView` 토스트.
+  **iOS 보상형 광고(2026-10-04 연결)** : `Core/AdsManager.swift`(Android `AdsManager.kt` 와 같은 계약 — LevelPlay 1순위 → AdMob 폴백,
+  `showRewardedWhenReady` 12초 대기 + "광고를 불러오는 중이에요…" 토스트, 보상은 `didRewardAd` 만·닫힘 후 1.5초 유예) +
+  `Core/LevelPlayRewarded.swift` + `Core/AdMobRewarded.swift`(둘 다 `#if canImport` — 패키지 없어도 컴파일, 키 없으면 광고만 꺼짐).
+  ATT 팝업은 광고 키가 있을 때만(앱 active 후 1회), 답 난 뒤 SDK 시작. DEBUG 는 AdMob 구글 **테스트** 단위 고정(Android 동일).
+  **키/대시보드 등 사용자가 할 일은 [`docs/IOS_ADS_SETUP.md`](../IOS_ADS_SETUP.md).**
+  DEBUG 에서 상세를 열면 콘솔에 `🔒 [Lock] … 이유=` 로그가 찍힌다(owner/near/reviewAccount/unlockStore 중 무엇으로 열렸는지).
 - `DetailViewModel.swift` : 좋아요/댓글 리스너 — ⚠️ 모델 디코딩은 `@DocumentID` 명시 디코드 필수
   (12 문서의 id=nil 버그 참고).
 - `StarClusterView.swift` : 겹친 별 카드 뷰어(자체 뒤로가기, 내비바 숨김). 카드 탭 → pop 후 0.35s

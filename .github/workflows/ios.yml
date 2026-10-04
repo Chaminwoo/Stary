@@ -137,6 +137,22 @@ jobs:
         if: ${{ env.GOOGLE_SERVICE_INFO_PLIST != '' }}
         run: echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > iosApp/Sources/GoogleService-Info.plist
 
+      # 광고 키(보상형) — GitHub Secrets 에 값을 넣으면 Local.secrets.xcconfig 로 써서 빌드에 주입한다(없으면 광고만 꺼짐).
+      # 설정법: docs/IOS_ADS_SETUP.md. 값에 `//` 가 들어가면 xcconfig 가 주석으로 먹으니 주의(AdMob/LevelPlay ID 에는 없음).
+      - name: (선택) 광고 키 주입 → Local.secrets.xcconfig
+        env:
+          LEVELPLAY_APP_KEY: ${{ secrets.LEVELPLAY_APP_KEY }}
+          LEVELPLAY_REWARDED_AD_UNIT: ${{ secrets.LEVELPLAY_REWARDED_AD_UNIT }}
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_REWARDED_AD_UNIT: ${{ secrets.ADMOB_REWARDED_AD_UNIT }}
+        run: |
+          {
+            echo "LEVELPLAY_APP_KEY = $LEVELPLAY_APP_KEY"
+            echo "LEVELPLAY_REWARDED_AD_UNIT = $LEVELPLAY_REWARDED_AD_UNIT"
+            echo "ADMOB_APP_ID = $ADMOB_APP_ID"
+            echo "ADMOB_REWARDED_AD_UNIT = $ADMOB_REWARDED_AD_UNIT"
+          } > iosApp/Config/Local.secrets.xcconfig
+
       - name: fastlane beta (TestFlight 업로드 + build/*.ipa 생성)
         working-directory: iosApp
         run: bundle exec fastlane beta

@@ -14,6 +14,9 @@ import UIKit
 // 셰이더/파이프라인/텍스처 중 하나라도 실패하면 뷰는 아무것도 그리지 않는다(아래 라이브 지도 + 링만 보임).
 //
 // ⚠️ 상수를 고칠 땐 Android `DiaryOpenWarp.kt` 와 함께(메시 14, 진폭 46·(1−p), 밴드 220, 파수 0.045 — 전부 픽셀).
+//    단, iOS 는 진폭/밴드를 **의도적으로 Android 보다 크게**(2026-10-04 사용자 피드백 "화면 왜곡 약함") — `WarpMesh.amplitudePx/bandPx`.
+// 셰이더/파이프라인/샘플러는 `WarpGPU` 가 앱 생애 1회만 만들고(지도 진입 시 백그라운드 프리웜) 탭마다는 텍스처만 올린다.
+// (예전엔 탭 순간 동기 컴파일 → 시작 시각은 탭 시점 고정이라 가장 센 앞부분 이징이 첫 프레임 전에 소진됐다.)
 
 /// 파장 타이밍 — 링(SwiftUI Canvas)과 메시(Metal)가 **같은 시작 시각·같은 이징**으로 움직이도록 한 곳에 둔다.
 /// (격리 없는 enum — 렌더러 draw 와 SwiftUI body 양쪽에서 부른다.)
@@ -46,6 +49,11 @@ enum WarpTiming {
 
 /// 스냅샷 검사/메시 계산 — 격리 없는 순수 함수(GlobeGeometry 와 같은 이유).
 enum WarpMesh {
+    /// 왜곡 진폭(px) — Android 46. iOS 는 의도적으로 더 강하게(2026-10-04 사용자 피드백).
+    static let amplitudePx: Float = 75
+    /// 파면 밴드 폭(px) — Android 220. 진폭과 같은 이유로 넓힘.
+    static let bandPx: Float = 260
+
     /// Android `mw`/`mh`.
     static let cols = 14
     static let rows = 14
@@ -103,7 +111,7 @@ enum WarpMesh {
         let maxR = max(max(hypotf(cx, cy), hypotf(w - cx, cy)),
                        max(hypotf(cx, h - cy), hypotf(w - cx, h - cy)))
         let front = p * maxR
-        let amp = 46 * (1 - p)        // 파면이 퍼질수록 약해져 잔잔해짐
+        let amp = amplitudePx * (1 - p) // 파면이 퍼질수록 약해져 잔잔해짐
         var i = 0
         for row in 0...rows {
             for col in 0...cols {
@@ -115,7 +123,7 @@ enum WarpMesh {
                 let dy = y - cy
                 let dist = hypotf(dx, dy)
                 let delta = dist - front
-                let env = expf(-(delta * delta) / (220 * 220)) // 넓은 밴드
+                let env = expf(-(delta * delta) / (bandPx * bandPx)) // 넓은 밴드
                 let disp = sinf(delta * 0.045) * env * amp
                 var px = x
                 var py = y
@@ -155,25 +163,27 @@ enum WarpMesh {
     """
 }
 
-/// 스냅샷 메시 렌더러 — MTKView 의 디스플레이 링크로 매 프레임 꼭짓점만 다시 계산해 그린다.
-final class WarpMeshRenderer: NSObject, MTKViewDelegate {
-    private let queue: MTLCommandQueue
-    private let pipeline: MTLRenderPipelineState
-    private let sampler: MTLSamplerState
-    private let texture: MTLTexture
-    private let indexBuffer: MTLBuffer
-    private let indexCount: Int
-    private let originX: Float
-    private let originY: Float
-    private let startedAt: Date
-    private var verts: [Float]
+/// 셰이더 컴파일/파이프라인/샘플러/인덱스 버퍼 — 앱 생애 1회만 만든다(static let = 스레드 안전 지연 초기화).
+/// `prewarm()` 을 지도 진입 시 불러 두면 별 탭 순간엔 텍스처 업로드만 남는다.
+final class WarpGPU {
+    static let shared: WarpGPU? = WarpGPU()
 
-    init?(view: MTKView, snapshot: UIImage, origin: CGPoint, startedAt: Date) {
-        guard let device = view.device ?? MTLCreateSystemDefaultDevice(),
-              let queue = device.makeCommandQueue(),
-              let cg = snapshot.cgImage
+    let device: MTLDevice
+    let queue: MTLCommandQueue
+    let pipeline: MTLRenderPipelineState
+    let sampler: MTLSamplerState
+    let indexBuffer: MTLBuffer
+    let indexCount: Int
+
+    /// 백그라운드에서 미리 컴파일(메인 스레드 멈춤 방지).
+    static func prewarm() {
+        DispatchQueue.global(qos: .userInitiated).async { _ = WarpGPU.shared }
+    }
+
+    private init?() {
+        guard let device = MTLCreateSystemDefaultDevice(),
+              let queue = device.makeCommandQueue()
         else { return nil }
-        view.device = device
 
         let library: MTLLibrary
         do {
@@ -185,7 +195,7 @@ final class WarpMeshRenderer: NSObject, MTKViewDelegate {
         let d = MTLRenderPipelineDescriptor()
         d.vertexFunction = library.makeFunction(name: "warpVertex")
         d.fragmentFunction = library.makeFunction(name: "warpFragment")
-        d.colorAttachments[0].pixelFormat = view.colorPixelFormat
+        d.colorAttachments[0].pixelFormat = .bgra8Unorm // DiaryWarpMeshView 의 colorPixelFormat 과 동일
         guard let pipeline = try? device.makeRenderPipelineState(descriptor: d) else {
             print("⚠️ Warp pipeline failed")
             return nil
@@ -198,8 +208,37 @@ final class WarpMeshRenderer: NSObject, MTKViewDelegate {
         sd.tAddressMode = .clampToEdge
         guard let sampler = device.makeSamplerState(descriptor: sd) else { return nil }
 
+        let idx = WarpMesh.indices()
+        guard let ib = device.makeBuffer(bytes: idx, length: idx.count * MemoryLayout<UInt16>.stride,
+                                         options: .storageModeShared)
+        else { return nil }
+
+        self.device = device
+        self.queue = queue
+        self.pipeline = pipeline
+        self.sampler = sampler
+        self.indexBuffer = ib
+        self.indexCount = idx.count
+    }
+}
+
+/// 스냅샷 메시 렌더러 — MTKView 의 디스플레이 링크로 매 프레임 꼭짓점만 다시 계산해 그린다.
+final class WarpMeshRenderer: NSObject, MTKViewDelegate {
+    private let gpu: WarpGPU
+    private let texture: MTLTexture
+    private let originX: Float
+    private let originY: Float
+    private let startedAt: Date
+    private var verts: [Float]
+
+    init?(view: MTKView, snapshot: UIImage, origin: CGPoint, startedAt: Date) {
+        guard let gpu = WarpGPU.shared,
+              let cg = snapshot.cgImage
+        else { return nil }
+        view.device = gpu.device
+
         // 스냅샷은 화면 그대로의 감마 값 — sRGB 해석 없이(.bgra8Unorm 에 그대로) 올려야 색이 안 변한다(글로브와 같은 규칙).
-        let loader = MTKTextureLoader(device: device)
+        let loader = MTKTextureLoader(device: gpu.device)
         let options: [MTKTextureLoader.Option: Any] = [
             .SRGB: false,
             .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue),
@@ -210,17 +249,8 @@ final class WarpMeshRenderer: NSObject, MTKViewDelegate {
             return nil
         }
 
-        let idx = WarpMesh.indices()
-        guard let ib = device.makeBuffer(bytes: idx, length: idx.count * MemoryLayout<UInt16>.stride,
-                                         options: .storageModeShared)
-        else { return nil }
-
-        self.queue = queue
-        self.pipeline = pipeline
-        self.sampler = sampler
+        self.gpu = gpu
         self.texture = texture
-        self.indexBuffer = ib
-        self.indexCount = idx.count
         self.originX = Float(origin.x)
         self.originY = Float(origin.y)
         self.startedAt = startedAt
@@ -236,22 +266,22 @@ final class WarpMeshRenderer: NSObject, MTKViewDelegate {
         guard w > 1, h > 1,
               let pass = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable,
-              let cmd = queue.makeCommandBuffer(),
+              let cmd = gpu.queue.makeCommandBuffer(),
               let enc = cmd.makeRenderCommandEncoder(descriptor: pass)
         else { return }
 
         let p = Float(WarpTiming.progress(since: startedAt))
         WarpMesh.vertices(w: w, h: h, originX: originX, originY: originY, p: p, into: &verts)
 
-        enc.setRenderPipelineState(pipeline)
+        enc.setRenderPipelineState(gpu.pipeline)
         verts.withUnsafeBytes { raw in
             // 225 꼭짓점 × 16B = 3.6KB — setVertexBytes 한도(4KB) 안.
             enc.setVertexBytes(raw.baseAddress!, length: raw.count, index: 0)
         }
         enc.setFragmentTexture(texture, index: 0)
-        enc.setFragmentSamplerState(sampler, index: 0)
-        enc.drawIndexedPrimitives(type: .triangle, indexCount: indexCount, indexType: .uint16,
-                                  indexBuffer: indexBuffer, indexBufferOffset: 0)
+        enc.setFragmentSamplerState(gpu.sampler, index: 0)
+        enc.drawIndexedPrimitives(type: .triangle, indexCount: gpu.indexCount, indexType: .uint16,
+                                  indexBuffer: gpu.indexBuffer, indexBufferOffset: 0)
         enc.endEncoding()
         cmd.present(drawable)
         cmd.commit()
@@ -272,7 +302,7 @@ struct DiaryWarpMeshView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> MTKView {
-        let view = MTKView(frame: .zero, device: MTLCreateSystemDefaultDevice())
+        let view = MTKView(frame: .zero, device: WarpGPU.shared?.device ?? MTLCreateSystemDefaultDevice())
         view.colorPixelFormat = .bgra8Unorm
         view.framebufferOnly = true
         view.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)

@@ -154,7 +154,7 @@ enum L10n: String {
     // 100m 밖 게시물 잠금(2026-09-21, 09-22 개편) — 제목만 보이고 미디어/본문/댓글은 접근 또는 광고로 영구 해금.
     // 댓글 작성은 해금과 무관하게 항상 100m 이내(detailCommentNearOnly).
     case detailLockedTitle, detailLockedDistance, detailCommentNearOnly, detailLockedPhoto, detailLockedVideo
-    case detailWatchAd, detailAdUnlocked, detailAdNotFinished, detailAdUnavailable
+    case detailWatchAd, detailAdUnlocked, detailAdNotFinished, detailAdUnavailable, detailAdLoading
     case detailOpenNow, detailLockedTitleAdFree, notifFirstStarRow
     // 내 다이어리 별자리 보드(Android MyDiaryScreen 대응).
     case sortLatest, sortPopular, sortDistance, mydiarySortCount, mydiaryEmpty
@@ -449,6 +449,7 @@ enum L10n: String {
                                                "Get within %1$dm,\nor tap to open it now!",
                                                "%1$dm 以内に近づくか、\nタップしてすぐに開いてください！")
         case .notifFirstStarRow:    return ("세상에 첫 별을 남겼어요", "left their first star in the world", "世界に初めての星を残しました")
+        case .detailAdLoading:      return ("광고를 불러오는 중이에요…", "Loading the ad…", "広告を読み込んでいます…")
         case .detailAdUnlocked:     return ("이야기가 열렸어요", "The story is unlocked", "物語が開きました")
         case .detailAdNotFinished:  return ("광고를 끝까지 봐야 열려요", "Watch the whole ad to unlock it", "広告を最後まで見ると開きます")
         case .detailAdUnavailable:  return ("지금은 광고를 불러올 수 없어요. 잠시 후 다시 시도해 주세요",
