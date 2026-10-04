@@ -7,3 +7,4 @@
 // (AdMobRewarded 가 DEBUG 에선 테스트 광고 단위만 쓴다). Release 는 Local.secrets.xcconfig 의 ADMOB_APP_ID 를 써야 한다.
 // 값 정의는 docs/IOS_ADS_SETUP.md 참고. (Release 에 값이 없으면 AdMob 은 시작하지 않는다.)
 ADMOB_APP_ID[config=Debug] = ca-app-pub-3940256099942544~1458002511
+

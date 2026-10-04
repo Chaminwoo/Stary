@@ -22,19 +22,11 @@ packages:
   MapLibre:
     url: https://github.com/maplibre/maplibre-gl-native-distribution.git
     from: "6.7.0"
-  # 보상형 광고(2026-10-04) — 코드는 `#if canImport(...)` 로 감싸 두었으니 패키지를 빼도 컴파일은 된다(광고만 꺼짐).
-  #  - GoogleMobileAds : AdMob 폴백(제품 GoogleMobileAds). 12.x 라인의 Swift API(접두사 없는 MobileAds/RewardedAd) 기준.
-  #  - LevelPlay       : 1순위 미디에이션(제품 UnityMediationSDK, 모듈 IronSource) + Unity Ads 어댑터(UnityAdsAdapter).
-  #    ⚠️ LevelPlay SPM 은 `-ObjC` 링커 플래그를 수동으로 넣어야 한다(아래 OTHER_LDFLAGS). 설정법: docs/IOS_ADS_SETUP.md
-  GoogleMobileAds:
-    url: https://github.com/googleads/swift-package-manager-google-mobile-ads.git
-    from: "12.0.0"
-  LevelPlay:
-    url: https://github.com/ironsource-mobile/LevelPlay-Swift-Package.git
-    from: "9.6.0"
-  LevelPlayUnityAdsAdapter:
-    url: https://github.com/ironsource-mobile/LevelPlay-UnityAds-Adapter-Swift-Package.git
-    from: "5.12.0"
+  # 보상형 광고 SPM 패키지(GoogleMobileAds/LevelPlay/LevelPlayUnityAdsAdapter)는 2026-10-04 로컬에서 제거했다 —
+  # 이 Mac 에서 Xcode 자체의 네트워크 경로가 막혀 있어(raw.githubusercontent.com/dl.google.com 바이너리 다운로드가
+  # Xcode 에서만 "invalid archive") 매 빌드마다 "Missing package product" 로 실패했다. 코드는 `#if canImport(...)`
+  # 로 감싸 두어 패키지가 없어도 컴파일은 그대로 되고 광고만 꺼진다(docs/IOS_ADS_SETUP.md 의 "7. 문제 해결" 참고).
+  # 네트워크 문제가 해결되면 아래 3개 패키지 + dependencies 의 대응 3줄 + OTHER_LDFLAGS 의 -ObjC 를 되살리면 된다.
 
 settings:
   base:
@@ -50,6 +42,7 @@ targets:
     sources:
       - path: Sources
       - path: AppDelegate.swift
+      - path: Assets.xcassets
       # 본문/UI 폰트는 Android 와 **같은 파일**을 그대로 번들에 넣는다(9MB 복제·드리프트 방지).
       - path: ../androidApp/src/main/res/font/min_sans.ttf
         buildPhase: resources
@@ -62,6 +55,10 @@ targets:
       path: Sources/Info.plist
       properties:
         CFBundleDisplayName: Stary
+        # GENERATE_INFOPLIST_FILE=NO(커스텀 Info.plist)라 actool 의 CFBundleIcons 머지만으로는
+        # 최상위 CFBundleIconName 키가 안 들어가서 앱스토어 검증이 "Missing Info.plist value" 로 거절했다
+        # (2026-10-04) — 여기 명시로 고정.
+        CFBundleIconName: AppIcon
         UILaunchScreen: {}
         # 앱 전역 다크(밤하늘) 톤
         UIUserInterfaceStyle: Dark
@@ -171,12 +168,6 @@ targets:
         product: GoogleSignIn
       - package: MapLibre
         product: MapLibre
-      - package: GoogleMobileAds
-        product: GoogleMobileAds
-      - package: LevelPlay
-        product: UnityMediationSDK
-      - package: LevelPlayUnityAdsAdapter
-        product: UnityAdsAdapter
     settings:
       base:
         # Apple App ID 는 언더스코어(_) 불가 → stary_ios 대신 com.chaminwoo.stary.ios (점 표기, 2026-07-15).
@@ -201,8 +192,6 @@ targets:
           - $(inherited)
           - -framework
           - Shared
-          # LevelPlay SPM 패키지는 unsafeFlags 를 못 넣어 `-ObjC` 를 앱 쪽에서 직접 준다(공식 문서).
-          - -ObjC
     # 로컬 전용 xcconfig — MAPTILER_KEY 등 로컬 시크릿 자동 주입(Config/Local.secrets.xcconfig, gitignore).
     # 파일이 없어도 Local.xcconfig 의 #include? 가 조용히 넘어가므로 CI/다른 팀원 클론에는 영향 없음.
     configFiles:
