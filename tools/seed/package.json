@@ -1,0 +1,8 @@
+{
+  "name": "stary-seed",
+  "private": true,
+  "description": "큐레이션 별(어드민 시드) 업로드 — seed.js 참고",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

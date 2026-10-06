@@ -32,6 +32,9 @@ iOS: `Data/FirestoreService.swift`, `DiaryStore.swift`, `Models.swift`, `ViewedS
 - `Diary(id, userId, userName, isAnonymous, title, content, imageUrl, videoUrl(움짤/영상),
   latitude, longitude, createdAt, likeCount, commentCount, viewCount, starType, starColor,
   visibilityType)` — imageUrl/videoUrl 은 배타.
+  - **큐레이션 별(어드민 시드, 2026-10-07)**: 문서 id `seed_<id>`, 추가 필드 `seedId`·`seedLang`(앱은 무시 —
+    Android toObject 는 모르는 필드를 경고만, iOS Codable 은 무시). 작성자 = 어드민(chaalsdn0217@gmail.com 의 Google sub),
+    사진은 Storage `diary_images/seed/<id>.jpg`. 만드는 법/되돌리는 법: `tools/seed/`(아래 PROJECT_NOTES 8.75).
 - `Comment` / `Like` / `AppNotification`(+NotificationType) / `Friend` / `ChatMessage` /
   (`UserProfile` 은 Android 쪽 모델) / `core/geo/LatLng`·`GeoUtils`(거리 계산).
 - `shared/data/repository/Repositories.kt` : 플랫폼 구현이 따르는 인터페이스 모음

@@ -2,7 +2,9 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.74 iOS 광고 미동작 근본 원인(SDK 패키지 누락) 복구 + SKAdNetwork 82개 + 채팅 나에게서만 삭제(메시지/대화)** —
+> 최종 갱신: **8.75 큐레이션 별 100개(전 세계 66개국 · 현지어 34개 · 위키미디어 공용 사진) 시드 도구** — `tools/seed/`,
+> 앱 코드 변경 없음. 검증(plan) 통과, **DB 업로드는 사용자 확인 대기**(2026-10-07).
+> 이전: **8.74 iOS 광고 미동작 근본 원인(SDK 패키지 누락) 복구 + SKAdNetwork 82개 + 채팅 나에게서만 삭제(메시지/대화)** —
 > Android BUILD SUCCESSFUL(2026-10-07), 실기기 테스트 대기 · iOS 는 push 후 CI · **Firestore 규칙 배포 필요**.
 > 이전: **8.73 iOS 지도 별 부유·스파클 개별화 · 기본 틸트 · 열람 왜곡 강화 · 보상형 광고 연결**(2026-10-04).
 > 이전: **8.72 앱 화면 녹화 기반 광고 12편**(`tools/ad/promo.py` → `references/ads/`, 앱 코드 변경 없음) — 사용자 검토 대기(2026-09-26).
@@ -2469,7 +2471,41 @@ id 는 그대로(장착 칭호 유지).
 - 실기기 확인: 상대 메시지 롱프레스 → 나에게서만 삭제 → 내 화면에서만 사라지고 상대 폰엔 남음 / 친구 목록 미리보기가 직전 메시지로 바뀜 /
   ⋮ 대화 내용 삭제 → 빈 화면 + 친구 목록 "아직 대화가 없어요" + 맨 뒤로 / 그 뒤 새 메시지는 정상 표시 / 영어·일본어 전환 시 문구.
 
+## 8.75 큐레이션 별 100개 — 어드민 계정으로 전 세계에 "탐구할 별" 심기 (도구 완성 · 업로드 대기 · 2026-10-07)
+사용자 결정(선택지): **현지어로만**(앱 수정 없음) · **위키미디어 공용 사진(PD/CC0/CC BY 만, BY-SA·NC 제외)** · **한 번에 100개** · **주제 균형**.
+- 구성: 자연 17 / 역사 17 / 과학 17 / 예술·문학 17 / 음식·삶 16 / 사라져 가는 것 16 = 100곳, 66개국, 언어 34개
+  (그 나라 사람 대부분이 쓰는 언어 — 예: 페루=스페인어, 이란=페르시아어, 탄자니아=스와힐리어, 투발루·보츠와나·미크로네시아=영어).
+- 글: 위키백과 요약(fetch.py 가 모은 `extract`)으로 사실관계를 확인하며 작성. "가서 무엇을 보라"는 한 줄로 끝맺는다.
+  본문 끝에 사진 출처 한 줄 자동 추가(`📷 작가 / 라이선스 / Wikimedia Commons (cropped)` — BY 계열 변경 표시 의무).
+- 좌표: 위키백과/위키데이터 + 필요한 곳은 OSM Nominatim 으로 정확한 지점 보정(소코트라 피르미힌 숲, 2025년 옮겨진 키루나 교회 새 위치,
+  사해 요르단 쪽 전망대, 순다르반스 방글라데시 쪽 등). 별 합치기 반경(30m) 안에 겹치는 별 없음.
+- 사진: 자동 후보(위키데이터 대표 사진 > 근처 지오태그 > 키워드) → 확인 시트로 사람이 검수해 약 40곳 교체.
+  허용 라이선스 사진이 없어 장소 자체를 바꾼 곳: 오순-오소그보(→ 보츠와나 초딜로), 데린쿠유(→ 미크로네시아 난마돌).
+- 별 모양/색: 주제별(자연=꽃 5, 역사=보석 6, 과학=행성 8, 예술=0, 음식=1, 사라짐=초승달 7) + 색 순환. 작성 시각은 id 해시로 지난 120일에 분산(재실행해도 같음).
+- ⚠️ **서버 트리거 우회가 핵심**: diaries onCreate 함수 2개 — `notifyFriendsOnDiaryCreate`(어드민 친구에게 푸시 ×100),
+  `announceFirstStar`(어드민은 공개 별이 0개라 **첫 별 = 전 사용자 푸시**). 둘 다 나만 보기를 건너뛰므로 **private 으로 만든 뒤 public 으로 update**.
+  앱의 FRIEND_POST 인앱 알림은 클라이언트가 만드는 것이라 생기지 않는다.
+- 인증: 서비스 계정 키 없이 이 PC 의 `firebase login`(chaalsdn0217@gmail.com) refresh token 으로 임시 ADC 파일을 만들고 끝나면 삭제.
+  firebase-admin 의 Firestore/Storage 는 refreshToken 자격을 직접 못 받아서(ADC/서비스계정만) 이 방식. 프로젝트는 f26c8 고정.
+- 어드민 표시명은 현재 "admin" — 두 플랫폼 모두 작성자 이름을 `users/{uid}` 현재 닉네임으로 다시 읽으므로 나중에 바꿔도 반영된다.
+- DB 현황(업로드 전): 다이어리 37개 → 업로드 후 137개(지도 구독 상한 1000 여유).
+
+### 사용법 (`tools/seed/`)
+```
+python tools/seed/fetch.py meta [--only id1,id2]   # 좌표·요약·사진 후보 → build/meta.json
+python tools/seed/fetch.py images                  # 4:3 1440x1080 크롭 + 확인 시트(build/sheet_*.jpg)
+python tools/seed/fetch.py search "검색어" [lat lng] / geocode "장소"   # 사진·좌표 수동 탐색
+cd tools/seed && npm install
+node seed.js review   # build/review.html 미리보기(인증 없음)
+node seed.js plan     # 검증 + 어드민 확인(읽기만)
+node seed.js upload   # 업로드(재실행 시 글/사진/좌표만 갱신, 좋아요·댓글·시각 유지)
+node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage diary_images/seed/)
+```
+- 입력: `places.json`(장소·언어·사진 지정 `file`·좌표 `coord`·작가명 `artist`) + `stars/*.json`(제목·본문). `build/`·`node_modules/` 는 gitignore.
+- 월 1회쯤 새 별을 더하려면 places.json 에 항목 + stars/*.json 에 글 → meta --only → images → plan → upload.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
+- [ ] **(8.75) 큐레이션 별 업로드** — `cd tools/seed && node seed.js upload`(사용자 확인 후). 업로드 후 앱에서 몇 개 열어 보기(잠금·광고 해제 흐름 포함).
 - [ ] **(8.74) Firestore 규칙 배포** — `firebase deploy --only firestore:rules`(chatHidden). 앱 배포 **전에**.
 - [ ] **(8.74) Mac 에서 광고 SPM 패키지 해석 복구 후 TestFlight 11 업로드** — `docs/IOS_ADS_SETUP.md` 7. 패키지를 다시 지우지 말 것(Release `#error`).
 - [ ] (8.74) iOS CI 업로드 경로(ASC API 키·팀 ID·광고/지도 키 Secrets + CI 자동 서명 검증) — Mac 네트워크 문제의 우회로.
