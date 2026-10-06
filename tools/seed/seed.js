@@ -6,6 +6,7 @@
  *   node seed.js plan      # 읽기만: 검증(길이/사진/좌표 간격) + 어드민 계정 확인 + 쓸 내용 요약
  *   node seed.js upload    # 사진 업로드 + diaries 생성(이미 있으면 내용만 갱신 — 다시 돌려도 중복 안 생김)
  *   node seed.js remove    # 되돌리기: seed_* 다이어리(+댓글/좋아요) 와 사진 삭제
+ *   (모든 명령에 --only id1,id2 로 일부만 — 예: 몇 개 먼저 올려 앱에서 확인)
  *
  * 입력: build/meta.json(좌표·사진, fetch.py meta) + build/img/<id>.jpg(fetch.py images) + stars/*.json(제목·본문).
  *
@@ -238,7 +239,11 @@ async function main() {
     console.log("사용법: node seed.js review | plan | upload | remove");
     process.exit(1);
   }
-  const stars = loadStars();
+  // --only id1,id2 : 일부만(예: 앱에서 모양을 먼저 확인할 몇 개). remove 에도 적용된다.
+  const onlyArg = process.argv.indexOf("--only");
+  const only = onlyArg > 0 ? new Set(process.argv[onlyArg + 1].split(",")) : null;
+  const stars = loadStars().filter((s) => !only || only.has(s.id));
+  if (only && stars.length !== only.size) throw new Error(`--only 에 없는 id 가 있다: ${[...only].filter((id) => !stars.some((s) => s.id === id))}`);
   if (cmd === "review") {
     writeReview(stars);
     return;
@@ -272,9 +277,11 @@ async function main() {
 
   if (cmd === "remove") {
     const snap = await diaries.where("userId", "==", admin.uid).get();
-    const targets = snap.docs.filter((d) => d.id.startsWith(DOC_PREFIX));
+    const wanted = new Set(stars.map((s) => s.docId));
+    const targets = snap.docs.filter((d) => d.id.startsWith(DOC_PREFIX) && (!only || wanted.has(d.id)));
     for (const d of targets) await fb.db.recursiveDelete(d.ref);
-    const [files] = await fb.bucket.getFiles({ prefix: STORAGE_DIR + "/" });
+    const [allFiles] = await fb.bucket.getFiles({ prefix: STORAGE_DIR + "/" });
+    const files = allFiles.filter((f) => !only || stars.some((s) => f.name === `${STORAGE_DIR}/${s.id}.jpg`));
     for (const f of files) await f.delete();
     console.log(`삭제: 다이어리 ${targets.length}개, 사진 ${files.length}장`);
     return;
