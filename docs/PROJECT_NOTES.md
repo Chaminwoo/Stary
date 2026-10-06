@@ -3,7 +3,7 @@
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
 > 최종 갱신: **8.75 큐레이션 별 100개(전 세계 66개국 · 현지어 34개 · 위키미디어 공용 사진) 시드 도구** — `tools/seed/`,
-> 앱 코드 변경 없음. **시험 업로드 3개 완료**(첨성대·데드블레이·페트라 — 푸시 미발송 확인), 나머지 97개는 앱 확인 후(2026-10-07).
+> 앱 코드 변경 없음. **100개 전부 업로드 완료**(2026-10-07 — 전부 public·사진 200·첫 별 공지/친구 푸시 0건 확인).
 > 이전: **8.74 iOS 광고 미동작 근본 원인(SDK 패키지 누락) 복구 + SKAdNetwork 82개 + 채팅 나에게서만 삭제(메시지/대화)** —
 > Android BUILD SUCCESSFUL(2026-10-07), 실기기 테스트 대기 · iOS 는 push 후 CI · **Firestore 규칙 배포 필요**.
 > 이전: **8.73 iOS 지도 별 부유·스파클 개별화 · 기본 틸트 · 열람 왜곡 강화 · 보상형 광고 연결**(2026-10-04).
@@ -2488,7 +2488,7 @@ id 는 그대로(장착 칭호 유지).
 - 인증: 서비스 계정 키 없이 이 PC 의 `firebase login`(chaalsdn0217@gmail.com) refresh token 으로 임시 ADC 파일을 만들고 끝나면 삭제.
   firebase-admin 의 Firestore/Storage 는 refreshToken 자격을 직접 못 받아서(ADC/서비스계정만) 이 방식. 프로젝트는 f26c8 고정.
 - 어드민 표시명은 현재 "admin" — 두 플랫폼 모두 작성자 이름을 `users/{uid}` 현재 닉네임으로 다시 읽으므로 나중에 바꿔도 반영된다.
-- DB 현황(업로드 전): 다이어리 37개 → 업로드 후 137개(지도 구독 상한 1000 여유).
+- DB 현황: 다이어리 37개 → 업로드 후 137개(지도 구독 상한 1000 여유). 큐레이션 별이 사용자 글보다 약 3배 많다.
 
 ### 사용법 (`tools/seed/`)
 ```
@@ -2505,9 +2505,10 @@ node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage dia
 - 월 1회쯤 새 별을 더하려면 places.json 에 항목 + stars/*.json 에 글 → meta --only → images → plan → upload.
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
-- [ ] **(8.75) 큐레이션 별 나머지 97개 업로드** — 시험 3개(`seed_s01-cheomseongdae`/`seed_n10-deadvlei`/`seed_h06-petra`)를 앱에서 확인한 뒤
-      `cd tools/seed && node seed.js upload`(이미 올린 3개는 갱신만). 검증 결과(2026-10-07): 3개 public·사진 200·`firstStars/{admin}` 없음·
-      notifyFriendsOnDiaryCreate 로그 "나만 보기 → 발송 생략" ×3 = 푸시 우회 정상.
+- [x] ~~(8.75) 큐레이션 별 업로드~~ — 2026-10-07 100개 완료. 검증: diaries 137개(시드 100, 전부 public), 사진 100/100 HTTP 200,
+      `firstStars/{admin}` 없음, 어드민 명의 notifications 0, 함수 로그 "나만 보기 → 발송 생략" ×100.
+      ⚠️ 중간에 끊긴 실행이 있었다(문서 5개 선생성 + 임시 자격 파일 잔존) → seed.js 보강: 시작 시 남은 `stary-seed-adc-*.json` 삭제,
+      `seedPending` 표시로 private 생성 직후 끊긴 문서를 다음 실행이 공개까지 마무리.
 - [ ] **(8.74) Firestore 규칙 배포** — `firebase deploy --only firestore:rules`(chatHidden). 앱 배포 **전에**.
 - [ ] **(8.74) Mac 에서 광고 SPM 패키지 해석 복구 후 TestFlight 11 업로드** — `docs/IOS_ADS_SETUP.md` 7. 패키지를 다시 지우지 말 것(Release `#error`).
 - [ ] (8.74) iOS CI 업로드 경로(ASC API 키·팀 ID·광고/지도 키 Secrets + CI 자동 서명 검증) — Mac 네트워크 문제의 우회로.

@@ -57,6 +57,10 @@ function ensureCredentials() {
   }
   const tokens = JSON.parse(fs.readFileSync(cfg, "utf8")).tokens || {};
   if (!tokens.refresh_token) throw new Error("firebase CLI refresh_token 없음 — `firebase login --reauth`");
+  // 강제 종료된 이전 실행이 남긴 임시 자격 파일(refresh token 포함) 정리 — exit 핸들러는 kill 에서 안 돈다(2026-10-07 실제로 남았음).
+  for (const f of fs.readdirSync(os.tmpdir())) {
+    if (/^stary-seed-adc-\d+\.json$/.test(f)) fs.rmSync(path.join(os.tmpdir(), f), { force: true });
+  }
   // firebase-tools 의 공개 OAuth 클라이언트(firebase-tools/lib/api.js) — CLI 가 쓰는 것과 같은 자격으로 동작.
   tempAdc = path.join(os.tmpdir(), `stary-seed-adc-${process.pid}.json`);
   fs.writeFileSync(tempAdc, JSON.stringify({
@@ -74,6 +78,7 @@ function cleanup() {
 }
 process.on("exit", cleanup);
 process.on("SIGINT", () => { cleanup(); process.exit(130); });
+process.on("SIGTERM", () => { cleanup(); process.exit(143); });
 
 // ── 입력 ────────────────────────────────────────────────────────────────────
 function loadStars() {
@@ -288,6 +293,7 @@ async function main() {
   }
 
   // upload
+  const { FieldValue } = require("firebase-admin/firestore");
   let created = 0, updated = 0;
   for (const s of stars) {
     const imageUrl = await uploadImage(fb.bucket, s);
@@ -311,12 +317,17 @@ async function main() {
     };
     if (snap.exists) {
       // 재실행: 글/사진/좌표만 갱신(좋아요·댓글·조회수·작성 시각·공개 범위는 건드리지 않는다).
-      await ref.update(body);
+      // 단 seedPending 이 남아 있으면 이전 실행이 private 생성 직후 죽은 것 — 이번에 공개까지 마무리한다.
+      const finish = snap.get("seedPending") === true
+        ? { visibilityType: "public", seedPending: FieldValue.delete() } : {};
+      await ref.update({ ...body, ...finish });
       updated++;
     } else {
       // ⚠️ private 으로 만들고 바로 public — onCreate 푸시 함수들이 건너뛰게(파일 상단 설명).
-      await ref.set({ ...body, createdAt: s.createdAt, likeCount: 0, commentCount: 0, viewCount: 0, visibilityType: "private" });
-      await ref.update({ visibilityType: "public" });
+      //    seedPending: 두 단계 사이에서 끊기면 다음 실행이 알아보고 공개를 마무리하는 표시.
+      await ref.set({ ...body, createdAt: s.createdAt, likeCount: 0, commentCount: 0, viewCount: 0,
+        visibilityType: "private", seedPending: true });
+      await ref.update({ visibilityType: "public", seedPending: FieldValue.delete() });
       created++;
     }
     process.stdout.write(`\r${created + updated}/${stars.length} ${s.id}            `);
