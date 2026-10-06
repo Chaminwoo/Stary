@@ -3,6 +3,20 @@ import Foundation
 import SwiftUI
 import UIKit
 
+// ── 광고 SDK 링크 확인(2026-10-07) ──
+// 광고 코드는 `#if canImport` 로 감싸져 있어 SDK 패키지가 빠져도 **조용히** 컴파일된다. 2026-10-04 에 Mac 의 Xcode
+// 네트워크 문제로 project.yml 에서 패키지를 지운 뒤 TestFlight 빌드 전부가 광고 없이 나갔다("광고를 불러올 수 없어요"만 뜸).
+// → 둘 다 없으면 Release 는 빌드를 멈추고, 하나만 없으면 경고로 알린다. 해결: project.yml packages 복구 / docs/IOS_ADS_SETUP.md 7.
+#if !canImport(GoogleMobileAds) && !canImport(IronSource)
+#if DEBUG
+#warning("광고 SDK(GoogleMobileAds·IronSource)가 하나도 링크되지 않았다 — 이 빌드는 광고가 꺼져 있다(docs/IOS_ADS_SETUP.md 7)")
+#else
+#error("광고 SDK 없이 Release 빌드 중 — 이대로 올리면 스토어/TestFlight 에서 광고가 안 나온다. project.yml 의 GoogleMobileAds/LevelPlay 패키지를 확인할 것(docs/IOS_ADS_SETUP.md 7)")
+#endif
+#elseif !canImport(GoogleMobileAds) || !canImport(IronSource)
+#warning("광고 SDK 일부만 링크됨(GoogleMobileAds 또는 IronSource 누락) — 1순위/폴백 중 하나가 꺼져 있다(docs/IOS_ADS_SETUP.md 7)")
+#endif
+
 /// 보상형 광고 — iOS 에서 광고를 쓰는 **유일한 진입점**. Android `core.ads.AdsManager` 와 같은 계약(2026-10-04 연결).
 ///
 /// 광고원은 두 곳, **순서가 있다**:
@@ -82,7 +96,10 @@ final class AdsManager: ObservableObject {
         guard !started else { return }
         started = true
         guard isConfigured else {
-            print("ℹ️ [Ads] 광고 키 미설정 — 광고 비활성(docs/IOS_ADS_SETUP.md 참고)")
+            // SDK 미링크와 키 미설정은 증상이 같다("광고를 불러올 수 없어요") — 어느 쪽인지 한 줄로 구분해 둔다.
+            print("ℹ️ [Ads] 광고 비활성 — SDK 링크 LevelPlay=\(LevelPlayRewarded.sdkLinked) AdMob=\(AdMobRewarded.sdkLinked)"
+                  + " / 키 LevelPlay=\(!levelPlay.appKey.isEmpty && !levelPlay.adUnitId.isEmpty)"
+                  + " AdMob=\(!admob.appId.isEmpty && !admob.adUnitId.isEmpty) (docs/IOS_ADS_SETUP.md 참고)")
             return
         }
         wireLevelPlay()

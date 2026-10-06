@@ -2,7 +2,10 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.72 앱 화면 녹화 기반 광고 12편**(`tools/ad/promo.py` → `references/ads/`, 앱 코드 변경 없음) — 사용자 검토 대기(2026-09-26).
+> 최종 갱신: **8.74 iOS 광고 미동작 근본 원인(SDK 패키지 누락) 복구 + SKAdNetwork 82개 + 채팅 나에게서만 삭제(메시지/대화)** —
+> Android BUILD SUCCESSFUL(2026-10-07), 실기기 테스트 대기 · iOS 는 push 후 CI · **Firestore 규칙 배포 필요**.
+> 이전: **8.73 iOS 지도 별 부유·스파클 개별화 · 기본 틸트 · 열람 왜곡 강화 · 보상형 광고 연결**(2026-10-04).
+> 이전: **8.72 앱 화면 녹화 기반 광고 12편**(`tools/ad/promo.py` → `references/ads/`, 앱 코드 변경 없음) — 사용자 검토 대기(2026-09-26).
 > 이전: **8.71 App Store 반려(1.2 UGC · 2.1 데모 계정) 대응 + 업적 이름 2차** — Android BUILD SUCCESSFUL·기기 설치(2026-09-26) · iOS 는 push 후 CI · Functions 배포 필요.
 > 이전: **8.70 업적 38개 · 별 모양 12종 · 묶음 해금 팝업 · 시간 판정 현지화** — Android BUILD SUCCESSFUL(2026-09-26).
 > 이전: **8.69 별 도감 = 열람한 모든 다이어리(해금 기록 서버 사본 + 잠금 이전 열람 합침)** — Android BUILD SUCCESSFUL(2026-09-26), 실기기 테스트 대기.
@@ -2435,7 +2438,41 @@ id 는 그대로(장착 칭호 유지).
   LevelPlay SPM 해석/링크. CI 가 빨개지면 해당 파일/패키지부터 확인(패키지 줄을 project.yml 에서 지워도 `#if canImport` 덕에 컴파일은 통과 — 광고만 꺼짐).
 - 실기기 확인: 별이 위아래로 둥실, 별마다 스파클 모양 다름·줌아웃 시 사라짐, 지도가 비스듬히 누움, 별 탭 시 화면 왜곡이 확연히 강함, 100m 밖 글 잠금(위 로그), 광고 키 넣은 뒤 광고 재생 후 해금.
 
+## 8.74 iOS 광고 "불러올 수 없어요" 근본 원인 복구 + SKAdNetwork 보강 + 채팅 나에게서만 삭제 (Android BUILD SUCCESSFUL 2026-10-07 · 실기기 테스트 대기 · iOS push 후 CI)
+
+### 1. iOS 광고가 TestFlight 에서 한 번도 안 나온 원인 — **SDK 가 빌드에 없었다**
+- 10-04 `76f145c`(Mac)가 Xcode 의 바이너리 다운로드 실패("invalid archive")를 피하려고 `project.yml` 에서 광고 SPM 패키지 3개
+  (GoogleMobileAds / LevelPlay(UnityMediationSDK) / LevelPlay UnityAds 어댑터)와 `-ObjC` 를 지웠다.
+- 광고 코드는 `#if canImport(GoogleMobileAds/IronSource)` 로 감싸져 있어 **조용히 컴파일** → `AdsManager.isConfigured == false` →
+  재생 아이콘 탭 = 항상 "지금은 광고를 불러올 수 없어요". 키·로직 문제가 아니었다.
+- 근거: CI 로그(`861bd80`, 패키지 있던 커밋)에서 `-framework GoogleMobileAds -framework IronSource -framework ISUnityAdsAdapter -framework UnityAds` 링크 + 빌드 성공 →
+  코드/패키지 자체는 정상, Mac 의 다운로드 경로만 문제.
+- 수정: 패키지 3개 + `-ObjC` 복구. **재발 방지 = `AdsManager.swift` 상단 컴파일 가드** — Release 에서 두 SDK 모두 없으면 `#error`, 하나만 없으면 `#warning`
+  (DEBUG 는 둘 다 없어도 `#warning`). 비활성 로그가 "SDK 미링크 vs 키 없음"을 구분해 찍는다.
+- iOS 빌드 번호 10 → **11**(10 은 SDK 없이 올라간 빌드).
+- `ios.yml` deploy 의 xcconfig 주입에 `MAPTILER_KEY` 추가 + 빈 시크릿 경고(값은 안 찍음). ⚠️ CI 업로드 경로는 아직 미구성(Secrets 에 LevelPlay 키 2개뿐, ASC 키 없음).
+- **사용자 할 일**: Mac 에서 패키지 해석 복구(`docs/IOS_ADS_SETUP.md` 7 — SPM 캐시 삭제 → `xcodebuild -resolvePackageDependencies` → 안 되면 VPN/방화벽/다른 네트워크),
+  Mac `Local.secrets.xcconfig` 에 광고 키 4개 확인, LevelPlay 대시보드 Unity Ads 인스턴스 연결.
+
+### 2. SKAdNetwork — Unity 대시보드 "누락 ID" 47개 보강(35 → 82개)
+- `project.yml` `SKAdNetworkItems` + 커밋된 `Sources/Info.plist` 양쪽. 광고 로드와는 무관(어트리뷰션·단가). 월 1회 대시보드 확인(IOS_ADS_SETUP 5-4).
+
+### 3. 채팅 나에게서만 삭제 — 메시지 하나 / 대화 내용 전체 (Android + iOS)
+- 저장: `users/{나}/chatHidden/{chatId}` — `messageIds`, `clearedAt`, 미리보기 대체값(`previewFor/Text/At/SenderId`). 공용 `chats`/`messages` 는 그대로.
+  상세·필드 의미: **docs/code/10 "나에게서만 삭제"**.
+- 메시지 롱프레스(모든 메시지) → "나에게서만 삭제"(언제나) / "모두에게서 삭제"(내 것 1분 이내). 1분 지나 누르면 안내 토스트.
+- 대화 내용 삭제: 채팅 탑바 ⋮ + 친구 목록 행 길게 누르기. 친구 목록 미리보기·미읽음·정렬이 `ChatHidden.preview` 기준.
+- 신규: shared `core/model/ChatHidden.kt`, Android `core/util/ChatActionState.kt`. `ChatRepository` 계약에 3개 메서드 추가.
+  문자열 ko/en/ja 11개(`chat_delete_for_me` 등, `chat_delete_confirm` 문구 변경) + iOS L10n 동일 + `commonMore`.
+- **⚠️ `firestore.rules` 에 `users/{uid}/chatHidden/{chatId}`(본인만) 추가 — `firebase deploy --only firestore:rules` 해야 동작.**
+  미배포면 숨김 구독이 권한 오류 → 숨김 없이 표시 + 삭제 시 "삭제하지 못했어요"(앱은 안 죽음).
+- 실기기 확인: 상대 메시지 롱프레스 → 나에게서만 삭제 → 내 화면에서만 사라지고 상대 폰엔 남음 / 친구 목록 미리보기가 직전 메시지로 바뀜 /
+  ⋮ 대화 내용 삭제 → 빈 화면 + 친구 목록 "아직 대화가 없어요" + 맨 뒤로 / 그 뒤 새 메시지는 정상 표시 / 영어·일본어 전환 시 문구.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
+- [ ] **(8.74) Firestore 규칙 배포** — `firebase deploy --only firestore:rules`(chatHidden). 앱 배포 **전에**.
+- [ ] **(8.74) Mac 에서 광고 SPM 패키지 해석 복구 후 TestFlight 11 업로드** — `docs/IOS_ADS_SETUP.md` 7. 패키지를 다시 지우지 말 것(Release `#error`).
+- [ ] (8.74) iOS CI 업로드 경로(ASC API 키·팀 ID·광고/지도 키 Secrets + CI 자동 서명 검증) — Mac 네트워크 문제의 우회로.
 - [ ] **(8.65) 새 버전 안내 실제 동작 확인** — Play 내부 테스트 트랙에서 구버전 설치 → 신버전 업로드 후 앱 실행. iOS 는 App Store 출시 후.
 - [ ] **(8.64) 언어 전환 — Play 내부 테스트 설치본에서 확인**(AAB 언어 분할 끔). 확인되면 CLAUDE.md §2.5 의 "3번 재발" 기록 유지.
 - [x] ~~(8.64) 별 도감 해금 기록은 기기 로컬~~ → 8.69 에서 `viewedDiaries.unlockedAt` 서버 사본으로 해결.

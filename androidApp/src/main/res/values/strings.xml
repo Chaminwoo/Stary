@@ -209,7 +209,17 @@
     <string name="chat_input_placeholder">메시지 입력</string>
     <string name="chat_need_friend">친구가 되어 채팅하세요</string>
     <string name="chat_delete_title">메시지 삭제</string>
-    <string name="chat_delete_confirm">이 메시지를 완전히 삭제할까요? 상대방에게도 사라져요.</string>
+    <string name="chat_delete_confirm">모두에게서 삭제하면 상대방에게도 사라져요. (보낸 지 1분 안에만 가능)</string>
+    <string name="chat_delete_for_me">나에게서만 삭제</string>
+    <string name="chat_delete_for_everyone">모두에게서 삭제</string>
+    <string name="chat_delete_for_me_desc">나에게서만 삭제하면 상대방의 대화방에는 그대로 남아요.</string>
+    <string name="chat_hidden_done">나에게서 삭제했어요</string>
+    <string name="chat_delete_expired">보낸 지 1분이 지나 모두에게서 삭제할 수 없어요</string>
+    <string name="chat_clear_title">대화 내용 삭제</string>
+    <string name="chat_clear_confirm">지금까지의 대화를 나에게서만 삭제할까요?\n상대방의 대화방에는 그대로 남아요.</string>
+    <string name="chat_clear_done">대화 내용을 삭제했어요</string>
+    <string name="chat_clear_nothing">삭제할 대화가 없어요</string>
+    <string name="chat_action_failed">삭제하지 못했어요. 잠시 후 다시 시도해 주세요</string>
     <string name="common_friend">친구</string>
 
     <!-- 알림 화면 -->

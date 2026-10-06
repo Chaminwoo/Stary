@@ -17,7 +17,7 @@ iOS: `Data/FirestoreService.swift`, `DiaryStore.swift`, `Models.swift`, `ViewedS
 ## shared/config/StaryConfig.kt — 앱 공용 상수(**iOS AppConfig 와 값 동기화**)
 - `FIRESTORE_DB_ID = "stary-db"` / `Collections`(diaries, comments, likes, notifications, users,
   users/{uid}/friends, friendRequests, users/{uid}/viewedDiaries, chats(+messages),
-  users/{uid}/blocked, reports, hiddenAchievements, invites).
+  users/{uid}/blocked, users/{uid}/chatHidden(채팅 나에게서만 삭제 — 10 문서), reports, hiddenAchievements, invites).
 - `chatId(a,b)` : uid 정렬 결합 — 양쪽이 항상 같은 방을 가리키게.
 - 게임 규칙 수치: `DIARY_OPEN_RADIUS_M=100` `DAILY_UPLOAD_LIMIT=10` `STAR_MERGE_RADIUS_M=30`
   `CHAT_DELETE_WINDOW_MS=60_000` `VIDEO_MAX_DURATION_MS=3_000` `INVITE_REDEEM_WINDOW_MS=7일`

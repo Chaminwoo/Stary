@@ -126,6 +126,9 @@ enum L10n: String {
     case onbFriendsTitle, onbFriendsMsg
     // 채팅 메시지 완전 삭제(1분 이내, 본인만).
     case chatDeleteTitle, chatDeleteConfirm
+    // 채팅 나에게서만 삭제(메시지 하나 / 대화 내용 전체) — 2026-10-07.
+    case chatDeleteForMe, chatDeleteForEveryone, chatDeleteForMeDesc, chatHiddenDone, chatDeleteExpired
+    case chatClearTitle, chatClearConfirm, chatClearDone, chatClearNothing, chatActionFailed, commonMore
     // 닉네임 변경.
     case profileEditNickname, profileNicknameHint
     // 히든 업적.
@@ -357,9 +360,28 @@ enum L10n: String {
                                             "Search friends by name to send requests; accept incoming ones to see each other's stars and chat.",
                                             "名前でフレンドを検索してリクエストを送り、届いたリクエストを承認するとお互いの星を見たりチャットできます。")
         case .chatDeleteTitle:      return ("메시지 삭제", "Delete message", "メッセージを削除")
-        case .chatDeleteConfirm:    return ("이 메시지를 완전히 삭제할까요? 상대방에게도 사라져요.",
-                                            "Delete this message completely? It will disappear for the other person too.",
-                                            "このメッセージを完全に削除しますか？相手側からも消えます。")
+        case .chatDeleteConfirm:    return ("모두에게서 삭제하면 상대방에게도 사라져요. (보낸 지 1분 안에만 가능)",
+                                            "Deleting for everyone removes it for your friend too. (Only within 1 minute of sending)",
+                                            "全員から削除すると相手側からも消えます。（送信から1分以内のみ）")
+        case .chatDeleteForMe:      return ("나에게서만 삭제", "Delete for me", "自分だけ削除")
+        case .chatDeleteForEveryone: return ("모두에게서 삭제", "Delete for everyone", "全員から削除")
+        case .chatDeleteForMeDesc:  return ("나에게서만 삭제하면 상대방의 대화방에는 그대로 남아요.",
+                                            "Deleting for yourself keeps it in your friend's chat.",
+                                            "自分だけ削除しても、相手のトークにはそのまま残ります。")
+        case .chatHiddenDone:       return ("나에게서 삭제했어요", "Deleted for you", "自分のトークから削除しました")
+        case .chatDeleteExpired:    return ("보낸 지 1분이 지나 모두에게서 삭제할 수 없어요",
+                                            "It's been over a minute, so it can't be deleted for everyone",
+                                            "送信から1分が過ぎたため、全員からは削除できません")
+        case .chatClearTitle:       return ("대화 내용 삭제", "Delete chat history", "トーク履歴を削除")
+        case .chatClearConfirm:     return ("지금까지의 대화를 나에게서만 삭제할까요?\n상대방의 대화방에는 그대로 남아요.",
+                                            "Delete this chat history for you only?\nIt stays in your friend's chat.",
+                                            "これまでのトークを自分だけ削除しますか？\n相手のトークにはそのまま残ります。")
+        case .chatClearDone:        return ("대화 내용을 삭제했어요", "Chat history deleted", "トーク履歴を削除しました")
+        case .chatClearNothing:     return ("삭제할 대화가 없어요", "No messages to delete", "削除するメッセージがありません")
+        case .chatActionFailed:     return ("삭제하지 못했어요. 잠시 후 다시 시도해 주세요",
+                                            "Couldn't delete. Please try again in a moment",
+                                            "削除できませんでした。しばらくしてからお試しください")
+        case .commonMore:           return ("더보기", "More", "その他")
         case .achTabNormal:         return ("일반", "General", "一般")
         case .achTabHidden:         return ("히든", "Hidden", "隠し")
         case .achHiddenIntro:       return ("앱에서 단 한 명만 가질 수 있는 업적이에요. \n 달성 시 특별한 칭호 및 프로필 아이콘이 제공됩니다.",

@@ -207,7 +207,17 @@
     <string name="chat_input_placeholder">Message</string>
     <string name="chat_need_friend">Become friends to chat</string>
     <string name="chat_delete_title">Delete message</string>
-    <string name="chat_delete_confirm">Delete this message completely? It will disappear for the other person too.</string>
+    <string name="chat_delete_confirm">Deleting for everyone removes it for your friend too. (Only within 1 minute of sending)</string>
+    <string name="chat_delete_for_me">Delete for me</string>
+    <string name="chat_delete_for_everyone">Delete for everyone</string>
+    <string name="chat_delete_for_me_desc">Deleting for yourself keeps it in your friend\'s chat.</string>
+    <string name="chat_hidden_done">Deleted for you</string>
+    <string name="chat_delete_expired">It\'s been over a minute, so it can\'t be deleted for everyone</string>
+    <string name="chat_clear_title">Delete chat history</string>
+    <string name="chat_clear_confirm">Delete this chat history for you only?\nIt stays in your friend\'s chat.</string>
+    <string name="chat_clear_done">Chat history deleted</string>
+    <string name="chat_clear_nothing">No messages to delete</string>
+    <string name="chat_action_failed">Couldn\'t delete. Please try again in a moment</string>
     <string name="common_friend">Friend</string>
 
     <!-- Notification screen -->

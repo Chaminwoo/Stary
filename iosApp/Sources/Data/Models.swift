@@ -646,6 +646,65 @@ struct ChatMessage: Identifiable, Codable {
 }
 
 
+// MARK: - 채팅 나에게서만 삭제
+
+/// users/{나}/chatHidden/{chatId} — **나에게서만** 지운 메시지/대화(본인만 읽고 씀, 2026-10-07).
+/// 메시지/방 문서는 그대로 두고 내 화면에서만 가린다 → 상대 대화방에는 영향 없음.
+/// Android shared `core/model/ChatHidden.kt` 와 필드·판정이 **같아야 한다**.
+///  - `clearedAt`  : 대화방 나만 삭제. createdAt 이 이 값 이하인 메시지를 가린다(0 = 없음).
+///                   ⚠️ 내 기기 시각이 아니라 **그때 방의 마지막 메시지 createdAt**(보낸 사람 기기 시각 기준이라).
+///  - `messageIds` : 메시지 하나씩 나만 삭제한 id.
+///  - `preview*`   : 친구 목록 미리보기 대체값 — 방 메타(lastMessage)는 공용이라 내가 숨긴 메시지가 그대로 보이므로,
+///                   방 updatedAt 이 `previewFor` 이하인 동안(그 뒤 새 메시지가 없을 때)만 대체값을 쓴다.
+struct ChatHidden: Equatable {
+    var clearedAt: Int64 = 0
+    var messageIds: Set<String> = []
+    var previewFor: Int64 = 0
+    var previewText: String = ""
+    var previewAt: Int64 = 0
+    var previewSenderId: String = ""
+
+    static let empty = ChatHidden()
+
+    init() {}
+
+    /// Firestore 문서 데이터 → 상태(숫자 타입이 Int/Double 로 섞여 와도 NSNumber 로 받는다).
+    init(data: [String: Any]) {
+        clearedAt = (data["clearedAt"] as? NSNumber)?.int64Value ?? 0
+        messageIds = Set((data["messageIds"] as? [Any])?.compactMap { $0 as? String } ?? [])
+        previewFor = (data["previewFor"] as? NSNumber)?.int64Value ?? 0
+        previewText = data["previewText"] as? String ?? ""
+        previewAt = (data["previewAt"] as? NSNumber)?.int64Value ?? 0
+        previewSenderId = data["previewSenderId"] as? String ?? ""
+    }
+
+    /// 이 메시지가 내 화면에서 가려지는가.
+    func hides(_ message: ChatMessage) -> Bool {
+        if clearedAt > 0, message.createdAt <= clearedAt { return true }
+        if let id = message.id, messageIds.contains(id) { return true }
+        return false
+    }
+
+    /// 친구 목록 행에 보일 마지막 대화. nil = 보일 게 없음("아직 대화가 없어요"). 인자는 방 메타(공용) 값.
+    func preview(lastMessage: String, updatedAt: Int64, lastSenderId: String) -> ChatPreview? {
+        if updatedAt <= 0 || updatedAt <= clearedAt { return nil }
+        if previewFor > 0, updatedAt <= previewFor {
+            if previewText.isEmpty || previewAt <= clearedAt { return nil }
+            return ChatPreview(text: previewText, at: previewAt, senderId: previewSenderId)
+        }
+        if lastMessage.isEmpty { return nil }
+        return ChatPreview(text: lastMessage, at: updatedAt, senderId: lastSenderId)
+    }
+}
+
+/// 친구 목록 행 미리보기 한 줄(내 숨김 상태를 반영한 결과).
+struct ChatPreview: Equatable {
+    let text: String
+    let at: Int64
+    let senderId: String
+}
+
+
 // MARK: - 공개 범위
 
 enum Visibility: String, CaseIterable {

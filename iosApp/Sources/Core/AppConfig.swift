@@ -21,6 +21,8 @@ enum AppConfig {
         static let reports = "reports"           // 최상위 (신고 접수)
         static let chats = "chats"
         static let messages = "messages"        // chats/{chatId} 하위
+        /// users/{uid} 하위: 나에게서만 지운 채팅(문서 id = chatId, 본인 전용). StaryConfig.CHAT_HIDDEN 과 같은 값.
+        static let chatHidden = "chatHidden"
         static let hiddenAchievements = "hiddenAchievements" // 최상위 (히든 업적 선점, 앱 전체 1명)
         static let invites = "invites"          // 최상위 (친구 초대 리딤, 문서 id = 리딤한 사람 uid)
         /// users/{uid} 하위: 기기별 FCM 토큰(문서 id = 토큰). StaryConfig.FCM_TOKENS 와 같은 값.

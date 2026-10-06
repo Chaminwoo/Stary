@@ -22,11 +22,23 @@ packages:
   MapLibre:
     url: https://github.com/maplibre/maplibre-gl-native-distribution.git
     from: "6.7.0"
-  # 보상형 광고 SPM 패키지(GoogleMobileAds/LevelPlay/LevelPlayUnityAdsAdapter)는 2026-10-04 로컬에서 제거했다 —
-  # 이 Mac 에서 Xcode 자체의 네트워크 경로가 막혀 있어(raw.githubusercontent.com/dl.google.com 바이너리 다운로드가
-  # Xcode 에서만 "invalid archive") 매 빌드마다 "Missing package product" 로 실패했다. 코드는 `#if canImport(...)`
-  # 로 감싸 두어 패키지가 없어도 컴파일은 그대로 되고 광고만 꺼진다(docs/IOS_ADS_SETUP.md 의 "7. 문제 해결" 참고).
-  # 네트워크 문제가 해결되면 아래 3개 패키지 + dependencies 의 대응 3줄 + OTHER_LDFLAGS 의 -ObjC 를 되살리면 된다.
+  # 보상형 광고(2026-10-04 연결, 2026-10-07 복구) — 코드는 `#if canImport(...)` 로 감싸 두었다.
+  #  - GoogleMobileAds : AdMob 폴백(제품 GoogleMobileAds). 12.x 라인의 Swift API(접두사 없는 MobileAds/RewardedAd) 기준.
+  #  - LevelPlay       : 1순위 미디에이션(제품 UnityMediationSDK, 모듈 IronSource) + Unity Ads 어댑터(UnityAdsAdapter).
+  #    ⚠️ LevelPlay SPM 은 `-ObjC` 링커 플래그를 수동으로 넣어야 한다(아래 OTHER_LDFLAGS). 설정법: docs/IOS_ADS_SETUP.md
+  # ⚠️ **이 3개를 지우면 iOS 광고가 통째로 사라진다.** 2026-10-04 Mac 의 Xcode 네트워크 문제("invalid archive")로
+  #    여기서 지웠더니 그 뒤 TestFlight 빌드 전부가 광고 SDK 없이 나가 "광고를 불러올 수 없어요"만 떴다(2026-10-07 발견).
+  #    `#if canImport` 덕에 컴파일은 조용히 통과해서 아무도 몰랐다 → 이제 Release 빌드에서 SDK 가 없으면
+  #    AdsManager.swift 의 `#error` 로 빌드를 멈춘다. 패키지 해석이 안 되면 지우지 말고 IOS_ADS_SETUP.md 7번(캐시 초기화 / CI 업로드)부터.
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads.git
+    from: "12.0.0"
+  LevelPlay:
+    url: https://github.com/ironsource-mobile/LevelPlay-Swift-Package.git
+    from: "9.6.0"
+  LevelPlayUnityAdsAdapter:
+    url: https://github.com/ironsource-mobile/LevelPlay-UnityAds-Adapter-Swift-Package.git
+    from: "5.12.0"
 
 settings:
   base:
@@ -37,7 +49,8 @@ settings:
     # 위와 같은 이유로 CURRENT_PROJECT_VERSION 도 한 번도 반영된 적이 없었다 — ASC 에 이미 9 까지 있어
     # "Redundant Binary Upload" 발생. 10 으로 올림 — 다음 업로드 전엔 ASC TestFlight 탭의 최신 빌드 번호를
     # 확인하고 그보다 크게 맞출 것.
-    CURRENT_PROJECT_VERSION: "10"
+    # 11 (2026-10-07): 광고 SDK 복구 + 채팅 나만 삭제. 빌드 10 은 광고 SDK 없이 올라간 빌드.
+    CURRENT_PROJECT_VERSION: "11"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}   # CI 환경변수로 주입(Apple Team ID)
 
@@ -94,7 +107,8 @@ targets:
         # ATT(앱 추적 투명성) 팝업 문구 — 광고 SDK 가 광고 식별자(IDFA)를 쓰기 전 필수.
         NSUserTrackingUsageDescription: 맞춤 광고를 보여주고 광고 품질을 개선하기 위해 광고 식별자를 사용해요. 허용하지 않아도 앱은 그대로 쓸 수 있어요.
         # SKAdNetwork — 광고 설치 어트리뷰션. Google(AdMob) + ironSource/Unity(LevelPlay) 필수분 + 주요 네트워크.
-        # ⚠️ 구글이 권장하는 전체 목록은 더 길다 — docs/IOS_ADS_SETUP.md 의 링크에서 최신 목록으로 보강할 것.
+        # ⚠️ 목록은 네트워크 측에서 수시로 늘어난다 — Unity/구글 대시보드의 "누락 ID" 안내를 월 1회 확인해 보강(docs/IOS_ADS_SETUP.md 5-4).
+        # ⚠️ Sources/Info.plist 에도 같은 목록이 있다(xcodegen 이 재생성하지만 커밋본도 맞춰 둔다).
         SKAdNetworkItems:
           - SKAdNetworkIdentifier: cstr6suwn9.skadnetwork   # Google
           - SKAdNetworkIdentifier: su67r6k2v3.skadnetwork   # ironSource(LevelPlay)
@@ -131,6 +145,54 @@ targets:
           - SKAdNetworkIdentifier: 22mmun2rn5.skadnetwork
           - SKAdNetworkIdentifier: gta9lk7p23.skadnetwork
           - SKAdNetworkIdentifier: 4pfyvq9l8r.skadnetwork
+          # ↓ Unity(LevelPlay) 대시보드 "누락된 SKAdNetwork ID" 목록에서 보강(2026-10-07, SDK 3.5.1+ 기준 — 매월 확인 권장)
+          - SKAdNetworkIdentifier: w9q455wk68.skadnetwork
+          - SKAdNetworkIdentifier: pwa73g5rt2.skadnetwork
+          - SKAdNetworkIdentifier: g6gcrrvk4p.skadnetwork
+          - SKAdNetworkIdentifier: v79kvwwj4g.skadnetwork
+          - SKAdNetworkIdentifier: 3rd42ekr43.skadnetwork
+          - SKAdNetworkIdentifier: k674qkevps.skadnetwork
+          - SKAdNetworkIdentifier: a8cz6cu7e5.skadnetwork
+          - SKAdNetworkIdentifier: 5a6flpkh64.skadnetwork
+          - SKAdNetworkIdentifier: 238da6jt44.skadnetwork
+          - SKAdNetworkIdentifier: 4w7y6s5ca2.skadnetwork
+          - SKAdNetworkIdentifier: k6y4y55b64.skadnetwork
+          - SKAdNetworkIdentifier: 6yxyv74ff7.skadnetwork
+          - SKAdNetworkIdentifier: x44k69ngh6.skadnetwork
+          - SKAdNetworkIdentifier: a2p9lx4jpn.skadnetwork
+          - SKAdNetworkIdentifier: uw77j35x4d.skadnetwork
+          - SKAdNetworkIdentifier: mj797d8u6f.skadnetwork
+          - SKAdNetworkIdentifier: xga6mpmplv.skadnetwork
+          - SKAdNetworkIdentifier: lr83yxwka7.skadnetwork
+          - SKAdNetworkIdentifier: 5tjdwbrq8w.skadnetwork
+          - SKAdNetworkIdentifier: e5fvkxwrpn.skadnetwork
+          - SKAdNetworkIdentifier: v9wttpbfk9.skadnetwork
+          - SKAdNetworkIdentifier: 9nlqeag3gk.skadnetwork
+          - SKAdNetworkIdentifier: 5f5u5tfb26.skadnetwork
+          - SKAdNetworkIdentifier: glqzh8vgby.skadnetwork
+          - SKAdNetworkIdentifier: prcb7njmu6.skadnetwork
+          - SKAdNetworkIdentifier: zmvfpc5aq8.skadnetwork
+          - SKAdNetworkIdentifier: f73kdq92p3.skadnetwork
+          - SKAdNetworkIdentifier: n9x2a789qt.skadnetwork
+          - SKAdNetworkIdentifier: zq492l623r.skadnetwork
+          - SKAdNetworkIdentifier: feyaarzu9v.skadnetwork
+          - SKAdNetworkIdentifier: 44jx6755aq.skadnetwork
+          - SKAdNetworkIdentifier: 32z4fx6l9h.skadnetwork
+          - SKAdNetworkIdentifier: 488r3q3dtq.skadnetwork
+          - SKAdNetworkIdentifier: 77y3x8wds4.skadnetwork
+          - SKAdNetworkIdentifier: wg4vff78zm.skadnetwork
+          - SKAdNetworkIdentifier: 578prtvx9j.skadnetwork
+          - SKAdNetworkIdentifier: m8dbw4sv7c.skadnetwork
+          - SKAdNetworkIdentifier: tl55sbb4fm.skadnetwork
+          - SKAdNetworkIdentifier: 294l99pt4k.skadnetwork
+          - SKAdNetworkIdentifier: mp6xlyr22a.skadnetwork
+          - SKAdNetworkIdentifier: 5l3tpt7t6e.skadnetwork
+          - SKAdNetworkIdentifier: 4468km3ulz.skadnetwork
+          - SKAdNetworkIdentifier: mqn7fxpca7.skadnetwork
+          - SKAdNetworkIdentifier: vhf287vqwu.skadnetwork
+          - SKAdNetworkIdentifier: 5lm9lj6jb7.skadnetwork
+          - SKAdNetworkIdentifier: f7s53z58qe.skadnetwork
+          - SKAdNetworkIdentifier: 97r2b46745.skadnetwork
         # MapTiler 벡터 타일 키(야경 커스텀 스타일용 — Android secrets.properties 의 MAPTILER_KEY 와 동일 값).
         # 빈 값이면 지도는 키 불필요한 데모 스타일로 폴백.
         MAPTILER_KEY: $(MAPTILER_KEY)
@@ -179,6 +241,12 @@ targets:
         product: GoogleSignIn
       - package: MapLibre
         product: MapLibre
+      - package: GoogleMobileAds
+        product: GoogleMobileAds
+      - package: LevelPlay
+        product: UnityMediationSDK
+      - package: LevelPlayUnityAdsAdapter
+        product: UnityAdsAdapter
     settings:
       base:
         # Apple App ID 는 언더스코어(_) 불가 → stary_ios 대신 com.chaminwoo.stary.ios (점 표기, 2026-07-15).
@@ -203,6 +271,8 @@ targets:
           - $(inherited)
           - -framework
           - Shared
+          # LevelPlay SPM 패키지는 unsafeFlags 를 못 넣어 `-ObjC` 를 앱 쪽에서 직접 준다(공식 문서).
+          - -ObjC
     # 로컬 전용 xcconfig — MAPTILER_KEY 등 로컬 시크릿 자동 주입(Config/Local.secrets.xcconfig, gitignore).
     # 파일이 없어도 Local.xcconfig 의 #include? 가 조용히 넘어가므로 CI/다른 팀원 클론에는 영향 없음.
     configFiles:

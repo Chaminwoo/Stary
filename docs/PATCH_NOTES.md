@@ -9,7 +9,8 @@
 
 ## 1.5.2 (예정) — 미출시 · 실기기 테스트 대기
 
-범위: 8.69(별 도감 = 열람한 모든 다이어리) + 8.70(업적 38개 · 별 모양 12종 · 묶음 팝업). 1.5.1 이 아직 안 나갔다면 1.5.1 에 합쳐도 된다.
+범위: 8.69(별 도감 = 열람한 모든 다이어리) + 8.70(업적 38개 · 별 모양 12종 · 묶음 팝업) + 8.74(채팅 나에게서만 삭제). 1.5.1 이 아직 안 나갔다면 1.5.1 에 합쳐도 된다.
+⚠️ 8.74 는 Firestore 규칙 배포가 먼저(`firebase deploy --only firestore:rules`).
 
 ### 스토어 출시 노트 (붙여 넣기용 — ko-KR/en-IN/ja-JP/zh-CN)
 
@@ -22,6 +23,7 @@
 • 별 도감에 100m 안에서 연 다이어리와 광고로 연 다이어리가 모두 모여요. 기기를 바꿔도 그대로 남아요
 • 업적을 한꺼번에 여러 개 달성하면 한 장에 모아서 보여드려요
 • 심야 기록 업적이 기기 시간 기준으로 정확하게 판정되도록 고쳤어요
+• 채팅 메시지를 길게 눌러 '나에게서만 삭제'할 수 있어요. 대화 내용 전체도 나에게서만 지울 수 있어요 (상대방에게는 그대로 남아요)
 </ko-KR>
 <en-IN>
 [1.5.2 Update]
@@ -31,6 +33,7 @@
 • Your Star Log now collects every diary you've opened, whether within 100m or with an ad, and keeps them even if you switch devices
 • Unlocking several achievements at once now shows them together on one card
 • Late-night achievements now use your device's local time
+• Long-press a chat message to "Delete for me", or delete a whole chat history just for you (it stays on your friend's side)
 </en-IN>
 <ja-JP>
 【1.5.2 アップデート】
@@ -40,6 +43,7 @@
 • 星の図鑑に、100m以内で開いた日記も広告で開いた日記もすべて集まります。機種変更しても残ります
 • 実績を一度にいくつも達成したときは、まとめて一枚で表示します
 • 深夜の記録の実績が端末の時刻で正しく判定されるように修正しました
+• チャットのメッセージを長押しして「自分だけ削除」できるようになりました。トーク履歴もまとめて自分だけ削除できます(相手側には残ります)
 </ja-JP>
 <zh-CN>
 【1.5.2 更新】
@@ -49,6 +53,7 @@
 • 星星图鉴会收集你打开过的所有日记,无论是在100米内打开还是通过广告解锁,更换设备后也会保留
 • 同时达成多项成就时,会在一张卡片中一起展示
 • 深夜记录相关成就现按设备本地时间判定
+• 长按聊天消息即可"仅为自己删除",也可以仅为自己删除整个聊天记录(对方那边仍会保留)
 </zh-CN>
 ```
 

@@ -4,6 +4,13 @@
 > **키를 안 넣으면 광고만 꺼진다** — 100m 밖 글의 아이콘을 탭하면 "지금은 광고를 불러올 수 없어요"가 나오고 앱은 정상 동작한다.
 > 아래를 채우면 켜진다. 광고원은 **LevelPlay(1순위) → AdMob(폴백)** 순서(Android 와 동일).
 
+> ⚠️ **2026-10-07 사고 — TestFlight 에서 광고가 한 번도 안 나왔다.** 원인은 키가 아니라 **SDK 자체가 빠진 빌드**였다:
+> 10-04 커밋 `76f145c` 가 Mac 의 Xcode 네트워크 문제("invalid archive") 때문에 `project.yml` 에서 광고 SPM 패키지 3개를 지웠고,
+> 광고 코드는 `#if canImport` 로 감싸져 있어 **조용히** 컴파일됐다 → 그 뒤 빌드(TestFlight 10)는 광고 SDK 0개 →
+> 재생 아이콘을 누르면 항상 "지금은 광고를 불러올 수 없어요".
+> 10-07 에 패키지 3개 + `-ObjC` 를 되살렸고, **Release 빌드에서 SDK 가 하나도 없으면 `AdsManager.swift` 의 `#error` 로 빌드가 멈춘다**
+> (하나만 빠지면 `#warning`). **패키지 해석이 안 될 때 패키지를 지우지 말 것** → 7번 "Mac 에서 invalid archive" 절차부터.
+
 ---
 
 ## 0. 한눈에 보는 체크리스트
@@ -16,6 +23,8 @@
 - [ ] F. App Store Connect **앱 개인정보(App Privacy)** 에 광고/추적 항목 선언
 - [ ] G. 실기기에서 ATT 팝업 → 광고 재생 → 해금까지 확인
 - [ ] H. CI 가 빨개지면 7번 "문제 해결" 확인
+- [ ] I. Mac 에서 광고 SPM 패키지 3개가 해석되는지(Xcode 왼쪽 Package Dependencies 에 GoogleMobileAds·LevelPlay·UnityAds 가 보이는지) — 7번
+- [ ] J. Unity/구글 대시보드의 "누락된 SKAdNetwork ID" 안내를 **월 1회** 확인해 `project.yml`(+`Sources/Info.plist`) 보강 — 5-4
 
 ---
 
@@ -98,9 +107,12 @@ GitHub 레포 → Settings → Secrets and variables → Actions → New reposit
 
 ### 5-4. SKAdNetwork
 - `iosApp/project.yml` 의 `SKAdNetworkItems` 에 Google(`cstr6suwn9`) + ironSource(`su67r6k2v3`) + Unity(`4dzt52r2t5`) + 주요 네트워크 ID 를 넣어 두었다.
-- 구글이 권장하는 **전체 최신 목록**은 더 길고 수시로 늘어난다 →
-  [Google SKAdNetwork 가이드](https://developers.google.com/admob/ios/choose-networks#skadnetwork) 에서 목록을 받아 보강하는 것을 권장.
-  LevelPlay 도 네트워크를 추가할 때마다 해당 네트워크의 SKAdNetwork ID 를 요구한다.
+- **2026-10-07: Unity(LevelPlay) 대시보드의 "누락된 SKAdNetwork ID"(SDK 3.5.1+ 기준 76개) 중 빠져 있던 47개를 보강 → 총 82개.**
+  ⚠️ SKAdNetwork 가 빠져도 광고 **로드/재생은 된다**(설치 어트리뷰션·단가만 손해) — "광고가 안 뜨는" 원인은 아니다.
+- 목록은 네트워크 측에서 수시로 늘어난다 → Unity 대시보드 안내와
+  [Google SKAdNetwork 가이드](https://developers.google.com/admob/ios/choose-networks#skadnetwork) 를 **월 1회** 확인해 보강.
+  넣을 곳: `project.yml` 의 `SKAdNetworkItems` 목록 끝 + `Sources/Info.plist` 의 같은 배열(xcodegen 이 재생성하지만 커밋본도 맞춘다).
+  LevelPlay 에 네트워크를 추가할 때도 해당 네트워크의 ID 를 요구한다.
 
 ### 5-5. (선택) ATS
 - LevelPlay 문서는 `NSAllowsArbitraryLoads = YES` 를 권하지만 심사에 불리할 수 있어 **넣지 않았다**. 일부 네트워크 광고가 http 소재를 써서 안 뜨면 그때 검토.
@@ -121,11 +133,36 @@ GitHub 레포 → Settings → Secrets and variables → Actions → New reposit
 
 ## 7. 문제 해결
 
-- **CI 에서 패키지 해석 실패 / 링크 오류**: 이 변경에서 `iosApp/project.yml` 에 SPM 패키지 3개를 추가했다
-  (`GoogleMobileAds`, `LevelPlay`(제품 `UnityMediationSDK`), `LevelPlayUnityAdsAdapter`(제품 `UnityAdsAdapter`)).
-  LevelPlay 쪽이 문제면 `packages:` 의 LevelPlay 두 항목 + `dependencies:` 의 해당 두 줄 + `OTHER_LDFLAGS` 의 `-ObjC` 를 지워도 된다 —
-  코드는 `#if canImport(IronSource)` 로 감싸져 있어 컴파일은 그대로 통과하고, 그 경우 AdMob 만 동작한다.
-  (LevelPlay SPM 공식 안내는 `main` 브랜치 사용이지만 태그 `9.6.x` 로 고정해 뒀다. 해석이 안 되면 `branch: main` 으로 바꿔 본다.)
+### 증상별 원인 — "지금은 광고를 불러올 수 없어요"
+| 언제 뜨나 | 원인 | 확인 |
+|---|---|---|
+| 탭하자마자 **바로** | 광고원이 하나도 설정 안 됨 = **SDK 미링크** 또는 **키 미주입** | DEBUG 콘솔 `ℹ️ [Ads] 광고 비활성 — SDK 링크 LevelPlay=… AdMob=… / 키 …` 한 줄이 어느 쪽인지 알려 준다 |
+| "광고를 불러오는 중이에요…" 뒤 **12초 후** | SDK·키는 있는데 광고를 못 받음(No fill) | 콘솔 `⚠️ [Ads] LevelPlay 보상형 로드 실패 …` / `폴백(AdMob) …` — LevelPlay 대시보드 네트워크(Unity Ads) 인스턴스 연결, 새 광고 단위 활성화 대기(수 시간), app-ads.txt |
+
+### Mac 에서 패키지 해석 실패("invalid archive" / "Missing package product") — **패키지를 지우지 말고** 이 순서로
+광고 SDK 3개(`GoogleMobileAds`, `LevelPlay`(제품 `UnityMediationSDK`), `LevelPlayUnityAdsAdapter`(제품 `UnityAdsAdapter`))는
+바이너리(xcframework zip)를 `dl.google.com` / `raw.githubusercontent.com` 에서 받는다. GitHub Actions(macOS)에서는 정상 해석·링크된다
+(CI 로그로 확인: 10-04 `861bd80` 빌드에 `-framework GoogleMobileAds -framework IronSource -framework UnityAds` 링크) → **코드/설정 문제가 아니라 그 Mac 의 다운로드 경로 문제**다.
+1. Xcode 종료 후 SPM 캐시 삭제(깨진 zip 이 캐시돼 계속 "invalid archive" 가 나는 경우가 가장 흔하다):
+   ```
+   rm -rf ~/Library/Caches/org.swift.swiftpm ~/Library/org.swift.swiftpm
+   rm -rf ~/Library/Developer/Xcode/DerivedData/Stary-*
+   ```
+2. 프로젝트 재생성 + **터미널에서** 패키지 해석(Xcode 앱이 아닌 xcodebuild 프로세스로 받는다):
+   ```
+   cd iosApp && xcodegen generate
+   xcodebuild -resolvePackageDependencies -project Stary.xcodeproj -scheme Stary
+   ```
+   성공하면 Xcode 를 열어 빌드/아카이브(이미 받은 패키지를 쓴다).
+3. 그래도 실패하면 네트워크: VPN·프록시·방화벽 앱(Little Snitch/LuLu 등)·보안 프로그램이 Xcode/xcodebuild 의 다운로드를 막는지 확인 →
+   잠시 끄거나, 다른 네트워크(휴대폰 핫스팟)에서 2번을 다시. 한 번 받아 두면 캐시로 계속 쓴다.
+4. 확인: 빌드 경고에 `광고 SDK … 링크되지 않았다` 가 **없어야** 하고, Xcode 왼쪽 Package Dependencies 에 GoogleMobileAds·LevelPlay·UnityAds 가 보여야 한다.
+   Release 아카이브에서 SDK 가 없으면 `#error` 로 멈춘다(의도된 안전장치 — 광고 없는 빌드가 스토어로 나가는 것 방지).
+- (참고) 빌드 번호: `project.yml` 의 `CURRENT_PROJECT_VERSION` — 업로드 전 ASC TestFlight 의 최신 번호보다 크게(2026-10-07 = 11).
+- (참고) CI 업로드(`ios.yml` deploy, Actions → Run workflow → upload)는 Mac 없이 올리는 길이지만 아직 미구성이다 —
+  GitHub Secrets 에 `APP_STORE_CONNECT_KEY_ID`/`_ISSUER_ID`/`_API_KEY`, `IOS_DEVELOPMENT_TEAM`, 광고 키 4개, `MAPTILER_KEY` 가 필요하고
+  자동 서명이 CI 에서 되는지 한 번 검증해야 한다(2026-10-07 기준 Secrets 에는 LevelPlay 키 2개만 있음).
+- LevelPlay SPM 공식 안내는 `main` 브랜치 사용이지만 `from: 9.6.0` 으로 고정해 뒀다. 해석이 안 되면 `branch: main` 으로 바꿔 본다.
 - **LevelPlay Swift 컴파일 오류**: API 이름은 공식 문서(SDK 8.5+/9.x: `LPMInitRequestBuilder`, `LevelPlay.initWith`, `LPMRewardedAd`, `LPMRewardedAdDelegate`) 기준이다.
   SDK 메이저 버전이 올라 이름이 바뀌면 `Core/LevelPlayRewarded.swift` 한 파일만 고치면 된다.
 - **AdMob 컴파일 오류**: `from: "12.0.0"`(12.x 라인)의 Swift API(`MobileAds.shared.start`, `RewardedAd.load(with:request:)`, `present(from:)`,

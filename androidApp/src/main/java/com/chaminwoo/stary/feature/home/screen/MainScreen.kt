@@ -635,6 +635,45 @@ fun MainScreen(
                                         }
                                     }
                                 }
+                                // 채팅: 더보기(⋮) — 대화 내용 나에게서만 삭제(확인 팝업은 ChatScreen 이 띄운다)
+                                val chatRoute = currentRoute as? NavRoute.Chat
+                                if (chatRoute != null &&
+                                    com.chaminwoo.stary.core.util.ChatActionState.ownerKey == chatRoute.friendId
+                                ) {
+                                    var chatMenuOpen by androidx.compose.runtime.remember(chatRoute.friendId) {
+                                        androidx.compose.runtime.mutableStateOf(false)
+                                    }
+                                    Box {
+                                        IconButton(
+                                            onClick = { chatMenuOpen = true },
+                                            modifier = Modifier.clickBounce()
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.MoreVert,
+                                                contentDescription = stringResource(R.string.cd_more),
+                                                tint = Color(0xFFF0F0F0)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = chatMenuOpen,
+                                            onDismissRequest = { chatMenuOpen = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        stringResource(R.string.chat_clear_title),
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                },
+                                                onClick = {
+                                                    chatMenuOpen = false
+                                                    com.chaminwoo.stary.core.util.ChatActionState.onClearChat()
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                                 // (로그아웃은 프로필 화면 내 버튼으로 이동)
                             }
                         )

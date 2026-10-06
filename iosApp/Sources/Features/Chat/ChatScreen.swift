@@ -12,8 +12,10 @@ struct ChatScreen: View {
     private var shownName: String { directory.name(friendId, fallback: friendName) }
     @StateObject private var vm: ChatViewModel
     @State private var text = ""
-    // 롱프레스한 내 메시지(1분 이내) — 완전 삭제 확인 대상. nil 이면 다이얼로그 숨김.
+    // 롱프레스한 메시지 — 삭제 방식 선택(나에게서만 / 모두에게서) 대상. nil 이면 팝업 숨김.
     @State private var pendingDelete: ChatMessage?
+    // 툴바 ⋮ → "대화 내용 삭제"(나에게서만) 확인 팝업.
+    @State private var showClearConfirm = false
     // 전송 실패 안내 토스트(권한/네트워크) — 조용히 사라지지 않게.
     @State private var toast: String?
 
@@ -91,19 +93,45 @@ struct ChatScreen: View {
                     HiddenStarBadges(userId: friendId, size: 12)
                 }
             }
+            // 더보기(⋮) — 대화 내용 나에게서만 삭제(Android 탑바 ⋮ 패리티).
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Button(role: .destructive) {
+                        if vm.hasVisibleMessages { showClearConfirm = true }
+                        else { showToast(locale.t(.chatClearNothing)) }
+                    } label: {
+                        Label(locale.t(.chatClearTitle), systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .tint(Theme.navyAccent)
+                .accessibilityLabel(locale.t(.commonMore))
+            }
         }
-        // 내 메시지 완전 삭제 확인(1분 이내) — 상대방 쪽에서도 사라진다.
-        // 위치/모양을 Android 와 맞추려 가운데 사각 팝업([staryConfirmDialog])을 쓴다.
-        .staryConfirmDialog(
+        // 메시지 삭제 방식 선택 — 나에게서만(언제나, 상대 방엔 남음) / 모두에게서(내 메시지 1분 이내, 상대 쪽에서도 사라짐).
+        // 위치/모양을 Android 와 맞추려 가운데 사각 팝업([staryChoiceDialog])을 쓴다.
+        .staryChoiceDialog(
             locale.t(.chatDeleteTitle),
             isPresented: Binding(get: { pendingDelete != nil },
                                  set: { if !$0 { pendingDelete = nil } }),
-            message: locale.t(.chatDeleteConfirm),
+            message: pendingDelete.map {
+                locale.t(vm.canDelete($0, myUid: auth.uid) ? .chatDeleteConfirm : .chatDeleteForMeDesc)
+            },
+            options: deleteOptions(for: pendingDelete)
+        )
+        // 대화 내용 나에게서만 삭제 확인(⋮) — 상대 대화방에는 그대로 남는다.
+        .staryConfirmDialog(
+            locale.t(.chatClearTitle),
+            isPresented: $showClearConfirm,
+            message: locale.t(.chatClearConfirm),
             confirmTitle: locale.t(.commonDelete),
             destructive: true
-        ) { [target = pendingDelete] in
-            // ⚠️ 확인 시 팝업이 먼저 닫히며 pendingDelete 가 nil 이 되므로 **캡처한 값**을 쓴다.
-            if let target { Task { await vm.deleteMessage(target, myUid: auth.uid) } }
+        ) {
+            Task {
+                let ok = await vm.clearForMe()
+                showToast(locale.t(ok ? .chatClearDone : .chatActionFailed))
+            }
         }
         .onAppear {
             vm.start()
@@ -126,6 +154,35 @@ struct ChatScreen: View {
         ChatReadStore.shared.markRead(AppConfig.chatId(uid, friendId))
     }
 
+    /// 롱프레스한 메시지의 삭제 선택지 — 나에게서만(항상) + 모두에게서(내 메시지 1분 이내).
+    /// ⚠️ 선택 시 팝업이 먼저 닫히며 pendingDelete 가 nil 이 되므로, 각 동작은 **인자로 받은 target** 을 캡처해 쓴다.
+    private func deleteOptions(for target: ChatMessage?) -> [StaryDialogOption] {
+        guard let target else { return [] }
+        var options = [
+            StaryDialogOption(locale.t(.chatDeleteForMe), systemImage: "eye.slash") {
+                Task {
+                    let ok = await vm.hideForMe(target)
+                    showToast(locale.t(ok ? .chatHiddenDone : .chatActionFailed))
+                }
+            }
+        ]
+        if vm.canDelete(target, myUid: auth.uid) {
+            options.append(StaryDialogOption(locale.t(.chatDeleteForEveryone), systemImage: "trash",
+                                             isDestructive: true) {
+                // 팝업을 띄워 둔 사이 1분이 지났으면 안내만(서버 규칙도 60초를 강제).
+                guard vm.canDelete(target, myUid: auth.uid) else {
+                    showToast(locale.t(.chatDeleteExpired))
+                    return
+                }
+                Task {
+                    let ok = await vm.deleteMessage(target, myUid: auth.uid)
+                    if !ok { showToast(locale.t(.chatActionFailed)) }
+                }
+            })
+        }
+        return options
+    }
+
     /// 말풍선 배경 채움 — 내 것은 파랑→남색 그라데이션, 상대는 surface.
     ///
     /// ⚠️ `background(_:in:)` 은 **ShapeStyle** 을 받는다(View 가 아니다).
@@ -140,7 +197,8 @@ struct ChatScreen: View {
     }
 
     /// 말풍선 — 내 것은 파랑→남색 그라데이션(Android MineBubble 과 같은 색), 상대는 surface.
-    /// 삭제 가능(내 메시지 1분 이내)이면 왼쪽에 남은 시간이 줄어드는 링을 띄운다.
+    /// 모두에게서 삭제 가능(내 메시지 1분 이내)이면 왼쪽에 남은 시간이 줄어드는 링을 띄운다.
+    /// 롱프레스는 **모든 메시지**에서 삭제 방식 선택을 연다(나에게서만은 언제나 가능).
     private func bubble(_ msg: ChatMessage) -> some View {
         let mine = msg.senderId == auth.uid
         let canDelete = mine && vm.canDelete(msg, myUid: auth.uid)
@@ -162,12 +220,10 @@ struct ChatScreen: View {
                 )
                 .foregroundStyle(mine ? Color(hex: 0xEDF1FF) : Theme.textPrimary)
                 .modifier(SentAppear(active: justSent))
-                // 내 메시지 + 전송 후 1분 이내면 롱프레스로 완전 삭제(그 외엔 무반응)
+                // 롱프레스 → 삭제 방식 선택(나에게서만 = 언제나 / 모두에게서 = 내 메시지 1분 이내)
                 .onLongPressGesture {
-                    if canDelete {
-                        Haptics.soft()
-                        pendingDelete = msg
-                    }
+                    Haptics.soft()
+                    pendingDelete = msg
                 }
             if !mine { Spacer(minLength: 40) }
         }
@@ -236,8 +292,8 @@ private struct SentAppear: ViewModifier {
     }
 }
 
-/// 삭제 가능 잔여 시간 링 — 내 메시지를 보낸 뒤 `AppConfig.chatDeleteWindowMs` 동안 줄어든다.
-/// 0 이 되면 사라진다(그때부터 롱프레스 삭제도 막힌다). Android DeleteWindowRing 패리티.
+/// 모두에게서 삭제 가능 잔여 시간 링 — 내 메시지를 보낸 뒤 `AppConfig.chatDeleteWindowMs` 동안 줄어든다.
+/// 0 이 되면 사라진다(그때부터 롱프레스 메뉴엔 "나에게서만 삭제"만 남는다). Android DeleteWindowRing 패리티.
 private struct DeleteWindowRing: View {
     let createdAt: Int64
     @State private var remain: Double = 1

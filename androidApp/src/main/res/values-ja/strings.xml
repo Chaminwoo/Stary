@@ -207,7 +207,17 @@
     <string name="chat_input_placeholder">メッセージを入力</string>
     <string name="chat_need_friend">フレンドになってチャットしましょう</string>
     <string name="chat_delete_title">メッセージを削除</string>
-    <string name="chat_delete_confirm">このメッセージを完全に削除しますか？相手側からも消えます。</string>
+    <string name="chat_delete_confirm">全員から削除すると相手側からも消えます。（送信から1分以内のみ）</string>
+    <string name="chat_delete_for_me">自分だけ削除</string>
+    <string name="chat_delete_for_everyone">全員から削除</string>
+    <string name="chat_delete_for_me_desc">自分だけ削除しても、相手のトークにはそのまま残ります。</string>
+    <string name="chat_hidden_done">自分のトークから削除しました</string>
+    <string name="chat_delete_expired">送信から1分が過ぎたため、全員からは削除できません</string>
+    <string name="chat_clear_title">トーク履歴を削除</string>
+    <string name="chat_clear_confirm">これまでのトークを自分だけ削除しますか？\n相手のトークにはそのまま残ります。</string>
+    <string name="chat_clear_done">トーク履歴を削除しました</string>
+    <string name="chat_clear_nothing">削除するメッセージがありません</string>
+    <string name="chat_action_failed">削除できませんでした。しばらくしてからお試しください</string>
     <string name="common_friend">友達</string>
 
     <!-- 通知画面 -->

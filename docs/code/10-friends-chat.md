@@ -51,7 +51,35 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
 한쪽으로 통일하면 반드시 다른 쪽이 깨진다(첫 채팅 불통 ↔ 목록 미표시). 규칙을 고치면
 **반드시 배포**: `firebase deploy --only firestore:rules`.
 - `canDelete(message)` / `deleteMessage(message)` : **내가 보낸 메시지 + 1분 이내**
-  (`StaryConfig.CHAT_DELETE_WINDOW_MS`)만 완전 삭제(상대 쪽에서도 사라짐).
+  (`StaryConfig.CHAT_DELETE_WINDOW_MS`)만 완전 삭제(상대 쪽에서도 사라짐). 1분이 지나 누르면 `ChatEvent.DELETE_EXPIRED` 토스트.
+
+### 나에게서만 삭제(2026-10-07) — 메시지 하나 / 대화 내용 전체
+
+공용 문서(`chats/{chatId}`, `messages`)는 **건드리지 않고**, 내 전용 문서 `users/{나}/chatHidden/{chatId}`
+(shared `core/model/ChatHidden.kt` ↔ iOS `Models.swift` `ChatHidden`)로 내 화면에서만 가린다. 상대 대화방엔 그대로.
+규칙: `firestore.rules` 의 `users/{uid}/chatHidden/{chatId}` = 본인만 읽기/쓰기(상대가 내가 뭘 지웠는지 못 보게 공용 방 문서에 두지 않았다).
+**규칙을 배포해야 동작한다**(`firebase deploy --only firestore:rules`) — 미배포면 구독은 권한 오류 → 숨김 없이 표시, 삭제 시 "삭제하지 못했어요".
+
+| 필드 | 의미 |
+|---|---|
+| `messageIds` | 메시지 하나씩 나만 삭제한 id(arrayUnion) |
+| `clearedAt` | 대화 내용 나만 삭제 — createdAt ≤ 이 값인 메시지를 가린다. ⚠️ 내 기기 시각이 아니라 **그때 방의 마지막 메시지 createdAt**(+방 메타 updatedAt 중 큰 값). createdAt 은 보낸 사람 기기 시각이라 내 시계로 자르면 시계가 늦은 상대의 새 메시지가 숨을 수 있다 |
+| `previewFor`/`previewText`/`previewAt`/`previewSenderId` | 친구 목록 미리보기 대체값. 방 메타 `lastMessage` 는 공용이라 내가 숨긴 마지막 메시지가 그대로 보이므로, 숨길 때 "그 시점 방의 마지막 메시지 시각"과 "내게 남은 마지막 메시지"를 적어 두고 방 `updatedAt ≤ previewFor`(그 뒤 새 메시지 없음)인 동안만 쓴다 |
+
+- **메시지 롱프레스(모든 메시지)** → 선택 팝업: "나에게서만 삭제"(언제나) + "모두에게서 삭제"(내 메시지 1분 이내일 때만).
+  Android `AlertDialog`(본문에 TextButton 목록) / iOS `staryChoiceDialog`. 예전엔 롱프레스가 내 메시지 1분 이내에만 반응했다.
+  1분 링(`DeleteWindowRing`)은 "모두에게서 삭제"가 남은 시간 표시로 의미가 바뀌었다(Android `showDeleteRing` 파라미터).
+- **대화 내용 삭제(나에게서만)** — 진입점 2곳:
+  - 채팅 화면 탑바 ⋮ → "대화 내용 삭제" → 확인 팝업. Android 는 `core/util/ChatActionState`(ProfilePinState 패턴 전역 브리지 —
+    ChatScreen 이 등록, MainScreen 탑바가 `ownerKey == 현재 friendId` 일 때 ⋮ 노출. 채팅→배너→다른 채팅 전환에서 옛 화면 해제가
+    새 등록을 지우지 않게 key 비교 후 해제). iOS 는 `ChatScreen` 툴바 `Menu`.
+  - 친구 목록 행 길게 누르기(보이는 대화가 있을 때만) → 같은 확인 팝업. Android `combinedClickable(onLongClick)`, iOS `.contextMenu`.
+  - 지운 뒤 새 메시지는 정상으로 보인다(clearedAt 이후). 지울 게 없으면 "삭제할 대화가 없어요".
+- VM: Android `ChatViewModel.messages` = `combine(allMessages, hidden)` 필터 결과, `hideForMe`/`clearForMe`/`event: SharedFlow<ChatEvent>`(리소스 id).
+  저장소: `FirebaseChatRepository.observeHidden`/`observeAllHidden`/`hideMessageForMe`/`clearChatForMe`(shared `ChatRepository` 계약에 추가).
+  iOS: `ChatViewModel.hideForMe`/`clearForMe`/`static clearChatForMe`(친구 목록도 사용), `FriendsViewModel.hiddenByChat` + `preview(of:)`.
+- 친구 목록 행 미리보기·미읽음·**정렬 기준이 방 메타가 아니라 `ChatHidden.preview(...)` 결과**로 바뀌었다(나만 삭제한 대화는 "아직 대화가 없어요" + 뒤로).
+- 알려진 한계: "모두에게서 삭제"(1분)는 방 메타 미리보기를 갱신하지 않는다(기존과 동일). 대화 나만 삭제는 방 메타 updatedAt 까지 덮어 이 경우도 비워진다.
 - `ChatScreen(friendId, friendName)` : 말풍선 목록 + 입력창.
   - **내 말풍선 = 파랑→남색 그라데이션**(`MineBubble` 0xFF2F4C9E→0xFF1B2A5E) + 남색 테두리.
     예전 초록 단색(0xFF6EE7B7)은 남색으로 개편된 앱 톤에서 혼자 튀었다. 입력창 포커스/커서/전송
@@ -95,6 +123,8 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
 |---|---|---|
 | 채팅방 id 규칙 | shared `StaryConfig.chatId(a,b)` | `AppConfig.chatId` (**규칙 동일 필수** — 다르면 방이 갈라짐) |
 | 메시지 삭제 허용 시간(1분) | shared `StaryConfig.CHAT_DELETE_WINDOW_MS` | `AppConfig`(동일 값) |
+| 나만 삭제 문서 경로 | `StaryConfig.Collections.CHAT_HIDDEN`(users/{uid}/chatHidden/{chatId}) | `AppConfig.Collections.chatHidden` + `FirestoreService.chatHidden(of:)` |
+| 나만 삭제 판정/미리보기 | shared `ChatHidden.hides` / `preview` | `Models.swift` `ChatHidden.hides` / `preview` (**판정 동일 필수**) |
 | 미읽음 판정 | `ChatReadStore`(로컬) | `ChatReadStore.swift`(로컬) |
 | 초대 링크 | `stary://invite/{uid}` (StaryConfig) | `AppConfig.deepLinkHostInvite` |
 | 내 말풍선 색 | `ChatScreen.kt` MineBubble(0xFF2F4C9E→0xFF1B2A5E) | `ChatScreen.swift` 같은 hex LinearGradient |

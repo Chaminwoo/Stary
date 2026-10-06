@@ -1,6 +1,7 @@
 package com.chaminwoo.stary.shared.data.repository
 
 import com.chaminwoo.stary.core.model.AppNotification
+import com.chaminwoo.stary.core.model.ChatHidden
 import com.chaminwoo.stary.core.model.ChatMessage
 import com.chaminwoo.stary.core.model.Comment
 import com.chaminwoo.stary.core.model.Diary
@@ -87,6 +88,24 @@ interface ChatRepository {
 
     /** 메시지 완전 삭제(문서 제거 → 상대방 쪽에서도 사라짐). 본인/시간창 검증은 호출부(ViewModel)가 한다. */
     suspend fun deleteMessage(chatId: String, messageId: String): Boolean
+
+    /** 이 방에서 내가 **나에게서만** 지운 것(users/{나}/chatHidden/{chatId}) 실시간. 문서가 없으면 [ChatHidden.NONE]. */
+    fun observeHidden(myId: String, chatId: String): Flow<ChatHidden>
+
+    /**
+     * 메시지 하나를 나에게서만 삭제(상대 방에는 그대로). 친구 목록 미리보기가 숨긴 메시지를 보여주지 않도록
+     * [latestAt](방 전체의 마지막 메시지 시각)과 [remaining](숨긴 뒤 내게 남는 마지막 메시지, 없으면 null)을 함께 기록한다.
+     */
+    suspend fun hideMessageForMe(
+        myId: String,
+        chatId: String,
+        messageId: String,
+        latestAt: Long,
+        remaining: ChatMessage?,
+    ): Boolean
+
+    /** 대화방을 나에게서만 삭제 — [upTo](그 시점 마지막 메시지 createdAt) 이하 메시지를 내 화면에서 전부 가린다. */
+    suspend fun clearChatForMe(myId: String, chatId: String, upTo: Long): Boolean
 }
 
 /** 미조회 다이어리 필터용 열람 기록. */

@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,16 +34,19 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Group
 import com.chaminwoo.stary.core.ui.FirstVisitInfo
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +79,7 @@ import com.chaminwoo.stary.core.util.ChatReadStore
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.friend.FriendViewModel
 import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
+import kotlinx.coroutines.launch
 
 private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val SoftRed = Color(0xFFFF6B6B)
@@ -131,11 +136,24 @@ fun FriendScreen(
     val summaryByFriend = remember(chatSummaries) {
         chatSummaries.associateBy { c -> c.participants.firstOrNull { it != userId } ?: "" }
     }
-    // 친구 행 정렬 = **최신 대화순**(방 updatedAt 내림차순). 대화가 없는 친구는 updatedAt 0 이라
-    // 뒤로 밀리고, 그들끼리는 원래 목록 순서를 유지한다(sortedByDescending 는 안정 정렬).
-    val sortedFriends = remember(friends, summaryByFriend) {
-        friends.sortedByDescending { summaryByFriend[it.userId]?.updatedAt ?: 0L }
+    // 내가 나에게서만 지운 메시지/대화(chatId → 상태) — 방 메타(공용) 미리보기를 내 기준으로 바꾼다.
+    val hiddenByChat by remember(userId) { chatRepo.observeAllHidden(userId) }
+        .collectAsState(initial = emptyMap())
+    // 친구 uid → 행에 보일 마지막 대화(나만 삭제 반영). 없으면 "아직 대화가 없어요".
+    val previewByFriend = remember(summaryByFriend, hiddenByChat) {
+        summaryByFriend.mapValues { (_, c) ->
+            (hiddenByChat[c.chatId] ?: com.chaminwoo.stary.core.model.ChatHidden.NONE)
+                .preview(c.lastMessage, c.updatedAt, c.lastSenderId)
+        }
     }
+    // 친구 행 정렬 = **최신 대화순**(보이는 마지막 대화 시각 내림차순). 대화가 없는(또는 나만 삭제한) 친구는 0 이라
+    // 뒤로 밀리고, 그들끼리는 원래 목록 순서를 유지한다(sortedByDescending 는 안정 정렬).
+    val sortedFriends = remember(friends, previewByFriend) {
+        friends.sortedByDescending { previewByFriend[it.userId]?.at ?: 0L }
+    }
+    // 친구 행 롱프레스 → 그 친구와의 대화 나에게서만 삭제 확인 대상.
+    var clearTarget by remember { mutableStateOf<com.chaminwoo.stary.core.model.Friend?>(null) }
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     // 현재 query 로 검색이 실제 디스패치됐는지 추적 — '결과 없음' 표시를 디바운스 중 깜빡임 없이 띄우기 위함.
     var lastSearched by remember { mutableStateOf<String?>(null) }
@@ -304,27 +322,31 @@ fun FriendScreen(
             // (미읽음 파란 점은 34-6 에서 최근 별로 교체 — ChatReadStore 는 채팅 화면이 계속 사용하므로 유지)
             items(sortedFriends, key = { "friend_${it.userId}" }) { friend ->
                 val chatId = StaryConfig.chatId(userId, friend.userId)
-                val summary = summaryByFriend[friend.userId]
+                val preview = previewByFriend[friend.userId]
                 val unread =
-                    summary != null &&
-                            summary.lastSenderId == friend.userId &&
+                    preview != null &&
+                            preview.senderId == friend.userId &&
                             com.chaminwoo.stary.core.util.ChatReadStore.isUnread(
                                 context,
                                 chatId,
-                                summary.updatedAt
+                                preview.at
                             )
                 FriendRow(
                     name = friend.userName,
                     photoUrl = friend.photoUrl,
                     userId = friend.userId,
-                    lastMessage = summary?.lastMessage.orEmpty(),
-                    lastAt = summary?.updatedAt ?: 0L,
+                    lastMessage = preview?.text.orEmpty(),
+                    lastAt = preview?.at ?: 0L,
                     isUnread = unread,
                     onOpenProfile = { onOpenProfile(friend.userId, friend.userName) },
                     onClick = {
                         com.chaminwoo.stary.core.util.ChatReadStore.markRead(context, chatId)
                         onOpenChat(friend.userId, friend.userName)
                     },
+                    // 보이는 대화가 있을 때만 롱프레스 = 대화 나에게서만 삭제.
+                    onLongClick = if (preview != null) {
+                        { clearTarget = friend }
+                    } else null,
                     onOpenLatestStar = onOpenDiaryOnMap,
                 )
 
@@ -357,6 +379,39 @@ fun FriendScreen(
                 .padding(horizontal = 16.dp, vertical = 16.dp)
                 .navigationBarsPadding()
         )
+
+        // 친구 행 롱프레스 → 대화 내용 나에게서만 삭제(채팅 화면 ⋮ 메뉴와 같은 동작) — 상대 대화방엔 그대로 남는다.
+        clearTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { clearTarget = null },
+                containerColor = CardBgTop,
+                title = { Text(stringResource(R.string.chat_clear_title), color = TextMain) },
+                text = { Text(stringResource(R.string.chat_clear_confirm), color = TextMuted) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        clearTarget = null
+                        val summary = summaryByFriend[target.userId]
+                        scope.launch {
+                            val ok = chatRepo.clearChatForMe(
+                                userId,
+                                StaryConfig.chatId(userId, target.userId),
+                                summary?.updatedAt ?: 0L
+                            )
+                            com.chaminwoo.stary.core.ui.StaryToast.show(
+                                context.getString(if (ok) R.string.chat_clear_done else R.string.chat_action_failed)
+                            )
+                        }
+                    }) {
+                        Text(stringResource(R.string.common_delete), color = Color(0xFFFF6B6B))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { clearTarget = null }) {
+                        Text(stringResource(R.string.common_cancel), color = TextMuted)
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -527,6 +582,7 @@ private fun FriendRow(
     isUnread: Boolean,
     onOpenProfile: () -> Unit,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     onOpenLatestStar: (diaryId: String) -> Unit,
 ) {
     // 친구 문서(users/{나}/friends/{친구})의 이름·사진은 수락 시점 스냅샷 → 현재 프로필로 해석.
@@ -540,7 +596,15 @@ private fun FriendRow(
         modifier = Modifier
             .fillMaxWidth()
             .appCard(16.dp)
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick?.let { l ->
+                    {
+                        com.chaminwoo.stary.core.util.Haptics.light()
+                        l()
+                    }
+                },
+            )
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

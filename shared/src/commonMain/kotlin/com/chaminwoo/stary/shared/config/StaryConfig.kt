@@ -42,6 +42,11 @@ object StaryConfig {
 
         /** chats/{chatId} 하위: 채팅 메시지 */
         const val MESSAGES = "messages"
+        /**
+         * users/{uid} 하위: **나에게서만** 지운 채팅 기록(문서 id = chatId, 본인만 읽고 씀).
+         * 메시지 나만 삭제(messageIds) / 대화방 나만 삭제(clearedAt) — 상대 방에는 그대로 남는다. [ChatHidden] 참고.
+         */
+        const val CHAT_HIDDEN = "chatHidden"
         /** users/{uid} 하위: 내가 차단한 사용자 (문서 id = 상대 uid) */
         const val BLOCKED = "blocked"
         /** 최상위: 콘텐츠/사용자 신고 */

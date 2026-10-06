@@ -166,6 +166,12 @@ match /chats/{chatId} {
       match /blocked/{blockedId} {
         allow read, write: if isMe(userId);
       }
+
+      // 채팅 "나에게서만 삭제"(문서 id = chatId, 2026-10-07): 숨긴 메시지 id / 대화 삭제 시점 / 미리보기 대체값.
+      // 본인 것만 — 상대가 내가 무엇을 지웠는지 읽을 수 없어야 한다(그래서 공용 chats 문서가 아니라 여기에 둔다).
+      match /chatHidden/{chatId} {
+        allow read, write: if isMe(userId);
+      }
     }
 
     // ── 친구 요청(pending) ──────────────────────────────────────────────────

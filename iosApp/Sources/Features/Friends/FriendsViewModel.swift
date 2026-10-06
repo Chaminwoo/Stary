@@ -12,6 +12,8 @@ final class FriendsViewModel: ObservableObject {
     @Published var outgoingIds: Set<String> = []
     /// 친구 uid → 그 친구와의 채팅방 메타(마지막 메시지/시각) — 친구 행 미리보기·미읽음 점.
     @Published var chatSummaries: [String: ChatSummary] = [:]
+    /// chatId → 내가 나에게서만 지운 상태(users/{나}/chatHidden) — 미리보기를 내 기준으로 바꾼다.
+    @Published var hiddenByChat: [String: ChatHidden] = [:]
     private var regs: [ListenerRegistration] = []
 
     deinit { regs.forEach { $0.remove() } }
@@ -40,6 +42,16 @@ final class FriendsViewModel: ObservableObject {
                     }
                     self?.chatSummaries = byFriend
                 }
+        )
+        // 나에게서만 지운 메시지/대화 — 규칙 미배포면 권한 오류 → 빈 값(미리보기는 방 메타 그대로).
+        regs.append(
+            FirestoreService.chatHidden(of: uid).addSnapshotListener { [weak self] snap, _ in
+                var byChat: [String: ChatHidden] = [:]
+                for doc in snap?.documents ?? [] {
+                    byChat[doc.documentID] = ChatHidden(data: doc.data())
+                }
+                self?.hiddenByChat = byChat
+            }
         )
         regs.append(
             FirestoreService.friends(of: uid).addSnapshotListener { [weak self] snap, _ in
@@ -194,5 +206,13 @@ final class FriendsViewModel: ObservableObject {
         regs.forEach { $0.remove() }
         regs.removeAll()
         chatSummaries = [:]
+        hiddenByChat = [:]
+    }
+
+    /// 친구 행에 보일 마지막 대화(나만 삭제 반영). nil = "아직 대화가 없어요". (Android previewByFriend 패리티)
+    func preview(of friendId: String) -> ChatPreview? {
+        guard let summary = chatSummaries[friendId] else { return nil }
+        return (hiddenByChat[summary.chatId] ?? .empty)
+            .preview(lastMessage: summary.lastMessage, updatedAt: summary.updatedAt, lastSenderId: summary.lastSenderId)
     }
 }

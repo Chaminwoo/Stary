@@ -46,5 +46,10 @@ enum FirestoreService {
         chats.document(chatId).collection(AppConfig.Collections.messages)
     }
 
+    /// users/{uid}/chatHidden — 나에게서만 지운 채팅(문서 id = chatId). Android FirebaseChatRepository.hiddenRef 와 같은 경로.
+    static func chatHidden(of uid: String) -> CollectionReference {
+        users.document(uid).collection(AppConfig.Collections.chatHidden)
+    }
+
     static var nowMillis: Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
 }

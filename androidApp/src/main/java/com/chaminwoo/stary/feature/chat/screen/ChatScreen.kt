@@ -46,6 +46,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -112,8 +113,10 @@ fun ChatScreen(
     val messages by vm.messages.collectAsState()
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    // 롱프레스한 내 메시지(1분 이내) — 완전 삭제 확인 대상. null 이면 다이얼로그 숨김.
+    // 롱프레스한 메시지 — 삭제 방식 선택 팝업 대상(나에게서만 / 모두에게서). null 이면 팝업 숨김.
     var pendingDelete by remember { mutableStateOf<ChatMessage?>(null) }
+    // 탑바 ⋮ → "대화 내용 삭제"(나에게서만) 확인 팝업.
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     // 이 방을 보는 동안은 항상 읽음 처리(친구 목록의 미읽음 판정 기준 — ChatReadStore).
     val chatContext = androidx.compose.ui.platform.LocalContext.current
@@ -122,6 +125,20 @@ fun ChatScreen(
     }
     LaunchedEffect(messages.size) {
         com.chaminwoo.stary.core.util.ChatReadStore.markRead(chatContext, chatId)
+    }
+
+    // 나만 삭제 등 결과 토스트.
+    LaunchedEffect(vm) {
+        vm.event.collect { com.chaminwoo.stary.core.ui.StaryToast.show(chatContext.getString(it.messageRes)) }
+    }
+
+    // 탑바 ⋮ 메뉴 "대화 내용 삭제" → 이 화면의 확인 팝업(지울 대화가 없으면 안내만).
+    DisposableEffect(friendId) {
+        com.chaminwoo.stary.core.util.ChatActionState.register(friendId) {
+            if (vm.hasVisibleMessages()) showClearConfirm = true
+            else com.chaminwoo.stary.core.ui.StaryToast.show(chatContext.getString(R.string.chat_clear_nothing))
+        }
+        onDispose { com.chaminwoo.stary.core.util.ChatActionState.unregister(friendId) }
     }
 
     // 새 메시지가 오면 맨 아래로 스크롤.
@@ -171,15 +188,14 @@ fun ChatScreen(
                 ) {
                     items(messages, key = { it.id }) { msg ->
                         val mine = msg.senderId == myId
-                        // 내 메시지 + 전송 후 1분 이내면 롱프레스로 완전 삭제(그 외엔 롱프레스 비활성)
+                        // 모든 메시지 롱프레스 → 삭제 방식 선택(나에게서만 = 언제나 / 모두에게서 = 내 메시지 1분 이내).
                         MessageBubble(
                             msg = msg,
                             isMine = mine,
                             // 이번 화면에서 내가 방금 보낸 메시지만 떠오르는 등장 연출(과거 메시지는 조용히).
                             justSent = mine && msg.createdAt >= sessionStartedAt,
-                            onLongPress = if (mine && vm.canDelete(msg)) {
-                                { pendingDelete = msg }
-                            } else null
+                            showDeleteRing = mine && vm.canDelete(msg),
+                            onLongPress = { pendingDelete = msg }
                         )
                     }
                 }
@@ -242,20 +258,64 @@ fun ChatScreen(
             }
         }
 
-        // 내 메시지 완전 삭제 확인(1분 이내) — 상대방 쪽에서도 사라진다.
+        // 메시지 삭제 방식 선택 — 나에게서만(언제나, 상대 방엔 남음) / 모두에게서(내 메시지 1분 이내, 상대 쪽에서도 사라짐).
         pendingDelete?.let { target ->
+            val canDeleteAll = vm.canDelete(target)
             AlertDialog(
                 onDismissRequest = { pendingDelete = null },
                 containerColor = CardBgTop,
                 title = { Text(stringResource(R.string.chat_delete_title), color = TextMain) },
-                text = { Text(stringResource(R.string.chat_delete_confirm), color = TextMuted) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            stringResource(
+                                if (canDeleteAll) R.string.chat_delete_confirm else R.string.chat_delete_for_me_desc
+                            ),
+                            color = TextMuted, fontSize = 13.sp, lineHeight = 19.sp,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        TextButton(
+                            onClick = { pendingDelete = null; vm.hideForMe(target) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.chat_delete_for_me), color = TextMain, modifier = Modifier.weight(1f))
+                        }
+                        if (canDeleteAll) {
+                            TextButton(
+                                onClick = { pendingDelete = null; vm.deleteMessage(target) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    stringResource(R.string.chat_delete_for_everyone),
+                                    color = Color(0xFFFF6B6B), modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { pendingDelete = null }) {
+                        Text(stringResource(R.string.common_cancel), color = TextMuted)
+                    }
+                }
+            )
+        }
+
+        // 대화 내용 나에게서만 삭제 확인(탑바 ⋮) — 상대 대화방에는 그대로 남는다.
+        if (showClearConfirm) {
+            AlertDialog(
+                onDismissRequest = { showClearConfirm = false },
+                containerColor = CardBgTop,
+                title = { Text(stringResource(R.string.chat_clear_title), color = TextMain) },
+                text = { Text(stringResource(R.string.chat_clear_confirm), color = TextMuted) },
                 confirmButton = {
-                    TextButton(onClick = { vm.deleteMessage(target); pendingDelete = null }) {
+                    TextButton(onClick = { showClearConfirm = false; vm.clearForMe() }) {
                         Text(stringResource(R.string.common_delete), color = Color(0xFFFF6B6B))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { pendingDelete = null }) {
+                    TextButton(onClick = { showClearConfirm = false }) {
                         Text(stringResource(R.string.common_cancel), color = TextMuted)
                     }
                 }
@@ -272,8 +332,8 @@ private val MineBubble = Brush.linearGradient(listOf(Color(0xFF2F4C9E), Color(0x
  *
  * 예전엔 내 말풍선이 초록 단색이라 남색으로 개편된 앱 톤에서 혼자 튀었다. 지금은
  *  - 내 말풍선: 파랑→남색 그라데이션 + 은은한 외곽 글로우,
- *  - 삭제 가능(내 메시지 1분 이내): 말풍선 왼쪽에 **남은 시간이 줄어드는 링 타이머** —
- *    "지금 롱프레스하면 지울 수 있다"를 말없이 알려준다(기존엔 아무 표시도 없었다),
+ *  - 모두에게서 삭제 가능(내 메시지 1분 이내): 말풍선 왼쪽에 **남은 시간이 줄어드는 링 타이머** —
+ *    롱프레스 메뉴에 "모두에게서 삭제"가 남아 있는 시간을 말없이 알려준다("나에게서만 삭제"는 언제나 가능),
  *  - 방금 보낸 내 메시지: 아래에서 떠오르며 별가루가 흩어지는 등장 연출.
  *
  * @param justSent 이 메시지가 **이번 세션에서 내가 방금 보낸 것**인지(등장 연출 1회용).
@@ -283,6 +343,7 @@ private fun MessageBubble(
     msg: ChatMessage,
     isMine: Boolean,
     justSent: Boolean = false,
+    showDeleteRing: Boolean = false,
     onLongPress: (() -> Unit)? = null,
 ) {
     val time = remember(msg.createdAt) {
@@ -301,8 +362,8 @@ private fun MessageBubble(
         verticalAlignment = Alignment.Bottom
     ) {
         if (isMine) {
-            // 삭제 가능 잔여 시간 링(1분) — 다 돌면 사라진다.
-            DeleteWindowRing(createdAt = msg.createdAt, visible = onLongPress != null)
+            // 모두에게서 삭제 가능 잔여 시간 링(1분) — 다 돌면 사라진다.
+            DeleteWindowRing(createdAt = msg.createdAt, visible = showDeleteRing)
             Text(time, color = TextMuted, fontSize = 10.sp)
             Spacer(Modifier.width(6.dp))
         }
@@ -393,8 +454,8 @@ private fun MessageBubble(
 }
 
 /**
- * 삭제 가능 잔여 시간 링 — 내 메시지를 보낸 뒤 [StaryConfig.CHAT_DELETE_WINDOW_MS] 동안
- * 조금씩 줄어드는 원호. 0 이 되면 사라진다(그때부터 롱프레스 삭제도 막힌다).
+ * 모두에게서 삭제 가능 잔여 시간 링 — 내 메시지를 보낸 뒤 [StaryConfig.CHAT_DELETE_WINDOW_MS] 동안
+ * 조금씩 줄어드는 원호. 0 이 되면 사라진다(그때부터 롱프레스 메뉴엔 "나에게서만 삭제"만 남는다).
  */
 @Composable
 private fun DeleteWindowRing(createdAt: Long, visible: Boolean) {

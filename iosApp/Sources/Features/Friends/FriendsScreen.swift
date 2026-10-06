@@ -17,6 +17,8 @@ struct FriendsScreen: View {
     @State private var toast: String?
     /// 프로필 사진 탭 → 타인 프로필 push(Android 사진 탭=프로필 패리티).
     @State private var profileTarget: FriendProfileTarget?
+    /// 친구 행 길게 누르기 → 그 친구와의 대화 나에게서만 삭제 확인 대상.
+    @State private var clearTarget: Friend?
 
     struct FriendProfileTarget: Identifiable {
         let userId: String
@@ -61,6 +63,23 @@ struct FriendsScreen: View {
         }
         .onAppear { if let uid = auth.uid { vm.start(uid: uid) } }
         .onDisappear { vm.stop() }
+        // 친구 행 길게 누르기 → 대화 내용 나에게서만 삭제(채팅 화면 ⋮ 와 같은 동작) — 상대 대화방엔 그대로.
+        .staryConfirmDialog(
+            LocaleManager.shared.t(.chatClearTitle),
+            isPresented: Binding(get: { clearTarget != nil }, set: { if !$0 { clearTarget = nil } }),
+            message: LocaleManager.shared.t(.chatClearConfirm),
+            confirmTitle: LocaleManager.shared.t(.commonDelete),
+            destructive: true
+        ) { [target = clearTarget] in
+            // ⚠️ 확인 시 팝업이 먼저 닫히며 clearTarget 이 nil 이 되므로 **캡처한 값**을 쓴다.
+            guard let target, let uid = auth.uid else { return }
+            let upTo = vm.chatSummaries[target.userId]?.updatedAt ?? 0
+            Task {
+                let ok = await ChatViewModel.clearChatForMe(
+                    myUid: uid, chatId: AppConfig.chatId(uid, target.userId), upTo: upTo)
+                showToast(LocaleManager.shared.t(ok ? .chatClearDone : .chatActionFailed))
+            }
+        }
         .firstVisitInfo(key: "friends", systemImage: "person.2.fill",
                         title: LocaleManager.shared.t(.onbFriendsTitle),
                         message: LocaleManager.shared.t(.onbFriendsMsg))
@@ -187,13 +206,13 @@ struct FriendsScreen: View {
         }
     }
 
-    /// 친구 행 정렬 = **최신 대화순**(방 updatedAt 내림차순). 대화가 없는 친구는 0 이라 뒤로 밀리고,
-    /// 그들끼리는 원래 목록 순서를 유지한다. (Android FriendScreen `sortedFriends` 패리티)
+    /// 친구 행 정렬 = **최신 대화순**(보이는 마지막 대화 시각 내림차순 — 나만 삭제 반영). 대화가 없는(또는 나만 삭제한)
+    /// 친구는 0 이라 뒤로 밀리고, 그들끼리는 원래 목록 순서를 유지한다. (Android FriendScreen `sortedFriends` 패리티)
     private var sortedFriends: [Friend] {
         vm.friends.enumerated()
             .sorted { a, b in
-                let ta = vm.chatSummaries[a.element.userId]?.updatedAt ?? 0
-                let tb = vm.chatSummaries[b.element.userId]?.updatedAt ?? 0
+                let ta = vm.preview(of: a.element.userId)?.at ?? 0
+                let tb = vm.preview(of: b.element.userId)?.at ?? 0
                 return ta == tb ? a.offset < b.offset : ta > tb
             }
             .map(\.element)
@@ -226,6 +245,16 @@ struct FriendsScreen: View {
                                 ChatReadStore.shared.markRead(AppConfig.chatId(uid, friend.userId))
                             }
                         })
+                        // 길게 누르기 → 대화 내용 나에게서만 삭제(보이는 대화가 있을 때만). Android 행 롱프레스 패리티.
+                        .contextMenu {
+                            if vm.preview(of: friend.userId) != nil {
+                                Button(role: .destructive) {
+                                    clearTarget = friend
+                                } label: {
+                                    Label(LocaleManager.shared.t(.chatClearTitle), systemImage: "trash")
+                                }
+                            }
+                        }
                         // 사진 탭 = 프로필 — 행(채팅)보다 먼저 탭을 받게 겹쳐 둔다(Android 사진 탭 패리티).
                         Button {
                             profileTarget = FriendProfileTarget(userId: friend.userId, userName: friend.userName)
@@ -263,7 +292,8 @@ struct FriendsScreen: View {
     }
 
     private func friendRow(_ friend: Friend) -> some View {
-        let summary = vm.chatSummaries[friend.userId]
+        // 방 메타 그대로가 아니라 **나만 삭제를 반영한** 마지막 대화(ChatHidden.preview).
+        let preview = vm.preview(of: friend.userId)
         let hasStar = latestStar(of: friend.userId) != nil
 
         return HStack(spacing: 12) {
@@ -280,8 +310,8 @@ struct FriendsScreen: View {
                     // 히든 업적 달성자 전용 크리스탈 배지(34-4).
                     HiddenStarBadges(userId: friend.userId, size: 11)
                 }
-                if let summary, !summary.lastMessage.isEmpty {
-                    Text("\(summary.lastMessage) · \(RelativeTime.string(fromMillis: summary.updatedAt))")
+                if let preview {
+                    Text("\(preview.text) · \(RelativeTime.string(fromMillis: preview.at))")
                         .font(.minSans(12))
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)
