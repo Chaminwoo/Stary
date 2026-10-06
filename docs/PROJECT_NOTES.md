@@ -3,7 +3,7 @@
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
 > 최종 갱신: **8.75 큐레이션 별 100개(전 세계 66개국 · 현지어 34개 · 위키미디어 공용 사진) 시드 도구** — `tools/seed/`,
-> 앱 코드 변경 없음. 검증(plan) 통과, **DB 업로드는 사용자 확인 대기**(2026-10-07).
+> 앱 코드 변경 없음. **시험 업로드 3개 완료**(첨성대·데드블레이·페트라 — 푸시 미발송 확인), 나머지 97개는 앱 확인 후(2026-10-07).
 > 이전: **8.74 iOS 광고 미동작 근본 원인(SDK 패키지 누락) 복구 + SKAdNetwork 82개 + 채팅 나에게서만 삭제(메시지/대화)** —
 > Android BUILD SUCCESSFUL(2026-10-07), 실기기 테스트 대기 · iOS 는 push 후 CI · **Firestore 규칙 배포 필요**.
 > 이전: **8.73 iOS 지도 별 부유·스파클 개별화 · 기본 틸트 · 열람 왜곡 강화 · 보상형 광고 연결**(2026-10-04).
@@ -2505,7 +2505,9 @@ node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage dia
 - 월 1회쯤 새 별을 더하려면 places.json 에 항목 + stars/*.json 에 글 → meta --only → images → plan → upload.
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
-- [ ] **(8.75) 큐레이션 별 업로드** — `cd tools/seed && node seed.js upload`(사용자 확인 후). 업로드 후 앱에서 몇 개 열어 보기(잠금·광고 해제 흐름 포함).
+- [ ] **(8.75) 큐레이션 별 나머지 97개 업로드** — 시험 3개(`seed_s01-cheomseongdae`/`seed_n10-deadvlei`/`seed_h06-petra`)를 앱에서 확인한 뒤
+      `cd tools/seed && node seed.js upload`(이미 올린 3개는 갱신만). 검증 결과(2026-10-07): 3개 public·사진 200·`firstStars/{admin}` 없음·
+      notifyFriendsOnDiaryCreate 로그 "나만 보기 → 발송 생략" ×3 = 푸시 우회 정상.
 - [ ] **(8.74) Firestore 규칙 배포** — `firebase deploy --only firestore:rules`(chatHidden). 앱 배포 **전에**.
 - [ ] **(8.74) Mac 에서 광고 SPM 패키지 해석 복구 후 TestFlight 11 업로드** — `docs/IOS_ADS_SETUP.md` 7. 패키지를 다시 지우지 말 것(Release `#error`).
 - [ ] (8.74) iOS CI 업로드 경로(ASC API 키·팀 ID·광고/지도 키 Secrets + CI 자동 서명 검증) — Mac 네트워크 문제의 우회로.
