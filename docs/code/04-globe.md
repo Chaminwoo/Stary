@@ -19,7 +19,7 @@ iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Andr
   글로브를 자동 종료**한다(숨은 GLSurfaceView 렌더 낭비 방지 — 03 문서).
 
 ## GlobeRenderer.kt (GLSurfaceView.Renderer)
-- 커스텀 GL 렌더: 지구(주/야 반구 셰이딩, `EARTH_BRIGHTNESS=0.45`) + 구름 + 별밭 +
+- 커스텀 GL 렌더: **은하수 성운 하늘 구** + 지구(**수채 파스텔**, 감싸는 조명 — 밤 쪽은 라벤더 그림자) + 구름 + **분홍 대기광** + 별밭 +
   **핑크 은하수**(은하수.jpg 스타일) + **곡선 유성**(잔류 스파클) + 별 단위 12궁(zodiac) +
   다이어리 별 포인트.
 - `setDiaries(...)` : 백그라운드에서 별 데이터 빌드 → `StarBatch`(버퍼+정점수 한 묶음, @Volatile)
@@ -27,6 +27,25 @@ iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Andr
   ⚠️ **버퍼와 정점 수를 따로 발행하면 안 된다** — "새 정점 수 + 옛 VBO" 를 그리는 프레임이 생겨
   버퍼 밖을 읽는다(별이 깨져 보임).
 - 카메라: 쿼터니언 회전 + 관성. 핀치 아웃/인으로 진입 줌 느낌.
+
+### 수채 파스텔 + 은하수 성운 (2026-10-08 감성 리디자인 — 시안 페이지에서 사용자 선택)
+"GTA 같은 딱딱한 실사" 피드백 → 원인: 업스케일된 Blue Marble 의 비닐 같은 번들거림 + 앱과 동떨어진 회청색 톤 + 대기광 없음.
+- **지표 색은 텍스처에 굽는다** — `tools/globe/bake_globe_textures.py`(numpy+Pillow) 가 원본(`tools/globe/earth_blue_marble.jpg`,
+  앱 번들에선 빠짐)에서 육지 마스크(바다 = `b − max(r,g) > 17`)·건조도·번들거림 제거 밝기를 뽑아 팔레트(세이지 민트→연두→피치,
+  눈·얼음 라벤더 화이트, 남위 66~72° 이남은 전부 얼음)·물감 얼룩(3D fbm)·해안 번짐을 칠해 `assets/globe_watercolor.jpg`(4096)로 굽는다.
+  **팔레트/얼룩을 바꾸려면 셰이더가 아니라 이 스크립트를 고쳐 다시 굽는다**(Android·iOS 가 같은 파일을 써서 패리티 자동).
+- 런타임 `EARTH_FS` 는 빛만: 감싸는 조명 `w=(n·sun+0.45)/1.45` 로 `mix((0.42,0.41,0.60), (0.82,0.78,0.76), w)` 곱(10-08 2차: 사용자 "너무 밝다" → 낮 약 20%·밤 약 28% 낮춤)(실제 UTC 낮/밤 유지,
+  밤 쪽도 파스텔 — 한국 저녁엔 아시아가 밤이라 너무 어두우면 칙칙해 보였다) + 분홍 테두리(`uCamObj` = 지구 좌표계 카메라) + 종이 결 해시.
+- **은하수 성운**: `assets/globe_nebula.jpg`(2048) 를 지구 메쉬 ×`SKY_RADIUS 80` 구에 안쪽에서 — 가장 먼저, 불투명·깊이 무시.
+  분홍 성운은 앱 은하수 띠(`Rz(28°)·Rx(62°)`, 법선 ≈ (−0.22, 0.41, 0.88))를 따라 짙어지게 구웠다 — 은하수 기울기를 바꾸면 다시 구울 것.
+- **대기광**: 지구 메쉬 ×`ATMO_SCALE 1.16` 셸의 뒷면만(셰이더 `d = −n·V`, `d ≤ 0` discard) 더하기 합성. `d/0.5` 의 0.5 = 지구 윤곽 위치
+  (√(1−1/1.16²)) — 셸 크기를 바꾸면 같이 맞출 것.
+- **구름**: 결이 남는 얇은 구름(알파 0.22, 색 0.82 — 지구를 어둡게 한 만큼 같이), 그림자 쪽은 라벤더.
+- **지형 결**: 굽기 단계에서 원본 밝기의 띠(blur 2.5 − blur 14, 하이라이트는 거의 잘라냄)를 1.5배로 곱해 산맥·고원 경계를 살린다.
+  더 잘게(blur 1.2 − 9) 하면 원본 업스케일 소용돌이 무늬가 붓자국처럼 다시 보였다.
+- **다이어리 불빛 덮어 그리기**: 밝은 수채 지표에 더하기 합성이면 하얗게 날아가서 노란 점광·플레어만 `pinProgram`(SPRITE_VS + PIN_FS,
+  블렌드 ONE/ONE_MINUS_SRC_ALPHA). 정점색은 밝기 정규화해 색조만, 텍스처 알파^1.6 × 정점 알파 × gain(점광 0.7 / 플레어 1.0) + 흰 심지.
+- 궤적·별밭·유성·태양·12궁은 그대로.
 
 ### ⚠️ 다이어리 불빛(별)은 깊이 버퍼로 가리지 않는다 (2026-08-06)
 지표 바로 위에 뜬 스프라이트(글로 +0.008, 플레어 +0.045)는 **카메라 정면 빌보드**라
@@ -75,7 +94,12 @@ iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Andr
 | 항목 | Android | iOS |
 |---|---|---|
 | 진입 버튼 노출 줌(3.0)/최소 줌(2.4) | `DiaryMapMarkers` GLOBE_BUTTON_ZOOM·MAP_MIN_ZOOM | `MapLibreView` globeButtonZoom·mapMinZoom |
-| 지구 밝기(0.45) | `GlobeRenderer` EARTH_BRIGHTNESS | `GlobeRenderer.shaderSource` earthFragment (**동일 값**) |
+| 지표 색(수채 팔레트·얼룩·해안) | `assets/globe_watercolor.jpg` ← `tools/globe/bake_globe_textures.py` | 같은 파일(project.yml 참조) |
+| 지구 조명(라벤더 그림자·분홍 테두리·종이 결) | `EARTH_FS` | `shaderSource` earthFragment (**동일 식·값**) |
+| 성운 하늘(반지름 80) | `SKY_RADIUS` + SKY_FS, `assets/globe_nebula.jpg` | `skyRadius` + skyFragment (같은 파일) |
+| 대기광(셸 1.16, 0.45 세기) | `ATMO_SCALE` + ATMO_FS | `atmoScale` + atmoFragment (**동일 식**) |
+| 구름(알파 0.22, 라벤더 그림자) | `CLOUD_FS` | cloudFragment (**동일 값**) |
+| 다이어리 불빛 덮어 그리기(gain 0.7/1.0) | `pinProgram`/PIN_FS, GLOW/FLARE_PIN_GAIN | `pinPipeline`/pinFragment(블렌드 3), glow/flarePinGain |
 | 근거리 클립면(0.3) | `GlobeRenderer` NEAR_PLANE | `GlobeRenderer.nearPlane` (**동일 값**) |
 | 지평선 컷(-0.02~0.22) | `SPRITE_VS` 의 vis | MSL `spriteVertex` (**동일 식**) |
 | 카메라 거리/돌리/관성/자동회전 | companion ENTER/IDLE/MIN/MAX_DIST, stepSimulation | `GlobeRenderer` static + stepSimulation (**동일**) |

@@ -29,7 +29,8 @@ import kotlin.math.sin
 /**
  * 3D 행성(지구) 렌더러 — 지도 줌 최소 진입 시 보이는 "밤의 지구" 뷰.
  *
- * 씬 구성(레퍼런스 `references/min_zoom.png` 재현):
+ * 씬 구성(레퍼런스 `references/min_zoom.png` 재현 → 2026-10-08 "수채 파스텔 + 은하수 성운"으로 감성 리디자인):
+ *  0. 은하수 성운 하늘 구(반지름 [SKY_RADIUS]): 은하수 띠를 따라 짙어지는 분홍·청록 성운 텍스처(globe_nebula.jpg)
  *  1. 배경 별밭: 반지름이 다른 3겹 구면 셸 + 원경 성운 글로우 +
  *     뚜렷한 은하수(잔별 밀집 띠 + 끊김 없는 헤이즈 리본 + 은하핵 벌지) +
  *     황도 12궁 별자리(레퍼런스 references/zodiac.avif, 궁별 고유색 + 희미한 연결선) + 4방 광선 반짝별 —
@@ -38,8 +39,9 @@ import kotlin.math.sin
  *     (운 좋으면 연속으로 여러 개, 실패하면 다시 30초 대기) — 실제 3D 우주공간을 가로지르는
  *     별똥별. 머리(밝게)+꼬리(스트릭 순번별 색상) 스프라이트 체인, 깊이 성분 포함 랜덤 3D
  *     경로(원근 이동), 점화→소멸 봉투
- *  2. 지구 구체: 원본의 3/4 밝기 기준 + 낮/밤 반구 — UTC 하루 기준 360도 도는 태양 방향의
- *     반구는 기준 밝기 그대로, 반대 반구는 30% 감광, 터미네이터는 smoothstep 으로 부드럽게
+ *  2. 지구 구체: 수채 파스텔 지표(globe_watercolor.jpg — 물감 얼룩·해안 번짐까지 구움, tools/globe) +
+ *     UTC 하루 기준 360도 도는 태양 방향의 감싸는 조명(밤 쪽은 라벤더 그림자) + 분홍 대기 테두리 + 종이 결
+ *  2.7 대기광: 1.16배 셸의 뒷면만 — 지구 윤곽에서 분홍빛이 번져 나가며 사라진다
  *  3. 궤적 트레일: 자유 원호 — 얇은 코어 라인 + 감싸는 아주 옅은 글로우, 훨씬 반투명.
  *     양 끝은 점점 투명해지며 소멸, 백색 빛무리(가우시안 펄스)가 궤적을 따라
  *     자연스럽게 흘러감. 지구 좌표계라 구와 함께 회전
@@ -94,8 +96,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var spriteProgram = 0
     private var ringProgram = 0
     private var cloudProgram = 0
+    private var skyProgram = 0          // 은하수 성운 하늘 구(가장 먼저, 깊이 무시)
+    private var atmoProgram = 0         // 분홍 대기광 셸(지구 너머 뒷면만)
+    private var pinProgram = 0          // 다이어리 불빛 — 밝은 수채 지표에서도 묻히지 않게 "덮어 그리기"
     private var cloudTex = 0            // NASA 구름맵(흑백 — 밝기를 알파로 사용, 구름 외 투명)
-    private var earthTex = 0
+    private var earthTex = 0            // 수채 파스텔 지표(globe_watercolor.jpg — tools/globe 에서 구움)
+    private var skyTex = 0              // 은하수 성운(globe_nebula.jpg)
+    private val camObj = FloatArray(4)  // 카메라 위치(지구 좌표계) — 대기 테두리/대기광 계산용
     private var flareTex = 0
     private var glowTex = 0
     private var earthVbo = 0
@@ -187,10 +194,14 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         ringProgram = buildProgram(RING_VS, RING_FS)
         lineProgram = buildProgram(LINE_VS, LINE_FS)
         cloudProgram = buildProgram(CLOUD_VS, CLOUD_FS)
+        skyProgram = buildProgram(SKY_VS, SKY_FS)
+        atmoProgram = buildProgram(ATMO_VS, ATMO_FS)
+        pinProgram = buildProgram(SPRITE_VS, PIN_FS)
 
         buildEarthMesh()
         earthTex = loadEarthTexture()
         cloudTex = loadCloudTexture()
+        skyTex = loadSkyTexture()
         flareTex = uploadTexture(makeFlareBitmap())
         glowTex = uploadTexture(makeGlowBitmap())
         buildStarfield()
@@ -248,6 +259,12 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         Matrix.rotateM(model, 0, yawDeg, 0f, 1f, 0f)
         Matrix.multiplyMM(tmp, 0, vp, 0, model, 0)
         System.arraycopy(tmp, 0, mvp, 0, 16)
+        // 카메라 위치를 지구 좌표계로(모델은 순수 회전이라 역행렬 = 전치) — 대기 테두리·대기광이 시점을 따라간다.
+        Matrix.transposeM(tmp, 0, model, 0)
+        Matrix.multiplyMV(camObj, 0, tmp, 0, floatArrayOf(0f, 0f, camDist, 1f), 0)
+
+        // 0) 은하수 성운 하늘 — 가장 먼 배경(검은 클리어 색을 덮는다). 별밭과 같이 모델 회전을 따른다.
+        drawSky()
 
         // 1) 배경 별밭 — 깊이 무시하고 먼저(지구가 위에 그려져 가려짐)
         GLES20.glDepthMask(false)
@@ -278,6 +295,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE)
         GLES20.glDepthMask(false)
 
+        // 2.7) 대기광 — 지구 가장자리에서 분홍빛이 번져 나가며 사라진다(모형처럼 딱 잘린 윤곽 방지)
+        drawAtmosphere()
+
         // 3) 궤적 트레일 — 지구 좌표계(uMVP)라 구를 돌리면 같이 회전
         for (tr in trails) drawTrail(tr, t)
 
@@ -289,9 +309,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         //  ② 줌아웃에서 깊이 해상도(near 0.3·16비트 기준 ≈0.004, 예전 near 0.1 에선 0.011)가
         //     지표와의 간격에 근접해 얼룩덜룩 z-파이팅이 난다.
         // 대신 뒷면 가림은 셰이더의 해석적 지평선 컷(SPRITE_VS 의 vis — 구 접평면 판정이라 정확)이
-        // 담당한다. 지구는 이미 그려졌고 additive 라 그리기 순서 문제도 없다.
-        if (glowVertexCount > 0) drawSprites(glowVbo, glowVertexCount, glowTex, camPos, t, depthTest = false)
-        if (flareVertexCount > 0) drawSprites(flareVbo, flareVertexCount, flareTex, camPos, t, depthTest = false)
+        // 담당한다. 지구는 이미 그려졌으므로 그리기 순서 문제도 없다.
+        // 수채 지표(2026-10-08)는 밝아서 더하기 합성이면 불빛이 하얗게 날아간다 → 프리멀티플라이드 "덮어 그리기"
+        // (ONE, ONE_MINUS_SRC_ALPHA) + 금빛/별색 + 흰 심지(PIN_FS). 밤 쪽에서는 예전처럼 또렷하게 빛난다.
+        GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        if (glowVertexCount > 0) drawSprites(glowVbo, glowVertexCount, glowTex, camPos, t, depthTest = false, program = pinProgram, gain = GLOW_PIN_GAIN)
+        if (flareVertexCount > 0) drawSprites(flareVbo, flareVertexCount, flareTex, camPos, t, depthTest = false, program = pinProgram, gain = FLARE_PIN_GAIN)
+        GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE)
 
         GLES20.glDepthMask(true)
         GLES20.glDisable(GLES20.GL_BLEND)
@@ -328,23 +352,57 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         // 태양 방향 — 지구 좌표계 벡터라 구를 드래그로 돌려도 "지금 실제로 낮인 지역"이 항상 밝다.
         val sun = sunDirection()
         GLES20.glUniform3f(uLoc(earthProgram, "uSunDir"), sun[0], sun[1], sun[2])
+        GLES20.glUniform3f(uLoc(earthProgram, "uCamObj"), camObj[0], camObj[1], camObj[2])
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, earthTex)
         GLES20.glUniform1i(uLoc(earthProgram, "uTex"), 0)
+        drawEarthMesh(earthProgram)
+    }
 
+    /** 지구 메쉬(구) 한 번 그리기 — 지구/하늘 구/대기광이 같은 메쉬를 반지름만 바꿔(셰이더) 쓴다. */
+    private fun drawEarthMesh(program: Int) {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, earthVbo)
-        val aPos = aLoc(earthProgram, "aPos")
-        val aUV = aLoc(earthProgram, "aUV")
+        val aPos = aLoc(program, "aPos")
+        val aUV = aLoc(program, "aUV")
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 20, 0)
-        GLES20.glEnableVertexAttribArray(aUV)
-        GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, 20, 12)
+        if (aUV >= 0) {
+            GLES20.glEnableVertexAttribArray(aUV)
+            GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, 20, 12)
+        }
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, earthIbo)
         GLES20.glDrawElements(GLES20.GL_TRIANGLES, earthIndexCount, GLES20.GL_UNSIGNED_SHORT, 0)
         GLES20.glDisableVertexAttribArray(aPos)
-        GLES20.glDisableVertexAttribArray(aUV)
+        if (aUV >= 0) GLES20.glDisableVertexAttribArray(aUV)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+    }
+
+    /** 은하수 성운 하늘 — 반지름 [SKY_RADIUS] 구 안쪽에 성운 텍스처(별 셸 12/22/38·은하수 40.5 보다 멀리, far 100 안).
+     *  불투명·깊이 무시로 가장 먼저 그린다. 텍스처가 없으면 예전처럼 검은 하늘. */
+    private fun drawSky() {
+        if (skyTex == 0) return
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST)
+        GLES20.glDepthMask(false)
+        GLES20.glDisable(GLES20.GL_BLEND)
+        GLES20.glUseProgram(skyProgram)
+        GLES20.glUniformMatrix4fv(uLoc(skyProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniform1f(uLoc(skyProgram, "uFade"), fade)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, skyTex)
+        GLES20.glUniform1i(uLoc(skyProgram, "uTex"), 0)
+        drawEarthMesh(skyProgram)
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+    }
+
+    /** 대기광 — 지구 메쉬를 [ATMO_SCALE] 배로 키운 셸의 **뒷면만**(지구 너머) 더하기 합성.
+     *  지구 윤곽에서 가장 밝고 셸 바깥 끝에서 0 — 깊이 테스트로 지구 뒤쪽은 가려진다. (호출부: additive·깊이 기록 X) */
+    private fun drawAtmosphere() {
+        GLES20.glUseProgram(atmoProgram)
+        GLES20.glUniformMatrix4fv(uLoc(atmoProgram, "uMVP"), 1, false, mvp, 0)
+        GLES20.glUniform3f(uLoc(atmoProgram, "uCamObj"), camObj[0], camObj[1], camObj[2])
+        GLES20.glUniform1f(uLoc(atmoProgram, "uFade"), fade)
+        drawEarthMesh(atmoProgram)
     }
 
     /** 트레일 = 지구 좌표계 원호 리본 — uMVP(vp·model)로 그려 구와 함께 회전. */
@@ -679,30 +737,33 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private fun drawSprites(
         vbo: Int, count: Int, tex: Int, camPos: FloatArray, t: Float, depthTest: Boolean,
         modelM: FloatArray = model, // 유성 등 "화면 기준" 스프라이트는 identityM(모델 회전 무시)
+        program: Int = spriteProgram, // pinProgram = 다이어리 불빛 덮어 그리기(호출부가 블렌드 함수를 바꿔 둔다)
+        gain: Float = 1f,             // pinProgram 전용 — 불투명도 배율
     ) {
         if (vbo == 0 || count == 0) return
         if (depthTest) GLES20.glEnable(GLES20.GL_DEPTH_TEST) else GLES20.glDisable(GLES20.GL_DEPTH_TEST)
-        GLES20.glUseProgram(spriteProgram)
-        GLES20.glUniformMatrix4fv(uLoc(spriteProgram, "uVP"), 1, false, vp, 0)
-        GLES20.glUniformMatrix4fv(uLoc(spriteProgram, "uModel"), 1, false, modelM, 0)
-        GLES20.glUniform3fv(uLoc(spriteProgram, "uCamPos"), 1, camPos, 0)
+        GLES20.glUseProgram(program)
+        GLES20.glUniformMatrix4fv(uLoc(program, "uVP"), 1, false, vp, 0)
+        GLES20.glUniformMatrix4fv(uLoc(program, "uModel"), 1, false, modelM, 0)
+        GLES20.glUniform3fv(uLoc(program, "uCamPos"), 1, camPos, 0)
         // 카메라 고정이므로 right/up 도 고정
-        GLES20.glUniform3f(uLoc(spriteProgram, "uCamRight"), 1f, 0f, 0f)
-        GLES20.glUniform3f(uLoc(spriteProgram, "uCamUp"), 0f, 1f, 0f)
-        GLES20.glUniform1f(uLoc(spriteProgram, "uTime"), t)
-        GLES20.glUniform1f(uLoc(spriteProgram, "uFade"), fade)
+        GLES20.glUniform3f(uLoc(program, "uCamRight"), 1f, 0f, 0f)
+        GLES20.glUniform3f(uLoc(program, "uCamUp"), 0f, 1f, 0f)
+        GLES20.glUniform1f(uLoc(program, "uTime"), t)
+        GLES20.glUniform1f(uLoc(program, "uFade"), fade)
+        if (program == pinProgram) GLES20.glUniform1f(uLoc(program, "uGain"), gain)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex)
-        GLES20.glUniform1i(uLoc(spriteProgram, "uTex"), 0)
+        GLES20.glUniform1i(uLoc(program, "uTex"), 0)
 
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         val stride = SPRITE_FLOATS * 4
-        val aCenter = aLoc(spriteProgram, "aCenter")
-        val aCorner = aLoc(spriteProgram, "aCorner")
-        val aColor = aLoc(spriteProgram, "aColor")
-        val aSize = aLoc(spriteProgram, "aSize")
-        val aPhase = aLoc(spriteProgram, "aPhase")
-        val aMode = aLoc(spriteProgram, "aMode")
+        val aCenter = aLoc(program, "aCenter")
+        val aCorner = aLoc(program, "aCorner")
+        val aColor = aLoc(program, "aColor")
+        val aSize = aLoc(program, "aSize")
+        val aPhase = aLoc(program, "aPhase")
+        val aMode = aLoc(program, "aMode")
         GLES20.glEnableVertexAttribArray(aCenter)
         GLES20.glVertexAttribPointer(aCenter, 3, GLES20.GL_FLOAT, false, stride, 0)
         GLES20.glEnableVertexAttribArray(aCorner)
@@ -1362,11 +1423,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         return vbo to list.size / 5
     }
 
-    /** NASA Blue Marble 텍스처 로드(assets). GL_MAX_TEXTURE_SIZE 미만이면 다운스케일. */
+    /** 수채 파스텔 지표 텍스처(assets/globe_watercolor.jpg, 4096x2048 — tools/globe/bake_globe_textures.py 로 구움).
+     *  물감 얼룩·해안 번짐·팔레트까지 텍스처에 들어 있고, 셰이더는 빛(라벤더 그림자)과 대기 테두리만 더한다.
+     *  GL_MAX_TEXTURE_SIZE 미만이면 다운스케일. */
     private fun loadEarthTexture(): Int {
         val maxSize = IntArray(1)
         GLES20.glGetIntegerv(GLES20.GL_MAX_TEXTURE_SIZE, maxSize, 0)
-        var bmp = context.assets.open("earth_blue_marble.jpg").use { BitmapFactory.decodeStream(it) }
+        var bmp = context.assets.open("globe_watercolor.jpg").use { BitmapFactory.decodeStream(it) }
         if (bmp.width > maxSize[0]) {
             val w = maxSize[0].coerceAtLeast(1024)
             val scaled = Bitmap.createScaledBitmap(bmp, w, w / 2, true)
@@ -1383,6 +1446,15 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         uploadTexture(bmp, wrapS = GLES20.GL_REPEAT) // 경도 드리프트(u+shift)를 위해 REPEAT
     } catch (e: Exception) {
         Log.w("GlobeRenderer", "cloud texture missing: $e")
+        0
+    }
+
+    /** 은하수 성운 하늘(assets/globe_nebula.jpg — 은하수 띠를 따라 분홍 성운이 짙어지게 구움). 없으면 검은 하늘. */
+    private fun loadSkyTexture(): Int = try {
+        val bmp = context.assets.open("globe_nebula.jpg").use { BitmapFactory.decodeStream(it) }
+        uploadTexture(bmp, wrapS = GLES20.GL_REPEAT)
+    } catch (e: Exception) {
+        Log.w("GlobeRenderer", "sky texture missing: $e")
         0
     }
 
@@ -1521,7 +1593,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val GLOW_RADIUS = 1.008f
         private const val GLOW_ALPHA = 0.42f
         private const val GLOW_MAX = 5000
-        private const val EARTH_BRIGHTNESS = 0.45f // 원본 대비 지구 밝기(균일)
+        /** 대기광 셸 반지름(지구=1). 키우면 빛번짐이 넓어지고 옅어진다 — ATMO_FS 의 0.5(지구 윤곽 위치)도 같이 볼 것. */
+        private const val ATMO_SCALE = 1.16f
+        /** 성운 하늘 구 반지름 — 별 셸(12/22/38)·은하수(40.5)·태양(45) 보다 멀고, 카메라 최대 거리(10.4)를 더해도 far 100 안. */
+        private const val SKY_RADIUS = 80f
+        /** 다이어리 불빛 덮어 그리기 불투명도 배율(노란 점광 / 인기 별 플레어). */
+        private const val GLOW_PIN_GAIN = 0.7f
+        private const val FLARE_PIN_GAIN = 1.0f
         private const val TRAIL_COUNT = 5
         private const val SUN_DIST = 45f // 태양 위치 반지름(원경 별밭 너머, far plane 안)
         private const val CLOUD_DRIFT = 0.0035f // 구름 경도 드리프트 속도(rev/s — 한 바퀴 ≈ 4.8분)
@@ -1575,17 +1653,98 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             void main() { vUV = aUV; vN = aPos; gl_Position = uMVP * vec4(aPos, 1.0); }
         """
 
+        /** 수채 파스텔 지구(2026-10-08) — 지표 색(물감 얼룩·해안 번짐)은 텍스처에 구워져 있고 여기선 빛만:
+         *  ① 감싸는 조명 — 밤 쪽을 검게 죽이지 않고 옅은 라벤더 그림자로(한국 저녁 = 아시아 밤이라 밤 쪽도 파스텔 유지)(실제 UTC 낮/밤 방향 uSunDir 그대로)
+         *  ② 분홍 대기 테두리(시점 기준 — uCamObj) ③ 아주 옅은 종이 결(화면 좌표 해시).
+         *  ⚠️ iOS earthFragment 와 같은 식·같은 값. */
         private const val EARTH_FS = """
+            #ifdef GL_FRAGMENT_PRECISION_HIGH
+            precision highp float;
+            #else
             precision mediump float;
+            #endif
             uniform sampler2D uTex; uniform float uFade;
             uniform vec3 uSunDir; // 태양 방향(지구 좌표계 단위벡터) — UTC 하루 기준 360도 회전
+            uniform vec3 uCamObj; // 카메라 위치(지구 좌표계)
             varying vec2 vUV; varying vec3 vN;
+            float grain(vec2 p) {
+                vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+                p3 += dot(p3, p3.yzx + 33.33);
+                return fract((p3.x + p3.y) * p3.z);
+            }
             void main() {
-                // 낮/밤 반구 — 태양 쪽은 기준보다 살짝 밝게(1.15), 반대쪽은 30% 감광(0.7).
-                // 터미네이터(명암 경계)는 smoothstep 으로 자연스럽게 이어진다.
-                float ndl = dot(normalize(vN), uSunDir);
-                float light = 0.70 + 0.45 * smoothstep(-0.18, 0.22, ndl);
-                gl_FragColor = vec4(texture2D(uTex, vUV).rgb * $EARTH_BRIGHTNESS * light * uFade, 1.0);
+                vec3 n = normalize(vN);
+                float w = clamp((dot(n, uSunDir) + 0.45) / 1.45, 0.0, 1.0);
+                vec3 c = texture2D(uTex, vUV).rgb * mix(vec3(0.42, 0.41, 0.60), vec3(0.82, 0.78, 0.76), w);
+                float ndv = max(dot(n, normalize(uCamObj - vN)), 0.0);
+                c += vec3(1.0, 0.74, 0.86) * pow(1.0 - ndv, 2.6) * 0.22;
+                c += (grain(gl_FragCoord.xy) - 0.5) * 0.03;
+                gl_FragColor = vec4(c * uFade, 1.0);
+            }
+        """
+
+        /** 은하수 성운 하늘 구 — 지구 메쉬를 SKY_RADIUS 로 키워 안쪽에서 본다(모델 회전 = 별밭과 같이 돈다). */
+        private const val SKY_VS = """
+            uniform mat4 uMVP;
+            attribute vec3 aPos; attribute vec2 aUV;
+            varying vec2 vUV;
+            void main() { vUV = aUV; gl_Position = uMVP * vec4(aPos * $SKY_RADIUS, 1.0); }
+        """
+
+        private const val SKY_FS = """
+            #ifdef GL_FRAGMENT_PRECISION_HIGH
+            precision highp float;
+            #else
+            precision mediump float;
+            #endif
+            uniform sampler2D uTex; uniform float uFade;
+            varying vec2 vUV;
+            float grain(vec2 p) {
+                vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+                p3 += dot(p3, p3.yzx + 33.33);
+                return fract((p3.x + p3.y) * p3.z);
+            }
+            void main() {
+                // 어두운 그라데이션의 띠(banding)를 1/255 디더로 흩는다.
+                vec3 c = texture2D(uTex, vUV).rgb * uFade + (grain(gl_FragCoord.xy) - 0.5) / 255.0;
+                gl_FragColor = vec4(max(c, vec3(0.0)), 1.0);
+            }
+        """
+
+        /** 대기광 셸 — 지구 메쉬를 ATMO_SCALE 배로. 뒷면(지구 너머)만 남기고, 지구 윤곽에서 1 → 셸 끝에서 0.
+         *  d = 뒷면 법선과 시선의 반대 방향 내적: 셸 윤곽 0, 지구 윤곽 ≈ sqrt(1 − 1/1.16²) ≈ 0.5. */
+        private const val ATMO_VS = """
+            uniform mat4 uMVP;
+            attribute vec3 aPos;
+            varying vec3 vN; varying vec3 vP;
+            void main() { vN = aPos; vP = aPos * $ATMO_SCALE; gl_Position = uMVP * vec4(vP, 1.0); }
+        """
+
+        private const val ATMO_FS = """
+            precision mediump float;
+            uniform vec3 uCamObj; uniform float uFade;
+            varying vec3 vN; varying vec3 vP;
+            void main() {
+                float d = -dot(normalize(vN), normalize(uCamObj - vP));
+                if (d <= 0.0) discard;
+                float i = pow(clamp(d / 0.5, 0.0, 1.0), 3.2);
+                gl_FragColor = vec4(vec3(1.0, 0.72, 0.88) * i * 0.45 * uFade, 1.0);
+            }
+        """
+
+        /** 다이어리 불빛 덮어 그리기(블렌드 ONE, ONE_MINUS_SRC_ALPHA — 프리멀티플라이드 출력).
+         *  텍스처 알파 = 모양, 정점색 = 별 색(밝기 정규화 → 색조만), 정점 알파 = 반짝임·지평선 컷. 가운데는 흰 심지. */
+        private const val PIN_FS = """
+            precision mediump float;
+            uniform sampler2D uTex; uniform float uFade; uniform float uGain;
+            varying vec4 vColor; varying vec2 vUV;
+            void main() {
+                float cov = texture2D(uTex, vUV).a;
+                float mx = max(max(vColor.r, vColor.g), max(vColor.b, 0.001));
+                vec3 tint = vColor.rgb / mx;
+                float a = clamp(pow(cov, 1.6) * vColor.a * uGain, 0.0, 1.0) * uFade;
+                vec3 rgb = mix(tint, vec3(1.0), smoothstep(0.75, 1.0, cov) * 0.7);
+                gl_FragColor = vec4(rgb * a, a);
             }
         """
 
@@ -1606,10 +1765,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             varying vec2 vUV; varying vec3 vN;
             void main() {
                 float cloud = texture2D(uTex, vec2(vUV.x + uShift, vUV.y)).r; // 밝기 = 구름 밀도
-                float ndl = dot(normalize(vN), uSunDir);
-                float light = 0.70 + 0.45 * smoothstep(-0.18, 0.22, ndl);
-                vec3 col = vec3(0.62, 0.70, 0.82) * light; // 밤 지구 톤에 맞춘 은은한 청백 구름
-                gl_FragColor = vec4(col * uFade, cloud * 0.45 * uAlpha * uFade);
+                // 수채 지구(2026-10-08): 결이 남는 얇은 흰 구름 — 그림자 쪽은 지표와 같은 라벤더로 물든다.
+                float w = clamp((dot(normalize(vN), uSunDir) + 0.45) / 1.45, 0.0, 1.0);
+                vec3 col = vec3(0.82, 0.80, 0.81) * mix(vec3(0.72, 0.70, 0.90), vec3(1.0), w);
+                gl_FragColor = vec4(col * uFade, smoothstep(0.14, 0.85, cloud) * 0.22 * uAlpha * uFade);
             }
         """
 
