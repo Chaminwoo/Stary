@@ -1353,7 +1353,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         float d = -dot(normalize(in.n), normalize(camObj - p));
         if (d <= 0.0) { discard_fragment(); }
         float i = pow(clamp(d / 0.5, 0.0, 1.0), 3.2);
-        return float4(float3(1.0, 0.72, 0.88) * i * 0.45 * f[3], 1.0);
+        return float4(float3(1.0, 0.72, 0.88) * i * 0.225 * f[3], 1.0);
     }
 
     // ── 궤적 트레일 — RING_VS / RING_FS ──

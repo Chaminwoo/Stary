@@ -1728,7 +1728,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 float d = -dot(normalize(vN), normalize(uCamObj - vP));
                 if (d <= 0.0) discard;
                 float i = pow(clamp(d / 0.5, 0.0, 1.0), 3.2);
-                gl_FragColor = vec4(vec3(1.0, 0.72, 0.88) * i * 0.45 * uFade, 1.0);
+                gl_FragColor = vec4(vec3(1.0, 0.72, 0.88) * i * 0.225 * uFade, 1.0);
             }
         """
 

@@ -97,7 +97,7 @@ iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Andr
 | 지표 색(수채 팔레트·얼룩·해안) | `assets/globe_watercolor.jpg` ← `tools/globe/bake_globe_textures.py` | 같은 파일(project.yml 참조) |
 | 지구 조명(라벤더 그림자·분홍 테두리·종이 결) | `EARTH_FS` | `shaderSource` earthFragment (**동일 식·값**) |
 | 성운 하늘(반지름 80) | `SKY_RADIUS` + SKY_FS, `assets/globe_nebula.jpg` | `skyRadius` + skyFragment (같은 파일) |
-| 대기광(셸 1.16, 0.45 세기) | `ATMO_SCALE` + ATMO_FS | `atmoScale` + atmoFragment (**동일 식**) |
+| 대기광(셸 1.16, 0.225 세기) | `ATMO_SCALE` + ATMO_FS | `atmoScale` + atmoFragment (**동일 식**) |
 | 구름(알파 0.22, 라벤더 그림자) | `CLOUD_FS` | cloudFragment (**동일 값**) |
 | 다이어리 불빛 덮어 그리기(gain 0.7/1.0) | `pinProgram`/PIN_FS, GLOW/FLARE_PIN_GAIN | `pinPipeline`/pinFragment(블렌드 3), glow/flarePinGain |
 | 근거리 클립면(0.3) | `GlobeRenderer` NEAR_PLANE | `GlobeRenderer.nearPlane` (**동일 값**) |
