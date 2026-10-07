@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.util.displayTitle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
@@ -318,7 +319,7 @@ fun DiaryStarBox(
         // 잡은 별 위에 제목(별 색 + 후광) — 손가락을 따라 위쪽에 떠 있고, 놓으면 부드럽게 사라진다.
         activeBody?.let { titled ->
             val titleColor = titled.color
-            val titleText = titled.diary.title.ifBlank { stringResource(R.string.common_untitled) }
+            val titleText = titled.diary.displayTitle().ifBlank { stringResource(R.string.common_untitled) }
             Text(
                 text = titleText,
                 color = titleColor,

@@ -112,6 +112,8 @@
     <string name="common_save">保存</string>
     <string name="common_delete">削除</string>
     <string name="common_edit">編集</string>
+    <string name="diary_translated_see_original">翻訳済み · 原文を見る</string>
+    <string name="diary_original_see_translated">原文 · 翻訳を見る</string>
     <string name="common_anonymous">匿名</string>
     <string name="common_login_required">ログインが必要です</string>
     <string name="common_user">ユーザー</string>

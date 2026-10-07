@@ -399,7 +399,7 @@ struct StarLogScreen: View {
         }()
         let author = directory.name(d.userId, fallback: d.userName)
         return VStack(spacing: 0) {
-            Text(d.title.isEmpty ? "—" : d.title)
+            Text(d.titleForDisplay().isEmpty ? "—" : d.titleForDisplay())
                 .font(.minSans(20, .semibold))
                 .foregroundStyle(ink)
                 .multilineTextAlignment(.center)

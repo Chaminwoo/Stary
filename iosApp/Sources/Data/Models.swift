@@ -38,6 +38,10 @@ struct Diary: Identifiable, Codable, Hashable {
 
     var visibilityType: String = "public"
 
+    /// 서버(Cloud Functions)가 채우는 자동 선번역 — **읽기 전용**(encode 에 넣지 않는다: 수정 시 setData(merge:) 가
+    /// 낡은 번역을 되써서 서버 값을 덮어쓰면 안 된다). 없으면 nil → 원문. 표시는 DiaryText.swift 의 *ForDisplay 만 쓸 것.
+    var translations: DiaryTranslations?
+
     // MARK: - 기본 생성자
 
     init(
@@ -57,7 +61,8 @@ struct Diary: Identifiable, Codable, Hashable {
         viewCount: Int = 0,
         starType: Int = 0,
         starColor: Int = 0,
-        visibilityType: String = "public"
+        visibilityType: String = "public",
+        translations: DiaryTranslations? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -76,6 +81,7 @@ struct Diary: Identifiable, Codable, Hashable {
         self.starType = starType
         self.starColor = starColor
         self.visibilityType = visibilityType
+        self.translations = translations
     }
 
     // MARK: - Firestore 키
@@ -106,6 +112,8 @@ struct Diary: Identifiable, Codable, Hashable {
         case starColor
 
         case visibilityType
+
+        case translations
     }
 
     // MARK: - Firestore → Swift
@@ -187,6 +195,9 @@ struct Diary: Identifiable, Codable, Hashable {
         starColor = int(.starColor) ?? 0
 
         visibilityType = str(.visibilityType) ?? "public"
+
+        // 번역은 부가 정보 — 어떤 모양이어도(null/예상 밖 타입) 글 자체가 누락되지 않게 실패하면 nil.
+        translations = try? c.decodeIfPresent(DiaryTranslations.self, forKey: .translations)
     }
 
     // MARK: - Swift → Firestore

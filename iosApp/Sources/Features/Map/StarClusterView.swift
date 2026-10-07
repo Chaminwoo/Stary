@@ -237,7 +237,7 @@ private struct ClusterCard: View {
 
             HStack(spacing: 8) {
                 StarView(type: diary.starType, colorIndex: diary.starColor, size: 18, glow: false)
-                Text(diary.title.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : diary.title)
+                Text(diary.titleForDisplay().isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : diary.titleForDisplay())
                     .font(.minSans(17))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)

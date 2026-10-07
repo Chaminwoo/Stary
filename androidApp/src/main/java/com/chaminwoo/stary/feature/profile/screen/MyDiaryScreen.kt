@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.util.displayTitle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -279,7 +280,7 @@ private fun DiaryListColumn(
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    d.title.ifBlank { stringResource(R.string.common_untitled) },
+                    d.displayTitle().ifBlank { stringResource(R.string.common_untitled) },
                     color = Color.White.copy(alpha = 0.92f), fontSize = 15.sp,
                     fontWeight = FontWeight.Normal, maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

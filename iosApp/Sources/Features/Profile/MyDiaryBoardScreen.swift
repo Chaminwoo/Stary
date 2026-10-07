@@ -136,7 +136,7 @@ struct MyStarsScreen: View {
                 NavigationLink(value: d) {
                     HStack(spacing: 12) {
                         StarView(type: d.starType, colorIndex: d.starColor, size: 24)
-                        Text(d.title.isEmpty ? locale.t(.commonUntitled) : d.title)
+                        Text(d.titleForDisplay().isEmpty ? locale.t(.commonUntitled) : d.titleForDisplay())
                             .font(.minSans(15))
                             .foregroundStyle(Color.white.opacity(0.92))
                             .lineLimit(1)
@@ -476,7 +476,7 @@ private struct FloatingStarItem: View {
             .contentShape(Rectangle())
             .overlay {
                 if dragging {
-                    Text(diary.title.isEmpty ? LocaleManager.shared.t(.commonUntitled) : diary.title)
+                    Text(diary.titleForDisplay().isEmpty ? LocaleManager.shared.t(.commonUntitled) : diary.titleForDisplay())
                         .font(.minSans(11))
                         .foregroundStyle(.white)
                         .lineLimit(2)

@@ -2516,9 +2516,9 @@ node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage dia
 - 앱 시작 시 저장된 필터가 바로 적용되므로, "해금만"은 위치 fix 전까지 내 글·영구 해금 별만 보이다가 위치가 잡히면 100m 이내 별이 더해진다(기존 규칙 그대로).
 - 확인: 친구만 켜고 앱 완전 종료 → 재실행 시 친구만 칩 활성 + 지도도 친구 별만. 기간/친구 선택도 동일. 다른 계정으로 로그인하면 그 계정 기준.
 
-## 8.77 다이어리 자동 선번역 — 서버(Cloud Functions)만 (코드 완료 · **배포·실제 호출 검증 대기** · 2026-10-07)
+## 8.77 다이어리 자동 선번역 — 서버(Cloud Functions) + 앱 표시 (서버·Android BUILD SUCCESSFUL · **서버 배포·실기기 검증 대기** · iOS push 후 CI · 2026-10-07/08)
 사용자 요청: 다이어리 생성 **후** 서버가 비동기로 제목/본문을 나머지 언어로 번역해 Firebase 에 저장(API 키는 앱에 두지 않음, 재호출 없음, 실패해도 생성 영향 없음).
-앱(Android/iOS)·규칙·기존 생성 로직은 **하나도 안 바꿨다** — 서버 파일만.
+서버 단계(10-07)에서는 앱·규칙·기존 생성 로직을 안 바꿨고, **10-08 에 앱이 번역을 읽어 보여 주도록 Android+iOS 표시를 추가**했다(아래 "앱 표시").
 - 파일: 신규 `functions/translations.js`(로직 전부 + 머리말에 저장 구조/읽는 규칙/언어 추가법), `functions/index.js` 에 `require` 1줄 + 트리거 2개
   (`translateDiaryOnCreate`, `translateDiaryOnEdit`), `functions/package.json` 에 `@google-cloud/translate`.
 - **번역 API = Google Cloud Translation v3(NMT)**: 같은 GCP 프로젝트의 함수 서비스 계정 권한(ADC)으로 호출 → **API 키·시크릿·환경변수 없음**.
@@ -2531,7 +2531,17 @@ node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage dia
   `translations.js` `claim()` 의 `private` 한 줄. ② **글 수정 시 재번역**(Android DetailScreen 에 수정 UI 있음 — 안 하면 낡은 번역이 남는다).
   `translateDiaryOnEdit` 는 title/content 가 안 바뀐 갱신(좋아요·조회수·번역 저장 자체)에서는 비교만 하고 즉시 종료(루프 없음, 호출 수만 +1).
 - ⚠️ **zh 는 현재 앱 인앱 언어가 아니다**(ko/en/ja 만, PATCH_NOTES "zh-CN 은 앱 인앱 언어에 없음"). 데이터는 4개 언어로 쌓이지만 zh 를 보여 주려면 앱에 중국어 추가가 먼저.
-- ⚠️ **앱은 아직 translations 를 읽지 않는다.** 읽을 때 규칙: `translations.title[표시언어]` 있으면 사용, 없으면 원문(구버전/실패/진행 중 모두 동일).
+- **앱 표시(10-08)**: 앱 언어(ko/en/ja)의 번역이 있으면 번역을, 없으면 원문을 보여 준다(예전 글·번역 전·실패·진행 중 모두 원문). 상세 화면은 **제목 바로 아래**에
+  "번역됨 · 원문 보기" ↔ "원문 · 번역 보기" 토글(제목은 잠긴 글에서도 보이므로 본문 아래가 아님). 번역을 쓰는 곳 = 상세 제목·본문 + 목록/별자리/도감/프로필의 제목.
+  **원문을 그대로 쓰는 곳(바꾸지 말 것)**: 수정 입력칸 초기값 · 신고 스냅샷 · 공유 카드 · 알림/푸시 · 콘텐츠 필터 · 업적 판정 — 번역문이 원문으로 저장·신고되면 안 된다.
+  낡은 번역 방지: 번역 맵의 원문 언어 칸(`title[sourceLang]`)이 현재 `title` 과 같을 때만 번역을 쓴다(수정 직후 재번역 전 구간).
+  파일: Android `shared/.../Diary.kt`(DiaryTranslations·localizedTitle/Content), `core/util/DiaryText.kt`(displayTitle/Content/isDisplayTranslated),
+  `DetailScreen.kt`+목록 6개 화면, strings 3벌(`diary_translated_see_original`/`diary_original_see_translated`). iOS `Data/Models.swift`(translations **디코드만** —
+  encode 에 넣으면 수정 시 setData(merge) 가 낡은 번역을 되써 서버 값을 덮는다), `Core/DiaryText.swift`, `L10n` 키 2개, `DetailScreen.swift`+목록 6개 화면.
+  검증: `DiaryTranslationsMappingTest`(Firestore 실제 `CustomClassMapper` 로 서버 모양 매핑·폴백·낡은 번역 6케이스 통과 — 지도 목록이 `toObject` 를 try/catch 없이 돌려서
+  매핑 오류가 목록 전체를 깨뜨릴 수 있어 둔 회귀 테스트). iOS 는 Windows 에서 컴파일 불가 → push 후 CI.
+  확인 방법(계정 1개로): 설정에서 앱 언어를 영어로 → 한국어 글 상세가 영어로 + 토글. 앱 언어가 원문 언어와 같으면 토글 없음. zh 는 앱 언어가 아니라 화면엔 안 나온다.
+- (참고) 번역 읽기 규칙: `translations.title[표시언어]` 있으면 사용, 없으면 원문(구버전/실패/진행 중 모두 동일).
 - 검증: `node --check` + 실제 Firestore 에뮬레이터(JDK21)에서 가짜 번역기로 14개 시나리오(중복 동시 5개→API 1회, 번역 중 수정→폐기, 일부 실패→partial→이어받기,
   private/없는 문서/이모지만/빈 필드, 원문 en·ja·es, 언어 추가) 전부 통과. **실제 Google API 호출은 미검증**(로컬 자격증명 없음) — 요청/응답 필드명은 타입 정의로 대조.
 - **배포 전 1회 설정(사용자)** — API 활성화를 **배포보다 먼저** 하지 않으면 첫 글들이 `failed` 로 남는다(자동 재시도 없음):
@@ -2540,7 +2550,8 @@ node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage dia
      새 프로젝트는 기본 Editor 권한이 없을 수 있다: `gcloud projects add-iam-policy-binding momentdiary-f26c8 --member=serviceAccount:<SA> --role=roles/cloudtranslate.user`
   3. `cd functions && npm install && cd .. && firebase deploy --only functions:translateDiaryOnCreate,functions:translateDiaryOnEdit`
   4. 확인: 새 별을 올리고 몇 초 뒤 Firestore `diaries/{id}.translations.status == "done"`, Functions 로그 `translate …: ko→[en,ja,zh] 3/3 저장(done)`.
-- 남은 아이디어(안 함): 실패/partial 문서를 주기적으로 다시 채우는 스케줄 함수, 기존 다이어리 일괄 번역(백필), 앱에서 translations 표시.
+- 남은 아이디어(안 함): 실패/partial 문서를 주기적으로 다시 채우는 스케줄 함수, 기존 다이어리 일괄 번역(백필). 알림/푸시 문구 번역은 범위 밖.
+- 출시 시: `docs/PATCH_NOTES.md` 새 버전 항목에 "다른 언어로 쓴 별이 내 언어로 자동 번역" 한 줄(ko/en/ja/zh-CN) 추가.
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **(8.77) 자동 선번역 배포(사용자)** — 위 8.77 의 "배포 전 1회 설정" 1~4. 이후 실제 별로 `translations` 생성 확인(첫 실제 API 호출 검증).

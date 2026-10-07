@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.diary.screen
 
+import com.chaminwoo.stary.core.util.displayTitle
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -477,7 +478,7 @@ private fun ClusterDiaryCard(
             Spacer(Modifier.height(12.dp))
 
             Text(
-                text = diary.title.ifBlank { stringResource(R.string.common_untitled) },
+                text = diary.displayTitle().ifBlank { stringResource(R.string.common_untitled) },
                 color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Light,

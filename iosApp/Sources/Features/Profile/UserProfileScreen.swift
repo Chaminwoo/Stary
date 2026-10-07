@@ -311,7 +311,7 @@ struct UserProfileScreen: View {
             diaryAt[items.count] = d
             items.append(StatBubble(
                 systemImage: "star.fill", count: 0, color: StarStyle.color(d.starColor),
-                label: d.title.isEmpty ? locale.t(.userNoTitle) : d.title,
+                label: d.titleForDisplay().isEmpty ? locale.t(.userNoTitle) : d.titleForDisplay(),
                 showCount: false, starType: d.starType, starColorIndex: d.starColor
             ))
         }

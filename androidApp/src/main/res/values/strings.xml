@@ -114,6 +114,8 @@
     <string name="common_save">저장</string>
     <string name="common_delete">삭제</string>
     <string name="common_edit">수정</string>
+    <string name="diary_translated_see_original">번역됨 · 원문 보기</string>
+    <string name="diary_original_see_translated">원문 · 번역 보기</string>
     <string name="common_anonymous">익명</string>
     <string name="common_login_required">로그인이 필요해요</string>
     <string name="common_user">사용자</string>

@@ -112,6 +112,8 @@
     <string name="common_save">Save</string>
     <string name="common_delete">Delete</string>
     <string name="common_edit">Edit</string>
+    <string name="diary_translated_see_original">Translated · See original</string>
+    <string name="diary_original_see_translated">Original · See translation</string>
     <string name="common_anonymous">Anonymous</string>
     <string name="common_login_required">Sign in required</string>
     <string name="common_user">User</string>

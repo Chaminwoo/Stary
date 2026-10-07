@@ -90,6 +90,9 @@ import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import com.chaminwoo.stary.core.util.ImageCropHelper
 import com.chaminwoo.stary.core.util.LocationHelper
+import com.chaminwoo.stary.core.util.displayContent
+import com.chaminwoo.stary.core.util.displayTitle
+import com.chaminwoo.stary.core.util.isDisplayTranslated
 import com.chaminwoo.stary.data.local.DiaryCache
 import com.chaminwoo.stary.data.repository.FirebaseDiaryRepository
 import com.chaminwoo.stary.data.repository.FirebaseViewedRepository
@@ -188,6 +191,12 @@ fun DetailScreen(
     // ⚠️ 댓글 **작성**만은 해금과 무관하게 항상 100m 이내(isNear)에서만 — CommentInputRow.
     val everUnlocked = com.chaminwoo.stary.core.util.DiaryUnlockStore.isUnlocked(context, diaryId)
     val unlocked = isMyDiary || isNear || everUnlocked
+    // 서버 선번역(2026-10-08): 앱 언어의 번역이 있으면 번역을 보여 주고 "원문 보기"로 되돌릴 수 있다.
+    // ⚠️ 표시 전용 — 수정 입력칸/신고/공유/알림은 아래에서도 계속 원문(currentDiary.title/content)을 쓴다.
+    val translatedForMe = currentDiary.isDisplayTranslated()
+    var showOriginal by remember(diaryId) { mutableStateOf(false) }
+    val shownTitle = if (showOriginal) currentDiary.title else currentDiary.displayTitle()
+    val shownContent = if (showOriginal) currentDiary.content else currentDiary.displayContent()
     LaunchedEffect(diaryId, isNear, isMyDiary) {
         if (isNear && !isMyDiary) com.chaminwoo.stary.core.util.DiaryUnlockStore.unlock(context, diaryId)
     }
@@ -583,9 +592,21 @@ fun DetailScreen(
 
                 // 제목(사진 밖으로 분리)
                 Text(
-                    currentDiary.title, fontSize = 24.sp, fontWeight = FontWeight.SemiBold,
+                    shownTitle, fontSize = 24.sp, fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground, lineHeight = 30.sp
                 )
+
+                // 번역본을 보여 주는 글에만 — 제목은 잠긴 글에서도 보이므로 본문 영역이 아니라 제목 바로 아래에 둔다.
+                if (translatedForMe) {
+                    CompactTextAction(
+                        text = stringResource(
+                            if (showOriginal) R.string.diary_original_see_translated
+                            else R.string.diary_translated_see_original
+                        ),
+                        color = MaterialTheme.colorScheme.secondary,
+                        onClick = { showOriginal = !showOriginal },
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -603,7 +624,7 @@ fun DetailScreen(
                             .padding(horizontal = 20.dp, vertical = 22.dp)
                     ) {
                         Text(
-                            currentDiary.content,
+                            shownContent,
                             style = TextStyle(
                                 fontSize = 16.sp,
                                 // 26 -> 28: 카드가 없어진 만큼 행간으로 문단을 잡아 준다(긴 한글 본문 가독성).

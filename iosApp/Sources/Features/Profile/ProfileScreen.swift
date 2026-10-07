@@ -90,7 +90,7 @@ struct ProfileScreen: View {
         for d in pinnedDiaries {
             arr.append(StatBubble(
                 systemImage: "star.fill", count: 0, color: StarStyle.color(d.starColor),
-                label: d.title.isEmpty ? locale.t(.profileMyStars) : d.title,
+                label: d.titleForDisplay().isEmpty ? locale.t(.profileMyStars) : d.titleForDisplay(),
                 showCount: false, starType: d.starType, starColorIndex: d.starColor
             ))
         }
@@ -495,7 +495,7 @@ private struct PinDiaryPicker: View {
         } label: {
             HStack(spacing: 12) {
                 StarView(type: d.starType, colorIndex: d.starColor, size: 24)
-                Text(d.title.isEmpty ? locale.t(.profileMyStars) : d.title)
+                Text(d.titleForDisplay().isEmpty ? locale.t(.profileMyStars) : d.titleForDisplay())
                     .font(.minSans(15)).foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 Spacer()

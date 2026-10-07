@@ -162,6 +162,8 @@ enum L10n: String {
     // 내 다이어리 별자리 보드(Android MyDiaryScreen 대응).
     case sortLatest, sortPopular, sortDistance, mydiarySortCount, mydiaryEmpty
     case mydiaryViewList, mydiaryViewStars, commonUntitled
+    // 서버 선번역 토글(2026-10-08) — Android diary_translated_see_original / diary_original_see_translated 패리티.
+    case diaryTranslatedSeeOriginal, diaryOriginalSeeTranslated
     // 업로드 화면(Android UploadScreen 대응).
     case fieldTitle, uploadContentLabel, uploadPhotoSection, uploadAddPhoto, uploadCaptureBoomerang
     // 첨부 소스 3지선다(촬영/갤러리/다시 선택) + 카메라 상태 토스트 — Android upload_take_photo 등 대응.
@@ -486,6 +488,8 @@ enum L10n: String {
         case .mydiaryViewList:      return ("목록으로 보기", "View as list", "リストで表示")
         case .mydiaryViewStars:     return ("별로 보기", "View as stars", "星で表示")
         case .commonUntitled:       return ("(제목 없음)", "(Untitled)", "(タイトルなし)")
+        case .diaryTranslatedSeeOriginal: return ("번역됨 · 원문 보기", "Translated · See original", "翻訳済み · 原文を見る")
+        case .diaryOriginalSeeTranslated: return ("원문 · 번역 보기", "Original · See translation", "原文 · 翻訳を見る")
         case .fieldTitle:           return ("제목", "Title", "タイトル")
         case .uploadContentLabel:   return ("이 장소의 기억을 남겨주세요", "Leave a memory of this place", "この場所の思い出を残してください")
         case .uploadPhotoSection:   return ("사진 · 움짤 (선택)", "Photo · GIF (optional)", "写真・GIF（任意）")

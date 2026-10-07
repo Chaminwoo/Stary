@@ -1,5 +1,6 @@
 ﻿package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.util.displayTitle
 import android.net.Uri
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -374,7 +375,7 @@ fun ProfileScreen(
                 StatBubble(Icons.Filled.EmojiEvents, unlockedCount, Color(0xFFF2C94C), stringResource(R.string.nav_achievements), burstOnTap = true), // 업적 — 누르면 버스트+보기
             ) + pinnedDiaries.map { d ->
                 StatBubble(
-                    Icons.Filled.Star, 0, StarStyle.colorOf(d.starColor), d.title.ifBlank { untitled },
+                    Icons.Filled.Star, 0, StarStyle.colorOf(d.starColor), d.displayTitle().ifBlank { untitled },
                     showCount = false, starType = d.starType, starColorIndex = d.starColor
                 )
             } + myHiddenAch.map { ach ->
@@ -549,7 +550,7 @@ private fun PinDiaryPicker(
                             StarShapeIcon(type = d.starType, colorIndex = d.starColor, modifier = Modifier.size(24.dp))
                             Spacer(Modifier.width(12.dp))
                             Text(
-                                d.title.ifBlank { stringResource(R.string.common_untitled) },
+                                d.displayTitle().ifBlank { stringResource(R.string.common_untitled) },
                                 color = TextMain, fontSize = 14.sp, maxLines = 1,
                                 overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
                             )

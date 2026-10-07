@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.util.displayTitle
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -377,7 +378,7 @@ fun UserProfileScreen(
                 StatBubble(Icons.Filled.EmojiEvents, unlockedCount, Color(0xFFF2C94C), stringResource(R.string.nav_achievements), burstOnTap = true), // 업적(누르면 버스트)
             ) + pinnedDiaries.map { d ->
                 StatBubble(
-                    Icons.Filled.Favorite, 0, StarStyle.colorOf(d.starColor), d.title.ifBlank { untitled },
+                    Icons.Filled.Favorite, 0, StarStyle.colorOf(d.starColor), d.displayTitle().ifBlank { untitled },
                     showCount = false, starType = d.starType, starColorIndex = d.starColor
                 )
             } + theirHiddenAch.map { ach ->
@@ -508,7 +509,7 @@ private fun DiaryRow(d: Diary, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                d.title.ifBlank { stringResource(R.string.common_untitled) },
+                d.displayTitle().ifBlank { stringResource(R.string.common_untitled) },
                 color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Normal,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )

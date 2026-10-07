@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.util.displayTitle
 import android.content.Context
 import android.content.ContextWrapper
 import android.graphics.Bitmap
@@ -581,7 +582,7 @@ private fun StarInfoPanel(d: Diary, here: LatLng, unlockedAt: Long?, onOpenMap: 
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
         Text(
-            d.title.ifBlank { "—" },
+            d.displayTitle().ifBlank { "—" },
             color = ink, fontFamily = MinSans, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 26.sp,
             style = TextStyle(shadow = halo),

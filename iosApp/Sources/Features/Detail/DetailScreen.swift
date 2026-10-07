@@ -44,6 +44,8 @@ struct DetailScreen: View {
     @State private var editTitle = ""
     @State private var editContent = ""
     @State private var editedTitle: String?
+    /// 서버 선번역(2026-10-08) — 번역본을 보여 주는 글에서 "원문 보기" 토글. 표시 전용(수정/신고/공유는 계속 원문).
+    @State private var showOriginal = false
     @State private var editedContent: String?
     /// 헤더 미디어(사진/영상/움짤) 로딩 완료 여부 — MediaLoadingFrame 페이드인 트리거.
     @State private var mediaLoaded = false
@@ -133,6 +135,18 @@ struct DetailScreen: View {
                             Text(displayTitle)
                                 .font(.minSans(24, .semibold))
                                 .foregroundStyle(Theme.textPrimary)
+                            // 번역본을 보여 주는 글에만 — 제목은 잠긴 글에서도 보이므로 본문 영역이 아니라 제목 바로 아래에 둔다.
+                            if translatedForMe {
+                                Button {
+                                    showOriginal.toggle()
+                                } label: {
+                                    Text(LocaleManager.shared.t(showOriginal ? .diaryOriginalSeeTranslated : .diaryTranslatedSeeOriginal))
+                                        .font(.minSans(13))
+                                        .foregroundStyle(Theme.textSecondary)
+                                        .padding(.vertical, 8)
+                                }
+                                .buttonStyle(.plain)
+                            }
                             Spacer().frame(height: 16)
                             if canOpen { bodyCard } else { lockedContentCard }
                             Spacer().frame(height: 20)
@@ -347,8 +361,13 @@ struct DetailScreen: View {
 
     /// 표시 제목 — 수정 결과 로컬 오버라이드 우선, 비면 "(제목 없음)".
     private var displayTitle: String {
-        let t = editedTitle ?? diary.title
+        let t = editedTitle ?? (showOriginal ? diary.title : diary.titleForDisplay())
         return t.isEmpty ? LocaleManager.shared.t(.shareCardUntitled) : t
+    }
+
+    /// 지금 앱 언어로 번역된 글을 보여 주는 중인가(토글 노출 조건). 방금 수정한 글(editedTitle/Content)은 내가 쓴 원문이라 제외.
+    private var translatedForMe: Bool {
+        editedTitle == nil && editedContent == nil && diary.isTranslatedForDisplay()
     }
 
     private static let createdFmt: DateFormatter = {
@@ -476,7 +495,7 @@ struct DetailScreen: View {
     //    Android `DetailScreen.kt` 본문 Box(`cornerCrossFrame`) 패리티 — 수치 동일.
 
     private var bodyCard: some View {
-        Text((editedContent ?? diary.content).hangulWordWrapped)
+        Text((editedContent ?? (showOriginal ? diary.content : diary.contentForDisplay())).hangulWordWrapped)
             .font(.minSans(16))
             // 8 -> 10: 카드가 없어진 만큼 행간으로 문단을 잡아 준다(Android lineHeight 26 -> 28 대응).
             .lineSpacing(10)
