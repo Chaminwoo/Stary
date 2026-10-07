@@ -1675,7 +1675,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             void main() {
                 vec3 n = normalize(vN);
                 float w = clamp((dot(n, uSunDir) + 0.45) / 1.45, 0.0, 1.0);
-                vec3 c = texture2D(uTex, vUV).rgb * mix(vec3(0.42, 0.41, 0.60), vec3(0.82, 0.78, 0.76), w);
+                vec3 c = texture2D(uTex, vUV).rgb * mix(vec3(0.29, 0.29, 0.42), vec3(0.57, 0.55, 0.53), w);
                 float ndv = max(dot(n, normalize(uCamObj - vN)), 0.0);
                 c += vec3(1.0, 0.74, 0.86) * pow(1.0 - ndv, 2.6) * 0.22;
                 c += (grain(gl_FragCoord.xy) - 0.5) * 0.03;
@@ -1767,7 +1767,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 float cloud = texture2D(uTex, vec2(vUV.x + uShift, vUV.y)).r; // 밝기 = 구름 밀도
                 // 수채 지구(2026-10-08): 결이 남는 얇은 흰 구름 — 그림자 쪽은 지표와 같은 라벤더로 물든다.
                 float w = clamp((dot(normalize(vN), uSunDir) + 0.45) / 1.45, 0.0, 1.0);
-                vec3 col = vec3(0.82, 0.80, 0.81) * mix(vec3(0.72, 0.70, 0.90), vec3(1.0), w);
+                vec3 col = vec3(0.57, 0.56, 0.57) * mix(vec3(0.72, 0.70, 0.90), vec3(1.0), w);
                 gl_FragColor = vec4(col * uFade, smoothstep(0.14, 0.85, cloud) * 0.22 * uAlpha * uFade);
             }
         """

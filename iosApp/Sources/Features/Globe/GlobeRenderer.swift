@@ -1317,7 +1317,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         float3 camObj = float3(f[4], f[5], f[6]);
         float3 n = normalize(in.n);
         float w = clamp((dot(n, sunDir) + 0.45) / 1.45, 0.0, 1.0);
-        float3 c = tex.sample(smp, in.uv).rgb * mix(float3(0.42, 0.41, 0.60), float3(0.82, 0.78, 0.76), w);
+        float3 c = tex.sample(smp, in.uv).rgb * mix(float3(0.29, 0.29, 0.42), float3(0.57, 0.55, 0.53), w);
         float ndv = max(dot(n, normalize(camObj - in.n)), 0.0);
         c += float3(1.0, 0.74, 0.86) * pow(max(1.0 - ndv, 0.0), 2.6) * 0.22;
         c += (grain(in.position.xy) - 0.5) * 0.03;
@@ -1332,7 +1332,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         float3 sunDir = float3(f[0], f[1], f[2]);
         float cloud = tex.sample(smp, float2(in.uv.x + f[5], in.uv.y)).r;
         float w = clamp((dot(normalize(in.n), sunDir) + 0.45) / 1.45, 0.0, 1.0);
-        float3 col = float3(0.82, 0.80, 0.81) * mix(float3(0.72, 0.70, 0.90), float3(1.0), w);
+        float3 col = float3(0.57, 0.56, 0.57) * mix(float3(0.72, 0.70, 0.90), float3(1.0), w);
         return float4(col * f[3], smoothstep(0.14, 0.85, cloud) * 0.22 * f[4] * f[3]);
     }
 
