@@ -36,6 +36,26 @@ struct MapScreen: View {
     /// 영구 해금 기록 — 해금되는 순간 지도 필터도 같이 갱신되게 관찰한다.
     @ObservedObject private var unlocks = DiaryUnlockStore.shared
     @State private var selectedFriendIds: Set<String> = []
+    /// 지금 필터 상태를 어느 계정 것으로 읽어 왔는지(nil = 아직) — 읽기 전엔 저장하지 않는다(MapFilterStore).
+    @State private var filterOwner: String?
+
+    /// 현재 필터 조합 — 바뀔 때마다 계정별로 저장해, 앱을 껐다 켜도 그대로 걸려 있게 한다(Android MapFilterStore 패리티).
+    private var currentFilters: MapFilters {
+        MapFilters(unviewedOnly: unviewedOnly, friendsOnly: friendsOnly, myOnly: myOnly,
+                   unlockedOnly: unlockedOnly, selectedFriendIds: selectedFriendIds, periodDays: periodDays)
+    }
+
+    /// 이 계정의 마지막 필터를 불러와 적용한다(앱 시작·로그인 계정 변경 시).
+    private func applySavedFilters() {
+        let f = MapFilterStore.load(uid: auth.uid)
+        unviewedOnly = f.unviewedOnly
+        friendsOnly = f.friendsOnly
+        myOnly = f.myOnly
+        unlockedOnly = f.unlockedOnly
+        selectedFriendIds = f.selectedFriendIds
+        periodDays = f.periodDays
+        filterOwner = auth.uid ?? "guest"
+    }
 
     /// 필터 조합 식별값 — 바뀌면 지도 별이 순차 등장으로 다시 뜬다(데이터·위치 갱신은 포함하지 않는다).
     private var filterRevealKey: Int {
@@ -262,6 +282,13 @@ struct MapScreen: View {
                 selectedFriendIds = ids
                 if !ids.isEmpty { myOnly = false }
             }
+        }
+        // 필터 영속: 계정이 정해지면(앱 시작·로그인 변경) 그 계정의 마지막 필터를 불러오고, 바뀔 때마다 저장한다.
+        .task(id: auth.uid) { applySavedFilters() }
+        .onChange(of: currentFilters) { filters in
+            // 다른 계정의 필터가 아직 화면에 남아 있는 순간(로그인 직후)에는 저장하지 않는다.
+            guard filterOwner == (auth.uid ?? "guest") else { return }
+            MapFilterStore.save(filters, uid: auth.uid)
         }
         .task(id: auth.uid) {
             // 서버 해금 사본 + 잠금 이전 열람 기록을 로컬에 합친다(실행당 1회 — 별 도감·상세 잠금·"해금만" 필터 공용).

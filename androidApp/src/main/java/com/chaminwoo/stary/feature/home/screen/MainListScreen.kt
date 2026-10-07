@@ -80,6 +80,8 @@ import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.model.Friend
 import com.chaminwoo.stary.core.util.DiaryUnlockStore
 import com.chaminwoo.stary.core.util.LocationHelper
+import com.chaminwoo.stary.core.util.MapFilterStore
+import com.chaminwoo.stary.core.util.MapFilters
 import com.chaminwoo.stary.core.util.MapFocusState
 import com.chaminwoo.stary.core.util.MapUiState
 import com.chaminwoo.stary.core.util.TutorialStarState
@@ -164,15 +166,24 @@ fun MainListScreen(
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
     }
-    var unviewedOnly by remember { mutableStateOf(false) }
-    var friendsOnly by remember { mutableStateOf(false) }
-    var myOnly by remember { mutableStateOf(false) }
+    // 필터는 앱을 껐다 켜도 유지된다(계정별 저장 — MapFilterStore). 계정이 바뀌면 그 계정의 마지막 필터로 다시 읽는다.
+    val savedFilters = remember(userId) { MapFilterStore.load(context, userId) }
+    var unviewedOnly by remember(userId) { mutableStateOf(savedFilters.unviewedOnly) }
+    var friendsOnly by remember(userId) { mutableStateOf(savedFilters.friendsOnly) }
+    var myOnly by remember(userId) { mutableStateOf(savedFilters.myOnly) }
     // 해금만 — 잠금 없이 바로 열리는 별만(내 글 / 100m 이내 / 영구 해금). DetailScreen 의 unlocked 규칙과 동일.
-    var unlockedOnly by remember { mutableStateOf(false) }
+    var unlockedOnly by remember(userId) { mutableStateOf(savedFilters.unlockedOnly) }
     var showFriendPicker by remember { mutableStateOf(false) }
-    var selectedFriendIds by remember { mutableStateOf(emptySet<String>()) }
+    var selectedFriendIds by remember(userId) { mutableStateOf(savedFilters.selectedFriendIds) }
     // 기간별 보기 — null=전체 기간, 0=오늘(로컬 자정 이후), 그 외 N=최근 N일
-    var periodDays by remember { mutableStateOf<Int?>(null) }
+    var periodDays by remember(userId) { mutableStateOf(savedFilters.periodDays) }
+    // 필터가 바뀔 때마다 저장(uid 가 바뀐 컴포지션에서는 위 상태가 이미 새 계정 값으로 다시 읽힌 뒤라 섞이지 않는다).
+    LaunchedEffect(userId, unviewedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays) {
+        MapFilterStore.save(
+            context, userId,
+            MapFilters(unviewedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays)
+        )
+    }
     var showPeriodPicker by remember { mutableStateOf(false) }
     var speedDialExpanded by remember { mutableStateOf(false) }
 

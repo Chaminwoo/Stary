@@ -2,7 +2,9 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.75 큐레이션 별 100개(전 세계 66개국 · 현지어 34개 · 위키미디어 공용 사진) 시드 도구** — `tools/seed/`,
+> 최종 갱신: **8.76 지도 필터 유지 — 앱을 껐다 켜도 마지막 필터 그대로(계정별)** — Android BUILD SUCCESSFUL(2026-10-07),
+> 실기기 테스트 대기 · iOS 는 push 후 CI.
+> 이전: **8.75 큐레이션 별 100개(전 세계 66개국 · 현지어 34개 · 위키미디어 공용 사진) 시드 도구** — `tools/seed/`,
 > 앱 코드 변경 없음. 2026-10-07 100개 업로드 후 **사용자 지시로 전부 삭제**(다이어리 100·사진 100·열람 기록 7 — DB 는 업로드 전 37개 상태).
 > 도구와 글/사진 데이터(`tools/seed/`)는 남겨 두어 `node seed.js upload` 한 번으로 다시 올릴 수 있다.
 > 이전: **8.74 iOS 광고 미동작 근본 원인(SDK 패키지 누락) 복구 + SKAdNetwork 82개 + 채팅 나에게서만 삭제(메시지/대화)** —
@@ -2504,6 +2506,15 @@ node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage dia
 ```
 - 입력: `places.json`(장소·언어·사진 지정 `file`·좌표 `coord`·작가명 `artist`) + `stars/*.json`(제목·본문). `build/`·`node_modules/` 는 gitignore.
 - 월 1회쯤 새 별을 더하려면 places.json 에 항목 + stars/*.json 에 글 → meta --only → images → plan → upload.
+
+## 8.76 지도 필터 유지 (Android BUILD SUCCESSFUL 2026-10-07 · 실기기 테스트 대기 · iOS push 후 CI)
+사용자 요청: "친구만 고르고 껐다 켜도 친구만 필터가 끼워져 있게".
+- 저장 대상 6개: 미조회만 · 친구만 · 나만보기 · 해금만 · 친구 선택(uid 집합) · 기간. 다이얼 펼침/피커 표시는 저장 안 함.
+- **계정별** 저장(비로그인 = guest) — 친구 선택은 uid 목록이라 다른 계정에선 무의미. 로그아웃→다른 계정 로그인 시 그 계정의 마지막 필터.
+- Android: 신규 `core/util/MapFilterStore.kt`(+`MapFilters`), `MainListScreen` 필터 상태를 `remember(userId)` 로 저장값에서 시작 +
+  `LaunchedEffect` 로 변경 시 저장. iOS: 신규 `Core/MapFilterStore.swift`, `MapScreen` 에 `applySavedFilters()`/`currentFilters`/`filterOwner`.
+- 앱 시작 시 저장된 필터가 바로 적용되므로, "해금만"은 위치 fix 전까지 내 글·영구 해금 별만 보이다가 위치가 잡히면 100m 이내 별이 더해진다(기존 규칙 그대로).
+- 확인: 친구만 켜고 앱 완전 종료 → 재실행 시 친구만 칩 활성 + 지도도 친구 별만. 기간/친구 선택도 동일. 다른 계정으로 로그인하면 그 계정 기준.
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [x] ~~(8.75) 큐레이션 별 업로드~~ — 2026-10-07 100개 완료 → **같은 날 사용자 지시로 전부 삭제**(`seed.js remove` + 사용자 `viewedDiaries` 의 seed_* 기록 7개 정리). 검증: diaries 137개(시드 100, 전부 public), 사진 100/100 HTTP 200,

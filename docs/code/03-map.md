@@ -25,6 +25,10 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   / `selectedFriendIds`(친구 선택) / `periodDays`(기간: null=전체, 0=오늘, N=최근 N일)
   / `showFriendPicker` / `showPeriodPicker` / `speedDialExpanded`(필터 다이얼 펼침).
   상호배타 규칙: 나만보기 켜면 친구만/친구선택 해제, 그 반대도 동일.
+  **영속(2026-10-07)**: 필터 값 6개(미조회·친구만·나만보기·해금만·친구선택·기간)는 `core/util/MapFilterStore`
+  (SharedPreferences `stary_map_filters`, **계정별** 키 `<uid|guest>_*`)에 저장 → 앱을 껐다 켜도 그대로.
+  `remember(userId)` 로 초기값을 읽고 `LaunchedEffect(userId, 필터들)` 로 저장 — 계정이 바뀌면 그 계정 값으로 다시 읽는다.
+  피커 표시·다이얼 펼침 같은 일시 UI 상태는 저장하지 않는다.
   **미조회만 ↔ 해금만도 상호배타** — 해금은 상세에 들어가야 기록되므로 둘을 같이 켜면 항상 빈 지도가 된다.
 - `viewedIds` : 내가 연 다이어리 id 집합(FirebaseViewedRepository).
 - `unlockedIds` : 영구 해금된 다이어리 id 집합(`DiaryUnlockStore.unlockedIds` — Compose 상태 맵이라 해금 즉시 갱신).
@@ -195,6 +199,9 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   `constellationOn` / `focusTarget` / `showWarp`·`warpColor`·`warpId`
   (포커스 파동) / `openWarp`(열람 파장)·`toast` / `voidTopY·voidBottomY·voidZoom`(세계 밖 빈 공간) /
   `globeCenter`·`globeReturn`·`globeButtonCenter`·`globeScrim`(글로브).
+- 필터 영속: `Core/MapFilterStore.swift`(UserDefaults `map_filters_<uid|guest>`, `MapFilters` Codable) —
+  `.task(id: auth.uid) { applySavedFilters() }` 로 읽고 `.onChange(of: currentFilters)` 로 저장.
+  `filterOwner` 가 현재 계정과 같을 때만 저장(로그인 직후 이전 계정 값이 섞이지 않게). Android 와 같은 6개 값.
 - `shownDiaries` : Android `filteredDiaries` 대응 필터 파이프라인.
   해금만은 `DiaryUnlockStore.shared`(`@ObservedObject unlocks`) + `location.coordinate`(실제 fix만) 로 판정 —
   Android 는 좌표를 11m 격자로 반올림해 `remember` 키로 쓰지만, iOS 는 computed property 라 별도 캐시 없이 매번 계산한다.
