@@ -2516,7 +2516,34 @@ node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage dia
 - 앱 시작 시 저장된 필터가 바로 적용되므로, "해금만"은 위치 fix 전까지 내 글·영구 해금 별만 보이다가 위치가 잡히면 100m 이내 별이 더해진다(기존 규칙 그대로).
 - 확인: 친구만 켜고 앱 완전 종료 → 재실행 시 친구만 칩 활성 + 지도도 친구 별만. 기간/친구 선택도 동일. 다른 계정으로 로그인하면 그 계정 기준.
 
+## 8.77 다이어리 자동 선번역 — 서버(Cloud Functions)만 (코드 완료 · **배포·실제 호출 검증 대기** · 2026-10-07)
+사용자 요청: 다이어리 생성 **후** 서버가 비동기로 제목/본문을 나머지 언어로 번역해 Firebase 에 저장(API 키는 앱에 두지 않음, 재호출 없음, 실패해도 생성 영향 없음).
+앱(Android/iOS)·규칙·기존 생성 로직은 **하나도 안 바꿨다** — 서버 파일만.
+- 파일: 신규 `functions/translations.js`(로직 전부 + 머리말에 저장 구조/읽는 규칙/언어 추가법), `functions/index.js` 에 `require` 1줄 + 트리거 2개
+  (`translateDiaryOnCreate`, `translateDiaryOnEdit`), `functions/package.json` 에 `@google-cloud/translate`.
+- **번역 API = Google Cloud Translation v3(NMT)**: 같은 GCP 프로젝트의 함수 서비스 계정 권한(ADC)으로 호출 → **API 키·시크릿·환경변수 없음**.
+  언어 자동 감지(앞 300자만), `text/plain`(줄바꿈 유지), $20/100만자(월 50만자 무료) — 평균 150자 글 ≈ 450자 번역 ≈ $0.009.
+- **저장 구조** `diaries/{id}.translations = {sourceLang, title:{ko,en,ja,zh}, content:{…}, status, srcHash, updatedAt}` — 언어 코드가 key,
+  원문 언어 key 에도 원문을 그대로 둔다. status = done/partial/failed/skipped/processing. **언어 추가 = `TRANSLATION_LANGS` 에 코드 한 줄**.
+- **중복 방지**: 번역 시작을 트랜잭션으로 임대(processing, 3분) + 원문 지문(srcHash) 비교 → 같은 원문은 이벤트가 몇 번 와도 API 1회.
+  이미 있는 언어는 재호출하지 않고 **빠진 언어만** 이어서 번역. 저장 직전에 원문이 바뀌었으면 낡은 결과 폐기.
+- **정책 결정(사용자 확인 필요 시 되돌릴 것)**: ① **나만 보기 글은 번역 안 함**(읽는 사람이 작성자뿐 + 사적 글을 외부 API 로 안 보냄; 비공개→공개로 바뀌면 번역).
+  `translations.js` `claim()` 의 `private` 한 줄. ② **글 수정 시 재번역**(Android DetailScreen 에 수정 UI 있음 — 안 하면 낡은 번역이 남는다).
+  `translateDiaryOnEdit` 는 title/content 가 안 바뀐 갱신(좋아요·조회수·번역 저장 자체)에서는 비교만 하고 즉시 종료(루프 없음, 호출 수만 +1).
+- ⚠️ **zh 는 현재 앱 인앱 언어가 아니다**(ko/en/ja 만, PATCH_NOTES "zh-CN 은 앱 인앱 언어에 없음"). 데이터는 4개 언어로 쌓이지만 zh 를 보여 주려면 앱에 중국어 추가가 먼저.
+- ⚠️ **앱은 아직 translations 를 읽지 않는다.** 읽을 때 규칙: `translations.title[표시언어]` 있으면 사용, 없으면 원문(구버전/실패/진행 중 모두 동일).
+- 검증: `node --check` + 실제 Firestore 에뮬레이터(JDK21)에서 가짜 번역기로 14개 시나리오(중복 동시 5개→API 1회, 번역 중 수정→폐기, 일부 실패→partial→이어받기,
+  private/없는 문서/이모지만/빈 필드, 원문 en·ja·es, 언어 추가) 전부 통과. **실제 Google API 호출은 미검증**(로컬 자격증명 없음) — 요청/응답 필드명은 타입 정의로 대조.
+- **배포 전 1회 설정(사용자)** — API 활성화를 **배포보다 먼저** 하지 않으면 첫 글들이 `failed` 로 남는다(자동 재시도 없음):
+  1. `gcloud services enable translate.googleapis.com --project momentdiary-f26c8` (또는 Console > API 및 서비스 > Cloud Translation API 사용)
+  2. 함수 런타임 서비스 계정(`<프로젝트번호>-compute@developer.gserviceaccount.com`)에 `roles/cloudtranslate.user` —
+     새 프로젝트는 기본 Editor 권한이 없을 수 있다: `gcloud projects add-iam-policy-binding momentdiary-f26c8 --member=serviceAccount:<SA> --role=roles/cloudtranslate.user`
+  3. `cd functions && npm install && cd .. && firebase deploy --only functions:translateDiaryOnCreate,functions:translateDiaryOnEdit`
+  4. 확인: 새 별을 올리고 몇 초 뒤 Firestore `diaries/{id}.translations.status == "done"`, Functions 로그 `translate …: ko→[en,ja,zh] 3/3 저장(done)`.
+- 남은 아이디어(안 함): 실패/partial 문서를 주기적으로 다시 채우는 스케줄 함수, 기존 다이어리 일괄 번역(백필), 앱에서 translations 표시.
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
+- [ ] **(8.77) 자동 선번역 배포(사용자)** — 위 8.77 의 "배포 전 1회 설정" 1~4. 이후 실제 별로 `translations` 생성 확인(첫 실제 API 호출 검증).
 - [x] ~~(8.75) 큐레이션 별 업로드~~ — 2026-10-07 100개 완료 → **같은 날 사용자 지시로 전부 삭제**(`seed.js remove` + 사용자 `viewedDiaries` 의 seed_* 기록 7개 정리). 검증: diaries 137개(시드 100, 전부 public), 사진 100/100 HTTP 200,
       `firstStars/{admin}` 없음, 어드민 명의 notifications 0, 함수 로그 "나만 보기 → 발송 생략" ×100.
       ⚠️ 중간에 끊긴 실행이 있었다(문서 5개 선생성 + 임시 자격 파일 잔존) → seed.js 보강: 시작 시 남은 `stary-seed-adc-*.json` 삭제,

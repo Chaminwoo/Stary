@@ -35,6 +35,11 @@ iOS: `Data/FirestoreService.swift`, `DiaryStore.swift`, `Models.swift`, `ViewedS
   - **큐레이션 별(어드민 시드, 2026-10-07)**: 문서 id `seed_<id>`, 추가 필드 `seedId`·`seedLang`(앱은 무시 —
     Android toObject 는 모르는 필드를 경고만, iOS Codable 은 무시). 작성자 = 어드민(chaalsdn0217@gmail.com 의 Google sub),
     사진은 Storage `diary_images/seed/<id>.jpg`. 만드는 법/되돌리는 법: `tools/seed/`(아래 PROJECT_NOTES 8.75).
+  - **자동 선번역 `translations`(서버가 채움, 2026-10-07)**: `diaries/{id}.translations` —
+    `{sourceLang, title:{<언어코드>:…}, content:{<언어코드>:…}, status, srcHash, updatedAt}`. 앱은 아직 읽지 않는다(모델에 필드 없음 —
+    Android toObject 는 경고만, iOS Codable 은 무시, iOS 수정은 `setData(merge:true)` 라 지워지지 않음).
+    읽을 때 규칙: `translations.title[표시언어]` 가 있으면 그것, 없으면 원문 `title` — 구버전·실패·진행 중 문서도 같은 규칙으로 원문이 나온다.
+    생성/수정은 `functions/translations.js`(머리말에 구조·언어 추가법 전부). PROJECT_NOTES 8.77.
 - `Comment` / `Like` / `AppNotification`(+NotificationType) / `Friend` / `ChatMessage` /
   (`UserProfile` 은 Android 쪽 모델) / `core/geo/LatLng`·`GeoUtils`(거리 계산).
 - `shared/data/repository/Repositories.kt` : 플랫폼 구현이 따르는 인터페이스 모음

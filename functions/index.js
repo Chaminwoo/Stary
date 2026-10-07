@@ -22,6 +22,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
 const { FieldValue } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
+const { translateDiary } = require("./translations");
 
 initializeApp();
 
@@ -277,6 +278,36 @@ exports.announceFirstStar = onDocumentCreated(
       `firstStar ${authorId}(${diaryId}): ${sent}/${total} 발송 성공` +
         (dead.length ? `, 만료 토큰 ${dead.length}개 정리` : "")
     );
+  }
+);
+
+/**
+ * 다이어리 자동 선번역(2026-10-07) — 저장 구조·규칙·언어 추가 방법은 translations.js 머리말 참고.
+ * 기존 생성 흐름과 별개의 트리거라 번역이 실패/지연돼도 다이어리 생성·푸시에는 영향이 없다(translateDiary 는 throw 하지 않는다).
+ *  - 생성 직후: 원문 언어를 감지해 나머지 언어로 번역 → diaries/{id}.translations 에 저장.
+ *  - 수정(제목/본문 변경)·비공개→공개 전환: 낡은 번역을 버리고 다시 번역. 좋아요/조회수 같은 다른 갱신과 번역 결과 저장 자체는
+ *    아래 비교에서 걸러져 즉시 종료되므로 무한 루프가 없다.
+ */
+const TRANSLATE_OPTS = { database: DATABASE_ID, region: REGION, timeoutSeconds: 120 };
+
+exports.translateDiaryOnCreate = onDocumentCreated(
+  { document: "diaries/{diaryId}", ...TRANSLATE_OPTS },
+  async (event) => {
+    await translateDiary(getFirestore(DATABASE_ID), event.params.diaryId);
+  }
+);
+
+exports.translateDiaryOnEdit = onDocumentUpdated(
+  { document: "diaries/{diaryId}", ...TRANSLATE_OPTS },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+    const textChanged = before.title !== after.title || before.content !== after.content;
+    const becamePublic =
+      before.visibilityType === "private" && (after.visibilityType || "public") !== "private";
+    if (!textChanged && !becamePublic) return;
+    await translateDiary(getFirestore(DATABASE_ID), event.params.diaryId);
   }
 );
 
