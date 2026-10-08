@@ -64,25 +64,46 @@ struct StaryApp: App {
             [.font: UIFont.minSans(13, .semibold), .foregroundColor: UIColor.black], for: .selected)
     }
 
+    /// 앱 링크 해석 → (종류 host, id). 구글 로그인 콜백 등 다른 URL 이면 nil.
+    ///  - 커스텀 스킴: `stary://diary/{id}` · `stary://invite/{uid}` (웹 랜딩의 "앱에서 열기" 버튼)
+    ///  - 유니버설 링크: `https://{shareHost}/s/{id}` · `/i/{uid}` — 카톡/문자에서 공유 링크를 누르면 웹을 거치지 않고
+    ///    앱이 바로 열린다(Android App Links 패리티). 동작하려면 Associated Domains 권한 + 서버의 apple-app-site-association
+    ///    (web/ 의 팀 ID)가 맞아야 한다 — docs/code/10-friends-chat.md "iOS 초대 링크" 참고.
+    private static func appLink(_ url: URL) -> (host: String, id: String)? {
+        if url.scheme == AppConfig.deepLinkScheme, let host = url.host {
+            return (host, url.lastPathComponent)
+        }
+        if url.scheme == "https", url.host == AppConfig.shareHost {
+            let parts = url.pathComponents.filter { $0 != "/" }
+            guard parts.count >= 2 else { return nil }
+            switch parts[0] {
+            case AppConfig.sharePathDiary: return (AppConfig.deepLinkHostDiary, parts[1])
+            case AppConfig.sharePathInvite: return (AppConfig.deepLinkHostInvite, parts[1])
+            default: return nil
+            }
+        }
+        return nil
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(auth)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
-                    // 공유 랜딩 딥링크(stary://diary/{id}) → 지도 탭 전환 + 그 별로 포커스(체크리스트 30).
-                    if url.scheme == AppConfig.deepLinkScheme, url.host == AppConfig.deepLinkHostDiary {
-                        let id = url.lastPathComponent
-                        if !id.isEmpty, id != "/" {
+                    if let link = Self.appLink(url) {
+                        guard !link.id.isEmpty, link.id != "/" else { return }
+                        switch link.host {
+                        case AppConfig.deepLinkHostDiary:
+                            // 공유 랜딩 딥링크 → 지도 탭 전환 + 그 별로 포커스(체크리스트 30).
                             TabRouter.shared.go(TabRouter.map)
-                            MapFocusStore.shared.request(diaryId: id)
+                            MapFocusStore.shared.request(diaryId: link.id)
+                        case AppConfig.deepLinkHostInvite:
+                            // 친구 초대 → 리딤(비로그인이면 보관해 두었다가 로그인 후 처리, 체크리스트 31).
+                            InviteStore.handleDeepLink(inviterId: link.id)
+                        default:
+                            break
                         }
-                        return
-                    }
-                    // 친구 초대 딥링크(stary://invite/{uid}) → 리딤(비로그인이면 보관, 체크리스트 31).
-                    if url.scheme == AppConfig.deepLinkScheme, url.host == AppConfig.deepLinkHostInvite {
-                        let id = url.lastPathComponent
-                        if !id.isEmpty, id != "/" { InviteStore.handleDeepLink(inviterId: id) }
                         return
                     }
                     _ = GIDSignIn.sharedInstance.handle(url)

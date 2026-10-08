@@ -115,6 +115,23 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
     입력 바 배경은 `.background(Theme.background)`(ShapeStyle 오버로드 — 하단 안전영역까지 자연히 이어짐).
     여기에 `ignoresSafeArea(.all)` 짜리 뷰를 넣으면 키보드 영역까지 무시해 같은 증상이 재발한다.
 - `InviteStore.swift` : 초대 딥링크 보관/리딤(비로그인 시 보관 → 로그인 후 처리).
+
+### iOS 초대 링크 활성화 (2026-10-08)
+사용자: "친구 초대 링크 및 로직 iOS 도 제대로 활성화 (iOS 앱 링크 `https://apps.apple.com/us/app/stary/id6799375537`)".
+진단: 앱 안의 리딤 로직(`InviteStore`)은 이미 Android 와 같았다. 막혀 있던 건 **링크가 앱으로 이어지는 길**이었다.
+- **웹 랜딩(`web/index.html`)**: iOS 기기에서 `STORE_URL_IOS` 가 비어 "iOS 앱은 준비 중이에요"만 나왔다 → App Store 링크를 채워 "App Store 에서 설치" 버튼이 뜬다.
+  ⚠️ **iOS 는 "버튼 누르고 1.4초 뒤 스토어로 보내는 미설치 폴백"을 끈다**(`isIOS` 제외) — 앱이 설치돼 있으면 Safari 가 "Stary 에서 열까요?" 확인창을 띄우는데
+  그동안 페이지는 그대로 보여, 타이머가 확인창 위로 App Store 를 덮어 버린다. iPadOS Safari(UA 가 Macintosh)도 `maxTouchPoints` 로 iOS 취급.
+- **상수**: `AppConfig.appStoreUrl` ↔ `StaryConfig.APP_STORE_URL` ↔ `web/index.html STORE_URL_IOS` (3곳 동기화).
+- **유니버설 링크(앱이 https 링크를 직접 처리)**: `StaryApp.appLink(_:)` 가 `stary://diary|invite/{id}` 와 `https://{shareHost}/s|i/{id}` 를 같은 분기로 처리
+  (Android App Links 와 같은 동작 — 카톡/문자에서 링크를 누르면 웹을 거치지 않고 앱이 열림). `project.yml` 에 `com.apple.developer.associated-domains: applinks:momentdiary-f26c8.web.app` 추가,
+  `web/apple-app-site-association`(+ 표준 위치 `web/.well-known/apple-app-site-association`, `firebase.json` 에 Content-Type 헤더).
+- ⚠️ **사용자가 해야 할 일**
+  1. ~~AASA 의 `TEAMID` 교체~~ — **완료(2026-10-08)**: 두 파일 모두 `3G3447GK74.com.chaminwoo.stary.ios`. Team ID 는 비밀이 아니라 커밋해도 된다
+     (developer.apple.com → Membership = CI 시크릿 `IOS_DEVELOPMENT_TEAM` 값). 이게 틀려도 앱은 정상 — 커스텀 스킴 폴백으로 동작할 뿐 유니버설 링크만 안 먹는다.
+  2. **웹 배포**: `firebase deploy --only hosting` (랜딩 + AASA). 배포 전에는 iOS 기기 랜딩이 예전 그대로다. 유니버설 링크는 앱을 **새로 설치/업데이트한 뒤**부터 적용(iOS 가 설치 때 AASA 를 읽는다).
+- 흐름(미설치 친구): 링크 → 랜딩 "App Store 에서 설치" → 설치·가입 → **링크를 다시 열기**(유니버설 링크면 앱이 바로, 아니면 랜딩의 "앱에서 초대 수락") → `InviteStore` 리딤 → 양쪽 칭호.
+  iOS 는 설치 직후 초대 정보를 이어받는 "지연 딥링크"가 없어 "다시 열기" 안내가 필요하다(랜딩 문구에 이미 있음).
 - 친구 요청 전송 시 상대에게 알림 문서 생성(`notifyFriendRequest`) → 인앱 배너 + 푸시(11 문서).
 - iOS 채팅/알림 푸시(APNs)는 **8.45 에서 구현**(`Data/PushManager.swift`) — 11 문서 참고.
 
@@ -127,5 +144,7 @@ iOS: `Features/Friends/FriendsScreen.swift`, `FriendsViewModel.swift`,
 | 나만 삭제 판정/미리보기 | shared `ChatHidden.hides` / `preview` | `Models.swift` `ChatHidden.hides` / `preview` (**판정 동일 필수**) |
 | 미읽음 판정 | `ChatReadStore`(로컬) | `ChatReadStore.swift`(로컬) |
 | 초대 링크 | `stary://invite/{uid}` (StaryConfig) | `AppConfig.deepLinkHostInvite` |
+| 초대 https 링크(`/i/{uid}`) | 매니페스트 App Links(autoVerify) → `MainActivity` | `StaryApp.appLink` + Associated Domains(`project.yml`) + AASA (**호스트/경로 동일: `SHARE_HOST`/`shareHost`**) |
+| 스토어 링크 | `StaryConfig.PLAY_STORE_URL` / `APP_STORE_URL` | `AppConfig.playStoreUrl` / `appStoreUrl` (+ `web/index.html`) |
 | 내 말풍선 색 | `ChatScreen.kt` MineBubble(0xFF2F4C9E→0xFF1B2A5E) | `ChatScreen.swift` 같은 hex LinearGradient |
 | 삭제 링/등장 연출 | `DeleteWindowRing`·appear 애니 | `DeleteWindowRing`·`SentAppear` (**값 동일**) |

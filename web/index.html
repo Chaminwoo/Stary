@@ -76,10 +76,12 @@
   //  /s/{diaryId} (?d= 폴백) = 별 공유 → stary://diary/{id}
   //  /i/{uid}     (?i= 폴백) = 친구 초대 → stary://invite/{uid}
   (function () {
-    // Android: Play 프로덕션 출시됨. iOS: 아직 TestFlight 라 빈 값(→ '준비 중' 유지).
+    // Android: Play 프로덕션 출시됨. iOS: App Store 출시됨(2026-10) — AppConfig.appStoreUrl / StaryConfig.APP_STORE_URL 과 동일.
     var STORE_URL_ANDROID = "https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios";
-    var STORE_URL_IOS = ""; // TODO: App Store 출시 후 https://apps.apple.com/app/id<APPSTORE_ID>
-    var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    var STORE_URL_IOS = "https://apps.apple.com/us/app/stary/id6799375537";
+    // iPadOS 13+ 의 Safari 는 UA 가 Macintosh 로 오므로 터치 지원 여부로 한 번 더 확인한다.
+    var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
     var storeUrl = isIOS ? STORE_URL_IOS : STORE_URL_ANDROID;
 
     var share = location.pathname.match(/^\/s\/([\w-]+)/);
@@ -102,14 +104,14 @@
       storeBtn.href = storeUrl;
       storeBtn.setAttribute("aria-disabled", "false");
       storeBtn.textContent = isIOS ? "App Store 에서 설치" : "Play 스토어에서 설치";
-    } else if (isIOS) {
-      storeBtn.textContent = "iOS 앱은 준비 중이에요";
     }
 
     // 미설치 폴백 — 커스텀 스킴(stary://)은 앱이 없으면 **아무 일도 일어나지 않는다.**
     // 눌렀는데 페이지가 그대로면(앱이 열렸다면 탭이 백그라운드로 간다) 스토어로 보낸다.
+    // ⚠️ iOS 는 제외 — 앱이 설치돼 있으면 Safari 가 "Stary 에서 열까요?" 확인창을 띄우는데 그동안 페이지는 그대로
+    //    보이므로, 타이머가 확인창 위로 App Store 를 덮어 버린다. iOS 는 아래 "App Store 에서 설치" 버튼으로 직접 가게 둔다.
     btn.addEventListener("click", function () {
-      if (!storeUrl) return;
+      if (!storeUrl || isIOS) return;
       var t = Date.now();
       setTimeout(function () {
         if (document.hidden || Date.now() - t > 2200) return; // 앱이 열렸음

@@ -235,7 +235,11 @@ class FirebaseDiaryRepository : DiaryRepository {
     override suspend fun updateDiary(diary: Diary): Boolean {
         return try {
             diaries.document(diary.id).update(
-                mapOf("title" to diary.title, "content" to diary.content)
+                mapOf(
+                    "title" to diary.title,
+                    "content" to diary.content,
+                    "visibilityType" to diary.visibilityType, // 공개 범위도 수정 가능(전체공개/친구만/나만보기)
+                )
             ).await()
             true
         } catch (e: Exception) {

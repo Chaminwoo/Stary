@@ -41,6 +41,15 @@ private enum StyleFx {
     static let freshWindowMs: Int64 = 86_400_000
     static let freshAuraOpacity = 0.16
 
+    /// 내 위치 점(초록 원) — Android `current-location` 소스 / `current-location-layer` 패리티.
+    static let myLocationSourceID = "current-location-src"
+    static let myLocationLayerID = "current-location-layer"
+    /// 줌을 풀수록 작아진다: (줌, 반지름, 테두리 두께). 사이는 선형 보간, 양 끝 밖은 끝값 유지.
+    /// 줌 15(기본 진입 줌) = 예전 고정값(반지름 7 / 테두리 2). Android `MY_LOCATION_STOPS`(DiaryMapMarkers.kt) 와 같은 값.
+    static let myLocationStops: [(zoom: Double, radius: Double, stroke: Double)] = [
+        (2, 2.0, 0.8), (6, 3.0, 1.0), (10, 4.5, 1.4), (13, 6.0, 1.8), (15, 7.0, 2.0),
+    ]
+
     static let mint = UIColor(red: 0x6E / 255.0, green: 0xE7 / 255.0, blue: 0xB7 / 255.0, alpha: 1)
     static let brightLine = UIColor(red: 0xE6 / 255.0, green: 1.0, blue: 0xF4 / 255.0, alpha: 1)
 }
@@ -178,9 +187,45 @@ extension MapLibreView.Coordinator {
         aura.circleBlur = NSExpression(forConstantValue: 1.0)
         style.addLayer(aura)
 
+        // ── 내 위치 점(초록 원) — Android 는 이걸 맨 위 레이어로 그린다. 줌을 풀수록 작아진다(StyleFx.myLocationStops).
+        //    MapLibre 기본 퍽(파란 점)은 끄고(`showsUserLocation = false`) 이 레이어로 대체했다.
+        let meSource = MLNShapeSource(identifier: StyleFx.myLocationSourceID, features: [], options: nil)
+        style.addSource(meSource)
+        func stopsExpr(_ value: ((zoom: Double, radius: Double, stroke: Double)) -> Double) -> NSExpression {
+            var json: [Any] = ["interpolate", ["linear"], ["zoom"]]
+            for st in StyleFx.myLocationStops {
+                json.append(st.zoom)
+                json.append(value(st))
+            }
+            return NSExpression(mglJSONObject: json)
+        }
+        let me = MLNCircleStyleLayer(identifier: StyleFx.myLocationLayerID, source: meSource)
+        me.circleRadius = stopsExpr { $0.radius }
+        me.circleColor = NSExpression(forConstantValue: StyleFx.mint)
+        me.circleStrokeWidth = stopsExpr { $0.stroke }
+        me.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+        style.addLayer(me)
+        myLocationSource = meSource
+        updateMyLocation(parent.userLocation)
+
         refreshAuraFeatures(mapView)
         reportWorldVoid(mapView)
         startTwinkleLoop()
+    }
+
+    /// 내 위치 점 좌표 갱신 — 같은 좌표면 건너뛴다(updateUIView 가 자주 불린다). 스타일 로드 전이면 로드 때 `parent.userLocation` 으로 채운다.
+    func updateMyLocation(_ coord: CLLocationCoordinate2D?) {
+        guard let source = myLocationSource else { return }
+        if let a = coord, let b = lastMyLocation, a.latitude == b.latitude, a.longitude == b.longitude { return }
+        if coord == nil, lastMyLocation == nil { return }
+        lastMyLocation = coord
+        if let c = coord {
+            let feature = MLNPointFeature()
+            feature.coordinate = c
+            source.shape = feature
+        } else {
+            source.shape = nil
+        }
     }
 
     /// 뷰 해체 시 타이머/태스크 정리(순환 참조·유령 갱신 방지).

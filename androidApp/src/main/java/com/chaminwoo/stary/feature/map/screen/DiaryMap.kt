@@ -607,9 +607,20 @@ fun DiaryMap(
                     style.addSource(src)
                     style.addLayer(
                         CircleLayer("current-location-layer", CURRENT_SOURCE).withProperties(
-                            PropertyFactory.circleRadius(7f),
+                            // 줌을 풀수록 점점 작아진다(MY_LOCATION_STOPS) — 멀리서 보면 큰 원이 지도를 덮던 문제.
+                            PropertyFactory.circleRadius(
+                                Expression.interpolate(
+                                    Expression.linear(), Expression.zoom(),
+                                    *MY_LOCATION_STOPS.map { Expression.stop(it.first, it.second) }.toTypedArray()
+                                )
+                            ),
                             PropertyFactory.circleColor(AndroidColor.parseColor("#6EE7B7")),
-                            PropertyFactory.circleStrokeWidth(2f),
+                            PropertyFactory.circleStrokeWidth(
+                                Expression.interpolate(
+                                    Expression.linear(), Expression.zoom(),
+                                    *MY_LOCATION_STOPS.map { Expression.stop(it.first, it.third) }.toTypedArray()
+                                )
+                            ),
                             PropertyFactory.circleStrokeColor(AndroidColor.parseColor("#FFFFFF")),
                         )
                     )

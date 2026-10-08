@@ -51,7 +51,7 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
 
 ### 구조(위 → 아래)
 1. **4:3 히어로 헤더** : 미디어(사진/움짤) 또는 `image_frame` + 가독성 스크림 +
-   별·작성자(탭=프로필)·공개 배지·날짜 오버레이. 미디어 탭 → `FullScreenMediaViewer`.
+   별·작성자(탭=프로필)·날짜·**공개 범위 아이콘**(2026-10-08, 날짜 바로 옆) 오버레이. 미디어 탭 → `FullScreenMediaViewer`.
    ⚠️ 진입 시 사진이 깨지며 드러나던 **크리스탈 리빌은 삭제됨**(2026-08-22 사용자 테스트 피드백).
 2. 제목 / **본문**(해금 여부와 무관하게 같은 형식 — 카드 배경·테두리 없이 `cornerCrossFrame` 십자 코너 안에 글만.
    2026-09-23 사용자 지시로 옛 `0xCC14181C` + accent 그라데이션 테두리 카드에서 교체).
@@ -70,7 +70,11 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
 ### 상태/변수(주요)
 - `ViewCountSession` : 앱 세션 동안 조회수를 올린 다이어리 id 집합(재진입 중복 카운트 방지).
 - `interactionVm : InteractionViewModel` : 좋아요/댓글 상태(아래).
-- 수정 모드 상태(제목/본문 편집 + 저장), 삭제 확인 다이얼로그, 신고 다이얼로그(`ReportDialog`).
+- 수정 모드 상태(제목/본문/**공개 범위** 편집 + 저장), 삭제 확인 다이얼로그, 신고 다이얼로그(`ReportDialog`).
+  - **공개 범위 표시·수정**(2026-10-08): `DiaryVisibility.kt` 의 `VisibilityOptions`(public/friends/private ↔ 지구본/친구/자물쇠 — 업로드 화면과 공용) ·
+    `VisibilityBadge`(날짜 옆 14dp 아이콘, 접근성 설명 = 전체공개/친구만/나만보기) · `VisibilityChooser`(수정 팝업의 3칸 선택, 업로드 칩과 같은 모양).
+    저장은 `FirebaseDiaryRepository.updateDiary` 가 `title`/`content`/`visibilityType` 세 필드를 update(규칙: 소유자는 전체 수정 가능이라 **규칙 변경 없음**).
+    아이콘은 보는 사람이 누구든 보인다(나만 보기 글은 어차피 본인만 열람). 새 문자열 없음 — `upload_vis_*`/`upload_visibility` 재사용.
   ⚠️ **DetailScreen 본체에 인라인 금지** — dex 레지스터 한계로 크래시 이력. `ShareDiaryButton` 도 동일
   이유로 별도 컴포저블 유지.
 - `FullScreenMediaViewer(mediaUrl, isVideo, onClose)` : 원본 비율(Fit) 전체화면 + 핀치 확대/드래그,
@@ -141,6 +145,9 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
   ATT 팝업은 광고 키가 있을 때만(앱 active 후 1회), 답 난 뒤 SDK 시작. DEBUG 는 AdMob 구글 **테스트** 단위 고정(Android 동일).
   **키/대시보드 등 사용자가 할 일은 [`docs/IOS_ADS_SETUP.md`](../IOS_ADS_SETUP.md).**
   DEBUG 에서 상세를 열면 콘솔에 `🔒 [Lock] … 이유=` 로그가 찍힌다(owner/near/reviewAccount/unlockStore 중 무엇으로 열렸는지).
+- **공개 범위 표시·수정(iOS, 2026-10-08)** : `Features/Detail/VisibilityViews.swift` — `Visibility.symbolName`(globe / person.2.fill / lock.fill) ·
+  `VisibilityBadge`(헤더 날짜 옆) · `VisibilityChooser`(수정 팝업). `DetailScreen` 은 수정 결과를 `editedVisibility` 로컬 오버라이드에 두어 아이콘에 즉시 반영하고
+  `store.save`(setData merge)로 `visibilityType` 까지 저장한다.
 - `DetailViewModel.swift` : 좋아요/댓글 리스너 — ⚠️ 모델 디코딩은 `@DocumentID` 명시 디코드 필수
   (12 문서의 id=nil 버그 참고).
 - `StarClusterView.swift` : 겹친 별 카드 뷰어(자체 뒤로가기, 내비바 숨김). 카드 탭 → pop 후 0.35s
@@ -169,4 +176,5 @@ iOS: `Features/Detail/DetailScreen.swift`, `DiaryLockViews.swift`, `DetailViewMo
 | 십자 코너 프레임 | `cornerCrossFrame` 0.75dp · 팔 64/40/7 · 점 1.3 · 광 6 (잠금·해금 본문 **둘 다** 사용) | `CornerCrossFrame` (**수치 동일**) |
 | 본문 읽기 면 | `readingSurface()` `#15191F` 70% · 위아래 18dp 페이드 · 안쪽 여백 20/22dp | `ReadingSurface` (**수치 동일**, `.background` 는 십자 **뒤에** 붙인다) |
 | 본문 타이포 | 16sp · 행간 28sp · 자간 0.1 · `LineBreak.Paragraph` · alpha 0.93 | `.minSans(16)` · `lineSpacing(10)` · `tracking(0.1)` · opacity 0.93 |
+| 공개 범위 아이콘/선택기 | `DiaryVisibility.kt` `VisibilityOptions`·`VisibilityBadge`·`VisibilityChooser` | `VisibilityViews.swift` `Visibility.symbolName`·`VisibilityBadge`·`VisibilityChooser` (**아이콘 의미 동일: 지구본/친구/자물쇠**) |
 | 신고 사유 + "기타" 상세 | `core/ui/ReportDialog.kt` `onSubmit(reason, detail)` / REPORT_DETAIL_MAX_LEN | `Features/ReportDialog.swift` `onPick(reason, detail)` — iOS 는 "기타"만 알럿 한 단계 더 |

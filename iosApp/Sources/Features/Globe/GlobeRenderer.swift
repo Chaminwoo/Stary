@@ -13,8 +13,9 @@ import UIKit
 // 셰이더는 빌드 타임 .metal 대신 **런타임 컴파일**(`makeLibrary(source:)`) — CI 러너의 최신 Xcode 는 Metal 툴체인이
 // 별도 다운로드 컴포넌트라 .metal 파일이 있으면 빌드가 막힐 수 있어서. 컴파일 실패 시 init 이 nil(검정 화면 + 힌트만).
 //
-// 2026-10-08 감성 리디자인(수채 파스텔 지구 + 은하수 성운 + 분홍 대기광 + 다이어리 불빛 덮어 그리기) — 지표/하늘 텍스처는
-// tools/globe/bake_globe_textures.py 로 구운 같은 파일(globe_watercolor.jpg / globe_nebula.jpg)을 Android 와 함께 쓴다.
+// 2026-10-08 감성 리디자인: 은하수 성운 하늘 + 다이어리 불빛 덮어 그리기 → 같은 날 **유리 지구**(레퍼런스 references/지구본.jpg —
+// 어두운 유리 구슬: 태양 쪽은 밝은 푸른 유리 + 림, 반대쪽은 어둡고, 바다는 깊고 반사 없이, 육지는 얼음 유리 + 해안 모서리 빛 + 환경 반사).
+// 육지 마스크(globe_land.jpg: R 육지, tools/globe/bake_globe_land.py)와 하늘(globe_nebula.jpg)은 Android 와 같은 파일.
 //
 // 좌표/수학: 카메라 고정(+Z, camDist), 모델 = Rx(pitch)·Ry(yaw). 텍스처 좌표는 GL(GLUtils 업로드: t=0 이 비트맵 윗줄)과
 // Metal(y=0 이 윗줄)이 같은 방향이라 UV 를 그대로 쓴다. 색 공간은 GL 과 같게 **감마 공간 그대로**(.bgra8Unorm, sRGB 해석 없음).
@@ -35,6 +36,24 @@ struct JavaRandom {
     }
 
     mutating func nextFloat() -> Float { Float(next(24)) / Float(1 << 24) }
+
+    /// `java.util.Random.nextInt(bound)` — 2의 거듭제곱이면 상위 비트, 아니면 나머지 + 편향 재추첨(Int32 오버플로 의미까지 동일).
+    /// (로그인 하늘의 별 색 선택 등 — Android 와 같은 시드에서 같은 값이 나와야 한다.)
+    mutating func nextInt(_ bound: Int32) -> Int32 {
+        var r = next(31)
+        let m = bound &- 1
+        if bound & m == 0 {
+            r = Int32(truncatingIfNeeded: (Int64(bound) &* Int64(r)) >> 31)
+        } else {
+            var u = r
+            r = u % bound
+            while u &- r &+ m < 0 {
+                u = next(31)
+                r = u % bound
+            }
+        }
+        return r
+    }
 
     mutating func nextBoolean() -> Bool { next(1) != 0 }
 
@@ -73,12 +92,17 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     private static let nearPlane: Float = 0.3
     private static let trailCount = 5
     private static let sunDist: Float = 45
-    private static let cloudDrift: Float = 0.0035
     /// 대기광 셸 반지름(지구=1) / 성운 하늘 구 반지름 / 다이어리 불빛 덮어 그리기 불투명도(Android ATMO_SCALE·SKY_RADIUS·*_PIN_GAIN).
     private static let atmoScale: Float = 1.16
     private static let skyRadius: Float = 80
-    private static let glowPinGain: Float = 0.7
+    private static let glowPinGain: Float = 1.0
     private static let flarePinGain: Float = 1.0
+    /// 다이어리 별빛 모양(drawSparkTexture) — 가로 빛줄기 길이 / 세로(더 짧게) / 대각 세기(0 = 없음) (Android SPARK_/STAR_* 와 같은 값).
+    private static let sparkMainLen: Float = 0.36
+    private static let sparkCrossLen: Float = 0.26
+    private static let starMainLen: Float = 0.46
+    private static let starCrossLen: Float = 0.34
+    private static let starDiagWeight: Float = 0.50
 
     private static let meteorSprites = 34
     private static let meteorRollInterval: Float = 30
@@ -130,10 +154,9 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     private let spritePipeline: MTLRenderPipelineState
     private let linePipeline: MTLRenderPipelineState
     private let earthPipeline: MTLRenderPipelineState
-    private let cloudPipeline: MTLRenderPipelineState
     private let ringPipeline: MTLRenderPipelineState
     private let skyPipeline: MTLRenderPipelineState    // 은하수 성운 하늘 구(불투명, 깊이 무시)
-    private let atmoPipeline: MTLRenderPipelineState   // 분홍 대기광(더하기)
+    private let atmoPipeline: MTLRenderPipelineState   // 푸른 대기광(더하기)
     private let pinPipeline: MTLRenderPipelineState    // 다이어리 불빛 덮어 그리기(ONE, ONE_MINUS_SRC_ALPHA)
     private let depthOff: MTLDepthStencilState
     private let depthTestWrite: MTLDepthStencilState
@@ -142,9 +165,10 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     private let samplerClamp: MTLSamplerState
 
     private var earthTex: MTLTexture?
-    private var cloudTex: MTLTexture?
     private var flareTex: MTLTexture?
     private var glowTex: MTLTexture?
+    private var sparkTex: MTLTexture?   // 다이어리 점광 — 또렷한 심지 + 가는 십자 광선(퍼지는 원형 글로우 대신)
+    private var starTex: MTLTexture?    // 다이어리 인기 별 — 같은 계열의 큰 4-포인트 별빛
     private var sunTex: MTLTexture?
     private var skyTex: MTLTexture?
 
@@ -273,7 +297,6 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         guard let sprite = pipeline("spriteVertex", "spriteFragment", 1),
               let line = pipeline("lineVertex", "lineFragment", 1),
               let earth = pipeline("earthVertex", "earthFragment", 0),
-              let cloud = pipeline("earthVertex", "cloudFragment", 2),
               let ring = pipeline("ringVertex", "ringFragment", 1),
               let sky = pipeline("earthVertex", "skyFragment", 0),
               let atmo = pipeline("earthVertex", "atmoFragment", 1),
@@ -282,7 +305,6 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         spritePipeline = sprite
         linePipeline = line
         earthPipeline = earth
-        cloudPipeline = cloud
         ringPipeline = ring
         skyPipeline = sky
         atmoPipeline = atmo
@@ -315,11 +337,18 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         super.init()
 
         buildEarthMesh()
-        earthTex = loadBundleTexture("globe_watercolor")
-        cloudTex = loadBundleTexture("earth_clouds")
+        earthTex = loadBundleTexture("globe_land")
         skyTex = loadBundleTexture("globe_nebula")
         flareTex = makeGeneratedTexture(size: 128, draw: GlobeRenderer.drawFlareTexture)
         glowTex = makeGeneratedTexture(size: 64, draw: GlobeRenderer.drawGlowTexture)
+        sparkTex = makeGeneratedTexture(size: 128) { cg, s in
+            GlobeRenderer.drawSparkTexture(cg, s, mainLen: GlobeRenderer.sparkMainLen,
+                                           crossLen: GlobeRenderer.sparkCrossLen, diagWeight: 0)
+        }
+        starTex = makeGeneratedTexture(size: 128) { cg, s in
+            GlobeRenderer.drawSparkTexture(cg, s, mainLen: GlobeRenderer.starMainLen,
+                                           crossLen: GlobeRenderer.starCrossLen, diagWeight: GlobeRenderer.starDiagWeight)
+        }
         sunTex = makeGeneratedTexture(size: 256, draw: GlobeRenderer.drawSunTexture)
         buildStarfield()
         buildTrails()
@@ -403,21 +432,21 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         drawMeteor(enc, vp: vp, t: t, dt: dt)
         drawSun(enc, vp: vp, model: model, t: t, sun: sun)
 
-        // 2) 지구(불투명, 깊이 기록) → 2.5) 구름
+        // 2) 지구(불투명, 깊이 기록)
         drawEarth(enc, mvp: mvp, sun: sun, camObj: camObj)
-        drawClouds(enc, mvp: mvp, sun: sun, t: t)
-        // 2.7) 대기광 — 지구 윤곽에서 분홍빛이 번져 나가며 사라진다
-        drawAtmosphere(enc, mvp: mvp, camObj: camObj)
+        // 2.7) 대기광 — 지구 윤곽에서 푸른빛이 번져 나가며 사라진다
+        drawAtmosphere(enc, mvp: mvp, camObj: camObj, sun: sun)
 
         // 3) 트레일(깊이 테스트만 — 행성 뒤로 가려짐)
         for tr in trails { drawTrail(enc, tr, mvp: mvp, t: t) }
 
         // 4) 노란 불빛 → 5) 플레어 — 깊이 테스트 없이(지평선 컷은 셰이더 vis). Android 주석의 두 가지 깨짐 이유 동일.
         //    수채 지표는 밝아서 더하기 합성이면 하얗게 날아간다 → 덮어 그리기(pinPipeline) + 금빛/별색 + 흰 심지.
-        drawSprites(enc, glowVB, glowCount, glowTex, vp: vp, model: model, t: t,
-                    pipeline: pinPipeline, gain: GlobeRenderer.glowPinGain)
-        drawSprites(enc, flareVB, flareCount, flareTex, vp: vp, model: model, t: t,
-                    pipeline: pinPipeline, gain: GlobeRenderer.flarePinGain)
+        //    sparkle: 다이어리 별 전용 반짝임 — 더 빠르고 깊은 깜빡임 + 가끔 번쩍하며 커진다(spriteVertex).
+        drawSprites(enc, glowVB, glowCount, sparkTex, vp: vp, model: model, t: t,
+                    pipeline: pinPipeline, gain: GlobeRenderer.glowPinGain, sparkle: 1)
+        drawSprites(enc, flareVB, flareCount, starTex, vp: vp, model: model, t: t,
+                    pipeline: pinPipeline, gain: GlobeRenderer.flarePinGain, sparkle: 1)
 
         enc.endEncoding()
         cmd.present(drawable)
@@ -460,16 +489,17 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     /// 스프라이트(빌보드) — Android drawSprites(depthTest = false). 모든 호출이 깊이 무시.
     private func drawSprites(_ enc: MTLRenderCommandEncoder, _ buffer: MTLBuffer?, _ count: Int,
                              _ texture: MTLTexture?, vp: simd_float4x4, model: simd_float4x4, t: Float,
-                             pipeline: MTLRenderPipelineState? = nil, gain: Float = 1) {
+                             pipeline: MTLRenderPipelineState? = nil, gain: Float = 1, sparkle: Float = 0) {
         guard let buffer, count > 0, let texture else { return }
         enc.setRenderPipelineState(pipeline ?? spritePipeline)
         enc.setDepthStencilState(depthOff)
         enc.setVertexBuffer(buffer, offset: 0, index: 0)
         var u: [Float] = []
-        u.reserveCapacity(36)
+        u.reserveCapacity(37)
         GlobeRenderer.append(vp, to: &u)
         GlobeRenderer.append(model, to: &u)
         u.append(0); u.append(0); u.append(camDist); u.append(t)
+        u.append(sparkle) // [36] — spriteVertex 의 sparkle (Android uSparkle)
         setBytes(enc, vertex: u, index: 1)
         setBytes(enc, fragment: [fade, gain], index: 0)
         enc.setFragmentTexture(texture, index: 0)
@@ -511,7 +541,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     }
 
     /// 대기광 — atmoScale 배 셸의 뒷면만 더하기 합성, 깊이 테스트로 지구 뒤는 가려진다(Android drawAtmosphere).
-    private func drawAtmosphere(_ enc: MTLRenderCommandEncoder, mvp: simd_float4x4, camObj: SIMD3<Float>) {
+    private func drawAtmosphere(_ enc: MTLRenderCommandEncoder, mvp: simd_float4x4, camObj: SIMD3<Float>, sun: SIMD3<Float>) {
         guard let vb = earthVB, let ib = earthIB, earthIndexCount > 0 else { return }
         enc.setRenderPipelineState(atmoPipeline)
         enc.setDepthStencilState(depthTestOnly)
@@ -520,27 +550,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         GlobeRenderer.append(mvp, to: &u)
         u.append(GlobeRenderer.atmoScale)
         setBytes(enc, vertex: u, index: 1)
-        setBytes(enc, fragment: [camObj.x, camObj.y, camObj.z, fade, GlobeRenderer.atmoScale], index: 0)
-        enc.drawIndexedPrimitives(type: .triangle, indexCount: earthIndexCount, indexType: .uint32,
-                                  indexBuffer: ib, indexBufferOffset: 0)
-    }
-
-    /// 구름 — 지구 메쉬를 1.012 배로. 확대(camDist 1.7 이하)하면 사라진다(Android drawClouds).
-    private func drawClouds(_ enc: MTLRenderCommandEncoder, mvp: simd_float4x4, sun: SIMD3<Float>, t: Float) {
-        guard let vb = earthVB, let ib = earthIB, let tex = cloudTex, earthIndexCount > 0 else { return }
-        let f = min(max((camDist - 1.7) / (2.4 - 1.7), 0), 1)
-        let zoomAlpha = f * f * (3 - 2 * f)
-        if zoomAlpha < 0.01 { return }
-        enc.setRenderPipelineState(cloudPipeline)
-        enc.setDepthStencilState(depthTestOnly)
-        enc.setVertexBuffer(vb, offset: 0, index: 0)
-        var u: [Float] = []
-        GlobeRenderer.append(mvp, to: &u)
-        u.append(1.012)
-        setBytes(enc, vertex: u, index: 1)
-        setBytes(enc, fragment: [sun.x, sun.y, sun.z, fade, zoomAlpha, t * GlobeRenderer.cloudDrift], index: 0)
-        enc.setFragmentTexture(tex, index: 0)
-        enc.setFragmentSamplerState(samplerRepeat, index: 0)
+        setBytes(enc, fragment: [camObj.x, camObj.y, camObj.z, fade, GlobeRenderer.atmoScale, sun.x, sun.y, sun.z], index: 0)
         enc.drawIndexedPrimitives(type: .triangle, indexCount: earthIndexCount, indexType: .uint32,
                                   indexBuffer: ib, indexBufferOffset: 0)
     }
@@ -1103,7 +1113,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         }
     }
 
-    /// 번들 JPG(globe_watercolor / globe_nebula / earth_clouds) — Android assets 와 **같은 파일**(project.yml 참조).
+    /// 번들 JPG(globe_land / globe_nebula) — Android assets 와 **같은 파일**(project.yml 참조).
     /// SRGB 해석 없이(GL 과 같은 감마 공간 값) + 밉맵. 없으면 nil(해당 레이어만 생략).
     private func loadBundleTexture(_ name: String) -> MTLTexture? {
         guard let url = Bundle.main.url(forResource: name, withExtension: "jpg") else {
@@ -1186,6 +1196,42 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         ray(0.52, 0.055, 135)
     }
 
+    /// 다이어리 별 전용 "빛나는" 텍스처(흰색 알파 — 정점색으로 tint) — Android `makeSparkBitmap` 과 **같은 식**.
+    /// 경로로 그린 반듯한 십자(아이콘 느낌) 대신 픽셀마다 계산: 또렷한 심지 + 옅은 후광 + 중심에서 지수로 약해지는 가는 빛줄기
+    /// (가로가 세로보다 길어 비대칭, 끝으로 갈수록 가늘다). `diagWeight > 0` 이면 짧고 흐린 대각 빛줄기(인기 별).
+    /// 별마다 각도는 `spriteVertex` 가 돌린다. 프리멀티플라이드 흰색이라 (a, a, a, a).
+    private static func drawSparkTexture(_ cg: CGContext, _ s: CGFloat, mainLen: Float, crossLen: Float, diagWeight: Float) {
+        guard let data = cg.data else { return }
+        let n = Int(s)
+        let px = data.bindMemory(to: UInt8.self, capacity: n * n * 4)
+        func streak(_ d: Float, _ p: Float, _ len: Float, _ weight: Float, _ thick: Float) -> Float {
+            let ad = abs(d)
+            let e = min(max((ad - 0.55) / 0.43, 0), 1)
+            let edge = 1 - e * e * (3 - 2 * e)          // 가장자리(0.55~0.98)에서 0 으로
+            let t = thick * (1 - 0.6 * min(ad, 1))       // 끝으로 갈수록 가늘게
+            return weight * expf(-ad / len) * expf(-(p / t) * (p / t)) * edge
+        }
+        for j in 0..<n {
+            for i in 0..<n {
+                let x = (Float(i) + 0.5) / Float(n) * 2 - 1
+                let y = (Float(j) + 0.5) / Float(n) * 2 - 1
+                let r2 = x * x + y * y
+                var a = expf(-r2 / 0.012) + 0.20 * expf(-r2 / 0.07)
+                a += streak(x, y, mainLen, 1.0, 0.030)
+                a += streak(y, x, crossLen, 0.75, 0.026)
+                if diagWeight > 0 {
+                    let u = (x + y) * 0.70710678
+                    let v = (y - x) * 0.70710678
+                    a += streak(u, v, 0.16, diagWeight, 0.022)
+                    a += streak(v, u, 0.16, diagWeight, 0.022)
+                }
+                let ai = UInt8(min(max(a, 0), 1) * 255 + 0.5)
+                let o = (j * n + i) * 4
+                px[o] = ai; px[o + 1] = ai; px[o + 2] = ai; px[o + 3] = ai
+            }
+        }
+    }
+
     /// 부드러운 원형 글로우(흰색 — 노란 불빛/배경 별/유성 공용). Android makeGlowBitmap.
     private static func drawGlowTexture(_ cg: CGContext, _ s: CGFloat) {
         radial(cg, s, radius: s / 2, alphas: [1, 0x66 / 255.0, 0], stops: [0, 0.35, 1])
@@ -1243,9 +1289,17 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         float4x4 model = matAt(u, 16);
         float3 camPos = float3(u[32], u[33], u[34]);
         float time = u[35];
+        float sparkle = u[36];
         float3 wc = (model * float4(center, 1.0)).xyz;
         float tw = 0.82 + 0.28 * sin(time * (1.1 + phase * 2.3) + phase * 6.2831);
         if (mode > 1.5) { tw = 1.0; }
+        // 다이어리 별(sparkle) 전용 반짝임: 빠르고 깊은 깜빡임(0.48~1.0) + 별마다 4~9초에 한 번 0.5초쯤 번쩍(glint)하며 커진다. (Android SPRITE_VS)
+        float glint = 0.0;
+        if (sparkle > 0.5 && mode < 0.5) {
+            tw = 0.74 + 0.26 * sin(time * (1.9 + phase * 2.7) + phase * 6.2831);
+            glint = pow(max(0.0, sin(time * (0.7 + phase * 0.9) + phase * 41.0)), 12.0);
+            tw += 0.55 * glint;
+        }
         float vis = 1.0;
         if (mode < 0.5) {
             float3 n = normalize(wc);
@@ -1255,7 +1309,13 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         SpriteOut o;
         o.color = color * (tw * vis);
         o.uv = corner * 0.5 + 0.5;
-        float3 offs = (float3(1.0, 0.0, 0.0) * corner.x + float3(0.0, 1.0, 0.0) * corner.y) * size * (0.88 + 0.22 * tw);
+        // 다이어리 별은 별마다 각도를 돌려(0~180°) 빛줄기가 모두 같은 십자로 보이지 않게 한다. UV 는 그대로라 텍스처가 같이 돈다. (Android SPRITE_VS)
+        float2 cr = corner;
+        if (sparkle > 0.5 && mode < 0.5) {
+            float ca = cos(phase * 3.14159); float sa = sin(phase * 3.14159);
+            cr = float2(ca * corner.x - sa * corner.y, sa * corner.x + ca * corner.y);
+        }
+        float3 offs = (float3(1.0, 0.0, 0.0) * cr.x + float3(0.0, 1.0, 0.0) * cr.y) * size * (0.88 + 0.22 * tw + 0.30 * glint);
         o.position = vp * float4(wc + offs, 1.0);
         return o;
     }
@@ -1307,8 +1367,23 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         return fract((p3.x + p3.y) * p3.z);
     }
 
-    // 수채 파스텔 지구 — 지표 색은 텍스처에 구워져 있고 빛만: 감싸는 조명(밤 쪽 = 옅은 라벤더 그림자) + 분홍 대기 테두리 + 종이 결.
+    // 유리 지구(2026-10-08, 레퍼런스 references/지구본.jpg) — Android EARTH_FS 와 같은 식·같은 값.
+    //  ① 태양 방향 조명이 핵심(낮 = 밝은 푸른 유리 + 림, 밤 = 훨씬 어둡다)  ② 바다 = 깊고 어둡고 반사 없음(정면이 가장 깊고, 해안 근처만 대륙붕처럼 옅게)
+    //  ③ 육지 = 얼음 유리(조금 어둡게) + 해안 모서리 빛 + 서리 + 환경 반사(노이즈로 흔든 법선의 반사 벡터, 동그란 하이라이트 없음)
+    //  ④ 림은 태양 쪽이 0.18 → 1.0 으로 밝다. 도시 불빛은 제거.
     // f: [0..2] 태양 방향(지구 좌표계) [3] 페이드 [4..6] 카메라 위치(지구 좌표계)
+    static float hash3(float3 p) { return fract(sin(dot(p, float3(127.1, 311.7, 74.7))) * 43758.5453); }
+    static float vnoise(float3 p) {
+        float3 i = floor(p);
+        float3 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(hash3(i), hash3(i + float3(1.0, 0.0, 0.0)), f.x),
+                       mix(hash3(i + float3(0.0, 1.0, 0.0)), hash3(i + float3(1.0, 1.0, 0.0)), f.x), f.y),
+                   mix(mix(hash3(i + float3(0.0, 0.0, 1.0)), hash3(i + float3(1.0, 0.0, 1.0)), f.x),
+                       mix(hash3(i + float3(0.0, 1.0, 1.0)), hash3(i + float3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+    }
+    static float fbm(float3 p) { return 0.55 * vnoise(p) + 0.30 * vnoise(p * 2.07 + 3.1) + 0.15 * vnoise(p * 4.3 + 7.7); }
+
     fragment float4 earthFragment(EarthOut in [[stage_in]],
                                   texture2d<float> tex [[texture(0)]],
                                   sampler smp [[sampler(0)]],
@@ -1316,24 +1391,43 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         float3 sunDir = float3(f[0], f[1], f[2]);
         float3 camObj = float3(f[4], f[5], f[6]);
         float3 n = normalize(in.n);
-        float w = clamp((dot(n, sunDir) + 0.45) / 1.45, 0.0, 1.0);
-        float3 c = tex.sample(smp, in.uv).rgb * mix(float3(0.29, 0.29, 0.42), float3(0.57, 0.55, 0.53), w);
-        float ndv = max(dot(n, normalize(camObj - in.n)), 0.0);
-        c += float3(1.0, 0.74, 0.86) * pow(max(1.0 - ndv, 0.0), 2.6) * 0.22;
-        c += (grain(in.position.xy) - 0.5) * 0.03;
-        return float4(c * f[3], 1.0);
-    }
-
-    // 결이 남는 얇은 흰 구름 — 그림자 쪽은 지표와 같은 라벤더. f: [0..2] 태양 [3] 페이드 [4] 줌 알파 [5] 경도 드리프트
-    fragment float4 cloudFragment(EarthOut in [[stage_in]],
-                                  texture2d<float> tex [[texture(0)]],
-                                  sampler smp [[sampler(0)]],
-                                  constant float *f [[buffer(0)]]) {
-        float3 sunDir = float3(f[0], f[1], f[2]);
-        float cloud = tex.sample(smp, float2(in.uv.x + f[5], in.uv.y)).r;
-        float w = clamp((dot(normalize(in.n), sunDir) + 0.45) / 1.45, 0.0, 1.0);
-        float3 col = float3(0.57, 0.56, 0.57) * mix(float3(0.72, 0.70, 0.90), float3(1.0), w);
-        return float4(col * f[3], smoothstep(0.14, 0.85, cloud) * 0.22 * f[4] * f[3]);
+        float3 V = normalize(camObj - in.n);
+        float ndv = max(dot(n, V), 0.0);
+        float edge = 1.0 - ndv;
+        float sunD = dot(n, sunDir);
+        float day = smoothstep(-0.18, 0.55, sunD);   // 0 = 밤, 1 = 낮(경계선은 부드럽게)
+        float m = tex.sample(smp, in.uv).r;
+        float fill = smoothstep(0.46, 0.54, m);
+        float coast = smoothstep(0.18, 0.5, m) * (1.0 - smoothstep(0.5, 0.82, m)); // 해안선 근처에서 최대
+        // 대륙붕(해안 근처 얕은 바다) — 흐린 밉(바이어스 +4 ≈ 150km, +6 ≈ 600km)을 읽어 해안에서 멀어질수록 부드럽게 옅어진다(Android 와 같은 식).
+        float shelf = (0.55 * smoothstep(0.03, 0.40, tex.sample(smp, in.uv, bias(4.0)).r)
+                     + 0.45 * smoothstep(0.02, 0.30, tex.sample(smp, in.uv, bias(6.0)).r)) * (1.0 - fill);
+        // 바다 — 깊고 어둡다. 정면이 가장 깊고 가장자리로 갈수록 옅게 푸르다. 밤은 훨씬 어둡다.
+        float depth = pow(ndv, 0.55);
+        float3 body = mix(float3(0.026, 0.078, 0.205), float3(0.008, 0.024, 0.085), depth);
+        body *= 0.28 + 0.72 * day;
+        body += shelf * (0.30 + 0.70 * day) * 1.1 * float3(0.050, 0.170, 0.340);                // 대륙붕(얕은 바다)
+        body += pow(edge, 2.2) * (0.25 + 0.75 * day) * 0.5 * float3(0.02, 0.06, 0.15);
+        // 육지 — 얼음 유리(조금 어둡게) + 서리
+        float3 landC = mix(float3(0.034, 0.064, 0.17), float3(0.13, 0.25, 0.52), day) * (0.88 + 0.24 * fbm(n * 14.0));
+        float3 c = mix(body, landC, fill * (0.70 + 0.25 * day));
+        c += coast * (0.22 + 0.78 * day) * 0.62 * float3(0.40, 0.66, 1.0);                       // 해안 = 유리 모서리 빛
+        // 해안선을 따라 가는 푸른 광택 띠(유리 모서리의 하이라이트) — 태양 쪽 해안이 더 반짝인다
+        float gloss = smoothstep(0.38, 0.49, m) * (1.0 - smoothstep(0.50, 0.60, m));
+        c += gloss * (0.30 + 0.70 * smoothstep(-0.3, 0.7, sunD)) * 0.50 * float3(0.55, 0.78, 1.0);
+        // 육지 반사 — 노이즈로 흔든 법선의 반사 벡터가 태양을 향할 때 넓고 고운 결로 반짝(동그란 하이라이트 없음)
+        float3 nz = float3(vnoise(n * 24.0 + 1.3), vnoise(n * 24.0 + 5.1), vnoise(n * 24.0 + 9.7)) - 0.5;
+        float3 n2 = normalize(n + 0.30 * nz);
+        float3 Rv = reflect(-V, n2);
+        float refl = pow(clamp(dot(Rv, sunDir), 0.0, 1.0), 2.6) * (0.30 + 0.70 * vnoise(n * 46.0 + 2.2)) * smoothstep(-0.1, 0.4, sunD);
+        c += fill * refl * 0.48 * float3(0.60, 0.80, 1.0);
+        c += fill * pow(edge, 1.8) * (0.30 + 0.70 * day) * 0.42 * float3(0.45, 0.68, 1.0);       // 육지 프레넬 코팅
+        // 림 — 태양 쪽 가장자리가 훨씬 밝다
+        float rimLit = 0.30 + 0.70 * smoothstep(-0.35, 0.65, sunD);
+        c += pow(edge, 2.6) * rimLit * 1.5 * float3(0.20, 0.38, 0.90);
+        c += pow(smoothstep(0.72, 1.0, edge), 2.0) * 1.05 * rimLit * float3(0.50, 0.75, 1.0);    // 윤곽선(굴절 가장자리)
+        c += (grain(in.position.xy) - 0.5) * (1.5 / 255.0);
+        return float4(max(c, float3(0.0)) * f[3], 1.0);
     }
 
     // 은하수 성운 하늘 구 — 불투명. 어두운 그라데이션 띠를 1/255 디더로 흩는다. f: [0] 페이드
@@ -1353,7 +1447,8 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         float d = -dot(normalize(in.n), normalize(camObj - p));
         if (d <= 0.0) { discard_fragment(); }
         float i = pow(clamp(d / 0.5, 0.0, 1.0), 3.2);
-        return float4(float3(1.0, 0.72, 0.88) * i * 0.225 * f[3], 1.0);
+        float side = 0.30 + 0.70 * smoothstep(-0.2, 0.8, dot(normalize(in.n), float3(f[5], f[6], f[7]))); // 태양 쪽 가장자리가 더 환하다
+        return float4(float3(0.42, 0.62, 1.0) * i * 0.34 * side * f[3], 1.0); // 푸른 대기광(유리 지구의 림 빛과 이어진다 — Android ATMO_FS 와 같은 값)
     }
 
     // ── 궤적 트레일 — RING_VS / RING_FS ──

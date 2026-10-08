@@ -96,6 +96,9 @@ enum AppConfig {
     static let playStoreUrl =
         "https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios"
 
+    /// App Store 링크(StaryConfig.APP_STORE_URL 및 web/index.html STORE_URL_IOS 와 동기화).
+    static let appStoreUrl = "https://apps.apple.com/us/app/stary/id6799375537"
+
     /// 다이어리 공유 링크 — 랜딩이 앱 설치자는 stary://diary/{id} 딥링크로 돌려보낸다.
     static func shareLink(diaryId: String) -> String { "\(shareBaseUrl)/s/\(diaryId)" }
 

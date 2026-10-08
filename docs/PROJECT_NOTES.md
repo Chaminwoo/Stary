@@ -2578,7 +2578,44 @@ node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage dia
     분홍 테두리·대기광은 그대로. **모습은 사용자 확인 대기**.
 - 확인 포인트: 낮 쪽·밤 쪽 둘 다(시간대에 따라 다름) · 최대 확대 시 해안선·구름 · 다이어리 불빛이 수채 위에서 읽히는지 · 진입 페이드 · 프레임 저하 없는지.
 
+## 8.79 지구본 별빛 · 공개 범위 표시/수정 · iOS 내 다이어리 탭 · iOS 초대 링크 (Android BUILD SUCCESSFUL 2026-10-08 · 실기기 테스트 대기 · iOS push 후 CI)
+사용자 요청 5건(1.5.3 에 합류):
+1. **3D 글로브 별빛** — "조금 더 반짝이고, 퍼지는 느낌이 아니라 빛나는 느낌". 다이어리 별(점광·인기 별)만 새 텍스처(`sparkTex`/`starTex` =
+   또렷한 흰 심지 + 옅은 후광 + 가는 빛줄기, 픽셀마다 식으로 계산) + `SPRITE_VS` `uSparkle` 분기(더 빠른 깜빡임 + 가끔 번쩍 glint + 별마다 각도 회전).
+   **빛 색은 그 별의 실제 색**(예전엔 점광 전부 금빛). 후속 피드백 2건("전부 노란색" · "빛 모양이 너무 아이콘 같다")을 같은 날 반영. 배경 별·유성·태양은 그대로.
+   `GlobeRenderer.kt` ↔ `GlobeRenderer.swift`/`GlobeGeometry.swift`(점광 크기 0.030→0.034, glowPinGain 0.7→1.0). 상세·값 조절: `docs/code/04-globe.md`.
+2. **iOS 내 다이어리 별 클릭 = 즉시 진입** — `MyDiaryBoardScreen.swift` 떠다니는 별을 `NavigationLink` → `onTapGesture` + 프로그래매틱 push 로.
+   지도 별 터치 영역도 28 → 44pt(`MapStarViews.minTapSide`). ⚠️ 요청 문구("ios 내 다이어리의 별")가 화면을 특정하지 않아 "내 다이어리" 보드로 해석했고,
+   코드만으로 확정 원인은 못 찾았다 → 기기에서 확인, 지도 별을 뜻한 거면 알려 달라(지도는 탭 → 1.3초 파장 → 상세라 Android 와 같은 흐름).
+3. **공개 범위 아이콘** — 상세 화면 날짜 옆에 지구본(전체)/친구/자물쇠(나만). Android `DiaryVisibility.kt`(`VisibilityBadge`) · iOS `VisibilityViews.swift`.
+4. **수정에서 공개 범위 변경** — 수정 팝업에 3칸 선택기(`VisibilityChooser`). `FirebaseDiaryRepository.updateDiary` 가 `visibilityType` 도 update,
+   iOS 는 `store.save`(merge) 에 포함. **Firestore 규칙 변경 없음**(소유자는 전체 수정 허용). `VisibilityOptions` 는 UploadScreen 에서 `DiaryVisibility.kt` 로 이동.
+5. **iOS 친구 초대 링크** — 리딤 로직은 이미 Android 와 같았고, 막힌 곳은 링크→앱 경로: 웹 랜딩의 iOS 스토어 링크가 비어 있었음 → App Store 링크 연결
+   (`https://apps.apple.com/us/app/stary/id6799375537`, `AppConfig.appStoreUrl`/`StaryConfig.APP_STORE_URL`/`web/index.html`), iOS 에선 미설치 자동 폴백 끔,
+   `StaryApp.appLink` 로 https 유니버설 링크 처리 + `project.yml` Associated Domains + AASA(`.well-known` 사본·헤더). 상세/사용자 할 일: `docs/code/10-friends-chat.md` "iOS 초대 링크 활성화".
+6. **로그인 화면 다듬기**(지구본 별빛 확인 후 "로그인 영상/버튼도 예쁘게" → 선택지에서 사용자가 고른 3가지): ① **멈춘 뒤에도 살아있는 하늘**(잔별 반짝임 + 유성, 영상 위 오버레이)
+   ② **로고 숨쉬는 빛**(후광 맥동 + 글린트) + **로고 화질**(요청은 "업스케일링"이었으나 원본이 이미 표시 크기보다 커서 해상도 문제가 아니라 `res/drawable` 의 밀도 확대 디코드 +
+   손실 압축 + 밉맵 없는 축소가 원인으로 보여 `drawable-nodpi` + 밉맵 + 무손실 마스터에서 선명화 재생성으로 해결) ③ **버튼** — 처음엔 글래스 캡슐(투명 흰 면 + 흰 글씨)이었으나 기기 화면을 캡처해 보니 지구 위에서 회색빛으로 흐려 글씨가 안 읽혔고 사용자도 "너무 투명하다"고 해서, **크림 캡슐(`CreamCapsuleButton`) + 숯색 글씨로 되돌리고 터치 진동을 추가**. 하늘의 큰 별도 "부자연스럽다"는 피드백으로 후광을 원판 → 방사형 그라데이션, 빛줄기를 짧고 가늘게, 별 수/크기를 줄임(2차).
+   상세·값 조절: `docs/code/13-auth-location-core.md`. 새 파일: `LoginDecor.kt`/`LoginDecor.swift`, `tools/logo/`(마스터 + 생성 스크립트), `res/drawable-nodpi/logo.webp`(기존 `drawable/logo.webp` 삭제).
+   ⚠️ 영상 색감은 그대로(파란 지구 — 새 지구본의 파스텔·분홍 톤과 다름, 후속 후보). 원본 영상 우하단에 "Veo" 워터마크가 있고 지금은 1.12배 확대·크롭으로 가려진다.
+8. **지구본 → 유리 지구**(레퍼런스 `references/지구본.jpg`): 사용자가 레퍼런스를 넣고 "그런 느낌으로 다시, 별이랑 주변 링은 지금 느낌 좋다" → 지구 표면만 교체(별·궤도 링 유지). 여러 차례 피드백으로 다듬음:
+   점 지구(대륙 점+도시 점) → "점은 안 찍어도 되니 유리 질감만, 태양 쪽 반사·반대쪽 어둡게" → "태양 위치의 동그란 반사 삭제 / 바다는 반사 적고 깊게 / 문명 빛 점 제거 / 육지 조금 어둡고 반사감 강하게" →
+   "육지 조금 더 어둡게 + 테두리 미세한 푸른 광택". **최종**: 어두운 유리 구슬 + 실제 UTC 태양 조명(낮 = 푸른 유리·림, 밤 = 훨씬 어둡다) + 바다 = 깊은 남색(정면이 가장 깊고 가장자리 프레넬, 대륙붕만 옅게, 반사 없음) +
+   육지 = 얼음 유리(어둡게) + 해안 모서리 빛 + **해안선 푸른 광택 띠** + 노이즈로 깨진 환경 반사(동그란 하이라이트 없음) + 태양 쪽이 밝은 림/대기광. 도시 불빛·구름·수채 텍스처 삭제.
+   육지 마스크 `globe_land.jpg`(4096×2048, `tools/globe/bake_globe_land.py` — 큰 블러+문턱으로 윤곽을 둥글게: 원본의 사각 형태 연산 흔적이 줌인에서 네모 해안으로 보여서). numpy 시뮬레이션으로 상수를 정한 뒤
+   `glslangValidator` 문법 검증, **Android 기기 설치·실물 확인 완료**(기본 줌·줌인 둘 다). iOS 는 같은 식을 MSL 로 옮김(CI·기기 확인 필요 — 런타임 컴파일이라 오타면 글로브 검정).
+   상세·값 조절: `docs/code/04-globe.md` "유리 지구". ⚠️ 하늘 성운(분홍)은 그대로라 레퍼런스의 순수 남색 하늘과 톤이 다름 — 후속 후보.
+7. **지도 내 위치 점(초록 원) 줌 연동**: 줌을 풀수록 점점 작아진다 — Android `CircleLayer("current-location-layer")` 의 반지름/테두리를 고정(7/2)에서 줌 보간 `MY_LOCATION_STOPS`
+   (줌 2→2.0/0.8 · 6→3.0/1.0 · 10→4.5/1.4 · 13→6.0/1.8 · 15→7.0/2.0)로. 기기에서 확인("지금 크기 딱 좋아"). iOS 는 MapLibre **기본 파란 퍽**을 쓰고 있었는데 Android 와 같은 초록 원으로 통일하며 같은 값 적용:
+   `showsUserLocation = false` + `MapStyleEffects` 의 `current-location-layer`(MLNCircleStyleLayer, `StyleFx.myLocationStops`) + `Coordinator.updateMyLocation` (⚠️ iOS 는 별이 어노테이션 뷰라 점이 별 아래에 깔린다 — Android 는 별 위).
+   iOS 점 모양/위치는 CI·실기기 확인 필요.
+- 새 파일: `androidApp/.../feature/diary/screen/DiaryVisibility.kt`, `iosApp/Sources/Features/Detail/VisibilityViews.swift`, `web/.well-known/apple-app-site-association`.
+- 검증: `:androidApp:assembleDebug` BUILD SUCCESSFUL. iOS 는 Windows 에서 컴파일 불가 → push 후 `ios.yml` CI(red/green) + 기기(셰이더는 런타임 컴파일이라 지구본 검정 화면 여부 꼭 확인).
+
 ## 9. 남은 작업 / TODO (다음에 할 것)
+- [ ] **(8.79·사용자) iOS 유니버설 링크 마무리** — ① ~~AASA 의 `TEAMID` 교체~~ 완료(`3G3447GK74`, 2026-10-08)
+      ② **`firebase deploy --only hosting`**(랜딩 App Store 버튼 + AASA) — 아직. 배포 전·앱 업데이트 전에도 초대는 "앱에서 초대 수락" 버튼(커스텀 스킴)으로 동작한다.
+- [ ] **(8.79) 실기기 확인** — 공개 범위 아이콘/수정(Android·iOS) · 지구본 별빛 세기(너무 번쩍이지 않는지) · iOS 내 다이어리 별 탭 · iOS 초대 end-to-end.
 - [ ] **(8.78) 수채 지구본 실기기 확인(Android·iOS)** — 밤 쪽 밝기·불빛 세기가 마음에 안 들면 `EARTH_FS` 그림자색 / `*_PIN_GAIN` 조정(양쪽 같이).
       팔레트·얼룩 자체를 바꾸려면 `tools/globe/bake_globe_textures.py` 수정 후 다시 굽기.
 - [ ] **(8.77) 자동 선번역 배포(사용자)** — 위 8.77 의 "배포 전 1회 설정" 1~4. 이후 실제 별로 `translations` 생성 확인(첫 실제 API 호출 검증).

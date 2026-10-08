@@ -163,6 +163,11 @@ iOS: `Features/Profile/ProfileScreen.swift`, `FloatingStatBox.swift`, `UserProfi
 - `MyStarsScreen`(드로어 "내 다이어리" 진입점) → `MyDiaryBoardScreen` : 별자리 3종(좌표/연결선
   **Android CONSTELLATIONS 와 동일 값**) + 바나나 다이얼(`MusicManager.playWind()`) + 부유 별 보드 +
   1열 리스트(0x66161B22 행). ⚠️ 드래그 물리는 Android 대비 간이(후속 TODO).
+- **떠다니는 별 탭 = 즉시 상세 진입**(2026-10-08 사용자 "iOS 내 다이어리의 별 클릭하면 바로 들어가도록"): 예전엔 별마다 `NavigationLink`(버튼 제스처)라
+  ScrollView 스크롤·별 드래그(`simultaneousGesture`)와 경쟁해 한 박자 늦거나 씹혔다. 지금은 별에 `onTapGesture`(손 뗄 때 즉시) → 상위 `MyStarsScreen` 이
+  `openedDiary` + `.navigationDestination(isPresented:)` 로 push. 1열 리스트 모드는 기존 `NavigationLink(value:)` 그대로.
+  Android(`DiaryStarBox`)는 150ms 안에 떼면 열림(그 이상 누르면 "잡기") — iOS 는 이동 10pt 미만이면 언제 떼도 열림.
+  ⚠️ 확정 원인은 코드만으론 못 찾았다(시뮬레이터/기기 확인 필요). 지도 별을 뜻한 거라면 `MapStarViews.minTapSide`(아래 03 문서) 쪽.
 
 ### 값 조절(패리티 매핑)
 | 항목 | Android | iOS |

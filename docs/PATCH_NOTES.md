@@ -26,6 +26,14 @@
 • 앱을 껐다 켜도 마지막으로 쓴 지도 필터가 그대로 유지돼요
 • 누군가 세상에 첫 별을 남기면 알려드려요
 • 업로드, 댓글, 친구 검색에서 키보드가 입력칸을 가리던 문제를 고쳤어요
+• 다이어리 열람 화면 날짜 옆에 공개 범위 아이콘(지구본 · 친구 · 자물쇠)이 생겼어요
+• 다이어리를 수정할 때 공개 범위(전체공개 · 친구만 · 나만보기)도 바꿀 수 있어요
+• '우주에서 보기' 지구가 어두운 유리 구슬로 바뀌었어요 — 바다는 깊고 어둡게, 육지는 해안선이 푸르게 빛나는 얼음 유리처럼, 태양 쪽은 환하게 반대쪽은 어둡게 보여요
+• 3D 지구의 별이 퍼지는 빛 대신 또렷하게 반짝이는 빛으로, 각 별의 실제 색에 맞춰 빛나요
+• 지도의 내 위치 초록 원이 줌을 풀수록 점점 작아져요(iOS 도 같은 초록 원으로 통일)
+• 로그인 화면이 한층 예뻐졌어요 — 영상이 끝난 뒤에도 별이 반짝이고 유성이 스치며, 로고가 숨 쉬듯 빛나고, 로그인 버튼을 누르면 살짝 진동해요
+• (iOS) 내 다이어리에서 별을 누르면 바로 열려요
+• (iOS) 친구 초대 링크가 iOS 앱에서도 동작해요. 아직 앱이 없는 친구는 App Store 로 안내돼요
 </ko-KR>
 <en-IN>
 [1.5.3 Update]
@@ -35,6 +43,14 @@
 • Your last-used map filters are now remembered after you close the app
 • Get notified when someone leaves their very first star in the world
 • Fixed the keyboard covering the input field when uploading, commenting and searching for friends
+• A visibility icon (globe / friends / lock) now sits next to the date on a diary
+• You can now change a diary's visibility (Public / Friends only / Only me) when editing it
+• The "View globe" Earth is now a dark glass sphere — deep, dark oceans, land like frosted glass with softly glowing blue coastlines, bright on the sunlit side and dark on the far side
+• Stars on the 3D globe now shine crisply and twinkle in each star's own color instead of glowing in a soft yellow blur
+• The green "my location" dot on the map now shrinks as you zoom out (iOS now uses the same green dot)
+• A more polished login screen: stars keep twinkling and meteors streak by after the intro video, the logo glows as if breathing, and the sign-in button gives a light haptic tap
+• iOS: Tapping a star in My Diary now opens it right away
+• iOS: Friend invite links now work on iOS too, and friends without the app are sent to the App Store
 </en-IN>
 <ja-JP>
 【1.5.3 アップデート】
@@ -44,6 +60,14 @@
 • アプリを閉じても、最後に使った地図のフィルターが維持されるようになりました
 • 誰かが世界に初めての星を残したときにお知らせします
 • 投稿・コメント・友だち検索でキーボードが入力欄を隠してしまう問題を修正しました
+• 日記の閲覧画面の日付の横に、公開範囲のアイコン(地球・友だち・鍵)を表示しました
+• 日記の編集で、公開範囲(全体公開・友だちのみ・自分のみ)も変更できるようになりました
+• 「地球を見る」の地球が、暗いガラス玉に変わりました。海は深く暗く、陸地は海岸線が青く輝く氷ガラスのように、太陽側は明るく反対側は暗く見えます
+• 3D地球の星が、ぼんやり広がる光から、それぞれの星の色でくっきり輝く光になりました
+• 地図の現在地を示す緑の丸が、ズームアウトするほど小さくなります(iOSも同じ緑の丸に統一)
+• ログイン画面をより美しくしました。映像の後も星がまたたき流れ星が横切り、ロゴが呼吸するように輝き、ログインボタンは押すと軽く振動します
+• iOS:マイ日記の星をタップすると、すぐに開くようになりました
+• iOS:友だち招待リンクがiOSでも使えるようになりました。アプリ未インストールの友だちはApp Storeへご案内します
 </ja-JP>
 <zh-CN>
 【1.5.3 更新】
@@ -53,6 +77,14 @@
 • 退出应用后重新打开,仍会保留上次使用的地图筛选
 • 有人在世界上留下第一颗星星时会通知你
 • 修复了上传、评论和搜索好友时键盘遮挡输入框的问题
+• 日记详情页的日期旁新增公开范围图标(地球 / 好友 / 锁)
+• 编辑日记时也可以修改公开范围(公开 / 仅好友 / 仅自己)
+• "太空视角"地球变成了深色玻璃球:海洋深邃暗沉,陆地如磨砂玻璃且海岸线泛着蓝色光泽,向阳面明亮、背阳面昏暗
+• 3D 地球上的星星不再是模糊扩散的光,而是按各自星星颜色更清晰闪烁的光
+• 地图上的绿色"我的位置"圆点会随缩小而变小(iOS 也统一为同样的绿色圆点)
+• 登录界面更精致:视频结束后星星依然闪烁、流星划过,Logo 如呼吸般发光,点击登录按钮会有轻微震动
+• iOS:点击"我的日记"里的星星会立即打开
+• iOS:好友邀请链接现在也支持 iOS,尚未安装的好友会被引导到 App Store
 </zh-CN>
 ```
 
@@ -66,6 +98,10 @@
 - **지도 필터 유지**: 미조회만·친구만·나만보기·해금만·친구 선택·기간 필터를 계정별로 저장(앱 완전 종료 후에도).
 - **첫 별 공지**: 누군가 처음으로 **전체 공개** 별을 올리면 모두에게 알림(친구는 기존 "새 별" 푸시만, 나만 보기·친구 공개는 알리지 않음).
 - **키보드**: 업로드/상세 댓글/친구 검색에서 키보드가 입력칸을 가리던 문제 수정(iOS 는 바깥 탭으로 키보드 닫기도 추가).
+- **공개 범위 표시·수정**(8.79): 상세 화면 날짜 옆에 지구본(전체)/친구/자물쇠(나만) 아이콘. 수정 팝업에 공개 범위 선택 추가(제목·본문과 함께 저장).
+- **지구본 별빛**(8.79): 다이어리 별을 퍼지는 원형 글로우 대신 또렷한 흰 심지 + 가는 빛줄기(별마다 각도 다름)로, 더 빠른 깜빡임 + 가끔 번쩍(커짐). 색은 그 별의 실제 색.
+- **iOS 내 다이어리**(8.79): 떠다니는 별을 누르면 즉시 상세 진입. 지도 별의 터치 영역도 28 → 44pt.
+- **iOS 초대 링크**(8.79): 웹 랜딩에 App Store 설치 링크 연결(예전엔 "iOS 앱은 준비 중이에요"), 앱이 https 링크도 직접 처리.
 
 ### 사용자에게 보이지 않는 변경
 - 광고제거 계정(서버 허용 목록), 큐레이션 별 시드 도구(`tools/seed/`), 지구본 텍스처 굽기 도구(`tools/globe/`), iOS 광고 SDK 패키지 복구.
@@ -76,6 +112,10 @@
 - [ ] 앱 언어를 English/日本語 로 바꿔 한국어 글 상세가 번역 + "원문 보기" 토글인지 확인.
 - [ ] 지구본: 낮 쪽/밤 쪽 모두 · 불빛이 읽히는지 · 프레임 저하 없는지(Android·iOS). iOS 는 셰이더가 실행 시 컴파일 — TestFlight 에서 검정 화면이 아닌지 꼭 확인.
 - [ ] 앱을 완전히 종료했다 켜도 지도 필터가 유지되는지.
+- [ ] (8.79) 공개 범위: 내 글 수정에서 전체→친구→나만 바꾸고 아이콘이 바뀌는지 · 친구 계정/남의 계정에서 보이는 범위가 바뀌는지(Android·iOS).
+- [ ] (8.79) 지구본 별빛이 너무 번쩍이거나(눈 아픔) 너무 약하지 않은지 — 세기는 `sparkTex`/`starTex` 알파와 SPRITE_VS 의 glint 계수(0.55/0.30)로 조절.
+- [ ] (8.79) **웹 배포 후** 아이폰 사파리에서 `https://momentdiary-f26c8.web.app/i/아무값` 을 열어 "App Store 에서 설치" 버튼이 뜨는지 (배포: `firebase deploy --only hosting`).
+- [ ] (8.79) iOS 초대 end-to-end: 안드로이드/iOS 신규 계정으로 초대 링크 → 설치 → 링크 다시 열기 → 양쪽 칭호 해금.
 
 ---
 

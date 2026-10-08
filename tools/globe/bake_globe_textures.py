@@ -1,5 +1,7 @@
 """
-3D 글로브(우주에서 보기) 텍스처 굽기 — 수채 파스텔 지구 + 은하수 성운 하늘 (2026-10-08).
+3D 글로브(우주에서 보기) 텍스처 굽기 — 은하수 성운 하늘(+ 폐기된 수채 파스텔 지구 `--watercolor`) (2026-10-08).
+
+⚠️ 현재 앱 지구는 유리 지구 — 데이터 텍스처는 tools/globe/bake_globe_land.py. 이 스크립트는 이제 하늘(globe_nebula.jpg)만 굽는다(land_mask 는 land 스크립트가 재사용).
 
 왜 굽나: 수채 질감(물감 얼룩·해안 번짐·팔레트)은 빛과 무관한 "지표 색"이라 미리 텍스처로 만들어 두면
 런타임 셰이더는 조명(라벤더 그림자)·대기 테두리만 계산하면 된다. 폰에서 매 프레임 노이즈를 돌리지 않고,
@@ -16,6 +18,7 @@ Android(GL)와 iOS(Metal)가 **같은 파일**을 쓰므로 모양이 저절로 
         위치 = (cos φ · sin λ, sin φ, cos φ · cos λ). 노이즈를 이 3D 위치로 계산해서 경도 이음매가 없다.
 색 공식은 시안 페이지(claude.ai 아티팩트 "Stary 지구본 무드"의 수채 파스텔 / 은하수 성운)와 같다.
 """
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -189,5 +192,8 @@ def bake_sky():
 
 
 if __name__ == "__main__":
-    bake_earth()
+    # 2026-10-08: 앱 지구는 "유리 지구"(tools/globe/bake_globe_land.py)로 바뀌어 수채 지표(globe_watercolor.jpg)는 더 쓰지 않는다.
+    # 기본은 하늘(성운)만 굽는다. 옛 수채 지구가 필요하면 --watercolor (결과 파일은 앱에 연결돼 있지 않다).
+    if "--watercolor" in sys.argv:
+        bake_earth()
     bake_sky()

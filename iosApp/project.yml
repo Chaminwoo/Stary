@@ -65,13 +65,12 @@ targets:
       # 본문/UI 폰트는 Android 와 **같은 파일**을 그대로 번들에 넣는다(9MB 복제·드리프트 방지).
       - path: ../androidApp/src/main/res/font/min_sans.ttf
         buildPhase: resources
-      # 3D 글로브 지구/하늘/구름 텍스처도 Android assets 와 **같은 파일**을 참조(예전 iOS 사본은 7096px 로 달라 삭제, 2026-09).
-      # 수채 지표·은하수 성운은 tools/globe/bake_globe_textures.py 로 구운 파일(2026-10-08, 원본 Blue Marble 은 tools/globe 로 이동).
-      - path: ../androidApp/src/main/assets/globe_watercolor.jpg
+      # 3D 글로브 텍스처도 Android assets 와 **같은 파일**을 참조(예전 iOS 사본은 7096px 로 달라 삭제, 2026-09).
+      # 유리 지구 데이터(R 육지 / G 도시 밀도)는 tools/globe/bake_globe_land.py, 은하수 성운은 tools/globe/bake_globe_textures.py 로 구운 파일
+      # (2026-10-08 — 수채 지표 globe_watercolor.jpg 와 구름 earth_clouds.jpg 는 삭제).
+      - path: ../androidApp/src/main/assets/globe_land.jpg
         buildPhase: resources
       - path: ../androidApp/src/main/assets/globe_nebula.jpg
-        buildPhase: resources
-      - path: ../androidApp/src/main/assets/earth_clouds.jpg
         buildPhase: resources
     info:
       path: Sources/Info.plist
@@ -231,6 +230,11 @@ targets:
         # 이 Capability 를 켜야 한다(자동 서명이면 -allowProvisioningUpdates 가 함께 반영).
         com.apple.developer.applesignin:
           - Default
+        # 유니버설 링크(2026-10-08) — 카톡/문자에서 공유·초대 링크(https://{host}/s/…, /i/…)를 누르면 웹을 거치지 않고 앱이 바로 열린다.
+        # 호스트는 AppConfig.shareHost 와 같아야 한다. 서버(web/apple-app-site-association + web/.well-known/…)의
+        # appIDs 가 "{Apple Team ID}.com.chaminwoo.stary.ios" 와 일치해야 동작 — Team ID 를 넣기 전에도 앱은 정상(커스텀 스킴 폴백).
+        com.apple.developer.associated-domains:
+          - applinks:momentdiary-f26c8.web.app
     dependencies:
       - package: Firebase
         product: FirebaseAuth

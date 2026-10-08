@@ -16,6 +16,9 @@ struct LoginView: View {
 
     @State private var showUI = false
     @State private var haloWidth: CGFloat = 100
+    /// 로고 숨쉬는 빛 — 후광 알파/크기가 3.8초 주기로 맥동(Android breatheT: 알파 0.62~0.92, 크기 ±3%).
+    @State private var haloGlow: Double = 0.9
+    @State private var haloScale: CGFloat = 1
 
     // ── 이용약관(EULA) 동의 게이트 — App Store Guideline 1.2(2026-09-26), Android LoginScreen 패리티 ──
     // 로그인/둘러보기를 누르면, 아직 동의하지 않았을 때 약관을 먼저 띄우고 "동의하고 계속" 뒤에 원래 동작을 잇는다.
@@ -38,6 +41,10 @@ struct LoginView: View {
             }
             .ignoresSafeArea()
             .scaleEffect(1.12)
+
+            // 영상이 멈춘 뒤에도 살아 있는 하늘(잔별 반짝임 + 가끔 유성) — 영상 위, 로고/버튼 아래.
+            LivingSkyView(visible: showUI)
+                .ignoresSafeArea()
 
             if showUI {
                 content
@@ -87,23 +94,27 @@ struct LoginView: View {
                 // 뒤에 깔리는 빛나는 후광: 로고 복제 + 블러 + 밝게 + 폭 애니메이션.
                 Image(uiImage: appLogo)
                     .resizable()
+                    .interpolation(.high)
                     .scaledToFit()
                     .frame(width: haloWidth)
                     .brightness(0.35)
                     .blur(radius: 12)
-                    .opacity(0.9)
-                // 선명한 로고(앞).
+                    .opacity(haloGlow)
+                    .scaleEffect(haloScale)
+                // 선명한 로고(앞) + 가끔 지나가는 글린트.
                 Image(uiImage: appLogo)
                     .resizable()
+                    .interpolation(.high)
                     .scaledToFit()
                     .frame(width: 220)
+                    .overlay { LogoGlintOverlay(image: appLogo, active: showUI) }
             }
             .frame(maxHeight: .infinity, alignment: .center)
             .offset(y: -80)
 
             // 하단 버튼 영역.
             VStack(spacing: 8) {
-                StarDiaryButton(text: LocaleManager.shared.t(.loginGoogle)) {
+                CreamCapsuleButton(text: LocaleManager.shared.t(.loginGoogle)) {
                     withConsent { Task { await auth.signInWithGoogle() } }
                 }
 
@@ -171,6 +182,17 @@ struct LoginView: View {
         guard !showUI else { return }
         withAnimation(.easeIn(duration: 0.8)) { showUI = true }
         animateHalo()
+        startBreathing()
+    }
+
+    /// 인트로 후광 애니메이션(1.2초) 뒤부터 후광이 숨쉬듯 맥동 — 현재 값(0.9, 1.0)에서 이어서 반복.
+    private func startBreathing() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation(.easeInOut(duration: 1.9).repeatForever(autoreverses: true)) {
+                haloGlow = 0.62
+                haloScale = 0.97
+            }
+        }
     }
 
     /// 후광이 살짝 부풀었다 가라앉으며 빛이 번지는 연출(스프링 오버슈트로 근사).

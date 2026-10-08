@@ -20,11 +20,9 @@ enum GlobeGeometry {
     static let glowRadius: Float = 1.008
     static let glowAlpha: Float = 0.42
     static let glowMax = 5000
-    static let flareColors: [UInt32] = [
-        0xFF6257, 0x6D9EFF, 0xFF8BD8, 0xFFD966, 0x8FF7E2, 0xC49BFF, 0xFFFFFF,
-    ]
 
-    /// 다이어리 → (플레어 스프라이트, 노란 점광 스프라이트) — Android setDiaries 와 같은 규칙.
+    /// 다이어리 → (플레어 스프라이트, 점광 스프라이트) — Android setDiaries 와 같은 규칙.
+    /// 빛 색은 그 별의 실제 색(`StarStyle.lightRGB`) — 예전엔 점광은 전부 금빛, 인기 별은 좌표 해시 팔레트였다.
     static func buildDiarySprites(_ diaries: [Diary]) -> (flare: [Float], glow: [Float]) {
         let valid = diaries.filter { $0.latitude != 0 && $0.longitude != 0 }
         let popular = valid.filter { $0.likeCount >= flareMinLikes }
@@ -34,13 +32,13 @@ enum GlobeGeometry {
         flares.reserveCapacity(popular.count * 6 * spriteFloats)
         for d in popular {
             let p = latLngToXyz(d.latitude, d.longitude, flareRadius)
-            let rgb = flareColors[flareColorIndex(d)]
+            let lc = StarStyle.lightRGB(d.starColor)
             let boost = Float(min(d.likeCount, 1000)) / 1000
             let size: Float = 0.034 + 0.026 * boost
             let bright: Float = 0.60 + 0.15 * boost
-            let r = Float((rgb >> 16) & 0xFF) / 255 * bright
-            let g = Float((rgb >> 8) & 0xFF) / 255 * bright
-            let b = Float(rgb & 0xFF) / 255 * bright
+            let r = lc.r * bright
+            let g = lc.g * bright
+            let b = lc.b * bright
             let phase = Float(floorMod(d.latitude * 7 + d.longitude * 13, 1.0))
             addSprite(&flares, p, r, g, b, 1, size: size, phase: phase, mode: 0)
         }
@@ -51,15 +49,11 @@ enum GlobeGeometry {
             if i >= glowMax { break }
             let p = latLngToXyz(d.latitude, d.longitude, glowRadius)
             let phase = Float(floorMod(d.latitude * 3 + d.longitude * 5, 1.0))
-            addSprite(&glows, p, 1.0 * glowAlpha, 0.76 * glowAlpha, 0.36 * glowAlpha, 1,
-                      size: 0.030, phase: phase, mode: 0)
+            let lc = StarStyle.lightRGB(d.starColor)
+            addSprite(&glows, p, lc.r * glowAlpha, lc.g * glowAlpha, lc.b * glowAlpha, 1,
+                      size: 0.034, phase: phase, mode: 0)
         }
         return (flares, glows)
-    }
-
-    /// 좌표 기반 결정적 팔레트 인덱스(Android flareColorIndex — Kotlin Double.mod 는 floor 모듈러).
-    static func flareColorIndex(_ d: Diary) -> Int {
-        Int(floorMod(d.latitude * 7919.0 + d.longitude * 104729.0, Double(flareColors.count)))
     }
 
     /// 빌보드 사각형(삼각형 2개 = 6 정점) — [center3, corner2, color4, size, phase, mode].

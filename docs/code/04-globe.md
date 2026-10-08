@@ -19,7 +19,7 @@ iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Andr
   글로브를 자동 종료**한다(숨은 GLSurfaceView 렌더 낭비 방지 — 03 문서).
 
 ## GlobeRenderer.kt (GLSurfaceView.Renderer)
-- 커스텀 GL 렌더: **은하수 성운 하늘 구** + 지구(**수채 파스텔**, 감싸는 조명 — 밤 쪽은 라벤더 그림자) + 구름 + **분홍 대기광** + 별밭 +
+- 커스텀 GL 렌더: **은하수 성운 하늘 구** + 지구(**유리 지구** — 어두운 유리 구슬, 태양 쪽 반사광/반대쪽 어둠, 육지는 얼음 유리) + **푸른 대기광** + 별밭 +
   **핑크 은하수**(은하수.jpg 스타일) + **곡선 유성**(잔류 스파클) + 별 단위 12궁(zodiac) +
   다이어리 별 포인트.
 - `setDiaries(...)` : 백그라운드에서 별 데이터 빌드 → `StarBatch`(버퍼+정점수 한 묶음, @Volatile)
@@ -28,24 +28,48 @@ iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Andr
   버퍼 밖을 읽는다(별이 깨져 보임).
 - 카메라: 쿼터니언 회전 + 관성. 핀치 아웃/인으로 진입 줌 느낌.
 
-### 수채 파스텔 + 은하수 성운 (2026-10-08 감성 리디자인 — 시안 페이지에서 사용자 선택)
-"GTA 같은 딱딱한 실사" 피드백 → 원인: 업스케일된 Blue Marble 의 비닐 같은 번들거림 + 앱과 동떨어진 회청색 톤 + 대기광 없음.
-- **지표 색은 텍스처에 굽는다** — `tools/globe/bake_globe_textures.py`(numpy+Pillow) 가 원본(`tools/globe/earth_blue_marble.jpg`,
-  앱 번들에선 빠짐)에서 육지 마스크(바다 = `b − max(r,g) > 17`)·건조도·번들거림 제거 밝기를 뽑아 팔레트(세이지 민트→연두→피치,
-  눈·얼음 라벤더 화이트, 남위 66~72° 이남은 전부 얼음)·물감 얼룩(3D fbm)·해안 번짐을 칠해 `assets/globe_watercolor.jpg`(4096)로 굽는다.
-  **팔레트/얼룩을 바꾸려면 셰이더가 아니라 이 스크립트를 고쳐 다시 굽는다**(Android·iOS 가 같은 파일을 써서 패리티 자동).
-- 런타임 `EARTH_FS` 는 빛만: 감싸는 조명 `w=(n·sun+0.45)/1.45` 로 `mix((0.29,0.29,0.42), (0.57,0.55,0.53), w)` 곱(10-08 2차: "너무 밝다" → 낮 약 20%·밤 약 28% 낮춤, 4차: 한 번 더 ×0.7)(실제 UTC 낮/밤 유지,
-  밤 쪽도 파스텔 — 한국 저녁엔 아시아가 밤이라 너무 어두우면 칙칙해 보였다) + 분홍 테두리(`uCamObj` = 지구 좌표계 카메라) + 종이 결 해시.
+### 유리 지구 + 은하수 성운 (2026-10-08 — 레퍼런스 `references/지구본.jpg`)
+이력: ① "GTA 같은 딱딱한 실사" → 수채 파스텔 지구 → ② 레퍼런스("미니멀 라인 + 파티클")를 받아 **대륙 점 지구** → ③ "점은 안 찍어도 되니 유리 질감만, 태양 쪽 반사·반대쪽 어둡게" → **유리 지구** →
+④ "태양 위치의 동그란 반사 삭제 / 바다는 반사 적고 깊게 / 문명 빛 점 제거 / 육지 조금 어둡고 반사감 강하게" → ⑤ "육지 조금 더 어둡게 + 테두리 미세한 푸른 광택"(현재).
+수채 지표·구름 텍스처와 구름 레이어, 도시 불빛(문명 점)은 삭제. **별(다이어리 불빛)·궤도 링(트레일)은 "지금 느낌 좋다"고 해서 계속 그대로**.
+- **조명이 핵심**(`EARTH_FS`/iOS `earthFragment`): 실제 UTC 태양 방향 `uSunDir` 로 `day = smoothstep(−0.18, 0.55, n·sun)`. 낮 쪽 = 밝은 푸른 유리 + 림, 밤 쪽 = 훨씬 어둡다. 지구본을 돌려도 "지금 실제로 낮인 곳"이 밝다.
+- **바다 = 깊고, 반사 없음**: 정면(수직으로 내려다보는 곳, `pow(ndv, 0.55)`)이 가장 깊은 남색 `(0.008,0.024,0.085)`, 가장자리로 갈수록 옅게 푸른 `(0.026,0.078,0.205)`(프레넬). 밤 쪽은 `×(0.28 + 0.72·day)`.
+  **대륙붕**: 육지 마스크를 **흐린 밉**(바이어스 +4 ≈ 150km / +6 ≈ 600km)으로 읽어 해안에서 멀어질수록 부드럽게 옅어지는 얕은 바다 빛 — 처음엔 주변 8탭 샘플이었는데 줌인하면 네모 흔적이 생겨 밉 2탭으로 바꿨다.
+- **육지 = 얼음 유리**: 마스크 `smoothstep(0.46, 0.54)` 면(알파 `0.70 + 0.25·day`) — 낮 `(0.13,0.25,0.52)` / 밤 `(0.034,0.064,0.17)`(10-08 세 번 "더 어둡게" 반영 — 마지막은 "햇빛 받았을 때 지금보다 더 어둡게") × 서리 노이즈 ±12%(`fbm(n·14)`).
+  **해안**: 넓은 모서리 빛 띠(`coast`, 마스크 0.18~0.82) + **해안선을 따라 가는 가는 푸른 광택 띠**(`gloss`, 마스크 0.38~0.60, 강도 `0.50·(0.30 + 0.70·태양쪽)`, 색 `(0.55,0.78,1.0)`) — 두꺼운 유리 모서리의 하이라이트, 태양 쪽 해안이 더 반짝인다.
+  **환경 반사**: 법선을 촘촘한 노이즈(`vnoise(n·24)`·±0.30)로 흔든 반사 벡터가 태양을 향할 때 넓게(`pow(·, 2.6)`) 반짝이고 고운 결(`vnoise(n·46)`)로 깨져 유리 면에 일렁이는 반사처럼 보인다 + 프레넬 코팅(`pow(edge, 1.8)`).
+  ⚠️ **동그란 하이라이트(블린-퐁 `pow(n·H, 260)`)는 일부러 없다** — 날카로운 반사 로브를 쓰면 태양 위치에 둥근 점이 생긴다(사용자가 삭제 요청). 반사 로브를 다시 좁히지 말 것.
+- **림/윤곽선**("겉 테두리를 더 잘 보이게"로 강화): `pow(edge,2.6)·1.5` 푸른 번짐 + `smoothstep(0.72,1)²·1.05` 윤곽선 — **태양 쪽 림이 `0.30 → 1.0` 으로 훨씬 밝다**(`rimLit`, 어두운 쪽도 윤곽은 읽히게 최소 0.30). 대기광 셸(`ATMO_FS`)도 `0.30 + 0.70·smoothstep(−0.2,0.8, n·sun)` 로 태양 쪽이 더 환하다(세기 0.34).
+- **육지 마스크** `assets/globe_land.jpg`(**4096×2048**, R=G=B 육지 0..255) — `tools/globe/bake_globe_land.py`: `bake_globe_textures.land_mask`(바다 = `b − max(r,g) > 17`) → **큰 블러(2.6px) + 문턱(smoothstep 0.38~0.62)으로 윤곽을 둥글게**
+  (원본의 사각 커널 형태 연산 흔적 — 네모 호수·계단 해안 — 이 줌인에서 보여서) → 마지막 블러 1.0px. 폭 ≈ 25km 보다 작은 섬/해협은 사라진다. 밉맵 사용(면/해안을 연속 UV 로 읽어 줌아웃에서 깜빡이지 않는다).
 - **은하수 성운**: `assets/globe_nebula.jpg`(2048) 를 지구 메쉬 ×`SKY_RADIUS 80` 구에 안쪽에서 — 가장 먼저, 불투명·깊이 무시.
-  분홍 성운은 앱 은하수 띠(`Rz(28°)·Rx(62°)`, 법선 ≈ (−0.22, 0.41, 0.88))를 따라 짙어지게 구웠다 — 은하수 기울기를 바꾸면 다시 구울 것.
-- **대기광**: 지구 메쉬 ×`ATMO_SCALE 1.16` 셸의 뒷면만(셰이더 `d = −n·V`, `d ≤ 0` discard) 더하기 합성. `d/0.5` 의 0.5 = 지구 윤곽 위치
-  (√(1−1/1.16²)) — 셸 크기를 바꾸면 같이 맞출 것.
-- **구름**: 결이 남는 얇은 구름(알파 0.22, 색 0.57 — 지구를 어둡게 한 만큼 같이), 그림자 쪽은 라벤더.
-- **지형 결**: 굽기 단계에서 원본 밝기의 띠(blur 2.5 − blur 14, 하이라이트는 거의 잘라냄)를 1.5배로 곱해 산맥·고원 경계를 살린다.
-  더 잘게(blur 1.2 − 9) 하면 원본 업스케일 소용돌이 무늬가 붓자국처럼 다시 보였다.
-- **다이어리 불빛 덮어 그리기**: 밝은 수채 지표에 더하기 합성이면 하얗게 날아가서 노란 점광·플레어만 `pinProgram`(SPRITE_VS + PIN_FS,
-  블렌드 ONE/ONE_MINUS_SRC_ALPHA). 정점색은 밝기 정규화해 색조만, 텍스처 알파^1.6 × 정점 알파 × gain(점광 0.7 / 플레어 1.0) + 흰 심지.
+  분홍 성운은 앱 은하수 띠(`Rz(28°)·Rx(62°)`, 법선 ≈ (−0.22, 0.41, 0.88))를 따라 짙어지게 구웠다 — 은하수 기울기를 바꾸면 다시 구울 것(`bake_globe_textures.py` 는 이제 이것만 굽는다).
+  ⚠️ 레퍼런스의 하늘은 순수 남색이라 분홍 성운과 톤이 다르다 — 거슬리면 성운 세기를 낮추거나 푸른 톤으로 다시 구울 후보.
+- **다이어리 불빛 덮어 그리기**: `pinProgram`(SPRITE_VS + PIN_FS, 블렌드 ONE/ONE_MINUS_SRC_ALPHA, 정점색은 밝기 정규화해 색조만). 어두운 유리 지구 위에서도 그대로 잘 읽혀 유지.
 - 궤적·별밭·유성·태양·12궁은 그대로.
+- **개발 방법(셰이더 튜닝)**: 기기에 올리기 전에 numpy 로 같은 식을 정사영 구에 그려 레퍼런스와 비교하며 상수를 정했다(⚠️ 시뮬 태양은 **카메라 기준**으로 잡을 것 — 지구 좌표로 잡으면 화면 중앙이 밤 쪽에 걸려 너무 어둡게 보인다).
+  GLSL 문법은 `glslangValidator`(Android SDK `emulator/lib64/vulkan/`)에 `#version 100` 을 붙여 검증. 기기에서 글로브를 열려면 지도를 줌 3 이하로 내려(− 버튼) "우주에서 보기" 를 누른다.
+  MSL 은 런타임 컴파일이라 CI 가 초록이어도 오타가 있으면 글로브가 검정 — **iOS 는 기기 확인 필수**.
+
+### 다이어리 별빛 — "퍼지는 글로우" → "빛나는 반짝임" (2026-10-08)
+사용자: "별들 조금 더 반짝이고, 퍼지는 느낌이 아니라 빛나는 느낌으로" → 이어서 "별빛이 전부 노란색 — 실제 별 색에 맞춰" · "빛 모양이 너무 아이콘 같다".
+- **텍스처를 따로 만든다** — 점광(`sparkTex`, 좋아요 100 미만)과 인기 별(`starTex`, 100+)은 더 이상 배경 별/유성이 같이 쓰는
+  `glowTex`(알파 1→0.4→0 로 넓게 번지는 원)/`flareTex` 를 쓰지 않는다.
+  `makeSparkBitmap(mainLen, crossLen, diagWeight)` 는 **픽셀마다 식으로 계산**한다(처음엔 경로로 그린 반듯한 십자라 "아이콘 같다"는 피드백):
+  또렷한 심지(가우시안 σ≈0.11) + 아주 옅은 후광 + **중심에서 지수로 약해지는 가는 빛줄기**(가로 `mainLen` > 세로 `crossLen` 이라 비대칭,
+  끝으로 갈수록 가늘고 가장자리에서 0). 인기 별만 짧고 흐린 대각 빛줄기(`diagWeight`)가 붙는다.
+  `glowTex`/`flareTex` 를 고치면 배경 별·유성·별자리 반짝별까지 바뀌니 **다이어리 별 모양은 이 두 텍스처에서만** 바꿀 것.
+- **별마다 각도를 돌린다** — `SPRITE_VS` 가 다이어리 스프라이트의 코너를 `aPhase·π`(0~180°) 만큼 돌린다(UV 는 그대로라 텍스처가 같이 돈다).
+  모든 별이 같은 가로세로 십자로 보이지 않게 하는 장치.
+- **빛 색 = 그 별의 실제 색(`starColor`)** — `lightColorOf`(Android) / `StarStyle.lightRGB`(iOS, SwiftUI 를 거치지 않는 순수 계산): 단색은 팔레트색,
+  그라데이션 별은 두 색의 평균, 마지막에 γ 1.5 로 채도를 살짝 올린다(PIN_FS 가 밝기를 정규화하므로 색조만 의미; 흰 심지와 섞여도 색이 남게).
+  예전엔 점광 전부 금빛 `(1, 0.76, 0.36)`, 인기 별은 좌표 해시로 뽑은 `FLARE_COLORS` 7색이었다(삭제됨).
+- **반짝임은 `SPRITE_VS` 의 `uSparkle`(=1) 일 때만** — 다이어리 스프라이트(`aMode < 0.5`)에서 트윙클을 `0.74 + 0.26·sin(t·(1.9 + 2.7·phase))`
+  (이전 0.82 ± 0.28, 더 빠르고 깊게) + **glint**(`sin^12`, 별마다 주기 4~9초, 한 번에 약 0.5초) `+0.55` 밝기, 크기 `+0.30·glint`.
+  다른 스프라이트(배경 별·유성·태양)는 `uSparkle = 0` 이라 이전과 동일.
+- `GLOW_PIN_GAIN` 0.7 → 1.0(번지는 면적이 줄어든 만큼 밝기 보상), 점광 크기 0.030 → 0.034(광선이 닿는 길이 고려).
+- iOS `GlobeRenderer.swift`: `sparkTex`/`starTex` = `drawSparkTexture`(같은 식을 `CGContext.data` 에 직접 계산) + `spriteVertex` 의 `u[36]`(sparkle) 로 같은 식.
+  ⚠️ MSL 은 런타임 컴파일이라 오타가 있으면 글로브 전체가 검정 — 기기에서 확인.
 
 ### ⚠️ 다이어리 불빛(별)은 깊이 버퍼로 가리지 않는다 (2026-08-06)
 지표 바로 위에 뜬 스프라이트(글로 +0.008, 플레어 +0.045)는 **카메라 정면 빌보드**라
@@ -94,11 +118,10 @@ iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Andr
 | 항목 | Android | iOS |
 |---|---|---|
 | 진입 버튼 노출 줌(3.0)/최소 줌(2.4) | `DiaryMapMarkers` GLOBE_BUTTON_ZOOM·MAP_MIN_ZOOM | `MapLibreView` globeButtonZoom·mapMinZoom |
-| 지표 색(수채 팔레트·얼룩·해안) | `assets/globe_watercolor.jpg` ← `tools/globe/bake_globe_textures.py` | 같은 파일(project.yml 참조) |
-| 지구 조명(라벤더 그림자·분홍 테두리·종이 결) | `EARTH_FS` | `shaderSource` earthFragment (**동일 식·값**) |
+| 육지 마스크(R=G=B, 4096×2048) | `assets/globe_land.jpg` ← `tools/globe/bake_globe_land.py` | 같은 파일(project.yml 참조) |
+| 유리 지구(태양 조명·깊은 바다·대륙붕·얼음 육지·해안 광택·환경 반사·림) | `EARTH_FS` | `shaderSource` earthFragment (**동일 식·값**) |
 | 성운 하늘(반지름 80) | `SKY_RADIUS` + SKY_FS, `assets/globe_nebula.jpg` | `skyRadius` + skyFragment (같은 파일) |
-| 대기광(셸 1.16, 0.225 세기) | `ATMO_SCALE` + ATMO_FS | `atmoScale` + atmoFragment (**동일 식**) |
-| 구름(알파 0.22, 라벤더 그림자) | `CLOUD_FS` | cloudFragment (**동일 값**) |
+| 대기광(셸 1.16, 푸른 (0.42,0.62,1.0)·0.26·태양 쪽 가중 0.30~1.0) | `ATMO_SCALE` + ATMO_FS | `atmoScale` + atmoFragment (**동일 식**) |
 | 다이어리 불빛 덮어 그리기(gain 0.7/1.0) | `pinProgram`/PIN_FS, GLOW/FLARE_PIN_GAIN | `pinPipeline`/pinFragment(블렌드 3), glow/flarePinGain |
 | 근거리 클립면(0.3) | `GlobeRenderer` NEAR_PLANE | `GlobeRenderer.nearPlane` (**동일 값**) |
 | 지평선 컷(-0.02~0.22) | `SPRITE_VS` 의 vis | MSL `spriteVertex` (**동일 식**) |
@@ -107,5 +130,8 @@ iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Andr
 | 트레일 | buildTrails(Random(11)) + RING_FS | buildTrails(`JavaRandom(11)`) + MSL ringFragment |
 | 유성/잔류 파장 | METEOR_* / SPARK_* | `GlobeRenderer` 같은 이름 static (**동일 값**) |
 | 다이어리 스프라이트 | FLARE_* / GLOW_* | `GlobeGeometry` (**동일 값**) |
+| 다이어리 별빛 모양(가로/세로 빛줄기 길이·대각 세기) | `SPARK_MAIN/CROSS_LEN` / `STAR_MAIN/CROSS_LEN` / `STAR_DIAG_WEIGHT` + `makeSparkBitmap` | `sparkMainLen` 등 + `drawSparkTexture` (**동일 식·값**) |
+| 다이어리 별빛 색 | `GlobeRenderer.lightColorOf` ← `StarStyle.colorsOf` | `StarStyle.lightRGB` (**동일 식: 평균 후 γ 1.5**) |
+| 다이어리 별 반짝임(빠른 깜빡임 + glint) | `SPRITE_VS` `uSparkle` 분기 | `spriteVertex` `sparkle`(= `u[36]`) 분기 (**동일 식**) |
 | 복귀 카메라 | `DiaryMap` recenterToMyLocation(줌 15) | `MapLibreView` globeReturnCamera(내 위치 줌 15) |
 | 전환 스크림 시간 | MainListScreen 170ms/520·380ms | MapScreen enter/exitGlobe(0.17/0.52·0.07·0.38s) |

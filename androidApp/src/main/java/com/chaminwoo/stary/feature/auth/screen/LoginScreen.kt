@@ -8,7 +8,14 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -42,6 +49,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -59,11 +67,12 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.chaminwoo.stary.R
-import com.chaminwoo.stary.core.ui.StarDiaryButton
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.sin
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -76,6 +85,8 @@ fun LoginScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var showUI by remember { mutableStateOf(immediate) }
+    // 영상이 끝나 정지한 뒤(또는 영상 없이 진입) 하늘 오버레이(잔별·유성)를 살린다 — LoginDecor.kt.
+    var skyVisible by remember { mutableStateOf(immediate) }
 
     // ── 이용약관(EULA) 동의 게이트 — App Store Guideline 1.2(2026-09-26) ──
     // 로그인/둘러보기 버튼을 누르면, 아직 동의하지 않았을 때 약관을 먼저 띄우고 "동의하고 계속" 뒤에 원래 동작을 잇는다.
@@ -111,6 +122,26 @@ fun LoginScreen(
         label = "haloWidth"
     )
 
+    // 로고 숨쉬는 빛: 인트로 후광 폭 애니메이션 뒤에도 후광이 천천히 맥동한다(3.8초 주기). 값은 draw 단계에서만 읽는다.
+    val breathe = rememberInfiniteTransition(label = "logoBreathe")
+    val breatheT by breathe.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(3800, easing = LinearEasing), RepeatMode.Restart),
+        label = "breatheT",
+    )
+    // 가끔 비스듬한 빛줄기가 로고를 훑는다(약 5초 간격, 1.3초) — logoGlint.
+    val glint = remember { Animatable(-0.3f) }
+    LaunchedEffect(showUI) {
+        if (!showUI) return@LaunchedEffect
+        delay(2_200)
+        while (true) {
+            glint.snapTo(-0.3f)
+            glint.animateTo(1.3f, tween(1_300, easing = FastOutSlowInEasing))
+            delay(5_200)
+        }
+    }
+    val logoBitmap = rememberLogoBitmap()
+
     // 로그인 인트로 영상(무음 mp4). res/raw/login_video.mp4 를 1회 재생.
     // 로그아웃 재진입(immediate)인 경우엔 영상을 만들지 않는다(즉시 로그인 화면).
     val exoPlayer = remember {
@@ -138,7 +169,10 @@ fun LoginScreen(
                 }
                 // 영상이 다 끝난 뒤에 지도를 로드한다(영상 우선 — 재생 중 무거운 GL 초기화로 프리즈 방지).
                 override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_ENDED) onVideoEnded()
+                    if (state == Player.STATE_ENDED) {
+                        skyVisible = true
+                        onVideoEnded()
+                    }
                 }
             }
             player.addListener(listener)
@@ -204,6 +238,9 @@ fun LoginScreen(
             )
         }
 
+        // 영상이 멈춘 뒤에도 살아 있는 하늘(잔별 반짝임 + 가끔 유성) — 영상 위, 로고/버튼 아래.
+        LivingSky(visible = skyVisible, modifier = Modifier.fillMaxSize())
+
         AnimatedVisibility(
             visible = showUI,
             enter = fadeIn(animationSpec = tween(800))
@@ -219,23 +256,32 @@ fun LoginScreen(
                     val brighten = remember {
                         ColorFilter.colorMatrix(ColorMatrix().apply { setToScale(1.7f, 1.7f, 1.7f, 1f) })
                     }
-                    // 뒤에 깔리는 빛나는 후광: 로고 복제 + 블러 + 밝게 + 살짝 확대.
+                    // 뒤에 깔리는 빛나는 후광: 로고 복제 + 블러 + 밝게 + 살짝 확대 + 숨쉬듯 맥동(알파 0.62~0.92, 크기 ±3%).
                     Image(
-                        painter = painterResource(R.drawable.logo),
+                        bitmap = logoBitmap,
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
                         colorFilter = brighten,
-                        alpha = 0.9f,
+                        filterQuality = FilterQuality.Medium,
                         modifier = Modifier
                             .width(haloWidth)
+                            .graphicsLayer {
+                                val s = 0.5f + 0.5f * sin(breatheT * 2f * PI.toFloat())
+                                alpha = 0.62f + 0.30f * s
+                                scaleX = 0.97f + 0.06f * s
+                                scaleY = 0.97f + 0.06f * s
+                            }
                             .blur(12.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
                     )
-                    // 선명한 로고(앞).
+                    // 선명한 로고(앞) + 가끔 지나가는 글린트. 밉맵 + 밀도 확대 없는 에셋(화질).
                     Image(
-                        painter = painterResource(R.drawable.logo),
+                        bitmap = logoBitmap,
                         contentDescription = "Stary",
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier.width(220.dp)
+                        filterQuality = FilterQuality.Medium,
+                        modifier = Modifier
+                            .width(220.dp)
+                            .logoGlint(glint)
                     )
                 }
 
@@ -251,21 +297,21 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        // 후광
+                        // 후광 — 예전 크림 버튼의 후광(0.85)에서 조금 낮춰 은은하게
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
                                 .padding(vertical = 10.dp)
                                 .blur(
-                                    50.dp,
+                                    48.dp,
                                     edgeTreatment = BlurredEdgeTreatment.Unbounded
                                 )
                                 .background(
-                                    Color(0xFFFFF3D4).copy(alpha = 0.85f),
+                                    Color(0xFFFFF3D4).copy(alpha = 0.62f),
                                     RoundedCornerShape(50)
                                 )
                         )
-                        StarDiaryButton(
+                        CreamCapsuleButton(
                             text = stringResource(R.string.login_google),
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { withConsent {

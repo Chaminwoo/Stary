@@ -36,9 +36,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Photo
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -108,12 +106,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
-// 공개 범위 선택지: (key, 라벨 문자열 리소스, 아이콘). 라벨은 화면에서 stringResource 로 해석(언어 반영).
-private val VisibilityOptions = listOf(
-    Triple("public",  R.string.upload_vis_public,  Icons.Filled.Public),
-    Triple("friends", R.string.upload_vis_friends, Icons.Filled.People),
-    Triple("private", R.string.upload_vis_private, Icons.Filled.Lock),
-)
+// 공개 범위 선택지(VisibilityOptions)는 DiaryVisibility.kt 에 있다 — 상세 화면(아이콘·수정)과 공유.
 
 
 @Composable

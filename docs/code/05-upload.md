@@ -54,7 +54,8 @@ iOS: `Features/Upload/UploadScreen.swift`, `BoomerangCamera.swift`, `BoomerangCa
   (좌표 불연속 방지). 잠긴 항목은 alpha 0.25+자물쇠.
   ⚠️ `commit(steps)` 는 **steps=0(반 슬롯 미만 드래그)일 때도 drag 를 0 으로 되돌려야 한다** —
   그냥 return 하면 항목과 항목 **사이**에 멈춘 채 고정된다(8.45 수정, iOS 도 동일).
-- `VisibilityOptions` : (key, 라벨 리소스, 아이콘) — 공개 범위 선택지 정의.
+- `VisibilityOptions` : (key, 라벨 리소스, 아이콘) — 공개 범위 선택지 정의. **2026-10-08 부터 `DiaryVisibility.kt` 로 이동**
+  (상세 화면의 날짜 옆 아이콘·수정 팝업 선택기와 공용 — 06 문서).
 
 ## ImageCropHelper.kt
 - `ASPECT` : 업로드/상세 공용 고정 비율(4:3). `loadDownsampled(context, uri)` : 다운샘플 디코드.

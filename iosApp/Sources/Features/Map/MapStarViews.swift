@@ -319,8 +319,9 @@ final class StarMarkerView: MLNAnnotationView {
     private static let floatAmp: CGFloat = 4.0
     private static let floatPeriod: Double = 2 * .pi / 1.6
 
-    /// 탭 영역 최소 한 변(pt) — 멀리서(별이 아주 작을 때)도 누를 수 있게.
-    private static let minTapSide: CGFloat = 28
+    /// 탭 영역 최소 한 변(pt) — 멀리서(별이 아주 작을 때)도 한 번에 눌리게. Apple HIG 최소 터치 크기 44pt
+    /// (2026-10-08: 28 → 44 — 작게 보이는 별이 한 번에 안 열린다는 피드백).
+    private static let minTapSide: CGFloat = 44
 
     private let side: CGFloat
     private let zoomHost = UIView()

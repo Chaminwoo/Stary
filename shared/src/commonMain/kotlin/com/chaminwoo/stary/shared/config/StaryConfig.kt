@@ -139,6 +139,9 @@ object StaryConfig {
     const val PLAY_STORE_URL: String =
         "https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios"
 
+    /** App Store 링크 — 웹 랜딩(iOS 기기)의 "설치" 버튼에 쓴다(비밀 아님). iOS AppConfig.appStoreUrl · web/index.html 과 동기화. */
+    const val APP_STORE_URL: String = "https://apps.apple.com/us/app/stary/id6799375537"
+
     /** 다이어리 공유 링크 — 웹 랜딩이 앱 설치자는 stary://diary/{id} 딥링크로 돌려보낸다. */
     fun shareLink(diaryId: String): String = "$SHARE_BASE_URL/s/$diaryId"
 

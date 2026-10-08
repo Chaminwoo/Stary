@@ -44,6 +44,9 @@ struct DetailScreen: View {
     @State private var editTitle = ""
     @State private var editContent = ""
     @State private var editedTitle: String?
+    /// 수정 팝업의 공개 범위 선택값 / 수정 결과 로컬 오버라이드(제목·본문과 같은 방식 — 날짜 옆 아이콘에 즉시 반영).
+    @State private var editVisibility: Visibility = .publicAll
+    @State private var editedVisibility: Visibility?
     /// 서버 선번역(2026-10-08) — 번역본을 보여 주는 글에서 "원문 보기" 토글. 표시 전용(수정/신고/공유는 계속 원문).
     @State private var showOriginal = false
     @State private var editedContent: String?
@@ -302,6 +305,14 @@ struct DetailScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     dialogField(LocaleManager.shared.t(.fieldTitle), text: $editTitle, lines: 1...1)
                     dialogField(LocaleManager.shared.t(.fieldContent), text: $editContent, lines: 3...6)
+                    // 공개 범위(전체공개/친구만/나만보기) — 올린 뒤에도 바꿀 수 있다(Android 수정 다이얼로그 패리티).
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(LocaleManager.shared.t(.uploadVisibility))
+                            .font(.minSans(12))
+                            .foregroundStyle(Theme.textSecondary)
+                        VisibilityChooser(selection: $editVisibility)
+                    }
+                    .padding(.top, 2)
                 }
             } actions: {
                 StaryDialogTextButton(LocaleManager.shared.t(.commonCancel), color: Theme.textSecondary) {
@@ -318,8 +329,10 @@ struct DetailScreen: View {
                     var d = diary
                     d.title = t
                     d.content = c
+                    d.visibilityType = editVisibility.rawValue
                     editedTitle = t
                     editedContent = c
+                    editedVisibility = editVisibility
                     Task { try? await store.save(d) }
                 }
             }
@@ -484,6 +497,9 @@ struct DetailScreen: View {
             Text("  ·  ").font(.minSans(13)).foregroundStyle(Theme.textSecondary)
             Text(Self.createdFmt.string(from: diary.createdDate))
                 .font(.minSans(13)).foregroundStyle(Theme.textSecondary)
+            // 공개 범위 아이콘 — 지구본(전체) / 친구 / 자물쇠(나만). 날짜 바로 옆(Android VisibilityBadge).
+            VisibilityBadge(visibility: editedVisibility ?? Visibility(type: diary.visibilityType))
+                .padding(.leading, 6)
         }
         .task(id: diary.userId) {
             if canOpenProfile { directory.ensureWatching(diary.userId) }
@@ -537,6 +553,7 @@ struct DetailScreen: View {
                 Button(LocaleManager.shared.t(.commonEdit)) {
                     editTitle = editedTitle ?? diary.title
                     editContent = editedContent ?? diary.content
+                    editVisibility = editedVisibility ?? Visibility(type: diary.visibilityType)
                     showEditDialog = true
                 }
                 .font(.minSans(13)).foregroundStyle(Theme.textSecondary)

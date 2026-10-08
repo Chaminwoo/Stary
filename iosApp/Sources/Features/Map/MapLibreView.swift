@@ -174,8 +174,9 @@ struct MapLibreView: UIViewRepresentable {
         mapView.allowsRotating = false
         mapView.allowsTilting = false
 
-        // 사용자 위치.
-        mapView.showsUserLocation = true
+        // 내 위치는 MapLibre 기본 퍽(파란 점) 대신 스타일 레이어(초록 원 — Android 와 동일)로 그린다.
+        // 줌을 풀수록 작아지게 하려고(MapStyleEffects 의 current-location-layer).
+        mapView.showsUserLocation = false
 
         // 최소 줌.
         mapView.minimumZoomLevel = Self.mapMinZoom
@@ -193,6 +194,7 @@ struct MapLibreView: UIViewRepresentable {
         context: Context
     ) {
         context.coordinator.parent = self
+        context.coordinator.updateMyLocation(userLocation)
 
         // 최초 실제 위치 fix.
         if !context.coordinator.didAutoCenter,
@@ -374,6 +376,10 @@ struct MapLibreView: UIViewRepresentable {
 
         weak var styleRef: MLNStyle?
         weak var mapRef: MLNMapView?
+
+        /// 내 위치 점(초록 원) 소스 / 마지막으로 반영한 좌표(MapStyleEffects.updateMyLocation).
+        weak var myLocationSource: MLNShapeSource?
+        var lastMyLocation: CLLocationCoordinate2D?
 
         var twinkleTimer: Timer?
         var twinkleT: Double = 0

@@ -49,6 +49,10 @@ struct MyStarsScreen: View {
     @State private var sortNonce = 0
     /// false = 떠다니는 별 보드(기본), true = 1열 리스트.
     @State private var listMode = false
+    /// 떠다니는 별을 누르면 바로 상세로 — NavigationLink(버튼 제스처가 스크롤/드래그와 경쟁해 한 박자 늦거나 씹힘) 대신
+    /// 손을 떼는 즉시 반응하는 탭 + 프로그래매틱 push.
+    @State private var openedDiary: Diary?
+    @State private var showOpened = false
 
     private var mine: [Diary] { store.mine(uid: auth.uid) }
 
@@ -113,8 +117,11 @@ struct MyStarsScreen: View {
                         listColumn
                             .padding(.horizontal, 16)
                     } else {
-                        FloatingStarBoard(diaries: sorted, sortNonce: sortNonce)
-                            .padding(.horizontal, 12)
+                        FloatingStarBoard(diaries: sorted, sortNonce: sortNonce) { d in
+                            openedDiary = d
+                            showOpened = true
+                        }
+                        .padding(.horizontal, 12)
                     }
 
                     Spacer().frame(height: 32)
@@ -124,6 +131,9 @@ struct MyStarsScreen: View {
         .navigationTitle(locale.t(.navMyDiary))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Diary.self) { DetailScreen(diary: $0) }
+        .navigationDestination(isPresented: $showOpened) {
+            if let d = openedDiary { DetailScreen(diary: d) }
+        }
         .firstVisitInfo(key: "mydiary", systemImage: "book.fill",
                         title: locale.t(.onbMyDiaryTitle),
                         message: locale.t(.onbMyDiaryMsg))
@@ -414,6 +424,8 @@ private struct ConstellationBackgroundView: View {
 private struct FloatingStarBoard: View {
     let diaries: [Diary]
     let sortNonce: Int
+    /// 별을 탭하면 호출 — 상세 진입은 상위 화면이 한다.
+    let onOpen: (Diary) -> Void
 
     private let columns = 4
     private let rowHeight: CGFloat = 96
@@ -435,11 +447,11 @@ private struct FloatingStarBoard: View {
                     // 정렬 순위가 높을수록 큰 별(1위 ≈ 34pt → 최소 18pt).
                     let size = max(34 - CGFloat(idx) * 1.4, 18)
 
-                    NavigationLink(value: d) {
-                        FloatingStarItem(diary: d, size: size,
-                                         duration: 2.4 + Double(seed) * 1.4)
+                    FloatingStarItem(diary: d, size: size,
+                                     duration: 2.4 + Double(seed) * 1.4) {
+                        Haptics.tick()
+                        onOpen(d)
                     }
-                    .buttonStyle(.plain)
                     .position(x: x, y: y)
                 }
             }
@@ -460,11 +472,12 @@ private struct FloatingStarBoard: View {
 }
 
 /// 부유하는 별 1개 — 개별 주기의 상하 float + **드래그 물리**(잡아끌면 따라오고, 놓으면 탄성으로 제자리 복귀).
-/// (Android DiaryStarBox 드래그 대응. 탭은 상위 NavigationLink 가 상세로 — 10pt 미만 이동이면 드래그 미발동.)
+/// (Android DiaryStarBox 드래그 대응. 탭은 `onTap` 으로 즉시 상세 — 10pt 미만 이동이면 드래그 미발동.)
 private struct FloatingStarItem: View {
     let diary: Diary
     let size: CGFloat
     let duration: Double
+    let onTap: () -> Void
 
     @State private var up = false
     @State private var drag: CGSize = .zero
@@ -474,6 +487,7 @@ private struct FloatingStarItem: View {
         StarView(type: diary.starType, colorIndex: diary.starColor, size: size)
             .frame(width: 54, height: 54)
             .contentShape(Rectangle())
+            .onTapGesture { onTap() }
             .overlay {
                 if dragging {
                     Text(diary.titleForDisplay().isEmpty ? LocaleManager.shared.t(.commonUntitled) : diary.titleForDisplay())

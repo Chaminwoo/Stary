@@ -21,14 +21,17 @@ enum StarStyle {
         Color(hex: $0).blended(with: .white, fraction: 0.30)
     }
 
-    /// 2색 그라데이션(인덱스 16부터).
-    static let gradients: [(Color, Color)] = [
-        (Color(hex: 0xFF6FD8), Color(hex: 0x8E7BFF)), // 16 오로라
-        (Color(hex: 0x43E97B), Color(hex: 0x38F9D7)), // 17 에메랄드 오로라
-        (Color(hex: 0xFFD86F), Color(hex: 0xFB6F6F)), // 18 석양
-        (Color(hex: 0x5EE7FF), Color(hex: 0x5B7CFF)), // 19 빙하
-        (Color(hex: 0x101010), Color(hex: 0xFFFFFF)), // 20 흑백(밤→여명)
+    /// 2색 그라데이션 원본 hex(인덱스 16부터) — `gradients`(Color)와 `lightRGB`(순수 계산)가 함께 쓴다.
+    private static let gradientsRaw: [(UInt32, UInt32)] = [
+        (0xFF6FD8, 0x8E7BFF), // 16 오로라
+        (0x43E97B, 0x38F9D7), // 17 에메랄드 오로라
+        (0xFFD86F, 0xFB6F6F), // 18 석양
+        (0x5EE7FF, 0x5B7CFF), // 19 빙하
+        (0x101010, 0xFFFFFF), // 20 흑백(밤→여명)
     ]
+
+    /// 2색 그라데이션(인덱스 16부터).
+    static let gradients: [(Color, Color)] = gradientsRaw.map { (Color(hex: $0.0), Color(hex: $0.1)) }
 
     static func isGradient(_ index: Int) -> Bool { index >= gradStart && index < colorCount }
 
@@ -41,6 +44,27 @@ enum StarStyle {
     static func color(_ index: Int) -> Color {
         let i = min(max(index, 0), colorCount - 1)
         return i >= gradStart ? gradients[i - gradStart].0 : palette[i]
+    }
+
+    /// 3D 글로브 별빛 색(0..1 RGB) — Android `GlobeRenderer.lightColorOf` 와 같은 식. SwiftUI/UIKit 을 거치지 않는 **순수 계산**이라
+    /// 백그라운드(글로브 스프라이트 빌드)에서 불러도 된다. 단색은 흰색 30% 혼합(palette 와 동일), 그라데이션은 두 색의 평균,
+    /// 마지막에 γ 1.5 로 채도를 살짝 올려 흰 심지와 섞여도 색이 남게 한다.
+    static func lightRGB(_ index: Int) -> (r: Float, g: Float, b: Float) {
+        let i = min(max(index, 0), colorCount - 1)
+        func comps(_ hex: UInt32) -> (Float, Float, Float) {
+            (Float((hex >> 16) & 0xFF) / 255, Float((hex >> 8) & 0xFF) / 255, Float(hex & 0xFF) / 255)
+        }
+        let r: Float, g: Float, b: Float
+        if i >= gradStart {
+            let (a, c) = gradientsRaw[i - gradStart]
+            let (ar, ag, ab) = comps(a)
+            let (cr, cg, cb) = comps(c)
+            r = (ar + cr) / 2; g = (ag + cg) / 2; b = (ab + cb) / 2
+        } else {
+            let (sr, sg, sb) = comps(solidsRaw[i])
+            r = sr + (1 - sr) * 0.30; g = sg + (1 - sg) * 0.30; b = sb + (1 - sb) * 0.30
+        }
+        return (powf(r, 1.5), powf(g, 1.5), powf(b, 1.5))
     }
 
     /// 채우기 스타일 — 단색/그라데이션을 공용으로 다루기 위한 묶음.

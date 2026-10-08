@@ -126,6 +126,7 @@ fun DetailScreen(
     var showFullImage by remember { mutableStateOf(false) }
     var editTitle by remember { mutableStateOf("") }
     var editContent by remember { mutableStateOf("") }
+    var editVisibility by remember { mutableStateOf("public") }
     val repository = remember { FirebaseDiaryRepository() }
     val context = LocalContext.current
 
@@ -316,12 +317,17 @@ fun DetailScreen(
                         shape = RoundedCornerShape(10.dp), colors = fieldColors,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
                     )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    // 공개 범위(전체공개/친구만/나만보기) — 올린 뒤에도 바꿀 수 있다. 컴포저블은 DiaryVisibility.kt.
+                    Text(stringResource(R.string.upload_visibility), color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    VisibilityChooser(selected = editVisibility, onSelect = { editVisibility = it })
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(editTitle, editContent)) com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)) // 부적절한 표현 필터(App Store 1.2)
-                    else { showEditDialog = false; diaryViewModel.updateDiary(currentDiary.copy(title = editTitle, content = editContent)) }
+                    else { showEditDialog = false; diaryViewModel.updateDiary(currentDiary.copy(title = editTitle, content = editContent, visibilityType = editVisibility)) }
                 }) {
                     Text(stringResource(R.string.common_save), color = MaterialTheme.colorScheme.onBackground)
                 }
@@ -581,6 +587,8 @@ fun DetailScreen(
                             createdStr,
                             fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary
                         )
+                        // 공개 범위 아이콘 — 지구본(전체) / 친구 / 자물쇠(나만). 날짜 바로 옆.
+                        VisibilityBadge(currentDiary.visibilityType, modifier = Modifier.padding(start = 6.dp))
                     }
                 }
             }
@@ -667,7 +675,7 @@ fun DetailScreen(
                             CompactTextAction(
                                 text = stringResource(R.string.common_edit),
                                 color = MaterialTheme.colorScheme.secondary,
-                                onClick = { editTitle = currentDiary.title; editContent = currentDiary.content; showEditDialog = true },
+                                onClick = { editTitle = currentDiary.title; editContent = currentDiary.content; editVisibility = currentDiary.visibilityType; showEditDialog = true },
                             )
                             CompactTextAction(
                                 text = stringResource(R.string.common_delete),

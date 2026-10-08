@@ -195,6 +195,18 @@ internal const val PIONEER_SOURCE = "pioneer-source"
 internal const val PIONEER_LAYER = "pioneer-layer"
 internal const val PIONEER_ICON_ID = "pioneer-icon"
 
+/**
+ * 내 위치 점(초록 원) 크기 — **줌을 풀수록 작아진다**(2026-10-08). (줌, 반지름, 테두리 두께) — 사이는 선형 보간, 양 끝 밖은 끝값 유지.
+ * 줌 15(기본 진입 줌) = 예전 고정값(반지름 7 / 테두리 2). iOS `MapStyleEffects` 의 `StyleFx.myLocationStops` 와 같은 값.
+ */
+internal val MY_LOCATION_STOPS = listOf(
+    Triple(2f, 2.0f, 0.8f),
+    Triple(6f, 3.0f, 1.0f),
+    Triple(10f, 4.5f, 1.4f),
+    Triple(13f, 6.0f, 1.8f),
+    Triple(15f, 7.0f, 2.0f),
+)
+
 /** 3D 글로브 "지구 보기" 버튼 노출 줌(이하로 줌아웃하면 버튼 표시 — 자동 전환 없음) / 지도 최소 줌. */
 internal const val GLOBE_BUTTON_ZOOM = 3.0
 internal const val MAP_MIN_ZOOM = 2.4

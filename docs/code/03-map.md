@@ -74,6 +74,8 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - `mapView` : `rememberMapViewWithLifecycle()` — MapView 를 Compose+액티비티 생명주기에 묶음.
 - `styleJson` : `res/raw/maplibre_style.json` 을 읽어 `__MAPTILER_KEY__` 를 BuildConfig 키로 치환.
 - `mapRef` / `styleRef` : 비동기 초기화된 MapLibreMap/Style 참조(null 이면 아직 준비 전).
+- **내 위치 점(초록 원)은 줌을 풀수록 작아진다**(2026-10-08): `MY_LOCATION_STOPS`(줌 2→반지름 2.0 … 15→7.0, 테두리도 같이 — DiaryMapMarkers.kt). iOS 는 `StyleFx.myLocationStops`(MapStyleEffects.swift, 같은 값) —
+  기본 파란 퍽을 끄고 같은 초록 원 레이어로 그린다(별이 어노테이션 뷰라 iOS 는 점이 별 아래).
 - 소스 참조: `locationSource`(내 위치 점) / `diarySource`(별 마커) / `orbitSource`(겹친 별 위성)
   / `constellationSource`(별자리 라인) / `pioneerSource`(개척 비콘).
 - `orbitFade` : 위성 등장 페이드(머지 전환이 끝난 뒤 부드럽게).
@@ -235,6 +237,8 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   최소 28pt) → `floatHost`(위아래 부유 `transform.translation.y` ±4pt, 주기 2π/1.6s ±5%) → `sparkleHost`(줌 게이트 alpha) + 위성 + 대표 별.
   ⚠️ **어노테이션 뷰 자신의 `transform`/`layer.transform` 은 건드리지 않는다** — MapLibre 가 `scalesWithViewingDistance` 로 기울기 원근 배율을 거기에 넣는다.
   MapStarReveal 은 어노테이션 뷰의 alpha·`layer.sublayerTransform` 을 쓰므로 충돌 없음.
+- **터치 영역 최소 44pt**(2026-10-08, `StarMarkerView.minTapSide` 28 → 44 = Apple HIG): 멀리서 작게 보이는 별이 한 번에 안 눌린다는 문제 대응.
+  겹침이 심한 곳에선 이웃 별 영역과 겹칠 수 있으나 클러스터링이 이미 가까운 별을 합친다.
 - "별마다 다르게": id 의 **FNV-1a 안정 해시**(`StarMotionHash`, Swift `hashValue` 는 실행마다 달라서 금지) → `StarMotionRandom`(SplitMix64) —
   부유 위상, 스파클 반경(x0.88~1.12)·속도(x0.8~1.25)·방향(안쪽 랜덤/바깥 반대)·타원 기울기(±0.5rad)·위상·반짝임(0.30~0.90, 각속도 2.4~3.45),
   겹친 별 위성 앵커 회전·떠다니는 위상. 위상은 `timeOffset`(전역 시계에 동기화하면 전부 같은 모양이 됨).
