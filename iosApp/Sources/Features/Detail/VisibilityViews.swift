@@ -18,8 +18,9 @@ extension Visibility {
         }
     }
 
-    /// 현재 앱 언어의 라벨(전체공개/친구만/나만보기).
-    var localizedLabel: String {
+    /// 현재 앱 언어의 라벨(전체공개/친구만/나만보기). ⚠️ `LocaleManager` 가 메인 액터 전용이라 이 속성도 메인 액터 —
+    /// 사용처가 전부 SwiftUI 뷰 본문이라 그대로 호출된다(CI 컴파일 오류 "main actor-isolated … in a synchronous nonisolated context" 수정).
+    @MainActor var localizedLabel: String {
         switch self {
         case .publicAll: return LocaleManager.shared.t(.uploadVisPublic)
         case .friends: return LocaleManager.shared.t(.uploadVisFriends)
