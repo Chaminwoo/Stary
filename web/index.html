@@ -54,23 +54,80 @@
   .btn-ghost { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.16); }
   .brand { margin-top: 40px; letter-spacing: .32em; font-weight: 700; font-size: .9rem; color: rgba(255,255,255,.85); }
   .tagline { margin-top: 8px; font-size: .75rem; color: rgba(255,255,255,.45); }
+  button.btn { font-family: inherit; cursor: pointer; border: 0; -webkit-appearance: none; appearance: none; }
+  .btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  .kicker, #share { display: none; }
+
+  /* ── 친구 초대 페이지(/i/{uid}) — 앱과 같은 3D 글로브를 배경으로, 수락/친구 초대 버튼 패널을 올린다.
+        글로브는 globe/globe.js(WebGL). 불가하면 body.globe-on 이 빠져 예전 별 아이콘 화면으로 폴백. ── */
+  #globe { display: none; position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; touch-action: none; cursor: grab; }
+  #globe:active { cursor: grabbing; }
+  body.globe-on #globe { display: block; }
+  body.globe-on #sky, body.globe-on .star { display: none; }
+  body.invite { display: block; background: #02030a; }
+  body.invite main {
+    position: fixed; left: 0; right: 0; bottom: 0; max-width: none;
+    padding: 0 16px calc(16px + env(safe-area-inset-bottom)); pointer-events: none;
+  }
+  body.invite .panel {
+    pointer-events: auto; max-width: 440px; margin: 0 auto; padding: 22px 20px 16px; border-radius: 26px;
+    background: rgba(8, 12, 30, .58); border: 1px solid rgba(255,255,255,.12);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    box-shadow: 0 18px 60px rgba(0,0,0,.45);
+  }
+  body.invite .kicker { display: block; font-size: .68rem; letter-spacing: .34em; font-weight: 700; color: #9FD8FF; margin-bottom: 10px; }
+  body.invite h1 { font-size: 1.32rem; margin-bottom: 10px; word-break: keep-all; }
+  body.invite p.desc { font-size: .88rem; margin-bottom: 20px; word-break: keep-all; text-wrap: balance; }
+  body.invite p.desc .l { display: block; text-wrap: balance; }
+  body.invite p.desc .l + .l { margin-top: 4px; }
+  body.invite .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  body.invite .actions .btn { margin: 0; padding: 15px 0; display: flex; align-items: center; justify-content: center; }
+  body.invite #share { display: flex; }
+  body.invite .btn-primary { box-shadow: 0 0 28px rgba(110,231,183,.35); }
+  body.invite #store {
+    background: none; border: 0; color: rgba(255,255,255,.72); font-size: .85rem; font-weight: 600;
+    padding: 12px 0 2px; margin: 4px 0 0;
+  }
+  body.invite .brand { margin-top: 10px; font-size: .72rem; opacity: .6; }
+  body.invite .tagline { display: none; }
+  body:not(.invite) .panel { display: contents; }
+  /* 넓은 화면: 글로브는 왼쪽, 패널은 오른쪽 세로 가운데(globeBox() 의 landscape 조건과 같아야 한다) */
+  @media (min-width: 820px) and (min-aspect-ratio: 1/1) {
+    body.invite main { left: auto; top: 0; width: min(500px, 40vw); display: flex; align-items: center; padding: 24px 40px 24px 0; }
+    body.invite .panel { margin: 0; }
+  }
+  #toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
+    z-index: 5; padding: 11px 18px; border-radius: 999px; font-size: .85rem; font-weight: 600; color: #06281C;
+    background: #6EE7B7; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { .star { animation: none; } #toast { transition: none; } }
 </style>
 </head>
 <body>
 <canvas id="sky"></canvas>
+<canvas id="globe" aria-hidden="true"></canvas>
 <main>
-  <svg class="star" viewBox="0 0 100 100" aria-hidden="true">
-    <path fill="#6EE7B7" d="M50 4 Q54 42 50 50 Q54 58 50 96 Q46 58 50 50 Q46 42 50 4 Z
-      M4 50 Q42 46 50 50 Q58 46 96 50 Q58 54 50 50 Q42 54 4 50 Z"/>
-  </svg>
-  <h1 id="headline">누군가 밤하늘에<br>별 하나를 남겼어요</h1>
-  <p class="desc" id="desc">이 별은 <b>그 장소에 가야</b> 열려요.<br>
-    Stary 앱을 열고, 별이 뜬 곳으로 걸어가 보세요.</p>
-  <a class="btn btn-primary" id="openApp" href="#">앱에서 별 보기</a>
-  <a class="btn btn-ghost" id="store" href="#" aria-disabled="true">앱 설치 (준비 중)</a>
-  <div class="brand">S T A R Y</div>
-  <div class="tagline">지도 위 밤하늘에 남기는 위치 다이어리</div>
+  <div class="panel" id="panel">
+    <svg class="star" viewBox="0 0 100 100" aria-hidden="true">
+      <path fill="#6EE7B7" d="M50 4 Q54 42 50 50 Q54 58 50 96 Q46 58 50 50 Q46 42 50 4 Z
+        M4 50 Q42 46 50 50 Q58 46 96 50 Q58 54 50 50 Q42 54 4 50 Z"/>
+    </svg>
+    <div class="kicker">✦ INVITATION</div>
+    <h1 id="headline">누군가 밤하늘에<br>별 하나를 남겼어요</h1>
+    <p class="desc" id="desc">이 별은 <b>그 장소에 가야</b> 열려요.<br>
+      Stary 앱을 열고, 별이 뜬 곳으로 걸어가 보세요.</p>
+    <div class="actions">
+      <a class="btn btn-primary" id="openApp" href="#">앱에서 별 보기</a>
+      <button type="button" class="btn btn-ghost" id="share">친구 초대하기</button>
+    </div>
+    <a class="btn btn-ghost" id="store" href="#" aria-disabled="true">앱 설치 (준비 중)</a>
+    <div class="brand">S T A R Y</div>
+    <div class="tagline">지도 위 밤하늘에 남기는 위치 다이어리</div>
+  </div>
 </main>
+<div id="toast" role="status" aria-live="polite"></div>
 <script>
   // 경로에서 모드/코드 추출 → 앱 딥링크 구성.
   //  /s/{diaryId} (?d= 폴백) = 별 공유 → stary://diary/{id}
@@ -90,11 +147,15 @@
     var btn = document.getElementById("openApp");
     if (invite || qs.get("i")) {
       var code = (invite && invite[1]) || qs.get("i") || "";
+      document.body.classList.add("invite");
       document.getElementById("headline").innerHTML = "친구가 당신을<br>Stary 로 초대했어요";
       document.getElementById("desc").innerHTML =
-        "가입하고 이 링크를 <b>앱이 설치된 상태로 다시 열면</b><br>두 사람 모두 특별한 칭호를 받아요 ✦";
-      btn.textContent = "앱에서 초대 수락";
+        '<span class="l">초대를 수락하고 가입하면 <b>두 사람 모두 특별한 칭호</b>를 받아요 ✦</span>' +
+        '<span class="l">앱이 없다면 먼저 설치한 뒤, 이 링크를 다시 열어 주세요.</span>';
+      btn.textContent = "초대 수락";
       btn.href = "stary://invite/" + encodeURIComponent(code);
+      setupShare(code);
+      startGlobe();
     } else {
       var id = (share && share[1]) || qs.get("d") || "";
       btn.href = "stary://diary/" + encodeURIComponent(id);
@@ -120,8 +181,67 @@
     });
   })();
 
-  // 밤하늘 캔버스 — 잔별 + 반짝임.
-  (function () {
+  // ── 친구 초대: "친구 초대하기" = 이 초대 링크를 다른 친구에게도 공유(Web Share, 안 되면 링크 복사) ──
+  function toast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove("show"); }, 2200);
+  }
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise(function (ok, fail) {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;opacity:0;top:0;left:0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy") ? ok() : fail(); } catch (e) { fail(e); } finally { document.body.removeChild(ta); }
+    });
+  }
+  function setupShare(code) {
+    var url = code ? location.origin + "/i/" + encodeURIComponent(code) : location.href;
+    document.getElementById("share").addEventListener("click", function () {
+      var data = { title: "Stary", text: "Stary 에서 같이 별을 남겨요 ✦ 지도 위 밤하늘에 남기는 위치 다이어리", url: url };
+      if (navigator.share) {
+        navigator.share(data).catch(function (e) { if (e && e.name !== "AbortError") copyThenToast(); });
+      } else { copyThenToast(); }
+      function copyThenToast() {
+        copyText(url).then(function () { toast("초대 링크를 복사했어요"); },
+                           function () { toast("링크를 복사하지 못했어요 — 주소창의 링크를 공유해 주세요"); });
+      }
+    });
+  }
+
+  // ── 앱과 같은 3D 글로브(globe/globe.js — Android GlobeRenderer 의 WebGL 포팅) ──
+  // 지구는 화면 위쪽(세로) / 왼쪽(가로 넓은 화면)에 두고 패널을 반대편에 둔다. 조건은 위 CSS 미디어쿼리와 같아야 한다.
+  function globeBox() {
+    var W = innerWidth, H = innerHeight, p = document.getElementById("panel").getBoundingClientRect();
+    if (W >= 820 && W / H >= 1) {
+      var bw = Math.max(260, p.left - 16);
+      return { cx: bw / 2, cy: H / 2, r: Math.min(bw * 0.44, H * 0.40) };
+    }
+    var bh = Math.max(200, p.top - 8);
+    return { cx: W / 2, cy: bh / 2 + 4, r: Math.min(W * 0.42, bh * 0.44) };
+  }
+  function startGlobe() {
+    function fallback() { document.body.classList.remove("globe-on"); startSky(); }   // WebGL 불가/실패 → 예전 별 아이콘 + 잔별 화면
+    document.body.classList.add("globe-on");
+    var s = document.createElement("script");
+    s.src = "/globe/globe.js";
+    s.onerror = fallback;
+    s.onload = function () {
+      try {
+        StaryGlobe.start(document.getElementById("globe"), {
+          land: "/globe/globe_land.jpg", nebula: "/globe/globe_nebula.jpg", box: globeBox, onLost: fallback
+        }).catch(function (e) { console.warn("globe", e); fallback(); });
+      } catch (e) { console.warn("globe", e); fallback(); }
+    };
+    document.head.appendChild(s);
+  }
+
+  // 밤하늘 캔버스 — 잔별 + 반짝임. (초대 페이지는 글로브가 자기 별밭을 그리므로 글로브가 실패했을 때만 시작한다)
+  var skyStarted = false;
+  function startSky() {
+    if (skyStarted) return;
+    skyStarted = true;
     var c = document.getElementById("sky"), ctx = c.getContext("2d"), stars = [];
     function resize() {
       c.width = innerWidth * devicePixelRatio;
@@ -145,7 +265,8 @@
       });
       requestAnimationFrame(draw);
     })(0);
-  })();
+  }
+  if (!document.body.classList.contains("invite")) startSky();
 </script>
 </body>
 </html>

@@ -114,6 +114,11 @@ iOS: `Features/Globe/GlobeScreen.swift` + `GlobeRenderer.swift`(**Metal — Andr
   갱신 금지 — 과거 지도 행 원인 후보). 다른 화면으로 나가면(onDisappear) 글로브 닫힘. 웰컴 별은 글로브에 안 넘긴다.
 - 크롬: Android 처럼 **상단바는 글로브 위에 남고**, 글쓰기 FAB 만 숨긴다(`MapChromeState.globeOpen`).
 
+### 웹 포팅 (2026-10-09)
+친구 초대 웹 랜딩(`web/index.html` `/i/{uid}`)에 같은 글로브를 띄우려고 **WebGL1 로 옮겼다** — `web/globe/globe.js`(10 문서 "웹 초대 랜딩" 참고).
+`EARTH_FS`/`ATMO_FS`/`SKY_FS`/`RING_FS`/`SPRITE_VS`/`PIN_FS` 가 앱과 **같은 식·상수**다 → **앱 글로브 셰이더·상수를 바꾸면 웹 파일도 같이 고칠 것**(웹은 컴파일/유닛 검증 없이 눈으로만 비교).
+육지 마스크·성운 텍스처는 `androidApp/src/main/assets/globe_*.jpg` 의 복사본(`web/globe/`).
+
 ### 값 조절(패리티 매핑)
 | 항목 | Android | iOS |
 |---|---|---|
