@@ -206,8 +206,16 @@ struct ProfileScreen: View {
                 if AppConfig.isAdminEmail(Auth.auth().currentUser?.email) { await hidden.releaseOwnedBy(uid: uid) }
                 let snap = try? await FirestoreService.friends(of: uid).getDocuments()
                 friendsCount = snap?.documents.count ?? 0
-                if let doc = try? await FirestoreService.users.document(uid).getDocument() {
-                    profileImageUrl = doc.get("profileImageUrl") as? String
+                // 사진은 로그인 때 서버에서 확정한 값(auth.photoUrl)을 먼저 보여 주고, 서버 읽기가 되면 그 값으로 맞춘다.
+                // ⚠️ 기본 getDocument() 는 서버에 못 닿으면 **불완전한 캐시 문서**를 돌려줘 사진이 사라진 것처럼 보였다
+                //    (AuthManager.fetchServerProfile 주석 참고) — 서버 우선으로 읽고, 값이 비어 있으면 기존 표시를 지우지 않는다.
+                if profileImageUrl == nil { profileImageUrl = auth.photoUrl }
+                let userRef = FirestoreService.users.document(uid)
+                // (await 는 `??` 오른쪽에 쓸 수 없어 두 줄로 푼다)
+                var userDoc = try? await userRef.getDocument(source: .server)
+                if userDoc == nil { userDoc = try? await userRef.getDocument() }
+                if let doc = userDoc {
+                    if let p = doc.get("profileImageUrl") as? String, !p.isEmpty { profileImageUrl = p }
                     let serverTitle = doc.get("equippedTitle") as? String
                     if let t = serverTitle, !t.isEmpty {
                         // Firestore 값이 유효하면 사용하고 로컬 캐시 갱신
@@ -222,6 +230,10 @@ struct ProfileScreen: View {
                     pinnedIds = (doc.get("pinnedDiaries") as? [String]) ?? []
                 }
                 runHiddenClaims()
+            }
+            // 로그인 직후 서버 프로필 동기화가 늦게 끝나도(느린 네트워크) 사진이 따라 들어온다.
+            .onChange(of: auth.photoUrl) { url in
+                if let url, !url.isEmpty { profileImageUrl = url }
             }
             .onChange(of: equippedTitleId) { id in
                 guard let uid = auth.uid else { return }
@@ -357,6 +369,7 @@ struct ProfileScreen: View {
             guard let url = try? await ImageUploader.uploadProfile(uid: uid, data: data) else { return }
             _ = await AvatarThumbCache.shared.image(for: url, maxPixel: avatarPixelSize)
             profileImageUrl = url
+            auth.photoUrl = url // 로그인 때 확정해 둔 값도 새 사진으로(다른 화면이 옛 값을 보지 않게)
         }
     }
 

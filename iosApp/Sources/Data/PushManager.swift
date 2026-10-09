@@ -9,10 +9,25 @@ import UserNotifications
 /// 푸시 알림 탭 → 이동할 화면. (Android `DeepLinkState` 대응)
 enum PushRoute: Equatable {
     case chat(friendId: String, friendName: String)
+    /// 지도에서 그 별로 카메라 이동 + 파장(친구 새 글·첫 별 공지) — Android `MapFocusState` 대응.
     case diary(String)
+    /// 상세 화면 직행(내 글에 달린 좋아요·댓글) — Android `navigateToDetail` 대응.
+    case diaryDetail(String)
     case friends
     /// 일일 알림(오늘 기록 유도) 탭 → 업로드 화면. Android `EXTRA_OPEN_UPLOAD` 대응.
     case upload
+}
+
+extension PushRoute {
+    /// 인앱 알림(알림 목록 행 · 상단 배너) 탭 → 이동 대상. Android `NotificationScreen` 의 onClick 과 같은 분기.
+    ///  - 친구 요청 → 친구 화면 / 다이어리 없음 → 이동 없음(nil)
+    ///  - 친구 새 글 · 첫 별 공지 → 지도에서 그 별로(카메라 + 파장) / 그 외(좋아요·댓글) → 상세
+    static func from(_ n: AppNotification) -> PushRoute? {
+        if n.type == "FRIEND_REQUEST" { return .friends }
+        guard !n.diaryId.isEmpty else { return nil }
+        if n.type == "FRIEND_POST" || n.type == "FIRST_STAR" { return .diary(n.diaryId) }
+        return .diaryDetail(n.diaryId)
+    }
 }
 
 /// 푸시 탭 라우팅 요청 보관 — RootView 가 관찰해 push 한다.
@@ -192,7 +207,12 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
         } else if type == "FRIEND_REQUEST" {
             PushRouter.shared.request(.friends)
         } else if !diaryId.isEmpty {
-            PushRouter.shared.request(.diary(diaryId))
+            // Android 와 같은 분기: 좋아요·댓글(내 글) = 상세, 친구 새 글·첫 별 공지(type 없음/FIRST_STAR) = 지도 포커스.
+            if type == "LIKE" || type == "COMMENT" {
+                PushRouter.shared.request(.diaryDetail(diaryId))
+            } else {
+                PushRouter.shared.request(.diary(diaryId))
+            }
         }
         completionHandler()
     }

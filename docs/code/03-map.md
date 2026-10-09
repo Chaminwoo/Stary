@@ -208,7 +208,9 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   해금만은 `DiaryUnlockStore.shared`(`@ObservedObject unlocks`) + `location.coordinate`(실제 fix만) 로 판정 —
   Android 는 좌표를 11m 격자로 반올림해 `remember` 키로 쓰지만, iOS 는 computed property 라 별도 캐시 없이 매번 계산한다.
 - `handleStarTap(members, origin, snapshot)` : 거리 무관 → 파장(`DiaryOpenWarpData`) → 상세/카드.
-- `handleFocus(id)` : 포커스 요청 처리 — 카메라 이동 + 파동(MapWarpOverlay). 끝나면 `focus.consume()`.
+- `handleFocus(id)` : 포커스 요청 처리 — 카메라 이동 + 파동(MapWarpOverlay, `applyFocus`). 끝나면 `focus.consume()`.
+  ⚠️ 대상 별이 `store.diaries` 에 아직 없으면(알림으로 앱을 막 켠 경우) **요청을 소비하지 않고 대기** — `store.diaries.count`/`store.loading`
+  `onChange` 가 재시도하고, 로드가 끝났는데도 없으면 `store.diary(id:)` 로 Firestore 에서 직접 읽어 포커스, 그래도 없으면 토스트 후 소비(2026-10-09).
 - `.onAppear` : **하위 화면 → 루트 복귀 감지 지점.** `rootAppearedOnce && pendingDiaryId == nil`
   이면 `recenterNonce += 1`(카메라만 내 위치로 — Android 재센터 패리티).
 

@@ -84,6 +84,11 @@ iOS: `Data/AuthManager.swift`, `Features/LoginView.swift`, `Core/LocationManager
 - `AuthManager.swift` : `isSignedIn`/`uid`(= **appUserId: Google sub 규칙**)/`displayName`.
   구글 로그인(GIDSignIn)+FirebaseAuth, `ensureProfile`(users upsert + authUid),
   `requestDeletion`(7일 유예 — 문서 id=sub, authUid 기록), 상태 리스너가 `appUserId(of:)` 사용.
+  **프로필 동기화(2026-10-09, CLAUDE.md §2.6)** : `ensureProfile` 은 `fetchServerProfile`(`getDocument(source: .server)`, 3회 재시도)로
+  읽은 값만 믿는다 — 못 읽으면 서버·`nickname_` 캐시 모두 안 쓰고 `profileSyncPending` → 앱 복귀(RootView scenePhase `.active`) 때
+  `retryProfileSyncIfNeeded()` 재시도. `photoUrl`(@Published) = 서버 확정 내 사진(ProfileScreen 이 먼저 보여 줌).
+  Apple 최초 로그인 실명은 `ensureProfile(_, appleName:)` 로 직접 전달(임시값 이메일/"익명의 별"이면 실명으로 교체).
+  Android `GoogleAuthHelper.signInWithGoogle` 도 같은 규칙(`Source.SERVER` + 3회 재시도).
 - `LoginView.swift` : 인트로 영상 + 로그인 버튼(Android LoginScreen 과 동일 연출·자산). 하늘/글린트/크림 버튼은 `LoginDecor.swift`.
   별 배치·유성은 `JavaRandom`(시드 20261008 / 주기 번호) 으로 Android 와 **같은 난수 호출 순서** — 순서를 바꾸면 양쪽 배치가 달라진다(`JavaRandom.nextInt(bound)` 는 이 때문에 추가).
 - `LocationManager.swift` : `coordinate`(@Published), `coordinateOrDefault`(서울 폴백),

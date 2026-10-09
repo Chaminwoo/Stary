@@ -273,6 +273,18 @@ struct MainTabView: View {
                 path = NavigationPath()
                 chatTarget = nil; diaryTarget = nil
                 MapFocusStore.shared.request(diaryId: diaryId)
+            case .diaryDetail(let diaryId):
+                // 내 글에 달린 좋아요·댓글 → 상세 직행(Android navigateToDetail). 목록이 로드 전이어도 열리도록
+                // 구독 목록에 없으면 Firestore 에서 직접 읽는다 — 못 찾으면 조용히 무시하지 않고 안내한다.
+                path = NavigationPath()
+                chatTarget = nil; diaryTarget = nil
+                Task { @MainActor in
+                    if let d = await store.diary(id: diaryId, viewerUid: auth.uid) {
+                        diaryTarget = d
+                    } else {
+                        GlobalToast.shared.show(locale.t(.notifDiaryGone))
+                    }
+                }
             case .friends:
                 chatTarget = nil; diaryTarget = nil
                 path = NavigationPath()
@@ -347,6 +359,8 @@ struct MainTabView: View {
                 // 일일 알림 예약이 지나 있으면(오래 안 켰던 경우 등) 다시 잡는다 — 로컬 알림은
                 // 한 번 울리면 자동 반복되지 않아 앱이 살아날 때마다 확인해야 한다.
                 DailyReminderScheduler.ensureScheduled()
+                // 로그인 때 서버 프로필을 못 읽었으면(네트워크) 여기서 다시 맞춘다 — 닉네임/사진이 구글 기본값에 머물지 않게.
+                auth.retryProfileSyncIfNeeded()
             case .background, .inactive: MusicManager.shared.pause()
             @unknown default: break
             }
@@ -674,16 +688,10 @@ struct MainTabView: View {
                 chatTarget = ChatTarget(friendId: friendId, friendName: friendName)
             },
             onOpenNotification: { n in
-                // 친구 요청 알림은 다이어리가 없으므로 친구 화면(받은 요청)으로.
-                if n.type == "FRIEND_REQUEST" {
-                    path = NavigationPath()
-                    path.append(DrawerDest.friends)
-                    return
-                }
-                // 알림이 가리키는 다이어리를 현재 구독 목록에서 찾으면 상세를 push.
-                if let d = store.diaries.first(where: { $0.id == n.diaryId }) {
-                    diaryTarget = d
-                }
+                // 푸시 탭·알림 목록 행과 같은 분기(PushRoute.from): 친구 요청 → 친구 화면,
+                // 친구 새 글/첫 별 → 지도 포커스, 좋아요/댓글 → 상세. 예전엔 친구 새 글도 상세로 직행해
+                // 열람 거리 잠금을 우회했고, 목록에 아직 없는 별이면 아무 반응이 없었다.
+                if let route = PushRoute.from(n) { PushRouter.shared.request(route) }
             }
         )
     }

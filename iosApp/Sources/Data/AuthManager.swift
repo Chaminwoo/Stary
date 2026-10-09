@@ -35,6 +35,8 @@ final class AuthManager: ObservableObject {
                     await self?.ensureProfile(user)
                 } else {
                     self?.displayName = ""
+                    self?.photoUrl = nil
+                    self?.profileSyncPending = false
                 }
             }
         }
@@ -199,7 +201,9 @@ final class AuthManager: ObservableObject {
                         let change = authResult.user.createProfileChangeRequest()
                         change.displayName = name
                         try? await change.commitChanges()
-                        await self.ensureProfile(authResult.user)
+                        // appleName 을 직접 넘긴다 — 같은 로그인에서 리스너가 먼저 이메일을 이름으로 저장했을 수 있어
+                        // 단순 재호출로는 "이미 있는 이름"이 우선해 실명이 버려졌다(ensureProfile 주석 참고).
+                        await self.ensureProfile(authResult.user, appleName: name)
                     }
                 }
             }
@@ -287,38 +291,76 @@ final class AuthManager: ObservableObject {
         catch { errorMessage = error.localizedDescription }
     }
 
+    /// 내 프로필 사진 URL(서버 확정값) — [ensureProfile] 이 채우고, 프로필에서 새 사진을 올리면 갱신된다.
+    /// nil = 아직 서버 값을 모름(읽기 전/실패) 또는 사진 없음.
+    @Published var photoUrl: String?
+
+    /// 서버 프로필을 못 읽어 **아직 동기화가 안 된** 상태 — 앱이 다시 활성화될 때 [retryProfileSyncIfNeeded] 가 재시도한다.
+    private var profileSyncPending = false
+    private var isSyncingProfile = false
+
+    /// 읽기 실패로 미뤄 둔 프로필 동기화를 다시 시도(앱 복귀 시 호출). 이미 동기화됐거나 진행 중이면 아무 일도 안 한다.
+    func retryProfileSyncIfNeeded() {
+        guard profileSyncPending, !isSyncingProfile,
+              let user = Auth.auth().currentUser, !user.isAnonymous else { return }
+        Task { await ensureProfile(user) }
+    }
+
+    /// users/{uid} 를 **서버에서** 읽는다(최대 3번, 2초·4초 간격). 끝내 못 읽으면 nil.
+    ///
+    /// ⚠️ 기본 `getDocument()` 를 쓰면 안 된다 — 서버에 못 닿을 때 **로컬 캐시**를 성공으로 돌려주는데,
+    ///    재설치 직후 캐시는 비어 있고 같은 순간 앱이 쓴 `fcmToken`/`termsAcceptedAt` 같은 **쓰기 대기분만** 있는
+    ///    "불완전한 문서"가 된다. 그걸 "문서 있음 + 닉네임/사진 없음"으로 믿으면 서버의 진짜 닉네임·사진을
+    ///    구글 기본값이 덮어쓴다(= 재로그인/재설치 때 프로필 초기화). `.server` 는 서버에 못 닿으면 던지므로
+    ///    "읽기 실패"로 정확히 구분된다. (문서가 정말 없으면 exists == false 인 스냅샷이 온다.)
+    private static func fetchServerProfile(_ ref: DocumentReference) async -> DocumentSnapshot? {
+        for attempt in 0..<3 {
+            if let snap = try? await ref.getDocument(source: .server) { return snap }
+            if attempt < 2 { try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * 2_000_000_000) }
+        }
+        return nil
+    }
+
     /// users/{uid} 프로필 문서를 생성/갱신(없으면 만든다). uid = [appUserId](Google sub) 기준.
-    private func ensureProfile(_ user: User) async {
+    /// `appleName`: Sign in with Apple **최초 로그인**에서만 받을 수 있는 실명(그 외엔 nil).
+    private func ensureProfile(_ user: User, appleName: String? = nil) async {
+        isSyncingProfile = true
+        defer { isSyncingProfile = false }
         let appUid = Self.appUserId(of: user) ?? user.uid
         let ref = FirestoreService.users.document(appUid)
-        // ⚠️ **"읽기 실패"와 "문서 없음"을 반드시 구분한다.**
-        //    `try?` 로 뭉뚱그리면 네트워크가 잠깐 안 될 때 아래 setData 가 커스텀 닉네임/사진을
-        //    **구글 기본값으로 덮어써** 버린다(다른 사람 화면에도 그 값이 그대로 나간다).
-        //    Android `GoogleAuthHelper.signInWithGoogle` 과 동일한 방어.
-        var readOk = true
-        var saved: DocumentSnapshot?
-        do { saved = try await ref.getDocument() } catch { readOk = false }
+        // ⚠️ **"읽기 실패"와 "문서 없음"을 반드시 구분한다.** 그리고 읽기는 반드시 서버에서(fetchServerProfile 주석 참고).
+        //    뭉뚱그리거나 캐시를 믿으면 아래 setData 가 커스텀 닉네임/사진을 **구글 기본값으로 덮어써** 버린다
+        //    (다른 사람 화면에도 그 값이 그대로 나간다). Android `GoogleAuthHelper.signInWithGoogle` 과 동일한 방어.
+        let saved = await Self.fetchServerProfile(ref)
+        let readOk = saved != nil
+        profileSyncPending = !readOk
         // 이미 정해둔 닉네임(커스텀 포함)이 있으면 우선 — 구글 이름으로 덮어쓰지 않는다(재로그인 유지).
-        let existing = saved?.get("userName") as? String
-        let cached = UserDefaults.standard.string(forKey: "nickname_\(appUid)")
+        let existing = (saved?.get("userName") as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let cached = UserDefaults.standard.string(forKey: "nickname_\(appUid)").flatMap { $0.isEmpty ? nil : $0 }
         let googleName = user.displayName ?? user.email ?? "익명의 별"
         let name: String
-        if existing?.isEmpty == false {
-            name = existing!
-        } else if !readOk, cached?.isEmpty == false {
+        if let appleName, existing == nil || existing == user.email || existing == "익명의 별" {
+            // Apple 은 이름을 최초 1회만 준다. 같은 로그인에서 리스너가 먼저 "이메일/익명의 별" 을 저장해 뒀을 수 있어
+            // (그걸 existing 으로 믿으면 실명을 영영 못 남긴다) 그 임시값이면 실명으로 바꾼다. 직접 정한 닉네임은 건드리지 않는다.
+            name = appleName
+        } else if let existing {
+            name = existing
+        } else if !readOk, let cached {
             // 읽기 실패 — 이 기기에 남아 있는 닉네임이 구글 기본값보다 정확하다.
-            name = cached!
+            name = cached
         } else {
             name = googleName
         }
         // 프로필 **사진**도 동일 — 앱에서 올린 사진이 있으면 그대로 둔다.
         // (예전엔 항상 구글 사진으로 덮어써서 재로그인마다 프로필 사진이 초기화됐다 — 2026-08-15 수정.)
-        let existingPhoto = saved?.get("profileImageUrl") as? String
-        let photo = (existingPhoto?.isEmpty == false) ? existingPhoto! : (user.photoURL?.absoluteString ?? "")
+        let existingPhoto = (saved?.get("profileImageUrl") as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let photo = existingPhoto ?? (user.photoURL?.absoluteString ?? "")
         displayName = name
-        UserDefaults.standard.set(name, forKey: "nickname_\(appUid)")
-        // 현재 값을 확실히 아는 경우에만 기록한다(읽기 실패 시엔 손대지 않고 다음 로그인에 다시 시도).
+        // 현재 값을 확실히 아는 경우에만 기록한다(읽기 실패 시엔 손대지 않고, 앱 복귀 시 retryProfileSyncIfNeeded 가 다시 시도).
+        // 기기 캐시도 마찬가지 — 읽기 실패 때 구글 기본값을 "닉네임 캐시"로 굳히면 이후 실패 폴백이 그 값을 믿게 된다.
         if readOk {
+            UserDefaults.standard.set(name, forKey: "nickname_\(appUid)")
+            photoUrl = photo.isEmpty ? nil : photo
             // Android upsertProfile 과 동일한 3필드(검색 가능하도록) + 서버 계정삭제용 authUid.
             let data: [String: Any] = [
                 "userId": appUid,

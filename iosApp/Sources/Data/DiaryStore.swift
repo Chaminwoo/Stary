@@ -25,6 +25,21 @@ final class DiaryStore: ObservableObject {
         }
     }
 
+    /// id 로 별 하나 얻기 — 알림 탭(푸시·알림 목록·상단 배너)이 가리키는 별을 열 때 쓴다.
+    ///
+    /// 구독 목록(최신 1000개)에 있으면 그것을 쓰고, **아직 로드 전(앱을 알림으로 막 켠 경우)이거나
+    /// 목록 창 밖이면 Firestore 에서 직접 읽는다.** 예전엔 목록에서만 찾고 없으면 아무 일도 하지 않아
+    /// "알림을 눌러도 반응이 없다"로 보였다. 남의 나만 보기 글은 열지 않는다.
+    func diary(id: String, viewerUid: String?) async -> Diary? {
+        guard !id.isEmpty else { return nil }
+        if let d = diaries.first(where: { $0.id == id }) { return d }
+        guard let snap = try? await FirestoreService.diaries.document(id).getDocument(),
+              snap.exists,
+              let d = try? snap.data(as: Diary.self) else { return nil }
+        if d.visibilityType == "private" && d.userId != viewerUid { return nil }
+        return d
+    }
+
     func mine(uid: String?) -> [Diary] {
         guard let uid else { return [] }
         return diaries.filter { $0.userId == uid }

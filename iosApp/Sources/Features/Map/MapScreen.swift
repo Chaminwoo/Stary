@@ -86,6 +86,8 @@ struct MapScreen: View {
 
     // 포커스(카메라 이동) 대상.
     @State private var focusTarget: CLLocationCoordinate2D?
+    /// 목록에 없는 별을 Firestore 에서 직접 읽는 중(중복 요청 방지) — handleFocus.
+    @State private var focusFetching = false
 
     // 별 포커스 "파동" 연출 — 화면 중앙(포커스된 별)에서 물결이 퍼진다.
     @State private var showWarp = false
@@ -628,6 +630,13 @@ struct MapScreen: View {
         .onChange(of: focus.pendingDiaryId) { id in
             handleFocus(id)
         }
+        // 대기 중인 포커스 요청이 있는데 별 목록이 뒤늦게 도착/갱신되면 다시 시도(위 handleFocus 주석 참고).
+        .onChange(of: store.diaries.count) { _ in
+            if focus.pendingDiaryId != nil { handleFocus(focus.pendingDiaryId) }
+        }
+        .onChange(of: store.loading) { _ in
+            if focus.pendingDiaryId != nil { handleFocus(focus.pendingDiaryId) }
+        }
         // 웰컴 별 배치 — 실제 위치 fix 가 오면 그 근방에 1회(이미 놨거나 끝났으면 무시). Publisher 는 구독 시
         // 현재 값도 주므로 이미 fix 가 있는 상태로 지도가 떠도 바로 놓인다.
         .onReceive(location.$coordinate) { c in
@@ -698,8 +707,32 @@ struct MapScreen: View {
     }
 
     /// 포커스 요청 처리 — 대상 별 좌표로 카메라 이동 → 파동(물결) 1회.
+    ///
+    /// ⚠️ 대상 별이 아직 `store.diaries` 에 없을 수 있다 — 알림을 눌러 앱이 막 켜진 경우(목록 로드 전)가 대표적.
+    ///    예전엔 여기서 조용히 `return` 하고 **요청도 소비하지 않아**, 목록이 뒤늦게 도착해도 다시 시도하는 곳이 없어
+    ///    "알림을 눌러도 그 별로 안 간다"가 됐다. 지금은 ① 목록이 바뀔 때마다 [onChange] 가 재시도하고
+    ///    ② 로드가 끝났는데도 없으면(최신 1000개 밖/삭제) Firestore 에서 직접 읽어 보고, 그래도 없으면 안내 후 소비한다.
     private func handleFocus(_ id: String?) {
-        guard let id, let d = store.diaries.first(where: { $0.id == id }) else { return }
+        guard let id else { return }
+        if let d = store.diaries.first(where: { $0.id == id }) {
+            applyFocus(d)
+            return
+        }
+        guard !store.loading, !focusFetching else { return }
+        focusFetching = true
+        Task { @MainActor in
+            defer { focusFetching = false }
+            guard focus.pendingDiaryId == id else { return } // 그 사이 다른 요청으로 바뀜
+            if let d = await store.diary(id: id, viewerUid: auth.uid) {
+                if focus.pendingDiaryId == id { applyFocus(d) }
+            } else if focus.pendingDiaryId == id {
+                focus.consume()
+                showToast(locale.t(.notifDiaryGone))
+            }
+        }
+    }
+
+    private func applyFocus(_ d: Diary) {
         selected = nil // 열려 있던 상세 시트는 닫고 지도로
         focusTarget = CLLocationCoordinate2D(latitude: d.latitude, longitude: d.longitude)
 

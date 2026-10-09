@@ -16,6 +16,7 @@ import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -24,6 +25,7 @@ import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -92,18 +94,28 @@ object GoogleAuthHelper {
                         //    둘 다 null 로 뭉뚱그리면, 네트워크가 잠깐 안 될 때 아래 upsertProfile 이
                         //    커스텀 닉네임/프로필 사진을 **구글 기본값으로 덮어써** 버린다.
                         //    (다른 사람 화면에도 그 값이 그대로 보이므로 계정 전체가 구글 기본으로 되돌아간 것처럼 된다)
-                        val loaded: Pair<Boolean, UserProfile?> = try {
-                            val doc = staryFirestore
-                                .collection(StaryConfig.Collections.USERS).document(uid)
-                                .get().await()
-                            val profile =
-                                if (doc.exists()) doc.toObject(UserProfile::class.java)?.copy(userId = uid)
-                                else null
-                            true to profile
-                        } catch (e: Exception) {
-                            Log.w(TAG, "공개 프로필 조회 실패 — 프로필 기록을 건너뜀: ${e.localizedMessage}")
-                            false to null
+                        // ⚠️ 읽기는 반드시 **서버**(Source.SERVER)에서, 못 읽으면 최대 3번 재시도.
+                        //    기본 get() 은 서버에 못 닿을 때 로컬 캐시를 성공으로 돌려주는데, 그 캐시가 "쓰기 대기분만 있는
+                        //    불완전한 문서"(닉네임/사진 필드 없음)면 아래 upsertProfile 이 진짜 값을 구글 기본값으로 덮어쓴다.
+                        //    SERVER 는 못 닿으면 예외를 던지므로 "읽기 실패"로 정확히 구분된다. (iOS AuthManager.fetchServerProfile 동일)
+                        var loadedProfile: Pair<Boolean, UserProfile?> = false to null
+                        for (attempt in 0 until 3) {
+                            try {
+                                val doc = staryFirestore
+                                    .collection(StaryConfig.Collections.USERS).document(uid)
+                                    .get(Source.SERVER).await()
+                                val profile =
+                                    if (doc.exists()) doc.toObject(UserProfile::class.java)?.copy(userId = uid)
+                                    else null
+                                loadedProfile = true to profile
+                                break
+                            } catch (e: Exception) {
+                                Log.w(TAG, "공개 프로필 조회 실패(${attempt + 1}/3): ${e.localizedMessage}")
+                                if (attempt < 2) delay(2000L * (attempt + 1))
+                            }
                         }
+                        val loaded = loadedProfile
+                        if (!loaded.first) Log.w(TAG, "공개 프로필 조회 최종 실패 — 프로필 기록을 건너뜀")
                         val readOk = loaded.first
                         val saved = loaded.second
                         // 이미 정해둔 닉네임(커스텀 포함)이 있으면 그걸 우선 — 구글 이름으로 덮어쓰지 않는다.

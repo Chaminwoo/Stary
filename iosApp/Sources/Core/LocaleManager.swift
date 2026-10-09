@@ -188,6 +188,8 @@ enum L10n: String {
     case termsTitle, termsIntro, termsBody, termsAgree, termsDecline, termsView, termsViewDesc, contentBlocked, moreOptions, reportComment, blockUserNamed, loginEmail, emailField, passwordField, emailSignInAction, emailLoginFailed
     /// 빈 화면(StaryEmptyState) 문구 — Android notif_empty_desc / friend_empty_title / mydiary_empty_desc 패리티.
     case notifEmptyDesc, friendEmptyTitle, friendEmptyDesc
+    /// 알림을 눌렀는데 가리키는 별이 지워졌거나 볼 수 없을 때의 안내(토스트).
+    case notifDiaryGone
     // 알림 행 문구(Android notif_* 대응 — %@ = 다이어리 제목).
     case notifLikeRow, notifCommentRow, notifFriendPostRow, notifFriendRequestRow
     // 지도 열람 게이팅(Android map_waiting_fix 대응).
@@ -569,6 +571,7 @@ enum L10n: String {
         case .emailSignInAction: return ("로그인", "Sign In", "ログイン")
         case .emailLoginFailed: return ("이메일 또는 비밀번호가 올바르지 않아요.", "Incorrect email or password.", "メールアドレスまたはパスワードが正しくありません。")
         case .notifEmptyDesc:       return ("좋아요·댓글·친구의 새 별이 여기에 모여요.", "Likes, comments and your friends' new stars land here.", "いいね・コメント・友だちの新しい星がここに集まります。")
+        case .notifDiaryGone:       return ("이 별은 이제 볼 수 없어요", "This star is no longer available", "この星はもう見られません")
         case .friendEmptyTitle:     return ("아직 친구가 없어요", "No friends yet", "まだ友だちがいません")
         case .friendEmptyDesc:      return ("위 검색창에 이름을 넣어 친구를 찾아보세요.", "Search a name above to find someone.", "上の検索欄に名前を入れて探してみましょう。")
         // ⚠️ notif*Row 는 %@(다이어리 제목)를 format 으로 채운다.

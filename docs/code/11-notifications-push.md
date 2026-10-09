@@ -58,8 +58,14 @@ iOS: `Features/Notifications/NotificationsScreen.swift`, `NotificationsViewModel
 
 ## iOS 대응
 - `NotificationsViewModel/Screen` : 목록/미읽음/전체 읽음 — Android 와 같은 문서 스키마·행 구성.
+  **행 탭(2026-10-09 추가 — 그전엔 탭 핸들러 자체가 없었다)** : `NotificationsScreen.open(n)` → `PushRoute.from(n)` 분기 —
+  좋아요·댓글 = 이 목록 위에 `DetailScreen` push(`detailDiary`, 뒤로가기 = 목록), 그 외 = `PushRouter.shared.request`.
+- **`PushRoute.from(_ n: AppNotification)`(PushManager.swift) : 알림 → 이동 대상 단일 분기**(Android `NotificationScreen` onClick 패리티).
+  친구 요청 → `.friends` / 친구 새 글·`FIRST_STAR` → `.diary`(지도 포커스) / 그 외 diaryId 있음 → `.diaryDetail`(상세) / 없음 → nil.
+  푸시 탭(`didReceive`: `type == LIKE|COMMENT` → `.diaryDetail`, 그 외 diaryId → `.diary`)·알림 목록 행·인앱 배너가 모두 이걸 쓴다.
+- `DiaryStore.diary(id:viewerUid:)` : id 로 별 얻기 — 구독 목록 → 없으면 Firestore 직접 읽기(남의 나만 보기 제외). 못 찾으면 토스트 `notifDiaryGone`.
 - `InAppWatcher.swift` : NotificationPopupWatcher+ChatPopupWatcher 통합판 —
-  MainTabView 가 `startWatcher()` 로 시작, 배너 탭 → `chatTarget`/`diaryTarget` push.
+  MainTabView 가 `startWatcher()` 로 시작, 배너 탭 → 채팅은 `chatTarget` push, 알림은 `PushRoute.from` → `PushRouter`.
 - `InAppBanner.swift` : 상단 배너 호스트(`InAppBannerHost` — MainTabView ZStack).
 - **`Data/PushManager.swift`(8.45 신설) : 원격 푸시(FCM/APNs)** — Android StaryMessagingService 대응.
   - `configure()`(AppDelegate.didFinishLaunching) : Messaging/UNUserNotificationCenter 델리게이트 연결.
