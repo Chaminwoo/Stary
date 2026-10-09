@@ -90,8 +90,10 @@ enum L10n: String {
     case starlogMeta, starlogMetaDistance, starlogOpenMap
     case starlogEmptyTitle, starlogEmptyDesc, starlogFilteredEmpty, onbStarLogTitle, onbStarLogMsg
     case starlogPermanentNote
-    // 새 버전 안내(앱 실행 시 스토어에 새 버전이 있으면) — Android update_* 패리티.
-    case updateTitle, updateMsg, updateGo, updateLater
+    // 새 버전 강제 업데이트 안내(스토어에 새 버전이 있으면 닫을 수 없는 팝업) — Android update_* 패리티.
+    case updateTitle, updateMsg, updateGo
+    // 설정 > 알림: 시스템 알림 권한이 꺼져 있을 때의 안내 행(푸시가 안 오는 가장 흔한 원인) — 설정 앱의 이 앱 알림 화면으로 연결.
+    case settingsPushOff, settingsPushOffDesc
     // 하드코딩 한국어 → L10n(2026-09-25 언어 전환 재발 대응) — Android time_* / banner_* 패리티.
     case timeJustNow, timeMinutesAgo, timeHoursAgo, timeDaysAgo
     case bannerNewNotification, bannerNewMessage
@@ -255,6 +257,8 @@ enum L10n: String {
         case .coachStepMenu:          return ("내 다이어리 · 프로필 · 업적 · 친구 등\n여러 설정을 여기서 관리해요", "My Diary · Profile · Achievements · Friends and\nmore settings live here", "マイ日記・プロフィール・実績・フレンドなど\nさまざまな設定をここで管理します")
         case .coachStepFinish:        return ("지금부터 우주를 탐험하고,\n별들에 이야기를 남겨보세요!", "Now go explore the universe\nand leave your stories among the stars!", "これから宇宙を探検して、\n星に物語を残してみましょう!")
         case .coachSkip:              return ("건너뛰기", "Skip", "スキップ")
+        case .settingsPushOff:      return ("기기 알림이 꺼져 있어요", "Notifications are off on this device", "この端末の通知がオフです")
+        case .settingsPushOffDesc:  return ("채팅·친구 새 글 알림을 받으려면 설정 앱에서 Stary 알림을 켜 주세요", "Turn on Stary notifications in the Settings app to get chat and friend alerts", "チャットや友だちの新しい投稿の通知を受け取るには、設定アプリでStaryの通知をオンにしてください")
         case .settingsDailyReminder:     return ("일일 알림", "Daily reminder", "デイリーリマインダー")
         case .settingsDailyReminderDesc: return ("매일 한 번, 낮부터 밤 사이 랜덤한 시각에 — 매번 다른 시간, 다른 문장으로 알려드려요", "Once a day at a random time between midday and late evening — a different time and a different line every day", "毎日1回、昼から夜の間のランダムな時間に — 毎回ちがう時間、ちがう言葉でお知らせします")
         case .settingsAutosave:     return ("설정은 자동으로 저장돼요", "Settings are saved automatically", "設定は自動的に保存されます")
@@ -672,11 +676,10 @@ enum L10n: String {
                                             "開いた誰かの星が\n円に集まります。\n100m以内でも広告でも\n開いた日記は星の図鑑にずっと残ります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。")
         // 새 버전 안내 — Android update_* 패리티(iOS 는 App Store 로 안내).
         case .updateTitle:          return ("새 버전이 나왔어요", "A new version is out", "新しいバージョンが出ました")
-        case .updateMsg:            return ("더 반짝이는 Stary 가 준비됐어요.\nApp Store에서 업데이트해 주세요.",
-                                            "A brighter Stary is ready.\nPlease update it on the App Store.",
-                                            "もっと輝くStaryの準備ができました。\nApp Storeでアップデートしてください。")
+        case .updateMsg:            return ("더 반짝이는 Stary 가 준비됐어요.\n계속 이용하려면 App Store에서 업데이트해 주세요.",
+                                            "A brighter Stary is ready.\nPlease update on the App Store to keep using the app.",
+                                            "もっと輝くStaryの準備ができました。\n引き続きご利用いただくには、App Storeでアップデートしてください。")
         case .updateGo:             return ("업데이트하러 가기", "Go to update", "アップデートする")
-        case .updateLater:          return ("나중에", "Later", "あとで")
         case .timeJustNow:          return ("방금 전", "just now", "たった今")
         case .timeMinutesAgo:       return ("%d분 전", "%d min ago", "%d分前")
         case .timeHoursAgo:         return ("%d시간 전", "%dh ago", "%d時間前")

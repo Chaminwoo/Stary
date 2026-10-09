@@ -6,6 +6,7 @@ struct RootView: View {
     @ObservedObject private var locale = LocaleManager.shared
     /// 약관 동의 직후 다시 그리게 하는 신호(동의 여부 자체는 UserDefaults — 로그인 화면에서도 쓰므로).
     @State private var termsTick = 0
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -40,8 +41,11 @@ struct RootView: View {
         }
         // 새 버전 안내 — 로그인/메인 어느 화면이든 맨 위에(Android MainScreen AppUpdatePromptHost 패리티).
         .overlay { AppUpdatePromptOverlay() }
-        // 앱을 열 때(프로세스당 1회) App Store 에 새 버전이 있는지 확인.
-        .task { await AppUpdateChecker.shared.checkOnce() }
+        // 앱을 열 때와 앞으로 돌아올 때마다 App Store 에 새 버전이 있는지 확인 — 있으면 닫을 수 없는 강제 업데이트 팝업.
+        .task { await AppUpdateChecker.shared.check() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { Task { await AppUpdateChecker.shared.check() } }
+        }
         .font(.minSans(16))   // 앱 기본 폰트(Android bodyLarge = MinSans 16sp 대응)
         // 시스템 글꼴 크기 상한 — 고정 높이 카드가 많아 그대로 두면 큰 글꼴에서 글자가 잘린다
         // (Android StaryResponsive.MAX_FONT_SCALE=1.15 대응).
@@ -361,6 +365,9 @@ struct MainTabView: View {
                 DailyReminderScheduler.ensureScheduled()
                 // 로그인 때 서버 프로필을 못 읽었으면(네트워크) 여기서 다시 맞춘다 — 닉네임/사진이 구글 기본값에 머물지 않게.
                 auth.retryProfileSyncIfNeeded()
+                // 알림 권한/APNs 등록/서버 토큰 문서를 다시 맞춘다 — 설정 앱에서 알림을 켜고 돌아온 경우,
+                // 토큰 문서가 서버에서 정리된 경우 모두 앱이 살아 있는 채로 푸시가 되살아난다(PushManager.refreshRegistration).
+                PushManager.shared.refreshRegistration()
             case .background, .inactive: MusicManager.shared.pause()
             @unknown default: break
             }

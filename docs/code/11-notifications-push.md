@@ -78,6 +78,10 @@ iOS: `Features/Notifications/NotificationsScreen.swift`, `NotificationsViewModel
     `entitlements`(iosApp/Stary.entitlements, `aps-environment`) + SPM `FirebaseMessaging`.
   - ⚠️ **Firebase 콘솔에 APNs 인증 키(.p8) 등록 + 유료 Apple Developer 계정 필수** — 없으면 토큰만 생기고
     실제 발송이 되지 않는다. 시뮬레이터는 원격 푸시 불가(실기기 필요).
+  - **2026-10-09 보강**: `refreshRegistration()` 이 앱이 활성화될 때마다(RootView scenePhase) 권한 상태를 다시 읽어 등록·토큰 문서를 맞춘다
+    (설정 앱에서 알림을 켜고 돌아온 경우·서버가 토큰을 지운 경우 복구, 10분 간격). 전면 수신은 **소리만**(`willPresent` → `[.sound]`, 배너는 인앱 배너;
+    알림 팝업 끔/그 채팅방 보는 중/남의 계정 알림이면 `[]`, `ADMIN_REPORT` 는 배너+소리). 토큰 저장은 두 문서 독립 + 실패 시 재시도, APNs 등록 실패도 재시도.
+    설정 > 알림에 시스템 권한 거부 안내 행(`settingsPushOff*` → 설정 앱 알림 화면). 서버 `APNS_OPTS` 에 `apns-push-type: alert`.
 
 ---
 

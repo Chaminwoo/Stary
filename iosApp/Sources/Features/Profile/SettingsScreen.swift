@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 설정 화면 — 배경음악/효과음 볼륨, 알림 팝업 on/off, 언어 변경. (Android SettingsScreen 패리티)
 /// 값은 [MusicManager]/[AppSettings]/[LocaleManager] 에 즉시 저장되어 전 화면에 반영된다.
@@ -13,6 +14,8 @@ struct SettingsScreen: View {
     @State private var showTerms = false
     @State private var showDeleteFailed = false
     @State private var deleting = false
+    /// 기기 알림 권한이 "허용 안 함" 인가 — 화면이 뜰 때와 설정 앱에서 돌아올 때마다 다시 읽는다.
+    @State private var systemPushDenied = false
 
     var body: some View {
         ZStack {
@@ -45,6 +48,27 @@ struct SettingsScreen: View {
                     // ── 알림 ──
                     sectionLabel(locale.t(.settingsNotification), "bell.fill")
                     glassCard {
+                        // 기기(시스템) 알림 권한이 꺼져 있으면 서버가 아무리 보내도 푸시가 안 온다 — 가장 흔한 "알림이 안 와요" 원인이라
+                        // 여기서 바로 알려 주고 설정 앱의 이 앱 알림 화면으로 보낸다. 켜져 있으면 행 자체가 없다.
+                        if systemPushDenied {
+                            Button { PushManager.openSystemNotificationSettings() } label: {
+                                HStack(spacing: 14) {
+                                    iconBadge("exclamationmark.triangle.fill", active: true)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(locale.t(.settingsPushOff))
+                                            .font(.minSans(17)).foregroundStyle(Theme.textPrimary)
+                                        Text(locale.t(.settingsPushOffDesc))
+                                            .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption).foregroundStyle(Theme.textFaint)
+                                }
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                            divider
+                        }
                         toggleRow(icon: settings.notificationsEnabled ? "bell.fill" : "bell.slash.fill",
                                   label: locale.t(.settingsNotifPopup),
                                   description: locale.t(.settingsNotifPopupDesc),
@@ -177,6 +201,11 @@ struct SettingsScreen: View {
         }
         .navigationTitle(locale.t(.navSettings))
         .navigationBarTitleDisplayMode(.inline)
+        .task { systemPushDenied = await PushManager.isSystemPushDenied() }
+        // 설정 앱에서 알림을 켜고 돌아오면 안내 행이 바로 사라진다.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            Task { systemPushDenied = await PushManager.isSystemPushDenied() }
+        }
         .staryChoiceDialog(locale.t(.languageDialogTitle), isPresented: $showLanguagePicker,
                            options: LocaleManager.supported.map { tag in
                                StaryDialogOption(languageLabel(tag), action: { locale.setLanguage(tag) })

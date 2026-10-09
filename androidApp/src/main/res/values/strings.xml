@@ -637,7 +637,6 @@
 
     <!-- 새 버전 안내(2026-09-25) — 앱을 열었을 때 Play 스토어에 새 버전이 있으면 -->
     <string name="update_title">새 버전이 나왔어요</string>
-    <string name="update_msg">더 반짝이는 Stary 가 준비됐어요.\n플레이 스토어에서 업데이트해 주세요.</string>
+    <string name="update_msg">더 반짝이는 Stary 가 준비됐어요.\n계속 이용하려면 플레이 스토어에서 업데이트해 주세요.</string>
     <string name="update_go">업데이트하러 가기</string>
-    <string name="update_later">나중에</string>
 </resources>

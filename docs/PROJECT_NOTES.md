@@ -2,7 +2,9 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.76 지도 필터 유지 — 앱을 껐다 켜도 마지막 필터 그대로(계정별)** — Android BUILD SUCCESSFUL(2026-10-07),
+> 최종 갱신: **8.80 줌 버튼 꾹 누르기 · 강제 업데이트 · iOS 푸시 보강 · AdMob app-ads.txt 원인(SPA 리라이트가 HTML 반환)** —
+> Android BUILD SUCCESSFUL(2026-10-09), 실기기 테스트 대기 · iOS 는 push 후 CI · **hosting/functions 배포 필요**.
+> 이전: **8.76 지도 필터 유지 — 앱을 껐다 켜도 마지막 필터 그대로(계정별)** — Android BUILD SUCCESSFUL(2026-10-07),
 > 실기기 테스트 대기 · iOS 는 push 후 CI.
 > 이전: **8.75 큐레이션 별 100개(전 세계 66개국 · 현지어 34개 · 위키미디어 공용 사진) 시드 도구** — `tools/seed/`,
 > 앱 코드 변경 없음. 2026-10-07 100개 업로드 후 **사용자 지시로 전부 삭제**(다이어리 100·사진 100·열람 기록 7 — DB 는 업로드 전 37개 상태).
@@ -2611,6 +2613,63 @@ node seed.js remove   # 되돌리기(seed_* 문서+하위 컬렉션, Storage dia
    iOS 점 모양/위치는 CI·실기기 확인 필요.
 - 새 파일: `androidApp/.../feature/diary/screen/DiaryVisibility.kt`, `iosApp/Sources/Features/Detail/VisibilityViews.swift`, `web/.well-known/apple-app-site-association`.
 - 검증: `:androidApp:assembleDebug` BUILD SUCCESSFUL. iOS 는 Windows 에서 컴파일 불가 → push 후 `ios.yml` CI(red/green) + 기기(셰이더는 런타임 컴파일이라 지구본 검정 화면 여부 꼭 확인).
+
+## 8.80 줌 버튼 꾹 누르기 · 강제 업데이트 · iOS 푸시 보강 · AdMob app-ads.txt 원인 (Android BUILD SUCCESSFUL 2026-10-09 · 실기기 테스트 대기 · iOS push 후 CI · **hosting 배포 필요**)
+
+사용자 요청 5건: ① iOS 튕김 점검 ② AdMob 연결 안내+적용 ③ iOS 알림이 잘 안 울림(Android→iOS 채팅·친구 새 글) ④ 줌 +/− 꾹 누르면 연속 줌 ⑤ (추가) 두 앱 모두 새 버전이 있으면 업데이트해야만 진행.
+
+### ④ 줌 버튼 꾹 누르기 (Android + iOS, 값 동일)
+- 탭 = 예전처럼 한 단계(부드럽게). **320ms 이상 누르면 손을 뗄 때까지 프레임마다 연속 줌**, 속도 1.1 → 2.4 줌레벨/초(1.2초에 걸쳐 가속).
+- Android `DiaryMap.kt` 의 `ZoomHoldButton`: FAB 의 `interactionSource` pressed 상태 → `LaunchedEffect` 가 `withFrameNanos` 루프로 `moveCamera(zoomBy)`.
+  연속 줌을 했으면 뗄 때의 `onClick` 은 `held` 플래그로 무시(한 단계가 더 얹히지 않게).
+- iOS `Features/Map/MapZoomHold.swift`: `MapZoomHold`(CADisplayLink → `setZoomLevel(animated:false)`) + `ZoomHoldGesture`(DragGesture(0) — 탭/꾹 판정, `@GestureState` 가 취소에도 풀려 연속 줌이 안 멈추는 일 방지).
+  `MapScreen` 이 `@State zoomHold` 를 만들어 `MapLibreView(zoomHold:)` 로 넘기고, `updateUIView` 가 `hold.mapView`/`onFinish` 를 연결.
+- ⚠️ **프레임마다 지도가 "바뀜"으로 보고된다** → `Coordinator.regionDidChange` 가 `MapZoomHold.isHolding` 이면 가벼운 줌 반영만 하고
+  (별 크기·마커 게이트·스타일·글로브 버튼) 별자리 재구성·카메라 저장은 건너뛴다. 손을 떼면 `onFinish` → `settleCamera` 로 한 번에. (원래 본문을 `settleCamera` 로 분리.)
+
+### ⑤ 강제 업데이트 (Android + iOS)
+- 스토어에 새 버전이 있으면 **닫을 수 없는 팝업**("나중에" 삭제, 바깥 탭·뒤로가기 무시, 스토어로 가도 팝업 유지). `update_later`/`updateLater` 문자열 삭제, `update_msg` 문구를 "계속 이용하려면…"으로.
+- 확인 시점: 앱 열 때 + **앞으로 돌아올 때마다**(Android ON_RESUME / iOS scenePhase .active). 성공한 확인 뒤 30분은 재확인 안 함, 실패(네트워크·비스토어 설치)면 다음 복귀 때 재시도.
+- Android `AppUpdateChecker.check`(구 checkOnce) — Play 인앱 업데이트 `UPDATE_AVAILABLE`(기기 호환·단계적 출시를 Play 가 걸러 준다). 디버그 미리보기 `debugShow()` 만 뒤로가기로 닫힌다.
+- iOS `AppUpdateChecker.check` — iTunes lookup 의 `version` > 설치본. **`minimumOsVersion` 이 이 기기 OS 보다 높으면 막지 않는다**(스토어가 업데이트를 안 주는 기기를 영구 차단하지 않으려고).
+- ⚠️ 출시 직후 몇 시간은 lookup/Play 가 새 버전을 아직 못 볼 수 있다(그 사이엔 안 막힌다 — 정상). 새 버전을 올리면 **이전 버전 사용자는 전원 막힌다** — 출시 순서 주의
+  (심사 통과 후 스토어에 공개되는 시점부터 적용).
+
+### ③ iOS 푸시가 잘 안 울리던 문제 — 코드로 고친 것
+서버(`functions/index.js`)는 정상이었다(토큰 수집·`sendEachForMulticast`·APNs 블록 모두 있음). 원인 후보를 클라이언트에서 막았다:
+1. **알림 권한/등록을 프로세스당 1번만** 했다 → 설정 앱에서 알림을 켜고 돌아와도 등록이 안 됐다. `PushManager.refreshRegistration()` 이 **앱이 활성화될 때마다**
+   권한 상태를 다시 읽어(notDetermined→요청, 허용→`registerForRemoteNotifications`) 맞춘다(RootView scenePhase .active).
+2. **전면(포그라운드)에서 완전 무음**이었다(`willPresent` 가 `[]`). 이제 **소리는 낸다**(배너는 인앱 배너가 담당). 소리 생략: 알림 팝업 끔 / 지금 그 채팅방 보는 중 / 다른 계정 앞 알림. 운영자 신고 알림은 전면에서도 시스템 배너.
+3. 토큰 문서 저장: 앞 쓰기(`users`)가 실패하면 서버가 실제로 쓰는 `fcmTokens` 쓰기까지 건너뛰었다 → 두 쓰기를 독립으로, 실패 시 15초 뒤 최대 4회 재시도. 앱이 켜진 채로도 10분 간격으로 토큰 문서를 다시 써서(서버가 만료로 지운 경우 복구) 되살린다.
+4. APNs 등록 실패(순간 네트워크) → 20초 뒤 최대 3회 재시도(`registrationFailed`).
+5. 설정 > 알림에 **"기기 알림이 꺼져 있어요" 안내 행**(시스템 권한이 거부일 때만) → 탭하면 설정 앱의 이 앱 알림 화면. 가장 흔한 원인이라 앱 안에서 알려 준다.
+6. 서버 APNs 헤더에 `apns-push-type: alert` 명시(`APNS_OPTS`) — **Functions 재배포 필요**(`firebase deploy --only functions`).
+- ⚠️ **코드만으론 못 고치는 것**(Windows 라 실기기 재현 불가): Firebase 콘솔 > 클라우드 메시징에 **APNs 인증 키(.p8)** 등록 여부, 수신자 기기의 알림 허용, Firestore `users/{uid}/fcmTokens` 에 iOS 토큰(`platform: ios`)이 실제로 있는지.
+  Android→iOS 만 안 오는 비대칭이면 iOS 쪽 토큰/APNs 문제다 — `docs/code/11-notifications-push.md` "푸시가 안 올 때" 순서로 Functions 로그(`sendToUser … 토큰 없음` / `발송 실패 (…)`)부터 본다.
+
+### ① iOS 튕김 — 정적 점검 결과 (확정 원인 없음)
+Windows 라 실기기 크래시를 재현할 수 없어 코드 패턴을 훑었다: 강제 언래핑·`as!`·`try!`·`fatalError`·배열 인덱스(`[0]`)·`removeFirst`·숫자 변환(`UInt64(…)`/`Int(Double)` NaN)·
+Metal 셰이더/파이프라인/텍스처 실패 경로·`setVertexBytes` 4KB 한도·Info.plist 권한 문구(카메라/사진/위치/추적 — 마이크·사진 저장은 쓰는 코드 없음) → **즉시 크래시를 일으키는 확정 결함은 못 찾았다.**
+(Metal 은 실패하면 nil 반환/미표시로 안전 폴백, 광고는 앱 ID 가 비면 SDK 를 시작하지 않는다.)
+**다음 단계는 실제 크래시 로그**: Xcode > Window > Organizer > Crashes(TestFlight 빌드) 또는 기기 설정 > 개인정보 보호 > 분석 및 향상 > 분석 데이터의 `Stary-…ips`.
+의심 구간(로그 없이 추정): 별 마커가 `UIView` 주석이라 별이 많을 때 CPU/메모리(지도 별 100개+), 글로브 Metal 셰이더 첫 컴파일 지연(메인 스레드), 광고 SDK 3종 동시 로드.
+
+### ② AdMob — 이미 연결돼 있다. 막힌 건 **app-ads.txt**
+- 코드: Android `core/ads/AdMobRewarded.kt` + iOS `Core/AdMobRewarded.swift` 가 이미 LevelPlay 실패 시 폴백으로 연결돼 있다(8.60/8.73). 필요한 건 **ID 입력**(아래).
+- 사용자가 본 오류(앱 확인 불가 / "세부정보가 AdMob 계정과 일치하지 않는 것 같습니다")의 **원인 확정**: 개발자 웹사이트(`momentdiary-f26c8.web.app`)에 `app-ads.txt` 가 없어서
+  `firebase.json` 의 SPA 리라이트(`** → /index.html`)가 **홈페이지 HTML 을 200 으로** 돌려줬다(curl 로 확인: `Content-Type: text/html`, 15604바이트). AdMob 이 그 HTML 을 읽고 "불일치"로 판정.
+- 고친 것: `web/app-ads.txt`(`google.com, pub-2821259357233234, DIRECT, f08c47fec0942fa0`) 추가 + `firebase.json` 에 `/app-ads.txt` 헤더(`text/plain`, 캐시 5분).
+  Firebase Hosting 은 실제 파일이 있으면 리라이트보다 먼저 서빙한다. `web.app` 은 공개 접미사 목록에 있어 이 호스트 자체가 등록 도메인으로 인정된다.
+- **사용자가 할 일**(순서대로): ① `firebase deploy --only hosting` ② `https://momentdiary-f26c8.web.app/app-ads.txt` 를 브라우저로 열어 위 한 줄만 보이는지 확인
+  ③ Play Console(스토어 설정 > 연락처 > 웹사이트)과 App Store Connect(마케팅 URL/지원 URL)에 **이 도메인**이 등록돼 있는지 확인 ④ AdMob > 앱 > app-ads.txt > 확인(몇 분~며칠).
+  ⑤ LevelPlay 줄이 필요하면 대시보드가 알려 주는 줄을 같은 파일에 추가(모르는 ID 를 지어내지 않았다).
+- 광고 단위 ID 넣는 곳: Android `secrets.properties` 의 `ADMOB_APP_ID_ANDROID` / `ADMOB_REWARDED_AD_UNIT_ANDROID`(릴리즈 전용, 현재 주석 처리), iOS `Config/Local.secrets.xcconfig` + GitHub Secrets 4개(`docs/IOS_ADS_SETUP.md`).
+  ⚠️ 디버그 빌드는 값과 무관하게 구글 테스트 광고만 쓴다 — 실광고는 스토어 설치본에서만.
+
+### 파일
+- Android: `feature/map/screen/DiaryMap.kt`(ZoomHoldButton), `core/util/AppUpdateChecker.kt`, `core/ui/AppUpdatePrompt.kt`, `feature/home/screen/MainScreen.kt`, `res/values{,-en,-ja}/strings.xml`(update_later 삭제·update_msg).
+- iOS: 신규 `Features/Map/MapZoomHold.swift`; 수정 `MapScreen`, `MapLibreView`, `Data/PushManager.swift`, `Data/AppUpdateChecker.swift`, `AppDelegate.swift`, `Features/RootView.swift`, `Features/Profile/SettingsScreen.swift`, `Core/LocaleManager.swift`(updateLater 삭제, settingsPushOff*).
+- 서버/웹: `functions/index.js`(APNS_OPTS), `web/app-ads.txt`(신규), `firebase.json`(헤더).
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **(8.79·사용자) iOS 유니버설 링크 마무리** — ① ~~AASA 의 `TEAMID` 교체~~ 완료(`3G3447GK74`, 2026-10-08)

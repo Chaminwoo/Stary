@@ -64,6 +64,11 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
     private var appUserId: String?
     private var fcmToken: String?
     private var didRequestAuthorization = false
+    /// APNs 등록 실패 재시도 횟수 / 토큰 저장 실패 재시도 횟수(성공하면 0 으로).
+    private var registerRetries = 0
+    private var saveRetries = 0
+    /// 마지막으로 토큰을 서버에 확인 저장한 시각 — 포그라운드 복귀 때마다 쓰기가 나가지 않게 간격을 둔다.
+    private var lastSavedAt: Date?
 
     /// 앱 시작 직후(AppDelegate) 1회 — 델리게이트만 연결한다(권한 요청은 로그인 후 [setUser]).
     func configure() {
@@ -75,17 +80,66 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
     func setUser(_ uid: String?) {
         appUserId = uid
         guard uid != nil else { return }
-        requestAuthorizationIfNeeded()
+        // 계정이 바뀌었을 수 있다 → 저장 간격(10분)을 무시하고 바로 이 계정에 토큰을 기록한다(refreshRegistration 이 저장까지 한다).
+        lastSavedAt = nil
+        refreshRegistration()
+    }
+
+    /// 앱이 활성화될 때마다(RootView scenePhase) 호출 — 알림 권한 상태를 **다시 읽고** APNs 등록을 맞춘다.
+    ///
+    /// ⚠️ 예전엔 프로세스당 한 번(권한 팝업 응답 직후)만 `registerForRemoteNotifications` 를 불러서,
+    ///    설정 앱에서 알림을 켜고 돌아와도(앱이 죽지 않았다면) 등록이 안 돼 **다시 켤 때까지 푸시가 안 왔다.**
+    ///    또 토큰 문서가 서버에서 정리(만료 판정)돼도 앱이 계속 켜져 있으면 되살아날 길이 없었다 → 일정 간격으로 다시 저장한다.
+    func refreshRegistration() {
+        guard appUserId != nil else { return }
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            let status = settings.authorizationStatus
+            DispatchQueue.main.async { self?.applyAuthorizationStatus(status) }
+        }
+        // 토큰이 이미 있으면 (간격을 두고) 서버 문서가 살아 있도록 다시 저장.
+        if let last = lastSavedAt, Date().timeIntervalSince(last) < 600 { return }
         saveTokenIfPossible()
     }
 
-    /// 알림 권한 요청 + APNs 등록. (Android 의 POST_NOTIFICATIONS 요청 대응 — 로그인 후 1회)
+    private func applyAuthorizationStatus(_ status: UNAuthorizationStatus) {
+        switch status {
+        case .notDetermined:
+            requestAuthorizationIfNeeded()
+        case .authorized, .provisional, .ephemeral:
+            // 이미 허용됨 — 매번 등록을 불러 둔다(토큰이 바뀌었거나 방금 설정에서 켠 경우를 모두 커버, 비용 없음).
+            DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
+        case .denied:
+            // 권한 거부 = 서버가 보내도 기기에 안 뜬다(설정 앱에서 켜야 함). 설정 화면이 안내 행을 보여 준다.
+            print("⚠️ 알림 권한이 꺼져 있음 — 설정 앱에서 켜야 푸시가 온다")
+        @unknown default:
+            break
+        }
+    }
+
+    /// 시스템 알림 권한이 꺼져 있는가 — 설정 화면의 "알림이 꺼져 있어요" 안내 행용.
+    static func isSystemPushDenied() async -> Bool {
+        await withCheckedContinuation { cont in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                cont.resume(returning: settings.authorizationStatus == .denied)
+            }
+        }
+    }
+
+    /// iOS 설정 앱의 이 앱 알림 화면 열기.
+    @MainActor
+    static func openSystemNotificationSettings() {
+        // 배포 타깃이 iOS 16 이라 이 앱 전용 알림 설정 화면으로 바로 갈 수 있다.
+        if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+    }
+
+    /// 알림 권한 요청 + APNs 등록. (Android 의 POST_NOTIFICATIONS 요청 대응 — 로그인 후 최초 1회 팝업)
     private func requestAuthorizationIfNeeded() {
         guard !didRequestAuthorization else { return }
         didRequestAuthorization = true
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
             guard granted else {
-                // 권한 거부 = 서버가 보내도 기기에 안 뜬다(설정 앱에서 켜야 함).
                 print("⚠️ 알림 권한 거부됨 — 푸시 미수신 \(error?.localizedDescription ?? "")")
                 return
             }
@@ -95,8 +149,20 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
         }
     }
 
+    /// APNs 등록 실패(AppDelegate) — 네트워크가 순간 끊긴 경우가 흔하다. 몇 번만 다시 시도한다
+    /// (시뮬레이터·권한 문제는 계속 실패하므로 횟수 제한).
+    func registrationFailed(_ error: Error) {
+        print("⚠️ APNs 등록 실패: \(error.localizedDescription)")
+        guard registerRetries < 3 else { return }
+        registerRetries += 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+    }
+
     /// APNs 기기 토큰 → FCM 에 연결(AppDelegate 에서 전달). 이 연결 없이는 FCM 토큰이 발급되지 않는다.
     func setAPNsToken(_ deviceToken: Data) {
+        registerRetries = 0
         Messaging.messaging().apnsToken = deviceToken
         // 델리게이트 콜백만 믿지 않고 여기서도 한 번 당겨온다(등록 순서에 따라 콜백이 이미 지나갔을 수 있음).
         fetchTokenAndSave()
@@ -137,21 +203,43 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
         Task {
             // 이 기기의 앱 언어 — 서버가 전체 공지 푸시(첫 별)를 기기 언어로 보낼 때 쓴다(Android 패리티).
             let lang = await MainActor.run { LocaleManager.shared.effectiveLanguage }
+            // 두 문서는 서로 독립적으로 쓴다 — 예전엔 앞 쓰기가 실패하면 서버가 실제로 쓰는 기기별 문서(fcmTokens)까지 건너뛰었다.
+            var ok = true
             do {
                 try await FirestoreService.users.document(uid).setData([
                     "fcmToken": token,
                     "authUid": authUid,
                 ], merge: true)
+            } catch {
+                ok = false
+                print("⚠️ fcmToken(users) 저장 실패: \(error.localizedDescription)")
+            }
+            do {
                 try await FirestoreService.fcmTokens(of: uid).document(token).setData([
                     "platform": "ios",
                     "updatedAt": FirestoreService.nowMillis,
                     "lang": lang,
                 ])
-                print("✅ fcmToken 저장 완료 users/\(uid) …\(token.suffix(8))")
             } catch {
-                print("⚠️ fcmToken 저장 실패: \(error.localizedDescription)")
+                ok = false
+                print("⚠️ fcmToken(fcmTokens) 저장 실패: \(error.localizedDescription)")
             }
+            await self.finishSave(ok: ok, uid: uid, token: token)
         }
+    }
+
+    /// 저장 결과 정리 — 실패(대개 순간 오프라인)면 잠시 뒤 몇 번 다시 시도한다. 서버에 토큰이 없으면 그 사용자는 푸시를 아예 못 받는다.
+    private func finishSave(ok: Bool, uid: String, token: String) async {
+        if ok {
+            saveRetries = 0
+            lastSavedAt = Date()
+            print("✅ fcmToken 저장 완료 users/\(uid) …\(token.suffix(8))")
+            return
+        }
+        guard saveRetries < 4 else { return }
+        saveRetries += 1
+        try? await Task.sleep(nanoseconds: 15_000_000_000)
+        saveTokenIfPossible()
     }
 
     /// 이 기기의 토큰을 사용자에게서 떼어낸다 — **로그아웃 직전**에 부른다.
@@ -177,11 +265,30 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
 
     // MARK: - UNUserNotificationCenterDelegate
 
-    /// 전면 수신 — 시스템 배너를 띄우지 않는다(인앱 배너가 이미 같은 내용을 보여줌, Android 와 동일 정책).
+    /// 전면 수신 — 시스템 **배너는** 띄우지 않는다(인앱 배너가 이미 같은 내용을 보여줌, Android 와 동일 정책).
+    /// 다만 **소리는 낸다**: 예전엔 전면에서 `[]` 만 돌려줘 배너만 소리 없이 슬며시 떠서 "알림이 안 울린다"로 느껴졌다.
+    /// 소리를 내지 않는 경우(인앱 배너도 안 뜨는 경우와 같은 조건): 알림 팝업을 꺼 둠 / 지금 그 채팅방을 보는 중 / 다른 계정 앞으로 온 알림.
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([])
+        let info = notification.request.content.userInfo
+        let recipientId = info["recipientId"] as? String ?? ""
+        let chatFriendId = info["chatFriendId"] as? String ?? ""
+        let type = info["type"] as? String ?? ""
+        Task { @MainActor in
+            let foreignAccount = !recipientId.isEmpty && self.appUserId != nil && recipientId != self.appUserId
+            let viewingThisChat = !chatFriendId.isEmpty && ChatPresence.shared.activeFriendId == chatFriendId
+            // 운영자 신고 알림(ADMIN_REPORT)은 인앱 배너가 없다 → 전면에서도 시스템 배너로 보여 줘야 놓치지 않는다.
+            if type == "ADMIN_REPORT" {
+                completionHandler([.banner, .sound])
+            } else if type == "DAILY_REMINDER" {
+                completionHandler([]) // 일일 알림(로컬)은 앱을 쓰는 중이면 울리지 않는다 — 예전 동작 유지.
+            } else if foreignAccount || viewingThisChat || !AppSettings.shared.notificationsEnabled {
+                completionHandler([])
+            } else {
+                completionHandler([.sound])
+            }
+        }
     }
 
     /// 알림 탭 — data 페이로드로 이동 대상 결정(Cloud Functions 가 보내는 키와 동일).

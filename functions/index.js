@@ -52,7 +52,8 @@ const FCM_BATCH = 500;
  */
 const ANDROID_OPTS = { priority: "high", notification: { channelId: "stary_default" } };
 const APNS_OPTS = {
-  headers: { "apns-priority": "10" },
+  // apns-push-type: iOS 13+ 는 알림 종류 헤더를 요구한다 — 명시해 두면 "alert" 로 즉시 표시(누락 시 지연/무시 가능성 차단).
+  headers: { "apns-push-type": "alert", "apns-priority": "10" },
   payload: { aps: { sound: "default" } },
 };
 

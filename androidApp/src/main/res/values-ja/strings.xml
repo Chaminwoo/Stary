@@ -634,7 +634,6 @@
 
     <!-- 新バージョンのお知らせ (2026-09-25) -->
     <string name="update_title">新しいバージョンが出ました</string>
-    <string name="update_msg">もっと輝くStaryの準備ができました。\nPlayストアでアップデートしてください。</string>
+    <string name="update_msg">もっと輝くStaryの準備ができました。\n引き続きご利用いただくには、Playストアでアップデートしてください。</string>
     <string name="update_go">アップデートする</string>
-    <string name="update_later">あとで</string>
 </resources>

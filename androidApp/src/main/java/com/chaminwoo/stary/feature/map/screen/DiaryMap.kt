@@ -10,6 +10,8 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +59,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -710,7 +713,7 @@ fun DiaryMap(
 
         // 지도만 보기 모드에선 모든 버튼(좌상단 줌 + 우하단 FAB)을 숨긴다.
         if (!MapUiState.mapOnly) {
-        // 좌상단 줌 버튼 (+/-) — 버튼 1탭당 한 단계, 부드럽게 애니메이션 줌.
+        // 좌상단 줌 버튼 (+/-) — 탭 1회당 한 단계 부드럽게, 꾹 누르면 연속 줌.
         // 지도는 Scaffold padding 을 안 먹으므로(MainScreen) 상태바 인셋 + 탑바 실제 높이(Material3
         // CenterAlignedTopAppBar 표준 64dp)를 직접 더해 기종별 상태바 높이 차이에 안전하게 대응한다.
         val zoomButtonTopClearance = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 64.dp + 10.dp
@@ -721,24 +724,9 @@ fun DiaryMap(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            FloatingActionButton(
-                onClick = { mapRef?.animateCamera(CameraUpdateFactory.zoomBy(1.0), 220) },
-                shape = CircleShape,
-                elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
-                modifier = Modifier.size(44.dp).clickBounce().raisedCosmicBorder()
-            ) {
-                Icon(Icons.Filled.Add, stringResource(R.string.cd_zoom_in), tint = Color.White, modifier = Modifier.size(20.dp))
-            }
-            FloatingActionButton(
-                onClick = { mapRef?.animateCamera(CameraUpdateFactory.zoomBy(-1.0), 220) },
-                shape = CircleShape,
-                elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
-                modifier = Modifier.size(44.dp).clickBounce().raisedCosmicBorder()
-            ) {
-                Icon(Icons.Filled.Remove, stringResource(R.string.cd_zoom_out), tint = Color.White, modifier = Modifier.size(20.dp))
-            }
+            // 탭 = 한 단계, 꾹 누르면 손을 뗄 때까지 연속 줌(ZoomHoldButton).
+            ZoomHoldButton(Icons.Filled.Add, stringResource(R.string.cd_zoom_in), direction = 1.0) { mapRef }
+            ZoomHoldButton(Icons.Filled.Remove, stringResource(R.string.cd_zoom_out), direction = -1.0) { mapRef }
         }
             val navBottom = WindowInsets.navigationBars
                 .asPaddingValues()
@@ -1459,3 +1447,66 @@ private data class ShownStar(
     val alpha: Float,
     val sizeMult: Float,
 )
+
+/** 꾹 누르기 시작까지의 지연(ms) — 이보다 짧게 떼면 "탭"(한 단계 줌). */
+private const val ZOOM_HOLD_START_MS = 320L
+
+/** 꾹 누르는 동안의 연속 줌 속도(줌 레벨/초). 누른 시간이 길수록 [ZOOM_HOLD_RAMP_SEC] 동안 최대치까지 서서히 빨라진다. */
+private const val ZOOM_HOLD_MIN_SPEED = 1.1
+private const val ZOOM_HOLD_MAX_SPEED = 2.4
+private const val ZOOM_HOLD_RAMP_SEC = 1.2
+
+/**
+ * 지도 줌 버튼(+/−). **탭 = 한 단계 부드럽게**, **꾹 누르면 손을 뗄 때까지 프레임마다 연속 줌**(점점 빨라짐).
+ *
+ * - 꾹 누름 판정은 [MutableInteractionSource] 의 pressed 상태로 한다(FAB 의 탭/바운스/리플은 그대로).
+ * - 연속 줌을 시작했으면 손을 뗄 때 FAB 의 onClick 도 같이 불리므로, [held] 로 걸러 한 단계가 더 얹히지 않게 한다.
+ * - 줌 범위(min/maxZoom)는 MapLibre 가 알아서 막는다. 연속 줌도 일반 카메라 이동이라 글로브 버튼 노출 등은 그대로 갱신된다.
+ */
+@Composable
+private fun ZoomHoldButton(
+    icon: ImageVector,
+    contentDescription: String,
+    direction: Double,
+    map: () -> MapLibreMap?,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val held = remember { mutableStateOf(false) }
+
+    LaunchedEffect(pressed) {
+        if (!pressed) return@LaunchedEffect
+        held.value = false
+        delay(ZOOM_HOLD_START_MS)
+        held.value = true
+        val startNanos = withFrameNanos { it }
+        var lastNanos = startNanos
+        while (isActive) {
+            val now = withFrameNanos { it }
+            // 프레임이 튀어도(렉) 한 번에 크게 점프하지 않게 dt 상한.
+            val dt = ((now - lastNanos) / 1_000_000_000.0).coerceAtMost(0.05)
+            lastNanos = now
+            val heldSec = (now - startNanos) / 1_000_000_000.0
+            val t = (heldSec / ZOOM_HOLD_RAMP_SEC).coerceIn(0.0, 1.0)
+            val speed = ZOOM_HOLD_MIN_SPEED + (ZOOM_HOLD_MAX_SPEED - ZOOM_HOLD_MIN_SPEED) * t
+            map()?.moveCamera(CameraUpdateFactory.zoomBy(direction * speed * dt))
+        }
+    }
+
+    FloatingActionButton(
+        onClick = {
+            if (held.value) {
+                held.value = false // 꾹 눌러 이미 연속 줌을 했다 → 뗄 때의 클릭은 무시
+            } else {
+                map()?.animateCamera(CameraUpdateFactory.zoomBy(direction), 220)
+            }
+        },
+        interactionSource = interaction,
+        shape = CircleShape,
+        elevation = FloatingActionButtonDefaults.elevation(0.dp),
+        containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
+        modifier = Modifier.size(44.dp).clickBounce().raisedCosmicBorder()
+    ) {
+        Icon(icon, contentDescription, tint = Color.White, modifier = Modifier.size(20.dp))
+    }
+}

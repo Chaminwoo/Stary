@@ -63,6 +63,9 @@ struct MapLibreView: UIViewRepresentable {
     /// 첫 표시·데이터 갱신에는 쓰지 않는다(값이 그대로면 연출 없음). ⚠️ 멤버와이즈 init 순서상 맨 끝.
     var revealKey: Int = 0
 
+    /// 줌 버튼 꾹 누르기 연속 줌 컨트롤러(MapZoomHold.swift) — 여기서 지도 뷰를 연결해 준다. ⚠️ 멤버와이즈 init 순서상 revealKey 다음(맨 끝).
+    var zoomHold: MapZoomHold? = nil
+
     // MARK: - Constants
 
     /// 지도 최소 줌(이 밑은 3D 글로브가 담당).
@@ -195,6 +198,16 @@ struct MapLibreView: UIViewRepresentable {
     ) {
         context.coordinator.parent = self
         context.coordinator.updateMyLocation(userLocation)
+
+        // 줌 버튼 꾹 누르기: 연속 줌을 걸 지도 뷰 연결 + 손을 뗐을 때 미뤄 둔 카메라 마무리.
+        if let hold = zoomHold {
+            hold.mapView = mapView
+            let coordinator = context.coordinator
+            hold.onFinish = { [weak coordinator, weak mapView] in
+                guard let coordinator, let mapView else { return }
+                coordinator.settleCamera(mapView)
+            }
+        }
 
         // 최초 실제 위치 fix.
         if !context.coordinator.didAutoCenter,
@@ -688,6 +701,24 @@ struct MapLibreView: UIViewRepresentable {
             _ mapView: MLNMapView,
             regionDidChangeAnimated animated: Bool
         ) {
+
+            // 줌 버튼을 꾹 눌러 연속 줌 중이면(프레임마다 지도가 "바뀜" 으로 보고된다) 가벼운 줌 반영만 하고,
+            // 별자리 재구성·카메라 저장 같은 무거운 마무리는 손을 뗄 때 한 번(settleCamera) 한다.
+            if MapZoomHold.isHolding {
+                isCameraMoving = true
+                applyStarZoomScale(mapView)
+                applyMarkerGate(mapView)
+                applyStyleEffectZoom(mapView)
+                reportWorldVoid(mapView)
+                reportGlobeAvailability(mapView, idle: false)
+                return
+            }
+
+            settleCamera(mapView)
+        }
+
+        /// 카메라가 멈춘 뒤의 마무리 — 평소엔 `regionDidChange`, 연속 줌이 끝났을 때는 `MapZoomHold.onFinish` 가 부른다.
+        func settleCamera(_ mapView: MLNMapView) {
 
             isCameraMoving = false
 

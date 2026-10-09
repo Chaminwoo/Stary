@@ -38,9 +38,10 @@ private val UpdateMint = Color(0xFF6EE7B7)
 private val UpdateBlue = Color(0xFF3B82F6)
 
 /**
- * 새 버전 안내 팝업 호스트 — MainScreen 최상단에 1개. [AppUpdateChecker.showPrompt] 가 켜지면 뜬다.
- * 생김새는 화면 첫 진입 설명창([FirstVisitInfo])과 같은 카드(그라데이션 뱃지 + 제목 + 설명 + 그라데이션 버튼)에
- * "나중에" 텍스트 버튼을 더한 것. 바깥 탭/뒤로가기 = 나중에.
+ * 새 버전 **강제 업데이트** 팝업 호스트 — MainScreen 최상단에 1개. [AppUpdateChecker.showPrompt] 가 켜지면 뜬다.
+ * 생김새는 화면 첫 진입 설명창([FirstVisitInfo])과 같은 카드(그라데이션 뱃지 + 제목 + 설명 + 그라데이션 버튼).
+ * **닫을 수 없다**: "나중에" 버튼 없음, 바깥 탭 무시, 뒤로가기 무시 — 업데이트해야만 앱을 쓸 수 있다(2026-10-09).
+ * (예외: 디버그 미리보기 [AppUpdateChecker.debugShow] 만 뒤로가기로 닫힌다.)
  */
 @Composable
 fun AppUpdatePromptHost() {
@@ -48,7 +49,11 @@ fun AppUpdatePromptHost() {
     val context = LocalContext.current
     Dialog(
         onDismissRequest = { AppUpdateChecker.dismiss() },
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(
+            dismissOnBackPress = AppUpdateChecker.dismissible,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false,
+        ),
     ) {
         Column(
             modifier = Modifier
@@ -91,10 +96,8 @@ fun AppUpdatePromptHost() {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(Brush.linearGradient(listOf(UpdateMint, UpdateBlue)))
-                    .clickable {
-                        AppUpdateChecker.openStore(context)
-                        AppUpdateChecker.dismiss()
-                    }
+                    // 스토어로 보낼 뿐 팝업은 닫지 않는다 — 업데이트 없이 돌아와도 그대로 막혀 있어야 한다.
+                    .clickable { AppUpdateChecker.openStore(context) }
                     .padding(vertical = 13.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -102,17 +105,6 @@ fun AppUpdatePromptHost() {
                     stringResource(R.string.update_go),
                     color = Color(0xFF06121E), fontFamily = MinSans, fontSize = 15.sp, fontWeight = FontWeight.SemiBold
                 )
-            }
-            Spacer(Modifier.height(6.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable { AppUpdateChecker.dismiss() }
-                    .padding(vertical = 11.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(stringResource(R.string.update_later), color = Color(0xFF8A8A8A), fontFamily = MinSans, fontSize = 14.sp)
             }
         }
     }

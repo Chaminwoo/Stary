@@ -233,6 +233,9 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   (MapLibre Metal 의 `snapshot()` 은 nil 이라 drawHierarchy 가 유일한 길.)
 
 - `recenterNonce`/`zoomRequest` 는 `lastRecenterNonce` 등과 비교해 1회 소비(Android 와 같은 패턴).
+- **줌 버튼 꾹 누르기(2026-10-09)** — 탭 = `zoomRequest`(한 단계), 320ms 이상 = 연속 줌(1.1→2.4 줌레벨/초, 1.2초 가속; Android·iOS 같은 값).
+  Android `DiaryMap.kt` `ZoomHoldButton`(`ZOOM_HOLD_*` 상수) / iOS `Features/Map/MapZoomHold.swift`(`MapZoomHold` + `ZoomHoldGesture`, 상수 `MapZoomHold.startDelay/minSpeed/maxSpeed/rampSeconds`).
+  iOS 는 연속 줌 중 `Coordinator.regionDidChange` 가 무거운 마무리(별자리·카메라 저장)를 미루고 손을 뗄 때 `settleCamera` 로 한 번 처리 — 줌 로직을 고치면 둘을 함께 본다.
 
 ### MapStarViews.swift (2026-10-04) — 별 마커 뷰
 - 계층: `StarMarkerView(MLNAnnotationView)` → `zoomHost`(줌 배율 transform + 뷰 bounds 도 같이 줄여 탭 영역이 별 크기를 따름,

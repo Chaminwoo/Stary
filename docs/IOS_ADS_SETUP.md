@@ -86,6 +86,10 @@ GitHub 레포 → Settings → Secrets and variables → Actions → New reposit
 ## 5. 정책/심사 관련
 
 ### 5-1. app-ads.txt
+- **2026-10-09 원인 확정**: AdMob 의 "앱 확인 불가 / 세부정보가 일치하지 않는 것 같습니다"는 `momentdiary-f26c8.web.app` 에 파일이 없어서
+  `firebase.json` 의 SPA 리라이트가 홈페이지 HTML 을 200 으로 돌려줬기 때문이다. 레포의 `web/app-ads.txt`(`google.com, pub-2821259357233234, DIRECT, f08c47fec0942fa0`)와
+  `/app-ads.txt` 헤더를 추가했다 — **`firebase deploy --only hosting` 으로 배포**해야 적용된다. 배포 후 브라우저로 그 주소를 열어 한 줄만 보이는지 확인하고,
+  Play Console(웹사이트)·App Store Connect(마케팅/지원 URL)에 같은 도메인이 등록돼 있는지 본 뒤 AdMob 에서 다시 확인을 누른다(수 분~수 일).
 - AdMob/LevelPlay 가 광고주에게 "이 앱의 정식 판매자"를 증명하는 파일. App Store Connect 의 **개발자 웹사이트(마케팅 URL) 도메인 루트**에
   `https://내도메인/app-ads.txt` 로 게시해야 한다. 안 하면 광고 채움률/수익이 크게 떨어질 수 있다(Android 와 같은 이유).
 - 내용은 각 대시보드가 알려 준다: AdMob(앱 → app-ads.txt 설정 안내의 `google.com, pub-…, DIRECT, f08c47fec0942fa0` 줄),

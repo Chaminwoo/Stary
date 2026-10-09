@@ -72,6 +72,8 @@ struct MapScreen: View {
     @State private var showPeriodPicker = false
     // 줌 +/− / 내 위치 버튼 → MapLibreView 커맨드(nonce 로 반복 요청 허용).
     @State private var zoomRequest: (delta: Double, nonce: Int) = (0, 0)
+    /// 줌 버튼 꾹 누르기 연속 줌 컨트롤러 — MapLibreView 가 지도 뷰를 연결해 준다.
+    @State private var zoomHold = MapZoomHold()
     @State private var recenterNonce = 0
     /// 최초 onAppear 를 구분 — 이후의 onAppear = 하위 화면에서 지도(루트)로 복귀.
     @State private var rootAppearedOnce = false
@@ -175,14 +177,19 @@ struct MapScreen: View {
         _ icon: String, size: CGFloat, tint: Color = .white, action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: size * 0.42, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: size, height: size)
-                .background(Color(hex: 0x111120).opacity(0.93), in: Circle())
-                .raisedCosmicBorder()
-                .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+            mapCircleLabel(icon, size: size, tint: tint)
         }
+    }
+
+    /// 지도 위 원형 버튼의 겉모습(Button 없이) — 줌 버튼처럼 자체 제스처를 붙이는 쪽에서도 같은 모양을 쓴다.
+    private func mapCircleLabel(_ icon: String, size: CGFloat, tint: Color = .white) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: size * 0.42, weight: .medium))
+            .foregroundStyle(tint)
+            .frame(width: size, height: size)
+            .background(Color(hex: 0x111120).opacity(0.93), in: Circle())
+            .raisedCosmicBorder()
+            .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
     }
 
     /// 필터가 하나라도 켜져 있는가(메인 FAB 민트 강조 — Android anyActive).
@@ -398,7 +405,8 @@ struct MapScreen: View {
                     voidZoom = zoom
                 },
                 // 필터 조합이 바뀌면 별이 "하나 둘" 순차로 다시 떠오른다(Android DiaryMap revealKey 패리티).
-                revealKey: filterRevealKey
+                revealKey: filterRevealKey,
+                zoomHold: zoomHold
             )
             .ignoresSafeArea()
 
@@ -455,13 +463,16 @@ struct MapScreen: View {
             // 몰입(지도만 보기)에선 지도 위 모든 버튼을 숨긴다(Android MapUiState.mapOnly 대응).
             if !chrome.mapOnly {
             // ── 좌상단 줌 버튼(+/−) — Android DiaryMap 대응(44pt, 남색빛 검정 원형) ──
+            // 탭 = 한 단계 부드럽게, 꾹 누르면 손을 뗄 때까지 연속 줌(MapZoomHold — Android ZoomHoldButton 패리티).
             VStack(spacing: 10) {
-                mapCircleButton("plus", size: 44) {
-                    zoomRequest = (1, zoomRequest.nonce + 1)
-                }
-                mapCircleButton("minus", size: 44) {
-                    zoomRequest = (-1, zoomRequest.nonce + 1)
-                }
+                mapCircleLabel("plus", size: 44)
+                    .zoomHoldGesture(direction: 1, size: 44, hold: zoomHold) {
+                        zoomRequest = (1, zoomRequest.nonce + 1)
+                    }
+                mapCircleLabel("minus", size: 44)
+                    .zoomHoldGesture(direction: -1, size: 44, hold: zoomHold) {
+                        zoomRequest = (-1, zoomRequest.nonce + 1)
+                    }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(.top, 16)

@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     func application(_ application: UIApplication,
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        // 시뮬레이터/권한 거부 등 — 푸시만 비활성, 앱 흐름은 그대로.
-        print("⚠️ APNs 등록 실패: \(error.localizedDescription)")
+        // 시뮬레이터/권한 거부 등 — 푸시만 비활성, 앱 흐름은 그대로. 순간적인 네트워크 오류면 몇 번 다시 시도한다.
+        PushManager.shared.registrationFailed(error)
     }
 }

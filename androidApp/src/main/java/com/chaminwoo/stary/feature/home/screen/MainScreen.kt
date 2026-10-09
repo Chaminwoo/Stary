@@ -870,9 +870,19 @@ fun MainScreen(
         com.chaminwoo.stary.core.ui.InAppBannerHost()
         // 커스텀 토스트 — 모든 콘텐츠(로그인 오버레이 포함) 위에 표시
         com.chaminwoo.stary.core.ui.StaryToastHost()
-        // 새 버전 안내 — 앱을 열 때(프로세스당 1회) 스토어에 새 버전이 있으면 팝업 → 플레이 스토어로.
-        androidx.compose.runtime.LaunchedEffect(Unit) {
-            com.chaminwoo.stary.core.util.AppUpdateChecker.checkOnce(context)
+        // 새 버전 **강제** 업데이트 — 스토어에 새 버전이 있으면 닫을 수 없는 팝업 → 플레이 스토어로(업데이트 전엔 진행 불가).
+        // 앱을 열 때와 앞으로 돌아올 때(ON_RESUME)마다 확인한다 — 처음 확인이 네트워크로 실패했거나,
+        // 오래 켜 둔 사이 새 버전이 올라온 경우도 잡는다(AppUpdateChecker 가 성공 확인 뒤 30분은 다시 묻지 않는다).
+        val updateLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+        val updateScope = rememberCoroutineScope()
+        androidx.compose.runtime.DisposableEffect(updateLifecycleOwner) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    updateScope.launch { com.chaminwoo.stary.core.util.AppUpdateChecker.check(context) }
+                }
+            }
+            updateLifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { updateLifecycleOwner.lifecycle.removeObserver(observer) }
         }
         com.chaminwoo.stary.core.ui.AppUpdatePromptHost()
     }

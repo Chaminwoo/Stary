@@ -634,7 +634,6 @@
 
     <!-- New version prompt (2026-09-25) -->
     <string name="update_title">A new version is out</string>
-    <string name="update_msg">A brighter Stary is ready.\nPlease update it on the Play Store.</string>
+    <string name="update_msg">A brighter Stary is ready.\nPlease update on the Play Store to keep using the app.</string>
     <string name="update_go">Go to update</string>
-    <string name="update_later">Later</string>
 </resources>

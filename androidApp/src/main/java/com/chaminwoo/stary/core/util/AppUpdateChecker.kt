@@ -23,43 +23,62 @@ import kotlinx.coroutines.tasks.await
  *   실제 확인은 내부 테스트 트랙: 낮은 versionCode 를 설치해 둔 뒤 더 높은 versionCode 를 올리면 뜬다
  *   (스토어 반영까지 수 분~수 시간 걸릴 수 있다). 팝업 모양만 볼 때는 디버그 빌드에서
  *   `adb shell am start -n com.chaminwoo.stary_ios/com.chaminwoo.stary.MainActivity --ez debug_show_update true`.
- * - 프로세스(콜드 스타트)당 1회만 확인한다. "나중에"를 누르면 이번 실행 동안은 다시 안 뜬다.
+ * - **강제 업데이트(2026-10-09 사용자 요청)**: 새 버전이 있으면 팝업을 **닫을 수 없다**(나중에 버튼·바깥 탭·뒤로가기 모두 없음).
+ *   스토어에서 업데이트해야만(앱이 새 버전으로 다시 시작) 넘어간다. 스토어로 갔다가 업데이트 없이 돌아와도 팝업은 그대로다.
+ * - 앱을 열 때와 앞으로 돌아올 때(ON_RESUME)마다 확인한다. 확인이 **성공**하면(업데이트 없음 포함) [RECHECK_INTERVAL_MS] 동안은
+ *   다시 묻지 않고, 실패(네트워크 등)면 다음 복귀 때 다시 시도한다.
  * - iOS 는 `Data/AppUpdateChecker.swift`(App Store lookup API) — 같은 문구/흐름.
  */
 object AppUpdateChecker {
     private const val TAG = "AppUpdateChecker"
     /** 앱 시작 직후 권한 요청·로그인 영상과 겹치지 않도록 잠깐 뒤에 띄운다. */
     private const val PROMPT_DELAY_MS = 1_500L
+    /** 성공적으로 확인한 뒤 다시 확인하기까지의 간격. */
+    private const val RECHECK_INTERVAL_MS = 30 * 60 * 1000L
 
     /** 안내 팝업 표시 여부 — [com.chaminwoo.stary.core.ui.AppUpdatePromptHost] 가 관찰한다. */
     var showPrompt by mutableStateOf(false)
         private set
 
-    private var checked = false
+    /** 팝업을 닫을 수 있는가 — **디버그 미리보기([debugShow]) 때만 true**. 실제 업데이트 안내는 항상 false(강제). */
+    var dismissible by mutableStateOf(false)
+        private set
 
-    /** 스토어에 새 버전이 있으면 잠시 뒤 팝업을 켠다. 실패·해당 없음은 조용히 무시. */
-    suspend fun checkOnce(context: Context) {
-        if (checked) return
-        checked = true
-        val available = try {
-            val info = AppUpdateManagerFactory.create(context.applicationContext).appUpdateInfo.await()
-            info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
-        } catch (e: Exception) {
-            // Play 에서 설치하지 않은 빌드(디버그/USB)면 여기로 온다 — 정상.
-            Log.d(TAG, "업데이트 확인 불가(스토어 설치본이 아님?): ${e.message}")
-            false
+    private var inFlight = false
+    private var lastOkCheckAt = 0L
+
+    /** 스토어에 새 버전이 있으면 잠시 뒤 닫을 수 없는 팝업을 켠다. 실패·해당 없음은 조용히 무시. */
+    suspend fun check(context: Context) {
+        if (showPrompt || inFlight) return
+        if (lastOkCheckAt != 0L && System.currentTimeMillis() - lastOkCheckAt < RECHECK_INTERVAL_MS) return
+        inFlight = true
+        try {
+            val available = try {
+                val info = AppUpdateManagerFactory.create(context.applicationContext).appUpdateInfo.await()
+                info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
+            } catch (e: Exception) {
+                // Play 에서 설치하지 않은 빌드(디버그/USB)·네트워크 오류면 여기로 온다 — 다음 복귀 때 다시 시도.
+                Log.d(TAG, "업데이트 확인 불가(스토어 설치본이 아님?): ${e.message}")
+                return
+            }
+            lastOkCheckAt = System.currentTimeMillis()
+            if (!available) return
+            delay(PROMPT_DELAY_MS)
+            dismissible = false
+            showPrompt = true
+        } finally {
+            inFlight = false
         }
-        if (!available) return
-        delay(PROMPT_DELAY_MS)
-        showPrompt = true
     }
 
+    /** 디버그 미리보기에서만 닫힌다. 실제(강제) 안내는 닫히지 않는다. */
     fun dismiss() {
-        showPrompt = false
+        if (dismissible) showPrompt = false
     }
 
-    /** 디버그 전용 — 팝업 모양 확인용(MainActivity 의 debug_show_update 인텐트 extra). */
+    /** 디버그 전용 — 팝업 모양 확인용(MainActivity 의 debug_show_update 인텐트 extra). 이것만 뒤로가기로 닫을 수 있다. */
     fun debugShow() {
+        dismissible = true
         showPrompt = true
     }
 
