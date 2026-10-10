@@ -501,6 +501,21 @@
 
 ---
 
+## 🍏 36. iOS 번역 · 알림 정확한 위치 이동 · 프로덕션 시작 크래시 (2026-10-10)
+
+- [x] 36-1. **다이어리 번역 표시(Android 패리티)** — 상세 화면이 넘겨받은 스냅샷만 써서, 서버 선번역(글 생성 몇 초 뒤 도착)이 붙기 전에 잡힌 글은 번역이 끝내 안 보였다.
+  `DetailScreen` 이 열려 있는 동안 `diaries/{id}` 를 실시간 구독(`observeLive`, 화면을 떠나면 해제) — 번역 도착·수정이 바로 반영된다. 실기기 테스트 완료.
+- [x] 36-2. **알림 탭 → 그 별의 정확한 위치로 이동** — ① 콜드 스타트 때 GPS 최초 fix 가 포커스 이동 뒤에 도착하면 카메라를 내 위치로 되돌리던 문제(포커스가 있으면 최초 자동 이동 생략)
+  ② `setCenter(_:zoomLevel:)` 가 기울기(25°)를 반영하지 않아 별보다 살짝 아래를 보던 문제(`MapLibreView.movePitchedCamera` — `MLNAltitudeForZoomLevel` 로 pitch 반영 고도 계산; 포커스/내 위치/글로브 복귀 공용). 실기기 테스트 완료.
+- [x] 36-3. **프로덕션(Release) 시작 크래시** — build 12 아카이브가 AdMob SDK 를 처음 링크했는데 `GADApplicationIdentifier` 가 빈 값이라 실행 즉시 크래시
+  (SDK 는 우리 코드가 시작하지 않아도 앱 시작 때 검사한다). `Config/Local.xcconfig` 가 모든 구성에 구글 테스트 앱 ID 를 기본으로 넣고 `Local.secrets.xcconfig` 가 덮어쓴다(Android 패리티).
+  광고 단위가 비어 있으면 릴리즈 AdMob 폴백은 꺼진 채라 테스트 광고는 나가지 않는다. 로컬 Release 빌드 Info.plist 값 확인 완료.
+  - [ ] 새 아카이브(build 13+)로 TestFlight 설치 → 실행·번역·알림 이동 확인.
+  - [ ] AdMob 에 iOS 앱 등록 후 실제 `ADMOB_APP_ID`/`ADMOB_REWARDED_AD_UNIT` 을 `Local.secrets.xcconfig` 에 추가(docs/IOS_ADS_SETUP.md 2·3).
+  - ⚠️ `xcodegen generate` 는 `DEVELOPMENT_TEAM=<팀ID>` 와 함께 실행(없으면 서명 팀이 빠진다). `.xcodeproj` 가 낡으면 target 설정의 빈 값이 xcconfig 를 덮어쓴다.
+
+---
+
 ## 🍎 (추후) iOS 확장 — **macOS + Xcode 필요(Windows 불가)**
 - [ ] `iosApp/` Xcode(SwiftUI) 프로젝트 생성 + `:shared` 프레임워크 임포트(`linkDebugFrameworkIosSimulatorArm64`).
 - [ ] `Repositories.kt` 인터페이스를 Firebase iOS SDK로 구현, `GoogleService-Info.plist`(f26c8 iOS 앱) 추가.

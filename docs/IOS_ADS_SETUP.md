@@ -47,8 +47,11 @@
 2. **앱 ID** 복사 — 형식 `ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY` (물결표 `~`).
 3. **광고 단위 → 보상형** 생성 → **광고 단위 ID** 복사 — 형식 `ca-app-pub-XXXXXXXXXXXXXXXX/ZZZZZZZZZZ` (슬래시 `/`).
 4. 키: `ADMOB_APP_ID`, `ADMOB_REWARDED_AD_UNIT`.
-5. ⚠️ **앱 ID 가 비어 있으면 AdMob SDK 를 아예 시작하지 않는다**(Info.plist 에 앱 ID 가 없으면 SDK 가 시작 시 크래시하므로 코드가 막아 둔다).
-6. DEBUG 빌드는 `Config/Local.xcconfig` 가 구글 **테스트 앱 ID**(`ca-app-pub-3940256099942544~1458002511`)를 넣고, 코드는 **구글 테스트 보상형 단위**
+5. ⚠️ **AdMob SDK 는 링크만 돼 있어도 앱 시작 시 `GADApplicationIdentifier` 가 비어 있으면 앱을 죽인다** — 우리 코드가 SDK 를 시작하지 않아도 마찬가지다
+   (2026-10-10 build 12 Release 아카이브가 빈 값이라 실행 즉시 크래시). 그래서 `Config/Local.xcconfig` 가 **모든 구성**에 구글 테스트 앱 ID 를 기본으로 넣고,
+   `Local.secrets.xcconfig` 의 `ADMOB_APP_ID` 가 있으면 그 값으로 덮어쓴다(Android `admobTestAppId` 폴백과 같은 방식).
+   릴리즈에서 AdMob 광고가 실제로 나가는지는 `ADMOB_REWARDED_AD_UNIT` 이 정한다 — 비어 있으면 폴백이 꺼져 테스트 광고는 스토어에 나가지 않는다.
+6. DEBUG 빌드는 앱 ID 가 무엇이든 코드가 **구글 테스트 보상형 단위**
    (`ca-app-pub-3940256099942544/1712485313`)만 쓴다 — 키 없이도 디버그에선 AdMob 테스트 광고가 항상 나오고 수익은 0(Android 와 같은 정책).
    실제 광고 단위를 넣어도 DEBUG 는 테스트 광고다(개발 중 실광고 클릭은 정책 위반).
 
@@ -176,5 +179,7 @@ GitHub 레포 → Settings → Secrets and variables → Actions → New reposit
   SDK 메이저 버전이 올라 이름이 바뀌면 `Core/LevelPlayRewarded.swift` 한 파일만 고치면 된다.
 - **AdMob 컴파일 오류**: `from: "12.0.0"`(12.x 라인)의 Swift API(`MobileAds.shared.start`, `RewardedAd.load(with:request:)`, `present(from:)`,
   `FullScreenContentDelegate`) 기준. 13.x 로 올릴 땐 `Core/AdMobRewarded.swift` 확인.
-- **앱 시작 시 크래시 `GADApplicationIdentifier`**: 앱 ID 가 비어 있을 때 AdMob 을 시작하면 발생 — 코드가 막아 두었으니, 나오면 `ADMOB_APP_ID` 가 Info.plist 에 비어 있는지 확인.
+- **앱 시작 시 크래시 `GADApplicationIdentifier`**: Info.plist 의 앱 ID 가 비어 있으면 SDK 가 시작 시 앱을 죽인다(코드로는 못 막는다).
+  아카이브/빌드 산출물 `Stary.app/Info.plist` 의 `GADApplicationIdentifier` 값을 확인한다. 비어 있으면 ① `Config/Local.xcconfig` 의 기본값 줄이
+  `#include?` 앞에 있는지 ② `.xcodeproj` 가 낡아 target 설정에 `ADMOB_APP_ID = ""` 가 남아 있지 않은지(→ `DEVELOPMENT_TEAM=<팀ID> xcodegen generate` 로 재생성).
 - **광고가 계속 안 나옴(실기기, 키 있음)**: ① 새로 만든 광고 단위는 활성화까지 수 시간 걸릴 수 있음 ② `app-ads.txt` 미게시 ③ 스토어 미게시 앱은 실광고 no fill 이 흔함(테스트 광고로 흐름만 확인).

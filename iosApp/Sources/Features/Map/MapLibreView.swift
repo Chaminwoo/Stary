@@ -214,16 +214,16 @@ struct MapLibreView: UIViewRepresentable {
         }
 
         // 최초 실제 위치 fix.
+        // ⚠️ 포커스 요청(알림 등으로 특정 별을 보여줘야 하는 경우)이 대기 중이면 건너뛴다 — 콜드 스타트 직후
+        // GPS 최초 fix 가 포커스 이동보다 "늦게" 도착하면(흔함) 방금 옮긴 카메라를 내 위치로 되돌려 버려서
+        // "알림을 눌러도 내 위치로 간다"가 됐다(2026-10-10).
         if !context.coordinator.didAutoCenter,
-           let me = userLocation {
+           let me = userLocation,
+           focusTarget == nil {
 
             context.coordinator.didAutoCenter = true
 
-            mapView.setCenter(
-                me,
-                zoomLevel: 15,
-                animated: true
-            )
+            context.coordinator.movePitchedCamera(mapView, to: me, zoomLevel: 15, animated: true)
         }
 
         // 외부 포커스 요청.
@@ -231,12 +231,9 @@ struct MapLibreView: UIViewRepresentable {
            !context.coordinator.sameAsLastFocus(target) {
 
             context.coordinator.lastFocus = target
+            context.coordinator.didAutoCenter = true // 포커스가 먼저 왔으면 최초 위치 자동 이동은 생략.
 
-            mapView.setCenter(
-                target,
-                zoomLevel: 15,
-                animated: true
-            )
+            context.coordinator.movePitchedCamera(mapView, to: target, zoomLevel: 15, animated: true)
         }
 
         // 글로브 → 지도 복귀 시 "내 위치로" 이동 1회(Android DiaryMap recenterToMyLocation 패리티).
@@ -245,7 +242,7 @@ struct MapLibreView: UIViewRepresentable {
            req.nonce != context.coordinator.lastGlobeReturnNonce {
             context.coordinator.lastGlobeReturnNonce = req.nonce
             let target = userLocation ?? CLLocationCoordinate2D(latitude: req.lat, longitude: req.lng)
-            mapView.setCenter(target, zoomLevel: 15, animated: true)
+            context.coordinator.movePitchedCamera(mapView, to: target, zoomLevel: 15, animated: true)
         }
 
         // 줌 요청.
@@ -272,11 +269,7 @@ struct MapLibreView: UIViewRepresentable {
                 recenterNonce
 
             if let me = userLocation {
-                mapView.setCenter(
-                    me,
-                    zoomLevel: 15,
-                    animated: true
-                )
+                context.coordinator.movePitchedCamera(mapView, to: me, zoomLevel: 15, animated: true)
             }
         }
 
@@ -563,6 +556,40 @@ struct MapLibreView: UIViewRepresentable {
 
                 v.applyZoomScale(s)
             }
+        }
+
+        // MARK: Pitched Camera Move
+
+        /// 좌표+줌으로 카메라를 옮기되, 기본 기울기(baseTiltDeg)를 유지한 채로 옮긴다.
+        ///
+        /// ⚠️ `mapView.setCenter(_:zoomLevel:animated:)` 는 줌 레벨 → 고도(altitude) 환산을
+        /// **그 순간의 pitch 를 반영하지 않고** 계산하는 것으로 보인다(기울어진 상태에서 호출하면
+        /// 중심 좌표가 화면 정중앙보다 살짝 아래로 어긋난다 — 2026-10-10, 알림 포커스 보고).
+        /// `MLNAltitudeForZoomLevel(zoomLevel:pitch:latitude:size:)` 로 **pitch 를 반영한 고도**를
+        /// 직접 계산해 카메라를 한 번에 맞추면 정확히 중앙에 온다. 포커스/재센터/글로브 복귀가 모두 공용.
+        func movePitchedCamera(
+            _ mapView: MLNMapView,
+            to coordinate: CLLocationCoordinate2D,
+            zoomLevel: Double,
+            animated: Bool
+        ) {
+            // 프레임이 아직 0 이면(최초 레이아웃 전) 고도 환산이 불가능 — 중심/줌만 먼저 맞추고
+            // pitch 는 이후 ensureBaseTilt 가 레이아웃 완료 시 바로잡는다.
+            guard mapView.bounds.width > 0, mapView.bounds.height > 0 else {
+                mapView.setCenter(coordinate, zoomLevel: zoomLevel, animated: animated)
+                return
+            }
+            let pitch = MapLibreView.baseTiltDeg
+            let altitude = MLNAltitudeForZoomLevel(
+                zoomLevel, Double(pitch), coordinate.latitude, mapView.bounds.size
+            )
+            let cam = MLNMapCamera(
+                lookingAtCenter: coordinate,
+                altitude: altitude,
+                pitch: pitch,
+                heading: mapView.camera.heading
+            )
+            mapView.setCamera(cam, animated: animated)
         }
 
         // MARK: Base Tilt

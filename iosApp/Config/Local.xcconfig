@@ -1,10 +1,14 @@
 // 로컬 개발용 시크릿 자동 주입 — 커밋되는 건 이 파일(빈 틀)뿐이다.
 // 실제 키는 Local.secrets.xcconfig (gitignore, 커밋 금지)에 넣으면 아래 include 로 자동 반영된다.
 // 그 파일이 없어도(팀원 최초 클론, CI) 에러 없이 조용히 건너뛰고 MAPTILER_KEY 등은 빈 값(placeholder)으로 빌드된다.
+
+// 광고(AdMob) 앱 ID 기본값 — 구글 공식 **테스트** 앱 ID(비밀 아님). Android build.gradle.kts admobTestAppId 패리티.
+// ⚠️ AdMob SDK 는 링크만 돼 있어도 앱 시작 시 GADApplicationIdentifier 가 비어 있으면 **앱을 죽인다**
+//    (우리 코드가 SDK 를 시작하지 않아도 마찬가지 — build 12 Release 아카이브가 빈 값이라 실행 즉시 크래시, 2026-10-10).
+//    그래서 모든 구성에 값을 넣는다. 실제 iOS 앱 ID 는 Local.secrets.xcconfig 의 ADMOB_APP_ID 로 덮어쓴다
+//    (include 가 이 줄 **뒤**에 있어야 덮어쓴다 — xcconfig 는 나중 값이 이긴다).
+// 릴리즈에서 광고가 나가는지는 ADMOB_REWARDED_AD_UNIT 이 결정한다 — 비어 있으면 AdMob 폴백이 꺼져 테스트 광고는 스토어에 안 나간다.
+// 값 정의는 docs/IOS_ADS_SETUP.md 참고.
+ADMOB_APP_ID = ca-app-pub-3940256099942544~1458002511
+
 #include? "Local.secrets.xcconfig"
-
-// 광고(AdMob) DEBUG 기본값 — 구글 공식 **테스트** 앱 ID(비밀 아님). 디버그 빌드는 이 값으로 항상 테스트 광고가 나온다
-// (AdMobRewarded 가 DEBUG 에선 테스트 광고 단위만 쓴다). Release 는 Local.secrets.xcconfig 의 ADMOB_APP_ID 를 써야 한다.
-// 값 정의는 docs/IOS_ADS_SETUP.md 참고. (Release 에 값이 없으면 AdMob 은 시작하지 않는다.)
-ADMOB_APP_ID[config=Debug] = ca-app-pub-3940256099942544~1458002511
-

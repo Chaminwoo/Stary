@@ -1,10 +1,16 @@
+import FirebaseFirestore
 import ImageIO
 import SwiftUI
 import UIKit
 
 /// 별 상세 — 본문/작성자 + 좋아요·댓글. 가까이 있으면 본문 열람, 멀면 거리 게이팅.
 struct DetailScreen: View {
-    let diary: Diary
+    /// 호출부가 넘긴 스냅샷 — 첫 프레임용. 화면은 아래 `diary`(실시간 문서 우선)를 쓴다.
+    private let initialDiary: Diary
+    /// `diaries/{id}` 실시간 구독 값. 서버 선번역은 글 생성 몇 초 뒤에 붙으므로, 넘겨받은 스냅샷만 쓰면
+    /// 번역 도착 전에 잡힌 객체로 연 상세엔 번역이 끝내 안 보였다(Android 는 열 때 문서를 새로 읽는다).
+    @State private var live: Diary?
+    private var diary: Diary { live ?? initialDiary }
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
@@ -54,8 +60,21 @@ struct DetailScreen: View {
     @State private var mediaLoaded = false
 
     init(diary: Diary) {
-        self.diary = diary
+        self.initialDiary = diary
         _vm = StateObject(wrappedValue: DetailViewModel(diary: diary))
+    }
+
+    /// 열려 있는 동안 문서를 구독해 `live` 를 갱신(번역 도착·수정·좋아요 수 반영). 삭제되면 마지막 값 유지.
+    private func observeLive() async {
+        guard let id = initialDiary.id, !id.isEmpty else { return }
+        let updates = AsyncStream<Diary> { cont in
+            let reg = FirestoreService.diaries.document(id).addSnapshotListener { snap, _ in
+                guard let snap, snap.exists, let d = try? snap.data(as: Diary.self) else { return }
+                cont.yield(d)
+            }
+            cont.onTermination = { _ in reg.remove() }
+        }
+        for await d in updates { live = d }
     }
 
     /// 타인 프로필 진입 대상.
@@ -299,6 +318,8 @@ struct DetailScreen: View {
             guard let uid = auth.uid, let id = diary.id else { return }
             await ViewedRepository.markViewed(uid: uid, diaryId: id)
         }
+        // 최신 문서(서버 선번역 포함) 실시간 반영 — 화면을 떠나면 task 취소와 함께 리스너 해제.
+        .task(id: initialDiary.id) { await observeLive() }
         // 내 글 수정 — Android 수정 다이얼로그(제목/내용 두 칸)와 같은 가운데 사각 팝업.
         .staryDialog(isPresented: $showEditDialog) {
             StaryDialogCard(title: LocaleManager.shared.t(.detailEditTitle)) {
