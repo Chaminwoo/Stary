@@ -369,7 +369,7 @@
     <string name="profile_nickname_hint">Enter a nickname</string>
     <!-- Map filter speed dial -->
     <string name="filter_all">Show all</string>
-    <string name="filter_unviewed">Unviewed</string>
+    <string name="filter_locked">Locked only</string>
     <string name="filter_unlocked">Unlocked only</string>
     <string name="filter_friends">Friends only</string>
     <string name="filter_mine">Only mine</string>

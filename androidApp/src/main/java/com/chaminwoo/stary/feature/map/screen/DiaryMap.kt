@@ -160,6 +160,11 @@ fun DiaryMap(
      * 첫 표시·데이터 갱신·카메라 이동에는 쓰지 않는다(값이 그대로면 기존 보간만).
      */
     revealKey: Any? = null,
+    /**
+     * 필터가 하나라도 걸려 있는가 — true 면 보이는 별의 후광을 조금 더 밝게(바닥 빛 ×[FILTER_GROUND_BOOST] +
+     * 모든 별에 오오라 하한 [FILTER_AURA_FLOOR]). 걸러서 남은 별이 더 눈에 띄게 하려는 것(2026-10-10).
+     */
+    highlight: Boolean = false,
 ) {
     val context = LocalContext.current
     val mapView = rememberMapViewWithLifecycle()
@@ -220,6 +225,7 @@ fun DiaryMap(
     val mergeGroupsState = remember { mutableStateOf<Map<String, List<Diary>>>(emptyMap()) }
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
     val diariesRef = rememberUpdatedState(diaries)
+    val highlightRef = rememberUpdatedState(highlight)
     val initialLatLngRef = rememberUpdatedState(currentLatLng)
     val onGlobeAvailabilityRef = rememberUpdatedState(onGlobeAvailability)
 
@@ -1263,7 +1269,9 @@ fun DiaryMap(
                 )
                 // 바닥 빛 웅덩이는 지점 고정(시차의 기준점). 별이 내려와 가까워질수록 살짝 밝게(paint).
                 val downFrac = (wave + 1f) / 2f // 0(위)..1(아래)
-                val groundOp = GROUND_LIGHT_OPACITY * (0.7f + 0.3f * downFrac)
+                // 필터 중이면 바닥 빛을 키워 별이 더 밝게 보인다(highlight).
+                val groundOp = GROUND_LIGHT_OPACITY * (if (highlightRef.value) FILTER_GROUND_BOOST else 1f) *
+                    (0.7f + 0.3f * downFrac)
                 groundLayers[g]?.setProperties(
                     PropertyFactory.circleOpacity(
                         groundExprCache.getOrPut(quant(groundOp)) {
@@ -1361,6 +1369,19 @@ fun DiaryMap(
                 roadGlintLayer?.setProperties(PropertyFactory.lineDasharray(roadGlintDashArray(p)))
             }
             delay(50)
+        }
+    }
+
+    // 필터 중 후광 강화 — 오오라 불투명도 표현식을 highlight 에 맞게 교체(스타일 초기화 때는 평소 값으로 만들어 두므로 여기서 맞춘다).
+    // 바닥 빛(ground)은 위 애니메이션 루프가 매 틱 highlightRef 를 읽어 반영한다.
+    LaunchedEffect(highlight, styleRef) {
+        val style = styleRef ?: return@LaunchedEffect
+        for (g in 0 until PHASE_GROUPS) {
+            (style.getLayer(auraLayerId(g)) as? CircleLayer)?.setProperties(
+                PropertyFactory.circleOpacity(
+                    Expression.product(auraOpacityExpression(highlight), Expression.get("alpha"))
+                )
+            )
         }
     }
 

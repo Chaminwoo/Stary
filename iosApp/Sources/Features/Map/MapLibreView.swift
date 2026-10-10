@@ -66,6 +66,9 @@ struct MapLibreView: UIViewRepresentable {
     /// 줌 버튼 꾹 누르기 연속 줌 컨트롤러(MapZoomHold.swift) — 여기서 지도 뷰를 연결해 준다. ⚠️ 멤버와이즈 init 순서상 revealKey 다음(맨 끝).
     var zoomHold: MapZoomHold? = nil
 
+    /// 필터가 하나라도 걸려 있는가 — true 면 별 후광을 조금 더 밝게(Android DiaryMap `highlight` 패리티). ⚠️ 멤버와이즈 init 순서상 zoomHold 다음(맨 끝).
+    var filterHighlight: Bool = false
+
     // MARK: - Constants
 
     /// 지도 최소 줌(이 밑은 3D 글로브가 담당).
@@ -198,6 +201,7 @@ struct MapLibreView: UIViewRepresentable {
     ) {
         context.coordinator.parent = self
         context.coordinator.updateMyLocation(userLocation)
+        context.coordinator.applyFilterHighlight(mapView)
 
         // 줌 버튼 꾹 누르기: 연속 줌을 걸 지도 뷰 연결 + 손을 뗐을 때 미뤄 둔 카메라 마무리.
         if let hold = zoomHold {
@@ -375,6 +379,9 @@ struct MapLibreView: UIViewRepresentable {
 
         /// 마지막 줌 요청 nonce.
         var lastZoomNonce: Int = 0
+
+        /// 마지막으로 레이어에 반영한 필터 후광 강화 여부(applyFilterHighlight).
+        var lastHighlight = false
 
         /// 마지막 recenter 요청 nonce.
         var lastRecenterNonce: Int = 0

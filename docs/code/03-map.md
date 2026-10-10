@@ -21,16 +21,20 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 - `mockDetected` : 모의 위치(위치 조작 앱) 감지 → 1회 경고 토스트.
 - `userId` : 로그인 uid. `FirebaseAuth.AuthStateListener` 로 관찰(로그인 화면 뒤 미리 렌더된 화면이
   로그인 직후 리컴포즈되게 하는 장치).
-- 필터 상태: `unviewedOnly`(미조회만) / `friendsOnly`(친구만) / `myOnly`(나만보기) / `unlockedOnly`(해금만)
+- 필터 상태: `lockedOnly`(**미해금만**, 2026-10-10 "미조회만" 대체) / `friendsOnly`(친구만) / `myOnly`(나만보기) / `unlockedOnly`(해금만)
   / `selectedFriendIds`(친구 선택) / `periodDays`(기간: null=전체, 0=오늘, N=최근 N일)
   / `showFriendPicker` / `showPeriodPicker` / `speedDialExpanded`(필터 다이얼 펼침).
   상호배타 규칙: 나만보기 켜면 친구만/친구선택 해제, 그 반대도 동일.
-  **영속(2026-10-07)**: 필터 값 6개(미조회·친구만·나만보기·해금만·친구선택·기간)는 `core/util/MapFilterStore`
+  **영속(2026-10-07)**: 필터 값 6개(미해금·친구만·나만보기·해금만·친구선택·기간)는 `core/util/MapFilterStore`
   (SharedPreferences `stary_map_filters`, **계정별** 키 `<uid|guest>_*`)에 저장 → 앱을 껐다 켜도 그대로.
   `remember(userId)` 로 초기값을 읽고 `LaunchedEffect(userId, 필터들)` 로 저장 — 계정이 바뀌면 그 계정 값으로 다시 읽는다.
   피커 표시·다이얼 펼침 같은 일시 UI 상태는 저장하지 않는다.
-  **미조회만 ↔ 해금만도 상호배타** — 해금은 상세에 들어가야 기록되므로 둘을 같이 켜면 항상 빈 지도가 된다.
-- `viewedIds` : 내가 연 다이어리 id 집합(FirebaseViewedRepository).
+  **미해금만 ↔ 해금만은 정확히 반대말**(`openNow` = 내 글 ∥ 해금 기록 ∥ 실제 fix 100m 이내; 해금만=openNow, 미해금만=!openNow)이라 서로 끄고,
+  내 글은 항상 열려 있으니 **미해금만 ↔ 나만보기**도 서로 끈다. 위치 fix 가 없으면 근처가 아니므로 미해금 쪽.
+  저장 키는 `unviewed` → `locked` 로 바꿔 예전 "미조회만" 값이 뜻이 다른 필터로 켜져 있지 않게 했다(iOS 는 프로퍼티명 변경으로 저장본이 한 번 초기화).
+  **필터 중 후광 강화(2026-10-10)**: 필터가 하나라도 켜지면 `DiaryMap(highlight=true)`(iOS `filterHighlight`) → 바닥 빛 ×`FILTER_GROUND_BOOST`(1.6) + 모든 별 오오라 하한 `FILTER_AURA_FLOOR`(0.20).
+  iOS `StyleFx.highlightGroundBoost/highlightAuraFloor` 와 같은 값 — 한쪽만 고치지 말 것.
+  "미조회" 개념은 필터에서 빠졌지만 열람 기록(`viewedDiaries`)은 별 도감·업적·알림용으로 그대로 쓴다. iOS `ListScreen`(어디서도 안 쓰는 죽은 화면)만 옛 `filterUnviewed` 를 참조한다.
 - `unlockedIds` : 영구 해금된 다이어리 id 집합(`DiaryUnlockStore.unlockedIds` — Compose 상태 맵이라 해금 즉시 갱신).
 - `unlockFix` : "해금만" 판정에 쓸 좌표. **실제 fix(`liveLocation`)만** 쓴다 — `currentLatLng` 는 마지막/기본
   좌표 폴백이라 엉뚱한 곳의 별이 "근처"로 잡힌다. 필터가 꺼져 있으면 `null`(위치 갱신에 재계산 안 함),
@@ -57,8 +61,8 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
   `onCreateClick(업로드)`, `focusDiary=focusTarget`, `onFocusHandled=MapFocusState.consume`,
   `showCreate=(로그인 시만)`, `onGlobeAvailability`, `globeReturnCamera` 를 넘긴다.
 - 좌하단 **필터 스피드 다이얼**: 메인 원형 버튼(나침반, 필터 활성 시 남색 강조) → 위로 알약 옵션들
-  (미조회만/**해금만**/친구만/나만보기/친구선택/기간별). "전체보기" 항목은 없음 — 활성 칩 재탭으로 해제.
-  해금만 아이콘은 `Icons.Filled.LockOpen`(iOS `lock.open`) — 나만보기의 `Lock` 과 짝.
+  (**미해금만**/**해금만**/친구만/나만보기/친구선택/기간별). "전체보기" 항목은 없음 — 활성 칩 재탭으로 해제.
+  미해금만 아이콘은 `Icons.Filled.LockClock`(iOS `lock.badge.clock`), 해금만은 `Icons.Filled.LockOpen`(iOS `lock.open`) — 나만보기의 `Lock` 과 구분.
 - 하단 중앙 "지구 보기" 버튼: `globeButtonCenter != null && globeCenter == null` 일 때만.
 - `GlobeScreen` 오버레이 + `globeScrim` 디졸브(04 문서).
 
@@ -195,7 +199,7 @@ iOS: `Features/Map/MapScreen.swift`, `MapLibreView.swift`, `MapStyleEffects.swif
 ## iOS 대응
 
 ### MapScreen.swift (= MainListScreen + DiaryMap 의 화면 로직)
-- 상태: `selected`(상세 push) / `cluster`(겹친별 push) / 필터 상태 일체(unviewedOnly·**unlockedOnly**·
+- 상태: `selected`(상세 push) / `cluster`(겹친별 push) / 필터 상태 일체(**lockedOnly**·**unlockedOnly**·
   friendsOnly·myOnly·selectedFriendIds·periodDays·speedDialExpanded — Android 와 동일 상호배타) /
   `zoomRequest`·`recenterNonce`(MapLibreView 커맨드 채널) / `rootAppearedOnce`(복귀 감지) /
   `constellationOn` / `focusTarget` / `showWarp`·`warpColor`·`warpId`

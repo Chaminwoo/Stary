@@ -83,6 +83,8 @@ enum L10n: String {
     case userNoTitle, userStarsHeader, userNoDiaries, unknownUser, profileTitle
     case statStars, statViews, statLikes
     case filterUnviewed
+    /// 미해금만 필터(2026-10-10 "미조회만" 대체) — Android filter_locked 패리티. filterUnviewed 는 쓰이지 않는 ListScreen 만 참조한다.
+    case filterLocked
     /// 지도 "해금만" 필터 — Android filter_unlocked 패리티.
     case filterUnlocked
     // 별 도감(2026-09-25) — Android starlog_* / nav_star_log / onb_starlog_* 패리티.
@@ -286,6 +288,7 @@ enum L10n: String {
         case .statViews:            return ("조회", "Views", "閲覧")
         case .statLikes:            return ("좋아요", "Likes", "いいね")
         case .filterUnviewed:       return ("미조회만", "Unviewed", "未読のみ")
+        case .filterLocked:         return ("미해금만", "Locked only", "未解錠のみ")
         case .filterUnlocked:       return ("해금만", "Unlocked only", "解錠済みのみ")
         case .commonCancel:         return ("취소", "Cancel", "キャンセル")
         case .commonDelete:         return ("삭제", "Delete", "削除")

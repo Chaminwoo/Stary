@@ -21,7 +21,8 @@ struct MapScreen: View {
     @State private var selected: Diary?
     /// 30m 안에서 겹친 별 무리(2개 이상) — 카드 뷰어 시트로 연다.
     @State private var cluster: ClusterSelection?
-    @State private var unviewedOnly = false
+    /// 미해금만 — 눌렀을 때 잠금 화면이 뜨는 별만(남의 글 + 해금 안 함 + 100m 밖). 해금만의 정확한 반대. Android lockedOnly 패리티.
+    @State private var lockedOnly = false
     // 개척 퀘스트(체크리스트 32) — 개척 현황 구독 + 비콘 탭 안내.
     @StateObject private var pioneer = PioneerStore()
     @State private var pioneerMessage: String?
@@ -41,14 +42,14 @@ struct MapScreen: View {
 
     /// 현재 필터 조합 — 바뀔 때마다 계정별로 저장해, 앱을 껐다 켜도 그대로 걸려 있게 한다(Android MapFilterStore 패리티).
     private var currentFilters: MapFilters {
-        MapFilters(unviewedOnly: unviewedOnly, friendsOnly: friendsOnly, myOnly: myOnly,
+        MapFilters(lockedOnly: lockedOnly, friendsOnly: friendsOnly, myOnly: myOnly,
                    unlockedOnly: unlockedOnly, selectedFriendIds: selectedFriendIds, periodDays: periodDays)
     }
 
     /// 이 계정의 마지막 필터를 불러와 적용한다(앱 시작·로그인 계정 변경 시).
     private func applySavedFilters() {
         let f = MapFilterStore.load(uid: auth.uid)
-        unviewedOnly = f.unviewedOnly
+        lockedOnly = f.lockedOnly
         friendsOnly = f.friendsOnly
         myOnly = f.myOnly
         unlockedOnly = f.unlockedOnly
@@ -60,7 +61,7 @@ struct MapScreen: View {
     /// 필터 조합 식별값 — 바뀌면 지도 별이 순차 등장으로 다시 뜬다(데이터·위치 갱신은 포함하지 않는다).
     private var filterRevealKey: Int {
         var h = Hasher()
-        h.combine(unviewedOnly); h.combine(friendsOnly); h.combine(myOnly); h.combine(unlockedOnly)
+        h.combine(lockedOnly); h.combine(friendsOnly); h.combine(myOnly); h.combine(unlockedOnly)
         h.combine(selectedFriendIds); h.combine(periodDays)
         return h.finalize()
     }
@@ -128,13 +129,12 @@ struct MapScreen: View {
         return Int64((Date().timeIntervalSince1970 - Double(d) * 86_400) * 1000)
     }
 
-    /// 미조회/친구/나만/친구선택/기간 필터 적용된 표시 대상. (Android MainListScreen 필터 파이프라인 대응)
+    /// 미해금/해금/친구/나만/친구선택/기간 필터 적용된 표시 대상. (Android MainListScreen 필터 파이프라인 대응)
     private var shownDiaries: [Diary] {
         // 차단한 사용자의 별은 어떤 필터 조합에서도 뜨지 않는다(가장 먼저 제외).
         var list = store.diaries.filter { !blocks.blockedIds.contains($0.userId) }
         // 부적절한 표현이 든 **남의** 글은 걸러낸다(App Store 1.2 — Android MainListScreen 패리티).
         list = list.filter { $0.userId == auth.uid || !ContentFilter.anyObjectionable($0.title, $0.content) }
-        if unviewedOnly { list = list.filter { !viewed.viewedIds.contains($0.id ?? "") } }
         if friendsOnly {
             let ids = Set(myFriends.map { $0.userId })
             list = list.filter { ids.contains($0.userId) }
@@ -143,15 +143,20 @@ struct MapScreen: View {
         // 해금만: 내 글 / 이미 해금한 글 / 지금 100m 이내 — 셋 중 하나면 통과.
         // (= 이 필터로 보이는 별은 눌렀을 때 잠금 화면이 뜨지 않는다. DetailScreen 의 unlocked 규칙과 동일)
         // 100m 판정은 **실제 fix**(location.coordinate)만 — 없으면 거리로는 통과시키지 않는다.
-        if unlockedOnly {
+        // 미해금만: 위 "바로 열림" 의 정확한 반대 — 눌렀을 때 잠금 화면이 뜨는 별만. 위치 fix 가 없으면 근처가 아니므로 잠긴 쪽.
+        if unlockedOnly || lockedOnly {
             let fix = location.coordinate
+            let uid = auth.uid
+            let wantOpen = unlockedOnly
             list = list.filter { d in
-                if d.userId == auth.uid { return true }
-                if let id = d.id, unlocks.isUnlocked(id) { return true }
-                guard let me = fix else { return false }
-                return Geo.distanceMeters(
-                    lat1: me.latitude, lng1: me.longitude, lat2: d.latitude, lng2: d.longitude
-                ) <= AppConfig.diaryOpenRadiusM
+                var isOpen = d.userId == uid
+                if !isOpen, let id = d.id, unlocks.isUnlocked(id) { isOpen = true }
+                if !isOpen, let me = fix {
+                    isOpen = Geo.distanceMeters(
+                        lat1: me.latitude, lng1: me.longitude, lat2: d.latitude, lng2: d.longitude
+                    ) <= AppConfig.diaryOpenRadiusM
+                }
+                return isOpen == wantOpen
             }
         }
         if !selectedFriendIds.isEmpty { list = list.filter { selectedFriendIds.contains($0.userId) } }
@@ -194,32 +199,33 @@ struct MapScreen: View {
 
     /// 필터가 하나라도 켜져 있는가(메인 FAB 민트 강조 — Android anyActive).
     private var anyFilterActive: Bool {
-        unviewedOnly || friendsOnly || myOnly || unlockedOnly
+        lockedOnly || friendsOnly || myOnly || unlockedOnly
             || !selectedFriendIds.isEmpty || periodDays != nil
     }
 
     /// 좌하단 필터 스피드 다이얼 — Android MainListScreen 대응.
-    /// 메인 원형 버튼(나침반) 탭 → 위로 알약 옵션(미조회만/친구만/나만보기/친구선택/기간별).
+    /// 메인 원형 버튼(나침반) 탭 → 위로 알약 옵션(미해금만/해금만/친구만/나만보기/친구선택/기간별).
     /// 상호배타 로직도 Android 동일(나만보기 ↔ 친구만/친구선택 등).
     private var filterSpeedDial: some View {
         VStack(alignment: .leading, spacing: 8) {
             if speedDialExpanded {
                 // "전체보기"는 기본 상태(필터 없음)와 같아 목록에서 제외 — 각 필터 재탭으로 해제(Android 동일).
-                filterPill(locale.t(.filterUnviewed), icon: "sparkles", active: unviewedOnly) {
-                    // 미조회 ↔ 해금만은 서로 반대말(해금은 상세에 들어가야 기록된다) → 같이 켜면 항상 빈 지도.
-                    unviewedOnly.toggle()
-                    if unviewedOnly { myOnly = false; unlockedOnly = false }
+                // 미해금만 — 눌렀을 때 잠금 화면이 뜨는 별(남의 글 + 해금 안 함 + 100m 밖)만 남긴다. 아직 열지 못한 별 찾기용.
+                filterPill(locale.t(.filterLocked), icon: "lock.badge.clock", active: lockedOnly) {
+                    // 미해금 ↔ 해금만은 정확히 반대말, 내 글은 항상 열려 있으니 나만보기와도 같이 켜면 항상 빈 지도 → 서로 끈다.
+                    lockedOnly.toggle()
+                    if lockedOnly { myOnly = false; unlockedOnly = false }
                 }
                 // 해금만 — 눌렀을 때 잠금 화면이 뜨지 않는 별만 남긴다.
                 filterPill(locale.t(.filterUnlocked), icon: "lock.open", active: unlockedOnly) {
-                    unlockedOnly.toggle(); if unlockedOnly { unviewedOnly = false }
+                    unlockedOnly.toggle(); if unlockedOnly { lockedOnly = false }
                 }
                 filterPill(locale.t(.filterFriends), icon: "person.2", active: friendsOnly) {
                     friendsOnly.toggle(); if friendsOnly { myOnly = false }
                 }
                 filterPill(locale.t(.filterMine), icon: "lock", active: myOnly) {
                     myOnly.toggle()
-                    if myOnly { friendsOnly = false; selectedFriendIds = [] }
+                    if myOnly { friendsOnly = false; selectedFriendIds = []; lockedOnly = false }
                 }
                 // 친구 선택 — 비활성이면 선택 시트, 활성이면 재탭으로 해제(Android 동일 패턴).
                 filterPill(
@@ -406,7 +412,9 @@ struct MapScreen: View {
                 },
                 // 필터 조합이 바뀌면 별이 "하나 둘" 순차로 다시 떠오른다(Android DiaryMap revealKey 패리티).
                 revealKey: filterRevealKey,
-                zoomHold: zoomHold
+                zoomHold: zoomHold,
+                // 필터가 걸려 있으면 남은 별의 후광을 조금 더 밝게(2026-10-10, Android highlight 패리티).
+                filterHighlight: anyFilterActive
             )
             .ignoresSafeArea()
 

@@ -163,6 +163,13 @@ internal fun auraLayerId(group: Int) = "diary-aura-$group"
 internal fun groundLightLayerId(group: Int) = "diary-ground-light-$group"
 internal const val GROUND_LIGHT_OPACITY = 0.30f
 internal const val GROUND_LIGHT_OFFSET_Y = 8f // 별 중심보다 살짝 아래(지면 쪽)에 고인 빛
+/**
+ * 필터가 걸려 있을 때(2026-10-10 "조금 더 밝게") 보이는 별을 돋보이게 하는 후광 강화 — iOS `StyleFx.highlight*` 와 같은 값.
+ *  - 바닥 빛 웅덩이 불투명도 ×[FILTER_GROUND_BOOST]
+ *  - 모든 별의 오오라 불투명도 하한 [FILTER_AURA_FLOOR] (평소엔 인기/신규 별만 발광 — 필터 중엔 전부 옅게 빛난다)
+ */
+internal const val FILTER_GROUND_BOOST = 1.6f
+internal const val FILTER_AURA_FLOOR = 0.20f
 /** 화면상 클러스터 반경(dp). 이 거리 안에서 겹치는 별은 가장 좋아요 많은 별 하나로 합쳐 표시. */
 internal const val CLUSTER_RADIUS_DP = 4f
 /** 좋아요 수 → 크기 배율 상한(좋아요 100개에서 3배). */
@@ -353,8 +360,8 @@ internal fun groundLightRadiusExpression(): Expression {
  * 좋아요 0개인 신규 별도 sizeMult=1 이라 인기 곡선만으로는 오오라가 0 이었는데, fresh 바닥값을
  * 얹어 인기와 무관하게 옅게 빛나도록 한다(업적 리빌의 발광 톤을 정적으로 은은하게 차용 — 회전 등 모션은 없음).
  */
-internal fun auraOpacityExpression(): Expression =
-    Expression.max(
+internal fun auraOpacityExpression(highlight: Boolean = false): Expression {
+    val base = Expression.max(
         Expression.interpolate(
             Expression.linear(), Expression.get("sizeMult"),
             Expression.stop(1f, 0f),
@@ -367,6 +374,9 @@ internal fun auraOpacityExpression(): Expression =
             Expression.literal(0f),
         )
     )
+    // [highlight] = 필터가 걸려 있음 → 모든 별에 옅은 오오라 하한을 깔아 평소보다 밝게 보이게 한다.
+    return if (highlight) Expression.max(base, Expression.literal(FILTER_AURA_FLOOR)) else base
+}
 
 /** 좋아요 수 → 별 크기 배율(1..[MAX_LIKE_SIZE_MULT]). */
 internal fun likeSizeMult(likeCount: Int): Float =

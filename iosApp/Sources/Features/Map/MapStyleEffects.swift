@@ -37,6 +37,10 @@ private enum StyleFx {
     /// 바닥 빛 웅덩이 불투명도(Android GROUND_LIGHT_OPACITY) + 지면 쪽 오프셋(GROUND_LIGHT_OFFSET_Y).
     static let groundLightOpacity = 0.30
     static let groundLightOffsetY = 8.0
+    /// 필터가 걸려 있을 때(2026-10-10 "조금 더 밝게") 후광 강화 — Android FILTER_GROUND_BOOST / FILTER_AURA_FLOOR 와 같은 값.
+    /// 바닥 빛 불투명도 배율 + 모든 별의 오오라 불투명도 하한(평소엔 인기/신규 별만 발광).
+    static let highlightGroundBoost = 1.6
+    static let highlightAuraFloor = 0.20
     /// 신규 별(24시간 이내) 오오라 — 좋아요 0개여도 옅게 발광(Android FRESH_WINDOW_MS / FRESH_AURA_OPACITY, 값 동일).
     static let freshWindowMs: Int64 = 86_400_000
     static let freshAuraOpacity = 0.16
@@ -209,8 +213,33 @@ extension MapLibreView.Coordinator {
         updateMyLocation(parent.userLocation)
 
         refreshAuraFeatures(mapView)
+        applyFilterHighlight(mapView, force: true) // 스타일이 (다시) 로드되면 레이어가 평소 값으로 새로 만들어졌다 → 현재 필터 상태에 맞춘다
         reportWorldVoid(mapView)
         startTwinkleLoop()
+    }
+
+    /// 필터가 걸려 있으면(`parent.filterHighlight`) 별 후광을 조금 더 밝게 — 바닥 빛 ×배율 + 모든 별에 오오라 하한.
+    /// Android `DiaryMap` 의 `highlight` 패리티. 값이 그대로면 아무것도 안 한다(updateUIView 가 자주 불린다).
+    /// 스타일이 아직 안 올라왔으면(레이어 없음) 조용히 건너뛰고, 로드 완료 때 `force` 로 다시 맞춘다.
+    func applyFilterHighlight(_ mapView: MLNMapView, force: Bool = false) {
+        let on = parent.filterHighlight
+        guard force || on != lastHighlight else { return }
+        guard let style = mapView.style,
+              let ground = style.layer(withIdentifier: StyleFx.groundLightLayerID) as? MLNCircleStyleLayer,
+              let aura = style.layer(withIdentifier: StyleFx.auraLayerID) as? MLNCircleStyleLayer
+        else { return }
+        lastHighlight = on
+        ground.circleOpacity = NSExpression(
+            forConstantValue: StyleFx.groundLightOpacity * (on ? StyleFx.highlightGroundBoost : 1))
+        // 인기 곡선(sizeMult) · 신규 별 바닥값(+ 필터 중이면 하한) 중 가장 큰 값 — 설치 때의 표현식과 같은 모양.
+        var parts: [Any] = [
+            ["interpolate", ["linear"], ["get", "sizeMult"], 1, 0, 1.4, 0.12, 3, 0.42] as [Any],
+            ["*", ["get", "fresh"] as [Any], StyleFx.freshAuraOpacity] as [Any],
+        ]
+        if on { parts.append(StyleFx.highlightAuraFloor) }
+        var json: [Any] = ["max"]
+        json.append(contentsOf: parts)
+        aura.circleOpacity = NSExpression(mglJSONObject: json)
     }
 
     /// 내 위치 점 좌표 갱신 — 같은 좌표면 건너뛴다(updateUIView 가 자주 불린다). 스타일 로드 전이면 로드 때 `parent.userLocation` 으로 채운다.

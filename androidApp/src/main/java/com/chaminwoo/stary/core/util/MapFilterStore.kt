@@ -4,7 +4,8 @@ import android.content.Context
 
 /** 지도 필터 조합(MainListScreen 필터 상태와 1:1). */
 data class MapFilters(
-    val unviewedOnly: Boolean = false,
+    /** 미해금만 — 눌렀을 때 잠금 화면이 뜨는 별만(내 글·해금한 글·지금 100m 이내가 아닌 별). 예전 "미조회만"(2026-10-10 교체). */
+    val lockedOnly: Boolean = false,
     val friendsOnly: Boolean = false,
     val myOnly: Boolean = false,
     val unlockedOnly: Boolean = false,
@@ -31,7 +32,8 @@ object MapFilterStore {
     fun load(context: Context, uid: String?): MapFilters {
         val p = prefs(context)
         return MapFilters(
-            unviewedOnly = p.getBoolean(k(uid, "unviewed"), false),
+            // 키를 "unviewed" → "locked" 로 바꿨다 — 예전 "미조회만" 저장값이 뜻이 다른 "미해금만" 으로 둔갑해 켜져 있지 않게.
+            lockedOnly = p.getBoolean(k(uid, "locked"), false),
             friendsOnly = p.getBoolean(k(uid, "friends"), false),
             myOnly = p.getBoolean(k(uid, "mine"), false),
             unlockedOnly = p.getBoolean(k(uid, "unlocked"), false),
@@ -43,7 +45,7 @@ object MapFilterStore {
 
     fun save(context: Context, uid: String?, f: MapFilters) {
         prefs(context).edit()
-            .putBoolean(k(uid, "unviewed"), f.unviewedOnly)
+            .putBoolean(k(uid, "locked"), f.lockedOnly)
             .putBoolean(k(uid, "friends"), f.friendsOnly)
             .putBoolean(k(uid, "mine"), f.myOnly)
             .putBoolean(k(uid, "unlocked"), f.unlockedOnly)

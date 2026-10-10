@@ -90,6 +90,11 @@ GitHub 레포 → Settings → Secrets and variables → Actions → New reposit
   `firebase.json` 의 SPA 리라이트가 홈페이지 HTML 을 200 으로 돌려줬기 때문이다. 레포의 `web/app-ads.txt`(`google.com, pub-2821259357233234, DIRECT, f08c47fec0942fa0`)와
   `/app-ads.txt` 헤더를 추가했다 — **`firebase deploy --only hosting` 으로 배포**해야 적용된다. 배포 후 브라우저로 그 주소를 열어 한 줄만 보이는지 확인하고,
   Play Console(웹사이트)·App Store Connect(마케팅/지원 URL)에 같은 도메인이 등록돼 있는지 본 뒤 AdMob 에서 다시 확인을 누른다(수 분~수 일).
+- **2026-10-10 재확인(배포 후에도 AdMob 오류가 남음)**: `https://momentdiary-f26c8.web.app/app-ads.txt` 는 `text/plain` 한 줄로 정상 응답한다. 그런데
+  App Store 공개 정보(`itunes.apple.com/lookup?bundleId=com.chaminwoo.stary.ios`)의 **`sellerUrl` 이 비어 있다** = 스토어 등록정보에 개발자 웹사이트가 없어
+  AdMob 이 크롤할 도메인 자체가 없다. App Store Connect > 앱 버전 > **마케팅 URL / 지원 URL** 에 `https://momentdiary-f26c8.web.app` 을 넣어야 한다
+  (공개된 버전의 URL 은 수정 불가일 수 있어 **다음 버전 제출 때** 같이 반영). Play 는 Console > 스토어 설정 > 연락처 세부정보 > 웹사이트(등록정보 공개 HTML 에서는
+  개인정보처리방침(Notion)만 보이고 개발자 웹사이트는 확인되지 않았다). 확인 방법: 위 lookup URL 의 `sellerUrl` 이 채워지면 반영된 것.
 - AdMob/LevelPlay 가 광고주에게 "이 앱의 정식 판매자"를 증명하는 파일. App Store Connect 의 **개발자 웹사이트(마케팅 URL) 도메인 루트**에
   `https://내도메인/app-ads.txt` 로 게시해야 한다. 안 하면 광고 채움률/수익이 크게 떨어질 수 있다(Android 와 같은 이유).
 - 내용은 각 대시보드가 알려 준다: AdMob(앱 → app-ads.txt 설정 안내의 `google.com, pub-…, DIRECT, f08c47fec0942fa0` 줄),

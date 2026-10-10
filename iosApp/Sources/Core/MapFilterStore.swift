@@ -2,7 +2,10 @@ import Foundation
 
 /// 지도 필터 조합(MapScreen 필터 상태와 1:1). Android `core/util/MapFilterStore.kt` 의 `MapFilters` 패리티.
 struct MapFilters: Codable, Equatable {
-    var unviewedOnly = false
+    /// 미해금만 — 눌렀을 때 잠금 화면이 뜨는 별만(내 글·해금한 글·지금 100m 이내가 아닌 별). 예전 "미조회만"(2026-10-10 교체).
+    /// ⚠️ 프로퍼티 이름을 바꿔서 예전 저장본(unviewedOnly)은 디코드에 실패해 필터가 한 번 초기화된다 —
+    ///    뜻이 다른 "미조회만" 값이 "미해금만" 으로 둔갑해 켜져 있는 것보다 낫다.
+    var lockedOnly = false
     var friendsOnly = false
     var myOnly = false
     var unlockedOnly = false

@@ -369,7 +369,7 @@
     <string name="profile_nickname_hint">ニックネームを入力</string>
     <!-- 地図フィルター -->
     <string name="filter_all">すべて表示</string>
-    <string name="filter_unviewed">未読のみ</string>
+    <string name="filter_locked">未解錠のみ</string>
     <string name="filter_unlocked">解錠済みのみ</string>
     <string name="filter_friends">友達のみ</string>
     <string name="filter_mine">自分のみ</string>

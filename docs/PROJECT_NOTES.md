@@ -2,7 +2,8 @@
 
 > 목적: **다음 작업 시 코드를 처음부터 다시 읽지 않고** 바로 시작할 수 있도록 구조·연동·결정사항을 정리.
 > 업데이트 규칙: 빌드+테스트 성공 때마다 갱신(자세한 건 `CLAUDE.md` 참고).
-> 최종 갱신: **8.80 줌 버튼 꾹 누르기 · 강제 업데이트 · iOS 푸시 보강 · AdMob app-ads.txt 원인(SPA 리라이트가 HTML 반환)** —
+> 최종 갱신: **8.81 지도 필터 "미조회만" → "미해금만"**(Android BUILD 확인 후 실기기 테스트 대기 · iOS push 후 CI) — 아래 8.81 참고.
+> 이전: **8.80 줌 버튼 꾹 누르기 · 강제 업데이트 · iOS 푸시 보강 · AdMob app-ads.txt 원인(SPA 리라이트가 HTML 반환)** —
 > Android BUILD SUCCESSFUL(2026-10-09), 실기기 테스트 대기 · iOS 는 push 후 CI · **hosting/functions 배포 필요**.
 > 이전: **8.76 지도 필터 유지 — 앱을 껐다 켜도 마지막 필터 그대로(계정별)** — Android BUILD SUCCESSFUL(2026-10-07),
 > 실기기 테스트 대기 · iOS 는 push 후 CI.
@@ -2670,6 +2671,23 @@ Metal 셰이더/파이프라인/텍스처 실패 경로·`setVertexBytes` 4KB �
 - Android: `feature/map/screen/DiaryMap.kt`(ZoomHoldButton), `core/util/AppUpdateChecker.kt`, `core/ui/AppUpdatePrompt.kt`, `feature/home/screen/MainScreen.kt`, `res/values{,-en,-ja}/strings.xml`(update_later 삭제·update_msg).
 - iOS: 신규 `Features/Map/MapZoomHold.swift`; 수정 `MapScreen`, `MapLibreView`, `Data/PushManager.swift`, `Data/AppUpdateChecker.swift`, `AppDelegate.swift`, `Features/RootView.swift`, `Features/Profile/SettingsScreen.swift`, `Core/LocaleManager.swift`(updateLater 삭제, settingsPushOff*).
 - 서버/웹: `functions/index.js`(APNS_OPTS), `web/app-ads.txt`(신규), `firebase.json`(헤더).
+
+## 8.81 지도 필터 "미조회만" → "미해금만" (Android + iOS · 2026-10-10)
+
+사용자 요청: "미조회만 필터를 미해금만 필터로 변경."
+- **뜻**: 눌렀을 때 잠금 화면이 뜨는 별만 = 남의 글 ∧ 해금 기록 없음 ∧ 지금 100m 밖. **해금만의 정확한 반대**
+  (`openNow = 내 글 ∥ 영구 해금 ∥ 실제 fix 100m 이내`, 해금만 = openNow, 미해금만 = !openNow). 위치 fix 가 없으면 근처가 아니므로 미해금 쪽.
+- 상호배타: 미해금만 ↔ 해금만, 미해금만 ↔ 나만보기(내 글은 항상 열려 있어 같이 켜면 항상 빈 지도).
+- Android: `MainListScreen`(lockedOnly, 아이콘 `LockClock`, `viewedIds` 구독·`FirebaseViewedRepository` import 제거, `unlockFix` 는 두 필터 중 하나라도 켜지면 계산),
+  `MapFilterStore`(필드 `lockedOnly`, 저장 키 `unviewed`→`locked`), 문자열 `filter_unviewed` → `filter_locked`(미해금만 / Locked only / 未解錠のみ).
+- iOS: `MapScreen`(lockedOnly, 아이콘 `lock.badge.clock`), `MapFilterStore.swift`(프로퍼티명 변경 → 예전 저장본은 디코드 실패로 필터가 **한 번 초기화**됨 — 뜻이 다른 값이 둔갑하는 것보다 낫다고 판단),
+  `LocaleManager`(`filterLocked` 추가).
+- **필터 중 별을 조금 더 밝게(같은 날 추가 요청)**: 필터가 하나라도 걸려 있으면 별 후광을 강화한다 — 바닥 빛 불투명도 ×1.6 + **모든 별의 오오라 하한 0.20**
+  (평소엔 인기/신규 별만 발광). Android `DiaryMap(highlight=)`(`FILTER_GROUND_BOOST`/`FILTER_AURA_FLOOR` in DiaryMapMarkers.kt; 바닥 빛은 애니메이션 루프가 매 틱 `highlightRef` 를 읽고,
+  오오라는 `LaunchedEffect(highlight, styleRef)` 가 표현식 교체) / iOS `MapLibreView(filterHighlight:)` → `Coordinator.applyFilterHighlight`(MapStyleEffects.swift, 스타일 로드 때 `force`). 값은 양쪽 동일.
+  더 밝게/덜 밝게는 이 두 상수(iOS `StyleFx.highlightGroundBoost/highlightAuraFloor`)만 고치면 된다.
+- **남긴 것**: 열람 기록(`users/{uid}/viewedDiaries`)과 `ViewedStore`/`FirebaseViewedRepository` 는 별 도감·업적·알림에서 계속 쓴다. iOS `ListScreen`(어디서도 호출되지 않는 죽은 화면)과
+  `filterUnviewed`/`listEmptyUnviewed` 문자열은 그대로 뒀다. 문서의 옛 8.x 항목에 적힌 "미조회만"은 당시 기록이라 고치지 않았다.
 
 ## 9. 남은 작업 / TODO (다음에 할 것)
 - [ ] **(8.79·사용자) iOS 유니버설 링크 마무리** — ① ~~AASA 의 `TEAMID` 교체~~ 완료(`3G3447GK74`, 2026-10-08)

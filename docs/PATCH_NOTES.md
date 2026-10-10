@@ -20,6 +20,8 @@
 [1.5.4 업데이트]
 
 • 지도의 확대(+)·축소(−) 버튼을 꾹 누르면 손을 뗄 때까지 계속 확대·축소돼요
+• 지도 필터 '미조회만'이 '미해금만'으로 바뀌었어요 — 아직 열지 못한(잠긴) 별만 모아 볼 수 있어요
+• 지도 필터를 켜면 남은 별들이 조금 더 밝게 빛나요
 • 새 버전이 나오면 업데이트한 뒤에 이용할 수 있어요
 • (iOS) 알림이 더 잘 도착하도록 고쳤어요. 앱을 켜 둔 상태에서도 알림음이 울리고, 기기 알림이 꺼져 있으면 설정에서 바로 안내해요
 </ko-KR>
@@ -27,6 +29,8 @@
 [1.5.4 Update]
 
 • Press and hold the map's zoom (+) and (−) buttons to keep zooming until you let go
+• The "Unviewed" map filter is now "Locked only" — see just the stars you haven't unlocked yet
+• Stars glow a little brighter while a map filter is on
 • When a new version is available, you'll need to update before you can keep using the app
 • (iOS) Improved notification delivery. You'll hear the alert sound even while the app is open, and Settings now tells you if notifications are turned off on your device
 </en-IN>
@@ -34,6 +38,8 @@
 [1.5.4 アップデート]
 
 • マップの拡大(+)・縮小(−)ボタンを長押しすると、指を離すまでズームし続けます
+• マップのフィルター「未読のみ」が「未解錠のみ」に変わりました — まだ開けていない星だけを表示できます
+• マップのフィルターをオンにすると、残った星がより明るく輝きます
 • 新しいバージョンが公開されたら、アップデートしてからご利用いただけます
 • (iOS) 通知が届きやすくなりました。アプリを開いている間も通知音が鳴り、端末の通知がオフの場合は設定画面でお知らせします
 </ja-JP>
@@ -41,6 +47,8 @@
 [1.5.4 更新]
 
 • 长按地图的放大(+)和缩小(−)按钮,松手前会持续缩放
+• 地图筛选“仅未读”改为“仅未解锁”,可只查看尚未解锁的星星
+• 开启地图筛选后,剩下的星星会更明亮
 • 有新版本时,需要先更新才能继续使用
 • (iOS) 优化了通知送达。应用打开时也会响起提示音,设备通知被关闭时会在设置中提示
 </zh-CN>

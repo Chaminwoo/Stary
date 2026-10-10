@@ -29,9 +29,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.FiberNew
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Public
@@ -86,7 +86,6 @@ import com.chaminwoo.stary.core.util.MapFocusState
 import com.chaminwoo.stary.core.util.MapUiState
 import com.chaminwoo.stary.core.util.TutorialStarState
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
-import com.chaminwoo.stary.data.repository.FirebaseViewedRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.globe.GlobeScreen
@@ -168,7 +167,8 @@ fun MainListScreen(
     }
     // 필터는 앱을 껐다 켜도 유지된다(계정별 저장 — MapFilterStore). 계정이 바뀌면 그 계정의 마지막 필터로 다시 읽는다.
     val savedFilters = remember(userId) { MapFilterStore.load(context, userId) }
-    var unviewedOnly by remember(userId) { mutableStateOf(savedFilters.unviewedOnly) }
+    // 미해금만 — 눌렀을 때 잠금 화면이 뜨는 별만(내 글도 아니고, 해금한 적도 없고, 지금 100m 밖). 해금만의 정확한 반대.
+    var lockedOnly by remember(userId) { mutableStateOf(savedFilters.lockedOnly) }
     var friendsOnly by remember(userId) { mutableStateOf(savedFilters.friendsOnly) }
     var myOnly by remember(userId) { mutableStateOf(savedFilters.myOnly) }
     // 해금만 — 잠금 없이 바로 열리는 별만(내 글 / 100m 이내 / 영구 해금). DetailScreen 의 unlocked 규칙과 동일.
@@ -178,20 +178,14 @@ fun MainListScreen(
     // 기간별 보기 — null=전체 기간, 0=오늘(로컬 자정 이후), 그 외 N=최근 N일
     var periodDays by remember(userId) { mutableStateOf(savedFilters.periodDays) }
     // 필터가 바뀔 때마다 저장(uid 가 바뀐 컴포지션에서는 위 상태가 이미 새 계정 값으로 다시 읽힌 뒤라 섞이지 않는다).
-    LaunchedEffect(userId, unviewedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays) {
+    LaunchedEffect(userId, lockedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays) {
         MapFilterStore.save(
             context, userId,
-            MapFilters(unviewedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays)
+            MapFilters(lockedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays)
         )
     }
     var showPeriodPicker by remember { mutableStateOf(false) }
     var speedDialExpanded by remember { mutableStateOf(false) }
-
-    val viewedIds by remember(userId) {
-        val uid = userId
-        if (uid != null) FirebaseViewedRepository().observeViewedIds(uid)
-        else flowOf(emptySet())
-    }.collectAsState(initial = emptySet())
 
     val friends by remember(userId) {
         val uid = userId
@@ -201,16 +195,16 @@ fun MainListScreen(
 
     val friendIds = remember(friends) { friends.map { it.userId }.toSet() }
 
-    // "해금만" 필터용 — 영구 해금 기록(상태 맵이라 해금되는 순간 이 화면도 갱신된다).
+    // "해금만"/"미해금만" 필터용 — 영구 해금 기록(상태 맵이라 해금되는 순간 이 화면도 갱신된다).
     val unlockedIds = DiaryUnlockStore.unlockedIds(context)
     // 서버 해금 사본 + 잠금 이전 열람 기록을 로컬에 합친다(프로세스당 1회 — 별 도감·상세 잠금·이 필터 공용).
     LaunchedEffect(userId) {
         userId?.let { DiaryUnlockStore.syncWithServer(context, it) }
     }
     // 100m 판정에 쓸 좌표는 **실제 fix**(liveLocation)만 — currentLatLng 는 마지막/기본 좌표 폴백이라
-    // 엉뚱한 곳의 별이 "근처"로 잡힐 수 있다. 필터가 꺼져 있으면 null 이라 위치가 갱신돼도 재계산하지 않고,
+    // 엉뚱한 곳의 별이 "근처"로 잡힐 수 있다. 두 필터(해금만/미해금만)가 모두 꺼져 있으면 null 이라 위치가 갱신돼도 재계산하지 않고,
     // 켜져 있어도 약 11m 격자로 반올림해 GPS 지터마다 목록/지도 레이어가 흔들리는 걸 막는다.
-    val unlockFix: LatLng? = if (unlockedOnly) liveLocation?.let {
+    val unlockFix: LatLng? = if (unlockedOnly || lockedOnly) liveLocation?.let {
         LatLng(
             Math.round(it.latitude * 10_000.0) / 10_000.0,
             Math.round(it.longitude * 10_000.0) / 10_000.0,
@@ -227,14 +221,13 @@ fun MainListScreen(
 
     val filteredDiaries = remember(
         diaries,
-        unviewedOnly,
+        lockedOnly,
         friendsOnly,
         myOnly,
         unlockedOnly,
         unlockedIds,
         unlockFix,
         selectedFriendIds,
-        viewedIds,
         friendIds,
         blockedIds,
         userId,
@@ -255,14 +248,19 @@ fun MainListScreen(
                     diary.userId == userId || diary.userId in friendIds
             // 해금만: 내 글 / 이미 해금한 글 / 지금 100m 이내 — 셋 중 하나면 통과.
             // (= 이 필터로 보이는 별은 눌렀을 때 잠금 화면이 뜨지 않는다)
-            val unlockOk = !unlockedOnly || diary.userId == userId || diary.id in unlockedIds ||
+            val openNow = diary.userId == userId || diary.id in unlockedIds ||
                     (unlockFix != null && LocationHelper.distanceBetween(
                         unlockFix.latitude, unlockFix.longitude, diary.latitude, diary.longitude
                     ) <= StaryConfig.DIARY_OPEN_RADIUS_M)
-            val filterOk = (!unviewedOnly || diary.id !in viewedIds) &&
-                    (!friendsOnly || diary.userId in friendIds) &&
+            // 미해금만: 위 "바로 열림" 의 정확한 반대 — 눌렀을 때 잠금 화면이 뜨는 별만. 실제 위치 fix 가 없으면 근처가 아니므로 잠긴 쪽.
+            val lockOk = when {
+                unlockedOnly -> openNow
+                lockedOnly -> !openNow
+                else -> true
+            }
+            val filterOk = (!friendsOnly || diary.userId in friendIds) &&
                     (!myOnly || diary.userId == userId) &&
-                    unlockOk &&
+                    lockOk &&
                     (selectedFriendIds.isEmpty() || diary.userId in selectedFriendIds) &&
                     (periodCutoff == null || diary.createdAt >= periodCutoff)
             // 부적절한 표현이 든 **남의** 글은 지도에서 걸러낸다(App Store 1.2 — 필터 이전 글·구버전 앱 글 대비).
@@ -470,29 +468,33 @@ fun MainListScreen(
             // 필터 조합이 바뀌면 별이 "하나 둘" 순차로 다시 떠오른다(광고 연출). 위치 갱신(unlockFix)·
             // 데이터 실시간 갱신은 여기 안 들어가므로 그때는 기존 합쳐짐/펼쳐짐 보간만 돈다.
             revealKey = listOf(
-                unviewedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays,
+                lockedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays,
             ),
+            // 필터가 걸려 있으면 남은 별의 후광을 조금 더 밝게(2026-10-10).
+            highlight = lockedOnly || friendsOnly || myOnly || unlockedOnly ||
+                    selectedFriendIds.isNotEmpty() || periodDays != null,
             modifier = modifier,
         )
 
         // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)
         if (userId != null && !MapUiState.mapOnly) {
             val anyActive =
-                unviewedOnly || friendsOnly || myOnly || unlockedOnly ||
+                lockedOnly || friendsOnly || myOnly || unlockedOnly ||
                         selectedFriendIds.isNotEmpty() || periodDays != null
             val mint = Color(0xFF9FB3E8)
             val pillBg = Color(0xEE111120)
 
             // "전체보기"는 기본 상태(필터 없음)와 같아 목록에서 제외 — 각 필터 재탭으로 해제.
             val filterOpts = listOf(
+                // 미해금만 — 눌렀을 때 잠금 화면이 뜨는 별(남의 글 + 해금 안 함 + 100m 밖)만 남긴다. 아직 열지 못한 별 찾기용.
                 FilterOpt(
-                    stringResource(R.string.filter_unviewed),
-                    Icons.Filled.FiberNew,
-                    unviewedOnly
+                    stringResource(R.string.filter_locked),
+                    Icons.Filled.LockClock,
+                    lockedOnly
                 ) {
-                    // 미조회 ↔ 해금만은 서로 반대말(해금은 상세에 들어가야 기록된다) → 같이 켜면 항상 빈 지도.
-                    unviewedOnly = !unviewedOnly
-                    if (unviewedOnly) { myOnly = false; unlockedOnly = false }
+                    // 미해금 ↔ 해금만은 정확히 반대말, 내 글은 항상 열려 있으니 나만보기와도 같이 켜면 항상 빈 지도 → 서로 끈다.
+                    lockedOnly = !lockedOnly
+                    if (lockedOnly) { myOnly = false; unlockedOnly = false }
                 },
                 // 해금만 — 눌렀을 때 잠금 화면이 뜨지 않는 별(내 글/해금/100m 이내)만 남긴다.
                 FilterOpt(
@@ -500,7 +502,7 @@ fun MainListScreen(
                     Icons.Filled.LockOpen,
                     unlockedOnly
                 ) {
-                    unlockedOnly = !unlockedOnly; if (unlockedOnly) unviewedOnly = false
+                    unlockedOnly = !unlockedOnly; if (unlockedOnly) lockedOnly = false
                 },
                 FilterOpt(
                     stringResource(R.string.filter_friends),
@@ -511,7 +513,7 @@ fun MainListScreen(
                 },
                 FilterOpt(stringResource(R.string.filter_mine), Icons.Filled.Lock, myOnly) {
                     myOnly = !myOnly; if (myOnly) {
-                    friendsOnly = false; selectedFriendIds = emptySet()
+                    friendsOnly = false; selectedFriendIds = emptySet(); lockedOnly = false
                 }
                 },
                 // 친구 선택 — 비활성이면 선택 다이얼로그, 활성이면 재탭으로 해제(기간 필터와 동일 패턴).
