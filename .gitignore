@@ -47,3 +47,6 @@ iosApp/Config/Local.secrets.xcconfig
 __pycache__/
 references/ads/
 references/apprecord.mp4
+
+# docs/ 는 로컬 작업 문서(PROJECT_NOTES·PATCH_NOTES·docs/code 등) — git 추적/커밋하지 않는다 (2026-10-10 사용자 지시). 파일은 디스크에만 남는다.
+docs/
