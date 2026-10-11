@@ -824,8 +824,8 @@ private fun CommentInputRow(
 }
 
 /**
- * 공유 버튼(체크리스트 30) — 탭하면 **공유 카드 편집 화면**(별 위치 드래그/제목/표시 토글/별 크기)이
- * 뜨고, 거기서 인스타 스토리 또는 일반 공유로 내보낸다(ShareCardEditor.kt).
+ * 공유 버튼(체크리스트 30) — 탭하면 **공유 영상 화면**이 떠서 스토리용 영상(지구가 돌다 그 별에서 멈추고 빛기둥이 솟는다)을
+ * 만들어 보여 주고, 거기서 SNS 공유 또는 갤러리 저장으로 내보낸다(feature/share/ShareVideoDialog.kt).
  * ⚠️ DetailScreen 본체에 인라인하면 dex 메서드 레지스터 한계(256)를 넘겨 VerifyError 로
  * 클래스 로드가 거부된다(열람 즉시 크래시) — 반드시 별도 컴포저블로 유지할 것.
  */
@@ -867,7 +867,7 @@ private fun ShareDiaryButton(diary: Diary) {
         )
     }
     if (editorOpen) {
-        ShareCardEditorDialog(diary = diary, onDismiss = { editorOpen = false })
+        com.chaminwoo.stary.feature.share.ShareVideoDialog(diary = diary, onDismiss = { editorOpen = false })
     }
 }
 

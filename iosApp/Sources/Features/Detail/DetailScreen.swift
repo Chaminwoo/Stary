@@ -557,8 +557,8 @@ struct DetailScreen: View {
                 guard auth.uid != nil else { showLoginRequired = true; return }
                 Task { await vm.toggleLike(uid: auth.uid, userName: auth.displayName) }
             }
-            // 공유 → 공유 카드 편집 화면(Android ShareDiaryButton → ShareCardEditorDialog 패리티).
-            // (2026-07-19 에 한 번 제거했다가 2026-09 사용자 결정으로 편집기까지 포함해 재구현)
+            // 공유 → 공유 영상 화면(스토리용 영상을 만들어 보여 주고 SNS 공유/저장 — Android ShareDiaryButton → ShareVideoDialog 패리티).
+            // (예전 공유 카드 편집 화면은 2026-10-11 영상으로 대체)
             Button { showShareEditor = true } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 18))
@@ -567,7 +567,7 @@ struct DetailScreen: View {
             }
             .accessibilityLabel(LocaleManager.shared.t(.shareDiary))
             .fullScreenCover(isPresented: $showShareEditor) {
-                ShareCardEditorView(diary: diary, myUid: auth.uid)
+                ShareVideoView(diary: diary, myUid: auth.uid)
             }
             Spacer()
             if isOwner {

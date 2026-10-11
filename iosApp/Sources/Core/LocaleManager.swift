@@ -140,7 +140,7 @@ enum L10n: String {
     // 기간별 보기 필터.
     case filterPeriod, periodAll, periodToday, periodWeek, periodMonth, periodYear
     // 다이어리 공유 카드(체크리스트 30).
-    case shareDiary, shareDiaryText, shareCardTagline, shareCardUntitled, shareCardAnonymous
+    case shareDiary, shareDiaryText, shareCardUntitled
     // 친구 초대 보상(체크리스트 31).
     case inviteFriends, inviteFriendsDesc, inviteShareText
     // 주간 개척 퀘스트(체크리스트 32).
@@ -224,12 +224,10 @@ enum L10n: String {
     case inviteRedeemed, inviteAlready, inviteSelf, inviteTooOld, inviteFailed
     /// 웰컴 별(Android coach_step_finish_tutorial / tutorial_star_*).
     case coachStepFinishTutorial, tutorialStarTitle, tutorialStarMsg, tutorialStarConfirm
-    /// 공유 카드 편집/공유(Android share_edit_* / share_to_story / share_as_image / share_failed /
-    /// share_story_link_copied / share_diary_text(%@ = 링크)).
-    case shareDiaryWithLink, shareFailed, shareStoryLinkCopied, shareToStory, shareAsImage
-    case shareEditTitle, shareEditHint, shareEditFieldTitle
-    case shareEditShowMap, shareEditShowLocation, shareEditShowDate
-    case shareEditImportStars, shareEditStarSize, shareEditExtraStarSize, shareEditPickStar, shareEditNoStars
+    /// 공유(Android share_to_story / share_failed / share_story_link_copied / share_diary_text(%@ = 링크)).
+    case shareDiaryWithLink, shareFailed, shareStoryLinkCopied, shareToStory
+    /// 공유 영상(Android share_video_* — shareVideoMaking 의 %d = 진행률).
+    case shareVideoTitle, shareVideoMaking, shareVideoSave, shareVideoSaved, shareVideoSaveFailed, shareVideoCta
     /// 3D 글로브(Android globe_hint / globe_open / globe_close).
     case globeHint, globeOpen, globeClose
 
@@ -411,11 +409,7 @@ enum L10n: String {
         case .shareDiaryText:       return ("밤하늘에 별 하나를 남겼어요. 이 별은 그 장소에 가야 열려요 ✦",
                                             "I left a star in the night sky. It only opens at that place ✦",
                                             "夜空に星をひとつ残しました。この星はその場所でしか開けません ✦")
-        case .shareCardTagline:     return ("이 별은 그 장소에 가야 열려요",
-                                            "This star only opens at that place",
-                                            "この星はその場所でしか開けません")
         case .shareCardUntitled:    return ("(제목 없음)", "(Untitled)", "（タイトルなし）")
-        case .shareCardAnonymous:   return ("익명의 별", "An anonymous star", "名もなき星")
         case .inviteFriends:        return ("친구를 Stary로 초대하기", "Invite friends to Stary", "友達をStaryに招待する")
         case .inviteFriendsDesc:    return ("가입한 친구가 초대 링크를 열면 칭호를 받아요",
                                             "When an invited friend opens your link, you both earn a title",
@@ -636,25 +630,15 @@ enum L10n: String {
                                             "Link copied — paste it with the 'Link' sticker in your story to make it tappable",
                                             "リンクをコピーしました — ストーリーの「リンク」スタンプで貼り付けるとタップできます")
         case .shareToStory:         return ("SNS에 공유", "Share to Instagram Story", "Instagramストーリーズに共有")
-        case .shareAsImage:         return ("이미지로 공유", "Share as image", "画像として共有")
-        case .shareEditTitle:       return ("공유 카드 꾸미기", "Customize Share Card", "シェアカードを編集")
-        case .shareEditHint:        return ("별·제목·위치·날짜를 드래그해 자유롭게 배치해 보세요",
-                                            "Drag the star, title, location and date to place them freely",
-                                            "星・タイトル・場所・日付をドラッグして自由に配置できます")
-        case .shareEditFieldTitle:  return ("카드 제목", "Card title", "カードのタイトル")
-        case .shareEditShowMap:     return ("지도", "Map", "地図")
-        case .shareEditShowLocation: return ("위치", "Location", "場所")
-        case .shareEditShowDate:    return ("날짜", "Date", "日付")
-        case .shareEditImportStars: return ("내 다이어리에서 별 가져오기", "Add stars from my diary", "マイダイアリーから星を追加")
-        case .shareEditStarSize:    return ("별 크기", "Star size", "星の大きさ")
-        case .shareEditExtraStarSize: return ("선택한 별", "Selected star", "選択した星")
-        case .shareEditPickStar:    return ("가져올 별 선택", "Pick a star to add", "追加する星を選択")
+        case .shareVideoTitle:      return ("스토리 영상", "Story video", "ストーリー動画")
+        case .shareVideoMaking:     return ("영상을 만드는 중이에요… %d%%", "Making your video… %d%%", "動画を作っています… %d%%")
+        case .shareVideoSave:       return ("저장", "Save", "保存")
+        case .shareVideoSaved:      return ("사진 앱에 저장했어요", "Saved to Photos", "写真に保存しました")
+        case .shareVideoSaveFailed: return ("저장하지 못했어요", "Couldn't save the video", "保存できませんでした")
+        case .shareVideoCta:        return ("Stary 에서 이 별 찾기", "Find this star on Stary", "Stary でこの星を探す")
         case .globeHint:            return ("드래그로 회전 · 아래를 탭해 닫기", "Drag to rotate · Tap below to close", "ドラッグで回転 · 下をタップで閉じる")
         case .globeOpen:            return ("우주에서 보기", "View globe", "地球を見る")
         case .globeClose:           return ("지도로 돌아가기", "Back to map", "地図に戻る")
-        case .shareEditNoStars:     return ("가져올 별이 없어요 — 다이어리를 먼저 남겨보세요",
-                                            "No stars yet — leave a diary first",
-                                            "追加できる星がありません — まずダイアリーを残しましょう")
         // 별 도감 — Android values*/strings.xml starlog_* 와 문장 동일 유지(%1$s → %@, %1$d → %d).
         case .navStarLog:           return ("별 도감", "Star Log", "星の図鑑")
         case .starlogSortUnlocked:  return ("해금순", "Unlocked", "解錠順")

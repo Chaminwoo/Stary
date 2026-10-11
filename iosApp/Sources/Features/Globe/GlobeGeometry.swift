@@ -77,6 +77,33 @@ enum GlobeGeometry {
         }
     }
 
+    /// 인기 별 별빛 모양(가로/세로 빛줄기 길이·대각 세기) — 글로브의 `starTex` 와 공유 영상의 주인공 별이 같이 쓴다. Android STAR_* 와 같은 값.
+    static let starMainLen: Float = 0.46
+    static let starCrossLen: Float = 0.34
+    static let starDiagWeight: Float = 0.50
+
+    /// 다이어리 별빛 한 픽셀의 밝기(0..1) — x/y 는 텍스처 중심 기준 −1..1. Android `GlobeRenderer.sparkCoverage` 와 같은 식.
+    static func sparkCoverage(_ x: Float, _ y: Float, mainLen: Float, crossLen: Float, diagWeight: Float) -> Float {
+        func streak(_ d: Float, _ p: Float, _ len: Float, _ weight: Float, _ thick: Float) -> Float {
+            let ad = abs(d)
+            let e = min(max((ad - 0.55) / 0.43, 0), 1)
+            let edge = 1 - e * e * (3 - 2 * e)          // 가장자리(0.55~0.98)에서 0 으로
+            let t = thick * (1 - 0.6 * min(ad, 1))       // 끝으로 갈수록 가늘게
+            return weight * expf(-ad / len) * expf(-(p / t) * (p / t)) * edge
+        }
+        let r2 = x * x + y * y
+        var a = expf(-r2 / 0.012) + 0.20 * expf(-r2 / 0.07)
+        a += streak(x, y, mainLen, 1.0, 0.030)
+        a += streak(y, x, crossLen, 0.75, 0.026)
+        if diagWeight > 0 {
+            let u = (x + y) * 0.70710678
+            let v = (y - x) * 0.70710678
+            a += streak(u, v, 0.16, diagWeight, 0.022)
+            a += streak(v, u, 0.16, diagWeight, 0.022)
+        }
+        return min(max(a, 0), 1)
+    }
+
     /// 위경도 → 구 좌표(Android latLngToXyz — λ=0 이 +Z).
     static func latLngToXyz(_ lat: Double, _ lng: Double, _ radius: Float) -> SIMD3<Float> {
         let phi = lat * .pi / 180

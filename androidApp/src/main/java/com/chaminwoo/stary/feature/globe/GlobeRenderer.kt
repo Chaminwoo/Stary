@@ -81,6 +81,19 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         yawDeg = (-lng).toFloat()
     }
 
+    /**
+     * 스크립트(오프라인) 모드 — 공유 영상([ShareVideoRenderer])이 프레임마다 카메라([yawDeg]/[pitchDeg]/[camDist])와
+     * 이 값들을 직접 넣고 [onDrawFrame] 을 부른다. null 이 아니면 실시간 시뮬레이션(관성·자동 회전·돌리-인·페이드)과
+     * 유성·태양 원반을 건너뛰어 **같은 입력 = 같은 프레임**이 된다. iOS `GlobeRenderer.Script` 와 같은 뜻.
+     */
+    class Script(
+        var timeSec: Float = 0f,        // 반짝임·트레일 흐름용 시각(초)
+        var fade: Float = 1f,           // 장면 밝기 0..1
+        var ndcShiftY: Float = 0f,      // 지구를 화면 아래(음수)/위로 옮기는 클립 시프트(투영 뒤라 크기는 그대로)
+        var sunDir: FloatArray? = null, // 지구 좌표계 태양 방향(null = 실제 UTC 태양)
+    )
+    var script: Script? = null
+
     // ── 별 데이터 (setDiaries 가 백그라운드에서 빌드 → GL 스레드 업로드) ──
     /** setDiaries 한 번의 결과 묶음 — **버퍼와 정점 수는 반드시 함께** 발행해야 한다.
      *  (따로 두면 GL 스레드가 "새 정점 수 + 아직 안 올라간 옛 VBO" 를 읽어 버퍼 밖을 그리는
@@ -241,12 +254,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     override fun onDrawFrame(gl: GL10?) {
+        val sc = script
         val now = System.nanoTime()
-        val dt = if (lastFrameNs == 0L) 0.016f else ((now - lastFrameNs) / 1e9f).coerceIn(0.001f, 0.05f)
+        val dt = if (sc != null) 1f / 30f else if (lastFrameNs == 0L) 0.016f else ((now - lastFrameNs) / 1e9f).coerceIn(0.001f, 0.05f)
         lastFrameNs = now
-        val t = (SystemClock.uptimeMillis() - startMs) / 1000f
+        val t = sc?.timeSec ?: ((SystemClock.uptimeMillis() - startMs) / 1000f)
 
-        stepSimulation(dt)
+        if (sc != null) fade = sc.fade else stepSimulation(dt)
 
         val pending = pendingStars
         if (pending !== uploadedStars) uploadStars(pending)
@@ -257,6 +271,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val camPos = floatArrayOf(0f, 0f, camDist)
         Matrix.setLookAtM(view, 0, 0f, 0f, camDist, 0f, 0f, 0f, 0f, 1f, 0f)
         Matrix.multiplyMM(vp, 0, proj, 0, view, 0)
+        // 스크립트 모드: 클립 좌표 y' = y + shift·w — 지구를 화면 중앙에서 위아래로 옮긴다(웹 globe.js 의 shear 와 같은 방식).
+        if (sc != null && sc.ndcShiftY != 0f) for (c in 0 until 4) vp[c * 4 + 1] += sc.ndcShiftY * vp[c * 4 + 3]
         Matrix.setIdentityM(model, 0)
         Matrix.rotateM(model, 0, pitchDeg, 1f, 0f, 0f)
         Matrix.rotateM(model, 0, yawDeg, 0f, 1f, 0f)
@@ -280,9 +296,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             drawSprites(bgFlareVbo, bgFlareVertexCount, flareTex, camPos, t, depthTest = false)
         }
         // 1.7) 유성 — 랜덤 간격으로 하늘을 곡선으로 가로지르는 별똥별 + 잔류 스파클(배경층)
-        drawMeteor(camPos, t, dt)
+        // (스크립트 모드에서는 둘 다 생략 — 무작위 유성과 화면을 가로지르는 해가 공유 영상에 끼어들지 않게)
+        if (sc == null) drawMeteor(camPos, t, dt)
         // 1.8) 태양 — 광원 방향 하늘의 해(원반+코로나, 십자 광선 없음). 하루 주기로 광원과 함께 돈다
-        drawSun(camPos, t)
+        if (sc == null) drawSun(camPos, t)
 
         // 2) 지구 본체 (불투명, 깊이 기록)
         GLES20.glDisable(GLES20.GL_BLEND)
@@ -436,6 +453,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     /** 태양 방향(지구 좌표계 단위벡터) — UTC 기준 하루에 360도 회전(적도 상공, UTC 정오에 경도 0 상공).
      *  프레임당 2~3회 호출되므로 스크래치 배열을 재사용한다(호출부는 즉시 소비만 함). */
     private fun sunDirection(): FloatArray {
+        script?.sunDir?.let { return it }
         val dayFrac = (System.currentTimeMillis() % 86_400_000L) / 86_400_000f
         val lam = Math.toRadians(180.0 - dayFrac * 360.0)
         sunDirScratch[0] = sin(lam).toFloat()
@@ -806,17 +824,6 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         )
     }
 
-    /**
-     * 별 색(starColor) → 빛 색(0..1 RGB). 그라데이션 별은 두 색의 평균. 채도를 살짝 올려(γ 1.5) 흰 심지와 섞여도 색이 남게 한다
-     * (PIN_FS 가 밝기를 정규화하므로 여기선 색조만 의미 있다). iOS `StarStyle.lightRGB` 와 같은 식.
-     */
-    private fun lightColorOf(colorIndex: Int): FloatArray {
-        val cs = StarStyle.colorsOf(colorIndex)
-        var r = 0f; var g = 0f; var b = 0f
-        for (c in cs) { r += c.red; g += c.green; b += c.blue }
-        val n = cs.size
-        return floatArrayOf((r / n).pow(1.5f), (g / n).pow(1.5f), (b / n).pow(1.5f))
-    }
 
     /** GL 스레드에서 setDiaries 결과 업로드 — 정점 수는 VBO 를 올린 뒤에만 갱신한다. */
     private fun uploadStars(batch: StarBatch?) {
@@ -1496,29 +1503,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         for (j in 0 until s) for (i in 0 until s) {
             val x = (i + 0.5f) / s * 2f - 1f
             val y = (j + 0.5f) / s * 2f - 1f
-            val r2 = x * x + y * y
-            var a = exp(-r2 / 0.012f) + 0.20f * exp(-r2 / 0.07f)
-            a += sparkStreak(x, y, mainLen, 1.0f, 0.030f)
-            a += sparkStreak(y, x, crossLen, 0.75f, 0.026f)
-            if (diagWeight > 0f) {
-                val u = (x + y) * 0.70710678f
-                val v = (y - x) * 0.70710678f
-                a += sparkStreak(u, v, 0.16f, diagWeight, 0.022f)
-                a += sparkStreak(v, u, 0.16f, diagWeight, 0.022f)
-            }
-            val ai = (a.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+            val a = sparkCoverage(x, y, mainLen, crossLen, diagWeight)
+            val ai = (a * 255f + 0.5f).toInt()
             px[j * s + i] = (ai shl 24) or 0x00FFFFFF
         }
         return Bitmap.createBitmap(px, s, s, Bitmap.Config.ARGB_8888)
-    }
-
-    /** 빛줄기 한 줄 — [d] 축 방향 거리, [p] 축에서 옆으로 떨어진 거리(둘 다 텍스처 반폭 = 1). */
-    private fun sparkStreak(d: Float, p: Float, len: Float, weight: Float, thick: Float): Float {
-        val ad = abs(d)
-        val e = ((ad - 0.55f) / 0.43f).coerceIn(0f, 1f)
-        val edge = 1f - e * e * (3f - 2f * e)          // 가장자리(0.55~0.98)에서 0 으로
-        val t = thick * (1f - 0.6f * min(ad, 1f))       // 끝으로 갈수록 가늘게
-        return weight * exp(-ad / len) * exp(-(p / t) * (p / t)) * edge
     }
 
     /** 부드러운 원형 글로우(흰색 — tint 로 노란 불빛/배경 별에 공용). */
@@ -1580,6 +1569,42 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     companion object {
+        /**
+         * 별 색(starColor) → 빛 색(0..1 RGB). 그라데이션 별은 두 색의 평균. 채도를 살짝 올려(γ 1.5) 흰 심지와 섞여도 색이 남게 한다
+         * (PIN_FS 가 밝기를 정규화하므로 여기선 색조만 의미 있다). iOS `StarStyle.lightRGB` 와 같은 식.
+         */
+        fun lightColorOf(colorIndex: Int): FloatArray {
+            val cs = StarStyle.colorsOf(colorIndex)
+            var r = 0f; var g = 0f; var b = 0f
+            for (c in cs) { r += c.red; g += c.green; b += c.blue }
+            val n = cs.size
+            return floatArrayOf((r / n).pow(1.5f), (g / n).pow(1.5f), (b / n).pow(1.5f))
+        }
+
+        /** 다이어리 별빛 한 픽셀의 밝기(0..1) — [x]/[y] 는 텍스처 중심 기준 −1..1. [makeSparkBitmap] 설명 참고. */
+        fun sparkCoverage(x: Float, y: Float, mainLen: Float, crossLen: Float, diagWeight: Float): Float {
+            val r2 = x * x + y * y
+            var a = exp(-r2 / 0.012f) + 0.20f * exp(-r2 / 0.07f)
+            a += sparkStreak(x, y, mainLen, 1.0f, 0.030f)
+            a += sparkStreak(y, x, crossLen, 0.75f, 0.026f)
+            if (diagWeight > 0f) {
+                val u = (x + y) * 0.70710678f
+                val v = (y - x) * 0.70710678f
+                a += sparkStreak(u, v, 0.16f, diagWeight, 0.022f)
+                a += sparkStreak(v, u, 0.16f, diagWeight, 0.022f)
+            }
+            return a.coerceIn(0f, 1f)
+        }
+
+        /** 빛줄기 한 줄 — [d] 축 방향 거리, [p] 축에서 옆으로 떨어진 거리(둘 다 텍스처 반폭 = 1). */
+        private fun sparkStreak(d: Float, p: Float, len: Float, weight: Float, thick: Float): Float {
+            val ad = abs(d)
+            val e = ((ad - 0.55f) / 0.43f).coerceIn(0f, 1f)
+            val edge = 1f - e * e * (3f - 2f * e)          // 가장자리(0.55~0.98)에서 0 으로
+            val t = thick * (1f - 0.6f * min(ad, 1f))       // 끝으로 갈수록 가늘게
+            return weight * exp(-ad / len) * exp(-(p / t) * (p / t)) * edge
+        }
+
         const val ENTER_DIST = 10.4f  // 진입 시작 거리(돌리-인 출발점 — 최대 거리 살짝 바깥)
         const val IDLE_DIST = 9.5f    // 진입 정착 거리 = 최소 줌(MAX_DIST) — 지구가 가장 작게 보이는 상태
         const val MIN_DIST = 1.45f    // 카메라 최소 거리(더 바짝 당겨보기 — 화면 전환 없음)
@@ -1607,9 +1632,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         /** 다이어리 별빛 모양(makeSparkBitmap) — 가로 빛줄기 길이 / 세로(더 짧게) / 대각 세기(0 = 없음). 점광은 십자만, 인기 별은 짧은 대각까지. iOS 와 같은 값. */
         private const val SPARK_MAIN_LEN = 0.36f
         private const val SPARK_CROSS_LEN = 0.26f
-        private const val STAR_MAIN_LEN = 0.46f
-        private const val STAR_CROSS_LEN = 0.34f
-        private const val STAR_DIAG_WEIGHT = 0.50f
+        const val STAR_MAIN_LEN = 0.46f   // 인기 별 3종은 공유 영상의 주인공 별도 쓴다(ShareVideoRenderer)
+        const val STAR_CROSS_LEN = 0.34f
+        const val STAR_DIAG_WEIGHT = 0.50f
         private const val TRAIL_COUNT = 5
         private const val SUN_DIST = 45f // 태양 위치 반지름(원경 별밭 너머, far plane 안)
 

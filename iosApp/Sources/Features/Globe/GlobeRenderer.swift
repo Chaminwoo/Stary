@@ -100,9 +100,9 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     /// 다이어리 별빛 모양(drawSparkTexture) — 가로 빛줄기 길이 / 세로(더 짧게) / 대각 세기(0 = 없음) (Android SPARK_/STAR_* 와 같은 값).
     private static let sparkMainLen: Float = 0.36
     private static let sparkCrossLen: Float = 0.26
-    private static let starMainLen: Float = 0.46
-    private static let starCrossLen: Float = 0.34
-    private static let starDiagWeight: Float = 0.50
+    private static let starMainLen = GlobeGeometry.starMainLen       // 인기 별 3종은 공유 영상의 주인공 별도 쓴다
+    private static let starCrossLen = GlobeGeometry.starCrossLen
+    private static let starDiagWeight = GlobeGeometry.starDiagWeight
 
     private static let meteorSprites = 34
     private static let meteorRollInterval: Float = 30
@@ -238,14 +238,18 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
 
     // MARK: 초기화
 
-    /// Metal 장치/셰이더/자산 준비. 실패하면 nil(호출부는 검정 배경만 둔다).
-    init?(view: MTKView) {
-        guard let device = view.device ?? MTLCreateSystemDefaultDevice(),
-              let queue = device.makeCommandQueue()
-        else { return nil }
+    /// 화면(MTKView)용 — 뷰의 픽셀 포맷으로 만든다. 실패하면 nil(호출부는 검정 배경만 둔다).
+    convenience init?(view: MTKView) {
+        guard let device = view.device ?? MTLCreateSystemDefaultDevice() else { return nil }
+        self.init(device: device, colorPixelFormat: view.colorPixelFormat, depthPixelFormat: view.depthStencilPixelFormat)
+        view.device = device
+    }
+
+    /// Metal 장치/셰이더/자산 준비. 뷰 없이도 만들 수 있다 — 공유 영상(`ShareVideoRenderer`)이 오프스크린 텍스처에 그릴 때 쓴다.
+    init?(device: MTLDevice, colorPixelFormat: MTLPixelFormat, depthPixelFormat: MTLPixelFormat) {
+        guard let queue = device.makeCommandQueue() else { return nil }
         self.device = device
         self.queue = queue
-        view.device = device
 
         let library: MTLLibrary
         do {
@@ -259,8 +263,8 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
             let d = MTLRenderPipelineDescriptor()
             d.vertexFunction = library.makeFunction(name: vs)
             d.fragmentFunction = library.makeFunction(name: fs)
-            d.colorAttachments[0].pixelFormat = view.colorPixelFormat
-            d.depthAttachmentPixelFormat = view.depthStencilPixelFormat
+            d.colorAttachments[0].pixelFormat = colorPixelFormat
+            d.depthAttachmentPixelFormat = depthPixelFormat
             let ca = d.colorAttachments[0]!
             if blend == 1 { // additive — GL_ONE, GL_ONE
                 ca.isBlendingEnabled = true
@@ -371,6 +375,12 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         }
     }
 
+    /// `setDiaries` 의 동기 버전 — 오프스크린 렌더(공유 영상)처럼 다음 프레임에 바로 필요할 때.
+    func setDiariesNow(_ diaries: [Diary]) {
+        let built = GlobeGeometry.buildDiarySprites(diaries)
+        pendingStars = StarBatch(flare: built.flare, glow: built.glow)
+    }
+
     private func uploadStars() {
         uploadedStars = pendingStars
         guard let batch = pendingStars else {
@@ -403,21 +413,58 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         if viewportSize.x <= 1 { mtkView(view, drawableSizeWillChange: view.drawableSize) }
 
         stepSimulation(dt: dt, now: now)
-        if pendingStars !== uploadedStars { uploadStars() }
 
         guard let pass = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable,
               let cmd = queue.makeCommandBuffer(),
-              let enc = cmd.makeRenderCommandEncoder(descriptor: pass)
+              encode(cmd, pass: pass, t: t, dt: dt, script: nil)
         else { return }
+        cmd.present(drawable)
+        cmd.commit()
+    }
+
+    /// 스크립트(오프라인) 모드 한 프레임의 입력 — 공유 영상(`ShareVideoRenderer`)이 카메라(`yawDeg`/`pitchDeg`/`camDist`)와
+    /// 함께 넣는다. 실시간 시뮬레이션(관성·자동 회전·돌리-인·페이드)과 유성·태양 원반을 건너뛰어 **같은 입력 = 같은 프레임**.
+    /// Android `GlobeRenderer.Script` 와 같은 뜻.
+    struct Script {
+        var timeSec: Float = 0              // 반짝임·트레일 흐름용 시각(초)
+        var fade: Float = 1                 // 장면 밝기 0..1
+        var ndcShiftY: Float = 0            // 지구를 화면 아래(음수)/위로 옮기는 클립 시프트(투영 뒤라 크기는 그대로)
+        var sunDir: SIMD3<Float>? = nil     // 지구 좌표계 태양 방향(nil = 실제 UTC 태양)
+    }
+
+    /// 오프스크린 텍스처(`pass`)에 스크립트 한 프레임을 그리고 **GPU 가 끝날 때까지 기다린다**. width/height = 텍스처 픽셀 크기.
+    func renderOffscreen(pass: MTLRenderPassDescriptor, width: Int, height: Int, script: Script) -> Bool {
+        viewportSize = SIMD2(Float(width), Float(height))
+        screenAspect = Float(width) / Float(max(height, 1))
+        lineWidthPx = 2
+        fade = script.fade
+        guard let cmd = queue.makeCommandBuffer(),
+              encode(cmd, pass: pass, t: script.timeSec, dt: 1.0 / 30.0, script: script)
+        else { return false }
+        cmd.commit()
+        cmd.waitUntilCompleted()
+        return cmd.status == .completed
+    }
+
+    /// 한 프레임의 그리기 명령을 `cmd` 에 담는다(화면/오프스크린 공용). 인코더를 못 만들면 false.
+    private func encode(_ cmd: MTLCommandBuffer, pass: MTLRenderPassDescriptor, t: Float, dt: Float, script: Script?) -> Bool {
+        if pendingStars !== uploadedStars { uploadStars() }
+        guard let enc = cmd.makeRenderCommandEncoder(descriptor: pass) else { return false }
         enc.setCullMode(.none)
 
         let proj = GlobeGeometry.perspective(fovyDeg: 42, aspect: screenAspect, near: GlobeRenderer.nearPlane, far: 100)
         let viewM = GlobeGeometry.translation(0, 0, -camDist)
-        let vp = proj * viewM
+        var vp = proj * viewM
+        // 스크립트 모드: 클립 좌표 y' = y + shift·w — 지구를 화면 중앙에서 위아래로 옮긴다(Android/웹과 같은 방식).
+        if let shift = script?.ndcShiftY, shift != 0 {
+            let shear = simd_float4x4(columns: (SIMD4<Float>(1, 0, 0, 0), SIMD4<Float>(0, 1, 0, 0),
+                                                SIMD4<Float>(0, 0, 1, 0), SIMD4<Float>(0, shift, 0, 1)))
+            vp = shear * vp
+        }
         let model = GlobeGeometry.rotationX(pitchDeg) * GlobeGeometry.rotationY(yawDeg)
         let mvp = vp * model
-        let sun = sunDirection()
+        let sun = script?.sunDir ?? sunDirection()
         // 카메라 위치를 지구 좌표계로(모델은 순수 회전 → 역행렬 = 전치) — 대기 테두리·대기광이 시점을 따라간다.
         let camObj4 = model.transpose * SIMD4<Float>(0, 0, camDist, 1)
         let camObj = SIMD3<Float>(camObj4.x, camObj4.y, camObj4.z)
@@ -429,8 +476,11 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         drawSprites(enc, starfieldVB, starfieldCount, glowTex, vp: vp, model: model, t: t)
         drawConstellationLines(enc, mvp: mvp)
         drawSprites(enc, bgFlareVB, bgFlareCount, flareTex, vp: vp, model: model, t: t)
-        drawMeteor(enc, vp: vp, t: t, dt: dt)
-        drawSun(enc, vp: vp, model: model, t: t, sun: sun)
+        // (스크립트 모드에서는 둘 다 생략 — 무작위 유성과 화면을 가로지르는 해가 공유 영상에 끼어들지 않게)
+        if script == nil {
+            drawMeteor(enc, vp: vp, t: t, dt: dt)
+            drawSun(enc, vp: vp, model: model, t: t, sun: sun)
+        }
 
         // 2) 지구(불투명, 깊이 기록)
         drawEarth(enc, mvp: mvp, sun: sun, camObj: camObj)
@@ -449,8 +499,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
                     pipeline: pinPipeline, gain: GlobeRenderer.flarePinGain, sparkle: 1)
 
         enc.endEncoding()
-        cmd.present(drawable)
-        cmd.commit()
+        return true
     }
 
     /// 관성/자동회전/돌리인/페이드 진행(Android stepSimulation).
@@ -1204,28 +1253,12 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         guard let data = cg.data else { return }
         let n = Int(s)
         let px = data.bindMemory(to: UInt8.self, capacity: n * n * 4)
-        func streak(_ d: Float, _ p: Float, _ len: Float, _ weight: Float, _ thick: Float) -> Float {
-            let ad = abs(d)
-            let e = min(max((ad - 0.55) / 0.43, 0), 1)
-            let edge = 1 - e * e * (3 - 2 * e)          // 가장자리(0.55~0.98)에서 0 으로
-            let t = thick * (1 - 0.6 * min(ad, 1))       // 끝으로 갈수록 가늘게
-            return weight * expf(-ad / len) * expf(-(p / t) * (p / t)) * edge
-        }
         for j in 0..<n {
             for i in 0..<n {
                 let x = (Float(i) + 0.5) / Float(n) * 2 - 1
                 let y = (Float(j) + 0.5) / Float(n) * 2 - 1
-                let r2 = x * x + y * y
-                var a = expf(-r2 / 0.012) + 0.20 * expf(-r2 / 0.07)
-                a += streak(x, y, mainLen, 1.0, 0.030)
-                a += streak(y, x, crossLen, 0.75, 0.026)
-                if diagWeight > 0 {
-                    let u = (x + y) * 0.70710678
-                    let v = (y - x) * 0.70710678
-                    a += streak(u, v, 0.16, diagWeight, 0.022)
-                    a += streak(v, u, 0.16, diagWeight, 0.022)
-                }
-                let ai = UInt8(min(max(a, 0), 1) * 255 + 0.5)
+                let a = GlobeGeometry.sparkCoverage(x, y, mainLen: mainLen, crossLen: crossLen, diagWeight: diagWeight)
+                let ai = UInt8(a * 255 + 0.5)
                 let o = (j * n + i) * 4
                 px[o] = ai; px[o + 1] = ai; px[o + 2] = ai; px[o + 3] = ai
             }

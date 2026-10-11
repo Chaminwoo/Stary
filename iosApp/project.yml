@@ -212,6 +212,8 @@ targets:
         NSLocationWhenInUseUsageDescription: 주변의 별(다이어리)을 지도에 표시하기 위해 위치가 필요해요.
         NSCameraUsageDescription: 다이어리에 넣을 사진을 촬영하기 위해 카메라가 필요해요.
         NSPhotoLibraryUsageDescription: 다이어리에 넣을 사진을 선택하기 위해 사진 보관함 접근이 필요해요.
+        # 공유 영상을 사진 앱에 저장(추가 전용 권한) — Features/Share/ShareVideo.swift.
+        NSPhotoLibraryAddUsageDescription: 만든 공유 영상을 사진 앱에 저장하기 위해 필요해요.
         # 구글 로그인 콜백 URL 스킴(REVERSED_CLIENT_ID). CI 에서 빌드 설정으로 주입.
         # + 공유 랜딩 → 앱 딥링크 스킴(stary://diary/{id}, 체크리스트 30).
         CFBundleURLTypes:
