@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="home">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Stary — 그 장소에 가야 열리는 별</title>
 <meta name="description" content="이 별은 그 장소에 가야 열려요. 지도 위 밤하늘에 남기는 위치 다이어리, Stary.">
+<meta name="theme-color" content="#02030a">
 <!-- 링크 프리뷰(카카오톡/인스타 DM/X/디스코드). og:image 가 없으면 회색 빈 박스로 뜬다.
      ⚠️ og:url / canonical 은 일부러 넣지 않는다 — 정적 SPA 라 모든 /s/{id} 가 같은 HTML 이고,
         고정 og:url 을 주면 크롤러가 서로 다른 공유 링크를 하나로 합쳐 캐시한다.
@@ -22,99 +23,300 @@
 <meta name="twitter:title" content="Stary — 누군가 밤하늘에 별을 남겼어요">
 <meta name="twitter:description" content="이 별은 그 장소에 가야 열려요. 지도 위 밤하늘에 남기는 위치 다이어리, Stary.">
 <meta name="twitter:image" content="https://momentdiary-f26c8.web.app/og.png">
+<script>
+  // 모드 판별 — 본문을 그리기 전에 <html> 클래스로 정해 둔다(홈 화면이 잠깐 비쳤다 바뀌지 않게).
+  //  /            = 홈(앱 소개)              → "home"   (JS 가 꺼져 있어도 이 화면이 기본)
+  //  /s/{diaryId} (?d= 폴백) = 별 공유      → "landing share"
+  //  /i/{uid}     (?i= 폴백) = 친구 초대    → "landing invite"
+  (function () {
+    var p = location.pathname, q = new URLSearchParams(location.search);
+    document.documentElement.className =
+      (/^\/i\/[\w-]+/.test(p) || q.get("i")) ? "landing invite" :
+      (/^\/s\/[\w-]+/.test(p) || q.get("d")) ? "landing share" : "home";
+  })();
+</script>
 <style>
-  :root { color-scheme: dark; }
+  /* 포인트색 = 남색 계열(2026-10-11 — 예전 민트 #6EE7B7 에서 교체). --blue 는 버튼 바탕(흰 글자 대비 4.8:1), --sky 는 어두운 배경 위 강조 글자. */
+  :root { color-scheme: dark; --blue: #4662F5; --sky: #8AA4FF; --ice: #9FD8FF; --ink: #02030a; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
+  html { height: 100%; -webkit-text-size-adjust: 100%; }
   body {
+    min-height: 100%;
     font-family: "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
-    background: linear-gradient(180deg, #0B1026 0%, #070A18 55%, #04050C 100%);
+    /* 글로브(WebGL)가 못 뜰 때의 밤하늘 — 뜨면 캔버스가 전부 덮는다 */
+    background: linear-gradient(180deg, #0B1026 0%, #070A18 55%, #04050C 100%) fixed #04050C;
     color: #fff;
-    display: flex; align-items: center; justify-content: center;
-    overflow: hidden; text-align: center;
   }
-  #sky { position: fixed; inset: 0; z-index: 0; }
-  main { position: relative; z-index: 1; padding: 32px 24px; max-width: 420px; }
-  .star {
-    width: 120px; height: 120px; margin: 0 auto 28px;
-    filter: drop-shadow(0 0 18px rgba(110, 231, 183, 0.75));
-    animation: pulse 2.6s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { transform: scale(1);   filter: drop-shadow(0 0 14px rgba(110,231,183,.55)); }
-    50%      { transform: scale(1.06); filter: drop-shadow(0 0 26px rgba(110,231,183,.9)); }
-  }
-  h1 { font-size: 1.45rem; line-height: 1.45; font-weight: 700; margin-bottom: 12px; }
-  p.desc { font-size: .95rem; line-height: 1.6; color: rgba(255,255,255,.72); margin-bottom: 34px; }
-  .btn {
-    display: block; width: 100%; padding: 15px 0; border-radius: 14px;
-    font-size: 1rem; font-weight: 700; text-decoration: none; margin-bottom: 12px;
-  }
-  .btn-primary { background: #6EE7B7; color: #06281C; }
-  .btn-ghost { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.16); }
-  .brand { margin-top: 40px; letter-spacing: .32em; font-weight: 700; font-size: .9rem; color: rgba(255,255,255,.85); }
-  .tagline { margin-top: 8px; font-size: .75rem; color: rgba(255,255,255,.45); }
-  button.btn { font-family: inherit; cursor: pointer; border: 0; -webkit-appearance: none; appearance: none; }
-  .btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-  .kicker, #share { display: none; }
 
-  /* ── 친구 초대 페이지(/i/{uid}) — 앱과 같은 3D 글로브를 배경으로, 수락/친구 초대 버튼 패널을 올린다.
-        글로브는 globe/globe.js(WebGL). 불가하면 body.globe-on 이 빠져 예전 별 아이콘 화면으로 폴백. ── */
-  #globe { display: none; position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; touch-action: none; cursor: grab; }
+  /* ── 배경: 앱과 같은 3D 글로브(globe/globe.js, WebGL). 불가하면 body.globe-on 이 빠져 잔별 캔버스 + 별 아이콘으로 폴백. ── */
+  #sky, #globe { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+  #globe { display: none; touch-action: none; cursor: grab; }
   #globe:active { cursor: grabbing; }
   body.globe-on #globe { display: block; }
   body.globe-on #sky, body.globe-on .star { display: none; }
-  body.invite { display: block; background: #02030a; }
-  body.invite main {
-    position: fixed; left: 0; right: 0; bottom: 0; max-width: none;
+
+  .star {
+    display: block; width: 84px; height: 84px; margin: 0 auto 18px;
+    color: var(--sky);
+    filter: drop-shadow(0 0 18px rgba(91, 124, 255, 0.75));
+    animation: pulse 2.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1);   filter: drop-shadow(0 0 14px rgba(91,124,255,.55)); }
+    50%      { transform: scale(1.06); filter: drop-shadow(0 0 26px rgba(91,124,255,.9)); }
+  }
+  .kicker { font-size: .68rem; letter-spacing: .34em; font-weight: 700; color: var(--ice); }
+  a:focus-visible, button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+  /* ═════════ 홈(/) — 글로브 히어로 + 스크롤되는 소개 ═════════ */
+  .landing #home, .landing #dim { display: none; }
+  /* 스크롤할수록 글로브를 어둡게(아래 카드 글이 읽히게) — opacity 는 JS 가 스크롤 위치로 넣는다 */
+  #dim { position: fixed; inset: 0; z-index: 0; background: var(--ink); opacity: 0; pointer-events: none; }
+  /* 빈 곳은 통과시켜 글로브를 돌릴 수 있게 하고, 글·버튼·카드만 입력을 받는다 */
+  #home { position: relative; z-index: 1; pointer-events: none; }
+  #home .copy, #home .card, #home .closing > *, #home footer { pointer-events: auto; }
+
+  .hero {
+    position: relative; min-height: 100vh; min-height: 100svh;
+    display: flex; flex-direction: column; justify-content: flex-end; align-items: center; text-align: center;
+    padding: 0 20px calc(18px + env(safe-area-inset-bottom));
+  }
+  body:not(.globe-on) .hero { justify-content: center; }
+  .hero::before {   /* 글 뒤 그러데이션 — 궤도 링/대기광이 글자와 겹쳐도 읽히게 */
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 64%; z-index: -1;
+    background: linear-gradient(180deg, rgba(2,3,10,0) 0%, rgba(2,3,10,.5) 40%, rgba(2,3,10,.92) 100%);
+  }
+  .copy { width: 100%; max-width: 460px; }
+  .copy .kicker { margin-bottom: 12px; }
+  .hero h1 {
+    font-size: clamp(1.95rem, 8vw, 3.4rem); line-height: 1.2; font-weight: 800; letter-spacing: -.02em;
+    word-break: keep-all; margin-bottom: 12px;
+  }
+  .hero h1 em { font-style: normal; color: var(--sky); text-shadow: 0 0 30px rgba(91,124,255,.65); }
+  .lead {
+    font-size: clamp(.92rem, 3.7vw, 1.06rem); line-height: 1.65; color: rgba(255,255,255,.78);
+    word-break: keep-all; text-wrap: balance; margin-bottom: 20px;
+  }
+  .stores { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .store {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    min-height: 56px; padding: 8px 12px; border-radius: 14px; text-decoration: none; color: #fff;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16);
+    transition: transform .15s, background .15s;
+  }
+  .store small { font-size: .66rem; letter-spacing: .08em; opacity: .72; }
+  .store b { font-size: 1rem; font-weight: 700; }
+  .store.primary { background: var(--blue); border-color: transparent; box-shadow: 0 0 28px rgba(70,98,245,.5); }
+  .store:hover { transform: translateY(-1px); background: rgba(255,255,255,.14); }
+  .store.primary:hover { background: #5873FF; }
+  .more {
+    display: inline-block; margin-top: 6px; padding: 12px 14px; font-size: .82rem; font-weight: 600;
+    color: rgba(255,255,255,.66); text-decoration: none;
+  }
+  .more:hover { color: #fff; }
+  .more i { display: inline-block; font-style: normal; margin-left: 4px; animation: nudge 1.8s ease-in-out infinite; }
+  @keyframes nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+  .copy > * { animation: rise .9s cubic-bezier(.2,.7,.2,1) both; }
+  .copy > :nth-child(3) { animation-delay: .08s; }
+  .copy > :nth-child(4) { animation-delay: .16s; }
+  .copy > :nth-child(5) { animation-delay: .24s; }
+  .copy > :nth-child(6) { animation-delay: .32s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  .section { max-width: 1080px; margin: 0 auto; padding: 84px 20px 0; scroll-margin-top: 0; }
+  .section .kicker { text-align: center; margin-bottom: 12px; }
+  .section h2 {
+    font-size: clamp(1.45rem, 5.4vw, 2.1rem); line-height: 1.3; font-weight: 800; letter-spacing: -.01em;
+    text-align: center; word-break: keep-all; margin-bottom: 10px;
+  }
+  .section .sub {
+    text-align: center; font-size: .95rem; line-height: 1.65; color: rgba(255,255,255,.68);
+    word-break: keep-all; text-wrap: balance; margin-bottom: 34px;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }
+  .card {
+    padding: 22px 20px 24px; border-radius: 22px;
+    background: rgba(9, 14, 34, .74); border: 1px solid rgba(255,255,255,.11);
+    box-shadow: 0 14px 44px rgba(0,0,0,.35);
+  }
+  /* 카드 별 = 앱과 같은 크리스탈 별(startCrystals() 가 data-star 로 그린다). --c = 후광색(JS 가 별 색으로 덮어쓴다 · JS 가 꺼지면 이 색의 단색 별). */
+  .card svg { display: block; width: 54px; height: 54px; margin: -4px 0 12px -4px; color: var(--c); filter: drop-shadow(0 0 10px var(--c)); }
+  .card h3 { font-size: 1.04rem; font-weight: 700; margin-bottom: 8px; word-break: keep-all; }
+  .card p { font-size: .9rem; line-height: 1.68; color: rgba(255,255,255,.74); word-break: keep-all; }
+  .closing { max-width: 460px; margin: 0 auto; padding: 88px 20px 0; text-align: center; }
+  .closing h2 {
+    font-size: clamp(1.3rem, 5vw, 1.75rem); line-height: 1.4; font-weight: 800;
+    word-break: keep-all; text-wrap: balance; margin-bottom: 22px;
+  }
+  footer {
+    max-width: 1080px; margin: 72px auto 0; padding: 26px 20px calc(34px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255,255,255,.1); text-align: center;
+    font-size: .8rem; color: rgba(255,255,255,.5);
+  }
+  footer .brand { letter-spacing: .32em; font-weight: 700; font-size: .82rem; color: rgba(255,255,255,.85); margin-bottom: 8px; }
+  footer nav { margin-top: 14px; }
+  footer a { color: rgba(255,255,255,.72); text-underline-offset: 3px; }
+  footer a:hover { color: #fff; }
+
+  /* 넓은 화면: 글로브는 왼쪽, 글은 오른쪽 세로 가운데(homeBox()/landingBox() 의 landscape 조건과 같아야 한다) */
+  @media (min-width: 820px) and (min-aspect-ratio: 1/1) {
+    .hero {
+      flex-direction: row; justify-content: flex-end; align-items: center; text-align: left;
+      padding: 24px max(48px, calc((100vw - 1320px) / 2)) 24px 0;
+    }
+    .hero::before {
+      top: 0; left: auto; width: 62%; height: auto;
+      background: linear-gradient(270deg, rgba(2,3,10,.82) 0%, rgba(2,3,10,.45) 45%, rgba(2,3,10,0) 100%);
+    }
+    .copy { width: min(480px, 40vw); }
+    .copy .star { margin-left: 0; }
+    .lead { text-wrap: pretty; }
+    .more { padding-left: 0; }
+  }
+
+  /* ═════════ 별 공유(/s/{id}) · 친구 초대(/i/{uid}) — 글로브 위에 버튼 패널 한 장 ═════════ */
+  .home main { display: none; }
+  html.landing, .landing body { height: 100%; }
+  .landing body { overflow: hidden; text-align: center; }
+  main {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1;
     padding: 0 16px calc(16px + env(safe-area-inset-bottom)); pointer-events: none;
   }
-  body.invite .panel {
+  .panel {
     pointer-events: auto; max-width: 440px; margin: 0 auto; padding: 22px 20px 16px; border-radius: 26px;
     background: rgba(8, 12, 30, .58); border: 1px solid rgba(255,255,255,.12);
     -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
     box-shadow: 0 18px 60px rgba(0,0,0,.45);
   }
-  body.invite .kicker { display: block; font-size: .68rem; letter-spacing: .34em; font-weight: 700; color: #9FD8FF; margin-bottom: 10px; }
-  body.invite h1 { font-size: 1.32rem; margin-bottom: 10px; word-break: keep-all; }
-  body.invite p.desc { font-size: .88rem; margin-bottom: 20px; word-break: keep-all; text-wrap: balance; }
-  body.invite p.desc .l { display: block; text-wrap: balance; }
-  body.invite p.desc .l + .l { margin-top: 4px; }
-  body.invite .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  body.invite .actions .btn { margin: 0; padding: 15px 0; display: flex; align-items: center; justify-content: center; }
-  body.invite #share { display: flex; }
-  body.invite .btn-primary { box-shadow: 0 0 28px rgba(110,231,183,.35); }
-  body.invite #store {
+  .panel .kicker { margin-bottom: 10px; }
+  .panel h1 { font-size: 1.32rem; line-height: 1.45; font-weight: 700; margin-bottom: 10px; word-break: keep-all; }
+  .panel p.desc {
+    font-size: .88rem; line-height: 1.6; color: rgba(255,255,255,.72); margin-bottom: 20px;
+    word-break: keep-all; text-wrap: balance;
+  }
+  .panel p.desc .l { display: block; text-wrap: balance; }
+  .panel p.desc .l + .l { margin-top: 4px; }
+  .btn {
+    display: flex; align-items: center; justify-content: center; width: 100%; padding: 15px 0; border-radius: 14px;
+    font-size: 1rem; font-weight: 700; text-decoration: none;
+  }
+  button.btn { font-family: inherit; cursor: pointer; border: 0; -webkit-appearance: none; appearance: none; }
+  .btn-primary { background: var(--blue); color: #fff; box-shadow: 0 0 28px rgba(70,98,245,.5); }
+  .btn-ghost { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.16); }
+  .actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  #share { display: none; }
+  .invite .actions { grid-template-columns: 1fr 1fr; }
+  .invite #share { display: flex; }
+  #store {
     background: none; border: 0; color: rgba(255,255,255,.72); font-size: .85rem; font-weight: 600;
     padding: 12px 0 2px; margin: 4px 0 0;
   }
-  body.invite .brand { margin-top: 10px; font-size: .72rem; opacity: .6; }
-  body.invite .tagline { display: none; }
-  body:not(.invite) .panel { display: contents; }
-  /* 넓은 화면: 글로브는 왼쪽, 패널은 오른쪽 세로 가운데(globeBox() 의 landscape 조건과 같아야 한다) */
+  .panel .brand { margin-top: 10px; letter-spacing: .32em; font-weight: 700; font-size: .72rem; color: rgba(255,255,255,.85); opacity: .6; }
   @media (min-width: 820px) and (min-aspect-ratio: 1/1) {
-    body.invite main { left: auto; top: 0; width: min(500px, 40vw); display: flex; align-items: center; padding: 24px 40px 24px 0; }
-    body.invite .panel { margin: 0; }
+    main { left: auto; top: 0; width: min(500px, 40vw); display: flex; align-items: center; padding: 24px 40px 24px 0; }
+    .panel { margin: 0; }
   }
+
   #toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
-    z-index: 5; padding: 11px 18px; border-radius: 999px; font-size: .85rem; font-weight: 600; color: #06281C;
-    background: #6EE7B7; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+    z-index: 5; padding: 11px 18px; border-radius: 999px; font-size: .85rem; font-weight: 600; color: #fff;
+    background: var(--blue); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
   }
   #toast.show { opacity: 1; transform: translate(-50%, 0); }
-  @media (prefers-reduced-motion: reduce) { .star { animation: none; } #toast { transition: none; } }
+  @media (prefers-reduced-motion: no-preference) { html.home { scroll-behavior: smooth; } }
+  @media (prefers-reduced-motion: reduce) {
+    .star, .more i, .copy > * { animation: none; }
+    #toast, .store { transition: none; }
+  }
 </style>
 </head>
 <body>
-<canvas id="sky"></canvas>
+<canvas id="sky" aria-hidden="true"></canvas>
 <canvas id="globe" aria-hidden="true"></canvas>
+<div id="dim" aria-hidden="true"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="st" viewBox="0 0 100 100">
+    <path fill="currentColor" d="M50 4 Q54 42 50 50 Q54 58 50 96 Q46 58 50 50 Q46 42 50 4 Z
+      M4 50 Q42 46 50 50 Q58 46 96 50 Q58 54 50 50 Q42 54 4 50 Z"/>
+  </symbol>
+</svg>
+
+<!-- ───── 홈(/) ───── 스토어 링크: AppConfig.appStoreUrl / StaryConfig.APP_STORE_URL · PLAY_STORE_URL 과 동일(아래 스크립트도 이 a[href] 를 읽는다) -->
+<div id="home">
+  <section class="hero">
+    <div class="copy" id="copy">
+      <svg class="star" data-star="0:19" aria-hidden="true"><use href="#st"/></svg>
+      <div class="kicker">✦ LOCATION DIARY</div>
+      <h1>그 장소에 가야<br><em>열리는 별</em></h1>
+      <p class="lead">오늘 하루를 남기는 순간, 그 자리에 별 하나가 태어나요. 100m 안까지 다가가야 비로소 이야기가 열립니다.</p>
+      <div class="stores">
+        <a class="store play primary" href="https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios" rel="noopener"><small>Android</small><b>Google Play</b></a>
+        <a class="store ios" href="https://apps.apple.com/us/app/stary/id6799375537" rel="noopener"><small>iPhone</small><b>App Store</b></a>
+      </div>
+      <a class="more" href="#features">Stary 더 알아보기 <i>↓</i></a>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="kicker">✦ HOW IT WORKS</div>
+    <h2>발걸음으로 찾아가는 편지</h2>
+    <p class="sub">Stary 는 ‘언제’ 썼는지보다 ‘어디서’ 썼는지를 기억하는 다이어리예요.</p>
+    <div class="grid">
+      <article class="card" style="--c:#FFE083">
+        <svg data-star="0:1" aria-hidden="true"><use href="#st"/></svg>
+        <h3>100m 안에서만 열리는 별</h3>
+        <p>멀리서 본 남의 별은 그저 작은 빛일 뿐이에요. 100m 안까지 다가가야 비로소 이야기가 열립니다.</p>
+      </article>
+      <article class="card" style="--c:#FF6FD8">
+        <svg data-star="1:16" aria-hidden="true"><use href="#st"/></svg>
+        <h3>오늘의 나를 별로 고르기</h3>
+        <p>사진 한 장이나 3초 움짤로 순간을 담고, 별의 모양과 색으로 그날의 기분을 남겨요. 전체 공개 · 친구에게만 · 나만 보기.</p>
+      </article>
+      <article class="card" style="--c:#82DEEA">
+        <svg data-star="8:8" aria-hidden="true"><use href="#st"/></svg>
+        <h3>밤하늘을 여행하는 방법</h3>
+        <p>도시의 불빛을 지운 야경 지도 위로 별이 떠오릅니다. 지구본을 돌리면 지구 반대편의 밤까지 한눈에 들어와요.</p>
+      </article>
+      <article class="card" style="--c:#5EE7FF">
+        <svg data-star="2:19" aria-hidden="true"><use href="#st"/></svg>
+        <h3>흩어진 기록이 별자리가 될 때</h3>
+        <p>쌓인 하루들은 점으로 흩어지지 않아요. 별들이 선으로 이어지며 나만의 별자리가 됩니다.</p>
+      </article>
+      <article class="card" style="--c:#F7B1C8">
+        <svg data-star="9:4" aria-hidden="true"><use href="#st"/></svg>
+        <h3>같은 하늘 아래</h3>
+        <p>친구의 별에 좋아요와 댓글을 남기고 채팅으로 이야기를 이어가세요. 아무도 닿지 않은 땅에 처음 별을 띄우면 그곳의 개척자로 기록돼요.</p>
+      </article>
+      <article class="card" style="--c:#FFFFFF">
+        <svg data-star="7:0" aria-hidden="true"><use href="#st"/></svg>
+        <h3>밤에 어울리는 소리</h3>
+        <p>기록하는 동안 흐를 배경음악을 골라 보세요. 오늘의 달 모양과 여명·황혼도 실제 하늘 그대로 담깁니다.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="closing">
+    <h2>오늘 밤, 당신의 하늘엔<br>별이 몇 개나 떠 있나요?</h2>
+    <div class="stores">
+      <a class="store play primary" href="https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios" rel="noopener"><small>Android</small><b>Google Play</b></a>
+      <a class="store ios" href="https://apps.apple.com/us/app/stary/id6799375537" rel="noopener"><small>iPhone</small><b>App Store</b></a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="brand">S T A R Y</div>
+    <div>지도 위 밤하늘에 남기는 위치 다이어리</div>
+    <nav><a href="/delete-account.html">계정 및 데이터 삭제 안내</a></nav>
+    <div style="margin-top:14px">© 2026 Stary Dev</div>
+  </footer>
+</div>
+
+<!-- ───── 별 공유(/s/{id}) · 친구 초대(/i/{uid}) ───── -->
 <main>
   <div class="panel" id="panel">
-    <svg class="star" viewBox="0 0 100 100" aria-hidden="true">
-      <path fill="#6EE7B7" d="M50 4 Q54 42 50 50 Q54 58 50 96 Q46 58 50 50 Q46 42 50 4 Z
-        M4 50 Q42 46 50 50 Q58 46 96 50 Q58 54 50 50 Q42 54 4 50 Z"/>
-    </svg>
-    <div class="kicker">✦ INVITATION</div>
+    <svg class="star" data-star="0:19" aria-hidden="true"><use href="#st"/></svg>
+    <div class="kicker" id="kicker">✦ A STAR FOR YOU</div>
     <h1 id="headline">누군가 밤하늘에<br>별 하나를 남겼어요</h1>
     <p class="desc" id="desc">이 별은 <b>그 장소에 가야</b> 열려요.<br>
       Stary 앱을 열고, 별이 뜬 곳으로 걸어가 보세요.</p>
@@ -124,30 +326,41 @@
     </div>
     <a class="btn btn-ghost" id="store" href="#" aria-disabled="true">앱 설치 (준비 중)</a>
     <div class="brand">S T A R Y</div>
-    <div class="tagline">지도 위 밤하늘에 남기는 위치 다이어리</div>
   </div>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
-  // 경로에서 모드/코드 추출 → 앱 딥링크 구성.
+  // 경로에서 모드/코드 추출 → 앱 딥링크 구성. (모드 자체는 <head> 스크립트가 <html> 클래스로 정해 둔다)
   //  /s/{diaryId} (?d= 폴백) = 별 공유 → stary://diary/{id}
   //  /i/{uid}     (?i= 폴백) = 친구 초대 → stary://invite/{uid}
   (function () {
-    // Android: Play 프로덕션 출시됨. iOS: App Store 출시됨(2026-10) — AppConfig.appStoreUrl / StaryConfig.APP_STORE_URL 과 동일.
-    var STORE_URL_ANDROID = "https://play.google.com/store/apps/details?id=com.chaminwoo.stary_ios";
-    var STORE_URL_IOS = "https://apps.apple.com/us/app/stary/id6799375537";
+    var root = document.documentElement.classList;
+    // Android: Play 프로덕션 출시됨. iOS: App Store 출시됨(2026-10) — 주소는 홈의 스토어 버튼(a.store) 한 곳에만 적는다.
+    var STORE_URL_ANDROID = document.querySelector(".store.play").href;
+    var STORE_URL_IOS = document.querySelector(".store.ios").href;
     // iPadOS 13+ 의 Safari 는 UA 가 Macintosh 로 오므로 터치 지원 여부로 한 번 더 확인한다.
     var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
       (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
     var storeUrl = isIOS ? STORE_URL_IOS : STORE_URL_ANDROID;
 
+    startCrystals();
+    if (root.contains("home")) {
+      // 이 기기의 스토어를 강조(기본은 Play). 데스크톱은 둘 다 보여 준다.
+      if (isIOS) document.querySelectorAll(".store").forEach(function (a) {
+        a.classList.toggle("primary", a.classList.contains("ios"));
+      });
+      startGlobe(homeBox, { touchAction: "pan-y", wheelZoom: false });
+      startDim();
+      return;
+    }
+
     var share = location.pathname.match(/^\/s\/([\w-]+)/);
     var invite = location.pathname.match(/^\/i\/([\w-]+)/);
     var qs = new URLSearchParams(location.search);
     var btn = document.getElementById("openApp");
-    if (invite || qs.get("i")) {
+    if (root.contains("invite")) {
       var code = (invite && invite[1]) || qs.get("i") || "";
-      document.body.classList.add("invite");
+      document.getElementById("kicker").textContent = "✦ INVITATION";
       document.getElementById("headline").innerHTML = "친구가 당신을<br>Stary 로 초대했어요";
       document.getElementById("desc").innerHTML =
         '<span class="l">초대를 수락하고 가입하면 <b>두 사람 모두 특별한 칭호</b>를 받아요 ✦</span>' +
@@ -155,11 +368,11 @@
       btn.textContent = "초대 수락";
       btn.href = "stary://invite/" + encodeURIComponent(code);
       setupShare(code);
-      startGlobe();
     } else {
       var id = (share && share[1]) || qs.get("d") || "";
       btn.href = "stary://diary/" + encodeURIComponent(id);
     }
+    startGlobe(landingBox);
     var storeBtn = document.getElementById("store");
     if (storeUrl) {
       storeBtn.href = storeUrl;
@@ -210,34 +423,184 @@
     });
   }
 
+  // ── 앱과 같은 크리스탈(수정 결정) 별 — StarStyle.kt drawCrystalFacets / iOS StarStyle.swift 의 SVG 포팅 ──
+  // <svg data-star="모양:색"> 을 찾아 그린다. 모양·색 번호는 앱의 starType:starColor 그대로(색 16~20 = 2색 그라데이션).
+  // 실루엣으로 clip 한 안쪽에 불규칙 파편 메시(코어 다각형 + 엇갈린 링 2겹)를 깔고 능선·돔 셰이딩을 얹는다.
+  // 좌표는 100×100 기준이고 해시가 결정론적이라 같은 모양은 항상 같은 무늬다. 상수(지터·명도 구배·글린트)를 앱에서 바꾸면 여기도 같이.
+  function startCrystals() {
+    var WHITE = [255, 255, 255];
+    function hex(h) { return [h >> 16 & 255, h >> 8 & 255, h & 255]; }
+    function mix(a, b, f) { return a.map(function (v, i) { return v + (b[i] - v) * f; }); }
+    function rgb(c) { return "rgb(" + c.map(Math.round).join(",") + ")"; }
+    function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+    // StarStyle.palette(단색은 흰색 30% 혼합) · gradients 와 같은 값
+    var SOLID = [0xFFFFFF, 0xFFD54F, 0xFF8A65, 0xFF5252, 0xF48FB1, 0xCE93D8, 0x9575CD, 0x64B5F6, 0x4DD0E1, 0x6EE7B7, 0xAED581,
+                 0xA1887F, 0xE040FB, 0x448AFF, 0x00E676, 0xFFAB00].map(function (h) { return mix(hex(h), WHITE, 0.30); });
+    var GRAD = [[0xFF6FD8, 0x8E7BFF], [0x43E97B, 0x38F9D7], [0xFFD86F, 0xFB6F6F], [0x5EE7FF, 0x5B7CFF], [0x101010, 0xFFFFFF]]
+      .map(function (g) { return g.map(hex); });
+
+    function toHsl(c) {
+      var r = c[0] / 255, g = c[1] / 255, b = c[2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      var d = mx - mn, l = (mx + mn) / 2, h = 0, s = 0;
+      if (d) {
+        h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        s = d / (1 - Math.abs(2 * l - 1));
+      }
+      return [(h * 60 + 360) % 360, clamp(s, 0, 1), l];
+    }
+    function fromHsl(h, s, l) {
+      var c = (1 - Math.abs(2 * l - 1)) * s, m = l - c / 2, x = c * (1 - Math.abs(h / 60 % 2 - 1)), i = Math.floor(h / 60) % 6;
+      return [[c, x, 0, 0, x, c][i], [x, c, c, x, 0, 0][i], [0, 0, x, c, c, x][i]].map(function (v) { return (v + m) * 255; });
+    }
+    function hash(seed) { var x = Math.sin(seed * 12.9898) * 43758.5453; return x - Math.floor(x); }
+
+    // 실루엣 — StarStyle.starPath 와 같은 좌표(100×100).
+    function sparkle(spikes, innerRatio, rot) {   // 곡선(quad) 스파이크 별
+      var total = spikes * 2, R = 47.5;
+      function pt(i, len) {
+        var a = (i * 360 / total + rot) * Math.PI / 180;
+        return (50 + Math.cos(a) * len).toFixed(2) + " " + (50 + Math.sin(a) * len).toFixed(2);
+      }
+      var d = "M" + pt(0, R);
+      for (var i = 0; i < spikes; i++) d += "Q" + pt(i * 2 + 1, R * innerRatio) + " " + pt((i + 1) % spikes * 2, R);
+      return d + "Z";
+    }
+    function oval(cx, cy, rx, ry, sweep) {
+      return "M" + (cx - rx) + " " + cy + "a" + rx + " " + ry + " 0 1 " + sweep + " " + 2 * rx + " 0a" + rx + " " + ry + " 0 1 " + sweep + " " + -2 * rx + " 0Z";
+    }
+    // n = 링당 꼭짓점 수(facetDensity). clip = 겹쳐 적용하는 clip 목록 [d, transform, evenodd] — 겹친 만큼 교집합.
+    var SHAPES = {
+      0: { n: 10, clip: [[sparkle(4, 0.085, 0)]] },                 // 4꼭지 스파클
+      1: { n: 10, clip: [[sparkle(5, 0.14, -90)]] },                // 5꼭지 별
+      2: { n: 12, clip: [[sparkle(6, 0.11, -90)]] },                // 6꼭지 별
+      3: { n: 14, clip: [[sparkle(8, 0.10, 0)]] },                  // 8꼭지 스파클
+      4: { n: 10, clip: [[sparkle(4, 0.085, 45)]] },                // 다이아 스파클
+      // 초승달 = 큰 원 − 비낀 원(둘째 clip 은 "비낀 원의 바깥")
+      7: { n: 10, clip: [[oval(45, 50, 42, 42, 1), "rotate(-22 50 50)"],
+                         ["M-99-99H199V199H-99Z" + oval(66, 46, 37, 37, 1), "rotate(-22 50 50)", true]] },
+      // 행성 = 본체 원 ∪ 고리 밴드(안쪽 타원만 반대 방향으로 돌려 nonzero 로 구멍을 낸다)
+      8: { n: 12, clip: [[oval(50, 52, 26, 26, 1) + oval(50, 52, 46, 15, 1) + oval(50, 52, 37, 10.5, 0), "rotate(-20 50 52)"]] },
+      // 하트(중심 기준 0.82 배)
+      9: { n: 12, clip: [["M50 84C14 62 6 42 14 28C23 12 43 13 50 30C57 13 77 12 86 28C94 42 86 62 50 84Z", "translate(9 9) scale(.82)"]] }
+    };
+
+    function crystal(type, colors, uid) {
+      var S = SHAPES[type], n = S.n, t = type, step = 2 * Math.PI / n, core = [], mid = [], rim = [], k;
+      function jit(seed) { return hash(seed) - 0.5; }
+      for (k = 0; k < n; k++) {
+        var a0 = k * step + jit(k * 17 + t * 57 + 3) * step * 0.7;
+        var a1 = (k + 0.5) * step + jit(k * 29 + t * 71 + 5) * step * 0.7;      // 중간 링은 반 스텝 어긋나게
+        var a2 = k * step + jit(k * 41 + t * 13 + 9) * step * 0.7;
+        var r0 = 9 + 10 * hash(k * 23 + t * 91 + 11), r1 = 24 + 15 * hash(k * 37 + t * 143 + 17);
+        core.push([50 + Math.cos(a0) * r0, 50 + Math.sin(a0) * r0]);
+        mid.push([50 + Math.cos(a1) * r1, 50 + Math.sin(a1) * r1]);
+        rim.push([50 + Math.cos(a2) * 100, 50 + Math.sin(a2) * 100]);       // 실루엣 밖 — clip 이 마무리
+      }
+      core.push(core[0]); mid.push(mid[0]); rim.push(rim[0]);
+
+      // 파편 색 — 명도 = 돔 구배(bias) + 해시 변주, 색상 ±24°, 채도 0.8~1.2, 6% 글린트(백색 혼합)
+      function shardColor(seed, px, py, bias) {
+        var base = colors.length > 1 ? mix(colors[0], colors[1], clamp((px + py) / 200, 0, 1)) : colors[0];
+        var h1 = hash(seed * 7 + t * 131 + 1), h2 = hash(seed * 13 + t * 29 + 7), h3 = hash(seed * 31 + t * 173 + 19);
+        if (h3 > 0.94) return mix(base, WHITE, 0.55);
+        var hsl = toHsl(base);
+        return fromHsl((hsl[0] + (h1 - 0.5) * 48 + 360) % 360, clamp(hsl[1] * (0.80 + 0.40 * h2), 0, 1),
+                       clamp(hsl[2] + bias + (h1 - 0.5) * 0.18, 0.05, 0.97));
+      }
+      var shards = "", edges = "";
+      function shard(seed, bias, pts) {
+        var sx = 0, sy = 0;
+        var d = "M" + pts.map(function (p) { sx += p[0]; sy += p[1]; return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join("L") + "Z";
+        shards += '<path fill="' + rgb(shardColor(seed, sx / pts.length, sy / pts.length, bias)) + '" d="' + d + '"/>';
+        edges += d;
+      }
+      shard(1, 0.15, core.slice(0, n));                                       // 코어 — 가장 밝게(볼록의 정점)
+      for (k = 0; k < n; k++) {                                               // 엇갈린 삼각형 스트립
+        shard(100 + k * 2, 0.05, [core[k], mid[k], core[k + 1]]);
+        shard(101 + k * 2, 0.02, [mid[k], core[k + 1], mid[k + 1]]);
+        shard(400 + k * 2, -0.05, [mid[k], rim[k], mid[k + 1]]);
+        shard(401 + k * 2, -0.09, [rim[k], mid[k + 1], rim[k + 1]]);
+      }
+
+      var id = "cr" + uid, defs = "", open = "", close = "";
+      S.clip.forEach(function (c, i) {
+        defs += '<clipPath id="' + id + "c" + i + '"><path d="' + c[0] + '"' + (c[1] ? ' transform="' + c[1] + '"' : "") +
+                (c[2] ? ' clip-rule="evenodd"' : "") + "/></clipPath>";
+        open += '<g clip-path="url(#' + id + "c" + i + ')">'; close += "</g>";
+      });
+      // 돔 셰이딩 — 좌상단 하이라이트 + 가장자리로 가라앉는 음영
+      defs += '<radialGradient id="' + id + 'h" gradientUnits="userSpaceOnUse" cx="40" cy="38" r="45">' +
+              '<stop offset="0" stop-color="#fff" stop-opacity=".33"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
+              '<radialGradient id="' + id + 's" gradientUnits="userSpaceOnUse" cx="50" cy="50" r="50">' +
+              '<stop offset=".55" stop-color="#000014" stop-opacity="0"/><stop offset="1" stop-color="#000014" stop-opacity=".27"/></radialGradient>';
+      var box = '<rect width="100" height="100" fill="';
+      return "<defs>" + defs + "</defs>" + open +
+        box + rgb(colors[0]) + '"/>' + shards +                              // 바탕 = 파편 사이 안티앨리어싱 틈 메우기
+        '<path d="' + edges + '" fill="none" stroke="#fff" stroke-opacity=".16" stroke-width="1.3"/>' +   // 능선
+        box + "url(#" + id + 'h)"/>' + box + "url(#" + id + 's)"/>' + close;
+    }
+
+    [].forEach.call(document.querySelectorAll("svg[data-star]"), function (svg, i) {
+      var v = svg.getAttribute("data-star").split(":"), type = +v[0], ci = +v[1];
+      if (!SHAPES[type]) return;                                              // 모르는 모양이면 단색 별(<use>) 그대로
+      var colors = ci >= 16 ? GRAD[ci - 16] : [SOLID[ci]];
+      svg.setAttribute("viewBox", "0 0 100 100");
+      svg.innerHTML = crystal(type, colors, i);
+      svg.style.setProperty("--c", rgb(colors[0]));                           // 후광색 = 대표색(그라데이션은 시작색)
+    });
+  }
+
   // ── 앱과 같은 3D 글로브(globe/globe.js — Android GlobeRenderer 의 WebGL 포팅) ──
-  // 지구는 화면 위쪽(세로) / 왼쪽(가로 넓은 화면)에 두고 패널을 반대편에 둔다. 조건은 위 CSS 미디어쿼리와 같아야 한다.
-  function globeBox() {
-    var W = innerWidth, H = innerHeight, p = document.getElementById("panel").getBoundingClientRect();
+  // 지구는 화면 위쪽(세로) / 왼쪽(가로 넓은 화면)에 두고 글(홈) · 패널(공유/초대)을 반대편에 둔다.
+  // 조건은 위 CSS 미디어쿼리와 같아야 한다. left/top = 글 블록의 왼쪽·위 가장자리(문서 맨 위 기준 px).
+  function globeBoxFor(left, top) {
+    var W = innerWidth, H = innerHeight;
     if (W >= 820 && W / H >= 1) {
-      var bw = Math.max(260, p.left - 16);
+      var bw = Math.max(260, left - 16);
       return { cx: bw / 2, cy: H / 2, r: Math.min(bw * 0.44, H * 0.40) };
     }
-    var bh = Math.max(200, p.top - 8);
-    return { cx: W / 2, cy: bh / 2 + 4, r: Math.min(W * 0.42, bh * 0.44) };
+    var bh = Math.max(200, top - 8);
+    // 낮은 화면(글이 화면 대부분을 차지)에서도 지구가 너무 작아지지 않게 하한을 둔다 — 아래쪽은 글 뒤 그러데이션에 살짝 잠긴다.
+    return { cx: W / 2, cy: bh / 2 + 4, r: Math.min(W * 0.42, Math.max(bh * 0.44, 112)) };
   }
-  function startGlobe() {
-    function fallback() { document.body.classList.remove("globe-on"); startSky(); }   // WebGL 불가/실패 → 예전 별 아이콘 + 잔별 화면
+  function landingBox() {
+    var p = document.getElementById("panel").getBoundingClientRect();
+    return globeBoxFor(p.left, p.top);
+  }
+  // 홈은 스크롤되므로(글로브는 고정) 스크롤 양을 더해 "맨 위에 있을 때"의 글 위치로 계산한다.
+  function homeBox() {
+    var c = document.getElementById("copy").getBoundingClientRect();
+    return globeBoxFor(c.left, c.top + scrollY);
+  }
+  function startGlobe(box, extra) {
+    function fallback() { document.body.classList.remove("globe-on"); startSky(); }   // WebGL 불가/실패 → 별 아이콘 + 잔별 화면
     document.body.classList.add("globe-on");
     var s = document.createElement("script");
     s.src = "/globe/globe.js";
     s.onerror = fallback;
     s.onload = function () {
       try {
-        StaryGlobe.start(document.getElementById("globe"), {
-          land: "/globe/globe_land.jpg", nebula: "/globe/globe_nebula.jpg", box: globeBox, onLost: fallback
-        }).catch(function (e) { console.warn("globe", e); fallback(); });
+        var opts = { land: "/globe/globe_land.jpg", nebula: "/globe/globe_nebula.jpg", box: box, onLost: fallback };
+        for (var k in (extra || {})) opts[k] = extra[k];
+        StaryGlobe.start(document.getElementById("globe"), opts)
+          .catch(function (e) { console.warn("globe", e); fallback(); });
       } catch (e) { console.warn("globe", e); fallback(); }
     };
     document.head.appendChild(s);
   }
 
-  // 밤하늘 캔버스 — 잔별 + 반짝임. (초대 페이지는 글로브가 자기 별밭을 그리므로 글로브가 실패했을 때만 시작한다)
+  // 홈: 스크롤할수록 고정된 글로브 위에 어둠을 덮는다(소개 카드가 읽히게).
+  function startDim() {
+    var dim = document.getElementById("dim"), queued = false;
+    function apply() {
+      queued = false;
+      dim.style.opacity = Math.min(0.66, scrollY / (innerHeight * 0.85) * 0.66).toFixed(3);
+    }
+    addEventListener("scroll", function () { if (!queued) { queued = true; requestAnimationFrame(apply); } }, { passive: true });
+    apply();
+  }
+
+  // 밤하늘 캔버스 — 잔별 + 반짝임. (글로브가 자기 별밭을 그리므로 글로브가 실패했을 때만 시작한다)
   var skyStarted = false;
   function startSky() {
     if (skyStarted) return;
@@ -266,7 +629,6 @@
       requestAnimationFrame(draw);
     })(0);
   }
-  if (!document.body.classList.contains("invite")) startSky();
 </script>
 </body>
 </html>

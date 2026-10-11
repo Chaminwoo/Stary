@@ -304,8 +304,10 @@
   const CORNERS = [-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1];
 
   /**
-   * 글로브 시작. opts = { land, nebula, box, onLost }
+   * 글로브 시작. opts = { land, nebula, box, onLost, touchAction, wheelZoom }
    *  - box() → { cx, cy, r } : 지구 중심·반지름(CSS px)
+   *  - touchAction(기본 "none") / wheelZoom(기본 true) : 스크롤되는 페이지(홈) 위에 깔 때는
+   *    "pan-y" + false 로 줘서 세로 스와이프·휠이 페이지 스크롤로 가게 한다(가로 드래그만 지구를 돌린다).
    * WebGL 불가/셰이더 실패면 throw — 호출부가 폴백 UI 를 유지한다.
    */
   function start(canvas, opts) {
@@ -497,7 +499,7 @@
 
       // ── 입력 ──
       const degPerPx = () => (180 / Math.PI) / (rPx * 1.0);
-      canvas.style.touchAction = "none";
+      canvas.style.touchAction = opts.touchAction || "none";
       canvas.addEventListener("pointerdown", (e) => {
         dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now(); lastTouch = lastT;
         yawVel = pitchVel = 0;
@@ -514,8 +516,9 @@
       });
       const endDrag = () => { dragging = false; lastTouch = performance.now(); };
       canvas.addEventListener("pointerup", endDrag);
-      canvas.addEventListener("pointercancel", endDrag);
-      canvas.addEventListener("wheel", (e) => {
+      // 취소 = 브라우저가 제스처를 가져감(pan-y 에서 세로 스크롤 시작) → 그 사이 쌓인 관성은 버린다(스크롤할 때마다 지구가 밀리지 않게).
+      canvas.addEventListener("pointercancel", () => { yawVel = pitchVel = 0; endDrag(); });
+      if (opts.wheelZoom !== false) canvas.addEventListener("wheel", (e) => {
         e.preventDefault();
         zoom = clamp(zoom * Math.exp(-e.deltaY * 0.0012), 0.75, 1.5);
         recompute();
