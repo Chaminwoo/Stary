@@ -135,55 +135,96 @@ internal const val CONSTELLATION_FLASH_LAYER = "constellation-flash-layer"
 internal const val CONSTELLATION_TIP_HALO_LAYER = "constellation-tip-halo-layer"
 internal const val CONSTELLATION_TIP_LAYER = "constellation-tip-layer"
 
-// ── 필터 전환 "빛의 고리" 등장(2026-10-14, references/filtering.mp4) ─────────────────
-// **지도 위 내 위치**에서 링이 퍼지고(지도에 붙어 있어 연출 중 지도를 움직이면 링도 따라 움직인다), 링이 닿는 순간
-// 그 별이 차임과 함께 잠깐 커지고 밝아졌다가 제자리로 돌아오며 생긴다. 화면 밖 별도 링이 닿으면 소리가 난다.
-// 링 안쪽(지나간 자리)부터 필터 빛이 깔린다. (예전: 무작위 순서로 하나씩 "톡" — 2026-09-25)
+// ── 필터 전환 "빛의 고리"(포털) 등장 — 2026-10-14, 레퍼런스: references/filtering.mp4 + 리그 오브 레전드 "창공 파이크" 펜타킬 ──
+// 내 위치에 검은 구체가 생기고, 거기서 **울퉁불퉁 출렁이는 거품(포털)**이 지도 위로 퍼진다. 거품 안쪽은 필터 색의 성운
+// (구름 얼룩·어두운 반점·잔별)이 되어 화면 전체를 덮었다가 은은한 필터 빛으로 가라앉는다. 테두리는 안쪽으로 번지는 밝은 빛 + 얇은 선.
+// 링(거품 테두리)이 닿는 별은 차임과 함께 잠깐 커지고 밝아졌다 제자리로(화면 밖 별도 소리). **링은 별과 관계없이 지금 보고 있는
+// 화면 전체를 지나갈 때까지 멈추지 않는다.** 지도 위 좌표로 그려 연출 중 지도를 움직이면 함께 움직인다.
 // iOS `MapStarReveal.swift` 의 `StarRevealFx` 와 같은 값(값 drift 금지).
 /**
  * 링이 내 위치 → 화면의 가장 먼 모서리까지 **일정한 속도로** 퍼지는 시간(ms).
- * 그 뒤로는 점점 빨라지며([REVEAL_FAR_TAU_MS]) 화면 밖 먼 별까지 닿는다([REVEAL_MAX_MS] 상한).
+ * 그 뒤로는 점점 빨라지며([REVEAL_FAR_TAU_MS]) 화면 밖 먼 별·더 넓은 지도까지 퍼진다.
  */
 internal const val REVEAL_WAVE_MS = 900L
 /** 화면을 다 쓸고 난 뒤 링이 빨라지는 정도(ms, 지수 시간 상수) — 작을수록 빨리 멀리 간다. */
 internal const val REVEAL_FAR_TAU_MS = 450.0
-/** 링이 별에 닿는 시각의 상한(ms) — 이보다 먼 별은 이 시각에 한꺼번에 생긴다. */
-internal const val REVEAL_MAX_MS = 3600L
-/**
- * 링이 옅어져 사라지는 시간(ms). 링은 **모든 별에 닿고 + 지금 보고 있는 화면을 다 덮을 때까지** 선명하게 계속 퍼지고,
- * 그 뒤 퍼지는 채로 이 시간 동안 옅어진다(예전엔 정해진 시각에 끝나 링이 화면 안에서 멈춘 듯 사라졌다 — 2026-10-14).
- */
+/** 링이 별에 닿는 시각의 상한(ms) — 지구 반대편 별도 이 안에 닿는다(실제로는 거의 안 걸리는 안전 상한). */
+internal const val REVEAL_MAX_MS = 8000L
+/** 링이 지금 화면을 다 지나간 뒤 옅어지는 시간(ms) — 이때 링은 이미 화면 밖이다. */
 internal const val REVEAL_RING_FADE_MS = 300L
-/** 링이 화면을 다 덮지 못해도(내 위치가 아주 멀리 있는 등) 이 시각엔 옅어지기 시작한다(ms). */
-internal const val REVEAL_RING_MAX_MS = 6000L
-/** 지도 위 링을 화면에 투영할 때 쓰는 꼭짓점 수 — 구불구불한 선이 매끈하게 보이도록 넉넉히. */
+/** 화면을 다 지나가지 못해도 이 시각엔 끝낸다(ms) — 정상적으로는 닿지 않는 안전 상한. */
+internal const val REVEAL_RING_MAX_MS = 12000L
+/** 링이 화면을 다 지나간 뒤 포털 성운이 은은한 필터 빛으로 가라앉는 시간(ms) — 레퍼런스의 "몇 초간 덮였다 걷힘". */
+internal const val REVEAL_PORTAL_DECAY_MS = 1600L
+/** 지도 위 링을 화면에 투영할 때 쓰는 꼭짓점 수. */
 internal const val REVEAL_RING_SEGMENTS = 180
 /**
- * 링의 구불거림 — 반지름 대비 비율. 반지름(각도 θ, 시각 t) = R(t) × (1 + 이 값 × [RingWobble.at]).
- * 정원이 아니라 "영토가 넓어지듯" 출렁이며 퍼진다.
+ * 거품의 출렁임 — 반지름 대비 비율. 반지름(각도 θ, 시각 t) = R(t) × (1 + 이 값 × [RingWobble.at]).
+ * 낮은 주파수(2·3·5) 위주라 정원이 아니라 울퉁불퉁한 덩어리가 부풀듯 퍼진다.
  */
-internal const val REVEAL_RING_WOBBLE = 0.07
+internal const val REVEAL_RING_WOBBLE = 0.09
+/** 링 선 굵기(dp) / 테두리 안쪽으로 번지는 빛 폭(dp) — 선 하나 + 안쪽 번짐(바깥으로는 번지지 않는다). */
+internal const val REVEAL_RING_STROKE_DP = 1.4f
+internal const val REVEAL_RIM_GLOW_DP = 22f
+/** 시작점의 검은 구체 — 반지름(dp) / 생겼다 사라지는 시간(ms). */
+internal const val REVEAL_ORB_DP = 15f
+internal const val REVEAL_ORB_MS = 700L
+/** 지구 반지름(m) — 지도 위 원을 대권(실제 지구 곡면) 기준으로 그린다(아주 큰 링도 모양이 깨지지 않게). */
+internal const val EARTH_RADIUS_M = 6_371_000.0
 
 /**
- * 링 구불거림 모양 — 각도 θ(라디안, 동쪽 0·반시계)와 시각(초)에 따른 −1..1 값.
- * 주파수 3·7·13 의 사인을 섞고 시간에 따라 서로 다른 방향으로 흘려, 테두리가 꿈틀대며 넓어지는 느낌을 낸다.
- * 위상은 연출마다 무작위. iOS `RingWobble`(MapStarReveal.swift)과 **같은 식**.
+ * 거품 출렁임 모양 — 각도 θ(라디안, 동쪽 0·반시계)와 시각(초)에 따른 −1..1 값.
+ * 주파수 2·3·5(덩어리) + 11(잔물결)의 사인을 섞고 시간에 따라 서로 다른 방향으로 흘린다. 위상은 연출마다 무작위.
+ * iOS `RingWobble`(MapStarReveal.swift)과 **같은 식**.
  */
 internal class RingWobble(seed: Int) {
     private val p1: Double
     private val p2: Double
     private val p3: Double
+    private val p4: Double
     init {
         val r = kotlin.random.Random(seed)
         p1 = r.nextDouble() * 2 * Math.PI
         p2 = r.nextDouble() * 2 * Math.PI
         p3 = r.nextDouble() * 2 * Math.PI
+        p4 = r.nextDouble() * 2 * Math.PI
     }
 
     fun at(theta: Double, tSec: Double): Double =
-        0.50 * kotlin.math.sin(3 * theta + p1 + 0.9 * tSec) +
-            0.32 * kotlin.math.sin(7 * theta + p2 - 1.6 * tSec) +
-            0.18 * kotlin.math.sin(13 * theta + p3 + 2.4 * tSec)
+        0.45 * kotlin.math.sin(2 * theta + p1 + 0.7 * tSec) +
+            0.30 * kotlin.math.sin(3 * theta + p2 - 1.1 * tSec) +
+            0.17 * kotlin.math.sin(5 * theta + p3 + 1.6 * tSec) +
+            0.08 * kotlin.math.sin(11 * theta + p4 - 2.6 * tSec)
+}
+
+/**
+ * [lat]/[lng] 에서 방위 [bearingRad](북쪽 0·시계방향)로 [distM] 만큼 간 지점(대권) — [lat, lng].
+ * 경도는 −180..180 으로 접지 않는다(호출부가 이어지게 펼친다).
+ */
+internal fun geoDestination(lat: Double, lng: Double, bearingRad: Double, distM: Double): DoubleArray {
+    val d = (distM / EARTH_RADIUS_M).coerceIn(0.0, Math.PI)
+    val p1 = Math.toRadians(lat)
+    val l1 = Math.toRadians(lng)
+    val sinP2 = kotlin.math.sin(p1) * kotlin.math.cos(d) +
+        kotlin.math.cos(p1) * kotlin.math.sin(d) * kotlin.math.cos(bearingRad)
+    val p2 = kotlin.math.asin(sinP2.coerceIn(-1.0, 1.0))
+    val l2 = l1 + kotlin.math.atan2(
+        kotlin.math.sin(bearingRad) * kotlin.math.sin(d) * kotlin.math.cos(p1),
+        kotlin.math.cos(d) - kotlin.math.sin(p1) * sinP2,
+    )
+    return doubleArrayOf(Math.toDegrees(p2), Math.toDegrees(l2))
+}
+
+/** [lat1]/[lng1] 에서 [lat2]/[lng2] 를 보는 각도 — [RingWobble] 과 같은 기준(동쪽 0·반시계, 라디안). */
+internal fun geoTheta(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+    val p1 = Math.toRadians(lat1)
+    val p2 = Math.toRadians(lat2)
+    val dl = Math.toRadians(lng2 - lng1)
+    val bearing = kotlin.math.atan2(
+        kotlin.math.sin(dl) * kotlin.math.cos(p2),
+        kotlin.math.cos(p1) * kotlin.math.sin(p2) - kotlin.math.sin(p1) * kotlin.math.cos(p2) * kotlin.math.cos(dl),
+    )
+    return Math.PI / 2 - bearing
 }
 
 /** 시작 후 [tMs] 에 링 반지름(m) — [sweepM] = 내 위치에서 화면의 가장 먼 모서리까지 거리. */
@@ -204,8 +245,6 @@ internal fun revealHitMs(distM: Double, sweepM: Double): Long {
 internal const val REVEAL_POP_MS = 520L
 /** 등장 직전, 이전 필터의 별을 걷어내는 시간(ms). */
 internal const val REVEAL_CLEAR_MS = 170L
-/** 링 선 굵기(dp) — 구불구불한 선 하나만 그린다(번짐·안쪽 빛 띠 없음, 2026-10-14 사용자 요청으로 2.2 → 1.6). */
-internal const val REVEAL_RING_STROKE_DP = 1.6f
 /** 별 발광 반경 = 화면에 보이는 별 반지름 × 이 배율(하한 [REVEAL_FLASH_MIN_DP]). */
 internal const val REVEAL_FLASH_SCALE = 1.9f
 internal const val REVEAL_FLASH_MIN_DP = 12f

@@ -79,9 +79,20 @@ final class FilterWaveState: ObservableObject {
     @Published var active = false
     /// 퍼지는 중인 링 — 지도 뷰 좌표의 꼭짓점(매 프레임 갱신). nil = 아직 링 없음.
     @Published var ring: [CGPoint]?
-    /// 링 안(새 필터 색) / 링 밖(이전 색).
+    /// 링 안(새 필터 색) / 링 밖(이전 색) / 링(테두리·검은 구체 테) 색.
     var insideHex: UInt32?
     var outsideHex: UInt32?
+    var ringHex: UInt32 = MapFilterKind.neutralHex
+
+    /// 포털 성운 — 세기(0..1, 퍼지는 동안 1 → 화면을 다 지나간 뒤 가라앉음) / 구름 얼룩 / 잔별 / 시작점 검은 구체.
+    /// 코디네이터가 매 프레임 `ring` 보다 먼저 채운다(`ring` 발행이 다시 그리기를 일으킨다).
+    struct Blob { let point: CGPoint; let radius: CGFloat; let kind: Int }
+    struct Spark { let point: CGPoint; let radius: CGFloat; let alpha: Double }
+    struct Orb { let point: CGPoint; let radius: CGFloat; let alpha: Double }
+    var portal: Double = 0
+    var blobs: [Blob] = []
+    var sparks: [Spark] = []
+    var orb: Orb?
     /// 첫 표시 때 지금 필터 색으로 한 번 맞췄는지.
     var initialized = false
 }
@@ -106,6 +117,11 @@ struct FilterGlowOverlay: View {
             let inside = wave.insideHex
             let outside = wave.outsideHex
             let committed = wave.committedHex
+            let portal = wave.portal
+            let blobs = wave.blobs
+            let sparks = wave.sparks
+            let orb = wave.orb
+            let ringHex = wave.ringHex
             Canvas { ctx, size in
                 guard size.width > 0, size.height > 0 else { return }
                 if active {
@@ -118,6 +134,10 @@ struct FilterGlowOverlay: View {
                             var inner = ctx
                             inner.clip(to: path)
                             Self.drawGlow(&inner, size: size, hex: hex, phase: phase)
+                            // 거품 안 = 포털 성운(퍼지는 동안 짙게, 화면을 다 지나간 뒤 은은한 필터 빛으로 가라앉는다)
+                            if portal > 0.01 {
+                                Self.drawPortal(&inner, size: size, hex: hex, portal: portal, blobs: blobs, sparks: sparks)
+                            }
                         }
                         if let hex = outside {
                             var outer = ctx
@@ -131,6 +151,24 @@ struct FilterGlowOverlay: View {
                 } else if let hex = committed {
                     var all = ctx
                     Self.drawGlow(&all, size: size, hex: hex, phase: phase)
+                }
+                // 시작점의 검은 구체 — 바깥 보랏빛 테 + 검은 속 + 작은 반짝임
+                if active, let orb {
+                    let rim = Color(uiColor: UIColor(rgbHex: ringHex).mixedWithWhite(0.3))
+                    let g = Gradient(stops: [
+                        .init(color: Color(hex: 0x05030C).opacity(0.95 * orb.alpha), location: 0),
+                        .init(color: Color(hex: 0x0B0618).opacity(0.92 * orb.alpha), location: 0.62),
+                        .init(color: rim.opacity(0.55 * orb.alpha), location: 0.82),
+                        .init(color: rim.opacity(0), location: 1),
+                    ])
+                    let rect = CGRect(x: orb.point.x - orb.radius, y: orb.point.y - orb.radius,
+                                      width: orb.radius * 2, height: orb.radius * 2)
+                    ctx.fill(Path(ellipseIn: rect),
+                             with: .radialGradient(g, center: orb.point, startRadius: 0, endRadius: orb.radius))
+                    let sr = orb.radius * 0.09
+                    let sc = CGPoint(x: orb.point.x + orb.radius * 0.18, y: orb.point.y - orb.radius * 0.12)
+                    ctx.fill(Path(ellipseIn: CGRect(x: sc.x - sr, y: sc.y - sr, width: sr * 2, height: sr * 2)),
+                             with: .color(.white.opacity(0.85 * orb.alpha)))
                 }
             }
         }
@@ -147,6 +185,43 @@ struct FilterGlowOverlay: View {
                 let state = FilterWaveState.shared
                 if !state.active { state.committedHex = hex }
             }
+        }
+    }
+
+    /// 포털 성운 — 짙은 남보라 바탕 + 구름 얼룩·어두운 반점·청록 빛줄기 + 잔별(Android drawPortal 과 같은 색·알파).
+    private static func drawPortal(_ ctx: inout GraphicsContext, size: CGSize, hex: UInt32, portal: Double,
+                                   blobs: [FilterWaveState.Blob], sparks: [FilterWaveState.Spark]) {
+        let tint = UIColor(rgbHex: hex)
+        func mix(_ a: UIColor, _ b: UIColor, _ t: CGFloat) -> UIColor {
+            var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+            var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+            a.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+            b.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+            return UIColor(red: r1 + (r2 - r1) * t, green: g1 + (g2 - g1) * t, blue: b1 + (b2 - b1) * t, alpha: 1)
+        }
+        let deep = mix(tint, UIColor(rgbHex: 0x120A2A), 0.58)
+        ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(uiColor: deep).opacity(0.30 * portal)))
+        for b in blobs where b.radius >= 1 {
+            let (c, a): (UIColor, Double) = {
+                switch b.kind {
+                case 0: return (mix(tint, UIColor(rgbHex: 0x1A0E3A), 0.35), 0.30)
+                case 1: return (tint.mixedWithWhite(0.15), 0.16)
+                case 2: return (UIColor(rgbHex: 0x07040F), 0.34)
+                default: return (mix(tint, UIColor(rgbHex: 0x3FE0C8), 0.6), 0.12)
+                }
+            }()
+            let color = Color(uiColor: c)
+            let g = Gradient(stops: [
+                .init(color: color.opacity(a * portal), location: 0),
+                .init(color: color.opacity(0), location: 1),
+            ])
+            let rect = CGRect(x: b.point.x - b.radius, y: b.point.y - b.radius, width: b.radius * 2, height: b.radius * 2)
+            ctx.fill(Path(ellipseIn: rect), with: .radialGradient(g, center: b.point, startRadius: 0, endRadius: b.radius))
+        }
+        let star = Color(uiColor: tint.mixedWithWhite(0.75))
+        for s in sparks {
+            let rect = CGRect(x: s.point.x - s.radius, y: s.point.y - s.radius, width: s.radius * 2, height: s.radius * 2)
+            ctx.fill(Path(ellipseIn: rect), with: .color(star.opacity(s.alpha * portal)))
         }
     }
 
