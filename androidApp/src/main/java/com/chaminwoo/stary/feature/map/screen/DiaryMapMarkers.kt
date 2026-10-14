@@ -149,10 +149,42 @@ internal const val REVEAL_WAVE_MS = 900L
 internal const val REVEAL_FAR_TAU_MS = 450.0
 /** 링이 별에 닿는 시각의 상한(ms) — 이보다 먼 별은 이 시각에 한꺼번에 생긴다. */
 internal const val REVEAL_MAX_MS = 3600L
-/** 마지막 별에 닿은 뒤 링이 옅어져 사라지는 시간(ms). 그 전까지 링은 끝까지 선명하다. */
+/**
+ * 링이 옅어져 사라지는 시간(ms). 링은 **모든 별에 닿고 + 지금 보고 있는 화면을 다 덮을 때까지** 선명하게 계속 퍼지고,
+ * 그 뒤 퍼지는 채로 이 시간 동안 옅어진다(예전엔 정해진 시각에 끝나 링이 화면 안에서 멈춘 듯 사라졌다 — 2026-10-14).
+ */
 internal const val REVEAL_RING_FADE_MS = 300L
-/** 지도 위 원을 화면에 투영할 때 쓰는 꼭짓점 수. */
-internal const val REVEAL_RING_SEGMENTS = 120
+/** 링이 화면을 다 덮지 못해도(내 위치가 아주 멀리 있는 등) 이 시각엔 옅어지기 시작한다(ms). */
+internal const val REVEAL_RING_MAX_MS = 6000L
+/** 지도 위 링을 화면에 투영할 때 쓰는 꼭짓점 수 — 구불구불한 선이 매끈하게 보이도록 넉넉히. */
+internal const val REVEAL_RING_SEGMENTS = 180
+/**
+ * 링의 구불거림 — 반지름 대비 비율. 반지름(각도 θ, 시각 t) = R(t) × (1 + 이 값 × [RingWobble.at]).
+ * 정원이 아니라 "영토가 넓어지듯" 출렁이며 퍼진다.
+ */
+internal const val REVEAL_RING_WOBBLE = 0.07
+
+/**
+ * 링 구불거림 모양 — 각도 θ(라디안, 동쪽 0·반시계)와 시각(초)에 따른 −1..1 값.
+ * 주파수 3·7·13 의 사인을 섞고 시간에 따라 서로 다른 방향으로 흘려, 테두리가 꿈틀대며 넓어지는 느낌을 낸다.
+ * 위상은 연출마다 무작위. iOS `RingWobble`(MapStarReveal.swift)과 **같은 식**.
+ */
+internal class RingWobble(seed: Int) {
+    private val p1: Double
+    private val p2: Double
+    private val p3: Double
+    init {
+        val r = kotlin.random.Random(seed)
+        p1 = r.nextDouble() * 2 * Math.PI
+        p2 = r.nextDouble() * 2 * Math.PI
+        p3 = r.nextDouble() * 2 * Math.PI
+    }
+
+    fun at(theta: Double, tSec: Double): Double =
+        0.50 * kotlin.math.sin(3 * theta + p1 + 0.9 * tSec) +
+            0.32 * kotlin.math.sin(7 * theta + p2 - 1.6 * tSec) +
+            0.18 * kotlin.math.sin(13 * theta + p3 + 2.4 * tSec)
+}
 
 /** 시작 후 [tMs] 에 링 반지름(m) — [sweepM] = 내 위치에서 화면의 가장 먼 모서리까지 거리. */
 internal fun revealRadiusM(tMs: Double, sweepM: Double): Double {
@@ -172,9 +204,8 @@ internal fun revealHitMs(distM: Double, sweepM: Double): Long {
 internal const val REVEAL_POP_MS = 520L
 /** 등장 직전, 이전 필터의 별을 걷어내는 시간(ms). */
 internal const val REVEAL_CLEAR_MS = 170L
-/** 링 선 굵기 / 링 안쪽으로 끌리는 빛 띠 폭(dp). */
-internal const val REVEAL_RING_STROKE_DP = 2.2f
-internal const val REVEAL_RING_TRAIL_DP = 54f
+/** 링 선 굵기(dp) — 구불구불한 선 하나만 그린다(번짐·안쪽 빛 띠 없음, 2026-10-14 사용자 요청으로 2.2 → 1.6). */
+internal const val REVEAL_RING_STROKE_DP = 1.6f
 /** 별 발광 반경 = 화면에 보이는 별 반지름 × 이 배율(하한 [REVEAL_FLASH_MIN_DP]). */
 internal const val REVEAL_FLASH_SCALE = 1.9f
 internal const val REVEAL_FLASH_MIN_DP = 12f

@@ -1100,8 +1100,25 @@ fun DiaryMap(
             // 2) 빛의 고리
             com.chaminwoo.stary.core.util.MusicManager.resetRevealChime()
             val ringColor = plan.toTint ?: FILTER_WAVE_NEUTRAL
-            val distM = HashMap<String, Double>()
+            // 별마다 링이 닿는 시각(ms) — 구불구불한 선이 그 별 방향에서 실제로 닿는 순간에 맞춘다.
+            val hitAt = HashMap<String, Long>()
+            val mPerLng = 111_320.0 * kotlin.math.cos(Math.toRadians(plan.center.latitude)).coerceAtLeast(0.01)
+            fun hitTimeOf(d: Diary): Long = hitAt.getOrPut(d.id) {
+                val dist = LocationHelper.distanceBetween(
+                    plan.center.latitude, plan.center.longitude, d.latitude, d.longitude
+                ).toDouble()
+                val theta = kotlin.math.atan2(
+                    (d.latitude - plan.center.latitude) * 111_320.0,
+                    (d.longitude - plan.center.longitude) * mPerLng,
+                )
+                // 기본 원이 닿는 시각의 출렁임으로 한 번 보정(출렁임은 느리게 변해 이 정도면 선과 맞는다)
+                val base = revealHitMs(dist, plan.sweepM)
+                val w = plan.wobble.at(theta, base / 1000.0)
+                revealHitMs(dist / (1 + REVEAL_RING_WOBBLE * w), plan.sweepM)
+            }
             val chimed = HashSet<String>()
+            // 링이 옅어지기 시작한 시각(ms) — 모든 별에 닿고 지금 화면을 다 덮으면 정한다.
+            var fadeStart = -1L
             val flashMinPx = REVEAL_FLASH_MIN_DP * screenDensity
             var startNanos = 0L
             while (true) {
@@ -1117,11 +1134,7 @@ fun DiaryMap(
                 val flashes = ArrayList<WaveFlash>()
                 val shown = stars.map { s ->
                     val d = s.d
-                    val dist = distM.getOrPut(d.id) {
-                        LocationHelper.distanceBetween(plan.center.latitude, plan.center.longitude, d.latitude, d.longitude)
-                            .toDouble()
-                    }
-                    val hit = revealHitMs(dist, plan.sweepM)
+                    val hit = hitTimeOf(d)
                     if (hit > lastHit) lastHit = hit
                     if (ms < hit) {
                         ShownStar(d, d.longitude, d.latitude, s.near, 0f, s.size * revealPopScale(0f))
@@ -1151,18 +1164,24 @@ fun DiaryMap(
                     }
                 }
                 emit(shown)
-                // 링은 화면을 다 쓸고(REVEAL_WAVE_MS) 마지막 별에 닿을 때까지 선명하게, 그 뒤 옅어진다.
-                val ringHold = maxOf(REVEAL_WAVE_MS, lastHit)
-                val ringAlpha = (1f - (ms - ringHold).toFloat() / REVEAL_RING_FADE_MS).coerceIn(0f, 1f)
+                // 링은 모든 별에 닿고 + **지금 보고 있는 화면을 다 덮을 때까지** 선명하게 계속 퍼진다(연출 중 지도를 옮겨도
+                // 그 화면을 다 덮을 때까지). 그 뒤 퍼지는 채로 옅어진다. 내 위치가 아주 멀면 REVEAL_RING_MAX_MS 에서 옅어지기 시작.
+                val radius = revealRadiusM(ms.toDouble(), plan.sweepM)
+                if (fadeStart < 0 && ms >= lastHit + REVEAL_POP_MS) {
+                    val covers = radius * (1 - REVEAL_RING_WOBBLE) >= revealSweepMeters(map, viewW, viewH, plan.center)
+                    if (covers || ms >= REVEAL_RING_MAX_MS) fadeStart = ms
+                }
+                val ringAlpha = if (fadeStart < 0) 1f
+                else (1f - (ms - fadeStart).toFloat() / REVEAL_RING_FADE_MS).coerceIn(0f, 1f)
                 filterWave.value = FilterWaveFrame(
-                    ring = ringScreenPath(map, plan.center, revealRadiusM(ms.toDouble(), plan.sweepM)),
+                    ring = ringScreenPath(map, plan.center, radius, plan.wobble, ms / 1000.0),
                     ringAlpha = ringAlpha,
                     ringColor = ringColor,
                     insideTint = plan.toTint,
                     outsideTint = plan.fromTint,
                     flashes = flashes,
                 )
-                if (ms >= maxOf(lastHit + REVEAL_POP_MS, ringHold + REVEAL_RING_FADE_MS)) break
+                if (fadeStart >= 0 && ms >= fadeStart + REVEAL_RING_FADE_MS) break
             }
         } finally {
             // 새 계획으로 바뀌어 끊긴 경우엔 새 재생이 이어받는다(여기서 지우면 새 링이 사라진다).
@@ -1559,13 +1578,15 @@ fun DiaryMap(
     }
 }
 
-/** 필터 전환 등장 계획 — 링 중심(내 위치)·화면을 쓰는 거리(m)·필터 빛 이전/새 색·걷어낼 이전 별. */
+/** 필터 전환 등장 계획 — 링 중심(내 위치)·화면을 쓰는 거리(m)·필터 빛 이전/새 색·걷어낼 이전 별·구불거림. */
 private class RevealPlan(
     val center: LatLng,
     val sweepM: Double,
     val fromTint: Color?,
     val toTint: Color?,
     val oldStars: List<ShownStar>,
+    /** 이번 링의 구불거림 모양(연출마다 다르게). */
+    val wobble: RingWobble = RingWobble(kotlin.random.Random.nextInt()),
 )
 
 /** 재생 루프가 매 프레임 읽는 대표 별 1개 — 배치 effect 가 계산한 근접 여부·표시 크기. */

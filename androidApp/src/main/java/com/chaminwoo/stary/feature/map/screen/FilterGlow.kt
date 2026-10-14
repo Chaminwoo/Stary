@@ -95,18 +95,18 @@ internal class WaveFlash(
 )
 
 /**
- * 지도 위 원(중심 [center], 반지름 [radiusM] m)을 지금 카메라로 화면에 투영한 닫힌 경로.
- * 기울기(틸트)·이동·줌이 그대로 반영된다. 아주 큰 원은 그리기만 2,000km 로 자른다(화면 밖이라 차이 없음).
+ * 지도 위 **구불구불한 링**(중심 [center], 기본 반지름 [radiusM] m, 각도마다 [wobble] 로 출렁임)을 지금 카메라로 화면에 투영한 닫힌 경로.
+ * 기울기(틸트)·이동·줌이 그대로 반영된다. 아주 큰 링은 그리기만 2,000km 로 자른다(화면 밖이라 차이 없음).
  */
-internal fun ringScreenPath(map: MapLibreMap, center: LatLng, radiusM: Double): Path {
+internal fun ringScreenPath(map: MapLibreMap, center: LatLng, radiusM: Double, wobble: RingWobble, tSec: Double): Path {
     val r = radiusM.coerceIn(0.5, 2_000_000.0)
-    val dLat = r / 111_320.0
-    val dLng = r / (111_320.0 * cos(Math.toRadians(center.latitude)).coerceAtLeast(0.01))
+    val mPerLng = 111_320.0 * cos(Math.toRadians(center.latitude)).coerceAtLeast(0.01)
     val path = Path()
     for (i in 0 until REVEAL_RING_SEGMENTS) {
         val a = 2.0 * Math.PI * i / REVEAL_RING_SEGMENTS
-        val lat = (center.latitude + dLat * sin(a)).coerceIn(-85.0, 85.0)
-        val lng = center.longitude + dLng * cos(a)
+        val ra = r * (1 + REVEAL_RING_WOBBLE * wobble.at(a, tSec))
+        val lat = (center.latitude + ra / 111_320.0 * sin(a)).coerceIn(-85.0, 85.0)
+        val lng = center.longitude + ra / mPerLng * cos(a)
         val p = map.projection.toScreenLocation(MlLatLng(lat, lng))
         if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
     }
@@ -134,17 +134,10 @@ internal fun FilterWaveOverlay(frame: State<FilterWaveFrame?>, modifier: Modifie
         val ring = f.ring
         val a = f.ringAlpha
         if (ring != null && a > 0.01f) {
-            val stroke = REVEAL_RING_STROKE_DP.dp.toPx()
-            val trail = REVEAL_RING_TRAIL_DP.dp.toPx()
-            // 링 안쪽으로 끌리는 빛 띠 — 굵은 선을 링 안쪽만 남기면 지나간 자리 가장자리가 물든다
-            clipPath(ring) {
-                drawPath(ring, f.ringColor.copy(alpha = 0.16f * a), style = Stroke(trail * 2f, join = StrokeJoin.Round))
-            }
-            // 번짐 + 밝은 선
-            drawPath(ring, f.ringColor.copy(alpha = 0.26f * a), style = Stroke(stroke * 4.5f, join = StrokeJoin.Round))
+            // 구불구불한 선 하나만 — 영토의 경계선처럼(2026-10-14: 번짐·안쪽 빛 띠를 빼고 더 얇게)
             drawPath(
                 ring, lerp(f.ringColor, Color.White, 0.35f).copy(alpha = 0.95f * a),
-                style = Stroke(stroke, join = StrokeJoin.Round),
+                style = Stroke(REVEAL_RING_STROKE_DP.dp.toPx(), join = StrokeJoin.Round),
             )
         }
         f.flashes.forEach { fl ->

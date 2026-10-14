@@ -438,8 +438,11 @@ struct MapLibreView: UIViewRepresentable {
         var revealHidden: Set<String> = []
         /// 퍼지고 있는 빛의 고리(지도 뷰 레이어 위) — 등장이 끝나면 걷어낸다.
         var revealRingLayer: CALayer?
-        /// 링 부품(안쪽 빛 띠·그 마스크·번짐·밝은 선) — 매 프레임 같은 경로로 갈아 끼운다.
+        /// 링 부품(구불구불한 선) — 매 프레임 같은 경로로 갈아 끼운다.
         var revealRingParts: [CAShapeLayer] = []
+        /// 이번 링의 구불거림 모양 / 옅어지기 시작한 시각(초, −1 = 아직).
+        var revealWobble: RingWobble?
+        var revealFadeStart: Double = -1
         /// 링 중심(내 위치)과 화면을 쓰는 거리(m) — 링이 닿는 시각·반지름 계산 기준(MapStarReveal).
         var revealCenter: CLLocationCoordinate2D?
         var revealSweepM: Double = 30
