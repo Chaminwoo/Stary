@@ -149,11 +149,15 @@ fun SettingsScreen(
             // ── 사운드 ──
             SectionLabel(stringResource(R.string.settings_sound), Icons.Filled.MusicNote)
             GlassCard {
+                // 모든 소리 끄기 — 켜면(= MusicManager.enabled false) 배경음악과 효과음이 모두 꺼진다.
+                // 예전 이름은 "배경음악"이었는데 효과음까지 같이 꺼져 버그처럼 보였다 → 동작에 맞게 이름을 바꿨다(2026-10-14).
                 ToggleRow(
-                    icon = Icons.Filled.MusicNote,
-                    label = stringResource(R.string.settings_bgm),
-                    checked = MusicManager.enabled,
-                    onCheckedChange = { MusicManager.setActive(it) }
+                    icon = if (MusicManager.enabled) Icons.AutoMirrored.Filled.VolumeUp
+                    else Icons.AutoMirrored.Filled.VolumeOff,
+                    label = stringResource(R.string.settings_mute_all),
+                    description = stringResource(R.string.settings_mute_all_desc),
+                    checked = !MusicManager.enabled,
+                    onCheckedChange = { MusicManager.setActive(!it) }
                 )
                 RowDivider()
                 VolumeRow(
@@ -166,7 +170,7 @@ fun SettingsScreen(
                 VolumeRow(
                     label = stringResource(R.string.settings_sfx_volume),
                     value = MusicManager.sfxVolume,
-                    enabled = true,
+                    enabled = MusicManager.enabled,
                     icon = Icons.Filled.GraphicEq,
                     onValueChange = { MusicManager.updateSfxVolume(it) }
                 )

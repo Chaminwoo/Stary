@@ -1,41 +1,46 @@
 import MapLibre
 import QuartzCore
+import SwiftUI
 import UIKit
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 필터 전환 "별이 하나 둘" 순차 등장 — Android DiaryMap 의 revealKey 연출 패리티(2026-09-25, 광고 레퍼런스).
-//  · 화면 안 별들을 무작위 순서(필터 조합마다 다른 순서)로 하나씩 "톡" 띄운다 — 투명도 + 크기 팝(0.35→1.18→1).
-//  · 별이 뜨는 순간마다 "톡톡 반짝"(MusicManager.playSparkTick — 간격은 MusicManager 가 솎는다).
+// 필터 전환 "빛의 고리" 등장 — Android DiaryMap 의 revealKey 연출 패리티(2026-10-14, references/filtering.mp4).
+//  · 화면(=카메라) 중심에서 링이 빠르게 퍼지고, 링이 닿는 순간 그 별이 차임과 함께 잠깐 커지고 밝아졌다가
+//    제자리로 돌아오며 생긴다(중심에서 가까운 별부터). 예전(2026-09-25)엔 무작위 순서로 하나씩 "톡" 떴다.
+//  · 링 색은 지금 필터의 색(`parent.filterTintHex`, 필터를 끄는 순간엔 색 없는 별빛).
 //  · 화면 밖 별은 바로 제자리. 첫 표시·데이터 갱신에는 연출 없음(값이 바뀐 revealKey 만).
 // 크기 팝은 어노테이션 뷰의 transform(줌 배율이 쓰는 자리)을 건드리지 않도록 layer.sublayerTransform 으로 준다.
 // 수치는 Android DiaryMapMarkers REVEAL_* 와 동일(값 drift 금지).
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum StarRevealFx {
-    /// 화면 안 별들이 모두 떠오르기까지(첫 별 시작 → 마지막 별 시작) 목표 시간(초).
-    static let span = 1.3
-    /// 별 사이 간격 하한/상한(초).
-    static let minGap = 0.028
-    static let maxGap = 0.12
-    /// 별 하나가 톡 떠오르는 시간(초).
-    static let pop = 0.38
+    /// 링이 화면 중심 → 가장 먼 모서리까지 퍼지는 시간(초). 별의 등장 시각 = (중심까지 거리 / 모서리 거리) × 이 값.
+    static let wave = 0.9
+    /// 링이 닿은 별 하나가 생기는 시간(초) — 크기 0.2 → 1.55 → 1 + 발광.
+    static let pop = 0.52
+    /// 링 선 굵기 / 링 안쪽으로 끌리는 빛 띠 폭(pt).
+    static let ringStroke: CGFloat = 2.2
+    static let ringTrail: CGFloat = 54
+    /// 별 발광 반경 = 화면에 보이는 별 반지름 × 이 배율(하한 flashMin).
+    static let flashScale: CGFloat = 1.9
+    static let flashMin: CGFloat = 12
 
-    /// 순차 등장 팝 곡선 — u(0..1) → 크기 배율(Android revealPopScale 동일).
+    /// 등장 팝 곡선 — u(0..1) → 크기 배율(Android revealPopScale 동일). 0.2 에서 튀어 올라 1.55 를 찍고(u=0.3) 1 로.
     static func popScale(_ u: Double) -> CGFloat {
         let x = min(max(u, 0), 1)
-        if x < 0.55 {
-            let k = 1 - pow(1 - x / 0.55, 3)
-            return CGFloat(0.35 + (1.18 - 0.35) * k)
+        if x < 0.3 {
+            let k = 1 - pow(1 - x / 0.3, 3)
+            return CGFloat(0.2 + (1.55 - 0.2) * k)
         }
-        let v = (x - 0.55) / 0.45
+        let v = (x - 0.3) / 0.7
         let e = v < 0.5 ? 2 * v * v : 1 - pow(-2 * v + 2, 2) / 2 // ease-in-out
-        return CGFloat(1.18 + (1 - 1.18) * e)
+        return CGFloat(1.55 + (1 - 1.55) * e)
     }
 }
 
 extension MapLibreView.Coordinator {
 
-    /// 이번 updateUIView 에서 순차 등장을 해야 하는지 — revealKey 가 바뀌었을 때 1회만 true.
+    /// 이번 updateUIView 에서 등장 연출을 해야 하는지 — revealKey 가 바뀌었을 때 1회만 true.
     /// 첫 호출(지도 첫 표시)은 기준값만 기억하고 false.
     func consumeRevealRequest(_ key: Int) -> Bool {
         guard let last = lastRevealKey else {
@@ -47,42 +52,32 @@ extension MapLibreView.Coordinator {
         return true
     }
 
-    /// 순차 등장 준비 — 화면 안 별들의 등장 지연을 정하고 숨김 목록을 만든다(뷰가 생기기 전에 호출해도 된다).
-    func prepareStarReveal(_ annotations: [MLNAnnotation], mapView: MLNMapView, key: Int) {
+    /// 등장 준비 — 화면 안 별마다 "링이 닿는 시각"을 정하고 숨김 목록을 만든다(뷰가 생기기 전에 호출해도 된다).
+    func prepareStarReveal(_ annotations: [MLNAnnotation], mapView: MLNMapView) {
         let bounds = mapView.bounds
-        var onScreen: [String] = []
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let maxR = max(hypot(bounds.width / 2, bounds.height / 2), 1)
+        revealDelays = [:]
         for case let a as DiaryAnnotation in annotations {
             let p = mapView.convert(a.coordinate, toPointTo: mapView)
-            if bounds.contains(p), let id = a.diary.id { onScreen.append(id) }
+            guard bounds.contains(p), let id = a.diary.id else { continue }
+            let dist = hypot(p.x - center.x, p.y - center.y)
+            revealDelays[id] = Double(dist / maxR) * StarRevealFx.wave
         }
-        // 필터 조합마다 다른(하지만 같은 조합이면 같은) 순서 — 간단한 LCG 셔플.
-        var seed = UInt64(bitPattern: Int64(key)) | 1
-        func next() -> UInt64 {
-            seed = seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
-            return seed >> 33
-        }
-        if onScreen.count > 1 {
-            for i in stride(from: onScreen.count - 1, to: 0, by: -1) {
-                let j = Int(next() % UInt64(i + 1))
-                onScreen.swapAt(i, j)
-            }
-        }
-        let n = onScreen.count
-        let gap = n <= 1 ? 0 : min(max(StarRevealFx.span / Double(n - 1), StarRevealFx.minGap), StarRevealFx.maxGap)
-        revealDelays = [:]
-        for (i, id) in onScreen.enumerated() { revealDelays[id] = Double(i) * gap }
-        revealSortedDelays = (0..<n).map { Double($0) * gap }
-        revealHidden = Set(onScreen)
+        revealSortedDelays = revealDelays.values.sorted()
+        revealHidden = Set(revealDelays.keys)
         revealStart = CACurrentMediaTime()
         revealSounded = 0
     }
 
-    /// 순차 등장 시작 — 프레임마다 각 별 뷰의 투명도/크기를 맞춘다.
+    /// 등장 시작 — 링을 띄우고, 프레임마다 각 별 뷰의 투명도/크기를 맞춘다.
     func startStarReveal(_ mapView: MLNMapView) {
         revealLink?.invalidate()
         revealStart = CACurrentMediaTime()
         revealSounded = 0
+        MusicManager.shared.resetRevealChime()
         applyRevealToVisibleViews(mapView)
+        startRevealRing(mapView)
         let link = CADisplayLink(target: self, selector: #selector(revealTick(_:)))
         link.add(to: .main, forMode: .common)
         revealLink = link
@@ -91,26 +86,35 @@ extension MapLibreView.Coordinator {
     @objc func revealTick(_ link: CADisplayLink) {
         guard let mapView = mapRef else { stopStarReveal(); return }
         let elapsed = CACurrentMediaTime() - revealStart
+        // 링이 별에 닿는 순간마다 차임(간격은 MusicManager 가 솎는다).
         while revealSounded < revealSortedDelays.count, elapsed >= revealSortedDelays[revealSounded] {
-            MusicManager.shared.playSparkTick()
+            MusicManager.shared.playRevealChime()
             revealSounded += 1
         }
-        // 떠오르기 시작한 별은 후광(CircleLayer)도 켠다.
-        let before = revealHidden.count
-        revealHidden = revealHidden.filter { (revealDelays[$0] ?? 0) > elapsed }
-        if revealHidden.count != before { refreshAuraFeatures(mapView) }
+        // 링이 닿은 별: 후광(CircleLayer)을 켜고 그 자리에 발광을 띄운다.
+        let hit = revealHidden.filter { (revealDelays[$0] ?? 0) <= elapsed }
+        if !hit.isEmpty {
+            revealHidden.subtract(hit)
+            refreshAuraFeatures(mapView)
+            for case let a as DiaryAnnotation in mapView.annotations ?? [] {
+                guard let id = a.diary.id, hit.contains(id) else { continue }
+                spawnRevealFlash(for: a, mapView: mapView)
+            }
+        }
 
         applyRevealToVisibleViews(mapView)
-        let total = (revealSortedDelays.last ?? 0) + StarRevealFx.pop
+        let total = max(StarRevealFx.wave, (revealSortedDelays.last ?? 0) + StarRevealFx.pop)
         if elapsed >= total { stopStarReveal() }
     }
 
-    /// 순차 등장 종료 — 모든 별을 제자리(불투명·원래 크기)로.
+    /// 등장 종료 — 모든 별을 제자리(불투명·원래 크기)로, 링은 걷어낸다.
     func stopStarReveal() {
         revealLink?.invalidate()
         revealLink = nil
         revealDelays = [:]
         revealSortedDelays = []
+        revealRingLayer?.removeFromSuperlayer()
+        revealRingLayer = nil
         let hadHidden = !revealHidden.isEmpty
         revealHidden = []
         if let mapView = mapRef {
@@ -136,12 +140,101 @@ extension MapLibreView.Coordinator {
         let u = (CACurrentMediaTime() - revealStart - delay) / StarRevealFx.pop
         if u <= 0 {
             view.alpha = 0
-            view.layer.sublayerTransform = CATransform3DMakeScale(0.35, 0.35, 1)
+            view.layer.sublayerTransform = CATransform3DMakeScale(0.2, 0.2, 1)
             return
         }
-        let a = min(u / 0.6, 1)
-        view.alpha = CGFloat(1 - pow(1 - a, 3))
+        view.alpha = CGFloat(min(u / 0.15, 1))
         let s = StarRevealFx.popScale(u)
         view.layer.sublayerTransform = CATransform3DMakeScale(s, s, 1)
+    }
+
+    // MARK: 빛의 고리
+
+    /// 화면 중심에서 가장 먼 모서리까지 일정한 속도로 퍼지는 링(번짐 + 안쪽 빛 띠 + 밝은 선). 퍼질수록 옅어진다.
+    private func startRevealRing(_ mapView: MLNMapView) {
+        revealRingLayer?.removeFromSuperlayer()
+        let bounds = mapView.bounds
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let maxR = max(hypot(bounds.width / 2, bounds.height / 2), 1)
+        let color = UIColor(rgbHex: parent.filterTintHex ?? MapFilterKind.neutralHex)
+
+        func circle(_ radius: CGFloat) -> CGPath {
+            let r = max(radius, 0.5)
+            return UIBezierPath(ovalIn: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)).cgPath
+        }
+
+        let host = CALayer()
+        host.frame = bounds
+        let stroke = StarRevealFx.ringStroke
+        let trail = StarRevealFx.ringTrail
+        // (선 굵기, 색, 링 반지름에서 안쪽으로 당기는 양) — 빛 띠 / 번짐 / 밝은 선
+        let bands: [(width: CGFloat, color: UIColor, inset: CGFloat)] = [
+            (trail, color.withAlphaComponent(0.10), trail / 2),
+            (stroke * 4.5, color.withAlphaComponent(0.26), 0),
+            (stroke, color.mixedWithWhite(0.35).withAlphaComponent(0.95), 0),
+        ]
+        for band in bands {
+            let layer = CAShapeLayer()
+            layer.fillColor = nil
+            layer.strokeColor = band.color.cgColor
+            layer.lineWidth = band.width
+            layer.path = circle(maxR - band.inset)
+            let grow = CABasicAnimation(keyPath: "path")
+            grow.fromValue = circle(0.5)
+            grow.toValue = circle(maxR - band.inset)
+            grow.duration = StarRevealFx.wave
+            grow.timingFunction = CAMediaTimingFunction(name: .linear)
+            layer.add(grow, forKey: "grow")
+            host.addSublayer(layer)
+        }
+        // 불투명도 1 − p³ (Android revealRingAlpha 와 같은 곡선)
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [1.0, 0.875, 0.578, 0.271, 0.0]
+        fade.keyTimes = [0, 0.5, 0.75, 0.9, 1]
+        fade.duration = StarRevealFx.wave
+        host.opacity = 0
+        host.add(fade, forKey: "fade")
+        mapView.layer.addSublayer(host)
+        revealRingLayer = host
+    }
+
+    /// 링이 닿은 별 자리의 발광 — 흰 심 + 별 색 번짐이 확 밝아졌다가 꺼진다(Android WaveFlash / revealFlash 패리티).
+    private func spawnRevealFlash(for annotation: DiaryAnnotation, mapView: MLNMapView) {
+        let p = mapView.convert(annotation.coordinate, toPointTo: mapView)
+        // 화면에 보이는 별 반지름 = 마커 변 × 줌 배율 ÷ 2 × 본체 비율(0.78)
+        let starRadius = annotation.markerSize * starZoomScale * 0.5 * 0.78
+        let r = max(StarRevealFx.flashMin, starRadius * StarRevealFx.flashScale)
+        let star = UIColor(StarStyle.color(annotation.diary.starColor))
+
+        let glow = CAGradientLayer()
+        glow.type = .radial
+        glow.frame = CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)
+        glow.startPoint = CGPoint(x: 0.5, y: 0.5)
+        glow.endPoint = CGPoint(x: 1, y: 1)
+        glow.colors = [
+            UIColor.white.withAlphaComponent(0.95).cgColor,
+            star.mixedWithWhite(0.35).withAlphaComponent(0.55).cgColor,
+            star.withAlphaComponent(0).cgColor,
+        ]
+        glow.locations = [0, 0.32, 1]
+        glow.opacity = 0
+
+        // 세기: 0 → 1(u=0.18) → 0 (Android revealFlash), 크기: 0.7 → 1 → 0.7
+        let opacity = CAKeyframeAnimation(keyPath: "opacity")
+        opacity.values = [0.0, 1.0, 0.37, 0.06, 0.0]
+        opacity.keyTimes = [0, 0.18, 0.5, 0.8, 1]
+        let scale = CAKeyframeAnimation(keyPath: "transform.scale")
+        scale.values = [0.7, 1.0, 0.7]
+        scale.keyTimes = [0, 0.18, 1]
+        let group = CAAnimationGroup()
+        group.animations = [opacity, scale]
+        group.duration = StarRevealFx.pop
+
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak glow] in glow?.removeFromSuperlayer() }
+        glow.add(group, forKey: "flash")
+        mapView.layer.addSublayer(glow)
+        CATransaction.commit()
     }
 }

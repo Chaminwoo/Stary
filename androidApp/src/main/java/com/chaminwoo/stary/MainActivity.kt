@@ -89,9 +89,16 @@ class MainActivity : ComponentActivity() {
         if (BuildConfig.DEBUG && intent?.getBooleanExtra(EXTRA_DEBUG_SHOW_UPDATE, false) == true) {
             com.chaminwoo.stary.core.util.AppUpdateChecker.debugShow()
         }
-        // 푸시 알림(extras) → 상세 화면 딥링크(본인 다이어리 알림이라 게이팅 무관).
+        // 푸시 알림(extras) → 좋아요·댓글(내 글) = 상세 / 친구 새 글·첫 별 공지 = **지도에서 그 별로**(카메라 + 파장).
+        // 서버가 notification 페이로드로 보내므로 후면/종료 상태에선 시스템이 알림을 띄우고, 탭하면 data 키가 그대로
+        // extras 로 들어온다(diaryId, type …). 예전엔 type 을 보지 않고 전부 상세로 보내서 첫 별 알림을 눌러도
+        // 그 별 위치가 아니라 잠긴 상세 화면이 떴다(2026-10-14). iOS PushManager.didReceive 와 같은 분기.
+        val pushType = intent?.getStringExtra(EXTRA_PUSH_TYPE)
+        val opensDetail = pushType == com.chaminwoo.stary.core.model.NotificationType.LIKE.name ||
+            pushType == com.chaminwoo.stary.core.model.NotificationType.COMMENT.name
         com.chaminwoo.stary.core.util.DeepLinkState.request(
             diaryId = intent?.getStringExtra(EXTRA_DIARY_ID),
+            diaryOnMap = !opensDetail,
             chatFriendId = intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID),
             chatFriendName = intent?.getStringExtra(EXTRA_CHAT_FRIEND_NAME),
             openFriends = intent?.getBooleanExtra(EXTRA_OPEN_FRIENDS, false) == true,
@@ -142,6 +149,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_DIARY_ID = "diaryId"
+        /** 푸시 종류(서버 data.type — LIKE/COMMENT/FIRST_STAR…, 친구 새 글은 없음). 다이어리 알림의 목적지 분기에 쓴다. */
+        const val EXTRA_PUSH_TYPE = "type"
         const val EXTRA_CHAT_FRIEND_ID = "chatFriendId"
         const val EXTRA_CHAT_FRIEND_NAME = "chatFriendName"
         /** 친구 요청 푸시 탭 → 친구 화면(받은 요청)으로. */

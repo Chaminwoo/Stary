@@ -27,7 +27,8 @@
     <string name="settings_haptics_desc">星を開いたり、いいねを押すと指先に反応が返ります</string>
     <string name="settings_notification">通知</string>
     <string name="settings_language">言語</string>
-    <string name="settings_bgm">BGM</string>
+    <string name="settings_mute_all">すべての音をオフ</string>
+    <string name="settings_mute_all_desc">BGMと効果音をすべてオフにします</string>
     <string name="settings_bgm_volume">BGMの音量</string>
     <string name="settings_sfx_volume">効果音の音量</string>
     <string name="settings_notif_popup">通知バナー</string>
@@ -230,6 +231,7 @@
     <string name="notif_comment">「%1$s」にコメントしました</string>
     <string name="notif_friend_request">友達リクエストを送りました</string>
     <string name="notif_first_star">世界に初めての星を残しました</string>
+    <string name="notif_diary_gone">この星はもう見られません</string>
 
     <!-- マイ日記画面 -->
     <string name="mydiary_empty">まだ残した星がありません</string>

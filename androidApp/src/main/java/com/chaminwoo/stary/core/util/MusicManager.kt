@@ -12,6 +12,9 @@ import com.chaminwoo.stary.R
 /**
  * 앱 전역 배경음악 관리자. (특정 화면에 묶이지 않고 모든 스크린에서 재생)
  *
+ * [enabled] 는 **모든 소리**(배경음악 + 효과음)의 on/off 다 — 설정의 "모든 소리 끄기"(2026-10-14 이름 변경,
+ * 예전 이름 "배경음악"은 효과음까지 꺼지는 게 버그처럼 보였다). 효과음만 따로 줄이려면 효과음 볼륨을 쓴다.
+ *
  * - 기본 켜짐(처음 실행 시 자동 재생). 기본 음악은 [MusicCatalog.DEFAULT_ID].
  * - 멈췄다 재생하면 처음이 아니라 **마지막 위치**에서 이어 재생(위치 보존).
  * - 끝까지 가면 처음부터 반복(isLooping).
@@ -50,7 +53,7 @@ object MusicManager {
     private const val OPEN_VOLUME = 0.35f
 
     // 연출용 짧은 효과음(2026-09-25 사용자 선택 — 후보는 tools/sfx 로 합성, 미리듣기 후 확정).
-    //  - sfx_spark_1~3 : 별이 하나 둘 떠오를 때(지도 필터 전환 · 별 도감 원) "톡톡 반짝" — 3종 중 무작위.
+    //  - sfx_spark_1~3 : 별이 하나 둘 떠오를 때(별 도감 원 · 프로필 아이콘) "톡톡 반짝" — 3종 중 무작위.
     //  - sfx_star_birth: 업로드 성공 별 탄생(유성이 내려와 안착) · sfx_like: 좋아요(뽀옹+반짝) · sfx_drawer: 드로어 열기(스윽).
     // 모두 SoundPool 에 미리 로드(즉시·중복 재생). 로드 전 호출은 조용히 건너뛴다(연출 보조음이라 누락 허용).
     private val SPARK_RES = intArrayOf(R.raw.sfx_spark_1, R.raw.sfx_spark_2, R.raw.sfx_spark_3)
@@ -66,6 +69,19 @@ object MusicManager {
     private const val LIKE_VOLUME = 0.50f
     private const val DRAWER_VOLUME = 0.32f
 
+    // 필터 전환 "빛의 고리"가 별에 닿을 때의 차임(2026-10-14, references/filtering.mp4 — tools/sfx/reveal_chime.py 로 합성).
+    // C 장조 펜타토닉 5음(C6 D6 E6 G6 A6). 별마다 [CHIME_ORDER] 순서로 음을 바꿔 짧은 선율처럼 들린다.
+    // iOS MusicManager.playRevealChime 과 같은 볼륨·간격·순서.
+    private val CHIME_RES = intArrayOf(
+        R.raw.sfx_chime_1, R.raw.sfx_chime_2, R.raw.sfx_chime_3, R.raw.sfx_chime_4, R.raw.sfx_chime_5,
+    )
+    private val CHIME_ORDER = intArrayOf(0, 2, 1, 3, 2, 4, 3, 1)
+    private const val CHIME_VOLUME = 0.34f
+    /** 별이 촘촘할 때 차임이 뭉개지지 않도록 최소 간격(ms) — 그보다 빠른 호출은 건너뛴다. */
+    private const val CHIME_MIN_GAP_MS = 60L
+    private var lastChimeAtMs = 0L
+    private var chimeStep = 0
+
     // 다이얼(맷돌) 회전 효과음(turning_dial.mp3).
     //  - **돌리는 동안**: [dialTick] 이 실제 각도 눈금을 지날 때마다 호출되어 처음부터 다시 재생 —
     //    고정 타이머가 아니라 호출 빈도 = 회전 속도라서 빠르게 돌리면 "드드드드" 촘촘해진다.
@@ -79,7 +95,7 @@ object MusicManager {
     private const val DIAL_TICK_MIN_GAP_MS = 40L
     private var lastDialTickAtMs = 0L
 
-    /** Compose 에서 관찰 가능한 on/off 상태. */
+    /** Compose 에서 관찰 가능한 on/off 상태 — **모든 소리**(배경음악 + 효과음). false 면 아무 소리도 나지 않는다. */
     var enabled by mutableStateOf(true)
         private set
 
@@ -114,8 +130,8 @@ object MusicManager {
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
-        // 별 순차 등장 반짝임이 겹쳐 울리므로 동시 스트림을 넉넉히(초과 시 SoundPool 이 가장 오래된 것을 끊는다).
-        soundPool = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attrs).build().apply {
+        // 별 등장 차임/반짝임이 겹쳐 울리므로 동시 스트림을 넉넉히(초과 시 SoundPool 이 가장 오래된 것을 끊는다).
+        soundPool = SoundPool.Builder().setMaxStreams(12).setAudioAttributes(attrs).build().apply {
             setOnLoadCompleteListener { _, sampleId, status ->
                 if (status != 0) return@setOnLoadCompleteListener
                 when (sampleId) {
@@ -127,7 +143,7 @@ object MusicManager {
         }
         if (windResId != 0) windSoundId = soundPool?.load(ctx, windResId, 1) ?: 0
         if (openResId != 0) openSoundId = soundPool?.load(ctx, openResId, 1) ?: 0
-        (SPARK_RES + EXTRA_SFX_RES).forEach { res ->
+        (SPARK_RES + CHIME_RES + EXTRA_SFX_RES).forEach { res ->
             soundPool?.load(ctx, res, 1)?.let { sfxSoundIds[res] = it }
         }
     }
@@ -190,7 +206,7 @@ object MusicManager {
     }
 
     /**
-     * 별 하나가 "톡" 떠오를 때의 반짝임 — 지도 필터 전환 순차 등장 / 별 도감 원 등장에서 별마다 호출.
+     * 별 하나가 "톡" 떠오를 때의 반짝임 — 별 도감 원 등장 등에서 별마다 호출(지도 필터 전환은 [playRevealChime]).
      * 3종 중 직전과 다른 것을 고르고 재생 속도를 살짝 흔들어(음높이 ±) 기계적인 반복감을 없앤다.
      * [SPARK_MIN_GAP_MS] 보다 촘촘한 호출은 건너뛴다(별이 수십 개여도 소리는 적당한 밀도).
      */
@@ -203,6 +219,24 @@ object MusicManager {
         lastSparkIdx = idx
         val vol = SPARK_VOLUME * (0.75f + 0.25f * kotlin.random.Random.nextFloat())
         playSfx(SPARK_RES[idx], vol, rate = 0.94f + 0.14f * kotlin.random.Random.nextFloat())
+    }
+
+    /** 빛의 고리 한 번이 시작될 때 — 차임 선율을 첫 음부터 다시. */
+    fun resetRevealChime() {
+        chimeStep = 0
+    }
+
+    /**
+     * 필터 전환 "빛의 고리"가 별 하나에 닿는 순간의 차임 — 지도 등장 루프가 별마다 호출한다.
+     * 호출마다 [CHIME_ORDER] 의 다음 음을 울리고, [CHIME_MIN_GAP_MS] 보다 촘촘한 호출은 건너뛴다.
+     */
+    fun playRevealChime() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastChimeAtMs < CHIME_MIN_GAP_MS) return
+        lastChimeAtMs = now
+        val idx = CHIME_ORDER[chimeStep % CHIME_ORDER.size]
+        chimeStep++
+        playSfx(CHIME_RES[idx], CHIME_VOLUME * (0.8f + 0.2f * kotlin.random.Random.nextFloat()))
     }
 
     /** 업로드 성공 별 탄생 — 유성이 내려와 안착(화음이 StarBirth 발광 순간 ≈0.42s 에 맞춰져 있다). */

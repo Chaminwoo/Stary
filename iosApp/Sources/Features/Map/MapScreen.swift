@@ -65,6 +65,8 @@ struct MapScreen: View {
         h.combine(selectedFriendIds); h.combine(periodDays)
         return h.finalize()
     }
+    /// 마지막에 켠 필터 추적(참조 객체 — body 에서 갱신해도 다시 그리기를 일으키지 않는다).
+    @State private var filterKindTracker = FilterKindTracker()
     @State private var showFriendPicker = false
     /// 내 친구 목록 — 친구만/친구선택 필터용 1회 로드.
     @State private var myFriends: [Friend] = []
@@ -87,8 +89,11 @@ struct MapScreen: View {
     @State private var constellationOn = false
     @ObservedObject private var chrome = MapChromeState.shared
 
-    // 포커스(카메라 이동) 대상.
+    // 포커스(카메라 이동) 대상 + 요청 번호(같은 별을 다시 요청해도 카메라가 움직이게 — MapLibreView.focusNonce).
     @State private var focusTarget: CLLocationCoordinate2D?
+    @State private var focusNonce = 0
+    /// 마지막으로 포커스를 적용한 시각 — 직후의 "지도 복귀 재센터"를 건너뛰는 데 쓴다(onAppear 주석 참고).
+    @State private var lastFocusAt = Date.distantPast
     /// 목록에 없는 별을 Firestore 에서 직접 읽는 중(중복 요청 방지) — handleFocus.
     @State private var focusFetching = false
 
@@ -195,6 +200,19 @@ struct MapScreen: View {
             .background(Color(hex: 0x111120).opacity(0.93), in: Circle())
             .raisedCosmicBorder()
             .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+    }
+
+    /// 지금 색을 정하는 필터 = 가장 마지막에 켠 필터 — 빛의 고리(필터 전환 등장)와 지도에 도는 은은한 빛의 색.
+    /// 필터가 없으면 nil. (Android MainListScreen filterKind 패리티 — 필터 조합과 같은 렌더에서 정해져야 링 색이 한 박자 늦지 않는다)
+    private var filterKind: MapFilterKind? {
+        var active: [MapFilterKind] = []
+        if lockedOnly { active.append(.locked) }
+        if unlockedOnly { active.append(.unlocked) }
+        if friendsOnly { active.append(.friends) }
+        if myOnly { active.append(.mine) }
+        if !selectedFriendIds.isEmpty { active.append(.pickFriends) }
+        if periodDays != nil { active.append(.period) }
+        return filterKindTracker.update(active)
     }
 
     /// 필터가 하나라도 켜져 있는가(메인 FAB 민트 강조 — Android anyActive).
@@ -410,11 +428,14 @@ struct MapScreen: View {
                     voidBottomY = bottom
                     voidZoom = zoom
                 },
-                // 필터 조합이 바뀌면 별이 "하나 둘" 순차로 다시 떠오른다(Android DiaryMap revealKey 패리티).
+                // 필터 조합이 바뀌면 화면 중심에서 빛의 고리가 퍼지며 링이 닿는 별부터 다시 생긴다(Android DiaryMap revealKey 패리티).
                 revealKey: filterRevealKey,
                 zoomHold: zoomHold,
                 // 필터가 걸려 있으면 남은 별의 후광을 조금 더 밝게(2026-10-10, Android highlight 패리티).
-                filterHighlight: anyFilterActive
+                filterHighlight: anyFilterActive,
+                // 필터마다 다른 색 — 빛의 고리 색(필터 없으면 nil = 색 없는 별빛).
+                filterTintHex: filterKind?.hex,
+                focusNonce: focusNonce
             )
             .ignoresSafeArea()
 
@@ -433,6 +454,11 @@ struct MapScreen: View {
             worldVoidOverlay
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+
+            // 필터가 걸려 있는 동안 지도에 도는 은은한 빛(필터 색) — 지도 위, 버튼 아래. 터치 통과.
+            // (예전 여명·황혼 오버레이 SkyOverlay 는 2026-10-14 삭제 — 같은 모양을 필터 빛이 물려받았다.)
+            FilterGlowOverlay(tintHex: filterKind?.hex)
+                .ignoresSafeArea()
 
             if store.loading {
                 StarLoadingView(size: 40)
@@ -555,11 +581,7 @@ struct MapScreen: View {
             .padding(.trailing, 16)
             .padding(.bottom, 84)
 
-            // ── 좌하단 필터 스피드 다이얼 — Android MainListScreen 대응(전체/미조회만/기간별) ──
-            // 실제 하늘(여명·황혼) — 지도 위, UI 아래. 터치 통과.
-            SkyOverlay(latitude: location.coordinateOrDefault.latitude,
-                       longitude: location.coordinateOrDefault.longitude)
-
+            // ── 좌하단 필터 스피드 다이얼 — Android MainListScreen 대응 ──
             filterSpeedDial
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .padding(.leading, 16)
@@ -672,7 +694,12 @@ struct MapScreen: View {
             // 카메라를 다룸 — 반드시 이 검사보다 뒤에 소비) 중엔 건너뛴다.
             // (Android MainScreen 라우트 전환 재센터 패리티)
             // 별(상세/카드)을 열러 나갔다 돌아온 경우는 보던 카메라 그대로 둔다.
-            if rootAppearedOnce, focus.pendingDiaryId == nil, !leftForDiary {
+            // ⚠️ 방금 포커스를 적용했으면 재센터하지 않는다. 알림 목록처럼 push 된 화면에서 요청이 오면, 이 화면이 가려진 채로
+            //    onChange 가 먼저 돌아 요청을 소비할 수 있다 → 그러면 여기서 pendingDiaryId 가 nil 이라 "내 위치로"가 뒤따라 나가
+            //    방금 간 별에서 내 위치로 되돌아간다("첫 별 알림을 눌러도 그 별로 안 간다" — 2026-10-14, 코드 분석으로 찾은 약점.
+            //    Windows 라 실기기 재현은 못 했다. 같은 날 `focusNonce` 로 "같은 별 재요청 무시"도 함께 고쳤다).
+            let justFocused = Date().timeIntervalSince(lastFocusAt) < 2.5
+            if rootAppearedOnce, focus.pendingDiaryId == nil, !leftForDiary, !justFocused {
                 recenterNonce += 1
             }
             // 여정이 끝났으면(상세·카드 모두 닫힘) 플래그 해제 — pop 바인딩 반영 뒤에 보도록 한 틱 미룬다.
@@ -754,6 +781,8 @@ struct MapScreen: View {
     private func applyFocus(_ d: Diary) {
         selected = nil // 열려 있던 상세 시트는 닫고 지도로
         focusTarget = CLLocationCoordinate2D(latitude: d.latitude, longitude: d.longitude)
+        focusNonce += 1
+        lastFocusAt = Date()
 
         // 파동 연출 1회 재생(다이어리에서 클릭한 느낌).
         warpColor = StarStyle.color(d.starColor)

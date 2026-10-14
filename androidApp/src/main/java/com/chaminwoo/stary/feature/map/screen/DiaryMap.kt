@@ -156,10 +156,15 @@ fun DiaryMap(
     /** 글로브 → 지도 복귀 카메라 요청. */
     globeReturnCamera: GlobeReturnCamera? = null,
     /**
-     * 필터 조합 식별값 — 바뀌면 이번 목록을 "하나 둘" 순차 등장으로 다시 띄운다([REVEAL_SPAN_MS]).
+     * 필터 조합 식별값 — 바뀌면 화면 중심에서 "빛의 고리"가 퍼지며 링이 닿는 별부터 다시 띄운다([REVEAL_WAVE_MS]).
      * 첫 표시·데이터 갱신·카메라 이동에는 쓰지 않는다(값이 그대로면 기존 보간만).
      */
     revealKey: Any? = null,
+    /**
+     * 지금 색을 정하는 필터의 색([MapFilterKind.color]) — 빛의 고리와 지도에 도는 은은한 빛([FilterGlowOverlay])을 물들인다.
+     * null = 필터 없음(빛은 꺼지고, 필터를 끄는 순간의 링은 색 없는 별빛 [FILTER_WAVE_NEUTRAL]).
+     */
+    filterTint: Color? = null,
     /**
      * 필터가 하나라도 걸려 있는가 — true 면 보이는 별의 후광을 조금 더 밝게(바닥 빛 ×[FILTER_GROUND_BOOST] +
      * 모든 별에 오오라 하한 [FILTER_AURA_FLOOR]). 걸러서 남은 별이 더 눈에 띄게 하려는 것(2026-10-10).
@@ -226,6 +231,9 @@ fun DiaryMap(
     val currentLatLngRef = rememberUpdatedState(currentLatLng)
     val diariesRef = rememberUpdatedState(diaries)
     val highlightRef = rememberUpdatedState(highlight)
+    val filterTintRef = rememberUpdatedState(filterTint)
+    // 필터 전환 "빛의 고리" 한 프레임(링 반경 + 링이 닿은 별들의 발광) — 등장 루프가 채우고 FilterWaveOverlay 가 그린다.
+    val filterWave = remember { mutableStateOf<FilterWaveFrame?>(null) }
     val initialLatLngRef = rememberUpdatedState(currentLatLng)
     val onGlobeAvailabilityRef = rememberUpdatedState(onGlobeAvailability)
 
@@ -705,12 +713,11 @@ fun DiaryMap(
             }
         }
 
-        // 실제 하늘(여명·황혼) — 비네트 위, UI 아래. 터치 통과.
-        SkyOverlay(
-            latitude = currentLatLng.latitude,
-            longitude = currentLatLng.longitude,
-            modifier = Modifier.fillMaxSize(),
-        )
+        // 필터가 걸려 있는 동안 지도에 도는 은은한 빛(필터 색) — 비네트 위, UI 아래. 터치 통과.
+        // (예전 여명·황혼 오버레이 SkyOverlay 는 2026-10-14 삭제 — 같은 자리·같은 모양을 필터 빛이 물려받았다.)
+        FilterGlowOverlay(tint = filterTint, modifier = Modifier.fillMaxSize())
+        // 필터 전환 "빛의 고리" + 링이 닿은 별의 발광.
+        FilterWaveOverlay(frame = filterWave, modifier = Modifier.fillMaxSize())
 
         // 업로드 버튼 파장 연출 — 버튼들이 연출 내내 그대로 보여야 하므로 버튼보다 아래(먼저) 그린다.
         warpState.value?.let { wd ->
@@ -990,37 +997,81 @@ fun DiaryMap(
                 }
             }
 
-            val bounds = map.projection.visibleRegion.latLngBounds
-            val onScreen = reps.filter { bounds.contains(MlLatLng(it.latitude, it.longitude)) }
-            // 필터 조합마다 다른(하지만 같은 조합이면 같은) 순서 — 매번 "무작위로 하나 둘"
-            val order = onScreen.shuffled(kotlin.random.Random(revealKey.hashCode()))
-            val gap = if (order.size <= 1) 0L
-            else (REVEAL_SPAN_MS / (order.size - 1)).coerceIn(REVEAL_MIN_GAP_MS, REVEAL_MAX_GAP_MS)
-            val startAt = HashMap<String, Long>(order.size * 2)
-            order.forEachIndexed { i, d -> startAt[d.id] = i * gap }
-            val total = (order.size - 1).coerceAtLeast(0) * gap + REVEAL_POP_MS
+            // 빛의 고리 — 화면(=카메라) 중심에서 가장 먼 모서리까지 [REVEAL_WAVE_MS] 동안 일정한 속도로 퍼진다.
+            // 화면 안 별은 "링이 그 별에 닿는 시각"에 생긴다(중심에서 가까운 별부터).
+            val viewW = mapView.width.toFloat()
+            val viewH = mapView.height.toFloat()
+            val cx = viewW / 2f
+            val cy = viewH / 2f
+            val maxR = hypot(cx, cy).coerceAtLeast(1f)
+            val ringColor = filterTintRef.value ?: FILTER_WAVE_NEUTRAL
+            val startAt = HashMap<String, Long>(reps.size * 2)
+            for (d in reps) {
+                val p = map.projection.toScreenLocation(MlLatLng(d.latitude, d.longitude))
+                if (p.x < 0f || p.x > viewW || p.y < 0f || p.y > viewH) continue
+                startAt[d.id] = (hypot(p.x - cx, p.y - cy) / maxR * REVEAL_WAVE_MS).toLong()
+            }
+            val hitTimes = startAt.values.sorted()
+            val total = maxOf(REVEAL_WAVE_MS, (hitTimes.lastOrNull() ?: 0L) + REVEAL_POP_MS)
+            // 화면에 보이는 별 반지름(px) = 비트맵 절반 × 본체 비율(0.78) × iconSize — 발광 크기를 별 크기에 맞춘다.
+            val starRadiusBase = MARKER_SIDE_PX * 0.5f * 0.78f * starZoomMult(map.cameraPosition.zoom)
+            val flashMinPx = REVEAL_FLASH_MIN_DP * screenDensity
             var sounded = 0
-            animateFrames(total) { ms ->
-                // 별이 뜨는 순간마다 "톡톡 반짝"(MusicManager 가 간격을 조절해 겹침/폭주 방지)
-                while (sounded < order.size && ms >= sounded * gap) {
-                    com.chaminwoo.stary.core.util.MusicManager.playSparkTick()
-                    sounded++
-                }
-                emit(reps.map { d ->
-                    val st = startAt[d.id]
-                    if (st == null) {
-                        // 화면 밖 별은 바로 제자리(패닝해도 비어 보이지 않게)
-                        ShownStar(d, d.longitude, d.latitude, d.id in nearIds, 1f, repSizeMult(d))
-                    } else {
-                        val u = ((ms - st).toFloat() / REVEAL_POP_MS).coerceIn(0f, 1f)
-                        val a = FastOutSlowInEasing.transform((u / 0.6f).coerceAtMost(1f))
-                        ShownStar(
-                            d, d.longitude, d.latitude, d.id in nearIds,
-                            alpha = if (u <= 0f) 0f else a,
-                            sizeMult = repSizeMult(d) * revealPopScale(u),
-                        )
+            com.chaminwoo.stary.core.util.MusicManager.resetRevealChime()
+            try {
+                animateFrames(total) { ms ->
+                    // 링이 별에 닿는 순간마다 차임(MusicManager 가 간격을 조절해 겹침/폭주 방지)
+                    while (sounded < hitTimes.size && ms >= hitTimes[sounded]) {
+                        com.chaminwoo.stary.core.util.MusicManager.playRevealChime()
+                        sounded++
                     }
-                })
+                    val flashes = ArrayList<WaveFlash>()
+                    emit(reps.map { d ->
+                        val st = startAt[d.id]
+                        val near = d.id in nearIds
+                        val size = repSizeMult(d)
+                        if (st == null) {
+                            // 화면 밖 별은 바로 제자리(패닝해도 비어 보이지 않게)
+                            ShownStar(d, d.longitude, d.latitude, near, 1f, size)
+                        } else if (ms < st) {
+                            ShownStar(d, d.longitude, d.latitude, near, 0f, size * revealPopScale(0f))
+                        } else {
+                            // 링이 닿았다 — 잠깐 커지고(1.55배) 밝아졌다가 제자리로.
+                            val u = ((ms - st).toFloat() / REVEAL_POP_MS).coerceIn(0f, 1f)
+                            val glow = revealFlash(u)
+                            if (glow > 0.01f) {
+                                // 연출 도중 지도를 움직여도 빛이 별을 따라가도록 매 프레임 화면 좌표를 다시 구한다.
+                                val p = map.projection.toScreenLocation(MlLatLng(d.latitude, d.longitude))
+                                val starRadius = starRadiusBase * size *
+                                    (if (near) STAR_SIZE_NEAR else STAR_SIZE_FAR)
+                                flashes.add(
+                                    WaveFlash(
+                                        x = p.x, y = p.y,
+                                        radiusPx = maxOf(flashMinPx, starRadius * REVEAL_FLASH_SCALE) *
+                                            (0.7f + 0.3f * glow),
+                                        intensity = glow,
+                                        color = StarStyle.colorOf(d.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1)),
+                                    )
+                                )
+                            }
+                            ShownStar(
+                                d, d.longitude, d.latitude, near,
+                                alpha = (u / 0.15f).coerceAtMost(1f),
+                                sizeMult = size * revealPopScale(u),
+                            )
+                        }
+                    })
+                    val p = (ms.toFloat() / REVEAL_WAVE_MS).coerceIn(0f, 1f)
+                    filterWave.value = FilterWaveFrame(
+                        radiusPx = maxR * p,
+                        ringAlpha = if (ms < REVEAL_WAVE_MS) revealRingAlpha(p) else 0f,
+                        color = ringColor,
+                        flashes = flashes,
+                    )
+                }
+            } finally {
+                // 도중에 끊겨도(재클러스터 등으로 effect 재시작) 링/발광이 화면에 남지 않게.
+                filterWave.value = null
             }
             settle()
             settleOrbits()
@@ -1436,6 +1487,9 @@ fun DiaryMap(
     LaunchedEffect(focusDiary, mapRef) {
         val target = focusDiary ?: return@LaunchedEffect
         val map = mapRef ?: return@LaunchedEffect
+        // 포커스가 카메라를 잡았으면 "최초 내 위치로" 자동 이동은 하지 않는다 — 알림을 눌러 앱을 켠 경우
+        // 포커스가 끝나(focusDiary=null) 위 effect 가 다시 돌면서 방금 간 별에서 내 위치로 되돌아가 버렸다(2026-10-14, iOS 는 10-10 수정).
+        didAutoCenter = true
         map.animateCamera(
             CameraUpdateFactory.newCameraPosition(
                 CameraPosition.Builder().target(MlLatLng(target.lat, target.lng)).zoom(DEFAULT_ZOOM)

@@ -135,25 +135,56 @@ internal const val CONSTELLATION_FLASH_LAYER = "constellation-flash-layer"
 internal const val CONSTELLATION_TIP_HALO_LAYER = "constellation-tip-halo-layer"
 internal const val CONSTELLATION_TIP_LAYER = "constellation-tip-layer"
 
-// ── 필터 전환 "별이 하나 둘" 순차 등장(2026-09-25, 광고 레퍼런스) ─────────────────
-/** 화면 안 별들이 모두 떠오르기까지(첫 별 시작 → 마지막 별 시작) 목표 시간(ms). */
-internal const val REVEAL_SPAN_MS = 1300L
-/** 별 사이 간격 하한/상한(ms) — 별이 적으면 느긋하게(하나 둘), 많으면 촘촘하게. */
-internal const val REVEAL_MIN_GAP_MS = 28L
-internal const val REVEAL_MAX_GAP_MS = 120L
-/** 별 하나가 톡 떠오르는 시간(ms) — 투명도 + 크기 팝(0.35 → 1.18 → 1). */
-internal const val REVEAL_POP_MS = 380L
-/** 순차 등장 직전, 이전 필터의 별을 걷어내는 시간(ms). */
+// ── 필터 전환 "빛의 고리" 등장(2026-10-14, references/filtering.mp4) ─────────────────
+// 카메라(화면) 중심에서 링이 빠르게 퍼지고, 링이 닿는 순간 그 별이 차임과 함께 잠깐 커지고 밝아졌다가
+// 제자리로 돌아오며 생긴다. (예전: 무작위 순서로 하나씩 "톡" — 2026-09-25)
+// iOS `MapStarReveal.swift` 의 `StarRevealFx` 와 같은 값(값 drift 금지).
+/** 링이 화면 중심 → 가장 먼 모서리까지 퍼지는 시간(ms). 별의 등장 시각 = (중심까지 거리 / 모서리 거리) × 이 값. */
+internal const val REVEAL_WAVE_MS = 900L
+/** 링이 닿은 별 하나가 생기는 시간(ms) — 크기 0.2 → 1.55 → 1 + 발광. */
+internal const val REVEAL_POP_MS = 520L
+/** 등장 직전, 이전 필터의 별을 걷어내는 시간(ms). */
 internal const val REVEAL_CLEAR_MS = 170L
+/** 링 선 굵기 / 링 안쪽으로 끌리는 빛 띠 폭(dp). */
+internal const val REVEAL_RING_STROKE_DP = 2.2f
+internal const val REVEAL_RING_TRAIL_DP = 54f
+/** 별 발광 반경 = 화면에 보이는 별 반지름 × 이 배율(하한 [REVEAL_FLASH_MIN_DP]). */
+internal const val REVEAL_FLASH_SCALE = 1.9f
+internal const val REVEAL_FLASH_MIN_DP = 12f
 
-/** 순차 등장 팝 곡선 — u(0..1) → 크기 배율. 0.35 에서 튀어 올라 1.18 을 찍고 1 로 가라앉는다. */
+/** 등장 팝 곡선 — u(0..1) → 크기 배율. 0.2 에서 튀어 올라 1.55 를 찍고(u=0.3) 1 로 돌아온다. */
 internal fun revealPopScale(u: Float): Float {
     val x = u.coerceIn(0f, 1f)
-    return if (x < 0.55f) {
-        val k = 1f - (1f - x / 0.55f).let { it * it * it }
-        0.35f + (1.18f - 0.35f) * k
+    return if (x < 0.3f) {
+        val k = 1f - (1f - x / 0.3f).let { it * it * it }
+        0.2f + (1.55f - 0.2f) * k
     } else {
-        1.18f + (1f - 1.18f) * FastOutSlowInEasing.transform((x - 0.55f) / 0.45f)
+        1.55f + (1f - 1.55f) * FastOutSlowInEasing.transform((x - 0.3f) / 0.7f)
+    }
+}
+
+/** 등장 발광 세기 — u(0..1) → 0..1. 링이 닿자마자 확 밝아졌다가(u=0.18) 천천히 꺼진다. */
+internal fun revealFlash(u: Float): Float {
+    val x = u.coerceIn(0f, 1f)
+    return if (x < 0.18f) x / 0.18f else (1f - (x - 0.18f) / 0.82f).let { it * it }
+}
+
+/** 링 불투명도 — p(0..1, 퍼진 정도). 끝으로 갈수록 빠르게 옅어진다. */
+internal fun revealRingAlpha(p: Float): Float {
+    val x = p.coerceIn(0f, 1f)
+    return 1f - x * x * x
+}
+
+/** 지금 줌에서 별 아이콘의 줌 배율 — [starSizeExpression] 의 zoom stop 과 **같은 값**(6→0.06, 10→0.2, 13→0.5, 15→1). */
+internal fun starZoomMult(zoom: Double): Float {
+    val z = zoom.toFloat()
+    fun seg(z0: Float, v0: Float, z1: Float, v1: Float) = v0 + (v1 - v0) * ((z - z0) / (z1 - z0))
+    return when {
+        z <= 6f -> 0.06f
+        z < 10f -> seg(6f, 0.06f, 10f, 0.2f)
+        z < 13f -> seg(10f, 0.2f, 13f, 0.5f)
+        z < 15f -> seg(13f, 0.5f, 15f, 1f)
+        else -> 1f
     }
 }
 

@@ -103,7 +103,9 @@ iOS 보상형 광고(LevelPlay/AdMob) 키·대시보드 등 사용자가 직접 
 
 ## 2.7 ⚠️ iOS 알림 탭 → 다이어리 이동/열기 안 됨(2026-10-09 수정). 알림·딥링크 코드를 건드릴 때 읽을 것
 원인 3가지: ① `NotificationsScreen`(알림 목록) 행에 **탭 핸들러가 아예 없었다**(Android `NotificationScreen` 의 onClick 이 iOS 에 이식되지 않음). ② 푸시 탭/지도 포커스 `MapScreen.handleFocus` 가 대상 별이 `store.diaries` 에 **아직 없으면 조용히 return + 요청도 소비 안 함** — 알림으로 앱을 막 켠 경우(목록 로드 전)엔 재시도하는 곳이 없어 영영 안 움직였다. ③ 인앱 배너가 친구 새 글도 상세로 직행(열람 거리 잠금 우회)했고, 목록에 없으면 무반응.
-- 알림 → 이동 분기는 **`PushRoute.from(_ n: AppNotification)` 한 곳**(푸시 탭 `PushManager.didReceive`, 알림 목록 행, 인앱 배너가 모두 이걸 쓴다). Android 와 같은 분기: 친구 요청→친구 화면 / 친구 새 글·`FIRST_STAR`→지도 포커스(카메라+파장) / 좋아요·댓글→상세. **새 알림 type 을 추가하면** 서버 `functions/index.js` data · Android `NotificationScreen`/`MainScreen` · iOS `PushRoute.from`/`PushManager.didReceive` 를 함께 고친다.
+- 알림 → 이동 분기는 **`PushRoute.from(_ n: AppNotification)` 한 곳**(푸시 탭 `PushManager.didReceive`, 알림 목록 행, 인앱 배너가 모두 이걸 쓴다). Android 와 같은 분기: 친구 요청→친구 화면 / 친구 새 글·`FIRST_STAR`→지도 포커스(카메라+파장) / 좋아요·댓글→상세. **새 알림 type 을 추가하면** 서버 `functions/index.js` data · Android `NotificationScreen`(목록 행)/`MainScreen`(인앱 배너)/`MainActivity.handleDeepLinkIntent`(시스템 푸시 탭 — data `type` 으로 상세/지도 분기) · iOS `PushRoute.from`/`PushManager.didReceive` 를 함께 고친다.
+  (2026-10-14: Android 는 이 세 군데가 따로라 `FIRST_STAR` 가 배너·푸시 탭에서 빠져 상세로 갔다. 푸시는 `notification` 페이로드라 후면에선 `StaryMessagingService` 가 아니라 시스템이 띄우고 data 키가 인텐트 extras 로 온다.)
+- 포커스 직후엔 **"내 위치로" 재센터/자동 이동이 뒤따라 나가지 않게** 한다 — Android `DiaryMap` 포커스 effect 의 `didAutoCenter = true`, iOS `MapScreen.lastFocusAt`(onAppear 재센터 생략) + `focusNonce`(같은 별 재요청도 이동). 이 가드를 지우면 "별로 갔다가 내 위치로 되돌아간다".
 - 알림이 가리키는 별을 열 때는 `DiaryStore.diary(id:viewerUid:)` 를 쓴다(구독 목록 → 없으면 Firestore 직접 읽기, 남의 나만 보기 글 제외). **`store.diaries.first(where:)` 만 믿고 없으면 무시하는 코드 금지** — 못 찾으면 토스트(`notifDiaryGone`)로 알린다.
 - 지도 포커스 요청은 `MapFocusStore` 에 쌓이고 `handleFocus` 가 **목록 변화(`onChange`)마다 재시도**해 소비한다. 여기에 "없으면 return" 만 남기는 수정 금지.
 - iOS 알림 확인은 **실기기 TestFlight** 에서(시뮬레이터는 APNs 불가): 앱 종료 상태/백그라운드/전면 각각에서 좋아요·댓글·친구 새 글 알림을 눌러 상세·지도 포커스로 가는지, 앱 안 알림 목록(하트) 행을 눌러도 같은지.

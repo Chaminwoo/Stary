@@ -29,7 +29,8 @@
     <string name="settings_haptics_desc">별을 열거나 좋아요를 누를 때 손끝에 반응이 와요</string>
     <string name="settings_notification">알림</string>
     <string name="settings_language">언어</string>
-    <string name="settings_bgm">배경음악</string>
+    <string name="settings_mute_all">모든 소리 끄기</string>
+    <string name="settings_mute_all_desc">배경음악과 효과음을 모두 꺼요</string>
     <string name="settings_bgm_volume">배경음악 볼륨</string>
     <string name="settings_sfx_volume">효과음 볼륨</string>
     <string name="settings_notif_popup">알림 팝업</string>
@@ -232,6 +233,7 @@
     <string name="notif_comment">\"%1$s\"에 댓글을 남겼어요</string>
     <string name="notif_friend_request">친구 요청을 보냈어요</string>
     <string name="notif_first_star">세상에 첫 별을 남겼어요</string>
+    <string name="notif_diary_gone">이 별은 이제 볼 수 없어요</string>
 
     <!-- 내 다이어리 화면 -->
     <string name="mydiary_empty">아직 남긴 별이 없어요</string>

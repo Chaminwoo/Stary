@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
  *   { diaryId, title, body } 를 보내는 Function 을 배포해야 푸시가 동작한다.
  *   (인앱 알림(FRIEND_POST 문서)은 이미 클라이언트에서 생성됨)
  *
- * 알림 탭 → MainActivity 에 diaryId extra → 해당 다이어리 상세로 딥링크.
+ * 알림 탭 → MainActivity 에 diaryId(+type) extra → 좋아요·댓글은 상세, 친구 새 글·첫 별 공지는 지도의 그 별로.
  */
 class StaryMessagingService : FirebaseMessagingService() {
 
@@ -74,6 +74,8 @@ class StaryMessagingService : FirebaseMessagingService() {
                 putExtra(MainActivity.EXTRA_OPEN_FRIENDS, true)
             } else {
                 diaryId?.let { putExtra(MainActivity.EXTRA_DIARY_ID, it) }
+                // 좋아요·댓글 = 상세 / 그 외(친구 새 글·첫 별 공지) = 지도 포커스 — MainActivity 가 type 으로 가른다.
+                message.data["type"]?.let { putExtra(MainActivity.EXTRA_PUSH_TYPE, it) }
             }
         }
         val pending = PendingIntent.getActivity(

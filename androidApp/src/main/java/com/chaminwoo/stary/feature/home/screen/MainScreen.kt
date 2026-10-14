@@ -217,6 +217,18 @@ fun MainScreen(
             navController.navigateToDetail(it)
         }
     }
+    // 친구 새 글·첫 별 공지 푸시 탭 → 지도에서 그 별로(카메라 이동 + 파장). 다른 화면에 있었다면 지도로 돌아간다.
+    androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.mapDiaryId) {
+        com.chaminwoo.stary.core.util.DeepLinkState.consumeMapDiary()?.let { id ->
+            com.chaminwoo.stary.core.util.MapFocusState.request(id)
+            val dest = navController.currentDestination
+            if (dest != null && !dest.hasRoute<NavRoute.Main>()) {
+                navController.navigate(NavRoute.Main) {
+                    popUpTo<NavRoute.Main> { inclusive = true }
+                }
+            }
+        }
+    }
     androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.chatFriendId) {
         com.chaminwoo.stary.core.util.DeepLinkState.consumeChat()?.let { (fid, fname) ->
             showLogin = false
@@ -833,7 +845,9 @@ fun MainScreen(
                     if (n.type == com.chaminwoo.stary.core.model.NotificationType.FRIEND_REQUEST.name) {
                         // 친구 요청 배너 → 친구 화면(받은 요청 목록)
                         navController.navigate(NavRoute.Friends)
-                    } else if (n.type == com.chaminwoo.stary.core.model.NotificationType.FRIEND_POST.name && n.diaryId.isNotBlank()) {
+                    } else if ((n.type == com.chaminwoo.stary.core.model.NotificationType.FRIEND_POST.name ||
+                            n.type == com.chaminwoo.stary.core.model.NotificationType.FIRST_STAR.name) && n.diaryId.isNotBlank()) {
+                        // 친구 새 글·첫 별 공지 → 지도에서 그 별로(알림 목록 행과 같은 동작. 예전엔 첫 별이 빠져 상세로 갔다).
                         com.chaminwoo.stary.core.util.MapFocusState.request(n.diaryId)
                         navController.navigate(NavRoute.Main) {
                             popUpTo<NavRoute.Main> {

@@ -27,7 +27,8 @@
     <string name="settings_haptics_desc">Feel a tap when you open a star or tap like</string>
     <string name="settings_notification">Notifications</string>
     <string name="settings_language">Language</string>
-    <string name="settings_bgm">Background music</string>
+    <string name="settings_mute_all">Mute all sounds</string>
+    <string name="settings_mute_all_desc">Turns off background music and sound effects</string>
     <string name="settings_bgm_volume">Music volume</string>
     <string name="settings_sfx_volume">Sound effects volume</string>
     <string name="settings_notif_popup">Notification banners</string>
@@ -230,6 +231,7 @@
     <string name="notif_comment">Commented on \"%1$s\"</string>
     <string name="notif_friend_request">Sent you a friend request</string>
     <string name="notif_first_star">left their first star in the world</string>
+    <string name="notif_diary_gone">This star is no longer available</string>
 
     <!-- My Diary screen -->
     <string name="mydiary_empty">No stars of yours yet</string>

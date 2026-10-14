@@ -91,7 +91,9 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.globe.GlobeScreen
 import com.chaminwoo.stary.feature.map.screen.DiaryFocusTarget
 import com.chaminwoo.stary.feature.map.screen.DiaryMap
+import com.chaminwoo.stary.feature.map.screen.FilterKindTracker
 import com.chaminwoo.stary.feature.map.screen.GlobeReturnCamera
+import com.chaminwoo.stary.feature.map.screen.MapFilterKind
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
@@ -186,6 +188,20 @@ fun MainListScreen(
     }
     var showPeriodPicker by remember { mutableStateOf(false) }
     var speedDialExpanded by remember { mutableStateOf(false) }
+
+    // 지금 색을 정하는 필터 = 가장 마지막에 켠 필터 — 빛의 고리(필터 전환 등장)와 지도에 도는 은은한 빛의 색.
+    // 필터가 없으면 null(빛 꺼짐). 필터 조합(revealKey)과 같은 컴포지션에서 값이 정해져야 링 색이 한 박자 늦지 않는다.
+    val filterKindTracker = remember(userId) { FilterKindTracker() }
+    val filterKind = filterKindTracker.update(
+        buildList {
+            if (lockedOnly) add(MapFilterKind.LOCKED)
+            if (unlockedOnly) add(MapFilterKind.UNLOCKED)
+            if (friendsOnly) add(MapFilterKind.FRIENDS)
+            if (myOnly) add(MapFilterKind.MINE)
+            if (selectedFriendIds.isNotEmpty()) add(MapFilterKind.PICK_FRIENDS)
+            if (periodDays != null) add(MapFilterKind.PERIOD)
+        }
+    )
 
     val friends by remember(userId) {
         val uid = userId
@@ -443,10 +459,35 @@ fun MainListScreen(
         }
 
         // 알림에서 요청된 다이어리로 카메라 이동 + 파장 — 좌표는 필터와 무관하게 전체 목록에서 찾는다.
+        // ⚠️ 대상 별이 구독 목록(최신 1000개)에 없을 수 있다(목록 로드 전·오래된 별·삭제). 예전엔 그러면 아무 일도
+        //    일어나지 않고 요청도 남아(이후 지도 복귀 재센터까지 막힘) "알림을 눌러도 그 별로 안 간다"가 됐다 →
+        //    목록에 없으면 Firestore 에서 직접 읽고, 그래도 없으면 안내 후 요청을 비운다(iOS MapScreen.handleFocus 패리티).
+        val pendingFocusId = MapFocusState.pendingDiaryId
+        var fetchedFocus by remember { mutableStateOf<Diary?>(null) }
+        LaunchedEffect(pendingFocusId, diaries) {
+            val id = pendingFocusId
+            if (id == null) {
+                fetchedFocus = null
+                return@LaunchedEffect
+            }
+            if (fetchedFocus?.id == id || diaries.any { it.id == id }) return@LaunchedEffect
+            // 목록이 아직 비어 있으면 막 켜진 직후일 수 있다 — 잠깐 기다린다(목록이 도착하면 이 effect 가 다시 돈다).
+            if (diaries.isEmpty()) delay(1500)
+            val d = com.chaminwoo.stary.data.repository.FirebaseDiaryRepository().getDiaryById(id)
+            if (MapFocusState.pendingDiaryId != id) return@LaunchedEffect // 그 사이 다른 요청으로 바뀜
+            val visible = d != null && (d.latitude != 0.0 || d.longitude != 0.0) &&
+                (d.visibilityType != "private" || d.userId == userId)
+            if (visible) {
+                fetchedFocus = d
+            } else {
+                MapFocusState.consume()
+                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.notif_diary_gone))
+            }
+        }
         val focusTarget =
-            remember(MapFocusState.pendingDiaryId, diaries) {
-                val id = MapFocusState.pendingDiaryId ?: return@remember null
-                diaries.firstOrNull { it.id == id }?.let {
+            remember(pendingFocusId, diaries, fetchedFocus) {
+                val id = pendingFocusId ?: return@remember null
+                (diaries.firstOrNull { it.id == id } ?: fetchedFocus?.takeIf { it.id == id })?.let {
                     DiaryFocusTarget(it.latitude, it.longitude, it.starColor, it.id)
                 }
             }
@@ -465,11 +506,13 @@ fun MainListScreen(
                 globeButtonCenter = if (available) lat to lng else null
             },
             globeReturnCamera = globeReturn,
-            // 필터 조합이 바뀌면 별이 "하나 둘" 순차로 다시 떠오른다(광고 연출). 위치 갱신(unlockFix)·
+            // 필터 조합이 바뀌면 화면 중심에서 빛의 고리가 퍼지며 링이 닿는 별부터 다시 생긴다. 위치 갱신(unlockFix)·
             // 데이터 실시간 갱신은 여기 안 들어가므로 그때는 기존 합쳐짐/펼쳐짐 보간만 돈다.
             revealKey = listOf(
                 lockedOnly, friendsOnly, myOnly, unlockedOnly, selectedFriendIds, periodDays,
             ),
+            // 필터마다 다른 색 — 고리와 지도에 도는 은은한 빛을 물들인다(필터 없으면 null).
+            filterTint = filterKind?.color,
             // 필터가 걸려 있으면 남은 별의 후광을 조금 더 밝게(2026-10-10).
             highlight = lockedOnly || friendsOnly || myOnly || unlockedOnly ||
                     selectedFriendIds.isNotEmpty() || periodDays != null,

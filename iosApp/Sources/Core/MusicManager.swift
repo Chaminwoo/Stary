@@ -4,6 +4,8 @@ import SwiftUI
 /// 앱 전역 배경음악 + 효과음 관리자 — Android `core.util.MusicManager` 의 Swift 포팅.
 ///
 /// - 기본 켜짐. 기본 음악 = [MusicCatalog.defaultId].
+/// - [enabled] 는 **모든 소리**(배경음악 + 효과음)의 on/off 다 — 설정의 "모든 소리 끄기"(2026-10-14 이름 변경,
+///   예전 이름 "배경음악"은 효과음까지 꺼지는 게 버그처럼 보였다). 효과음만 따로 줄이려면 효과음 볼륨을 쓴다.
 /// - 트랙 전환은 [playTrack] (이어듣기용 위치 인자), 확정은 [commitSelectedTrack].
 /// - 효과음: 맷돌(다이얼) 그라인딩음(돌리는 동안 [dialTick] 이 회전 속도에 비례해 반복,
 ///   놓으면 [dialRelease] 가 한 번만 끝까지), 다이어리 열람음([playOpenDiary], 배경음악보다 작게).
@@ -42,7 +44,7 @@ final class MusicManager: ObservableObject {
     //  - sfx_spark_1~3 : 별이 하나 둘 떠오를 때(지도 필터 전환 · 별 도감 원) — 3종 중 직전과 다른 것.
     //  - sfx_star_birth: 업로드 성공 별 탄생 · sfx_like: 좋아요 · sfx_drawer: 드로어 열기.
     private var sfxData: [String: Data] = [:]
-    /// 재생 중 참조 유지 — 반짝임이 겹쳐 울리므로 여러 개를 들고 있는다(최대 8, Android SoundPool maxStreams 대응).
+    /// 재생 중 참조 유지 — 차임/반짝임이 겹쳐 울리므로 여러 개를 들고 있는다(최대 12, Android SoundPool maxStreams 대응).
     private var sfxPlayers: [AVAudioPlayer] = []
     private let sparkBaseVolume: Float = 0.30
     /// 별이 촘촘히 뜰 때 반짝임 폭주 방지 최소 간격(초) — Android SPARK_MIN_GAP_MS(55) 와 같은 값.
@@ -52,6 +54,16 @@ final class MusicManager: ObservableObject {
     private let starBirthBaseVolume: Float = 0.55
     private let likeBaseVolume: Float = 0.50
     private let drawerBaseVolume: Float = 0.32
+
+    // 필터 전환 "빛의 고리"가 별에 닿을 때의 차임(2026-10-14, references/filtering.mp4 — tools/sfx/reveal_chime.py 로 합성).
+    // C 장조 펜타토닉 5음(sfx_chime_1~5). 별마다 chimeOrder 순서로 음을 바꿔 짧은 선율처럼 들린다.
+    // Android MusicManager.playRevealChime 과 같은 볼륨·간격·순서.
+    private let chimeOrder = [0, 2, 1, 3, 2, 4, 3, 1]
+    private let chimeBaseVolume: Float = 0.34
+    /// 별이 촘촘할 때 차임이 뭉개지지 않도록 최소 간격(초) — Android CHIME_MIN_GAP_MS(60) 와 같은 값.
+    private let chimeMinGap: TimeInterval = 0.06
+    private var lastChimeAt: TimeInterval = 0
+    private var chimeStep = 0
 
     private init() {
         let d = UserDefaults.standard
@@ -168,12 +180,12 @@ final class MusicManager: ObservableObject {
         guard let p = try? AVAudioPlayer(data: data) else { return }
         p.volume = volume * sfxVolume
         sfxPlayers.removeAll { !$0.isPlaying }
-        if sfxPlayers.count >= 8 { sfxPlayers.removeFirst().stop() }
+        if sfxPlayers.count >= 12 { sfxPlayers.removeFirst().stop() }
         sfxPlayers.append(p)
         p.play()
     }
 
-    /// 별 하나가 "톡" 떠오를 때의 반짝임 — 지도 필터 전환 순차 등장 / 별 도감 원 등장에서 별마다 호출.
+    /// 별 하나가 "톡" 떠오를 때의 반짝임 — 별 도감 원 등장에서 별마다 호출(지도 필터 전환은 [playRevealChime]).
     /// [sparkMinGap] 보다 촘촘한 호출은 건너뛴다(별이 수십 개여도 소리는 적당한 밀도).
     func playSparkTick() {
         let now = ProcessInfo.processInfo.systemUptime
@@ -183,6 +195,20 @@ final class MusicManager: ObservableObject {
         if idx == lastSparkIdx { idx = (idx + 1) % 3 }
         lastSparkIdx = idx
         playSfx("sfx_spark_\(idx + 1)", volume: sparkBaseVolume * Float.random(in: 0.75...1.0))
+    }
+
+    /// 빛의 고리 한 번이 시작될 때 — 차임 선율을 첫 음부터 다시.
+    func resetRevealChime() { chimeStep = 0 }
+
+    /// 필터 전환 "빛의 고리"가 별 하나에 닿는 순간의 차임 — 지도 등장 루프가 별마다 호출한다.
+    /// 호출마다 chimeOrder 의 다음 음을 울리고, [chimeMinGap] 보다 촘촘한 호출은 건너뛴다.
+    func playRevealChime() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastChimeAt >= chimeMinGap else { return }
+        lastChimeAt = now
+        let idx = chimeOrder[chimeStep % chimeOrder.count]
+        chimeStep += 1
+        playSfx("sfx_chime_\(idx + 1)", volume: chimeBaseVolume * Float.random(in: 0.8...1.0))
     }
 
     /// 업로드 성공 별 탄생 — 유성이 내려와 안착(화음이 발광 순간 ≈0.42s 에 맞춰진 음원).

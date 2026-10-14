@@ -23,7 +23,7 @@ struct MapLibreView: UIViewRepresentable {
     ) -> Void
 
     /// 외부에서 "이 좌표로 카메라 이동" 요청.
-    /// 값이 바뀔 때 1회 애니메이션 이동.
+    /// [focusNonce] 가 바뀔 때 1회 애니메이션 이동(같은 좌표를 다시 요청해도 움직인다).
     var focusTarget: CLLocationCoordinate2D?
 
     /// 개척 퀘스트 미개척 대상국.
@@ -68,6 +68,13 @@ struct MapLibreView: UIViewRepresentable {
 
     /// 필터가 하나라도 걸려 있는가 — true 면 별 후광을 조금 더 밝게(Android DiaryMap `highlight` 패리티). ⚠️ 멤버와이즈 init 순서상 zoomHold 다음(맨 끝).
     var filterHighlight: Bool = false
+
+    /// 지금 필터의 색(0xRRGGBB, `MapFilterKind.hex`) — 필터 전환 "빛의 고리" 색. nil = 필터 없음(색 없는 별빛). ⚠️ 멤버와이즈 init 순서상 filterHighlight 다음.
+    var filterTintHex: UInt32? = nil
+
+    /// 포커스 요청 번호 — 올라갈 때마다 [focusTarget] 으로 카메라를 옮긴다. ⚠️ 멤버와이즈 init 순서상 맨 끝.
+    /// (예전엔 "좌표가 직전 포커스와 같으면 무시"라, 같은 별의 알림을 다시 누르면 지도를 옮겨 놓은 뒤에도 그 별로 가지 않았다 — 2026-10-14)
+    var focusNonce: Int = 0
 
     // MARK: - Constants
 
@@ -228,9 +235,9 @@ struct MapLibreView: UIViewRepresentable {
 
         // 외부 포커스 요청.
         if let target = focusTarget,
-           !context.coordinator.sameAsLastFocus(target) {
+           focusNonce != context.coordinator.lastFocusNonce {
 
-            context.coordinator.lastFocus = target
+            context.coordinator.lastFocusNonce = focusNonce
             context.coordinator.didAutoCenter = true // 포커스가 먼저 왔으면 최초 위치 자동 이동은 생략.
 
             context.coordinator.movePitchedCamera(mapView, to: target, zoomLevel: 15, animated: true)
@@ -316,9 +323,9 @@ struct MapLibreView: UIViewRepresentable {
                     }
             )
 
-            // 필터가 바뀐 경우 — 새로 뜨는 별들을 숨긴 채 추가한 뒤 순차 등장시킨다(뷰가 생기기 전에 준비).
+            // 필터가 바뀐 경우 — 새로 뜨는 별들을 숨긴 채 추가한 뒤, 화면 중심에서 퍼지는 빛의 고리가 닿는 순서로 띄운다(뷰가 생기기 전에 준비).
             let reveal = context.coordinator.consumeRevealRequest(revealKey)
-            if reveal { context.coordinator.prepareStarReveal(toAdd, mapView: mapView, key: revealKey) }
+            if reveal { context.coordinator.prepareStarReveal(toAdd, mapView: mapView) }
 
             mapView.addAnnotations(toAdd)
 
@@ -328,9 +335,9 @@ struct MapLibreView: UIViewRepresentable {
             )
             if reveal { context.coordinator.startStarReveal(mapView) }
         } else if context.coordinator.consumeRevealRequest(revealKey) {
-            // 필터가 바뀌었지만 보이는 별 구성이 그대로 — 같은 별들로 순차 등장만 다시.
+            // 필터가 바뀌었지만 보이는 별 구성이 그대로 — 같은 별들로 빛의 고리 등장만 다시.
             let current = (mapView.annotations ?? []).compactMap { $0 as? DiaryAnnotation }
-            context.coordinator.prepareStarReveal(current, mapView: mapView, key: revealKey)
+            context.coordinator.prepareStarReveal(current, mapView: mapView)
             context.coordinator.refreshAuraFeatures(mapView)
             context.coordinator.startStarReveal(mapView)
         }
@@ -361,8 +368,8 @@ struct MapLibreView: UIViewRepresentable {
 
         var didAutoCenter = false
 
-        /// 마지막 포커스 좌표.
-        var lastFocus: CLLocationCoordinate2D?
+        /// 마지막으로 처리한 포커스 요청 번호(MapLibreView.focusNonce).
+        var lastFocusNonce: Int = 0
 
         /// 마지막으로 처리한 글로브 복귀 요청 nonce.
         var lastGlobeReturnNonce: Int = -1
@@ -419,10 +426,10 @@ struct MapLibreView: UIViewRepresentable {
         var constellationLink: CADisplayLink?
         var constellationRun: ConstellationRun?
 
-        // ── 필터 전환 별 순차 등장(MapStarReveal) ──
+        // ── 필터 전환 "빛의 고리" 등장(MapStarReveal) ──
         /// 마지막으로 소비한 revealKey(nil = 아직 첫 표시 전 — 첫 표시엔 연출 없음).
         var lastRevealKey: Int?
-        /// 별 id → 등장 시작 지연(초). 화면 밖 별은 없음(즉시 표시).
+        /// 별 id → 링이 닿는 시각(초). 화면 밖 별은 없음(즉시 표시).
         var revealDelays: [String: Double] = [:]
         var revealSortedDelays: [Double] = []
         var revealStart: CFTimeInterval = 0
@@ -430,6 +437,8 @@ struct MapLibreView: UIViewRepresentable {
         var revealLink: CADisplayLink?
         /// 아직 떠오르지 않은 별 — 후광(CircleLayer)도 이 별들은 빼고 그린다.
         var revealHidden: Set<String> = []
+        /// 퍼지고 있는 빛의 고리(지도 뷰 레이어 위) — 등장이 끝나면 걷어낸다.
+        var revealRingLayer: CALayer?
 
         /// 마지막 세계 빈 공간 경계.
         var lastVoid: (
@@ -771,26 +780,6 @@ struct MapLibreView: UIViewRepresentable {
                 mapView.centerCoordinate,
                 zoom: mapView.zoomLevel
             )
-        }
-
-        // MARK: Focus
-
-        func sameAsLastFocus(
-            _ c: CLLocationCoordinate2D
-        ) -> Bool {
-
-            guard
-                let last = lastFocus
-            else {
-                return false
-            }
-
-            return
-                abs(last.latitude - c.latitude)
-                    < 1e-7
-                &&
-                abs(last.longitude - c.longitude)
-                    < 1e-7
         }
 
         // MARK: Annotation View

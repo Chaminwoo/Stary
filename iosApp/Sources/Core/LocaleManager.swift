@@ -72,7 +72,7 @@ final class LocaleManager: ObservableObject {
 enum L10n: String {
     case navSettings
     case settingsSound, settingsNotification, settingsLanguage
-    case settingsBgm1, settingsBgmVolume, settingsSfxVolume
+    case settingsMuteAll, settingsMuteAllDesc, settingsBgmVolume, settingsSfxVolume
     case settingsNotifPopup, settingsNotifPopupDesc, settingsLanguageDesc, settingsAutosave
     /// 햅틱(진동) 토글 — Android settings_haptics 패리티.
     case settingsHaptics, settingsHapticsDesc
@@ -238,7 +238,8 @@ enum L10n: String {
         case .settingsSound:        return ("사운드", "Sound", "サウンド")
         case .settingsNotification: return ("알림", "Notifications", "通知")
         case .settingsLanguage:     return ("언어", "Language", "言語")
-        case .settingsBgm1:         return ("배경음악", "Background music", "BGM")
+        case .settingsMuteAll:      return ("모든 소리 끄기", "Mute all sounds", "すべての音をオフ")
+        case .settingsMuteAllDesc:  return ("배경음악과 효과음을 모두 꺼요", "Turns off background music and sound effects", "BGMと効果音をすべてオフにします")
         case .settingsBgmVolume:    return ("배경음악 볼륨", "Music volume", "BGMの音量")
         case .settingsSfxVolume:    return ("효과음 볼륨", "Sound effects volume", "効果音の音量")
         case .settingsHaptics:      return ("햅틱(진동)", "Haptics", "触覚フィードバック")

@@ -8,11 +8,17 @@ import androidx.compose.runtime.setValue
  * 푸시 알림 탭 딥링크 전역 상태.
  *
  * MainActivity 가 (콜드 스타트 `onCreate` / 백그라운드 복귀 `onNewIntent` 둘 다) 인텐트 extra 를 읽어 여기에 채우고,
- * `MainScreen` 이 관찰해 해당 화면(채팅방/다이어리 상세)으로 이동한 뒤 consume 한다.
+ * `MainScreen` 이 관찰해 해당 화면(채팅방/다이어리 상세/지도의 그 별)으로 이동한 뒤 consume 한다.
  * (singleTop 이라 앱이 살아있을 때 알림 탭도 onNewIntent 로 들어와 반영됨.)
  */
 object DeepLinkState {
     var diaryId by mutableStateOf<String?>(null)
+        private set
+    /**
+     * 지도에서 그 별로 가야 하는 다이어리(친구 새 글·첫 별 공지 푸시) — 상세가 아니라 카메라 이동 + 파장.
+     * 남의 별은 상세로 직행하면 100m 열람 잠금 화면만 보이고 "어디 있는 별인지"를 알 수 없다.
+     */
+    var mapDiaryId by mutableStateOf<String?>(null)
         private set
     var chatFriendId by mutableStateOf<String?>(null)
         private set
@@ -33,6 +39,8 @@ object DeepLinkState {
     /** 인텐트에서 읽은 딥링크 목적지를 등록(있는 것만). */
     fun request(
         diaryId: String? = null,
+        /** true 면 [diaryId] 를 상세가 아니라 지도 포커스([mapDiaryId])로 보낸다. */
+        diaryOnMap: Boolean = false,
         chatFriendId: String? = null,
         chatFriendName: String? = null,
         openFriends: Boolean = false,
@@ -42,7 +50,7 @@ object DeepLinkState {
             this.chatFriendId = chatFriendId
             this.chatFriendName = chatFriendName ?: ""
         } else if (!diaryId.isNullOrBlank()) {
-            this.diaryId = diaryId
+            if (diaryOnMap) this.mapDiaryId = diaryId else this.diaryId = diaryId
         } else if (openFriends) {
             friendsNonce += 1
         } else if (openUpload) {
@@ -66,6 +74,13 @@ object DeepLinkState {
     fun consumeDiary(): String? {
         val v = diaryId
         diaryId = null
+        return v?.takeIf { it.isNotBlank() }
+    }
+
+    /** 지도 포커스 대상 다이어리를 꺼내고 비운다(1회 소비). */
+    fun consumeMapDiary(): String? {
+        val v = mapDiaryId
+        mapDiaryId = null
         return v?.takeIf { it.isNotBlank() }
     }
 

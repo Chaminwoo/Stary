@@ -26,9 +26,12 @@ struct SettingsScreen: View {
                     // ── 사운드 ──
                     sectionLabel(locale.t(.settingsSound), "music.note")
                     glassCard {
-                        toggleRow(icon: "music.note",
-                                  label: locale.t(.settingsBgm1),
-                                  isOn: music.enabled) { music.setActive($0) }
+                        // 모든 소리 끄기 — 켜면(= music.enabled false) 배경음악과 효과음이 모두 꺼진다.
+                        // 예전 이름은 "배경음악"이었는데 효과음까지 같이 꺼져 버그처럼 보였다 → 동작에 맞게 이름을 바꿨다(2026-10-14, Android 동일).
+                        toggleRow(icon: music.enabled ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                                  label: locale.t(.settingsMuteAll),
+                                  description: locale.t(.settingsMuteAllDesc),
+                                  isOn: !music.enabled) { music.setActive(!$0) }
                         divider
                         volumeRow(label: locale.t(.settingsBgmVolume),
                                   value: music.musicVolume,
@@ -36,7 +39,7 @@ struct SettingsScreen: View {
                         divider
                         volumeRow(label: locale.t(.settingsSfxVolume),
                                   value: music.sfxVolume,
-                                  enabled: true,
+                                  enabled: music.enabled,
                                   iconOverride: "waveform") { music.updateSfxVolume($0) }
                         divider
                         toggleRow(icon: "iphone.radiowaves.left.and.right",
