@@ -226,7 +226,9 @@ internal fun FilterWaveOverlay(frame: State<FilterWaveFrame?>, modifier: Modifie
                 style = Stroke(REVEAL_RING_STROKE_DP.dp.toPx(), join = StrokeJoin.Round),
             )
         }
-        f.orb?.let { o ->
+        // ⚠️ 방사형 그라데이션은 반지름이 0 이면 IllegalArgumentException(RadialGradient) 으로 앱이 죽는다 —
+        //    구체는 첫 프레임(0ms)에 반지름 0 에서 자라므로 1px 미만은 그리지 않는다(2026-10-14 필터 켜자마자 튕기던 원인).
+        f.orb?.takeIf { it.radiusPx >= 1f }?.let { o ->
             val c = Offset(o.x, o.y)
             // 검은 구체 — 바깥 보랏빛 테 + 검은 속 + 작은 반짝임(레퍼런스의 "마지막 자리에 생기는 검은 구슬")
             drawCircle(
@@ -242,6 +244,7 @@ internal fun FilterWaveOverlay(frame: State<FilterWaveFrame?>, modifier: Modifie
             drawCircle(Color.White.copy(alpha = 0.85f * o.alpha), o.radiusPx * 0.09f, Offset(o.x + o.radiusPx * 0.18f, o.y - o.radiusPx * 0.12f))
         }
         f.flashes.forEach { fl ->
+            if (fl.radiusPx < 1f) return@forEach // 방사형 그라데이션 반지름 0 방지(위 구체와 같은 이유)
             val c = Offset(fl.x, fl.y)
             drawCircle(
                 brush = Brush.radialGradient(
@@ -312,6 +315,7 @@ internal fun FilterGlowOverlay(tint: Color?, wave: State<FilterWaveFrame?>, modi
 
 /** 필터 빛 한 장 — 아래에서 차오르는 빛 + 위쪽 맞빛 + 화면 둘레를 도는 빛 덩이. */
 private fun DrawScope.drawFilterGlow(color: Color, ph: Float) {
+    if (size.width < 1f || size.height < 1f) return // 레이아웃 전(크기 0) — 아래 방사형 그라데이션 반지름 0 방지
     // 숨 쉬듯 아주 조금 밝아졌다 어두워진다
     val breath = 0.88f + 0.12f * sin(ph * 2f)
     // 1) 아래에서 차오르는 빛(여명 오버레이와 같은 모양)

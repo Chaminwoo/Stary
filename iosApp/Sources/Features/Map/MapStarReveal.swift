@@ -436,7 +436,7 @@ extension MapLibreView.Coordinator {
             let c = mapView.convert(center, toPointTo: mapView)
             let grow = min(elapsed / 0.15, 1)
             let fade = min(max((elapsed - 0.15) / (StarRevealFx.orbTime - 0.15), 0), 1)
-            let r = StarRevealFx.orbRadius * CGFloat((1 - (1 - grow) * (1 - grow)) * (1 + 0.3 * fade))
+            let r = StarRevealFx.orbRadius * CGFloat((0.15 + 0.85 * (1 - (1 - grow) * (1 - grow))) * (1 + 0.3 * fade)) // 0 에서 시작하지 않는다(Android 와 같음)
             wave.orb = .init(point: c, radius: r, alpha: 1 - fade)
         } else {
             wave.orb = nil

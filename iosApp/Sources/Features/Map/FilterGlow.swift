@@ -153,7 +153,7 @@ struct FilterGlowOverlay: View {
                     Self.drawGlow(&all, size: size, hex: hex, phase: phase)
                 }
                 // 시작점의 검은 구체 — 바깥 보랏빛 테 + 검은 속 + 작은 반짝임
-                if active, let orb {
+                if active, let orb, orb.radius >= 1 {
                     let rim = Color(uiColor: UIColor(rgbHex: ringHex).mixedWithWhite(0.3))
                     let g = Gradient(stops: [
                         .init(color: Color(hex: 0x05030C).opacity(0.95 * orb.alpha), location: 0),

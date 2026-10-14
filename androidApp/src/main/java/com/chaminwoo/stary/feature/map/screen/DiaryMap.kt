@@ -1201,7 +1201,8 @@ fun DiaryMap(
                     val fade = ((ms - 150f) / (REVEAL_ORB_MS - 150f)).coerceIn(0f, 1f)
                     PortalOrb(
                         c.x, c.y,
-                        radiusPx = orbRadiusPx * (1f - (1f - grow) * (1f - grow)) * (1f + 0.3f * fade),
+                        // 0 에서 시작하지 않는다(반지름 0 그라데이션은 앱을 죽인다 — FilterWaveOverlay 주석 참고)
+                        radiusPx = orbRadiusPx * (0.15f + 0.85f * (1f - (1f - grow) * (1f - grow))) * (1f + 0.3f * fade),
                         alpha = 1f - fade,
                         rimColor = lerp(ringColor, Color.White, 0.3f),
                     )
