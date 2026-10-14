@@ -1,27 +1,33 @@
 package com.chaminwoo.stary.feature.map.screen
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import android.graphics.PointF
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
+import com.chaminwoo.stary.core.geo.LatLng
+import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapUiState
+import org.maplibre.android.maps.MapLibreMap
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
+import org.maplibre.android.geometry.LatLng as MlLatLng
 
 /**
  * 지도 필터 종류 — **필터마다 다른 색**으로 "빛의 고리"(필터 전환 등장 연출)와 지도에 도는 은은한 빛을 물들인다(2026-10-14).
@@ -62,12 +68,20 @@ internal class FilterKindTracker {
     }
 }
 
-/** 빛의 고리 한 프레임 — [DiaryMap] 의 순차 등장 루프가 매 프레임 채운다(null = 연출 없음). */
+/**
+ * 빛의 고리 한 프레임 — [DiaryMap] 의 등장 재생 루프가 매 프레임 채운다(null = 연출 없음).
+ * 링은 **지도 위 원**(내 위치 중심, 반지름 m)을 매 프레임 화면에 투영한 것이라, 연출 중 지도를 움직여도 지도에 붙어 있다.
+ */
 internal class FilterWaveFrame(
-    val radiusPx: Float,
-    /** 링 불투명도(0..1) — 퍼질수록 옅어진다. */
+    /** 화면 좌표로 투영한 링(닫힌 다각형). null = 링이 아직 없음(이전 별을 걷어내는 중). */
+    val ring: Path?,
+    /** 링 불투명도(0..1) — 마지막 별에 닿을 때까지 1, 그 뒤 [REVEAL_RING_FADE_MS] 동안 옅어진다. */
     val ringAlpha: Float,
-    val color: Color,
+    val ringColor: Color,
+    /** 링 안(이미 지나간 자리)의 필터 빛 색 = 새 필터 색. null = 빛 없음(필터를 모두 끈 경우). */
+    val insideTint: Color?,
+    /** 링 밖(아직 안 지나간 자리)의 필터 빛 색 = 이전 필터 색. */
+    val outsideTint: Color?,
     val flashes: List<WaveFlash>,
 )
 
@@ -81,34 +95,56 @@ internal class WaveFlash(
 )
 
 /**
- * 빛의 고리 + 별 발광 오버레이(지도 위·버튼 아래, 터치 통과).
- * 링은 화면(=카메라) 중심에서 퍼지고, 링이 닿은 별 자리에 잠깐 밝은 빛이 번진다.
+ * 지도 위 원(중심 [center], 반지름 [radiusM] m)을 지금 카메라로 화면에 투영한 닫힌 경로.
+ * 기울기(틸트)·이동·줌이 그대로 반영된다. 아주 큰 원은 그리기만 2,000km 로 자른다(화면 밖이라 차이 없음).
  */
+internal fun ringScreenPath(map: MapLibreMap, center: LatLng, radiusM: Double): Path {
+    val r = radiusM.coerceIn(0.5, 2_000_000.0)
+    val dLat = r / 111_320.0
+    val dLng = r / (111_320.0 * cos(Math.toRadians(center.latitude)).coerceAtLeast(0.01))
+    val path = Path()
+    for (i in 0 until REVEAL_RING_SEGMENTS) {
+        val a = 2.0 * Math.PI * i / REVEAL_RING_SEGMENTS
+        val lat = (center.latitude + dLat * sin(a)).coerceIn(-85.0, 85.0)
+        val lng = center.longitude + dLng * cos(a)
+        val p = map.projection.toScreenLocation(MlLatLng(lat, lng))
+        if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
+    }
+    path.close()
+    return path
+}
+
+/**
+ * 링이 화면을 다 쓰는 데 필요한 거리(m) = [center] 에서 화면 네 모서리(지도 좌표)까지 거리 중 최댓값.
+ * 이 거리를 [REVEAL_WAVE_MS] 동안 일정한 속도로 가므로, 줌과 무관하게 링이 화면을 쓰는 시간이 같다.
+ */
+internal fun revealSweepMeters(map: MapLibreMap, width: Float, height: Float, center: LatLng): Double {
+    val corners = listOf(PointF(0f, 0f), PointF(width, 0f), PointF(0f, height), PointF(width, height))
+    return corners.maxOf { pt ->
+        val ll = map.projection.fromScreenLocation(pt)
+        LocationHelper.distanceBetween(center.latitude, center.longitude, ll.latitude, ll.longitude).toDouble()
+    }.coerceAtLeast(30.0)
+}
+
+/** 빛의 고리 + 별 발광 오버레이(지도 위·버튼 아래, 터치 통과). */
 @Composable
 internal fun FilterWaveOverlay(frame: State<FilterWaveFrame?>, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val f = frame.value ?: return@Canvas
-        val r = f.radiusPx
-        if (f.ringAlpha > 0.01f && r > 1f) {
+        val ring = f.ring
+        val a = f.ringAlpha
+        if (ring != null && a > 0.01f) {
             val stroke = REVEAL_RING_STROKE_DP.dp.toPx()
             val trail = REVEAL_RING_TRAIL_DP.dp.toPx()
-            // 링 안쪽으로 끌리는 빛 띠 — 고리가 지나간 자리가 잠깐 물든다
-            drawCircle(
-                brush = Brush.radialGradient(
-                    0f to Color.Transparent,
-                    ((r - trail) / r).coerceIn(0f, 1f) to Color.Transparent,
-                    1f to f.color.copy(alpha = 0.20f * f.ringAlpha),
-                    center = center,
-                    radius = r,
-                ),
-                radius = r,
-                center = center,
-            )
+            // 링 안쪽으로 끌리는 빛 띠 — 굵은 선을 링 안쪽만 남기면 지나간 자리 가장자리가 물든다
+            clipPath(ring) {
+                drawPath(ring, f.ringColor.copy(alpha = 0.16f * a), style = Stroke(trail * 2f, join = StrokeJoin.Round))
+            }
             // 번짐 + 밝은 선
-            drawCircle(f.color.copy(alpha = 0.26f * f.ringAlpha), r, center, style = Stroke(stroke * 4.5f))
-            drawCircle(
-                lerp(f.color, Color.White, 0.35f).copy(alpha = 0.95f * f.ringAlpha),
-                r, center, style = Stroke(stroke),
+            drawPath(ring, f.ringColor.copy(alpha = 0.26f * a), style = Stroke(stroke * 4.5f, join = StrokeJoin.Round))
+            drawPath(
+                ring, lerp(f.ringColor, Color.White, 0.35f).copy(alpha = 0.95f * a),
+                style = Stroke(stroke, join = StrokeJoin.Round),
             )
         }
         f.flashes.forEach { fl ->
@@ -133,22 +169,18 @@ private const val GLOW_ORBIT_SEC = 16f
 
 /**
  * 필터가 걸려 있는 동안 지도에 도는 **은은한 그라데이션 빛** — 예전 여명·황혼 오버레이(SkyOverlay, 삭제)처럼
- * 화면 아래에서 차오르되, 색은 지금 필터의 색([tint])이고 옅은 빛 덩이가 화면 둘레를 천천히 돈다.
- * [tint] = null(필터 없음)이면 서서히 꺼진다. 장식 전용이라 터치를 받지 않는다.
+ * 화면 아래에서 차오르되, 색은 필터의 색이고 옅은 빛 덩이가 화면 둘레를 천천히 돈다. 장식 전용(터치 통과).
+ *
+ * - [tint] : 지금 확정된 필터 빛 색(null = 빛 없음). [DiaryMap] 이 **링이 다 퍼진 뒤에** 새 색으로 바꾼다.
+ * - [wave] : 빛의 고리가 퍼지는 동안엔 **링 안쪽(지나간 자리)만 새 색**, 바깥은 이전 색으로 그린다.
  *
  * iOS `FilterGlowOverlay`(FilterGlow.swift)와 같은 수치.
  */
 @Composable
-internal fun FilterGlowOverlay(tint: Color?, modifier: Modifier = Modifier) {
-    // 꺼지는 동안에도 마지막 색으로 옅어지도록 기억해 둔다.
-    val lastTint = remember { arrayOf(Color.Transparent) }
-    if (tint != null) lastTint[0] = tint
-    val color by animateColorAsState(tint ?: lastTint[0], tween(700), label = "filterGlowColor")
-    val strength by animateFloatAsState(if (tint != null) 1f else 0f, tween(800), label = "filterGlowStrength")
-
-    // 빛이 도는 위상(라디안) — 필터가 켜져 있고 지도가 보일 때만 흐른다(가려진 동안 프레임 낭비 방지).
+internal fun FilterGlowOverlay(tint: Color?, wave: State<FilterWaveFrame?>, modifier: Modifier = Modifier) {
+    // 빛이 도는 위상(라디안) — 빛이 있고 지도가 보일 때만 흐른다(가려진 동안 프레임 낭비 방지).
     val phase = remember { mutableFloatStateOf(0f) }
-    val running = tint != null && MapUiState.mapVisible
+    val running = (tint != null || wave.value != null) && MapUiState.mapVisible
     LaunchedEffect(running) {
         if (!running) return@LaunchedEffect
         var last = 0L
@@ -164,41 +196,53 @@ internal fun FilterGlowOverlay(tint: Color?, modifier: Modifier = Modifier) {
     }
 
     Canvas(modifier = modifier) {
-        val s = strength
-        if (s <= 0.01f) return@Canvas
         val ph = phase.floatValue
-        // 숨 쉬듯 아주 조금 밝아졌다 어두워진다
-        val breath = 0.88f + 0.12f * sin(ph * 2f)
-        // 1) 아래에서 차오르는 빛(여명 오버레이와 같은 모양)
-        drawRect(
-            brush = Brush.verticalGradient(
-                0.0f to Color.Transparent,
-                0.50f to color.copy(alpha = 0.05f * s * breath),
-                0.85f to color.copy(alpha = 0.13f * s * breath),
-                1.0f to color.copy(alpha = 0.20f * s * breath),
-            )
-        )
-        // 2) 위쪽 가장자리의 옅은 맞빛
-        drawRect(
-            brush = Brush.verticalGradient(
-                0.0f to color.copy(alpha = 0.07f * s),
-                0.22f to Color.Transparent,
-                1.0f to Color.Transparent,
-            )
-        )
-        // 3) 화면 둘레를 도는 빛 덩이
-        val c = Offset(
-            size.width * (0.5f + 0.52f * cos(ph)),
-            size.height * (0.5f + 0.50f * sin(ph)),
-        )
-        val r = max(size.width, size.height) * 0.72f
-        drawRect(
-            brush = Brush.radialGradient(
-                0f to lerp(color, Color.White, 0.2f).copy(alpha = 0.13f * s),
-                1f to color.copy(alpha = 0f),
-                center = c,
-                radius = r,
-            )
-        )
+        val f = wave.value
+        val ring = f?.ring
+        when {
+            f == null -> tint?.let { drawFilterGlow(it, ph) }
+            ring == null -> f.outsideTint?.let { drawFilterGlow(it, ph) }
+            else -> {
+                f.insideTint?.let { c -> clipPath(ring) { drawFilterGlow(c, ph) } }
+                f.outsideTint?.let { c -> clipPath(ring, ClipOp.Difference) { drawFilterGlow(c, ph) } }
+            }
+        }
     }
+}
+
+/** 필터 빛 한 장 — 아래에서 차오르는 빛 + 위쪽 맞빛 + 화면 둘레를 도는 빛 덩이. */
+private fun DrawScope.drawFilterGlow(color: Color, ph: Float) {
+    // 숨 쉬듯 아주 조금 밝아졌다 어두워진다
+    val breath = 0.88f + 0.12f * sin(ph * 2f)
+    // 1) 아래에서 차오르는 빛(여명 오버레이와 같은 모양)
+    drawRect(
+        brush = Brush.verticalGradient(
+            0.0f to Color.Transparent,
+            0.50f to color.copy(alpha = 0.05f * breath),
+            0.85f to color.copy(alpha = 0.13f * breath),
+            1.0f to color.copy(alpha = 0.20f * breath),
+        )
+    )
+    // 2) 위쪽 가장자리의 옅은 맞빛
+    drawRect(
+        brush = Brush.verticalGradient(
+            0.0f to color.copy(alpha = 0.07f),
+            0.22f to Color.Transparent,
+            1.0f to Color.Transparent,
+        )
+    )
+    // 3) 화면 둘레를 도는 빛 덩이
+    val c = Offset(
+        size.width * (0.5f + 0.52f * cos(ph)),
+        size.height * (0.5f + 0.50f * sin(ph)),
+    )
+    val r = max(size.width, size.height) * 0.72f
+    drawRect(
+        brush = Brush.radialGradient(
+            0f to lerp(color, Color.White, 0.2f).copy(alpha = 0.13f),
+            1f to color.copy(alpha = 0f),
+            center = c,
+            radius = r,
+        )
+    )
 }

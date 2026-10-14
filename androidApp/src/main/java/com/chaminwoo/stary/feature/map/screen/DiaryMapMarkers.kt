@@ -136,11 +136,38 @@ internal const val CONSTELLATION_TIP_HALO_LAYER = "constellation-tip-halo-layer"
 internal const val CONSTELLATION_TIP_LAYER = "constellation-tip-layer"
 
 // ── 필터 전환 "빛의 고리" 등장(2026-10-14, references/filtering.mp4) ─────────────────
-// 카메라(화면) 중심에서 링이 빠르게 퍼지고, 링이 닿는 순간 그 별이 차임과 함께 잠깐 커지고 밝아졌다가
-// 제자리로 돌아오며 생긴다. (예전: 무작위 순서로 하나씩 "톡" — 2026-09-25)
+// **지도 위 내 위치**에서 링이 퍼지고(지도에 붙어 있어 연출 중 지도를 움직이면 링도 따라 움직인다), 링이 닿는 순간
+// 그 별이 차임과 함께 잠깐 커지고 밝아졌다가 제자리로 돌아오며 생긴다. 화면 밖 별도 링이 닿으면 소리가 난다.
+// 링 안쪽(지나간 자리)부터 필터 빛이 깔린다. (예전: 무작위 순서로 하나씩 "톡" — 2026-09-25)
 // iOS `MapStarReveal.swift` 의 `StarRevealFx` 와 같은 값(값 drift 금지).
-/** 링이 화면 중심 → 가장 먼 모서리까지 퍼지는 시간(ms). 별의 등장 시각 = (중심까지 거리 / 모서리 거리) × 이 값. */
+/**
+ * 링이 내 위치 → 화면의 가장 먼 모서리까지 **일정한 속도로** 퍼지는 시간(ms).
+ * 그 뒤로는 점점 빨라지며([REVEAL_FAR_TAU_MS]) 화면 밖 먼 별까지 닿는다([REVEAL_MAX_MS] 상한).
+ */
 internal const val REVEAL_WAVE_MS = 900L
+/** 화면을 다 쓸고 난 뒤 링이 빨라지는 정도(ms, 지수 시간 상수) — 작을수록 빨리 멀리 간다. */
+internal const val REVEAL_FAR_TAU_MS = 450.0
+/** 링이 별에 닿는 시각의 상한(ms) — 이보다 먼 별은 이 시각에 한꺼번에 생긴다. */
+internal const val REVEAL_MAX_MS = 3600L
+/** 마지막 별에 닿은 뒤 링이 옅어져 사라지는 시간(ms). 그 전까지 링은 끝까지 선명하다. */
+internal const val REVEAL_RING_FADE_MS = 300L
+/** 지도 위 원을 화면에 투영할 때 쓰는 꼭짓점 수. */
+internal const val REVEAL_RING_SEGMENTS = 120
+
+/** 시작 후 [tMs] 에 링 반지름(m) — [sweepM] = 내 위치에서 화면의 가장 먼 모서리까지 거리. */
+internal fun revealRadiusM(tMs: Double, sweepM: Double): Double {
+    val t0 = REVEAL_WAVE_MS.toDouble()
+    return if (tMs <= t0) sweepM * tMs / t0
+    else sweepM * (1 + REVEAL_FAR_TAU_MS / t0 * (kotlin.math.exp((tMs - t0) / REVEAL_FAR_TAU_MS) - 1))
+}
+
+/** 내 위치에서 [distM] 떨어진 별에 링이 닿는 시각(ms) — [revealRadiusM] 의 역함수, [REVEAL_MAX_MS] 상한. */
+internal fun revealHitMs(distM: Double, sweepM: Double): Long {
+    val t0 = REVEAL_WAVE_MS.toDouble()
+    val k = distM / sweepM.coerceAtLeast(1.0)
+    val t = if (k <= 1) t0 * k else t0 + REVEAL_FAR_TAU_MS * kotlin.math.ln(1 + (k - 1) * t0 / REVEAL_FAR_TAU_MS)
+    return t.toLong().coerceIn(0L, REVEAL_MAX_MS)
+}
 /** 링이 닿은 별 하나가 생기는 시간(ms) — 크기 0.2 → 1.55 → 1 + 발광. */
 internal const val REVEAL_POP_MS = 520L
 /** 등장 직전, 이전 필터의 별을 걷어내는 시간(ms). */
@@ -167,12 +194,6 @@ internal fun revealPopScale(u: Float): Float {
 internal fun revealFlash(u: Float): Float {
     val x = u.coerceIn(0f, 1f)
     return if (x < 0.18f) x / 0.18f else (1f - (x - 0.18f) / 0.82f).let { it * it }
-}
-
-/** 링 불투명도 — p(0..1, 퍼진 정도). 끝으로 갈수록 빠르게 옅어진다. */
-internal fun revealRingAlpha(p: Float): Float {
-    val x = p.coerceIn(0f, 1f)
-    return 1f - x * x * x
 }
 
 /** 지금 줌에서 별 아이콘의 줌 배율 — [starSizeExpression] 의 zoom stop 과 **같은 값**(6→0.06, 10→0.2, 13→0.5, 15→1). */

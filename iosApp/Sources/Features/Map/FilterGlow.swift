@@ -64,93 +64,125 @@ extension UIColor {
 enum FilterGlowFx {
     /// 은은한 빛이 화면을 한 바퀴 도는 시간(초) — Android `GLOW_ORBIT_SEC`.
     static let orbitSeconds = 16.0
-    /// 필터 색이 바뀔 때 섞이는 시간(초).
-    static let colorBlend = 0.7
+}
+
+/// 필터 빛의 상태 — 지도(MapLibreView 코디네이터, 빛의 고리 재생)가 쓰고 `FilterGlowOverlay` 가 그린다.
+/// 링이 퍼지는 동안엔 **링 안쪽(지나간 자리)만 새 색**, 바깥은 이전 색. 링이 다 퍼지면 새 색으로 확정한다.
+/// (Android 는 DiaryMap 의 `glowTint` + `FilterWaveFrame.insideTint/outsideTint`)
+final class FilterWaveState: ObservableObject {
+    static let shared = FilterWaveState()
+    private init() {}
+
+    /// 확정된 필터 빛 색(0xRRGGBB, nil = 빛 없음).
+    @Published var committedHex: UInt32?
+    /// 빛의 고리가 퍼지는 중인가.
+    @Published var active = false
+    /// 퍼지는 중인 링 — 지도 뷰 좌표의 꼭짓점(매 프레임 갱신). nil = 아직 링 없음.
+    @Published var ring: [CGPoint]?
+    /// 링 안(새 필터 색) / 링 밖(이전 색).
+    var insideHex: UInt32?
+    var outsideHex: UInt32?
+    /// 첫 표시 때 지금 필터 색으로 한 번 맞췄는지.
+    var initialized = false
 }
 
 /// 필터가 걸려 있는 동안 지도에 도는 **은은한 그라데이션 빛** — 예전 여명·황혼 오버레이(SkyOverlay, 삭제)처럼
-/// 화면 아래에서 차오르되, 색은 지금 필터의 색이고 옅은 빛 덩이가 화면 둘레를 천천히 돈다.
-/// `tintHex` = nil(필터 없음)이면 서서히 꺼진다. 장식 전용(`allowsHitTesting(false)`).
+/// 화면 아래에서 차오르되, 색은 필터의 색이고 옅은 빛 덩이가 화면 둘레를 천천히 돈다. 장식 전용(`allowsHitTesting(false)`).
+/// 빛의 고리가 퍼지는 동안엔 링 안쪽부터 새 색으로 깔린다(`FilterWaveState`).
 /// (Android `FilterGlowOverlay` 패리티 — 같은 수치)
 struct FilterGlowOverlay: View {
-    /// 지금 필터 색(0xRRGGBB). nil = 필터 없음.
+    /// 지금 필터 색(0xRRGGBB). nil = 필터 없음. 보통은 빛의 고리가 끝날 때 확정되고, 이 값은 연출이 없을 때의 안전망이다.
     var tintHex: UInt32?
-
-    /// 색 전환(이전 색 → 지금 색) — Canvas 는 SwiftUI 애니메이션이 색을 보간해 주지 않아 직접 섞는다.
-    @State private var fromHex: UInt32 = MapFilterKind.neutralHex
-    @State private var toHex: UInt32 = MapFilterKind.neutralHex
-    @State private var changedAt = Date.distantPast
+    @ObservedObject private var wave = FilterWaveState.shared
 
     var body: some View {
-        // 필터가 없으면 타임라인을 멈춘다(꺼지는 페이드는 아래 opacity 애니메이션이 맡는다).
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: tintHex == nil)) { timeline in
-            let now = timeline.date
-            let from = fromHex
-            let to = toHex
-            let blend = min(max(now.timeIntervalSince(changedAt) / FilterGlowFx.colorBlend, 0), 1)
+        // 빛이 없으면 타임라인을 멈춘다.
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: wave.committedHex == nil && !wave.active)) { timeline in
+            let phase = timeline.date.timeIntervalSinceReferenceDate
+                .truncatingRemainder(dividingBy: FilterGlowFx.orbitSeconds)
+                / FilterGlowFx.orbitSeconds * 2 * Double.pi
+            let active = wave.active
+            let ring = wave.ring
+            let inside = wave.insideHex
+            let outside = wave.outsideHex
+            let committed = wave.committedHex
             Canvas { ctx, size in
-                let w = Double(size.width)
-                let h = Double(size.height)
-                guard w > 0, h > 0 else { return }
-                let base = Self.mix(from, to, blend)
-                let phase = now.timeIntervalSinceReferenceDate
-                    .truncatingRemainder(dividingBy: FilterGlowFx.orbitSeconds)
-                    / FilterGlowFx.orbitSeconds * 2 * Double.pi
-                // 숨 쉬듯 아주 조금 밝아졌다 어두워진다
-                let breath = 0.88 + 0.12 * sin(phase * 2)
-                let full = Path(CGRect(origin: .zero, size: size))
-
-                // 1) 아래에서 차오르는 빛(여명 오버레이와 같은 모양)
-                let rise = Gradient(stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: base.opacity(0.05 * breath), location: 0.50),
-                    .init(color: base.opacity(0.13 * breath), location: 0.85),
-                    .init(color: base.opacity(0.20 * breath), location: 1),
-                ])
-                ctx.fill(full, with: .linearGradient(rise, startPoint: .zero, endPoint: CGPoint(x: 0, y: h)))
-
-                // 2) 위쪽 가장자리의 옅은 맞빛
-                let top = Gradient(stops: [
-                    .init(color: base.opacity(0.07), location: 0),
-                    .init(color: .clear, location: 0.22),
-                    .init(color: .clear, location: 1),
-                ])
-                ctx.fill(full, with: .linearGradient(top, startPoint: .zero, endPoint: CGPoint(x: 0, y: h)))
-
-                // 3) 화면 둘레를 도는 빛 덩이
-                let center = CGPoint(x: w * (0.5 + 0.52 * cos(phase)), y: h * (0.5 + 0.50 * sin(phase)))
-                let radius = max(w, h) * 0.72
-                let blob = Gradient(stops: [
-                    .init(color: Self.mix(from, to, blend, white: 0.2).opacity(0.13), location: 0),
-                    .init(color: base.opacity(0), location: 1),
-                ])
-                ctx.fill(full, with: .radialGradient(blob, center: center, startRadius: 0, endRadius: CGFloat(radius)))
+                guard size.width > 0, size.height > 0 else { return }
+                if active {
+                    if let ring, ring.count > 2 {
+                        let path = Path { p in
+                            p.addLines(ring)
+                            p.closeSubpath()
+                        }
+                        if let hex = inside {
+                            var inner = ctx
+                            inner.clip(to: path)
+                            Self.drawGlow(&inner, size: size, hex: hex, phase: phase)
+                        }
+                        if let hex = outside {
+                            var outer = ctx
+                            outer.clip(to: path, options: .inverse)
+                            Self.drawGlow(&outer, size: size, hex: hex, phase: phase)
+                        }
+                    } else if let hex = outside {
+                        var all = ctx
+                        Self.drawGlow(&all, size: size, hex: hex, phase: phase)
+                    }
+                } else if let hex = committed {
+                    var all = ctx
+                    Self.drawGlow(&all, size: size, hex: hex, phase: phase)
+                }
             }
         }
-        .opacity(tintHex == nil ? 0 : 1)
-        .animation(.easeInOut(duration: 0.8), value: tintHex == nil)
         .allowsHitTesting(false)
         .onAppear {
-            if let hex = tintHex {
-                fromHex = hex
-                toHex = hex
+            if !wave.initialized {
+                wave.initialized = true
+                wave.committedHex = tintHex
             }
         }
         .onChange(of: tintHex) { hex in
-            guard let hex else { return } // 꺼질 땐 마지막 색 그대로 옅어진다
-            fromHex = toHex
-            toHex = hex
-            changedAt = Date()
+            // 안전망: 빛의 고리 없이 필터 색만 바뀐 경우(지도 준비 전 등) — 잠시 뒤에도 연출이 없으면 확정 색을 맞춘다.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                let state = FilterWaveState.shared
+                if !state.active { state.committedHex = hex }
+            }
         }
     }
 
-    /// 두 색(0xRRGGBB)을 섞고, 필요하면 흰색 쪽으로 더 섞는다.
-    private static func mix(_ a: UInt32, _ b: UInt32, _ t: Double, white: Double = 0) -> Color {
-        func channel(_ hex: UInt32, _ shift: UInt32) -> Double { Double((hex >> shift) & 0xFF) / 255 }
-        func lerp(_ shift: UInt32) -> Double {
-            let v = channel(a, shift) + (channel(b, shift) - channel(a, shift)) * t
-            return v + (1 - v) * white
-        }
-        return Color(red: lerp(16), green: lerp(8), blue: lerp(0))
+    /// 필터 빛 한 장 — 아래에서 차오르는 빛 + 위쪽 맞빛 + 화면 둘레를 도는 빛 덩이.
+    private static func drawGlow(_ ctx: inout GraphicsContext, size: CGSize, hex: UInt32, phase: Double) {
+        let w = Double(size.width)
+        let h = Double(size.height)
+        let base = Color(hex: hex)
+        // 숨 쉬듯 아주 조금 밝아졌다 어두워진다
+        let breath = 0.88 + 0.12 * sin(phase * 2)
+        let full = Path(CGRect(origin: .zero, size: size))
+
+        // 1) 아래에서 차오르는 빛(여명 오버레이와 같은 모양)
+        let rise = Gradient(stops: [
+            .init(color: .clear, location: 0),
+            .init(color: base.opacity(0.05 * breath), location: 0.50),
+            .init(color: base.opacity(0.13 * breath), location: 0.85),
+            .init(color: base.opacity(0.20 * breath), location: 1),
+        ])
+        ctx.fill(full, with: .linearGradient(rise, startPoint: .zero, endPoint: CGPoint(x: 0, y: h)))
+
+        // 2) 위쪽 가장자리의 옅은 맞빛
+        let top = Gradient(stops: [
+            .init(color: base.opacity(0.07), location: 0),
+            .init(color: .clear, location: 0.22),
+            .init(color: .clear, location: 1),
+        ])
+        ctx.fill(full, with: .linearGradient(top, startPoint: .zero, endPoint: CGPoint(x: 0, y: h)))
+
+        // 3) 화면 둘레를 도는 빛 덩이
+        let center = CGPoint(x: w * (0.5 + 0.52 * cos(phase)), y: h * (0.5 + 0.50 * sin(phase)))
+        let radius = max(w, h) * 0.72
+        let blob = Gradient(stops: [
+            .init(color: Color(uiColor: UIColor(rgbHex: hex).mixedWithWhite(0.2)).opacity(0.13), location: 0),
+            .init(color: base.opacity(0), location: 1),
+        ])
+        ctx.fill(full, with: .radialGradient(blob, center: center, startRadius: 0, endRadius: CGFloat(radius)))
     }
 }

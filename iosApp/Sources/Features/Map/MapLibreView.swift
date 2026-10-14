@@ -429,16 +429,20 @@ struct MapLibreView: UIViewRepresentable {
         // ── 필터 전환 "빛의 고리" 등장(MapStarReveal) ──
         /// 마지막으로 소비한 revealKey(nil = 아직 첫 표시 전 — 첫 표시엔 연출 없음).
         var lastRevealKey: Int?
-        /// 별 id → 링이 닿는 시각(초). 화면 밖 별은 없음(즉시 표시).
+        /// 별 id → 링이 닿는 시각(초). 화면 밖 별도 포함(내 위치까지 거리로 정한다).
         var revealDelays: [String: Double] = [:]
         var revealSortedDelays: [Double] = []
         var revealStart: CFTimeInterval = 0
-        var revealSounded = 0
         var revealLink: CADisplayLink?
         /// 아직 떠오르지 않은 별 — 후광(CircleLayer)도 이 별들은 빼고 그린다.
         var revealHidden: Set<String> = []
         /// 퍼지고 있는 빛의 고리(지도 뷰 레이어 위) — 등장이 끝나면 걷어낸다.
         var revealRingLayer: CALayer?
+        /// 링 부품(안쪽 빛 띠·그 마스크·번짐·밝은 선) — 매 프레임 같은 경로로 갈아 끼운다.
+        var revealRingParts: [CAShapeLayer] = []
+        /// 링 중심(내 위치)과 화면을 쓰는 거리(m) — 링이 닿는 시각·반지름 계산 기준(MapStarReveal).
+        var revealCenter: CLLocationCoordinate2D?
+        var revealSweepM: Double = 30
 
         /// 마지막 세계 빈 공간 경계.
         var lastVoid: (
