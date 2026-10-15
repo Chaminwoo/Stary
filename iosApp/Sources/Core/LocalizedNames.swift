@@ -15,6 +15,7 @@ enum LocalizedNames {
         "cosmic_funk":      ("코스믹 펑크", "Cosmic Funk", "コズミック・ファンク"),
         "forgotten_galaxy": ("잊혀진 은하", "Forgotten Galaxy", "忘れられた銀河"),
         "nebula_garden":    ("성운의 정원", "Nebula Garden", "星雲の庭園"),
+        "aurora_meteor":    ("오로라와 유성우", "Aurora & Meteor Shower", "オーロラと流星群"),
     ]
 
     private static let titleTable: [String: (String, String, String)] = [
@@ -39,6 +40,7 @@ enum LocalizedNames {
         "heart_frenzy":   ("두근두근", "Heartbeat", "ドキドキ"),
         "melomaniac":     ("별들의 오케스트라", "Orchestra of the Stars", "星々のオーケストラ"),
         "earth_pilgrim":  ("푸른 행성의 발자취", "Footprints on the Blue Planet", "青い惑星の足跡"),
+        "meteor_seven":   ("일곱 번째 소원", "The Seventh Wish", "七つ目の願い"),
         // 친구 초대 보상 칭호(체크리스트 31)
         "invite_bond":    ("별의 인연", "Bonded by Stars", "星の縁"),
         "invite_beacon":  ("별의 등대", "Star Beacon", "星の灯台"),
@@ -91,6 +93,11 @@ enum LocalizedNames {
         "friends_ten": ("함께 공전하는 사이", "Orbiting Together", "ともに公転する仲"),
         "shapes_five": ("변주곡", "Variations", "変奏曲"),
         "colors_eight": ("일곱 빛깔 너머", "Beyond the Rainbow", "七色の向こう"),
+        // 유성 업적(2026-10-15)
+        "meteor_first": ("소원 하나", "One Wish", "ひとつの願い"),
+        "meteor_triple": ("세 번의 소원", "Three Wishes", "三つの願い"),
+        "meteor_five": ("쏟아지는 별비", "Rain of Stars", "降りそそぐ星の雨"),
+        "meteor_fifty": ("별똥별 수집가", "Meteor Collector", "流れ星コレクター"),
         "shape_heart": ("하트 성운", "Heart Nebula", "ハート星雲"),
         "shape_comet": ("지평선 너머로", "Beyond the Horizon", "地平線の向こうへ"),
         "shape_snow": ("아무도 밟지 않은 눈밭", "Untouched Snow", "誰も踏んでいない雪原"),
@@ -166,6 +173,11 @@ enum LocalizedNames {
         "friends_ten": ("친구 10명 만들기", "Make 10 friends", "友達を10人作る"),
         "shapes_five": ("서로 다른 별 모양 5개로 기록하기", "Post with 5 different star shapes", "5種類の星の形で記録する"),
         "colors_eight": ("서로 다른 별 색 8개로 기록하기", "Post with 8 different star colors", "8種類の星の色で記録する"),
+        // 유성 업적(2026-10-15)
+        "meteor_first": ("글로브에서 유성 1개 보기", "See 1 meteor on the globe", "地球儀で流れ星を1つ見る"),
+        "meteor_triple": ("글로브에서 유성 3개 연속으로 보기", "See 3 meteors in a row on the globe", "地球儀で流れ星を3つ連続で見る"),
+        "meteor_five": ("글로브에서 유성 5개 연속으로 보기", "See 5 meteors in a row on the globe", "地球儀で流れ星を5つ連続で見る"),
+        "meteor_fifty": ("글로브에서 유성 50개 보기", "See 50 meteors on the globe", "地球儀で流れ星を50個見る"),
         "shape_heart": ("좋아요 500개 받기", "Receive 500 likes", "いいねを500個もらう"),
         "shape_comet": ("기록 두 곳이 5,000km 이상 떨어지기", "Have two posts 5,000 km or more apart", "2つの記録が5,000km以上離れる"),
         "shape_snow": ("1km 안에 먼저 남겨진 별이 없던 곳에 별 3개 남기기", "Leave 3 stars where no one had left a star within 1 km", "半径1km以内にまだ星がなかった場所に星を3つ残す"),
@@ -189,6 +201,7 @@ enum LocalizedNames {
         "lone_observer":  ("친구 없이 다이어리 50개 작성하기", "Write 50 diary entries with zero friends", "友達0人の状態で日記を50件作成する"),
         "heart_frenzy":   ("프로필에서 나가지 않고 하트를 100번 두드리기", "Tap the heart 100 times without leaving the profile screen", "プロフィール画面を離れずにハートを100回タップする"),
         "melomaniac":     ("배경음악 화면에서 나가지 않고 모든 곡 감상하기", "Listen to every track without leaving the music screen", "BGM画面を離れずにすべての曲を聴く"),
+        "meteor_seven":   ("글로브에서 유성 7개 연속으로 보기", "See 7 meteors in a row on the globe", "地球儀で流れ星を7つ連続で見る"),
         "earth_pilgrim":  ("세계 유명 관광지에 별을 남기고 다른 사람이 그 별을 열람하기", "Leave a star at a famous world landmark and have someone else view it", "世界的に有名な観光地に星を残し、他の人にその星を閲覧してもらう"),
     ]
 

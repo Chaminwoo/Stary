@@ -86,6 +86,8 @@ struct MainTabView: View {
     @ObservedObject private var router = TabRouter.shared
     /// 별 도감 업적(연 글 수)이 해금 기록 변화에도 다시 판정되도록 관찰한다.
     @ObservedObject private var unlockStore = DiaryUnlockStore.shared
+    /// 글로브에서 본 유성(유성 업적 · 히든 7연속) — 바뀌면 업적 재계산.
+    @ObservedObject private var meteors = MeteorStats.shared
     @ObservedObject private var focus = MapFocusStore.shared
     /// 푸시 알림 탭 → 채팅/상세/친구 화면 이동 요청(Android DeepLinkState 대응).
     @ObservedObject private var pushRouter = PushRouter.shared
@@ -331,12 +333,14 @@ struct MainTabView: View {
             PushManager.shared.setUser(auth.uid)
             // 광고제거 계정(adFree/{uid}) 감시 — 해당 계정은 잠긴 게시물을 광고 없이 바로 연다.
             AdFreeAccount.shared.watch(uid: auth.uid)
+            MeteorStats.shared.start(uid: auth.uid)
             maybeStartCoachMark()
         }
         .onChange(of: auth.uid) { newUid in
             store.startIfNeeded(uid: newUid)
             PushManager.shared.setUser(newUid)
             AdFreeAccount.shared.watch(uid: newUid)
+            MeteorStats.shared.start(uid: newUid)
             if let uid = newUid {
                 viewed.start(uid: uid); blocks.start(uid: uid)
                 notifications.start(ownerId: uid)
@@ -720,6 +724,9 @@ struct MainTabView: View {
         // 2026-09-26 추가 업적 — 별 도감(연 글 수) · 이웃 별/눈밭(전체 글 수)
         h.combine(unlockStore.unlockedAt.count)
         h.combine(store.diaries.count)
+        // 유성 업적(2026-10-15)
+        h.combine(meteors.seen)
+        h.combine(meteors.bestStreak)
         return h.finalize()
     }
 

@@ -396,6 +396,7 @@
     <string name="music_cosmic_funk">Cosmic Funk</string>
     <string name="music_forgotten_galaxy">Forgotten Galaxy</string>
     <string name="music_nebula_garden">Nebula Garden</string>
+    <string name="music_aurora_meteor">Aurora &amp; Meteor Shower</string>
 
     <!-- Title names (normal) -->
     <string name="title_first_step">First Steps</string>
@@ -417,6 +418,11 @@
     <string name="title_lone_observer">Lone Shining Star</string>
     <string name="title_heart_frenzy">Heartbeat</string>
     <string name="title_melomaniac">Orchestra of the Stars</string>
+    <string name="title_meteor_first">One Wish</string>
+    <string name="title_meteor_triple">Three Wishes</string>
+    <string name="title_meteor_five">Rain of Stars</string>
+    <string name="title_meteor_fifty">Meteor Collector</string>
+    <string name="title_meteor_seven">The Seventh Wish</string>
     <string name="title_earth_pilgrim">Footprints on the Blue Planet</string>
 
     <!-- Hidden achievement unlock popup -->
@@ -567,6 +573,11 @@
     <string name="ach_cond_lone_observer">Write 50 diary entries with zero friends</string>
     <string name="ach_cond_heart_frenzy">Tap the heart 100 times without leaving the profile screen</string>
     <string name="ach_cond_melomaniac">Listen to every track without leaving the music screen</string>
+    <string name="ach_cond_meteor_first">See 1 meteor on the globe</string>
+    <string name="ach_cond_meteor_triple">See 3 meteors in a row on the globe</string>
+    <string name="ach_cond_meteor_five">See 5 meteors in a row on the globe</string>
+    <string name="ach_cond_meteor_fifty">See 50 meteors on the globe</string>
+    <string name="ach_cond_meteor_seven">See 7 meteors in a row on the globe</string>
     <string name="ach_cond_earth_pilgrim">Leave a star at a famous world landmark and have someone else view it</string>
 
     <!-- Star Log (2026-09-25) -->

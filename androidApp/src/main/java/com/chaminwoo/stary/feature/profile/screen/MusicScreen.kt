@@ -515,6 +515,21 @@ private val MC_NEBULA_GARDEN = MConstel(
     listOf(0 to 1, 0 to 2, 0 to 3, 0 to 4, 0 to 5, 0 to 6)
 )
 
+// 오로라와 유성우 — 한 점(복사점)에서 세 갈래로 쏟아지는 유성우 모양(2026-10-15).
+private val MC_AURORA_METEOR = MConstel(
+    listOf(
+        MStar(0.78f, 0.18f, 2.00f),
+        MStar(0.60f, 0.34f, 1.35f),
+        MStar(0.40f, 0.50f, 1.50f),
+        MStar(0.20f, 0.66f, 1.40f),
+        MStar(0.66f, 0.50f, 1.30f),
+        MStar(0.50f, 0.74f, 1.45f),
+        MStar(0.46f, 0.24f, 1.30f),
+        MStar(0.24f, 0.36f, 1.35f),
+    ),
+    listOf(0 to 1, 1 to 2, 2 to 3, 0 to 4, 4 to 5, 0 to 6, 6 to 7)
+)
+
 private val MUSIC_CONSTELLATIONS: Map<String, MConstel> = mapOf(
     "star_whisper" to MC_STAR_WHISPER,
     "tiny_explorer" to MC_TINY_EXPLORER,
@@ -522,4 +537,5 @@ private val MUSIC_CONSTELLATIONS: Map<String, MConstel> = mapOf(
     "cosmic_funk" to MC_COSMIC_FUNK,
     "forgotten_galaxy" to MC_FORGOTTEN_GALAXY,
     "nebula_garden" to MC_NEBULA_GARDEN,
+    "aurora_meteor" to MC_AURORA_METEOR,
 )

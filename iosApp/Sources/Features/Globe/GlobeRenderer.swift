@@ -107,6 +107,8 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     private static let meteorSprites = 34
     private static let meteorRollInterval: Float = 30
     private static let meteorSpawnChance: Float = 0.25
+    /// 연속 중(직전 유성이 막 끝난 직후) 다음 유성 확률 — 3연속 평균 약 8분, 7연속 평균 약 2~2.5시간(Android METEOR_STREAK_CHANCE).
+    private static let meteorStreakChance: Float = 0.5
     private static let meteorTailFrac: Float = 0.30
     private static let sparkRate: Float = 60
     private static let sparkMax = 340
@@ -216,6 +218,8 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     private var meteorDur: Float = 1.1
     private var nextRollT: Float = 0
     private var meteorStreak = 0
+    /// 유성이 떨어질 때마다 — 인자 = 이번 유성까지의 연속 횟수. 렌더 스레드에서 불린다. 유성 업적 기록용(Android onMeteor).
+    var onMeteor: ((Int) -> Void)?
     private var meteorTintIdx = 0
     private var meteorP0 = SIMD3<Float>(0, 0, 0)
     private var meteorDir = SIMD3<Float>(0, 0, 1)
@@ -660,10 +664,13 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
 
     private func drawMeteor(_ enc: MTLRenderCommandEncoder, vp: simd_float4x4, t: Float, dt: Float) {
         if meteorStartT < 0, t >= nextRollT {
-            if Float.random(in: 0..<1) < GlobeRenderer.meteorSpawnChance {
+            // 연속 중(직전 유성에 이어지는 판정)엔 확률이 오른다 — 유성 연속 업적이 현실적으로 깨지게(2026-10-15, Android 동일).
+            let chance = meteorStreak > 0 ? GlobeRenderer.meteorStreakChance : GlobeRenderer.meteorSpawnChance
+            if Float.random(in: 0..<1) < chance {
                 meteorTintIdx = meteorStreak % GlobeRenderer.meteorTints.count
                 spawnMeteor(t)
                 meteorStreak += 1
+                onMeteor?(meteorStreak)
             } else {
                 meteorStreak = 0
                 nextRollT = t + GlobeRenderer.meteorRollInterval

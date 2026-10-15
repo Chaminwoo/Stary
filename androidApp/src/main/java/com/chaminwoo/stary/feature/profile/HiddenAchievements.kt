@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ChangeHistory
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Flare
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.RemoveRedEye
@@ -40,6 +41,7 @@ enum class HiddenIcon(val vector: ImageVector, val color: Color) {
     HEART(Icons.Filled.Favorite, Color(0xFFFF6FA3)),
     BATON(Icons.Filled.MusicNote, Color(0xFF7CE0C0)),
     GLOBE(Icons.Filled.Public, Color(0xFF6EE7B7)),
+    METEOR(Icons.Filled.Flare, Color(0xFF8FE3FF)),
 }
 
 /** 프로필 아이콘 주변에 흩뿌려지는 파티클/이펙트 종류. */
@@ -156,6 +158,13 @@ object HiddenAchievements {
             icon = HiddenIcon.LONE_EYE, effect = ParticleEffect.SHADOW,
             badgeType = 8, badgeColor = 20,  // 행성 · 흑백(밤→여명)
             auto = { it.stats.diariesCreated >= 50 && it.stats.friends == 0 },
+        ),
+        HiddenAchievement(
+            id = "meteor_seven", title = "일곱 번째 소원",
+            condition = "글로브에서 유성 7개 연속으로 보기",
+            icon = HiddenIcon.METEOR, effect = ParticleEffect.STARDUST,
+            badgeType = 10, badgeColor = 16, // 혜성 · 오로라
+            auto = { it.stats.meteorBestStreak >= 7 },
         ),
         // ── 이벤트형(후속 라운드에서 화면 연동) ──
         HiddenAchievement(

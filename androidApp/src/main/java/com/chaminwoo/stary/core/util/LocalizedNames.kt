@@ -23,6 +23,7 @@ object LocalizedNames {
         "cosmic_funk" to R.string.music_cosmic_funk,
         "forgotten_galaxy" to R.string.music_forgotten_galaxy,
         "nebula_garden" to R.string.music_nebula_garden,
+        "aurora_meteor" to R.string.music_aurora_meteor,
     )
 
     private val titleRes: Map<String, Int> = mapOf(
@@ -47,6 +48,12 @@ object LocalizedNames {
         "heart_frenzy" to R.string.title_heart_frenzy,
         "melomaniac" to R.string.title_melomaniac,
         "earth_pilgrim" to R.string.title_earth_pilgrim,
+        "meteor_seven" to R.string.title_meteor_seven,
+        // 유성 업적(2026-10-15)
+        "meteor_first" to R.string.title_meteor_first,
+        "meteor_triple" to R.string.title_meteor_triple,
+        "meteor_five" to R.string.title_meteor_five,
+        "meteor_fifty" to R.string.title_meteor_fifty,
         // 친구 초대 보상 칭호(체크리스트 31)
         "invite_bond" to R.string.title_invite_bond,
         "invite_beacon" to R.string.title_invite_beacon,
@@ -198,6 +205,12 @@ object LocalizedNames {
         "heart_frenzy" to R.string.ach_cond_heart_frenzy,
         "melomaniac" to R.string.ach_cond_melomaniac,
         "earth_pilgrim" to R.string.ach_cond_earth_pilgrim,
+        "meteor_seven" to R.string.ach_cond_meteor_seven,
+        // 유성 업적(2026-10-15)
+        "meteor_first" to R.string.ach_cond_meteor_first,
+        "meteor_triple" to R.string.ach_cond_meteor_triple,
+        "meteor_five" to R.string.ach_cond_meteor_five,
+        "meteor_fifty" to R.string.ach_cond_meteor_fifty,
     )
 
     /** 음악 트랙 표시명(현재 언어). 매핑에 없으면 [fallback]. */

@@ -28,6 +28,8 @@ object MusicCatalog {
         Track("cosmic_funk",     "코스믹 펑크", "bgm_cosmic_funk",      0xFFFF9CC6, 2, "popular"),
         Track("forgotten_galaxy","잊혀진 은하", "bgm_forgotten_galaxy", 0xFFB89BFF, 7, "star_traveler"),
         Track("nebula_garden",   "성운의 정원", "bgm_nebula_garden",    0xFF9CE6A0, 5, "companion"),
+        // 2026-10-15 — 글로브에서 유성 3개 연속으로 보면 해금(meteor_triple).
+        Track("aurora_meteor",   "오로라와 유성우", "bgm_aurora_meteor", 0xFF7CE8D8, 10, "meteor_triple"),
     )
 
     fun byId(id: String?): Track? = tracks.firstOrNull { it.id == id }

@@ -38,8 +38,8 @@ import kotlin.math.sin
  *     뚜렷한 은하수(잔별 밀집 띠 + 끊김 없는 헤이즈 리본 + 은하핵 벌지) +
  *     황도 12궁 별자리(레퍼런스 references/zodiac.avif, 궁별 고유색 + 희미한 연결선) + 4방 광선 반짝별 —
  *     카메라가 중심에서 떨어져 있어 회전/줌 시 셸마다 시차가 생겨 "진짜 3D 공간" 깊이감
- *  1.5. 유성: 입장 후 30초마다 25% 확률 판정 → 성공 시 낙하, 끝나면 대기 없이 즉시 재판정
- *     (운 좋으면 연속으로 여러 개, 실패하면 다시 30초 대기) — 실제 3D 우주공간을 가로지르는
+ *  1.5. 유성: 입장 후 30초마다 25% 확률 판정 → 성공 시 낙하, 끝나면 대기 없이 즉시 재판정(연속 중엔 50%)
+ *     (운 좋으면 연속으로 여러 개, 실패하면 다시 30초 대기 — 연속 횟수는 유성 업적에 기록) — 실제 3D 우주공간을 가로지르는
  *     별똥별. 머리(밝게)+꼬리(스트릭 순번별 색상) 스프라이트 체인, 깊이 성분 포함 랜덤 3D
  *     경로(원근 이동), 점화→소멸 봉투
  *  2. 지구 구체: **유리 지구**(globe_land.jpg = 육지 마스크, tools/globe/bake_globe_land.py) — 어두운 유리 구슬. 태양 쪽은 밝은 푸른 유리 + 림,
@@ -152,6 +152,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var meteorDur = 1.1f            // 이번 유성 수명(초)
     private var nextRollT = 0f              // 다음 확률 판정 시각(초) — 실패 시 30초 뒤, 성공 시 낙하 종료 즉시
     private var meteorStreak = 0            // 연속 성공 횟수(색 선택에 사용, 실패하면 0으로 리셋)
+    /** 유성이 떨어질 때마다(스크립트 모드 제외) — 인자 = 이번 유성까지의 연속 횟수. **GL 스레드**에서 불린다. 유성 업적 기록용. */
+    @Volatile var onMeteor: ((streak: Int) -> Unit)? = null
     private var meteorTintIdx = 0           // 지금 낙하 중인 유성에 적용된 색상(스폰 시점에 고정)
     private val meteorP0 = FloatArray(3)    // 시작점(뷰 공간 — 모델 회전과 무관, 화면 기준 배치)
     private val meteorDir = FloatArray(3)   // 진행 방향(단위벡터)
@@ -537,10 +539,13 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private fun drawMeteor(camPos: FloatArray, t: Float, dt: Float) {
         if (meteorStartT < 0f) {
             if (t >= nextRollT) {
-                if (meteorRnd.nextFloat() < METEOR_SPAWN_CHANCE) {
+                // 연속 중(직전 유성에 이어지는 판정)엔 확률이 오른다 — 유성 연속 업적이 현실적으로 깨지게(2026-10-15).
+                val chance = if (meteorStreak > 0) METEOR_STREAK_CHANCE else METEOR_SPAWN_CHANCE
+                if (meteorRnd.nextFloat() < chance) {
                     meteorTintIdx = meteorStreak % METEOR_TINTS.size
                     spawnMeteor(t)
                     meteorStreak++ // 다음 판정이 성공하면 그 다음 색으로
+                    onMeteor?.invoke(meteorStreak) // GL 스레드에서 불린다
                 } else {
                     meteorStreak = 0 // 스트릭 종료 — 다음 성공은 다시 기본색부터
                     nextRollT = t + METEOR_ROLL_INTERVAL
@@ -1642,6 +1647,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val METEOR_SPRITES = 34
         private const val METEOR_ROLL_INTERVAL = 30f
         private const val METEOR_SPAWN_CHANCE = 0.25f
+        /** 연속 중(직전 유성이 막 끝난 직후) 다음 유성 확률 — 3연속 평균 약 8분, 7연속 평균 약 2~2.5시간. */
+        private const val METEOR_STREAK_CHANCE = 0.5f
         private const val METEOR_TAIL_FRAC = 0.30f // 더 길게(기존 0.15f 대비 2배)
 
         /** 잔류 파장(wake) — 초당 방출 수 / 최대 동시 수 / 수명(초, 5~10초 물결 잔광). */

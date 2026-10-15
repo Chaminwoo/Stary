@@ -45,6 +45,9 @@ struct UserStats {
     var distinctShapes = 0
     var distinctColors = 0
     var achievementsDone = 0      // 왕관 판정용 — 왕관 자신을 뺀 일반 업적 달성 수
+    // ── 2026-10-15 유성 업적용 — 글로브에서 본 유성(users/{uid}.meteorsSeen / meteorStreaks, MeteorStats) ──
+    var meteorsSeen = 0           // 본 유성 수
+    var meteorBestStreak = 0      // 최고 연속 유성 수
 }
 
 /// 업적 보상 — 칭호 / 별 모양 / 별 색.
@@ -128,6 +131,11 @@ enum Achievements {
         // 꾸미기
         titleAch("shapes_five", "변주곡", "서로 다른 별 모양 5개로 기록하기") { $0.distinctShapes >= 5 },
         titleAch("colors_eight", "일곱 빛깔 너머", "서로 다른 별 색 8개로 기록하기") { $0.distinctColors >= 8 },
+        // 유성(2026-10-15) — 글로브(지도 최소 줌)에서 떨어지는 유성. 3연속은 배경음악 "오로라와 유성우" 해금.
+        titleAch("meteor_first", "소원 하나", "글로브에서 유성 1개 보기") { $0.meteorsSeen >= 1 },
+        titleAch("meteor_triple", "세 번의 소원", "글로브에서 유성 3개 연속으로 보기") { $0.meteorBestStreak >= 3 },
+        titleAch("meteor_five", "쏟아지는 별비", "글로브에서 유성 5개 연속으로 보기") { $0.meteorBestStreak >= 5 },
+        titleAch("meteor_fifty", "별똥별 수집가", "글로브에서 유성 50개 보기") { $0.meteorsSeen >= 50 },
     ]
 
     static let rewardAchievements: [Achievement] = [
@@ -187,7 +195,8 @@ enum Achievements {
     static func computeStats(
         diaries: [Diary], friendsCount: Int, viewedCount: Int,
         invitedFriends: Int = 0, redeemedInvite: Bool = false,
-        uid: String? = nil, allDiaries: [Diary] = [], unlockedIds: Set<String> = []
+        uid: String? = nil, allDiaries: [Diary] = [], unlockedIds: Set<String> = [],
+        meteorsSeen: Int = MeteorStats.shared.seen, meteorBestStreak: Int = MeteorStats.shared.bestStreak
     ) -> UserStats {
         let coords = diaries.filter { $0.latitude != 0 || $0.longitude != 0 }
         var maxSpan = 0.0
@@ -299,6 +308,8 @@ enum Achievements {
             distinctShapes: Set(diaries.map { $0.starType }).count,
             distinctColors: Set(diaries.map { $0.starColor }).count
         )
+        stats.meteorsSeen = meteorsSeen
+        stats.meteorBestStreak = meteorBestStreak
         stats.achievementsDone = all.filter { $0.id != crownId && $0.unlocked(stats) }.count
         return stats
     }

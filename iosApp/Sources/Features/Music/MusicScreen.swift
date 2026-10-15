@@ -65,6 +65,16 @@ private let musicConstellations: [String: MConstel] = [
         ],
         edges: [(0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6)]
     ),
+    // 오로라와 유성우 — 한 점(복사점)에서 세 갈래로 쏟아지는 유성우(2026-10-15, Android MC_AURORA_METEOR)
+    "aurora_meteor": MConstel(
+        stars: [
+            MStar(x: 0.78, y: 0.18, mag: 2.00), MStar(x: 0.60, y: 0.34, mag: 1.35),
+            MStar(x: 0.40, y: 0.50, mag: 1.50), MStar(x: 0.20, y: 0.66, mag: 1.40),
+            MStar(x: 0.66, y: 0.50, mag: 1.30), MStar(x: 0.50, y: 0.74, mag: 1.45),
+            MStar(x: 0.46, y: 0.24, mag: 1.30), MStar(x: 0.24, y: 0.36, mag: 1.35),
+        ],
+        edges: [(0, 1), (1, 2), (2, 3), (0, 4), (4, 5), (0, 6), (6, 7)]
+    ),
 ]
 
 /// 원 안쪽 중앙에 그려지는 트랙별 별자리 — 내 다이어리 별자리 보드와 같은 렌더링

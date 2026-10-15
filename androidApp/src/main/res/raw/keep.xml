@@ -6,4 +6,4 @@
   (login_video/maplibre_style 은 R.raw.* 직접 참조라 자동 유지되어 여기 불필요)
 -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@raw/bgm_star_whisper,@raw/bgm_tiny_explorer,@raw/bgm_celestial_drift,@raw/bgm_cosmic_funk,@raw/bgm_forgotten_galaxy,@raw/bgm_nebula_garden,@raw/open_diary,@raw/wind,@raw/turning_dial" />
+    tools:keep="@raw/bgm_star_whisper,@raw/bgm_tiny_explorer,@raw/bgm_celestial_drift,@raw/bgm_cosmic_funk,@raw/bgm_forgotten_galaxy,@raw/bgm_nebula_garden,@raw/bgm_aurora_meteor,@raw/open_diary,@raw/wind,@raw/turning_dial" />

@@ -9,7 +9,7 @@ import SwiftUI
 
 /// 히든 업적 프로필 아이콘(SF Symbol + 대표색).
 enum HiddenIcon {
-    case comet, glacier, desert, trench, triangle, crown, trickster, loneEye, heart, baton, globe
+    case comet, glacier, desert, trench, triangle, crown, trickster, loneEye, heart, baton, globe, meteor
 
     var systemImage: String {
         switch self {
@@ -24,6 +24,7 @@ enum HiddenIcon {
         case .heart: return "heart.fill"
         case .baton: return "music.note"
         case .globe: return "globe.asia.australia.fill"
+        case .meteor: return "sparkle"
         }
     }
 
@@ -40,6 +41,7 @@ enum HiddenIcon {
         case .heart: return Color(hex: 0xFF6FA3)
         case .baton: return Color(hex: 0x7CE0C0)
         case .globe: return Color(hex: 0x6EE7B7)
+        case .meteor: return Color(hex: 0x8FE3FF)
         }
     }
 }
@@ -132,6 +134,11 @@ enum HiddenAchievements {
                           icon: .loneEye, effect: .shadow,
                           badgeType: 8, badgeColor: 20,  // 행성 · 흑백(밤→여명)
                           auto: { $0.stats.diariesCreated >= 50 && $0.stats.friends == 0 }),
+        HiddenAchievement(id: "meteor_seven", title: "일곱 번째 소원",
+                          condition: "글로브에서 유성 7개 연속으로 보기",
+                          icon: .meteor, effect: .stardust,
+                          badgeType: 10, badgeColor: 16, // 혜성 · 오로라
+                          auto: { $0.stats.meteorBestStreak >= 7 }),
         // ── 이벤트형(후속 라운드에서 화면 연동) ──
         HiddenAchievement(id: "heart_frenzy", title: "두근두근",
                           condition: "프로필에서 나가지 않고 하트를 100번 두드리기",

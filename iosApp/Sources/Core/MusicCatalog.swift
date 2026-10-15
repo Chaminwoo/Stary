@@ -24,6 +24,8 @@ enum MusicCatalog {
         Track(id: "cosmic_funk",      displayName: "코스믹 펑크", resName: "bgm_cosmic_funk",      colorHex: 0xFF9CC6, starType: 2, unlockAchievementId: "popular"),
         Track(id: "forgotten_galaxy", displayName: "잊혀진 은하", resName: "bgm_forgotten_galaxy", colorHex: 0xB89BFF, starType: 7, unlockAchievementId: "star_traveler"),
         Track(id: "nebula_garden",    displayName: "성운의 정원", resName: "bgm_nebula_garden",    colorHex: 0x9CE6A0, starType: 5, unlockAchievementId: "companion"),
+        // 2026-10-15 — 글로브에서 유성 3개 연속으로 보면 해금(meteor_triple).
+        Track(id: "aurora_meteor",    displayName: "오로라와 유성우", resName: "bgm_aurora_meteor", colorHex: 0x7CE8D8, starType: 10, unlockAchievementId: "meteor_triple"),
     ]
 
     static func byId(_ id: String?) -> Track? {

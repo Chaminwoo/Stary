@@ -61,6 +61,9 @@ data class UserStats(
     val distinctShapes: Int = 0,
     val distinctColors: Int = 0,
     val achievementsDone: Int = 0,       // 왕관 판정용 — 왕관 자신을 뺀 일반 업적 달성 수
+    // ── 2026-10-15 유성 업적용 — 글로브에서 본 유성(users/{uid}.meteorsSeen / meteorStreaks, MeteorStatsRepository) ──
+    val meteorsSeen: Int = 0,            // 본 유성 수
+    val meteorBestStreak: Int = 0,       // 최고 연속 유성 수(실패 없이 이어서 떨어진 개수)
 )
 
 /** 업적 보상 — 칭호 / 별 모양 / 별 색 중 하나. (칭호 업적과 별·색 업적을 분리) */
@@ -145,6 +148,11 @@ object Achievements {
         // 꾸미기
         title("shapes_five", "변주곡", "서로 다른 별 모양 5개로 기록하기") { it.distinctShapes >= 5 },
         title("colors_eight", "일곱 빛깔 너머", "서로 다른 별 색 8개로 기록하기") { it.distinctColors >= 8 },
+        // 유성(2026-10-15) — 글로브(지도 최소 줌)에서 떨어지는 유성. 3연속은 배경음악 "오로라와 유성우" 해금.
+        title("meteor_first", "소원 하나", "글로브에서 유성 1개 보기") { it.meteorsSeen >= 1 },
+        title("meteor_triple", "세 번의 소원", "글로브에서 유성 3개 연속으로 보기") { it.meteorBestStreak >= 3 },
+        title("meteor_five", "쏟아지는 별비", "글로브에서 유성 5개 연속으로 보기") { it.meteorBestStreak >= 5 },
+        title("meteor_fifty", "별똥별 수집가", "글로브에서 유성 50개 보기") { it.meteorsSeen >= 50 },
     )
 
     // ── 별 모양/색 업적 — 달성 시 업로드 피커에서 해당 모양·색이 해금된다 ──
@@ -262,6 +270,10 @@ fun rememberUserStats(
     val redeemedInvite by remember(userId) {
         com.chaminwoo.stary.data.repository.FirebaseInviteRepository().observeRedeemed(userId)
     }.collectAsState(initial = false)
+    // 글로브에서 본 유성(유성 업적 · 히든 7연속).
+    val meteors by remember(userId) {
+        com.chaminwoo.stary.data.repository.MeteorStatsRepository().observe(userId)
+    }.collectAsState(initial = com.chaminwoo.stary.data.repository.MeteorStatsRepository.Stats())
 
     // 별 도감 = 연 글(영구 해금 기록) ∩ 지금 보이는 남의 글. 상태 맵이라 해금되면 같이 갱신된다.
     // 해금 기록은 이 기기(로그인한 나)의 것이라, 남의 프로필(UserProfileScreen)에서는 쓰지 않는다.
@@ -288,6 +300,8 @@ fun rememberUserStats(
             firstInArea = social.first,
             nearNeighbor = social.second,
             starLogCount = starLogCount,
+            meteorsSeen = meteors.seen,
+            meteorBestStreak = meteors.bestStreak,
         )
     )
 }

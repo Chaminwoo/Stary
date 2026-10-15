@@ -115,6 +115,8 @@ private struct GlobeMetalView: UIViewRepresentable {
 
         if let renderer = GlobeRenderer(view: view) {
             renderer.setInitialFacing(lat: startLat, lng: startLng)
+            // 본 유성 기록(유성 업적 · 히든 7연속) — 로그인했을 때만(MeteorStats.record 가 거른다).
+            renderer.onMeteor = { streak in MeteorStats.record(streak: streak) }
             renderer.setDiaries(diaries)
             view.delegate = renderer          // MTKView.delegate 는 weak — Coordinator 가 소유한다.
             context.coordinator.renderer = renderer
