@@ -412,7 +412,9 @@ extension MapLibreView.Coordinator {
                 let rr = StarRevealFx.orbRadius * CGFloat((0.15 + 0.85 * (1 - (1 - grow) * (1 - grow))) * (1 + 0.3 * fade)) // 0 에서 시작하지 않는다(Android 와 같음)
                 orb = .init(point: c, radius: rr, alpha: 1 - fade)
             }
-            return .init(ring: ringPoints(mapView, run: r, elapsed: e, radius: radius),
+            // 화면을 다 덮은 뒤엔 테두리가 옅어지는 동안(0.3초)만 경로를 만든다 — 그 뒤 링은 수천 km 로 커져 투영이 뒤집힌다.
+            return .init(ring: ringAlpha > 0.01 ? ringPoints(mapView, run: r, elapsed: e, radius: radius) : [],
+                         covers: r.passedAt >= 0,
                          ringAlpha: ringAlpha,
                          ringHex: r.tintHex ?? MapFilterKind.neutralHex,
                          tintHex: r.tintHex,

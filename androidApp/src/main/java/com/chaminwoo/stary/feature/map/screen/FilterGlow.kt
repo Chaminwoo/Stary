@@ -86,8 +86,14 @@ internal class FilterWaveFrame(
 
 /** 퍼지고 있는 거품 하나(화면 좌표). */
 internal class WaveBubble(
-    /** 화면 좌표로 투영한 거품 테두리(닫힌 다각형). */
-    val ring: Path,
+    /** 화면 좌표로 투영한 거품 테두리(닫힌 다각형). null = 화면을 다 덮고 테두리도 사라짐([covers]). */
+    val ring: Path?,
+    /**
+     * 화면을 다 덮었는가 — 그 뒤로는 테두리 경로 대신 **화면 전체**를 거품 안으로 본다(2026-10-15).
+     * 링은 먼 별까지 계속 커지는데, 수천 km(북극 너머·지구 반대편)가 되면 투영이 뒤집혀 테두리가 화면 위에서 아래로
+     * 쓸고 내려가며 그 위쪽이 "거품 밖"이 돼 지도가 줄무늬로 연해졌다 — 화면을 다 덮은 뒤엔 포털이 고르게 서서히 걷힌다.
+     */
+    val covers: Boolean,
     /** 테두리 불투명도(0..1) — 지금 화면을 다 지나갈 때까지 1, 그 뒤 [REVEAL_RING_FADE_MS] 동안 옅어진다. */
     val ringAlpha: Float,
     val ringColor: Color,
@@ -200,8 +206,8 @@ internal fun FilterWaveOverlay(frame: State<FilterWaveFrame?>, modifier: Modifie
         val bubbles = f.bubbles
         bubbles.forEachIndexed { i, b ->
             val a = b.ringAlpha
-            if (a <= 0.01f) return@forEachIndexed
             val ring = b.ring
+            if (a <= 0.01f || ring == null) return@forEachIndexed
             // 더 새 거품에 덮인 부분은 그리지 않는다 — 따라잡히면 덮인 쪽부터 삼켜진다.
             clipOutsideBubbles(bubbles, i + 1) {
                 val rim = lerp(b.ringColor, Color.White, 0.5f)
@@ -295,21 +301,30 @@ internal fun FilterGlowOverlay(tint: Color?, wave: State<FilterWaveFrame?>, modi
         f.base?.let { c -> clipOutsideBubbles(bubbles, 0) { drawFilterGlow(c, ph) } }
         bubbles.forEachIndexed { i, b ->
             val c = b.tint ?: return@forEachIndexed
-            clipPath(b.ring) {
+            val inside: DrawScope.() -> Unit = {
                 clipOutsideBubbles(bubbles, i + 1) {
                     drawFilterGlow(c, ph)
-                    // 거품 안 = 포털 성운(퍼지는 동안 짙게, 화면을 다 지나간 뒤 은은한 필터 빛으로 가라앉는다)
+                    // 거품 안 = 포털 성운(퍼지는 동안 짙게, 화면을 다 지나간 뒤 은은한 필터 빛으로 고르게 가라앉는다)
                     if (b.portal > 0.01f) drawPortal(c, b)
                 }
             }
+            // 화면을 다 덮은 거품은 테두리로 자르지 않는다(거대해진 링의 뒤집힌 투영이 화면을 가르지 않게).
+            val ring = b.ring
+            if (b.covers || ring == null) inside() else clipPath(ring) { inside() }
         }
     }
 }
 
-/** [from] 번째부터의 거품들(더 새 거품들) **바깥**만 남기고 [block] 을 그린다. */
+/**
+ * [from] 번째부터의 거품들(더 새 거품들) **바깥**만 남기고 [block] 을 그린다.
+ * 화면을 다 덮은 거품이 있으면 그 바깥은 화면에 없으므로 아무것도 그리지 않는다.
+ */
 private fun DrawScope.clipOutsideBubbles(bubbles: List<WaveBubble>, from: Int, block: DrawScope.() -> Unit) {
-    if (from >= bubbles.size) block()
-    else clipPath(bubbles[from].ring, ClipOp.Difference) { clipOutsideBubbles(bubbles, from + 1, block) }
+    if (from >= bubbles.size) { block(); return }
+    val b = bubbles[from]
+    val ring = b.ring
+    if (b.covers || ring == null) return
+    clipPath(ring, ClipOp.Difference) { clipOutsideBubbles(bubbles, from + 1, block) }
 }
 
 /** 필터 빛 한 장 — 아래에서 차오르는 빛 + 위쪽 맞빛 + 화면 둘레를 도는 빛 덩이. */

@@ -1687,7 +1687,9 @@ private fun revealWavesFrame(
             )
         } else null
         WaveBubble(
-            ring = ringScreenPath(map, plan.center, radius, plan.wobble, tSec),
+            // 화면을 다 덮은 뒤엔 테두리가 옅어지는 동안(300ms)만 경로를 만든다 — 그 뒤 링은 수천 km 로 커져 투영이 뒤집힌다.
+            ring = if (ringAlpha > 0.01f) ringScreenPath(map, plan.center, radius, plan.wobble, tSec) else null,
+            covers = r.passedAt >= 0,
             ringAlpha = ringAlpha,
             ringColor = ringColor,
             tint = plan.toTint,

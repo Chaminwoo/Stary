@@ -88,8 +88,12 @@ final class FilterWaveState: ObservableObject {
     struct Orb { let point: CGPoint; let radius: CGFloat; let alpha: Double }
     /// 퍼지고 있는 거품 하나(Android `WaveBubble`).
     struct Bubble {
-        /// 지도 뷰 좌표로 투영한 테두리 꼭짓점.
+        /// 지도 뷰 좌표로 투영한 테두리 꼭짓점. 비어 있으면 화면을 다 덮고 테두리도 사라짐(`covers`).
         let ring: [CGPoint]
+        /// 화면을 다 덮었는가 — 그 뒤로는 테두리 대신 **화면 전체**를 거품 안으로 본다(2026-10-15, Android `WaveBubble.covers`).
+        /// 링은 먼 별까지 계속 커지다 수천 km(북극 너머·지구 반대편)가 되면 투영이 뒤집혀, 테두리가 화면 위에서 아래로 쓸며
+        /// 지도가 줄무늬로 연해졌다 — 다 덮은 뒤엔 포털이 고르게 서서히 걷힌다.
+        let covers: Bool
         /// 테두리 불투명도 — 화면을 다 지나갈 때까지 1, 그 뒤 옅어진다.
         let ringAlpha: Double
         /// 테두리·검은 구체 테 색.
@@ -142,23 +146,28 @@ struct FilterGlowOverlay: View {
                     }
                 }
                 /// from 번째부터의 거품들(더 새 거품들) **바깥**만 남긴다 — 겹쳐 칠하지 않게 영역을 나눈다.
-                func clipOutside(_ c: inout GraphicsContext, from: Int) {
-                    for j in from..<paths.count where bubbles[j].ring.count > 2 {
-                        c.clip(to: paths[j], options: .inverse)
+                /// 화면을 다 덮은 거품이 있으면 그 바깥은 화면에 없으므로 false(그리지 않음).
+                func clipOutside(_ c: inout GraphicsContext, from: Int) -> Bool {
+                    for j in from..<paths.count {
+                        if bubbles[j].covers { return false }
+                        if bubbles[j].ring.count > 2 { c.clip(to: paths[j], options: .inverse) }
                     }
+                    return true
                 }
                 // 어느 거품에도 안 덮인 자리 = 연속 전환 전의 색
                 if let hex = base {
                     var outer = ctx
-                    clipOutside(&outer, from: 0)
-                    Self.drawGlow(&outer, size: size, hex: hex, phase: phase)
+                    if clipOutside(&outer, from: 0) {
+                        Self.drawGlow(&outer, size: size, hex: hex, phase: phase)
+                    }
                 }
                 // 각 거품 안(더 새 거품에 덮인 자리 제외) = 그 거품 필터 색 + 포털 성운
-                for (i, b) in bubbles.enumerated() where b.ring.count > 2 {
+                for (i, b) in bubbles.enumerated() where b.covers || b.ring.count > 2 {
                     guard let hex = b.tintHex else { continue }
                     var inner = ctx
-                    inner.clip(to: paths[i])
-                    clipOutside(&inner, from: i + 1)
+                    // 화면을 다 덮은 거품은 테두리로 자르지 않는다(거대해진 링의 뒤집힌 투영이 화면을 가르지 않게)
+                    if !b.covers { inner.clip(to: paths[i]) }
+                    guard clipOutside(&inner, from: i + 1) else { continue }
                     Self.drawGlow(&inner, size: size, hex: hex, phase: phase)
                     // 거품 안 = 포털 성운(퍼지는 동안 짙게, 화면을 다 지나간 뒤 은은한 필터 빛으로 가라앉는다)
                     if b.portal > 0.01 {
@@ -170,7 +179,7 @@ struct FilterGlowOverlay: View {
                     let color = UIColor(rgbHex: b.ringHex)
                     let rim = Color(uiColor: color.mixedWithWhite(0.5))
                     var c = ctx
-                    clipOutside(&c, from: i + 1)
+                    guard clipOutside(&c, from: i + 1) else { continue }
                     var glow = c
                     glow.clip(to: paths[i])
                     glow.stroke(paths[i], with: .color(rim.opacity(0.10 * b.ringAlpha)),
