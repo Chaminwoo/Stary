@@ -633,14 +633,19 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
      *  각 파편은 경로 수직 방향으로 천천히 벌어지는 속도(보트 파장의 V자)와,
      *  경로 위치 기반 물결 위상(waveArg)을 가진다. 은은한 유광(70%) + 반짝이(30%) 2계층. */
     private fun emitSparks(t: Float, dt: Float, u: Float, tint: FloatArray, tint2: FloatArray) {
-        sparkEmitCarry += dt * SPARK_RATE
+        // 연속(스트릭)일수록 잔상이 더 오래·더 풍성하게(2026-10-15): 0 = 연속 아님 … 1 = 7연속 이상.
+        // 수명 최대 2.2배 · 방출량 1.8배 · 반짝이 비율↑ · V자 파장이 더 넓게 퍼지고 · 세 번째 색까지 섞인다.
+        val lvl = ((meteorStreak - 1).coerceIn(0, 6)) / 6f
+        val tint3 = METEOR_TINTS[(meteorTintIdx + 2) % METEOR_TINTS.size]
+        val sparkMax = SPARK_MAX + (SPARK_MAX * 1.4f * lvl).toInt()
+        sparkEmitCarry += dt * SPARK_RATE * (1f + 0.8f * lvl)
         val n = sparkEmitCarry.toInt()
         if (n <= 0) return
         sparkEmitCarry -= n
         val pos = FloatArray(3)
         val jitter = meteorLen * 0.008f
         repeat(n) {
-            if (meteorSparks.size >= SPARK_MAX) meteorSparks.removeAt(0)
+            if (meteorSparks.size >= sparkMax) meteorSparks.removeAt(0)
             val s = (lastMeteorU + (u - lastMeteorU) * meteorRnd.nextFloat()).coerceIn(0f, 1f)
             meteorPathAt(s, pos)
             // 색 — 본색↔보조색↔백색 사이를 랜덤하게 오가는 색색의 물결
@@ -649,15 +654,20 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             var cr = tint[0] + (tint2[0] - tint[0]) * m1; cr += (1f - cr) * m2
             var cg = tint[1] + (tint2[1] - tint[1]) * m1; cg += (1f - cg) * m2
             var cb = tint[2] + (tint2[2] - tint[2]) * m1; cb += (1f - cb) * m2
+            // 연속이 길수록 세 번째 색이 섞인 파편이 늘어 오로라처럼 색이 풍부해진다
+            if (meteorRnd.nextFloat() < 0.45f * lvl) {
+                val m3 = 0.4f + meteorRnd.nextFloat() * 0.5f
+                cr += (tint3[0] - cr) * m3; cg += (tint3[1] - cg) * m3; cb += (tint3[2] - cb) * m3
+            }
             // 두 계층: 은은하게 퍼지는 유광(파장의 몸) / 작고 밝은 반짝이(물결 위 빛조각)
-            val soft = meteorRnd.nextFloat() < 0.70f
-            val br = if (soft) 0.16f + meteorRnd.nextFloat() * 0.18f
-                     else 0.40f + meteorRnd.nextFloat() * 0.34f
+            val soft = meteorRnd.nextFloat() < 0.70f - 0.22f * lvl  // 연속일수록 반짝이가 많다
+            val br = (if (soft) 0.16f + meteorRnd.nextFloat() * 0.18f
+                      else 0.40f + meteorRnd.nextFloat() * 0.34f) * (1f + 0.25f * lvl)
             val size = if (soft) 0.036f + meteorRnd.nextFloat() * 0.030f
                        else 0.016f + meteorRnd.nextFloat() * 0.016f
             // V자 파장 — 경로 양옆으로 아주 천천히 벌어지는 드리프트(초당 속도)
             val side = if (meteorRnd.nextBoolean()) 1f else -1f
-            val drift = meteorLen * (0.0035f + meteorRnd.nextFloat() * 0.0055f) * side
+            val drift = meteorLen * (0.0035f + meteorRnd.nextFloat() * 0.0055f) * side * (1f + 0.7f * lvl)
             meteorSparks.add(
                 floatArrayOf(
                     pos[0] + (meteorRnd.nextFloat() * 2f - 1f) * jitter,
@@ -667,7 +677,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     cr * br, cg * br, cb * br,
                     size,
                     t,                                                        // birthT
-                    SPARK_LIFE_MIN + meteorRnd.nextFloat() * SPARK_LIFE_VAR,  // life 5~10초
+                    (SPARK_LIFE_MIN + meteorRnd.nextFloat() * SPARK_LIFE_VAR) * (1f + 1.2f * lvl), // life 5~10초(7연속 11~22초)
                     s * 18f + meteorRnd.nextFloat() * 0.9f,                   // waveArg(물결 위상)
                 )
             )
@@ -1611,9 +1621,11 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
 
         const val ENTER_DIST = 10.4f  // 진입 시작 거리(돌리-인 출발점 — 최대 거리 살짝 바깥)
-        const val IDLE_DIST = 9.5f    // 진입 정착 거리 = 최소 줌(MAX_DIST) — 지구가 가장 작게 보이는 상태
+        const val IDLE_DIST = 9.5f    // 진입 정착 거리(진입 직후 지구 크기)
         const val MIN_DIST = 1.45f    // 카메라 최소 거리(더 바짝 당겨보기 — 화면 전환 없음)
-        const val MAX_DIST = 9.5f     // 카메라 최대 거리(지구가 작아 보일 만큼 멀리)
+        // 카메라 최대 거리 = 최소 줌(2026-10-15 사용자 요청 "조금 더 멀리" 9.5 → 11.5).
+        // ⚠️ 가장 가까운 별 셸(반지름 12)보다 작게 둘 것 — 셸 밖으로 나가면 앞쪽 셸 별이 코앞에 거대하게 보인다.
+        const val MAX_DIST = 11.5f
         /** 근거리 클립면 — 깊이 정밀도의 지배 요인. MIN_DIST 에서 가장 가까운 지오메트리가
          *  플레어 스프라이트(반지름 1.045) = 1.45−1.045 = 0.405 라 0.3 이 안전 하한. */
         private const val NEAR_PLANE = 0.3f

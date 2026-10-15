@@ -116,7 +116,11 @@ private struct GlobeMetalView: UIViewRepresentable {
         if let renderer = GlobeRenderer(view: view) {
             renderer.setInitialFacing(lat: startLat, lng: startLng)
             // 본 유성 기록(유성 업적 · 히든 7연속) — 로그인했을 때만(MeteorStats.record 가 거른다).
-            renderer.onMeteor = { streak in MeteorStats.record(streak: streak) }
+            renderer.onMeteor = { streak in
+                MeteorStats.record(streak: streak)
+                // 효과음(별가루 쉬머, 연속일수록 높게) — 렌더 스레드에서 오므로 메인으로 넘긴다(AVAudioPlayer 목록 보호).
+                DispatchQueue.main.async { MusicManager.shared.playMeteor(streak: streak) }
+            }
             renderer.setDiaries(diaries)
             view.delegate = renderer          // MTKView.delegate 는 weak — Coordinator 가 소유한다.
             context.coordinator.renderer = renderer

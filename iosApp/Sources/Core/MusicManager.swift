@@ -52,6 +52,7 @@ final class MusicManager: ObservableObject {
     private var lastSparkAt: TimeInterval = 0
     private var lastSparkIdx = -1
     private let starBirthBaseVolume: Float = 0.55
+    private let meteorBaseVolume: Float = 0.45
     private let likeBaseVolume: Float = 0.50
     private let drawerBaseVolume: Float = 0.32
 
@@ -209,6 +210,13 @@ final class MusicManager: ObservableObject {
         let idx = chimeOrder[chimeStep % chimeOrder.count]
         chimeStep += 1
         playSfx("sfx_chime_\(idx + 1)", volume: chimeBaseVolume * Float.random(in: 0.8...1.0))
+    }
+
+    /// 글로브에서 유성이 떨어질 때 — `streak` = 이번 유성까지의 연속 횟수(연속일수록 반짝임 음이 높다).
+    /// 2026-10-15 "별가루 쉬머"(tools/sfx/meteor_sfx.py) — sfx_meteor_1 = 연속 1~2번째, 2 = 3~4, 3 = 5~6, 4 = 7번째 이상(Android playMeteor 동일).
+    func playMeteor(streak: Int) {
+        let idx = min(max((streak - 1) / 2, 0), 3)
+        playSfx("sfx_meteor_\(idx + 1)", volume: meteorBaseVolume)
     }
 
     /// 업로드 성공 별 탄생 — 유성이 내려와 안착(화음이 발광 순간 ≈0.42s 에 맞춰진 음원).

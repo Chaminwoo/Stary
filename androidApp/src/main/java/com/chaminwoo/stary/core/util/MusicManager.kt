@@ -82,6 +82,14 @@ object MusicManager {
     private var lastChimeAtMs = 0L
     private var chimeStep = 0
 
+    // 글로브 유성 효과음(2026-10-15 사용자 선택 "별가루 쉬머" — tools/sfx/meteor_sfx.py export_app).
+    // 연속일수록 꼬리 반짝임이 펜타토닉으로 한 단계씩 높다: 1 = 연속 1~2번째, 2 = 3~4, 3 = 5~6, 4 = 7번째 이상.
+    // iOS MusicManager.playMeteor 와 같은 볼륨·단계.
+    private val METEOR_RES = intArrayOf(
+        R.raw.sfx_meteor_1, R.raw.sfx_meteor_2, R.raw.sfx_meteor_3, R.raw.sfx_meteor_4,
+    )
+    private const val METEOR_VOLUME = 0.45f
+
     // 다이얼(맷돌) 회전 효과음(turning_dial.mp3).
     //  - **돌리는 동안**: [dialTick] 이 실제 각도 눈금을 지날 때마다 호출되어 처음부터 다시 재생 —
     //    고정 타이머가 아니라 호출 빈도 = 회전 속도라서 빠르게 돌리면 "드드드드" 촘촘해진다.
@@ -143,7 +151,7 @@ object MusicManager {
         }
         if (windResId != 0) windSoundId = soundPool?.load(ctx, windResId, 1) ?: 0
         if (openResId != 0) openSoundId = soundPool?.load(ctx, openResId, 1) ?: 0
-        (SPARK_RES + CHIME_RES + EXTRA_SFX_RES).forEach { res ->
+        (SPARK_RES + CHIME_RES + EXTRA_SFX_RES + METEOR_RES).forEach { res ->
             soundPool?.load(ctx, res, 1)?.let { sfxSoundIds[res] = it }
         }
     }
@@ -237,6 +245,12 @@ object MusicManager {
         val idx = CHIME_ORDER[chimeStep % CHIME_ORDER.size]
         chimeStep++
         playSfx(CHIME_RES[idx], CHIME_VOLUME * (0.8f + 0.2f * kotlin.random.Random.nextFloat()))
+    }
+
+    /** 글로브에서 유성이 떨어질 때 — [streak] = 이번 유성까지의 연속 횟수(연속일수록 반짝임 음이 높다). 어느 스레드에서 불러도 된다. */
+    fun playMeteor(streak: Int) {
+        val idx = ((streak - 1) / 2).coerceIn(0, METEOR_RES.size - 1)
+        playSfx(METEOR_RES[idx], METEOR_VOLUME)
     }
 
     /** 업로드 성공 별 탄생 — 유성이 내려와 안착(화음이 StarBirth 발광 순간 ≈0.42s 에 맞춰져 있다). */

@@ -86,9 +86,11 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     // MARK: 상수 (Android companion object 와 같은 값)
 
     static let enterDist: Float = 10.4   // 진입 시작 거리(돌리-인 출발점)
-    static let idleDist: Float = 9.5     // 진입 정착 거리 = 최소 줌
+    static let idleDist: Float = 9.5     // 진입 정착 거리(진입 직후 지구 크기)
     static let minDist: Float = 1.45     // 카메라 최소 거리
-    static let maxDist: Float = 9.5      // 카메라 최대 거리
+    /// 카메라 최대 거리 = 최소 줌(2026-10-15 "조금 더 멀리" 9.5 → 11.5, Android MAX_DIST).
+    /// ⚠️ 가장 가까운 별 셸(반지름 12)보다 작게 — 셸 밖으로 나가면 앞쪽 셸 별이 코앞에 거대하게 보인다.
+    static let maxDist: Float = 11.5
     private static let nearPlane: Float = 0.3
     private static let trailCount = 5
     private static let sunDist: Float = 45
@@ -745,28 +747,37 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     }
 
     private func emitSparks(t: Float, dt: Float, u: Float, tint: SIMD3<Float>, tint2: SIMD3<Float>) {
-        sparkEmitCarry += dt * GlobeRenderer.sparkRate
+        // 연속(스트릭)일수록 잔상이 더 오래·더 풍성하게(2026-10-15, Android emitSparks 동일): 0 = 연속 아님 … 1 = 7연속 이상.
+        let lvl = Float(min(max(meteorStreak - 1, 0), 6)) / 6
+        let tints = GlobeRenderer.meteorTints
+        let tint3 = tints[(meteorTintIdx + 2) % tints.count]
+        let sparkMax = GlobeRenderer.sparkMax + Int(Float(GlobeRenderer.sparkMax) * 1.4 * lvl)
+        sparkEmitCarry += dt * GlobeRenderer.sparkRate * (1 + 0.8 * lvl)
         let n = Int(sparkEmitCarry)
         if n <= 0 { return }
         sparkEmitCarry -= Float(n)
         let jitter = meteorLen * 0.008
         for _ in 0..<n {
-            if meteorSparks.count >= GlobeRenderer.sparkMax { meteorSparks.removeFirst() }
+            if meteorSparks.count >= sparkMax { meteorSparks.removeFirst() }
             let s = min(max(lastMeteorU + (u - lastMeteorU) * Float.random(in: 0..<1), 0), 1)
             let pos = meteorPathAt(s)
             let m1 = Float.random(in: 0..<1) * 0.8
             let m2 = Float.random(in: 0..<1) * 0.45
             var c = tint + (tint2 - tint) * m1
             c += (SIMD3<Float>(1, 1, 1) - c) * m2
-            let soft = Float.random(in: 0..<1) < 0.70
-            let br: Float = soft ? 0.16 + Float.random(in: 0..<1) * 0.18 : 0.40 + Float.random(in: 0..<1) * 0.34
+            // 연속이 길수록 세 번째 색이 섞인 파편이 늘어 오로라처럼 색이 풍부해진다
+            if Float.random(in: 0..<1) < 0.45 * lvl {
+                c += (tint3 - c) * (0.4 + Float.random(in: 0..<1) * 0.5)
+            }
+            let soft = Float.random(in: 0..<1) < 0.70 - 0.22 * lvl   // 연속일수록 반짝이가 많다
+            let br: Float = (soft ? 0.16 + Float.random(in: 0..<1) * 0.18 : 0.40 + Float.random(in: 0..<1) * 0.34) * (1 + 0.25 * lvl)
             let size: Float = soft ? 0.036 + Float.random(in: 0..<1) * 0.030 : 0.016 + Float.random(in: 0..<1) * 0.016
             let side: Float = Bool.random() ? 1 : -1
-            let drift = meteorLen * (0.0035 + Float.random(in: 0..<1) * 0.0055) * side
+            let drift = meteorLen * (0.0035 + Float.random(in: 0..<1) * 0.0055) * side * (1 + 0.7 * lvl)
             let jx = (Float.random(in: 0..<1) * 2 - 1) * jitter
             let jy = (Float.random(in: 0..<1) * 2 - 1) * jitter
             let jz = (Float.random(in: 0..<1) * 2 - 1) * jitter
-            let life = GlobeRenderer.sparkLifeMin + Float.random(in: 0..<1) * GlobeRenderer.sparkLifeVar
+            let life = (GlobeRenderer.sparkLifeMin + Float.random(in: 0..<1) * GlobeRenderer.sparkLifeVar) * (1 + 1.2 * lvl) // 7연속 11~22초
             let waveArg = s * 18 + Float.random(in: 0..<1) * 0.9
             let spark: [Float] = [
                 pos.x + jx, pos.y + jy, pos.z + jz,

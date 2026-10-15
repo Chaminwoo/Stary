@@ -118,6 +118,7 @@ fun GlobeScreen(
             // 본 유성 기록(유성 업적 · 히든 7연속) — 로그인했을 때만. Firestore 쓰기는 스레드 무관.
             val meteorRepo = com.chaminwoo.stary.data.repository.MeteorStatsRepository()
             onMeteor = { streak ->
+                com.chaminwoo.stary.core.util.MusicManager.playMeteor(streak) // 별가루 쉬머(연속일수록 높게)
                 com.chaminwoo.stary.feature.auth.GoogleAuthHelper.currentUserId?.let { meteorRepo.record(it, streak) }
             }
         }
