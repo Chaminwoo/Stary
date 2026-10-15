@@ -71,26 +71,34 @@ internal class FilterKindTracker {
 /**
  * 빛의 고리(포털) 한 프레임 — [DiaryMap] 의 등장 재생 루프가 매 프레임 채운다(null = 연출 없음).
  * 링은 **지도 위 거품**(내 위치 중심, 반지름 m, 출렁임)을 매 프레임 화면에 투영한 것이라, 연출 중 지도를 움직여도 지도에 붙어 있다.
+ *
+ * 필터를 연속으로 바꾸면 거품이 **여러 개 함께** 퍼진다(2026-10-15). 화면의 각 자리는 **그 자리를 덮은 가장 새 거품의 색**이고,
+ * 어느 거품에도 아직 안 덮인 자리는 [base] 색이다(필터 1 → 2 : 바깥 = 필터 1 전의 색, 두 거품 사이 = 필터 1 색, 가장 안쪽 = 필터 2 색).
+ * 새 거품에 덮인 이전 거품의 테두리는 그리지 않는다(따라잡히면 덮인 쪽부터 삼켜진다).
  */
 internal class FilterWaveFrame(
-    /** 화면 좌표로 투영한 링(닫힌 다각형). null = 링이 아직 없음(이전 별을 걷어내는 중). */
-    val ring: Path?,
-    /** 링 불투명도(0..1) — 지금 화면을 다 지나갈 때까지 1, 그 뒤 [REVEAL_RING_FADE_MS] 동안 옅어진다. */
+    /** 모든 거품 밖(가장 앞선 거품도 아직 안 지나간 자리)의 필터 빛 색. null = 빛 없음. */
+    val base: Color?,
+    /** 함께 퍼지고 있는 거품들 — 오래된(앞서가는) 것 → 새 것. 비어 있으면 아직 거품 없음(이전 별을 걷어내는 중). */
+    val bubbles: List<WaveBubble>,
+    val flashes: List<WaveFlash>,
+)
+
+/** 퍼지고 있는 거품 하나(화면 좌표). */
+internal class WaveBubble(
+    /** 화면 좌표로 투영한 거품 테두리(닫힌 다각형). */
+    val ring: Path,
+    /** 테두리 불투명도(0..1) — 지금 화면을 다 지나갈 때까지 1, 그 뒤 [REVEAL_RING_FADE_MS] 동안 옅어진다. */
     val ringAlpha: Float,
     val ringColor: Color,
-    /** 링 안(이미 지나간 자리)의 필터 빛 색 = 새 필터 색. null = 빛 없음(필터를 모두 끈 경우). */
-    val insideTint: Color?,
-    /** 링 밖(아직 안 지나간 자리)의 필터 빛 색 = 이전 필터 색. */
-    val outsideTint: Color?,
-    val flashes: List<WaveFlash>,
-    /** 링 안의 포털 성운 세기(0..1) — 퍼지는 동안 1, 화면을 다 지나간 뒤 [REVEAL_PORTAL_DECAY_MS] 동안 0 으로. */
-    val portal: Float = 0f,
-    /** 성운 구름 얼룩·어두운 반점(화면 좌표, 지도 위 위치를 투영). */
-    val blobs: List<PortalBlob> = emptyList(),
+    /** 거품 안(지나간 자리)의 필터 빛 색 = 이 거품을 낸 필터의 색. null = 빛 없음(필터를 모두 끈 경우). */
+    val tint: Color?,
+    /** 거품 안의 포털 성운 세기(0..1) — 퍼지는 동안 1, 화면을 다 지나간 뒤 [REVEAL_PORTAL_DECAY_MS] 동안 0 으로. */
+    val portal: Float,
     /** 성운 속 잔별(화면 좌표). */
-    val sparks: List<PortalSpark> = emptyList(),
+    val sparks: List<PortalSpark>,
     /** 시작점의 검은 구체(null = 이미 사라짐). */
-    val orb: PortalOrb? = null,
+    val orb: PortalOrb?,
 )
 
 /** 링이 닿은 별 하나의 발광 — 화면 좌표(px)·반경·세기(0..1)·별 색. */
@@ -102,9 +110,6 @@ internal class WaveFlash(
     val color: Color,
 )
 
-/** 포털 성운의 구름 얼룩 하나(화면 좌표 px) — 가운데 색 [color](알파 포함) → 가장자리 투명. */
-internal class PortalBlob(val x: Float, val y: Float, val radiusPx: Float, val color: Color)
-
 /** 포털 성운 속 잔별 하나(화면 좌표 px). */
 internal class PortalSpark(val x: Float, val y: Float, val radiusPx: Float, val alpha: Float)
 
@@ -113,28 +118,17 @@ internal class PortalOrb(val x: Float, val y: Float, val radiusPx: Float, val al
 
 /**
  * 포털 성운의 고정 배치(연출마다 무작위) — 지도 위 위치를 "내 위치에서 방위·거리(× sweep)"로 들고, 매 프레임 화면에 투영한다.
+ * (거품 안의 큰 동그라미들 — 구름 얼룩·어두운 반점·청록 빛 덩이 — 은 2026-10-15 삭제. 잔별만 남았다.)
  * iOS `PortalLayout`(MapStarReveal.swift)과 같은 개수·범위.
  */
 internal class PortalLayout(seed: Int) {
-    /** 구름 얼룩: 방위(rad), 거리(× sweep), 반지름(× sweep), 종류(0 = 필터색 짙게, 1 = 필터색 옅게, 2 = 어두운 반점, 3 = 청록 빛줄기). */
-    class Blob(val bearing: Double, val dist: Double, val radius: Double, val kind: Int)
     /** 잔별: 방위(rad), 거리(× sweep), 크기(dp), 반짝임 위상·속도. */
     class Spark(val bearing: Double, val dist: Double, val sizeDp: Float, val phase: Double, val speed: Double)
 
-    val blobs: List<Blob>
     val sparks: List<Spark>
 
     init {
         val r = kotlin.random.Random(seed)
-        val kinds = intArrayOf(0, 0, 0, 1, 1, 2, 2, 2, 3, 3)
-        blobs = kinds.map { k ->
-            Blob(
-                bearing = r.nextDouble() * 2 * Math.PI,
-                dist = kotlin.math.sqrt(r.nextDouble()) * 1.25,
-                radius = if (k == 3) 0.18 + r.nextDouble() * 0.12 else 0.32 + r.nextDouble() * 0.38,
-                kind = k,
-            )
-        }
         sparks = List(PORTAL_SPARKS) {
             Spark(
                 bearing = r.nextDouble() * 2 * Math.PI,
@@ -152,14 +146,6 @@ private const val PORTAL_SPARKS = 56
 
 /** 포털 성운의 바탕색 = 필터 색을 아주 깊은 남보라 쪽으로 섞은 것(레퍼런스의 "짙은 보라 우주"). */
 internal fun portalDeep(tint: Color): Color = lerp(tint, Color(0xFF120A2A), 0.58f)
-
-/** 구름 얼룩 종류 → 색(알파 포함, [portal] 세기는 그릴 때 곱한다). */
-internal fun portalBlobColor(kind: Int, tint: Color): Color = when (kind) {
-    0 -> lerp(tint, Color(0xFF1A0E3A), 0.35f).copy(alpha = 0.30f)
-    1 -> lerp(tint, Color.White, 0.15f).copy(alpha = 0.16f)
-    2 -> Color(0xFF07040F).copy(alpha = 0.34f)
-    else -> lerp(tint, Color(0xFF3FE0C8), 0.6f).copy(alpha = 0.12f)
-}
 
 /**
  * 지도 위 **출렁이는 거품 테두리**(중심 [center], 기본 반지름 [radiusM] m, 각도마다 [wobble] 로 출렁임)를
@@ -211,24 +197,29 @@ internal fun revealSweepMeters(map: MapLibreMap, width: Float, height: Float, ce
 internal fun FilterWaveOverlay(frame: State<FilterWaveFrame?>, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val f = frame.value ?: return@Canvas
-        val ring = f.ring
-        val a = f.ringAlpha
-        if (ring != null && a > 0.01f) {
-            val rim = lerp(f.ringColor, Color.White, 0.5f)
-            // 테두리 안쪽으로만 번지는 빛 — 굵은 선을 거품 안쪽만 남긴다(바깥은 깨끗하게, 거품이 부푸는 느낌)
-            clipPath(ring) {
-                drawPath(ring, rim.copy(alpha = 0.10f * a), style = Stroke(REVEAL_RIM_GLOW_DP.dp.toPx() * 2f, join = StrokeJoin.Round))
-                drawPath(ring, rim.copy(alpha = 0.22f * a), style = Stroke(REVEAL_RIM_GLOW_DP.dp.toPx() * 0.7f, join = StrokeJoin.Round))
+        val bubbles = f.bubbles
+        bubbles.forEachIndexed { i, b ->
+            val a = b.ringAlpha
+            if (a <= 0.01f) return@forEachIndexed
+            val ring = b.ring
+            // 더 새 거품에 덮인 부분은 그리지 않는다 — 따라잡히면 덮인 쪽부터 삼켜진다.
+            clipOutsideBubbles(bubbles, i + 1) {
+                val rim = lerp(b.ringColor, Color.White, 0.5f)
+                // 테두리 안쪽으로만 번지는 빛 — 굵은 선을 거품 안쪽만 남긴다(바깥은 깨끗하게, 거품이 부푸는 느낌)
+                clipPath(ring) {
+                    drawPath(ring, rim.copy(alpha = 0.10f * a), style = Stroke(REVEAL_RIM_GLOW_DP.dp.toPx() * 2f, join = StrokeJoin.Round))
+                    drawPath(ring, rim.copy(alpha = 0.22f * a), style = Stroke(REVEAL_RIM_GLOW_DP.dp.toPx() * 0.7f, join = StrokeJoin.Round))
+                }
+                // 얇은 경계선 하나
+                drawPath(
+                    ring, lerp(b.ringColor, Color.White, 0.6f).copy(alpha = 0.92f * a),
+                    style = Stroke(REVEAL_RING_STROKE_DP.dp.toPx(), join = StrokeJoin.Round),
+                )
             }
-            // 얇은 경계선 하나
-            drawPath(
-                ring, lerp(f.ringColor, Color.White, 0.6f).copy(alpha = 0.92f * a),
-                style = Stroke(REVEAL_RING_STROKE_DP.dp.toPx(), join = StrokeJoin.Round),
-            )
         }
         // ⚠️ 방사형 그라데이션은 반지름이 0 이면 IllegalArgumentException(RadialGradient) 으로 앱이 죽는다 —
         //    구체는 첫 프레임(0ms)에 반지름 0 에서 자라므로 1px 미만은 그리지 않는다(2026-10-14 필터 켜자마자 튕기던 원인).
-        f.orb?.takeIf { it.radiusPx >= 1f }?.let { o ->
+        bubbles.forEach { b -> b.orb?.takeIf { it.radiusPx >= 1f }?.let { o ->
             val c = Offset(o.x, o.y)
             // 검은 구체 — 바깥 보랏빛 테 + 검은 속 + 작은 반짝임(레퍼런스의 "마지막 자리에 생기는 검은 구슬")
             drawCircle(
@@ -242,7 +233,7 @@ internal fun FilterWaveOverlay(frame: State<FilterWaveFrame?>, modifier: Modifie
                 radius = o.radiusPx, center = c,
             )
             drawCircle(Color.White.copy(alpha = 0.85f * o.alpha), o.radiusPx * 0.09f, Offset(o.x + o.radiusPx * 0.18f, o.y - o.radiusPx * 0.12f))
-        }
+        } }
         f.flashes.forEach { fl ->
             if (fl.radiusPx < 1f) return@forEach // 방사형 그라데이션 반지름 0 방지(위 구체와 같은 이유)
             val c = Offset(fl.x, fl.y)
@@ -269,7 +260,7 @@ private const val GLOW_ORBIT_SEC = 16f
  * 화면 아래에서 차오르되, 색은 필터의 색이고 옅은 빛 덩이가 화면 둘레를 천천히 돈다. 장식 전용(터치 통과).
  *
  * - [tint] : 지금 확정된 필터 빛 색(null = 빛 없음). [DiaryMap] 이 **링이 다 퍼진 뒤에** 새 색으로 바꾼다.
- * - [wave] : 빛의 고리가 퍼지는 동안엔 **링 안쪽(지나간 자리)만 새 색**, 바깥은 이전 색으로 그린다.
+ * - [wave] : 빛의 고리가 퍼지는 동안엔 **각 자리를 덮은 가장 새 거품의 색**, 어느 거품에도 안 덮인 자리는 연속 전환 전의 색으로 그린다.
  *
  * iOS `FilterGlowOverlay`(FilterGlow.swift)와 같은 수치.
  */
@@ -295,22 +286,30 @@ internal fun FilterGlowOverlay(tint: Color?, wave: State<FilterWaveFrame?>, modi
     Canvas(modifier = modifier) {
         val ph = phase.floatValue
         val f = wave.value
-        val ring = f?.ring
-        when {
-            f == null -> tint?.let { drawFilterGlow(it, ph) }
-            ring == null -> f.outsideTint?.let { drawFilterGlow(it, ph) }
-            else -> {
-                f.insideTint?.let { c ->
-                    clipPath(ring) {
-                        drawFilterGlow(c, ph)
-                        // 거품 안 = 포털 성운(퍼지는 동안 짙게, 화면을 다 지나간 뒤 은은한 필터 빛으로 가라앉는다)
-                        if (f.portal > 0.01f) drawPortal(c, f)
-                    }
+        if (f == null) {
+            tint?.let { drawFilterGlow(it, ph) }
+            return@Canvas
+        }
+        // 화면의 각 자리 = 그 자리를 덮은 가장 새 거품의 색, 어느 거품에도 안 덮였으면 base(겹쳐 칠하지 않게 영역을 나눠 그린다).
+        val bubbles = f.bubbles
+        f.base?.let { c -> clipOutsideBubbles(bubbles, 0) { drawFilterGlow(c, ph) } }
+        bubbles.forEachIndexed { i, b ->
+            val c = b.tint ?: return@forEachIndexed
+            clipPath(b.ring) {
+                clipOutsideBubbles(bubbles, i + 1) {
+                    drawFilterGlow(c, ph)
+                    // 거품 안 = 포털 성운(퍼지는 동안 짙게, 화면을 다 지나간 뒤 은은한 필터 빛으로 가라앉는다)
+                    if (b.portal > 0.01f) drawPortal(c, b)
                 }
-                f.outsideTint?.let { c -> clipPath(ring, ClipOp.Difference) { drawFilterGlow(c, ph) } }
             }
         }
     }
+}
+
+/** [from] 번째부터의 거품들(더 새 거품들) **바깥**만 남기고 [block] 을 그린다. */
+private fun DrawScope.clipOutsideBubbles(bubbles: List<WaveBubble>, from: Int, block: DrawScope.() -> Unit) {
+    if (from >= bubbles.size) block()
+    else clipPath(bubbles[from].ring, ClipOp.Difference) { clipOutsideBubbles(bubbles, from + 1, block) }
 }
 
 /** 필터 빛 한 장 — 아래에서 차오르는 빛 + 위쪽 맞빛 + 화면 둘레를 도는 빛 덩이. */
@@ -351,22 +350,10 @@ private fun DrawScope.drawFilterGlow(color: Color, ph: Float) {
     )
 }
 
-/** 포털 성운 — 짙은 남보라 바탕 + 구름 얼룩·어두운 반점·청록 빛줄기 + 잔별. 세기는 [FilterWaveFrame.portal]. */
-private fun DrawScope.drawPortal(tint: Color, f: FilterWaveFrame) {
+/** 포털 성운 — 짙은 남보라 바탕 + 잔별. 세기는 [WaveBubble.portal]. (구름 얼룩 동그라미들은 2026-10-15 삭제) */
+private fun DrawScope.drawPortal(tint: Color, f: WaveBubble) {
     val k = f.portal
     drawRect(portalDeep(tint).copy(alpha = 0.30f * k))
-    f.blobs.forEach { b ->
-        if (b.radiusPx < 1f) return@forEach
-        val c = Offset(b.x, b.y)
-        drawCircle(
-            brush = Brush.radialGradient(
-                0f to b.color.copy(alpha = b.color.alpha * k),
-                1f to b.color.copy(alpha = 0f),
-                center = c, radius = b.radiusPx,
-            ),
-            radius = b.radiusPx, center = c,
-        )
-    }
     val star = lerp(tint, Color.White, 0.75f)
     f.sparks.forEach { s -> drawCircle(star.copy(alpha = s.alpha * k), s.radiusPx, Offset(s.x, s.y)) }
 }

@@ -8,11 +8,14 @@ import UIKit
 // 필터 전환 "빛의 고리"(포털) 등장 — Android DiaryMap 의 revealKey 연출 패리티
 // (2026-10-14, 레퍼런스: references/filtering.mp4 + 리그 오브 레전드 "창공 파이크" 펜타킬).
 //  · 내 위치에 검은 구체가 생기고, 거기서 **울퉁불퉁 출렁이는 거품(포털)**이 지도 위로 퍼진다. 거품 안쪽은 필터 색의 성운
-//    (구름 얼룩·어두운 반점·잔별)이 되어 화면 전체를 덮었다가 은은한 필터 빛으로 가라앉는다. 테두리는 안쪽으로 번지는 빛 + 얇은 선.
+//    (짙은 바탕·잔별)이 되어 화면 전체를 덮었다가 은은한 필터 빛으로 가라앉는다. 테두리는 안쪽으로 번지는 빛 + 얇은 선.
+//  · 필터를 연속으로 바꾸면 거품이 **여러 개 함께** 퍼진다(2026-10-15). 각 자리 = 그 자리를 덮은 가장 새 거품의 색
+//    (두 거품 사이 = 앞서가는 이전 필터 색, 가장 안쪽 = 새 필터 색). 새 거품이 따라잡으면 이전 거품은 삼켜져 사라진다.
 //  · 매 프레임 지도 위 거품(대권 기준, 크기 제한 없음)을 화면에 투영 → 연출 중 지도를 움직여도 지도에 붙어 함께 움직인다.
 //  · 링이 닿는 별은 차임과 함께 잠깐 커지고 밝아졌다 제자리로(화면 밖 별도 소리). **링은 별과 관계없이 지금 보고 있는 화면 전체를
 //    지나갈 때까지 멈추지 않는다.**
-//  · 필터 빛·포털 성운·검은 구체는 `FilterWaveState` 로 SwiftUI 오버레이(FilterGlowOverlay)가 그린다. 테두리 선만 지도 레이어.
+//  · 필터 빛·포털 성운·테두리·검은 구체는 `FilterWaveState` 로 SwiftUI 오버레이(FilterGlowOverlay)가 그린다
+//    (테두리도 거기서 그려야 새 거품에 덮인 이전 테두리를 가릴 수 있다 — 예전엔 지도 레이어였다).
 // 크기 팝은 어노테이션 뷰의 transform(줌 배율이 쓰는 자리)을 건드리지 않도록 layer.sublayerTransform 으로 준다.
 // 수치는 Android DiaryMapMarkers REVEAL_* 와 동일(값 drift 금지).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,22 +117,14 @@ struct RingWobble {
 }
 
 /// 포털 성운의 고정 배치(연출마다 무작위) — 지도 위 위치를 "내 위치에서 방위·거리(× sweep)"로 들고 매 프레임 투영한다.
+/// (거품 안의 큰 동그라미들 — 구름 얼룩·어두운 반점·청록 빛 덩이 — 은 2026-10-15 삭제. 잔별만 남았다.)
 /// Android `PortalLayout`(FilterGlow.kt)과 같은 개수·범위.
 struct PortalLayout {
-    /// 구름 얼룩 — kind: 0 = 필터색 짙게, 1 = 필터색 옅게, 2 = 어두운 반점, 3 = 청록 빛줄기.
-    struct Blob { let bearing: Double; let dist: Double; let radius: Double; let kind: Int }
     struct Spark { let bearing: Double; let dist: Double; let size: CGFloat; let phase: Double; let speed: Double }
 
-    let blobs: [Blob]
     let sparks: [Spark]
 
     init() {
-        blobs = [0, 0, 0, 1, 1, 2, 2, 2, 3, 3].map { k in
-            Blob(bearing: Double.random(in: 0..<(2 * Double.pi)),
-                 dist: Double.random(in: 0..<1).squareRoot() * 1.25,
-                 radius: k == 3 ? 0.18 + Double.random(in: 0..<0.12) : 0.32 + Double.random(in: 0..<0.38),
-                 kind: k)
-        }
         sparks = (0..<StarRevealFx.portalSparks).map { _ in
             Spark(bearing: Double.random(in: 0..<(2 * Double.pi)),
                   dist: Double.random(in: 0..<1).squareRoot() * 1.35,
@@ -137,6 +132,26 @@ struct PortalLayout {
                   phase: Double.random(in: 0..<(2 * Double.pi)),
                   speed: 2 + Double.random(in: 0..<3))
         }
+    }
+}
+
+/// 퍼지고 있는 거품 하나 — 중심(내 위치)·화면을 쓰는 거리(m)·필터 색·출렁임·잔별 배치·출발 시각.
+/// 필터를 연속으로 바꾸면 여러 개가 함께 퍼진다(2026-10-15, Android `RevealRun`).
+final class RevealRun {
+    let center: CLLocationCoordinate2D
+    let sweep: Double
+    /// 거품 안 필터 빛 색(nil = 빛 없음, 필터를 모두 끈 경우).
+    let tintHex: UInt32?
+    let wobble = RingWobble()
+    let portal = PortalLayout()
+    var start: CFTimeInterval = 0
+    /// 링이 지금 화면을 다 지나간 시각(초, 출발 기준). −1 = 아직.
+    var passedAt: Double = -1
+
+    init(center: CLLocationCoordinate2D, sweep: Double, tintHex: UInt32?) {
+        self.center = center
+        self.sweep = sweep
+        self.tintHex = tintHex
     }
 }
 
@@ -154,18 +169,14 @@ extension MapLibreView.Coordinator {
         return true
     }
 
-    /// 등장 준비 — 링 중심(내 위치)·화면을 쓰는 거리를 정하고, **화면 안팎의 모든 별**마다 링이 닿는 시각을 정한다.
-    /// (뷰가 생기기 전에 호출해도 된다.)
+    /// 등장 준비 — 새 거품의 중심(내 위치)·화면을 쓰는 거리를 정하고, **화면 안팎의 모든 별**마다 링이 닿는 시각을 정한다.
+    /// (뷰가 생기기 전에 호출해도 된다.) 별은 마지막 필터 기준 — 이 (가장 새) 거품이 닿을 때 생긴다.
     func prepareStarReveal(_ annotations: [MLNAnnotation], mapView: MLNMapView) {
         let center = parent.userLocation ?? mapView.centerCoordinate
         let here = CLLocation(latitude: center.latitude, longitude: center.longitude)
         let sweep = revealSweepMeters(mapView, center: center)
-        let wobble = RingWobble()
-        revealCenter = center
-        revealSweepM = sweep
-        revealWobble = wobble
-        revealPortal = PortalLayout()
-        revealPassedAt = -1
+        let run = RevealRun(center: center, sweep: sweep, tintHex: parent.filterTintHex)
+        revealPending = run
 
         // 별마다 링이 닿는 시각 — 출렁이는 테두리가 그 별 방향에서 실제로 닿는 순간에 맞춘다(Android hitTimeOf 와 같은 보정).
         revealDelays = [:]
@@ -175,7 +186,7 @@ extension MapLibreView.Coordinator {
             let theta = StarRevealFx.theta(lat1: center.latitude, lng1: center.longitude,
                                            lat2: a.coordinate.latitude, lng2: a.coordinate.longitude)
             let base = StarRevealFx.hitTime(distance: d, sweep: sweep)
-            let w = wobble.at(theta, base)
+            let w = run.wobble.at(theta, base)
             revealDelays[id] = StarRevealFx.hitTime(distance: d / (1 + StarRevealFx.wobble * w), sweep: sweep)
         }
         revealSortedDelays = revealDelays.values.sorted()
@@ -183,34 +194,35 @@ extension MapLibreView.Coordinator {
         revealStart = CACurrentMediaTime()
     }
 
-    /// 등장 시작 — 링을 만들고, 프레임마다 링·별 뷰·필터 빛/포털을 맞춘다.
+    /// 등장 시작 — 새 거품을 띄우고, 프레임마다 거품들·별 뷰·필터 빛/포털을 맞춘다.
+    /// 이미 퍼지고 있는 거품이 있으면 **지우지 않고 함께 퍼지게** 둔다(예전엔 링을 처음부터 다시 그리며 이전 거품이 사라지고
+    /// 바깥 색이 아직 확정 전인 기본색으로 돌아갔다 — 2026-10-15).
     func startStarReveal(_ mapView: MLNMapView) {
         revealLink?.invalidate()
         revealStart = CACurrentMediaTime()
         MusicManager.shared.resetRevealChime()
 
-        // 필터 빛: 링 안쪽 = 새 색(+ 포털 성운), 바깥 = 지금까지의 색. 다 끝나면 새 색으로 확정(stopStarReveal).
+        // 필터 빛: 각 자리 = 그 자리를 덮은 가장 새 거품의 색, 어느 거품에도 안 덮인 자리 = 연속 전환 전의 확정 색.
         let wave = FilterWaveState.shared
-        if !wave.active { wave.outsideHex = wave.committedHex }
-        wave.insideHex = parent.filterTintHex
-        wave.ringHex = parent.filterTintHex ?? MapFilterKind.neutralHex
-        wave.portal = 0
-        wave.blobs = []
-        wave.sparks = []
-        wave.orb = nil
-        wave.ring = nil
+        if revealRuns.isEmpty { wave.baseHex = wave.committedHex }
+        if let run = revealPending {
+            run.start = revealStart
+            revealRuns.append(run)
+        }
+        revealPending = nil
         wave.active = true
 
-        buildRevealRing(mapView)
         applyRevealToVisibleViews(mapView)
+        updateRevealWaves(mapView, now: revealStart)
         let link = CADisplayLink(target: self, selector: #selector(revealTick(_:)))
         link.add(to: .main, forMode: .common)
         revealLink = link
     }
 
     @objc func revealTick(_ link: CADisplayLink) {
-        guard let mapView = mapRef, let center = revealCenter else { stopStarReveal(); return }
-        let elapsed = CACurrentMediaTime() - revealStart
+        guard let mapView = mapRef, let newest = revealRuns.last else { stopStarReveal(); return }
+        let now = CACurrentMediaTime()
+        let elapsed = now - revealStart
 
         // 링이 닿은 별: 차임(화면 밖 별도) · 후광(CircleLayer) 켜기 · 화면 안이면 그 자리에 발광.
         let hit = revealHidden.filter { (revealDelays[$0] ?? 0) <= elapsed }
@@ -225,42 +237,32 @@ extension MapLibreView.Coordinator {
         }
         applyRevealToVisibleViews(mapView)
 
-        // 링은 **별과 관계없이** 지금 보고 있는 화면을 다 지나갈 때까지 계속 퍼진다(연출 중 지도를 옮기거나 넓게 보면
-        // 그 화면을 다 지나갈 때까지). 크기 제한도 없다(대권 기준).
-        let radius = StarRevealFx.radius(at: elapsed, sweep: revealSweepM)
-        if revealPassedAt < 0 {
-            let passed = radius * (1 - StarRevealFx.wobble) >= revealSweepMeters(mapView, center: center)
-            if passed || elapsed >= StarRevealFx.ringMaxTime { revealPassedAt = elapsed }
-        }
-        let ringAlpha = revealPassedAt < 0 ? 1 : min(max(1 - (elapsed - revealPassedAt) / StarRevealFx.ringFade, 0), 1)
-        updateRevealRing(mapView, elapsed: elapsed, radius: radius, alpha: Float(ringAlpha))
-        updatePortal(mapView, elapsed: elapsed, center: center)
+        // 거품들(이전 거품 포함) — 화면 통과 판정·삼켜진 거품 정리도 여기서 한다.
+        updateRevealWaves(mapView, now: now)
 
+        // 끝: 가장 새 거품이 화면을 다 지나가고 + 포털이 가라앉고 + 모든 별(화면 밖 포함)에 닿아 생겼을 때.
+        let e = now - newest.start
         let lastHit = revealSortedDelays.last ?? 0
-        if revealPassedAt >= 0,
-           elapsed >= revealPassedAt + max(StarRevealFx.ringFade, StarRevealFx.portalDecay),
+        if newest.passedAt >= 0,
+           e >= newest.passedAt + max(StarRevealFx.ringFade, StarRevealFx.portalDecay),
            elapsed >= lastHit + StarRevealFx.pop {
             stopStarReveal()
         }
     }
 
-    /// 등장 종료 — 모든 별을 제자리(불투명·원래 크기)로, 링은 걷어내고 필터 빛을 새 색으로 확정한다.
+    /// 등장 종료 — 모든 별을 제자리(불투명·원래 크기)로, 거품들은 걷어내고 필터 빛을 마지막 필터 색으로 확정한다.
     func stopStarReveal() {
         revealLink?.invalidate()
         revealLink = nil
         revealDelays = [:]
         revealSortedDelays = []
-        revealRingLayer?.removeFromSuperlayer()
-        revealRingLayer = nil
-        revealRingParts = []
+        let finalHex = revealRuns.last?.tintHex ?? parent.filterTintHex
+        revealRuns = []
+        revealPending = nil
         let wave = FilterWaveState.shared
         if wave.active {
-            wave.committedHex = wave.insideHex
-            wave.portal = 0
-            wave.blobs = []
-            wave.sparks = []
-            wave.orb = nil
-            wave.ring = nil
+            wave.committedHex = finalHex
+            wave.bubbles = []
             wave.active = false
         }
         let hadHidden = !revealHidden.isEmpty
@@ -298,46 +300,6 @@ extension MapLibreView.Coordinator {
 
     // MARK: 빛의 고리(포털)
 
-    /// 테두리 레이어(지도 뷰 레이어 위) — 안쪽으로만 번지는 빛 2겹(거품 모양 마스크) + 얇은 경계선. 모양은 매 프레임 updateRevealRing.
-    private func buildRevealRing(_ mapView: MLNMapView) {
-        revealRingLayer?.removeFromSuperlayer()
-        let color = UIColor(rgbHex: parent.filterTintHex ?? MapFilterKind.neutralHex)
-        let rim = color.mixedWithWhite(0.5)
-        let host = CALayer()
-        host.frame = mapView.bounds
-
-        let glowWide = CAShapeLayer()
-        glowWide.fillColor = nil
-        glowWide.strokeColor = rim.withAlphaComponent(0.10).cgColor
-        glowWide.lineWidth = StarRevealFx.rimGlow * 2
-        glowWide.lineJoin = .round
-        let glowNarrow = CAShapeLayer()
-        glowNarrow.fillColor = nil
-        glowNarrow.strokeColor = rim.withAlphaComponent(0.22).cgColor
-        glowNarrow.lineWidth = StarRevealFx.rimGlow * 0.7
-        glowNarrow.lineJoin = .round
-        let glowHost = CALayer()          // 두 번짐을 거품 안쪽만 남긴다(바깥은 깨끗하게)
-        let glowMask = CAShapeLayer()
-        glowMask.fillColor = UIColor.black.cgColor
-        glowHost.mask = glowMask
-
-        let line = CAShapeLayer()
-        line.fillColor = nil
-        line.strokeColor = color.mixedWithWhite(0.6).withAlphaComponent(0.92).cgColor
-        line.lineWidth = StarRevealFx.ringStroke
-        line.lineJoin = .round
-
-        glowHost.addSublayer(glowWide)
-        glowHost.addSublayer(glowNarrow)
-        host.addSublayer(glowHost)
-        host.addSublayer(line)
-        for l in [glowHost, glowMask, glowWide, glowNarrow, line] as [CALayer] { l.frame = host.bounds }
-        mapView.layer.addSublayer(host)
-        revealRingLayer = host
-        revealRingGlowHost = glowHost
-        revealRingParts = [glowMask, glowWide, glowNarrow, line]
-    }
-
     /// 링이 화면을 다 덮는 데 필요한 거리(m) = center 에서 화면 네 모서리(지도 좌표)까지 거리 중 최댓값(Android revealSweepMeters).
     private func revealSweepMeters(_ mapView: MLNMapView, center: CLLocationCoordinate2D) -> Double {
         let here = CLLocation(latitude: center.latitude, longitude: center.longitude)
@@ -357,17 +319,16 @@ extension MapLibreView.Coordinator {
         return mapView.convert(CLLocationCoordinate2D(latitude: min(max(ll.lat, -85), 85), longitude: ll.lng), toPointTo: mapView)
     }
 
-    /// 지도 위 출렁이는 거품 테두리(내 위치 중심, 대권, 크기 제한 없음)를 지금 카메라로 화면에 투영해 테두리·필터 빛 경계를 맞춘다.
-    private func updateRevealRing(_ mapView: MLNMapView, elapsed: Double, radius: Double, alpha: Float) {
-        guard let center = revealCenter, let host = revealRingLayer else { return }
-        let wobble = revealWobble ?? RingWobble()
+    /// 지도 위 출렁이는 거품 테두리(중심, 대권, 크기 제한 없음)를 지금 카메라로 화면에 투영한 꼭짓점.
+    private func ringPoints(_ mapView: MLNMapView, run: RevealRun, elapsed: Double, radius: Double) -> [CGPoint] {
+        let center = run.center
         let r = max(radius, 0.5)
         var points: [CGPoint] = []
         points.reserveCapacity(StarRevealFx.ringSegments)
         var prevLng = Double.nan
         for i in 0..<StarRevealFx.ringSegments {
             let a = 2 * Double.pi * Double(i) / Double(StarRevealFx.ringSegments)
-            let ra = r * (1 + StarRevealFx.wobble * wobble.at(a, elapsed))
+            let ra = r * (1 + StarRevealFx.wobble * run.wobble.at(a, elapsed))
             let ll = StarRevealFx.destination(lat: center.latitude, lng: center.longitude, bearing: .pi / 2 - a, distance: ra)
             // 경도가 ±180 을 넘나들 때 선이 화면을 가로지르지 않게 이어 붙인다
             var lng = ll.lng
@@ -379,68 +340,88 @@ extension MapLibreView.Coordinator {
             let coord = CLLocationCoordinate2D(latitude: min(max(ll.lat, -85), 85), longitude: lng)
             points.append(mapView.convert(coord, toPointTo: mapView))
         }
-        let path = CGMutablePath()
-        path.addLines(between: points)
-        path.closeSubpath()
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true) // 매 프레임 직접 그린다(암시적 애니메이션 끔)
-        host.frame = mapView.bounds
-        host.opacity = alpha
-        revealRingGlowHost?.frame = host.bounds
-        for part in revealRingParts {
-            part.frame = host.bounds
-            part.path = path
-        }
-        CATransaction.commit()
-
-        // 필터 빛·포털 경계(SwiftUI FilterGlowOverlay) — 지도 뷰와 같은 좌표계(둘 다 전체 화면, 안전 영역 무시).
-        FilterWaveState.shared.ring = points
+        return points
     }
 
-    /// 포털 성운(구름·잔별)·검은 구체를 지금 카메라 화면 좌표로 계산해 FilterWaveState 에 넘긴다(그리기는 SwiftUI).
-    private func updatePortal(_ mapView: MLNMapView, elapsed: Double, center: CLLocationCoordinate2D) {
+    /// 함께 퍼지는 거품들의 한 프레임을 계산해 FilterWaveState 에 넘긴다(그리기는 SwiftUI FilterGlowOverlay). Android `revealWavesFrame`.
+    ///  · 화면을 다 지나간 거품이 생기면 그보다 오래된 거품은 화면에 더는 안 보이므로 지우고, 바깥 색을 그 거품 색으로 넘긴다.
+    ///  · 새 거품이 이전 거품을 **완전히 삼키면**(줌아웃 뒤 켠 거품은 더 빨라 따라잡는다) 이전 거품을 지운다.
+    ///    덮인 부분은 그 전에도 그리기에서 가려지므로 삼켜지듯 자연스럽게 사라진다.
+    private func updateRevealWaves(_ mapView: MLNMapView, now: CFTimeInterval) {
         let wave = FilterWaveState.shared
-        let portal: Double
-        if wave.insideHex == nil {
-            portal = 0
-        } else if revealPassedAt < 0 {
-            portal = 1
-        } else {
-            let x = min(max((elapsed - revealPassedAt) / StarRevealFx.portalDecay, 0), 1)
-            portal = 1 - (x < 0.5 ? 2 * x * x : 1 - pow(-2 * x + 2, 2) / 2)
-        }
-        wave.portal = portal
-
-        var blobs: [FilterWaveState.Blob] = []
-        var sparks: [FilterWaveState.Spark] = []
-        if portal > 0.01, let layout = revealPortal {
-            let mpp = max(mapView.metersPerPoint(atLatitude: center.latitude), 1e-6)
-            let b = mapView.bounds
-            for blob in layout.blobs {
-                let p = screenPoint(mapView, center: center, bearing: blob.bearing, distance: blob.dist * revealSweepM)
-                blobs.append(.init(point: p, radius: CGFloat(blob.radius * revealSweepM / mpp), kind: blob.kind))
-            }
-            for s in layout.sparks {
-                let p = screenPoint(mapView, center: center, bearing: s.bearing, distance: s.dist * revealSweepM)
-                guard b.insetBy(dx: -4, dy: -4).contains(p) else { continue }
-                let tw = 0.35 + 0.65 * abs(sin(elapsed * s.speed + s.phase))
-                sparks.append(.init(point: p, radius: s.size, alpha: 0.8 * tw))
+        // 1) 화면 통과 판정 — 링은 별과 관계없이 지금 보고 있는 화면을 다 지나갈 때까지 퍼진다.
+        for r in revealRuns where r.passedAt < 0 {
+            let e = now - r.start
+            let radius = StarRevealFx.radius(at: e, sweep: r.sweep)
+            if radius * (1 - StarRevealFx.wobble) >= revealSweepMeters(mapView, center: r.center) || e >= StarRevealFx.ringMaxTime {
+                r.passedAt = e
             }
         }
-        wave.blobs = blobs
-        wave.sparks = sparks
-
-        // 시작점의 검은 구체 — 툭 생겼다가(0.15초) 거품이 터져 나오며 커지면서 사라진다.
-        if elapsed < StarRevealFx.orbTime {
-            let c = mapView.convert(center, toPointTo: mapView)
-            let grow = min(elapsed / 0.15, 1)
-            let fade = min(max((elapsed - 0.15) / (StarRevealFx.orbTime - 0.15), 0), 1)
-            let r = StarRevealFx.orbRadius * CGFloat((0.15 + 0.85 * (1 - (1 - grow) * (1 - grow))) * (1 + 0.3 * fade)) // 0 에서 시작하지 않는다(Android 와 같음)
-            wave.orb = .init(point: c, radius: r, alpha: 1 - fade)
-        } else {
-            wave.orb = nil
+        // 2) 화면을 다 덮은 가장 새 거품보다 오래된 거품은 지운다(화면 밖 = 이제 그 거품 색).
+        if let lastPassed = revealRuns.lastIndex(where: { $0.passedAt >= 0 }) {
+            revealRuns.removeFirst(lastPassed)
+            wave.baseHex = revealRuns[0].tintHex
         }
+        // 3) 새 거품에 완전히 삼켜진 이전 거품은 지운다(출렁임 최대·최소까지 감안해 확실히 안쪽일 때만).
+        if revealRuns.count > 1 {
+            let runs = revealRuns
+            let radii = runs.map { StarRevealFx.radius(at: now - $0.start, sweep: $0.sweep) }
+            var keep: [RevealRun] = []
+            for i in runs.indices {
+                let ci = CLLocation(latitude: runs[i].center.latitude, longitude: runs[i].center.longitude)
+                let swallowed = ((i + 1)..<runs.count).contains { j in
+                    let gap = ci.distance(from: CLLocation(latitude: runs[j].center.latitude, longitude: runs[j].center.longitude))
+                    return gap + radii[i] * (1 + StarRevealFx.wobble) <= radii[j] * (1 - StarRevealFx.wobble)
+                }
+                if !swallowed { keep.append(runs[i]) }
+            }
+            revealRuns = keep
+        }
+
+        let b = mapView.bounds
+        let bubbles: [FilterWaveState.Bubble] = revealRuns.map { r in
+            let e = now - r.start
+            let radius = StarRevealFx.radius(at: e, sweep: r.sweep)
+            let ringAlpha = r.passedAt < 0 ? 1 : min(max(1 - (e - r.passedAt) / StarRevealFx.ringFade, 0), 1)
+            // 포털 성운 세기 — 퍼지는 동안 1, 화면을 다 지나간 뒤 은은한 필터 빛으로 가라앉는다.
+            let portal: Double
+            if r.tintHex == nil {
+                portal = 0
+            } else if r.passedAt < 0 {
+                portal = 1
+            } else {
+                let x = min(max((e - r.passedAt) / StarRevealFx.portalDecay, 0), 1)
+                portal = 1 - (x < 0.5 ? 2 * x * x : 1 - pow(-2 * x + 2, 2) / 2)
+            }
+            // 성운 잔별(지도 위 위치를 투영 — 지도와 함께 움직인다)
+            var sparks: [FilterWaveState.Spark] = []
+            if portal > 0.01 {
+                for s in r.portal.sparks {
+                    let p = screenPoint(mapView, center: r.center, bearing: s.bearing, distance: s.dist * r.sweep)
+                    guard b.insetBy(dx: -4, dy: -4).contains(p) else { continue }
+                    let tw = 0.35 + 0.65 * abs(sin(e * s.speed + s.phase))
+                    sparks.append(.init(point: p, radius: s.size, alpha: 0.8 * tw))
+                }
+            }
+            // 시작점의 검은 구체 — 툭 생겼다가(0.15초) 거품이 터져 나오며 커지면서 사라진다.
+            var orb: FilterWaveState.Orb?
+            if e < StarRevealFx.orbTime {
+                let c = mapView.convert(r.center, toPointTo: mapView)
+                let grow = min(e / 0.15, 1)
+                let fade = min(max((e - 0.15) / (StarRevealFx.orbTime - 0.15), 0), 1)
+                let rr = StarRevealFx.orbRadius * CGFloat((0.15 + 0.85 * (1 - (1 - grow) * (1 - grow))) * (1 + 0.3 * fade)) // 0 에서 시작하지 않는다(Android 와 같음)
+                orb = .init(point: c, radius: rr, alpha: 1 - fade)
+            }
+            return .init(ring: ringPoints(mapView, run: r, elapsed: e, radius: radius),
+                         ringAlpha: ringAlpha,
+                         ringHex: r.tintHex ?? MapFilterKind.neutralHex,
+                         tintHex: r.tintHex,
+                         portal: portal,
+                         sparks: sparks,
+                         orb: orb)
+        }
+        // 필터 빛·포털·테두리 경계(SwiftUI FilterGlowOverlay) — 지도 뷰와 같은 좌표계(둘 다 전체 화면, 안전 영역 무시).
+        wave.bubbles = bubbles
     }
 
     /// 링이 닿은 별 자리의 발광 — 흰 심 + 별 색 번짐이 확 밝아졌다가 꺼진다(Android WaveFlash / revealFlash 패리티).

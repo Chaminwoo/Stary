@@ -436,19 +436,10 @@ struct MapLibreView: UIViewRepresentable {
         var revealLink: CADisplayLink?
         /// 아직 떠오르지 않은 별 — 후광(CircleLayer)도 이 별들은 빼고 그린다.
         var revealHidden: Set<String> = []
-        /// 퍼지고 있는 빛의 고리(지도 뷰 레이어 위) — 등장이 끝나면 걷어낸다.
-        var revealRingLayer: CALayer?
-        /// 링 부품(번짐 마스크·번짐 2겹·경계선) — 매 프레임 같은 경로로 갈아 끼운다.
-        var revealRingParts: [CAShapeLayer] = []
-        /// 이번 링의 출렁임 모양 / 포털 성운 배치 / 링이 지금 화면을 다 지나간 시각(초, −1 = 아직).
-        var revealWobble: RingWobble?
-        var revealPortal: PortalLayout?
-        var revealPassedAt: Double = -1
-        /// 테두리 안쪽 번짐 2겹을 담는 레이어(거품 모양 마스크).
-        var revealRingGlowHost: CALayer?
-        /// 링 중심(내 위치)과 화면을 쓰는 거리(m) — 링이 닿는 시각·반지름 계산 기준(MapStarReveal).
-        var revealCenter: CLLocationCoordinate2D?
-        var revealSweepM: Double = 30
+        /// 함께 퍼지고 있는 거품들(오래된 것 → 새 것) — 필터를 연속으로 바꿔도 이전 거품은 계속 퍼진다(MapStarReveal).
+        var revealRuns: [RevealRun] = []
+        /// prepareStarReveal 이 만든 다음 거품 — startStarReveal 에서 출발한다.
+        var revealPending: RevealRun?
 
         /// 마지막 세계 빈 공간 경계.
         var lastVoid: (

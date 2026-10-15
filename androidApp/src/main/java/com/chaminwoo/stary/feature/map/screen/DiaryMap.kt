@@ -239,6 +239,8 @@ fun DiaryMap(
     // 필터 전환 등장 계획 — 별 배치 effect 는 계획만 세우고, 재생은 아래 별도 effect 가 한다.
     // (예전엔 배치 effect 안에서 재생해서, GPS 갱신·카메라 멈춤으로 그 effect 가 재시작되면 링이 사라지고 별이 연출 없이 튀었다 — 2026-10-14)
     val revealPlanHolder = remember { mutableStateOf<RevealPlan?>(null) }
+    // 함께 퍼지고 있는 거품들 — 필터를 연속으로 바꿔도 이전 거품이 사라지지 않고 계속 퍼지게, 재생 effect 밖에 둔다.
+    val revealWaves = remember { RevealWaves() }
     // 배치 effect 가 계산한 최신 대표 별(+근접 여부·크기) — 재생 루프가 매 프레임 읽는다(재생 중 데이터가 바뀌어도 반영).
     val revealStars = remember { mutableStateOf<List<RevealStar>>(emptyList()) }
     // 재생이 끝나면 +1 → 배치 effect 가 다시 돌아 정착(위성 페이드 인 등)을 마무리한다.
@@ -994,7 +996,6 @@ fun DiaryMap(
             revealPlanHolder.value = RevealPlan(
                 center = center,
                 sweepM = revealSweepMeters(map, mapView.width.toFloat(), mapView.height.toFloat(), center),
-                fromTint = glowTint,
                 toTint = filterTintRef.value,
                 oldStars = lastShown.toList(),
             )
@@ -1068,6 +1069,9 @@ fun DiaryMap(
     // **지도 위 내 위치**에서 링이 퍼진다(매 프레임 지도 원을 화면에 투영 → 연출 중 지도를 움직여도 링이 지도에 붙어 있다).
     // 별마다 "내 위치까지 거리"로 링이 닿는 시각을 정하므로 **화면 밖 별도** 링이 닿으면 차임이 울린다.
     // 이 effect 는 계획(revealPlanHolder)이 바뀔 때만 재시작된다 — 위치 갱신·카메라 멈춤과 무관하게 끝까지 재생.
+    // 필터를 연속으로 바꾸면(2026-10-15) 이전 거품은 [revealWaves] 에 남아 **계속 퍼지고**, 새 거품이 내 위치에서 함께 출발한다.
+    // 각 자리의 색 = 그 자리를 덮은 가장 새 거품의 색(두 거품 사이 = 앞서가는 이전 필터 색, 가장 안쪽 = 새 필터 색).
+    // 별은 마지막 필터 기준 — 가장 새 거품이 닿을 때 생긴다.
     LaunchedEffect(revealPlanHolder.value) {
         val plan = revealPlanHolder.value ?: return@LaunchedEffect
         try {
@@ -1080,11 +1084,19 @@ fun DiaryMap(
                 lastShown.clear()
                 lastShown.addAll(stars)
             }
+            fun drawWaves(now: Long, flashes: List<WaveFlash>) {
+                filterWave.value = revealWavesFrame(
+                    map, revealWaves, now, mapView.width.toFloat(), mapView.height.toFloat(), screenDensity, flashes,
+                )
+            }
+            // 퍼지는 거품이 없을 때 시작하면 바깥 색 = 지금 확정된 필터 빛. 이미 퍼지는 중이면 바깥 색은 그대로 둔다
+            // (예전엔 확정 색 = 아직 기본색으로 다시 시작해 이전 거품이 사라지고 기본색으로 돌아갔다).
+            if (revealWaves.runs.isEmpty()) revealWaves.base = glowTint
 
             orbitFade.snapTo(0f)
             orbitSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
 
-            // 1) 이전 필터의 별을 짧게 걷어낸다(필터 빛은 아직 이전 색 그대로).
+            // 1) 이전 필터의 별을 짧게 걷어낸다(이미 퍼지고 있는 거품들은 그대로 계속 퍼진다).
             if (plan.oldStars.isNotEmpty()) {
                 var clearStart = 0L
                 do {
@@ -1093,13 +1105,12 @@ fun DiaryMap(
                     val ms = (now - clearStart) / 1_000_000L
                     val k = (1f - ms.toFloat() / REVEAL_CLEAR_MS).coerceIn(0f, 1f)
                     emit(plan.oldStars.map { it.copy(alpha = it.alpha * k) })
-                    filterWave.value = FilterWaveFrame(null, 0f, Color.Transparent, plan.toTint, plan.fromTint, emptyList())
+                    drawWaves(now, emptyList())
                 } while (ms < REVEAL_CLEAR_MS)
             }
 
-            // 2) 빛의 고리(포털)
+            // 2) 빛의 고리(포털) — 새 거품을 띄운다
             com.chaminwoo.stary.core.util.MusicManager.resetRevealChime()
-            val ringColor = plan.toTint ?: FILTER_WAVE_NEUTRAL
             // 별마다 링이 닿는 시각(ms) — 출렁이는 테두리가 그 별 방향에서 실제로 닿는 순간에 맞춘다.
             val hitAt = HashMap<String, Long>()
             fun hitTimeOf(d: Diary): Long = hitAt.getOrPut(d.id) {
@@ -1113,16 +1124,12 @@ fun DiaryMap(
                 revealHitMs(dist / (1 + REVEAL_RING_WOBBLE * w), plan.sweepM)
             }
             val chimed = HashSet<String>()
-            // 링이 지금 화면을 다 지나간 시각(ms) — 별과 관계없이 이것만으로 링이 끝난다. 그 뒤 포털이 가라앉는다.
-            var passedAt = -1L
             val flashMinPx = REVEAL_FLASH_MIN_DP * screenDensity
-            val orbRadiusPx = REVEAL_ORB_DP * screenDensity
-            var startNanos = 0L
+            var run: RevealRun? = null
             while (true) {
                 val now = withFrameNanos { it }
-                if (startNanos == 0L) startNanos = now
-                val ms = (now - startNanos) / 1_000_000L
-                val tSec = ms / 1000.0
+                val r = run ?: RevealRun(plan, now).also { run = it; revealWaves.runs.add(it) }
+                val ms = r.ms(now)
                 val stars = revealStars.value
                 // 지금 줌의 별 반지름(px) = 비트맵 절반 × 본체 비율(0.78) × iconSize — 발광 크기를 별 크기에 맞춘다(연출 중 줌해도 따라감).
                 val starRadiusBase = MARKER_SIDE_PX * 0.5f * 0.78f * starZoomMult(map.cameraPosition.zoom)
@@ -1144,11 +1151,11 @@ fun DiaryMap(
                         if (glow > 0.01f) {
                             val p = map.projection.toScreenLocation(MlLatLng(d.latitude, d.longitude))
                             val starRadius = starRadiusBase * s.size * (if (s.near) STAR_SIZE_NEAR else STAR_SIZE_FAR)
-                            val r = maxOf(flashMinPx, starRadius * REVEAL_FLASH_SCALE) * (0.7f + 0.3f * glow)
-                            if (p.x > -r && p.x < viewW + r && p.y > -r && p.y < viewH + r) {
+                            val rr = maxOf(flashMinPx, starRadius * REVEAL_FLASH_SCALE) * (0.7f + 0.3f * glow)
+                            if (p.x > -rr && p.x < viewW + rr && p.y > -rr && p.y < viewH + rr) {
                                 flashes.add(
                                     WaveFlash(
-                                        x = p.x, y = p.y, radiusPx = r, intensity = glow,
+                                        x = p.x, y = p.y, radiusPx = rr, intensity = glow,
                                         color = StarStyle.colorOf(d.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1)),
                                     )
                                 )
@@ -1162,73 +1169,20 @@ fun DiaryMap(
                     }
                 }
                 emit(shown)
+                // 거품들(이전 거품 포함) — 화면 통과 판정·삼켜진 거품 정리도 여기서 한다.
+                drawWaves(now, flashes)
 
-                // 링은 **별과 관계없이** 지금 보고 있는 화면을 다 지나갈 때까지 계속 퍼진다(연출 중 지도를 옮기거나 넓게 보면
-                // 그 화면을 다 지나갈 때까지). 크기 제한도 없다(대권 기준 — 지구 반대편까지).
-                val radius = revealRadiusM(ms.toDouble(), plan.sweepM)
-                if (passedAt < 0) {
-                    val passed = radius * (1 - REVEAL_RING_WOBBLE) >= revealSweepMeters(map, viewW, viewH, plan.center)
-                    if (passed || ms >= REVEAL_RING_MAX_MS) passedAt = ms
-                }
-                val ringAlpha = if (passedAt < 0) 1f
-                else (1f - (ms - passedAt).toFloat() / REVEAL_RING_FADE_MS).coerceIn(0f, 1f)
-                // 포털 성운 세기 — 퍼지는 동안 1, 화면을 다 지나간 뒤 은은한 필터 빛으로 가라앉는다.
-                val portal = if (plan.toTint == null) 0f
-                else if (passedAt < 0) 1f
-                else 1f - FastOutSlowInEasing.transform(((ms - passedAt).toFloat() / REVEAL_PORTAL_DECAY_MS).coerceIn(0f, 1f))
-
-                // 성운 구름·잔별(지도 위 위치를 투영 — 지도와 함께 움직인다)
-                val blobs = ArrayList<PortalBlob>()
-                val sparks = ArrayList<PortalSpark>()
-                val tint = plan.toTint
-                if (tint != null && portal > 0.01f) {
-                    val mpp = map.projection.getMetersPerPixelAtLatitude(plan.center.latitude).coerceAtLeast(1e-6)
-                    for (b in plan.portal.blobs) {
-                        val pt = geoToScreen(map, plan.center, b.bearing, b.dist * plan.sweepM)
-                        blobs.add(PortalBlob(pt.x, pt.y, (b.radius * plan.sweepM / mpp).toFloat(), portalBlobColor(b.kind, tint)))
-                    }
-                    for (sp in plan.portal.sparks) {
-                        val pt = geoToScreen(map, plan.center, sp.bearing, sp.dist * plan.sweepM)
-                        if (pt.x < -4f || pt.x > viewW + 4f || pt.y < -4f || pt.y > viewH + 4f) continue
-                        val tw = 0.35f + 0.65f * kotlin.math.abs(kotlin.math.sin(tSec * sp.speed + sp.phase)).toFloat()
-                        sparks.add(PortalSpark(pt.x, pt.y, sp.sizeDp * screenDensity, 0.8f * tw))
-                    }
-                }
-                // 시작점의 검은 구체 — 툭 생겼다가(150ms) 거품이 터져 나오며 커지면서 사라진다.
-                val orb = if (ms < REVEAL_ORB_MS) {
-                    val c = map.projection.toScreenLocation(MlLatLng(plan.center.latitude, plan.center.longitude))
-                    val grow = (ms / 150f).coerceAtMost(1f)
-                    val fade = ((ms - 150f) / (REVEAL_ORB_MS - 150f)).coerceIn(0f, 1f)
-                    PortalOrb(
-                        c.x, c.y,
-                        // 0 에서 시작하지 않는다(반지름 0 그라데이션은 앱을 죽인다 — FilterWaveOverlay 주석 참고)
-                        radiusPx = orbRadiusPx * (0.15f + 0.85f * (1f - (1f - grow) * (1f - grow))) * (1f + 0.3f * fade),
-                        alpha = 1f - fade,
-                        rimColor = lerp(ringColor, Color.White, 0.3f),
-                    )
-                } else null
-
-                filterWave.value = FilterWaveFrame(
-                    ring = ringScreenPath(map, plan.center, radius, plan.wobble, tSec),
-                    ringAlpha = ringAlpha,
-                    ringColor = ringColor,
-                    insideTint = plan.toTint,
-                    outsideTint = plan.fromTint,
-                    flashes = flashes,
-                    portal = portal,
-                    blobs = blobs,
-                    sparks = sparks,
-                    orb = orb,
-                )
-                // 끝: 링이 화면을 다 지나가고 + 포털이 가라앉고 + 모든 별(화면 밖 포함)에 닿아 생겼을 때.
-                if (passedAt >= 0 &&
-                    ms >= passedAt + maxOf(REVEAL_RING_FADE_MS, REVEAL_PORTAL_DECAY_MS) &&
+                // 끝: 이 (가장 새) 거품이 화면을 다 지나가고 + 포털이 가라앉고 + 모든 별(화면 밖 포함)에 닿아 생겼을 때.
+                // 화면을 다 지나간 순간 이전 거품들은 이미 지워졌다(revealWavesFrame).
+                if (r.passedAt >= 0 &&
+                    ms >= r.passedAt + maxOf(REVEAL_RING_FADE_MS, REVEAL_PORTAL_DECAY_MS) &&
                     ms >= lastHit + REVEAL_POP_MS
                 ) break
             }
         } finally {
-            // 새 계획으로 바뀌어 끊긴 경우엔 새 재생이 이어받는다(여기서 지우면 새 링이 사라진다).
+            // 새 계획으로 바뀌어 끊긴 경우엔 새 재생이 이어받는다(여기서 지우면 퍼지던 거품들이 사라진다).
             if (revealPlanHolder.value === plan) {
+                revealWaves.runs.clear()
                 filterWave.value = null
                 glowTint = plan.toTint
                 revealPlanHolder.value = null
@@ -1621,11 +1575,10 @@ fun DiaryMap(
     }
 }
 
-/** 필터 전환 등장 계획 — 링 중심(내 위치)·화면을 쓰는 거리(m)·필터 빛 이전/새 색·걷어낼 이전 별·구불거림. */
+/** 필터 전환 등장 계획 — 링 중심(내 위치)·화면을 쓰는 거리(m)·새 필터 빛 색·걷어낼 이전 별·구불거림. */
 private class RevealPlan(
     val center: LatLng,
     val sweepM: Double,
-    val fromTint: Color?,
     val toTint: Color?,
     val oldStars: List<ShownStar>,
     /** 이번 링의 출렁임 모양(연출마다 다르게). */
@@ -1633,6 +1586,118 @@ private class RevealPlan(
     /** 이번 포털 성운의 구름·잔별 배치(연출마다 다르게). */
     val portal: PortalLayout = PortalLayout(kotlin.random.Random.nextInt()),
 )
+
+/** 퍼지고 있는 거품 하나 — 계획 + 출발 시각(프레임 나노초). 필터를 연속으로 바꾸면 [RevealWaves] 에 여러 개가 함께 있다. */
+private class RevealRun(val plan: RevealPlan, val startNanos: Long) {
+    /** 링이 지금 화면을 다 지나간 시각(ms, 출발 기준). −1 = 아직. */
+    var passedAt = -1L
+
+    fun ms(now: Long): Long = (now - startNanos) / 1_000_000L
+}
+
+/**
+ * 함께 퍼지고 있는 거품들(오래된 것 → 새 것) + 모든 거품 밖의 색.
+ * 재생 effect 가 새 계획으로 재시작돼도 유지된다 — 이전 거품이 사라지지 않고 계속 퍼지게(2026-10-15).
+ */
+private class RevealWaves {
+    val runs = ArrayList<RevealRun>()
+    /** 어느 거품에도 아직 안 덮인 자리의 필터 빛 색(= 연속 전환을 시작하기 전의 확정 색). */
+    var base: Color? = null
+}
+
+/**
+ * 함께 퍼지는 거품들의 한 프레임. 그리기 전에 정리도 한다.
+ * - 화면을 다 지나간 거품이 생기면 그보다 오래된 거품은 화면에 더는 안 보이므로 지우고, 바깥 색을 그 거품 색으로 넘긴다.
+ * - 새 거품이 이전 거품을 **완전히 삼키면**(줌아웃 뒤 켠 거품은 더 빨라 따라잡는다) 이전 거품을 지운다.
+ *   덮인 부분은 그 전에도 그리기에서 가려지므로(새 거품 색이 위) 삼켜지듯 자연스럽게 사라진다.
+ */
+private fun revealWavesFrame(
+    map: MapLibreMap,
+    waves: RevealWaves,
+    now: Long,
+    viewW: Float,
+    viewH: Float,
+    density: Float,
+    flashes: List<WaveFlash>,
+): FilterWaveFrame {
+    val runs = waves.runs
+    // 1) 화면 통과 판정 — 링은 별과 관계없이 지금 보고 있는 화면을 다 지나갈 때까지 퍼진다(크기 제한 없음, 대권 기준).
+    for (r in runs) {
+        if (r.passedAt >= 0) continue
+        val ms = r.ms(now)
+        val radius = revealRadiusM(ms.toDouble(), r.plan.sweepM)
+        val passed = radius * (1 - REVEAL_RING_WOBBLE) >= revealSweepMeters(map, viewW, viewH, r.plan.center)
+        if (passed || ms >= REVEAL_RING_MAX_MS) r.passedAt = ms
+    }
+    // 2) 화면을 다 덮은 가장 새 거품보다 오래된 거품은 지운다(화면 밖 = 이제 그 거품 색).
+    val lastPassed = runs.indexOfLast { it.passedAt >= 0 }
+    if (lastPassed >= 0) {
+        repeat(lastPassed) { runs.removeAt(0) }
+        waves.base = runs[0].plan.toTint
+    }
+    // 3) 새 거품에 완전히 삼켜진 이전 거품은 지운다(출렁임 최대·최소까지 감안해 확실히 안쪽일 때만).
+    if (runs.size > 1) {
+        val radii = runs.map { revealRadiusM(it.ms(now).toDouble(), it.plan.sweepM) }
+        val swallowed = runs.indices.filter { i ->
+            (i + 1 until runs.size).any { j ->
+                val gap = LocationHelper.distanceBetween(
+                    runs[i].plan.center.latitude, runs[i].plan.center.longitude,
+                    runs[j].plan.center.latitude, runs[j].plan.center.longitude,
+                ).toDouble()
+                gap + radii[i] * (1 + REVEAL_RING_WOBBLE) <= radii[j] * (1 - REVEAL_RING_WOBBLE)
+            }
+        }
+        swallowed.asReversed().forEach { runs.removeAt(it) }
+    }
+
+    val orbRadiusPx = REVEAL_ORB_DP * density
+    val bubbles = runs.map { r ->
+        val plan = r.plan
+        val ms = r.ms(now)
+        val tSec = ms / 1000.0
+        val radius = revealRadiusM(ms.toDouble(), plan.sweepM)
+        val ringColor = plan.toTint ?: FILTER_WAVE_NEUTRAL
+        val ringAlpha = if (r.passedAt < 0) 1f
+        else (1f - (ms - r.passedAt).toFloat() / REVEAL_RING_FADE_MS).coerceIn(0f, 1f)
+        // 포털 성운 세기 — 퍼지는 동안 1, 화면을 다 지나간 뒤 은은한 필터 빛으로 가라앉는다.
+        val portal = if (plan.toTint == null) 0f
+        else if (r.passedAt < 0) 1f
+        else 1f - FastOutSlowInEasing.transform(((ms - r.passedAt).toFloat() / REVEAL_PORTAL_DECAY_MS).coerceIn(0f, 1f))
+        // 성운 잔별(지도 위 위치를 투영 — 지도와 함께 움직인다)
+        val sparks = ArrayList<PortalSpark>()
+        if (portal > 0.01f) {
+            for (sp in plan.portal.sparks) {
+                val pt = geoToScreen(map, plan.center, sp.bearing, sp.dist * plan.sweepM)
+                if (pt.x < -4f || pt.x > viewW + 4f || pt.y < -4f || pt.y > viewH + 4f) continue
+                val tw = 0.35f + 0.65f * kotlin.math.abs(kotlin.math.sin(tSec * sp.speed + sp.phase)).toFloat()
+                sparks.add(PortalSpark(pt.x, pt.y, sp.sizeDp * density, 0.8f * tw))
+            }
+        }
+        // 시작점의 검은 구체 — 툭 생겼다가(150ms) 거품이 터져 나오며 커지면서 사라진다.
+        val orb = if (ms < REVEAL_ORB_MS) {
+            val c = map.projection.toScreenLocation(MlLatLng(plan.center.latitude, plan.center.longitude))
+            val grow = (ms / 150f).coerceAtMost(1f)
+            val fade = ((ms - 150f) / (REVEAL_ORB_MS - 150f)).coerceIn(0f, 1f)
+            PortalOrb(
+                c.x, c.y,
+                // 0 에서 시작하지 않는다(반지름 0 그라데이션은 앱을 죽인다 — FilterWaveOverlay 주석 참고)
+                radiusPx = orbRadiusPx * (0.15f + 0.85f * (1f - (1f - grow) * (1f - grow))) * (1f + 0.3f * fade),
+                alpha = 1f - fade,
+                rimColor = lerp(ringColor, Color.White, 0.3f),
+            )
+        } else null
+        WaveBubble(
+            ring = ringScreenPath(map, plan.center, radius, plan.wobble, tSec),
+            ringAlpha = ringAlpha,
+            ringColor = ringColor,
+            tint = plan.toTint,
+            portal = portal,
+            sparks = sparks,
+            orb = orb,
+        )
+    }
+    return FilterWaveFrame(base = waves.base, bubbles = bubbles, flashes = flashes)
+}
 
 /** 재생 루프가 매 프레임 읽는 대표 별 1개 — 배치 effect 가 계산한 근접 여부·표시 크기. */
 private class RevealStar(val d: Diary, val near: Boolean, val size: Float)
