@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.R
+import com.chaminwoo.stary.core.ui.drawSparkleStar
 import com.chaminwoo.stary.core.util.Haptics
 import java.util.Random
 import kotlin.math.PI
@@ -183,38 +184,7 @@ internal fun LivingSky(visible: Boolean, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * 큰 잔별 — 가장자리가 부드럽게 사라지는 작은 번짐 + 심지 + **짧고 가는** 빛줄기(가로가 세로보다 길다).
- * (처음엔 딱 떨어지는 반투명 원판 후광 + 긴 십자선이라 회색 판에 십자 표시처럼 부자연스러웠다 — 방사형 그라데이션으로 바꾸고 반 이하로 줄였다.)
- */
-private fun DrawScope.drawSparkleStar(c: Offset, r: Float, color: Color, k: Float, angle: Float) {
-    val a = k.coerceIn(0f, 1f)
-    val glowR = r * 3.4f
-    drawCircle(
-        brush = Brush.radialGradient(listOf(color.copy(alpha = 0.22f * a), Color.Transparent), center = c, radius = glowR),
-        radius = glowR, center = c,
-    )
-    drawCircle(color.copy(alpha = 0.95f * a), r, c)
-    val len = r * (3.0f + 2.6f * k)
-    val ca = cos(angle) * 0.35f // ±20° 안에서만 흔들려 반듯한 십자가 되지 않게
-    val sa = sin(angle) * 0.35f
-    for (dir in 0 until 2) {
-        val dx = if (dir == 0) 1f else -sa
-        val dy = if (dir == 0) ca else 1f
-        val n = kotlin.math.sqrt(dx * dx + dy * dy)
-        val l = if (dir == 0) len else len * 0.7f   // 세로는 가로의 70%
-        val ux = dx / n * l
-        val uy = dy / n * l
-        drawLine(
-            brush = Brush.linearGradient(
-                listOf(Color.Transparent, color.copy(alpha = 0.60f * a), Color.Transparent),
-                start = Offset(c.x - ux, c.y - uy), end = Offset(c.x + ux, c.y + uy),
-            ),
-            start = Offset(c.x - ux, c.y - uy), end = Offset(c.x + ux, c.y + uy),
-            strokeWidth = max(0.8f, r * 0.38f), cap = StrokeCap.Round,
-        )
-    }
-}
+// 큰 잔별(drawSparkleStar)은 배경 잔별과 함께 쓰려고 core/ui/AmbientStarSky.kt 로 옮겼다.
 
 /** 주기(METEOR_PERIOD)마다 한 번, 주기 안의 무작위 시각에 우상단→좌하단으로 스치는 유성. 위치/각도는 주기 번호의 해시로 결정(재현 가능). */
 private fun DrawScope.drawMeteor(t: Float, alpha: Float, w: Float, h: Float) {

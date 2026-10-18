@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.chat.screen
 
+import com.chaminwoo.stary.core.ui.ScreenBackground
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -151,13 +152,7 @@ fun ChatScreen(
     val sessionStartedAt = remember { System.currentTimeMillis() }
 
     Box(modifier = modifier.fillMaxSize().background(PageBg)) {
-        Image(
-            painter = painterResource(R.drawable.mydiary_bg),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.85f), blendMode = BlendMode.Darken)
-        )
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.85f)
 
         Column(modifier = Modifier.fillMaxSize()) {
             if (messages.isEmpty()) {

@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.friend.screen
 
+import com.chaminwoo.stary.core.ui.ScreenBackground
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -178,16 +179,7 @@ fun FriendScreen(
     Box(modifier = modifier
         .fillMaxSize()
         .background(PageBg)) {
-        Image(
-            painter = painterResource(R.drawable.mydiary_bg),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(
-                Color.Black.copy(alpha = 0.82f),
-                blendMode = BlendMode.Darken
-            )
-        )
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
 
         FirstVisitInfo(
             seenKey = "info_friends",

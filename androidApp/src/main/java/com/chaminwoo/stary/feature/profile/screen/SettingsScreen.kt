@@ -1,5 +1,6 @@
 ﻿package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.ui.ScreenBackground
 import android.content.Context
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
@@ -130,13 +131,7 @@ fun SettingsScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         // 우주 배경(어둡게 틴트) — 프로필/내 다이어리와 동일 톤
-        Image(
-            painter = painterResource(R.drawable.mydiary_bg),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.84f), blendMode = BlendMode.Darken)
-        )
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.84f)
 
         Column(
             modifier = Modifier

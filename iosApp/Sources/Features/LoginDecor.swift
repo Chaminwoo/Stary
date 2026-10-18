@@ -62,7 +62,7 @@ struct LivingSkyView: View {
                     let c = CGPoint(x: CGFloat(s.x) * w, y: CGFloat(s.y) * h)
                     let r = CGFloat(s.r)
                     if s.sparkle {
-                        Self.drawSparkle(ctx, c, r, s.color, k, t * 0.15 + Double(s.phase))
+                        SparkleStar.draw(ctx, c, r, s.color, k, t * 0.15 + Double(s.phase))
                     } else {
                         ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
                                  with: .color(s.color.opacity(min(max(0.80 * k, 0), 1))))
@@ -83,34 +83,7 @@ struct LivingSkyView: View {
         ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)), with: .color(color))
     }
 
-    /// 큰 잔별 — 가장자리가 부드럽게 사라지는 작은 번짐 + 심지 + **짧고 가는** 빛줄기(가로가 세로보다 길다). Android `drawSparkleStar` 와 같은 값.
-    /// (처음엔 딱 떨어지는 반투명 원판 후광 + 긴 십자선이라 부자연스러웠다 — 방사형 그라데이션으로 바꾸고 반 이하로 줄였다.)
-    private static func drawSparkle(_ ctx: GraphicsContext, _ c: CGPoint, _ r: CGFloat, _ color: Color, _ k: Double, _ angle: Double) {
-        let a = min(max(k, 0), 1)
-        let glowR = r * 3.4
-        ctx.fill(Path(ellipseIn: CGRect(x: c.x - glowR, y: c.y - glowR, width: glowR * 2, height: glowR * 2)),
-                 with: .radialGradient(Gradient(colors: [color.opacity(0.22 * a), .clear]),
-                                       center: c, startRadius: 0, endRadius: glowR))
-        disc(ctx, c, r, color.opacity(0.95 * a))
-        let len = r * CGFloat(3.0 + 2.6 * k)
-        let ca = cos(angle) * 0.35   // ±20° 안에서만 흔들려 반듯한 십자가 되지 않게
-        let sa = sin(angle) * 0.35
-        for dir in 0..<2 {
-            let dx = dir == 0 ? 1.0 : -sa
-            let dy = dir == 0 ? ca : 1.0
-            let n = (dx * dx + dy * dy).squareRoot()
-            let l = dir == 0 ? len : len * 0.7   // 세로는 가로의 70%
-            let ux = CGFloat(dx / n) * l, uy = CGFloat(dy / n) * l
-            let p0 = CGPoint(x: c.x - ux, y: c.y - uy), p1 = CGPoint(x: c.x + ux, y: c.y + uy)
-            var line = Path()
-            line.move(to: p0)
-            line.addLine(to: p1)
-            ctx.stroke(line,
-                       with: .linearGradient(Gradient(colors: [.clear, color.opacity(0.60 * a), .clear]),
-                                             startPoint: p0, endPoint: p1),
-                       style: StrokeStyle(lineWidth: max(0.8, r * 0.38), lineCap: .round))
-        }
-    }
+    // 큰 잔별(`SparkleStar.draw`)은 배경 잔별과 함께 쓰려고 Core/AmbientStarSky.swift 로 옮겼다.
 
     /// 주기마다 한 번, 주기 안의 무작위 시각에 우상단→좌하단으로 스치는 유성 — Android `drawMeteor` 와 같은 식·같은 난수 순서
     /// (start, x0, y0, angle).

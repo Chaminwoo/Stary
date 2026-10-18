@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.ui.ScreenBackground
 import com.chaminwoo.stary.core.util.displayTitle
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -245,13 +246,7 @@ fun UserProfileScreen(
     val topInset = LocalTopBarInset.current
 
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF0D0D0D))) {
-        Image(
-            painter = painterResource(R.drawable.mydiary_bg),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
-        )
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.diary.screen
 
+import com.chaminwoo.stary.core.ui.ScreenBackground
 import com.chaminwoo.stary.core.util.displayTitle
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.animateFloatAsState
@@ -117,16 +118,7 @@ fun StarClusterScreen(
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)) {
         // 스크린 배경 — 친구 스크린과 동일(mydiary_bg 어둡게 틴트)
-        Image(
-            painter = painterResource(R.drawable.mydiary_bg),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(
-                Color.Black.copy(alpha = 0.82f),
-                blendMode = BlendMode.Darken
-            )
-        )
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
         // 뒤로가기 — 좌상단
         IconButton(
             onClick = onBack,

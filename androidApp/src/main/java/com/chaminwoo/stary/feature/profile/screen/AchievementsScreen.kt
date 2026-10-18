@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.ui.ScreenBackground
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -110,11 +111,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
 
     Box(modifier = modifier.fillMaxSize()) {
         // 내 다이어리 페이지와 동일한 배경·밝기
-        Image(
-            painter = painterResource(R.drawable.mydiary_bg), contentDescription = null,
-            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
-        )
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
 
         FirstVisitInfo(
             seenKey = "info_achievements",

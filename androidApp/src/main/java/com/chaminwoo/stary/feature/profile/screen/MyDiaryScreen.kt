@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.ui.ScreenBackground
 import com.chaminwoo.stary.core.util.displayTitle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -118,11 +119,7 @@ fun MyDiaryScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         // 업로드 화면과 동일한 밝기의 배경
-        Image(
-            painter = painterResource(R.drawable.mydiary_bg), contentDescription = null,
-            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
-        )
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
         DiaryStarsBoard(diaries = myDiaries, onDiaryClick = onDiaryClick)
 
         FirstVisitInfo(

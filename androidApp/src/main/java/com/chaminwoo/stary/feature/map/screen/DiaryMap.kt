@@ -166,8 +166,8 @@ fun DiaryMap(
      */
     filterTint: Color? = null,
     /**
-     * 필터가 하나라도 걸려 있는가 — true 면 보이는 별의 후광을 조금 더 밝게(바닥 빛 ×[FILTER_GROUND_BOOST] +
-     * 모든 별에 오오라 하한 [FILTER_AURA_FLOOR]). 걸러서 남은 별이 더 눈에 띄게 하려는 것(2026-10-10).
+     * 필터가 하나라도 걸려 있는가 — true 면 보이는 별의 바닥 빛을 조금 더 밝게(×[FILTER_GROUND_BOOST]).
+     * 걸러서 남은 별이 더 눈에 띄게 하려는 것(2026-10-10). 모든 별에 깔던 오오라 하한(반투명 원)은 2026-10-19 삭제.
      */
     highlight: Boolean = false,
 ) {
@@ -1482,19 +1482,6 @@ fun DiaryMap(
                 roadGlintLayer?.setProperties(PropertyFactory.lineDasharray(roadGlintDashArray(p)))
             }
             delay(50)
-        }
-    }
-
-    // 필터 중 후광 강화 — 오오라 불투명도 표현식을 highlight 에 맞게 교체(스타일 초기화 때는 평소 값으로 만들어 두므로 여기서 맞춘다).
-    // 바닥 빛(ground)은 위 애니메이션 루프가 매 틱 highlightRef 를 읽어 반영한다.
-    LaunchedEffect(highlight, styleRef) {
-        val style = styleRef ?: return@LaunchedEffect
-        for (g in 0 until PHASE_GROUPS) {
-            (style.getLayer(auraLayerId(g)) as? CircleLayer)?.setProperties(
-                PropertyFactory.circleOpacity(
-                    Expression.product(auraOpacityExpression(highlight), Expression.get("alpha"))
-                )
-            )
         }
     }
 

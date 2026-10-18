@@ -26,7 +26,7 @@ enum BundleImage {
     }
 }
 
-/// 화면 배경 이미지 + 어둡게 틴트 — Android 의 `Image(painterResource(R.drawable.xxx_bg)) + darken` 패턴 대응.
+/// 화면 배경 이미지 + 어둡게 틴트 + 반짝이는 잔별(`AmbientStarSkyView`, 2026-10-19) — Android `core/ui/ScreenBackground` 대응.
 /// 이미지가 없으면(로드 실패) Theme.background 단색으로 폴백해 화면은 항상 그려진다.
 struct ScreenBackground: View {
     let name: String
@@ -42,6 +42,7 @@ struct ScreenBackground: View {
                     .scaledToFill()
             }
             Color.black.opacity(darken)
+            AmbientStarSkyView()
         }
         .ignoresSafeArea()
     }

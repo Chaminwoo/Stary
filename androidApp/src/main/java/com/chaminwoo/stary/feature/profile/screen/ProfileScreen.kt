@@ -1,5 +1,6 @@
 ﻿package com.chaminwoo.stary.feature.profile.screen
 
+import com.chaminwoo.stary.core.ui.ScreenBackground
 import com.chaminwoo.stary.core.util.displayTitle
 import android.net.Uri
 
@@ -220,13 +221,7 @@ fun ProfileScreen(
     val topInset = LocalTopBarInset.current
 
     Box(modifier = modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(R.drawable.mydiary_bg),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.82f), blendMode = BlendMode.Darken)
-        )
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
 
         FirstVisitInfo(
             seenKey = "info_profile",
