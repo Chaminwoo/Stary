@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -60,8 +62,9 @@ fun UserDiaryStarsScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().background(Color(0xFF0D0D0D))) {
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize().background(Color(0xFF0D0D0D))) {
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f, scroll = bgScroll)
         // 내 다이어리와 동일한 보드(다이얼+별자리+떠다니는 별). 클릭만 지도 이동으로.
         DiaryStarsBoard(diaries = visible, onDiaryClick = onOpenMap)
     }

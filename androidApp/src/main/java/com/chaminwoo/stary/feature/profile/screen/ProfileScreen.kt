@@ -1,6 +1,8 @@
 ﻿package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import com.chaminwoo.stary.core.util.displayTitle
 import android.net.Uri
 
@@ -220,8 +222,9 @@ fun ProfileScreen(
     // 반투명 탑바 뒤까지 배경을 채우고(비치도록), 콘텐츠만 그만큼 내린다.
     val topInset = LocalTopBarInset.current
 
-    Box(modifier = modifier.fillMaxSize()) {
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize()) {
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f, scroll = bgScroll)
 
         FirstVisitInfo(
             seenKey = "info_profile",

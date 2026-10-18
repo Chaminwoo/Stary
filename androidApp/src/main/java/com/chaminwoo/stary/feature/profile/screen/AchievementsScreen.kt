@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -109,9 +111,10 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
 
     val unlockedCount = Achievements.all.count { it.unlocked(stats) }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize()) {
         // 내 다이어리 페이지와 동일한 배경·밝기
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f, scroll = bgScroll)
 
         FirstVisitInfo(
             seenKey = "info_achievements",

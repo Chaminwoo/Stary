@@ -1,6 +1,8 @@
 ﻿package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import android.content.Context
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
@@ -129,9 +131,10 @@ fun SettingsScreen(
         if (myId != null) FirebaseModerationRepository().observeBlockedIds(myId) else flowOf(emptySet())
     }.collectAsState(initial = emptySet())
 
-    Box(modifier = modifier.fillMaxSize()) {
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize()) {
         // 우주 배경(어둡게 틴트) — 프로필/내 다이어리와 동일 톤
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.84f)
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.84f, scroll = bgScroll)
 
         Column(
             modifier = Modifier

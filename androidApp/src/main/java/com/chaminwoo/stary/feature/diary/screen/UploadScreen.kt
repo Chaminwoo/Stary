@@ -1,6 +1,8 @@
 ﻿package com.chaminwoo.stary.feature.diary.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
@@ -254,8 +256,9 @@ fun UploadScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        ScreenBackground(R.drawable.upload_bg, darken = 0.82f)
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize()) {
+        ScreenBackground(R.drawable.upload_bg, darken = 0.82f, scroll = bgScroll)
 
         // 키보드 대응 — edge-to-edge 라 adjustResize 만으로는 창이 줄지 않는다. 스크롤 영역만 키보드 높이만큼
         // 줄이면(imePadding) 포커스된 입력칸이 자동으로 보이는 곳까지 스크롤된다. 배경 이미지는 그대로(크롭 재계산 방지).

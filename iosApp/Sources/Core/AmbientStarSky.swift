@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // 정지된 배경 화면(지도 제외)의 반짝이는 잔별 — 로그인 화면 하늘(`LivingSkyView`)과 같은 별을 **더 어둡게**.
 // Android `core/ui/AmbientStarSky.kt` 와 같은 값/식(별 배치도 `JavaRandom` 으로 같은 시드 → 같은 위치).
@@ -43,6 +44,8 @@ private enum AmbientSky {
 /// 천천히 숨 쉬듯 반짝이는 잔별(일부는 짧은 빛줄기) — 화면 전체에 흩어져 있고 로그인 하늘보다 훨씬 어둡다. 유성은 없다.
 /// `ScreenBackground` 가 배경 이미지 위에 깐다. 화면에 들어오면 0.9초에 걸쳐 나타난다.
 struct AmbientStarSkyView: View {
+    /// 스크롤 시차(×`BackgroundScroll.starParallax`). 매 프레임 그리므로 관찰하지 않고 그릴 때 값만 읽는다.
+    var scroll: BackgroundScroll? = nil
     @State private var t0 = Date.timeIntervalSinceReferenceDate
     @State private var shown = false
 
@@ -51,11 +54,15 @@ struct AmbientStarSkyView: View {
             Canvas { ctx, size in
                 let t = tl.date.timeIntervalSinceReferenceDate - t0
                 let w = size.width, h = size.height
+                guard h >= 1 else { return }
                 let a = AmbientSky.brightness
+                let shift = (scroll?.offset ?? 0) * BackgroundScroll.starParallax
                 for s in AmbientSky.stars {
                     let tw = 0.5 + 0.5 * sin(t * Double(s.speed) + Double(s.phase))
                     let k = 0.30 + 0.70 * tw
-                    let c = CGPoint(x: CGFloat(s.x) * w, y: CGFloat(s.y) * h)
+                    // 스크롤 시차 — 위로 밀려 나간 별은 아래에서 다시 들어온다(화면 높이로 감싼다).
+                    let y = ((CGFloat(s.y) * h - shift).truncatingRemainder(dividingBy: h) + h).truncatingRemainder(dividingBy: h)
+                    let c = CGPoint(x: CGFloat(s.x) * w, y: y)
                     let r = CGFloat(s.r)
                     if s.sparkle {
                         SparkleStar.draw(ctx, c, r, s.color, k, t * 0.12 + Double(s.phase), dim: a)
@@ -105,6 +112,98 @@ enum SparkleStar {
                        with: .linearGradient(Gradient(colors: [.clear, color.opacity(0.60 * a), .clear]),
                                              startPoint: p0, endPoint: p1),
                        style: StrokeStyle(lineWidth: max(0.8, r * 0.38), lineCap: .round))
+        }
+    }
+}
+
+// MARK: - 배경 시차 스크롤
+
+/// 배경 시차용 스크롤 값 — 화면이 `@State private var bgScroll = BackgroundScroll()` 로 들고(관찰하지 않아 화면 본문은 다시 그리지 않는다)
+/// `ScreenBackground(scroll:)` 와 세로 `ScrollView` 의 `.backgroundScrollSource(_:)` 에 같이 넘긴다. Android `BackgroundScroll` 대응.
+final class BackgroundScroll: ObservableObject {
+    /// 콘텐츠가 위로 올라간 거리(pt) = 스크롤뷰 contentOffset.y(+ 위쪽 inset).
+    @Published var offset: CGFloat = 0
+
+    /// Android `BG_PARALLAX` / `STAR_PARALLAX` 와 같은 값.
+    static let imageParallax: CGFloat = 0.12
+    static let starParallax: CGFloat = 0.20
+    /// 스크롤 없는 화면용(값이 바뀌지 않는다).
+    static let still = BackgroundScroll()
+}
+
+extension View {
+    /// 이 세로 `ScrollView` 의 스크롤 위치를 배경 시차에 알린다 — **ScrollView 바로 뒤에** 붙인다(탐침 영역 = 스크롤뷰 영역).
+    func backgroundScrollSource(_ scroll: BackgroundScroll) -> some View {
+        background(BackgroundScrollProbe(scroll: scroll).allowsHitTesting(false))
+    }
+}
+
+/// iOS 16 SwiftUI 는 ScrollView 오프셋을 직접 주지 않는다 → 같은 자리(영역이 가장 많이 겹치는)의 `UIScrollView` 를 찾아
+/// `contentOffset` 을 KVO 로 받는다. 텍스트뷰(UITextView 도 UIScrollView)는 제외.
+private struct BackgroundScrollProbe: UIViewRepresentable {
+    let scroll: BackgroundScroll
+
+    func makeUIView(context: Context) -> ProbeView {
+        let v = ProbeView()
+        v.isUserInteractionEnabled = false
+        v.backgroundColor = .clear
+        v.scroll = scroll
+        return v
+    }
+
+    func updateUIView(_ uiView: ProbeView, context: Context) {
+        uiView.scroll = scroll
+    }
+
+    final class ProbeView: UIView {
+        weak var scroll: BackgroundScroll?
+        private weak var target: UIScrollView?
+        private var observation: NSKeyValueObservation?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window == nil { detach() } else { setNeedsLayout() }
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            if target == nil || target?.window == nil { attach() }
+        }
+
+        private func detach() {
+            observation?.invalidate()
+            observation = nil
+            target = nil
+        }
+
+        private func attach() {
+            guard let window, bounds.width >= 1, bounds.height >= 1 else { return }
+            detach()
+            let mine = convert(bounds, to: window)
+            var best: (view: UIScrollView, iou: CGFloat)?
+            var stack: [UIView] = [window]
+            while let v = stack.popLast() {
+                if let sv = v as? UIScrollView, !(sv is UITextView), !sv.isHidden {
+                    let r = sv.convert(sv.bounds, to: window)
+                    let inter = r.intersection(mine)
+                    if !inter.isNull {
+                        let i = inter.width * inter.height
+                        let iou = i / max(1, r.width * r.height + mine.width * mine.height - i)
+                        if iou > 0.8, iou > (best?.iou ?? 0) { best = (sv, iou) }
+                    }
+                }
+                stack.append(contentsOf: v.subviews)
+            }
+            guard let sv = best?.view else { return }
+            target = sv
+            observation = sv.observe(\.contentOffset, options: [.initial, .new]) { [weak self] sv, _ in
+                let y = sv.contentOffset.y + sv.adjustedContentInset.top
+                // 뷰 갱신 도중 발행 경고를 피하려고 다음 런루프에 반영(1프레임 이내 지연).
+                DispatchQueue.main.async {
+                    guard let s = self?.scroll, abs(s.offset - y) > 0.25 else { return }
+                    s.offset = y
+                }
+            }
         }
     }
 }

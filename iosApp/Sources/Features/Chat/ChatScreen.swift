@@ -11,6 +11,8 @@ struct ChatScreen: View {
 
     private var shownName: String { directory.name(friendId, fallback: friendName) }
     @StateObject private var vm: ChatViewModel
+    /// 배경 시차 스크롤(관찰하지 않는다 — 배경만 다시 그린다).
+    @State private var bgScroll = BackgroundScroll()
     @State private var text = ""
     // 롱프레스한 메시지 — 삭제 방식 선택(나에게서만 / 모두에게서) 대상. nil 이면 팝업 숨김.
     @State private var pendingDelete: ChatMessage?
@@ -57,6 +59,7 @@ struct ChatScreen: View {
                         }
                         .padding(12)
                     }
+                    .backgroundScrollSource(bgScroll)
                     .scrollDismissesKeyboard(.interactively)
                     // 빈 화면 → 목록으로 바뀌며 새로 생긴 ScrollView 는 0→N 변화를 못 보므로 등장 시 한 번 맨 아래로.
                     .onAppear {
@@ -75,7 +78,7 @@ struct ChatScreen: View {
             inputBar
         }
         // Android ChatScreen 배경 — mydiary_bg + 검정 0.85 틴트.
-        .background { ScreenBackground(name: "mydiary_bg", darken: 0.85) }
+        .background { ScreenBackground(name: "mydiary_bg", darken: 0.85, scroll: bgScroll) }
         .overlay(alignment: .bottom) {
             if let toast { ToastView(text: toast) }
         }

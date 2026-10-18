@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.friend.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -176,10 +178,11 @@ fun FriendScreen(
         lastSearched = q
     }
 
-    Box(modifier = modifier
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll)
         .fillMaxSize()
         .background(PageBg)) {
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f, scroll = bgScroll)
 
         FirstVisitInfo(
             seenKey = "info_friends",

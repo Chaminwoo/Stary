@@ -14,6 +14,8 @@ struct BlockedUsersScreen: View {
     /// 차단 문서의 이름/사진은 차단 시점 스냅샷 → users/{uid} 의 현재 값으로 표시.
     @ObservedObject private var directory = UserDirectory.shared
     /// 해제 확인 대상(nil = 알림창 닫힘).
+    /// 배경 시차 스크롤(관찰하지 않는다 — 배경만 다시 그린다).
+    @State private var bgScroll = BackgroundScroll()
     @State private var confirmTarget: BlockedUser?
     @State private var profileTarget: ProfileTarget?
 
@@ -26,7 +28,7 @@ struct BlockedUsersScreen: View {
     var body: some View {
         ZStack {
             // 설정/프로필과 동일한 우주 배경 톤.
-            ScreenBackground(name: "mydiary_bg", darken: 0.84)
+            ScreenBackground(name: "mydiary_bg", darken: 0.84, scroll: bgScroll)
 
             if blocks.blockedUsers.isEmpty {
                 StaryEmptyState(title: locale.t(.blockedEmpty),
@@ -45,6 +47,7 @@ struct BlockedUsersScreen: View {
                     }
                     .padding(20)
                 }
+                .backgroundScrollSource(bgScroll)
             }
         }
         .navigationTitle(locale.t(.navBlockedUsers))

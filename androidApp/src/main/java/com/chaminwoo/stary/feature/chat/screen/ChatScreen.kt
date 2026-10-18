@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.chat.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -151,8 +153,9 @@ fun ChatScreen(
     // (스크롤을 올려 과거 메시지를 봐도 연출이 재생되지 않도록).
     val sessionStartedAt = remember { System.currentTimeMillis() }
 
-    Box(modifier = modifier.fillMaxSize().background(PageBg)) {
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.85f)
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize().background(PageBg)) {
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.85f, scroll = bgScroll)
 
         Column(modifier = Modifier.fillMaxSize()) {
             if (messages.isEmpty()) {

@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import com.chaminwoo.stary.core.util.displayTitle
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -245,8 +247,9 @@ fun UserProfileScreen(
     // 반투명 탑바 뒤까지 배경을 채우고(비치도록), 콘텐츠만 그만큼 내린다.
     val topInset = LocalTopBarInset.current
 
-    Box(modifier = modifier.fillMaxSize().background(Color(0xFF0D0D0D))) {
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize().background(Color(0xFF0D0D0D))) {
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f, scroll = bgScroll)
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

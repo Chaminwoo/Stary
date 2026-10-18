@@ -9,6 +9,8 @@ struct SettingsScreen: View {
     @ObservedObject private var music = MusicManager.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var locale = LocaleManager.shared
+    /// 배경 시차 스크롤(관찰하지 않는다 — 배경만 다시 그린다).
+    @State private var bgScroll = BackgroundScroll()
     @State private var showLanguagePicker = false
     @State private var showDeleteConfirm = false
     @State private var showTerms = false
@@ -20,7 +22,7 @@ struct SettingsScreen: View {
     var body: some View {
         ZStack {
             // Android SettingsScreen 배경 — mydiary_bg + 검정 0.84 틴트.
-            ScreenBackground(name: "mydiary_bg", darken: 0.84)
+            ScreenBackground(name: "mydiary_bg", darken: 0.84, scroll: bgScroll)
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     // ── 사운드 ──
@@ -201,6 +203,7 @@ struct SettingsScreen: View {
                 }
                 .padding(20)
             }
+            .backgroundScrollSource(bgScroll)
         }
         .navigationTitle(locale.t(.navSettings))
         .navigationBarTitleDisplayMode(.inline)

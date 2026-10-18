@@ -12,6 +12,8 @@ struct FriendsScreen: View {
     @ObservedObject private var readStore = ChatReadStore.shared
     /// 친구/요청/검색 행의 이름은 문서 스냅샷이 아니라 users/{uid} 의 현재 닉네임으로.
     @ObservedObject private var directory = UserDirectory.shared
+    /// 배경 시차 스크롤(관찰하지 않는다 — 배경만 다시 그린다).
+    @State private var bgScroll = BackgroundScroll()
     @State private var query = ""
     /// 하단 토스트(Android StaryToast 대응) — 친구 요청 전송/실패 피드백.
     @State private var toast: String?
@@ -38,6 +40,7 @@ struct FriendsScreen: View {
                 }
                 .padding(16)
             }
+            .backgroundScrollSource(bgScroll)
             if let t = toast {
                 ToastView(text: t)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -47,7 +50,7 @@ struct FriendsScreen: View {
         // Android FriendScreen 배경 — mydiary_bg + 검정 0.82 틴트.
         // ⚠️ ZStack 형제가 아니라 .background 로 — 형제면 스크롤 영역이 키보드 아래까지 늘어나
         //    검색 중(키보드 열림)에 결과 목록 끝을 키보드 위로 끌어올릴 수 없다(UploadScreen 과 동일 이유).
-        .background { ScreenBackground(name: "mydiary_bg", darken: 0.82) }
+        .background { ScreenBackground(name: "mydiary_bg", darken: 0.82, scroll: bgScroll) }
         .navigationTitle(LocaleManager.shared.t(.tabFriends))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Friend.self) { friend in

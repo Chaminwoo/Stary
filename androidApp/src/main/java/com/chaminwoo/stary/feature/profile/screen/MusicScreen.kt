@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -143,8 +145,9 @@ fun MusicScreen(modifier: Modifier = Modifier) {
     val selectedColor = Color(selected.colorArgb)
     val selectedUnlocked = isUnlocked(selected)
 
-    Box(modifier = modifier.fillMaxSize()) {
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize()) {
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f, scroll = bgScroll)
 
         FirstVisitInfo(
             seenKey = "info_music",

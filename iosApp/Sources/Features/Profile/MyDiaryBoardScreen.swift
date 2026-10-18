@@ -44,6 +44,10 @@ struct MyStarsScreen: View {
     @EnvironmentObject var location: LocationManager
     @ObservedObject private var locale = LocaleManager.shared
 
+    /// 배경 시차 스크롤(관찰하지 않는다 — 배경만 다시 그린다).
+
+    @State private var bgScroll = BackgroundScroll()
+
     @State private var sortMode: DiarySort = .latest
     /// 같은 정렬을 다시 골라도 번쩍임/재정렬이 보이도록 하는 토큰(Android sortNonce).
     @State private var sortNonce = 0
@@ -72,7 +76,7 @@ struct MyStarsScreen: View {
     var body: some View {
         ZStack {
             // Android MyDiaryScreen 배경 — mydiary_bg + 검정 0.82 틴트.
-            ScreenBackground(name: "mydiary_bg", darken: 0.82)
+            ScreenBackground(name: "mydiary_bg", darken: 0.82, scroll: bgScroll)
             ScrollView {
                 VStack(spacing: 0) {
                     // 별자리(상단 260 고정) + 바나나 다이얼(박스 360 — 내려간 다이얼까지 터치)
@@ -127,6 +131,7 @@ struct MyStarsScreen: View {
                     Spacer().frame(height: 32)
                 }
             }
+            .backgroundScrollSource(bgScroll)
         }
         .navigationTitle(locale.t(.navMyDiary))
         .navigationBarTitleDisplayMode(.inline)

@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import com.chaminwoo.stary.core.util.displayTitle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -117,9 +119,10 @@ fun MyDiaryScreen(
 
     val myDiaries by diaryViewModel.getMyDiaries(userId).collectAsState()
 
-    Box(modifier = modifier.fillMaxSize()) {
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize()) {
         // 업로드 화면과 동일한 밝기의 배경
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f, scroll = bgScroll)
         DiaryStarsBoard(diaries = myDiaries, onDiaryClick = onDiaryClick)
 
         FirstVisitInfo(

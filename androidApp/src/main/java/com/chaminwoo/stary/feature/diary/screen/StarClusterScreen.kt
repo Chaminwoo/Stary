@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.diary.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import com.chaminwoo.stary.core.util.displayTitle
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.animateFloatAsState
@@ -114,11 +116,12 @@ fun StarClusterScreen(
         }.getOrNull()?.asImageBitmap()
     }
 
-    Box(modifier = modifier
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll)
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)) {
         // 스크린 배경 — 친구 스크린과 동일(mydiary_bg 어둡게 틴트)
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f)
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f, scroll = bgScroll)
         // 뒤로가기 — 좌상단
         IconButton(
             onClick = onBack,

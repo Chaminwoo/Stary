@@ -1,6 +1,8 @@
 package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import com.chaminwoo.stary.core.util.displayTitle
 import android.content.Context
 import android.content.ContextWrapper
@@ -178,8 +180,9 @@ fun StarLogScreen(
     modifier: Modifier = Modifier,
 ) {
     val userId = GoogleAuthHelper.currentUserId
-    Box(modifier = modifier.fillMaxSize().background(Color(0xFF0D0D0D))) {
-        ScreenBackground(R.drawable.mydiary_bg, darken = 0.86f)
+    val bgScroll = rememberBackgroundScroll()
+    Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize().background(Color(0xFF0D0D0D))) {
+        ScreenBackground(R.drawable.mydiary_bg, darken = 0.86f, scroll = bgScroll)
         if (userId == null) {
             Text(
                 stringResource(R.string.common_login_required),

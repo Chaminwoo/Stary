@@ -9,6 +9,10 @@ struct UploadScreen: View {
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
 
+    /// 배경 시차 스크롤(관찰하지 않는다 — 배경만 다시 그린다).
+
+    @State private var bgScroll = BackgroundScroll()
+
     @State private var title = ""
     @State private var content = ""
     @State private var visibility: Visibility = .publicAll
@@ -92,13 +96,14 @@ struct UploadScreen: View {
                 }
                 .padding(16)
             }
+            .backgroundScrollSource(bgScroll)
             // 스크롤(드래그)로도 키보드가 내려가게 — 긴 본문 입력 후 탈출구(#3).
             .scrollDismissesKeyboard(.interactively)
             // 제목/본문을 누르면 키보드가 다 올라온 뒤 그 칸을 보이는 영역 가운데로(키보드에 가려지던 문제).
             .scrollToFocused(focusedField, proxy: proxy)
         }
         // 업로드 화면 배경 — Android upload_bg 이미지 + 검정 0.82 틴트 대응.
-        .background { ScreenBackground(name: "upload_bg", darken: 0.82) }
+        .background { ScreenBackground(name: "upload_bg", darken: 0.82, scroll: bgScroll) }
         .navigationTitle(LocaleManager.shared.t(.navUpload))
         .navigationBarTitleDisplayMode(.inline)
         // (키보드 위 "완료" 버튼은 삭제 — 2026-10-02 사용자 결정. 본문은 리턴키가 줄바꿈이라

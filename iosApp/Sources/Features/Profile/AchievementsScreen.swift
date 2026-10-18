@@ -15,6 +15,8 @@ struct AchievementsScreen: View {
     @ObservedObject private var hidden = HiddenAchievementStore.shared
     // 달성자 이름을 users/{uid} 의 "현재" 값으로 표시(선점 시점 스냅샷 아님) — 34-4(a).
     @ObservedObject private var directory = UserDirectory.shared
+    /// 배경 시차 스크롤(관찰하지 않는다 — 배경만 다시 그린다).
+    @State private var bgScroll = BackgroundScroll()
     @State private var friendsCount = 0
     @State private var invitedFriends = 0
     @State private var redeemedInvite = false
@@ -41,7 +43,7 @@ struct AchievementsScreen: View {
     var body: some View {
         ZStack {
             // Android AchievementsScreen 배경 — mydiary_bg + 검정 0.82 틴트.
-            ScreenBackground(name: "mydiary_bg", darken: 0.82)
+            ScreenBackground(name: "mydiary_bg", darken: 0.82, scroll: bgScroll)
             VStack(spacing: 0) {
                 Picker("", selection: $tab) {
                     Text(locale.t(.achTabNormal)).tag(0)
@@ -53,6 +55,7 @@ struct AchievementsScreen: View {
                 ScrollView {
                     if tab == 0 { normalList } else { hiddenListView }
                 }
+                .backgroundScrollSource(bgScroll)
             }
         }
         .navigationTitle(locale.t(.navAchievements))
