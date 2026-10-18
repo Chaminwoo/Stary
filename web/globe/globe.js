@@ -308,6 +308,9 @@
    *  - box() → { cx, cy, r } : 지구 중심·반지름(CSS px)
    *  - touchAction(기본 "none") / wheelZoom(기본 true) : 스크롤되는 페이지(홈) 위에 깔 때는
    *    "pan-y" + false 로 줘서 세로 스와이프·휠이 페이지 스크롤로 가게 한다(가로 드래그만 지구를 돌린다).
+   *  - grabDisk(기본 false) : 위 pan-y 와 함께 쓴다 — **지구 원판 위**에서 시작한 드래그는 방향과 상관없이 지구만 돌린다
+   *    (페이지 맨 위에 있을 때만). 카카오톡·인스타 인앱 브라우저(시트)는 맨 위에서 아래로 끌면 시트가 내려가는데,
+   *    pan-y 라 지구를 아래로 돌리려 해도 시트가 끌려 내려갔다(2026-10-19). 원판 밖·글·카드 위 스와이프는 그대로 스크롤.
    * WebGL 불가/셰이더 실패면 throw — 호출부가 폴백 UI 를 유지한다.
    */
   function start(canvas, opts) {
@@ -476,9 +479,15 @@
       let W = 1, H = 1, lost = false, projBase = null, shearM = null;
 
       /** 지구의 화면 위치/크기(opts.box)로 카메라 거리·투영을 다시 계산한다(캔버스 크기는 건드리지 않는다). */
+      let disk = null;   // grabDisk — 지구 원판 위 터치를 가로채는 투명 원(아래 입력 절)
       const recompute = () => {
         const b = opts.box();
         rPx = b.r * zoom;
+        if (disk) {
+          const r = rPx * 1.04;
+          disk.style.left = (b.cx - r) + "px"; disk.style.top = (b.cy - r) + "px";
+          disk.style.width = disk.style.height = (2 * r) + "px";
+        }
         // 지구 반지름이 화면에서 rPx(css px) 가 되는 카메라 거리: r_px = (H/2) / (tan(fov/2)·√(d²−1))
         const s = (H / 2) / (Math.tan(FOV * DEG / 2) * rPx);
         dist = Math.sqrt(1 + s * s);
@@ -493,19 +502,34 @@
         gl.viewport(0, 0, canvas.width, canvas.height);
         recompute();
       };
+      if (opts.grabDisk) {
+        disk = document.createElement("div");
+        disk.setAttribute("aria-hidden", "true");
+        disk.style.cssText = "position:fixed;z-index:0;border-radius:50%;touch-action:none;cursor:grab;" +
+          "-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;";
+        canvas.parentNode.insertBefore(disk, canvas.nextSibling);
+        // 페이지를 내린 뒤엔(글로브가 어둠 밑으로 물러남) 원판이 스크롤을 막지 않게 끈다.
+        const syncDisk = () => { disk.style.pointerEvents = global.scrollY < global.innerHeight * 0.2 ? "auto" : "none"; };
+        global.addEventListener("scroll", syncDisk, { passive: true });
+        syncDisk();
+        // iOS 인앱 시트: 기본 동작(스크롤·시트 끌기)까지 확실히 막는다.
+        disk.addEventListener("touchmove", (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+      }
       const onResize = () => layout();
       global.addEventListener("resize", onResize);
       layout();
 
-      // ── 입력 ──
+      // ── 입력 ── (캔버스 + grabDisk 원판이 같은 처리기를 쓴다)
       const degPerPx = () => (180 / Math.PI) / (rPx * 1.0);
       canvas.style.touchAction = opts.touchAction || "none";
-      canvas.addEventListener("pointerdown", (e) => {
+      const inputs = disk ? [canvas, disk] : [canvas];
+      const onEach = (type, fn) => inputs.forEach((el) => el.addEventListener(type, fn));
+      onEach("pointerdown", (e) => {
         dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now(); lastTouch = lastT;
         yawVel = pitchVel = 0;
-        try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
       });
-      canvas.addEventListener("pointermove", (e) => {
+      onEach("pointermove", (e) => {
         if (!dragging) return;
         const now = performance.now(), dt = Math.max(0.008, (now - lastT) / 1000), k = degPerPx();
         const dx = (e.clientX - lastX) * k, dy = (e.clientY - lastY) * k;
@@ -515,9 +539,9 @@
         lastX = e.clientX; lastY = e.clientY; lastT = now; lastTouch = now;
       });
       const endDrag = () => { dragging = false; lastTouch = performance.now(); };
-      canvas.addEventListener("pointerup", endDrag);
+      onEach("pointerup", endDrag);
       // 취소 = 브라우저가 제스처를 가져감(pan-y 에서 세로 스크롤 시작) → 그 사이 쌓인 관성은 버린다(스크롤할 때마다 지구가 밀리지 않게).
-      canvas.addEventListener("pointercancel", () => { yawVel = pitchVel = 0; endDrag(); });
+      onEach("pointercancel", () => { yawVel = pitchVel = 0; endDrag(); });
       if (opts.wheelZoom !== false) canvas.addEventListener("wheel", (e) => {
         e.preventDefault();
         zoom = clamp(zoom * Math.exp(-e.deltaY * 0.0012), 0.75, 1.5);

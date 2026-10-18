@@ -15,14 +15,15 @@
 <meta property="og:description" content="이 별은 그 장소에 가야 열려요. 지도 위 밤하늘에 남기는 위치 다이어리, Stary.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ko_KR">
-<meta property="og:image" content="https://momentdiary-f26c8.web.app/og.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Stary — 지도 위 밤하늘에 남기는 위치 다이어리">
+<meta property="og:image" content="https://momentdiary-f26c8.web.app/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="누군가 남긴 이야기, 보러 갈래요? — 그 장소에 가야만 열리는 별 다이어리 Stary">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Stary — 누군가 밤하늘에 별을 남겼어요">
 <meta name="twitter:description" content="이 별은 그 장소에 가야 열려요. 지도 위 밤하늘에 남기는 위치 다이어리, Stary.">
-<meta name="twitter:image" content="https://momentdiary-f26c8.web.app/og.png">
+<meta name="twitter:image" content="https://momentdiary-f26c8.web.app/og.jpg">
 <script>
   // 모드 판별 — 본문을 그리기 전에 <html> 클래스로 정해 둔다(홈 화면이 잠깐 비쳤다 바뀌지 않게).
   //  /            = 홈(앱 소개)              → "home"   (JS 가 꺼져 있어도 이 화면이 기본)
@@ -39,7 +40,9 @@
   /* 포인트색 = 남색 계열(2026-10-11 — 예전 민트 #6EE7B7 에서 교체). --blue 는 버튼 바탕(흰 글자 대비 4.8:1), --sky 는 어두운 배경 위 강조 글자. */
   :root { color-scheme: dark; --blue: #4662F5; --sky: #8AA4FF; --ice: #9FD8FF; --ink: #02030a; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { height: 100%; -webkit-text-size-adjust: 100%; }
+  /* overscroll-behavior: 맨 위/아래에서 더 끌어도 당겨서 새로고침·바운스가 페이지를 끌어내리지 않게(인앱 브라우저 포함) */
+  html { height: 100%; -webkit-text-size-adjust: 100%; overscroll-behavior-y: none; }
+  body { overscroll-behavior-y: none; }
   body {
     min-height: 100%;
     font-family: "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
@@ -349,7 +352,8 @@
       if (isIOS) document.querySelectorAll(".store").forEach(function (a) {
         a.classList.toggle("primary", a.classList.contains("ios"));
       });
-      startGlobe(homeBox, { touchAction: "pan-y", wheelZoom: false });
+      // grabDisk: 지구 원판 위 드래그는 어느 방향이든 지구만 돌린다(인앱 브라우저 시트가 끌려 내려가지 않게).
+      startGlobe(homeBox, { touchAction: "pan-y", wheelZoom: false, grabDisk: true });
       startDim();
       return;
     }
