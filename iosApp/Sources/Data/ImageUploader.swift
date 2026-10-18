@@ -39,19 +39,42 @@ enum ImageUploader {
         return url.absoluteString
     }
 
-    /// 프로필 사진 업로드(항상 같은 경로 profile_images/{uid}.jpg) + users/{uid}.profileImageUrl 갱신.
-    /// Android UserRepository.uploadProfileImage 와 동일.
+    /// 프로필 사진 교체(2026-10-19, Android UserRepository.uploadProfileImage 와 같은 순서) —
+    /// **새 사진 업로드 → users/{uid}.profileImageUrl 연결 → 예전 사진(기존 URL)을 Storage 에서 삭제**.
+    /// - 파일명은 매번 새로 `profile_images/{uid}_{시각}.jpg`(storage.rules 가 본인 것만 허용). URL 이 바뀌어 옛 사진이 캐시로 남지 않는다.
+    /// - 먼저 지우고 올리다 업로드가 실패하면 프로필 URL 이 없는 파일을 가리키므로, 새 사진을 연결한 **뒤에** 지운다.
+    /// - 예전 URL 은 서버에서 읽는다. 우리 Storage 의 내 프로필 파일일 때만 지운다(구글 사진 URL 등은 그대로). 삭제 실패는 무시.
     static func uploadProfile(uid: String, data: Data) async throws -> String {
         let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.8) ?? data
-        let ref = Storage.storage().reference().child("profile_images/\(uid).jpg")
-        // 이전 이미지를 먼저 지운다(Android UserRepository 와 같은 순서). 같은 경로를 덮어쓰기만 하면
-        // 다운로드 URL 의 토큰이 그대로일 수 있어, 캐시에 남은 **옛 사진**이 계속 보인다.
-        try? await ref.delete()
+        let userRef = FirestoreService.users.document(uid)
+        // 못 읽으면 지우지 않는다(잘못 지우는 것보다 남는 게 낫다)
+        let oldUrl = (try? await userRef.getDocument(source: .server))?.get("profileImageUrl") as? String
+
+        let millis = Int64(Date().timeIntervalSince1970 * 1000)
+        let ref = Storage.storage().reference().child("profile_images/\(uid)_\(millis).jpg")
         let meta = StorageMetadata()
         meta.contentType = "image/jpeg"
         _ = try await ref.putDataAsync(jpeg, metadata: meta)
-        let url = try await ref.downloadURL()
-        try await FirestoreService.users.document(uid).setData(["profileImageUrl": url.absoluteString], merge: true)
-        return url.absoluteString
+        let url = try await ref.downloadURL().absoluteString
+        try await userRef.setData(["profileImageUrl": url], merge: true)
+
+        if let oldUrl, !oldUrl.isEmpty, oldUrl != url, let old = myProfileRef(oldUrl, uid: uid) {
+            try? await old.delete()
+        }
+        return url
+    }
+
+    /// url 이 우리 Storage 의 **내** 프로필 파일(profile_images/{uid}.jpg 또는 {uid}_{시각}.jpg)이면 그 참조. 아니면 nil.
+    /// ⚠️ `Storage.reference(forURL:)` 는 다른 버킷 URL 이면 앱을 죽이므로 쓰지 않고 직접 푼다
+    ///    (https://firebasestorage.googleapis.com/v0/b/{버킷}/o/{인코딩된 경로}?alt=media&token=…).
+    private static func myProfileRef(_ url: String, uid: String) -> StorageReference? {
+        guard let comps = URLComponents(string: url), comps.host == "firebasestorage.googleapis.com" else { return nil } // 구글 사진 등
+        let parts = comps.percentEncodedPath.components(separatedBy: "/o/")
+        guard parts.count == 2,
+              parts[0].hasSuffix("/b/\(Storage.storage().reference().bucket)"),
+              let path = parts[1].removingPercentEncoding else { return nil }
+        let mine = path == "profile_images/\(uid).jpg"
+            || (path.hasPrefix("profile_images/\(uid)_") && path.hasSuffix(".jpg"))
+        return mine ? Storage.storage().reference().child(path) : nil
     }
 }

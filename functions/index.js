@@ -492,6 +492,25 @@ exports.notifyOnNotificationCreate = onDocumentCreated(
 );
 
 /**
+ * 사용자의 프로필 사진 파일을 모두 지운다 — 예전 고정 경로 profile_images/{uid}.jpg + 교체마다 새로 만드는
+ * profile_images/{uid}_{시각}.jpg(2026-10-19~). 없으면 무시.
+ * ⚠️ 접두어를 `${uid}` 로만 잡으면 다른 사용자(uid 가 그걸로 시작하는)의 파일까지 지운다 → `${uid}_` 로 정확히.
+ */
+async function deleteProfileImages(uid) {
+  const bucket = getStorage().bucket();
+  try {
+    await bucket.file(`profile_images/${uid}.jpg`).delete();
+  } catch (_) {
+    /* 파일 없음 등 무시 */
+  }
+  try {
+    await bucket.deleteFiles({ prefix: `profile_images/${uid}_` });
+  } catch (_) {
+    /* 파일 없음 등 무시 */
+  }
+}
+
+/**
  * 계정 삭제 유예(7일) 만료 처리 — 매일 자정(KST) 실행.
  * users/{uid}.deletionRequestedAt 가 7일 이상 지난(= 그 동안 재로그인하지 않은) 계정의
  * Firestore 데이터 / Storage 프로필 이미지 / FirebaseAuth 계정을 완전 삭제한다.
@@ -520,12 +539,8 @@ exports.purgeExpiredDeletions = onSchedule(
       const authUid = doc.get("authUid");
       try {
         await deleteUserData(db, uid);
-        // Storage 프로필 이미지(profile_images/{userId}.jpg) — 없으면 무시
-        try {
-          await getStorage().bucket().file(`profile_images/${uid}.jpg`).delete();
-        } catch (_) {
-          /* 파일 없음 등 무시 */
-        }
+        // Storage 프로필 이미지(예전 고정 경로 + 교체본들) — 없으면 무시
+        await deleteProfileImages(uid);
         // FirebaseAuth 계정
         if (authUid) {
           try {
@@ -610,11 +625,7 @@ exports.onReportAction = onDocumentUpdated(
         const userDoc = await db.collection(USERS).doc(targetOwnerId).get();
         const authUid = userDoc.get("authUid");
         await deleteUserData(db, targetOwnerId);
-        try {
-          await getStorage().bucket().file(`profile_images/${targetOwnerId}.jpg`).delete();
-        } catch (_) {
-          /* 프로필 이미지 없음 무시 */
-        }
+        await deleteProfileImages(targetOwnerId);
         if (authUid) {
           try {
             await getAuth().deleteUser(authUid);

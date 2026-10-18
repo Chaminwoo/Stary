@@ -5,8 +5,11 @@ rules_version = '2';
 // ─────────────────────────────────────────────────────────────────────────────
 // [보안 모델 — firestore.rules 와 동일]
 //  - 로그인은 Google 또는 익명. "request.auth != null" 만으로는 게이팅이 안 된다(누구나 익명 로그인 가능).
-//  - profile_images 경로는 profile_images/{appUserId}.jpg 로 고정(Android UserRepository / iOS ImageUploader 동일).
-//    appUserId = Google sub(구글) 또는 FirebaseAuth uid(익명). 규칙에서 위조 불가하게 읽어 **본인 경로에만 쓰기** 허용.
+//  - profile_images 경로는 profile_images/{appUserId}_{시각}.jpg(2026-10-19~, 교체할 때마다 새 파일) 또는
+//    예전 고정 경로 profile_images/{appUserId}.jpg(구버전 앱). Android UserRepository / iOS ImageUploader 동일.
+//    appUserId = Google sub(구글) 또는 FirebaseAuth uid(익명). 규칙에서 위조 불가하게 읽어 **본인 경로에만 쓰기·삭제** 허용.
+//    앱은 새 사진을 연결한 뒤 예전 사진 파일을 지운다(그래서 본인 파일 delete 허용이 필요 — 예전 규칙은 write 에
+//    isValidImage() 가 걸려 있어 delete(request.resource 없음)가 항상 거부됐다).
 //    (예전 규칙은 누구나 남의 프로필 사진을 덮어쓸 수 있었음.)
 //  - 읽기는 로그인 세션이면 허용(익명 둘러보기 포함). 앱은 항상 토큰이 붙은 다운로드 URL 로 이미지를 불러오므로
 //    이 게이팅이 정상 표시를 막지 않는다. (예전 `read: if true` 는 인증 없는 임의 경로 열람 + 예측 가능한
@@ -21,13 +24,18 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // profile_images/{appUserId}.jpg 경로가 "내 것"인지 — 익명(FirebaseAuth uid)과 Google(sub) 를 모두 인정.
-    // ⚠️ 정규식 split 대신 정확한 문자열 결합 비교(sub/uid 에 '.' 없음)로 오탐을 피한다.
+    // 파일명이 base(내 id)의 프로필 사진인지 — {base}.jpg(예전 고정) 또는 {base}_{숫자}.jpg(교체마다 새 파일).
+    // base 는 Google sub(숫자) / FirebaseAuth uid(영숫자)라 정규식 특수문자가 없다.
+    function isProfileFileOf(imageId, base) {
+      return imageId == base + '.jpg' || imageId.matches(base + '_[0-9]+[.]jpg');
+    }
+
+    // profile_images/{imageId} 가 "내 것"인지 — 익명(FirebaseAuth uid)과 Google(sub) 를 모두 인정.
     function isMyProfilePath(imageId) {
       return request.auth != null && (
-        imageId == request.auth.uid + '.jpg'
+        isProfileFileOf(imageId, request.auth.uid)
         || (request.auth.token.firebase.sign_in_provider == 'google.com'
-            && imageId == request.auth.token.firebase.identities['google.com'][0] + '.jpg')
+            && isProfileFileOf(imageId, request.auth.token.firebase.identities['google.com'][0]))
       );
     }
 
@@ -53,10 +61,11 @@ service firebase.storage {
       allow write: if isSignedIn() && isValidVideo();
     }
 
-    // 프로필 사진: profile_images/{appUserId}.jpg → 본인 경로에만 쓰기(남의 프로필 사진 변조 차단).
+    // 프로필 사진: 본인 파일에만 쓰기(남의 프로필 사진 변조 차단) + 본인 파일 삭제(교체 시 예전 사진 정리).
     match /profile_images/{imageId} {
       allow read: if isSignedIn();
-      allow write: if isValidImage() && isMyProfilePath(imageId);
+      allow create, update: if isValidImage() && isMyProfilePath(imageId);
+      allow delete: if isMyProfilePath(imageId);
     }
 
     // 그 외 경로는 모두 거부
