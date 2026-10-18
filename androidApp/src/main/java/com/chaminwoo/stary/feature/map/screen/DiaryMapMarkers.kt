@@ -169,8 +169,6 @@ internal const val REVEAL_RIM_GLOW_DP = 22f
 /** 시작점의 검은 구체 — 반지름(dp) / 생겼다 사라지는 시간(ms). */
 internal const val REVEAL_ORB_DP = 15f
 internal const val REVEAL_ORB_MS = 700L
-/** 지구 반지름(m) — 지도 위 원을 대권(실제 지구 곡면) 기준으로 그린다(아주 큰 링도 모양이 깨지지 않게). */
-internal const val EARTH_RADIUS_M = 6_371_000.0
 
 /**
  * 거품 출렁임 모양 — 각도 θ(라디안, 동쪽 0·반시계)와 시각(초)에 따른 −1..1 값.
@@ -197,35 +195,6 @@ internal class RingWobble(seed: Int) {
             0.08 * kotlin.math.sin(11 * theta + p4 - 2.6 * tSec)
 }
 
-/**
- * [lat]/[lng] 에서 방위 [bearingRad](북쪽 0·시계방향)로 [distM] 만큼 간 지점(대권) — [lat, lng].
- * 경도는 −180..180 으로 접지 않는다(호출부가 이어지게 펼친다).
- */
-internal fun geoDestination(lat: Double, lng: Double, bearingRad: Double, distM: Double): DoubleArray {
-    val d = (distM / EARTH_RADIUS_M).coerceIn(0.0, Math.PI)
-    val p1 = Math.toRadians(lat)
-    val l1 = Math.toRadians(lng)
-    val sinP2 = kotlin.math.sin(p1) * kotlin.math.cos(d) +
-        kotlin.math.cos(p1) * kotlin.math.sin(d) * kotlin.math.cos(bearingRad)
-    val p2 = kotlin.math.asin(sinP2.coerceIn(-1.0, 1.0))
-    val l2 = l1 + kotlin.math.atan2(
-        kotlin.math.sin(bearingRad) * kotlin.math.sin(d) * kotlin.math.cos(p1),
-        kotlin.math.cos(d) - kotlin.math.sin(p1) * sinP2,
-    )
-    return doubleArrayOf(Math.toDegrees(p2), Math.toDegrees(l2))
-}
-
-/** [lat1]/[lng1] 에서 [lat2]/[lng2] 를 보는 각도 — [RingWobble] 과 같은 기준(동쪽 0·반시계, 라디안). */
-internal fun geoTheta(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
-    val p1 = Math.toRadians(lat1)
-    val p2 = Math.toRadians(lat2)
-    val dl = Math.toRadians(lng2 - lng1)
-    val bearing = kotlin.math.atan2(
-        kotlin.math.sin(dl) * kotlin.math.cos(p2),
-        kotlin.math.cos(p1) * kotlin.math.sin(p2) - kotlin.math.sin(p1) * kotlin.math.cos(p2) * kotlin.math.cos(dl),
-    )
-    return Math.PI / 2 - bearing
-}
 
 /** 시작 후 [tMs] 에 링 반지름(m) — [sweepM] = 내 위치에서 화면의 가장 먼 모서리까지 거리. */
 internal fun revealRadiusM(tMs: Double, sweepM: Double): Double {

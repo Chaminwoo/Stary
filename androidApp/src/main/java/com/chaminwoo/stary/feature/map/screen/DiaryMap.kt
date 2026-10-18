@@ -992,10 +992,14 @@ fun DiaryMap(
             prevAssignment = assignment
             prevSizeMult = curSizeMult
             needsSettle = true
-            val center = currentLatLngRef.value
+            val here = currentLatLngRef.value
+            // 링 중심 = 내 위치의 **지금 화면 쪽 사본**(평면 지도 — FilterGlow.kt 머리말). 멀리 와 있으면 내 위치 쪽에서 밀려온다.
+            val refLng = map.cameraPosition.target?.longitude ?: here.longitude
+            val center = flatOf(here.latitude, here.longitude, refLng)
             revealPlanHolder.value = RevealPlan(
                 center = center,
-                sweepM = revealSweepMeters(map, mapView.width.toFloat(), mapView.height.toFloat(), center),
+                refLng = refLng,
+                sweepM = revealSweepFlat(map, mapView.width.toFloat(), mapView.height.toFloat(), center),
                 toTint = filterTintRef.value,
                 oldStars = lastShown.toList(),
             )
@@ -1114,10 +1118,10 @@ fun DiaryMap(
             // 별마다 링이 닿는 시각(ms) — 출렁이는 테두리가 그 별 방향에서 실제로 닿는 순간에 맞춘다.
             val hitAt = HashMap<String, Long>()
             fun hitTimeOf(d: Diary): Long = hitAt.getOrPut(d.id) {
-                val dist = LocationHelper.distanceBetween(
-                    plan.center.latitude, plan.center.longitude, d.latitude, d.longitude
-                ).toDouble()
-                val theta = geoTheta(plan.center.latitude, plan.center.longitude, d.latitude, d.longitude)
+                // 링과 같은 평면 지도 거리·각도(별도 화면 쪽 사본 기준)
+                val p = flatOf(d.latitude, d.longitude, plan.refLng)
+                val dist = plan.center.dist(p)
+                val theta = plan.center.theta(p)
                 // 기본 원이 닿는 시각의 출렁임으로 한 번 보정(출렁임은 느리게 변해 이 정도면 선과 맞는다)
                 val base = revealHitMs(dist, plan.sweepM)
                 val w = plan.wobble.at(theta, base / 1000.0)
@@ -1562,9 +1566,11 @@ fun DiaryMap(
     }
 }
 
-/** 필터 전환 등장 계획 — 링 중심(내 위치)·화면을 쓰는 거리(m)·새 필터 빛 색·걷어낼 이전 별·구불거림. */
+/** 필터 전환 등장 계획 — 링 중심(내 위치, 평면 지도)·화면을 쓰는 거리·새 필터 빛 색·걷어낼 이전 별·구불거림. */
 private class RevealPlan(
-    val center: LatLng,
+    val center: FlatPt,
+    /** 계획 때 카메라 경도 — 별 좌표를 같은(화면 쪽) 지구 사본으로 펼치는 기준. */
+    val refLng: Double,
     val sweepM: Double,
     val toTint: Color?,
     val oldStars: List<ShownStar>,
@@ -1606,12 +1612,12 @@ private fun revealWavesFrame(
     flashes: List<WaveFlash>,
 ): FilterWaveFrame {
     val runs = waves.runs
-    // 1) 화면 통과 판정 — 링은 별과 관계없이 지금 보고 있는 화면을 다 지나갈 때까지 퍼진다(크기 제한 없음, 대권 기준).
+    // 1) 화면 통과 판정 — 링은 별과 관계없이 지금 보고 있는 화면을 다 지나갈 때까지 퍼진다(크기 제한 없음, 평면 지도 기준).
     for (r in runs) {
         if (r.passedAt >= 0) continue
         val ms = r.ms(now)
         val radius = revealRadiusM(ms.toDouble(), r.plan.sweepM)
-        val passed = radius * (1 - REVEAL_RING_WOBBLE) >= revealSweepMeters(map, viewW, viewH, r.plan.center)
+        val passed = radius * (1 - REVEAL_RING_WOBBLE) >= revealSweepFlat(map, viewW, viewH, r.plan.center)
         if (passed || ms >= REVEAL_RING_MAX_MS) r.passedAt = ms
     }
     // 2) 화면을 다 덮은 가장 새 거품보다 오래된 거품은 지운다(화면 밖 = 이제 그 거품 색).
@@ -1625,10 +1631,7 @@ private fun revealWavesFrame(
         val radii = runs.map { revealRadiusM(it.ms(now).toDouble(), it.plan.sweepM) }
         val swallowed = runs.indices.filter { i ->
             (i + 1 until runs.size).any { j ->
-                val gap = LocationHelper.distanceBetween(
-                    runs[i].plan.center.latitude, runs[i].plan.center.longitude,
-                    runs[j].plan.center.latitude, runs[j].plan.center.longitude,
-                ).toDouble()
+                val gap = runs[i].plan.center.dist(runs[j].plan.center.nearX(runs[i].plan.center.x))
                 gap + radii[i] * (1 + REVEAL_RING_WOBBLE) <= radii[j] * (1 - REVEAL_RING_WOBBLE)
             }
         }
@@ -1636,6 +1639,7 @@ private fun revealWavesFrame(
     }
 
     val orbRadiusPx = REVEAL_ORB_DP * density
+    val screen = FlatScreen.of(map, viewW, viewH)
     val bubbles = runs.map { r ->
         val plan = r.plan
         val ms = r.ms(now)
@@ -1651,7 +1655,7 @@ private fun revealWavesFrame(
         // (성운 잔별 56개 — 작은 반투명 원 — 은 지도에 원이 여러 개 생겨 보여 2026-10-19 삭제. 바탕 빛만 남았다.)
         // 시작점의 검은 구체 — 툭 생겼다가(150ms) 거품이 터져 나오며 커지면서 사라진다.
         val orb = if (ms < REVEAL_ORB_MS) {
-            val c = map.projection.toScreenLocation(MlLatLng(plan.center.latitude, plan.center.longitude))
+            val c = screen?.toScreen(plan.center.nearX(screen.refX)) ?: android.graphics.PointF(-9999f, -9999f)
             val grow = (ms / 150f).coerceAtMost(1f)
             val fade = ((ms - 150f) / (REVEAL_ORB_MS - 150f)).coerceIn(0f, 1f)
             PortalOrb(
@@ -1664,7 +1668,7 @@ private fun revealWavesFrame(
         } else null
         WaveBubble(
             // 화면을 다 덮은 뒤엔 테두리가 옅어지는 동안(300ms)만 경로를 만든다 — 그 뒤 링은 수천 km 로 커져 투영이 뒤집힌다.
-            ring = if (ringAlpha > 0.01f) ringScreenPath(map, plan.center, radius, plan.wobble, tSec) else null,
+            ring = if (ringAlpha > 0.01f && screen != null) ringScreenPath(screen, plan.center, radius, plan.wobble, tSec) else null,
             covers = r.passedAt >= 0,
             ringAlpha = ringAlpha,
             ringColor = ringColor,

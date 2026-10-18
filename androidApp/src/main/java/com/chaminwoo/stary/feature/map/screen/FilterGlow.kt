@@ -120,27 +120,113 @@ internal class PortalOrb(val x: Float, val y: Float, val radiusPx: Float, val al
 /** 포털 성운의 바탕색 = 필터 색을 아주 깊은 남보라 쪽으로 섞은 것(레퍼런스의 "짙은 보라 우주"). */
 internal fun portalDeep(tint: Color): Color = lerp(tint, Color(0xFF120A2A), 0.58f)
 
-/**
- * 지도 위 **출렁이는 거품 테두리**(중심 [center], 기본 반지름 [radiusM] m, 각도마다 [wobble] 로 출렁임)를
- * 지금 카메라로 화면에 투영한 닫힌 경로. 대권(지구 곡면) 기준이라 아주 크게 퍼져도 모양이 깨지지 않고, **크기 제한이 없다**
- * (예전엔 2,000km 에서 잘라 지도를 넓게 보면 링이 그 크기에서 멈춰 보였다 — 2026-10-14).
+/*
+ * ── 필터 링의 좌표계 = **평면 지도(웹 메르카토르)** (2026-10-19) ──
+ * 예전엔 대권(지구 곡면) 원이었다. 내 위치 근처에선 멀쩡했지만, 지도를 멀리(유럽·미주) 옮겨 필터를 켜면 수천 km 짜리 원이
+ * 메르카토르 지도 위에서 극 쪽으로 휘어 **위에서 내려왔고**, 극을 넘는 점이 ±85° 로 잘려 **가로 직선**이, 경도 접힘으로 **대각선**이 생겨
+ * 안/밖(필터 빛) 영역까지 엉뚱하게 칠해졌다. 이제 링은 지도에 보이는 그대로의 원이라, 내 위치가 있는 쪽(오른쪽이면 오른쪽)에서
+ * 동그랗게 밀려와 화면을 쓴다. 단위 = 적도 둘레(m)로 늘린 메르카토르 좌표 — 시간 계산(revealRadiusM 등)은 비율만 쓴다.
+ * 화면 사상은 **평면 사영변환(호모그래피)** — 기울인(tilt) 지도도 평면이라 4점으로 정확히 맞고, 극 밖·지평선 근처 좌표도 잘리지 않는다.
+ * iOS `FlatMap`/`FlatScreen`(MapStarReveal.swift)과 같은 식.
  */
-internal fun ringScreenPath(map: MapLibreMap, center: LatLng, radiusM: Double, wobble: RingWobble, tSec: Double): Path {
-    val r = radiusM.coerceAtLeast(0.5)
+
+/** 평면 지도 한 바퀴(경도 360°)의 길이. */
+internal const val FLAT_WORLD = 40_075_016.686
+
+/** 평면 지도 위 한 점(x 동쪽+, y 남쪽+ — 화면과 같은 방향). */
+internal class FlatPt(val x: Double, val y: Double) {
+    fun dist(o: FlatPt): Double = kotlin.math.hypot(o.x - x, o.y - y)
+    /** 이 점에서 [o] 를 보는 각도 — [RingWobble] 과 같은 기준(동쪽 0·반시계, 라디안). */
+    fun theta(o: FlatPt): Double = kotlin.math.atan2(-(o.y - y), o.x - x)
+    /** 경도 한 바퀴씩 옮겨 [refX] 에 가장 가까운 사본으로. */
+    fun nearX(refX: Double): FlatPt = FlatPt(x + Math.rint((refX - x) / FLAT_WORLD) * FLAT_WORLD, y)
+}
+
+/** 위경도 → 평면 지도. 경도는 [refLng] 에서 ±180° 안의 사본(지금 화면 쪽 지구)으로 펼친다. */
+internal fun flatOf(lat: Double, lng: Double, refLng: Double): FlatPt {
+    var l = lng
+    while (l - refLng > 180.0) l -= 360.0
+    while (l - refLng < -180.0) l += 360.0
+    val p = Math.toRadians(lat.coerceIn(-85.05112878, 85.05112878))
+    return FlatPt(
+        (l + 180.0) / 360.0 * FLAT_WORLD,
+        (1.0 - kotlin.math.ln(kotlin.math.tan(Math.PI / 4 + p / 2)) / Math.PI) / 2.0 * FLAT_WORLD,
+    )
+}
+
+/**
+ * 평면 지도 → 지금 카메라 화면 좌표. 화면 안쪽 네 점을 지도 좌표로 바꿔 사영변환을 푼다(매 프레임 새로 — 지도를 움직여도 따라간다).
+ * [refX] = 지금 화면 쪽 지구의 x(다른 사본의 점은 [FlatPt.nearX] 로 맞춰 쓴다).
+ */
+internal class FlatScreen private constructor(
+    private val h: DoubleArray, private val ox: Double, private val oy: Double, private val s: Double, val refX: Double,
+) {
+    fun toScreen(p: FlatPt): PointF {
+        val x = (p.x - ox) / s
+        val y = (p.y - oy) / s
+        // 지평선 너머(w ≤ 0)는 아주 먼 곳으로 — 부호가 뒤집혀 화면 안쪽으로 튀지 않게
+        val w = (h[6] * x + h[7] * y + 1.0).coerceAtLeast(1e-4)
+        return PointF(((h[0] * x + h[1] * y + h[2]) / w).toFloat(), ((h[3] * x + h[4] * y + h[5]) / w).toFloat())
+    }
+
+    companion object {
+        fun of(map: MapLibreMap, width: Float, height: Float): FlatScreen? {
+            if (width < 1f || height < 1f) return null
+            val refLng = map.cameraPosition.target?.longitude ?: 0.0
+            val scr = listOf(
+                PointF(width * 0.2f, height * 0.3f), PointF(width * 0.8f, height * 0.3f),
+                PointF(width * 0.8f, height * 0.8f), PointF(width * 0.2f, height * 0.8f),
+            )
+            val world = scr.map { pt -> map.projection.fromScreenLocation(pt).let { flatOf(it.latitude, it.longitude, refLng) } }
+            val ox = world.sumOf { it.x } / 4
+            val oy = world.sumOf { it.y } / 4
+            val s = world.maxOf { maxOf(kotlin.math.abs(it.x - ox), kotlin.math.abs(it.y - oy)) }
+            if (s <= 0.0 || s.isNaN()) return null
+            // u = (h0 x + h1 y + h2) / (h6 x + h7 y + 1), v = (h3 x + h4 y + h5) / (…) — 8 미지수 연립방정식
+            val a = Array(8) { DoubleArray(9) }
+            for (i in 0 until 4) {
+                val x = (world[i].x - ox) / s
+                val y = (world[i].y - oy) / s
+                val u = scr[i].x.toDouble()
+                val v = scr[i].y.toDouble()
+                a[2 * i] = doubleArrayOf(x, y, 1.0, 0.0, 0.0, 0.0, -x * u, -y * u, u)
+                a[2 * i + 1] = doubleArrayOf(0.0, 0.0, 0.0, x, y, 1.0, -x * v, -y * v, v)
+            }
+            val h = solve(a) ?: return null
+            return FlatScreen(h, ox, oy, s, flatOf(0.0, refLng, refLng).x)
+        }
+
+        /** 가우스 소거(부분 피벗) — 8×8. 특이하면 null. */
+        private fun solve(a: Array<DoubleArray>): DoubleArray? {
+            val n = 8
+            for (c in 0 until n) {
+                val p = (c until n).maxByOrNull { kotlin.math.abs(a[it][c]) } ?: return null
+                if (kotlin.math.abs(a[p][c]) < 1e-12) return null
+                val t = a[c]; a[c] = a[p]; a[p] = t
+                for (r in 0 until n) {
+                    if (r == c) continue
+                    val f = a[r][c] / a[c][c]
+                    if (f == 0.0) continue
+                    for (k in c..n) a[r][k] -= f * a[c][k]
+                }
+            }
+            return DoubleArray(n) { a[it][n] / a[it][it] }
+        }
+    }
+}
+
+/**
+ * 지도 위 **출렁이는 거품 테두리**(평면 지도 위 원 — 중심 [center], 기본 반지름 [radius], 각도마다 [wobble] 로 출렁임)를
+ * 지금 카메라로 화면에 투영한 닫힌 경로. 크기 제한이 없다(예전엔 2,000km 에서 잘라 링이 멈춰 보였다 — 2026-10-14).
+ */
+internal fun ringScreenPath(screen: FlatScreen, center: FlatPt, radius: Double, wobble: RingWobble, tSec: Double): Path {
+    val r = radius.coerceAtLeast(0.5)
+    val c = center.nearX(screen.refX)
     val path = Path()
-    var prevLng = Double.NaN
     for (i in 0 until REVEAL_RING_SEGMENTS) {
         val a = 2.0 * Math.PI * i / REVEAL_RING_SEGMENTS
         val ra = r * (1 + REVEAL_RING_WOBBLE * wobble.at(a, tSec))
-        val ll = geoDestination(center.latitude, center.longitude, Math.PI / 2 - a, ra)
-        // 경도가 ±180 을 넘나들 때 선이 화면을 가로지르지 않게 이어 붙인다
-        var lng = ll[1]
-        if (!prevLng.isNaN()) {
-            while (lng - prevLng > 180) lng -= 360
-            while (lng - prevLng < -180) lng += 360
-        }
-        prevLng = lng
-        val p = map.projection.toScreenLocation(MlLatLng(ll[0].coerceIn(-85.0, 85.0), lng))
+        val p = screen.toScreen(FlatPt(c.x + ra * cos(a), c.y - ra * sin(a)))
         if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
     }
     path.close()
@@ -148,14 +234,16 @@ internal fun ringScreenPath(map: MapLibreMap, center: LatLng, radiusM: Double, w
 }
 
 /**
- * 링이 화면을 다 쓰는 데 필요한 거리(m) = [center] 에서 화면 네 모서리(지도 좌표)까지 거리 중 최댓값.
+ * 링이 화면을 다 쓰는 데 필요한 거리(평면 지도) = [center] 에서 화면 네 모서리(지도 좌표)까지 거리 중 최댓값.
  * 이 거리를 [REVEAL_WAVE_MS] 동안 일정한 속도로 가므로, 줌과 무관하게 링이 화면을 쓰는 시간이 같다.
  */
-internal fun revealSweepMeters(map: MapLibreMap, width: Float, height: Float, center: LatLng): Double {
+internal fun revealSweepFlat(map: MapLibreMap, width: Float, height: Float, center: FlatPt): Double {
+    val refLng = map.cameraPosition.target?.longitude ?: 0.0
     val corners = listOf(PointF(0f, 0f), PointF(width, 0f), PointF(0f, height), PointF(width, height))
+    val c = center.nearX(flatOf(0.0, refLng, refLng).x)
     return corners.maxOf { pt ->
         val ll = map.projection.fromScreenLocation(pt)
-        LocationHelper.distanceBetween(center.latitude, center.longitude, ll.latitude, ll.longitude).toDouble()
+        c.dist(flatOf(ll.latitude, ll.longitude, refLng))
     }.coerceAtLeast(30.0)
 }
 

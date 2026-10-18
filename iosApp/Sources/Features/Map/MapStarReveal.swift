@@ -43,8 +43,6 @@ enum StarRevealFx {
     /// 시작점의 검은 구체 — 반지름(pt) / 생겼다 사라지는 시간(초).
     static let orbRadius: CGFloat = 15
     static let orbTime = 0.7
-    /// 지구 반지름(m) — 지도 위 원을 대권 기준으로 그린다.
-    static let earthRadius = 6_371_000.0
     /// 링이 닿은 별 하나가 생기는 시간(초) — 크기 0.2 → 1.55 → 1 + 발광.
     static let pop = 0.52
     /// 별 발광 반경 = 화면에 보이는 별 반지름 × 이 배율(하한 flashMin).
@@ -76,24 +74,88 @@ enum StarRevealFx {
         return CGFloat(1.55 + (1 - 1.55) * e)
     }
 
-    /// (lat, lng) 에서 방위 bearing(rad, 북쪽 0·시계방향)으로 dist(m) 간 지점(대권). 경도는 접지 않는다(Android geoDestination).
-    static func destination(lat: Double, lng: Double, bearing: Double, distance: Double) -> (lat: Double, lng: Double) {
-        let d = min(max(distance / earthRadius, 0), Double.pi)
-        let p1 = lat * .pi / 180
-        let l1 = lng * .pi / 180
-        let sinP2 = sin(p1) * cos(d) + cos(p1) * sin(d) * cos(bearing)
-        let p2 = asin(min(max(sinP2, -1), 1))
-        let l2 = l1 + atan2(sin(bearing) * sin(d) * cos(p1), cos(d) - sin(p1) * sinP2)
-        return (p2 * 180 / .pi, l2 * 180 / .pi)
+}
+
+// MARK: - 평면 지도(웹 메르카토르) — 필터 링의 좌표계(2026-10-19, Android FilterGlow.kt 머리말과 같은 식)
+// 예전엔 대권(지구 곡면) 원이라, 지도를 멀리(유럽·미주) 옮겨 필터를 켜면 수천 km 원이 극 쪽으로 휘어 위에서 내려오고,
+// 극을 넘는 점이 ±85° 로 잘려 가로 직선이, 경도 접힘으로 대각선이 생겼다. 이제 링은 지도에 보이는 그대로의 원이라
+// 내 위치가 있는 쪽에서 동그랗게 밀려온다. 단위 = 적도 둘레(m)로 늘린 메르카토르 좌표(시간 계산은 비율만 쓴다).
+// 화면 사상은 평면 사영변환(호모그래피) — 기울인 지도도 4점으로 정확히 맞고 극 밖 좌표도 잘리지 않는다.
+
+/// 평면 지도 위 한 점(x 동쪽+, y 남쪽+ — 화면과 같은 방향).
+struct FlatPt {
+    static let world = 40_075_016.686
+    let x: Double, y: Double
+
+    func dist(_ o: FlatPt) -> Double { hypot(o.x - x, o.y - y) }
+    /// 이 점에서 o 를 보는 각도 — RingWobble 과 같은 기준(동쪽 0·반시계, rad).
+    func theta(_ o: FlatPt) -> Double { atan2(-(o.y - y), o.x - x) }
+    /// 경도 한 바퀴씩 옮겨 refX 에 가장 가까운 사본으로.
+    func nearX(_ refX: Double) -> FlatPt { FlatPt(x: x + ((refX - x) / Self.world).rounded() * Self.world, y: y) }
+
+    /// 위경도 → 평면 지도. 경도는 refLng 에서 ±180° 안의 사본(지금 화면 쪽 지구)으로 펼친다.
+    static func of(_ c: CLLocationCoordinate2D, refLng: Double) -> FlatPt {
+        var l = c.longitude
+        while l - refLng > 180 { l -= 360 }
+        while l - refLng < -180 { l += 360 }
+        let p = min(max(c.latitude, -85.05112878), 85.05112878) * .pi / 180
+        return FlatPt(x: (l + 180) / 360 * world,
+                      y: (1 - log(tan(.pi / 4 + p / 2)) / .pi) / 2 * world)
+    }
+}
+
+/// 평면 지도 → 지금 카메라 화면 좌표. 화면 안쪽 네 점을 지도 좌표로 바꿔 사영변환을 푼다(매 프레임 새로).
+/// refX = 지금 화면 쪽 지구의 x(다른 사본의 점은 nearX 로 맞춰 쓴다).
+struct FlatScreen {
+    private let h: [Double]
+    private let ox: Double, oy: Double, s: Double
+    let refX: Double
+
+    init?(_ mapView: MLNMapView) {
+        let b = mapView.bounds
+        guard b.width >= 1, b.height >= 1 else { return nil }
+        let refLng = mapView.centerCoordinate.longitude
+        let scr = [CGPoint(x: b.width * 0.2, y: b.height * 0.3), CGPoint(x: b.width * 0.8, y: b.height * 0.3),
+                   CGPoint(x: b.width * 0.8, y: b.height * 0.8), CGPoint(x: b.width * 0.2, y: b.height * 0.8)]
+        let world = scr.map { FlatPt.of(mapView.convert($0, toCoordinateFrom: mapView), refLng: refLng) }
+        let ox = world.reduce(0) { $0 + $1.x } / 4
+        let oy = world.reduce(0) { $0 + $1.y } / 4
+        let s = world.map { max(abs($0.x - ox), abs($0.y - oy)) }.max() ?? 0
+        guard s > 0, !s.isNaN else { return nil }
+        // u = (h0 x + h1 y + h2) / (h6 x + h7 y + 1), v = (h3 x + h4 y + h5) / (…) — 8 미지수 연립방정식
+        var a: [[Double]] = []
+        for i in 0..<4 {
+            let x = (world[i].x - ox) / s, y = (world[i].y - oy) / s
+            let u = Double(scr[i].x), v = Double(scr[i].y)
+            a.append([x, y, 1, 0, 0, 0, -x * u, -y * u, u])
+            a.append([0, 0, 0, x, y, 1, -x * v, -y * v, v])
+        }
+        guard let h = Self.solve(a) else { return nil }
+        self.h = h; self.ox = ox; self.oy = oy; self.s = s
+        refX = FlatPt.of(CLLocationCoordinate2D(latitude: 0, longitude: refLng), refLng: refLng).x
     }
 
-    /// (lat1, lng1) 에서 (lat2, lng2) 를 보는 각도 — RingWobble 과 같은 기준(동쪽 0·반시계, rad). Android geoTheta.
-    static func theta(lat1: Double, lng1: Double, lat2: Double, lng2: Double) -> Double {
-        let p1 = lat1 * .pi / 180
-        let p2 = lat2 * .pi / 180
-        let dl = (lng2 - lng1) * .pi / 180
-        let bearing = atan2(sin(dl) * cos(p2), cos(p1) * sin(p2) - sin(p1) * cos(p2) * cos(dl))
-        return .pi / 2 - bearing
+    func toScreen(_ p: FlatPt) -> CGPoint {
+        let x = (p.x - ox) / s, y = (p.y - oy) / s
+        // 지평선 너머(w ≤ 0)는 아주 먼 곳으로 — 부호가 뒤집혀 화면 안쪽으로 튀지 않게
+        let w = max(h[6] * x + h[7] * y + 1, 1e-4)
+        return CGPoint(x: (h[0] * x + h[1] * y + h[2]) / w, y: (h[3] * x + h[4] * y + h[5]) / w)
+    }
+
+    /// 가우스 소거(부분 피벗) — 8×8. 특이하면 nil.
+    private static func solve(_ m: [[Double]]) -> [Double]? {
+        var a = m
+        let n = 8
+        for c in 0..<n {
+            guard let p = (c..<n).max(by: { abs(a[$0][c]) < abs(a[$1][c]) }), abs(a[p][c]) >= 1e-12 else { return nil }
+            a.swapAt(c, p)
+            for r in 0..<n where r != c {
+                let f = a[r][c] / a[c][c]
+                if f == 0 { continue }
+                for k in c...n { a[r][k] -= f * a[c][k] }
+            }
+        }
+        return (0..<n).map { a[$0][n] / a[$0][$0] }
     }
 }
 
@@ -114,10 +176,13 @@ struct RingWobble {
     }
 }
 
-/// 퍼지고 있는 거품 하나 — 중심(내 위치)·화면을 쓰는 거리(m)·필터 색·출렁임·잔별 배치·출발 시각.
+/// 퍼지고 있는 거품 하나 — 중심(내 위치, 평면 지도)·화면을 쓰는 거리·필터 색·출렁임·출발 시각.
 /// 필터를 연속으로 바꾸면 여러 개가 함께 퍼진다(2026-10-15, Android `RevealRun`).
 final class RevealRun {
-    let center: CLLocationCoordinate2D
+    /// 링 중심 = 내 위치의 **계획 때 화면 쪽 사본**(평면 지도).
+    let center: FlatPt
+    /// 계획 때 카메라 경도 — 별 좌표를 같은(화면 쪽) 지구 사본으로 펼치는 기준.
+    let refLng: Double
     let sweep: Double
     /// 거품 안 필터 빛 색(nil = 빛 없음, 필터를 모두 끈 경우).
     let tintHex: UInt32?
@@ -126,8 +191,9 @@ final class RevealRun {
     /// 링이 지금 화면을 다 지나간 시각(초, 출발 기준). −1 = 아직.
     var passedAt: Double = -1
 
-    init(center: CLLocationCoordinate2D, sweep: Double, tintHex: UInt32?) {
+    init(center: FlatPt, refLng: Double, sweep: Double, tintHex: UInt32?) {
         self.center = center
+        self.refLng = refLng
         self.sweep = sweep
         self.tintHex = tintHex
     }
@@ -150,19 +216,22 @@ extension MapLibreView.Coordinator {
     /// 등장 준비 — 새 거품의 중심(내 위치)·화면을 쓰는 거리를 정하고, **화면 안팎의 모든 별**마다 링이 닿는 시각을 정한다.
     /// (뷰가 생기기 전에 호출해도 된다.) 별은 마지막 필터 기준 — 이 (가장 새) 거품이 닿을 때 생긴다.
     func prepareStarReveal(_ annotations: [MLNAnnotation], mapView: MLNMapView) {
-        let center = parent.userLocation ?? mapView.centerCoordinate
-        let here = CLLocation(latitude: center.latitude, longitude: center.longitude)
-        let sweep = revealSweepMeters(mapView, center: center)
-        let run = RevealRun(center: center, sweep: sweep, tintHex: parent.filterTintHex)
+        let here = parent.userLocation ?? mapView.centerCoordinate
+        // 링 중심 = 내 위치의 지금 화면 쪽 사본(평면 지도). 멀리 와 있으면 내 위치 쪽에서 밀려온다.
+        let refLng = mapView.centerCoordinate.longitude
+        let center = FlatPt.of(here, refLng: refLng)
+        let sweep = revealSweep(mapView, center: center)
+        let run = RevealRun(center: center, refLng: refLng, sweep: sweep, tintHex: parent.filterTintHex)
         revealPending = run
 
         // 별마다 링이 닿는 시각 — 출렁이는 테두리가 그 별 방향에서 실제로 닿는 순간에 맞춘다(Android hitTimeOf 와 같은 보정).
         revealDelays = [:]
         for case let a as DiaryAnnotation in annotations {
             guard let id = a.diary.id else { continue }
-            let d = here.distance(from: CLLocation(latitude: a.coordinate.latitude, longitude: a.coordinate.longitude))
-            let theta = StarRevealFx.theta(lat1: center.latitude, lng1: center.longitude,
-                                           lat2: a.coordinate.latitude, lng2: a.coordinate.longitude)
+            // 링과 같은 평면 지도 거리·각도(별도 화면 쪽 사본 기준)
+            let p = FlatPt.of(a.coordinate, refLng: refLng)
+            let d = center.dist(p)
+            let theta = center.theta(p)
             let base = StarRevealFx.hitTime(distance: d, sweep: sweep)
             let w = run.wobble.at(theta, base)
             revealDelays[id] = StarRevealFx.hitTime(distance: d / (1 + StarRevealFx.wobble * w), sweep: sweep)
@@ -278,39 +347,30 @@ extension MapLibreView.Coordinator {
 
     // MARK: 빛의 고리(포털)
 
-    /// 링이 화면을 다 덮는 데 필요한 거리(m) = center 에서 화면 네 모서리(지도 좌표)까지 거리 중 최댓값(Android revealSweepMeters).
-    private func revealSweepMeters(_ mapView: MLNMapView, center: CLLocationCoordinate2D) -> Double {
-        let here = CLLocation(latitude: center.latitude, longitude: center.longitude)
+    /// 링이 화면을 다 덮는 데 필요한 거리(평면 지도) = center 에서 화면 네 모서리(지도 좌표)까지 거리 중 최댓값(Android revealSweepFlat).
+    private func revealSweep(_ mapView: MLNMapView, center: FlatPt) -> Double {
+        let refLng = mapView.centerCoordinate.longitude
+        let c = center.nearX(FlatPt.of(CLLocationCoordinate2D(latitude: 0, longitude: refLng), refLng: refLng).x)
         let b = mapView.bounds
         var sweep = 30.0
         for corner in [CGPoint(x: b.minX, y: b.minY), CGPoint(x: b.maxX, y: b.minY),
                        CGPoint(x: b.minX, y: b.maxY), CGPoint(x: b.maxX, y: b.maxY)] {
-            let c = mapView.convert(corner, toCoordinateFrom: mapView)
-            sweep = max(sweep, here.distance(from: CLLocation(latitude: c.latitude, longitude: c.longitude)))
+            let ll = mapView.convert(corner, toCoordinateFrom: mapView)
+            sweep = max(sweep, c.dist(FlatPt.of(ll, refLng: refLng)))
         }
         return sweep
     }
 
-    /// 지도 위 출렁이는 거품 테두리(중심, 대권, 크기 제한 없음)를 지금 카메라로 화면에 투영한 꼭짓점.
-    private func ringPoints(_ mapView: MLNMapView, run: RevealRun, elapsed: Double, radius: Double) -> [CGPoint] {
-        let center = run.center
+    /// 지도 위 출렁이는 거품 테두리(평면 지도 위 원, 크기 제한 없음)를 지금 카메라로 화면에 투영한 꼭짓점. Android ringScreenPath.
+    private func ringPoints(_ screen: FlatScreen, run: RevealRun, elapsed: Double, radius: Double) -> [CGPoint] {
+        let c = run.center.nearX(screen.refX)
         let r = max(radius, 0.5)
         var points: [CGPoint] = []
         points.reserveCapacity(StarRevealFx.ringSegments)
-        var prevLng = Double.nan
         for i in 0..<StarRevealFx.ringSegments {
             let a = 2 * Double.pi * Double(i) / Double(StarRevealFx.ringSegments)
             let ra = r * (1 + StarRevealFx.wobble * run.wobble.at(a, elapsed))
-            let ll = StarRevealFx.destination(lat: center.latitude, lng: center.longitude, bearing: .pi / 2 - a, distance: ra)
-            // 경도가 ±180 을 넘나들 때 선이 화면을 가로지르지 않게 이어 붙인다
-            var lng = ll.lng
-            if !prevLng.isNaN {
-                while lng - prevLng > 180 { lng -= 360 }
-                while lng - prevLng < -180 { lng += 360 }
-            }
-            prevLng = lng
-            let coord = CLLocationCoordinate2D(latitude: min(max(ll.lat, -85), 85), longitude: lng)
-            points.append(mapView.convert(coord, toPointTo: mapView))
+            points.append(screen.toScreen(FlatPt(x: c.x + ra * cos(a), y: c.y - ra * sin(a))))
         }
         return points
     }
@@ -325,7 +385,7 @@ extension MapLibreView.Coordinator {
         for r in revealRuns where r.passedAt < 0 {
             let e = now - r.start
             let radius = StarRevealFx.radius(at: e, sweep: r.sweep)
-            if radius * (1 - StarRevealFx.wobble) >= revealSweepMeters(mapView, center: r.center) || e >= StarRevealFx.ringMaxTime {
+            if radius * (1 - StarRevealFx.wobble) >= revealSweep(mapView, center: r.center) || e >= StarRevealFx.ringMaxTime {
                 r.passedAt = e
             }
         }
@@ -340,9 +400,9 @@ extension MapLibreView.Coordinator {
             let radii = runs.map { StarRevealFx.radius(at: now - $0.start, sweep: $0.sweep) }
             var keep: [RevealRun] = []
             for i in runs.indices {
-                let ci = CLLocation(latitude: runs[i].center.latitude, longitude: runs[i].center.longitude)
+                let ci = runs[i].center
                 let swallowed = ((i + 1)..<runs.count).contains { j in
-                    let gap = ci.distance(from: CLLocation(latitude: runs[j].center.latitude, longitude: runs[j].center.longitude))
+                    let gap = ci.dist(runs[j].center.nearX(ci.x))
                     return gap + radii[i] * (1 + StarRevealFx.wobble) <= radii[j] * (1 - StarRevealFx.wobble)
                 }
                 if !swallowed { keep.append(runs[i]) }
@@ -350,6 +410,7 @@ extension MapLibreView.Coordinator {
             revealRuns = keep
         }
 
+        let screen = FlatScreen(mapView)
         let bubbles: [FilterWaveState.Bubble] = revealRuns.map { r in
             let e = now - r.start
             let radius = StarRevealFx.radius(at: e, sweep: r.sweep)
@@ -367,15 +428,15 @@ extension MapLibreView.Coordinator {
             // (성운 잔별 56개 — 작은 반투명 원 — 은 2026-10-19 삭제, Android 와 같이. 바탕 빛만 남았다.)
             // 시작점의 검은 구체 — 툭 생겼다가(0.15초) 거품이 터져 나오며 커지면서 사라진다.
             var orb: FilterWaveState.Orb?
-            if e < StarRevealFx.orbTime {
-                let c = mapView.convert(r.center, toPointTo: mapView)
+            if e < StarRevealFx.orbTime, let screen {
+                let c = screen.toScreen(r.center.nearX(screen.refX))
                 let grow = min(e / 0.15, 1)
                 let fade = min(max((e - 0.15) / (StarRevealFx.orbTime - 0.15), 0), 1)
                 let rr = StarRevealFx.orbRadius * CGFloat((0.15 + 0.85 * (1 - (1 - grow) * (1 - grow))) * (1 + 0.3 * fade)) // 0 에서 시작하지 않는다(Android 와 같음)
                 orb = .init(point: c, radius: rr, alpha: 1 - fade)
             }
             // 화면을 다 덮은 뒤엔 테두리가 옅어지는 동안(0.3초)만 경로를 만든다 — 그 뒤 링은 수천 km 로 커져 투영이 뒤집힌다.
-            return .init(ring: ringAlpha > 0.01 ? ringPoints(mapView, run: r, elapsed: e, radius: radius) : [],
+            return .init(ring: ringAlpha > 0.01 && screen != nil ? ringPoints(screen!, run: r, elapsed: e, radius: radius) : [],
                          covers: r.passedAt >= 0,
                          ringAlpha: ringAlpha,
                          ringHex: r.tintHex ?? MapFilterKind.neutralHex,
