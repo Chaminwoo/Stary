@@ -30,6 +30,85 @@ W, H = 2400, 1260
 S = H / 1000.0
 
 
+# ── 이어진 육지 지구(점 격자 대신 면) — SA.render 가 이걸 쓰게 바꿔 끼운다 ──────────────
+def render_globe_solid(img, cx, cy, R, rng):
+    """유리 지구를 img 에 그린다(안쪽은 덮어쓰고, 대기 빛은 더한다)."""
+    h, w = img.shape[:2]
+    tex = SA.land_textures()
+    th, tw = tex["land"].shape
+    pad = int(R * 0.9)
+    x0, x1 = max(0, int(cx - R) - pad), min(w, int(cx + R) + pad)
+    y0, y1 = max(0, int(cy - R) - pad), min(h, int(cy + R) + pad)
+    yy, xx = np.mgrid[y0:y1, x0:x1].astype(F32)
+    X, Y = (xx - cx) / R, -(yy - cy) / R
+    rr = np.hypot(X, Y)
+    inside = rr < 1.0
+    Z = np.sqrt(np.clip(1 - rr * rr, 0, 1))
+
+    # 테두리 빛 색 — 오른쪽 아래는 석양빛(분홍·주황), 왼쪽 위는 푸른 빛(앱 아이콘 톤)
+    ang = (X * 0.74 - Y * 0.67) / np.maximum(rr, 1e-4)
+    tw_ = SA.smooth(-0.55, 0.85, ang)[..., None]
+    rim_cool = np.array([0.30, 0.48, 1.00], F32)
+    rim_warm = np.array([1.00, 0.46, 0.72], F32)
+    rim = rim_cool * (1 - tw_) + rim_warm * tw_
+    rim_gain = (0.55 + 0.75 * tw_[..., 0])
+
+    # 화면 → 위경도
+    r = math.radians(-SA.ROLL_DEG)
+    xv, yv = X * math.cos(r) - Y * math.sin(r), X * math.sin(r) + Y * math.cos(r)
+    la0 = math.radians(SA.VIEW_LAT)
+    lat = np.arcsin(np.clip(yv * math.cos(la0) + Z * math.sin(la0), -1, 1))
+    lon = math.radians(SA.VIEW_LON) + np.arctan2(xv, Z * math.cos(la0) - yv * math.sin(la0))
+    latd, lond = np.degrees(lat), (np.degrees(lon) + 180) % 360 - 180
+
+    def sample(name, la_d, lo_d):
+        u = (lo_d + 180) / 360 * tw - 0.5
+        v = (90 - la_d) / 180 * th - 0.5
+        return ndi.map_coordinates(tex[name], [v, u], order=1, mode="grid-wrap")
+
+    land = sample("land", latd, lond)
+    line = sample("line", latd, lond)
+    glow = sample("glow", latd, lond)
+
+    L = np.array([-0.42, 0.52, 0.74], F32)
+    L /= np.linalg.norm(L)
+    shade = np.clip(X * L[0] + Y * L[1] + Z * L[2], 0, 1)
+    limb = Z ** 0.55
+
+    # 바다 = 깊고 어두운 유리 / 육지 = 살짝 밝은 유리
+    col = np.empty(X.shape + (3,), F32)
+    depth = (0.35 + 0.65 * shade)[..., None]
+    col[:] = np.array([0.026, 0.032, 0.118], F32) * depth + np.array([0.040, 0.016, 0.085], F32) * (1 - Z)[..., None]
+    landm = SA.smooth(0.42, 0.58, land)
+    col += landm[..., None] * np.array([0.050, 0.058, 0.160], F32) * (0.4 + 0.6 * shade)[..., None] * limb[..., None]
+
+    # 육지 = 점이 아니라 **이어진 면**(OG 용, 2026-10-19) — 빛을 받는 쪽이 밝은 남보라 유리 + 해안 안쪽으로 은은한 번짐
+    fill = (0.30 + 0.70 * shade) * limb
+    col += (landm * fill)[..., None] * np.array([0.085, 0.100, 0.270], F32)
+    col += (landm * glow * fill * 0.55)[..., None] * np.array([0.22, 0.30, 0.80], F32)
+    # 해안선 — 유리 모서리처럼 빛나는 선 + 번짐
+    col += (line * (0.25 + 0.75 * shade) * limb * 0.80)[..., None] * np.array([0.74, 0.90, 1.00], F32)
+    col += (glow * limb * 0.38)[..., None] * np.array([0.34, 0.46, 1.00], F32)
+
+    # 유리 광택(왼쪽 위 넓은 반사) + 프레넬 테두리 빛
+    sheen = np.exp(-((X + 0.46) ** 2 + (Y - 0.50) ** 2) / 0.085) * 0.085
+    col += sheen[..., None] * np.array([0.62, 0.74, 1.00], F32)
+    fres = (1 - Z) ** 3.2
+    col += (fres * 0.95 * rim_gain)[..., None] * rim
+    col += (((1 - Z) ** 14) * 0.55)[..., None] * (rim * 0.5 + 0.5)
+
+    # 합성 — 원 안쪽은 덮어쓰기(가장자리 안티앨리어싱), 바깥은 대기 빛을 더한다
+    alpha = np.clip((1 - rr) * R + 0.5, 0, 1)[..., None]
+    sub = img[y0:y1, x0:x1]
+    dd = np.clip(rr - 1, 0, None)
+    halo = (np.exp(-dd / 0.022) * 0.62 + np.exp(-dd / 0.085) * 0.30 + np.exp(-dd / 0.30) * 0.10) * rim_gain
+    sub += (halo * (1 - alpha[..., 0]))[..., None] * rim
+    sub[:] = sub * (1 - alpha) + col * alpha
+
+
+SA.render_globe = render_globe_solid
+
+
 # ── 공용: 글자·칩·로고 ────────────────────────────────────────────────────────
 def text_mask(lines, size, weight, x, y, anchor="la", spacing=1.24, align="left"):
     """여러 줄 글자를 L 마스크(0..1)로. anchor 는 첫 줄 기준."""
@@ -271,12 +350,15 @@ def concept_card():
     # 카드 위 크리스탈 별(핀처럼) + 거리 칩
     hero_star(img, x1 - 34 * S, y0 + 40 * S, 170 * S, typ=1, col=16)
     chip(img, cx, y1 + 72 * S, "1.2km 떨어진 곳에서 열려요", size=30, icon="pin")
-    # 왼쪽 문구
-    lh = logo(img, W * 0.055, H * 0.15, W * 0.22)
-    m, ty = text_mask(["누군가 남긴 이야기,", "보러 갈래요?"], 84 * S, 700, W * 0.062, H * 0.15 + lh * 0.95)
+    # 왼쪽 문구 — 로고 + 제목 두 줄을 한 묶음으로 세로 가운데에(부제 없음)
+    lw = W * 0.22
+    lh0 = lw * 790 / 1410                          # logo() 가 쓰는 원본 크롭(1410x790) 비율
+    hs = 84 * S
+    block = lh0 * 0.95 + hs * 1.24 + hs           # 로고 + 1줄 행간 + 2줄 글자 높이
+    top = (H - block) / 2 - 10 * S
+    lh = logo(img, W * 0.055, top, lw)
+    m, _ = text_mask(["누군가 남긴 이야기,", "보러 갈래요?"], hs, 700, W * 0.062, top + lh * 0.95)
     put_text(img, m)
-    m2, _ = text_mask(["그 장소에 가야만 열리는 별 다이어리"], 36 * S, 400, W * 0.064, ty + 22 * S)
-    put_text(img, m2, color=(0.84, 0.85, 1.0), glow=0, alpha=0.9)
     return to_image(img)
 
 
