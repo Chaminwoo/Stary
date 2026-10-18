@@ -135,9 +135,11 @@ fun ProfileScreen(
 
     val profileVm: ProfileViewModel = viewModel(factory = ProfileViewModel.factory(userId))
     val profileImageUrl by profileVm.profileImageUrl.collectAsState()
+    val photoConfirmed by profileVm.photoConfirmed.collectAsState()
     val isUploading by profileVm.isUploading.collectAsState()
-    // 실제로 보여줄 내 사진 — 커스텀 업로드본 > 구글 사진 > (없으면 기본 아이콘).
-    val myPhotoUrl: String? = profileImageUrl ?: GoogleAuthHelper.currentUserPhotoUrl
+    // 실제로 보여줄 내 사진 — **항상 users/{uid}.profileImageUrl**. 구글 사진은 서버에서 "사진 없음"이 확인됐을 때(설정 전)만.
+    // 서버 값을 아직 모르면 기본 아이콘 — 예전엔 여기서 바로 구글 사진으로 폴백해 재설치 직후 구글 사진이 떴다(2026-10-19).
+    val myPhotoUrl: String? = profileImageUrl ?: if (photoConfirmed) GoogleAuthHelper.googlePhotoUrl else null
     // 고른 사진은 바로 올리지 않고 **조절 다이얼로그**(위치/확대)를 거쳐 정사각으로 잘라 올린다.
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     val galleryLauncher = rememberLauncherForActivityResult(GetContent()) { uri ->

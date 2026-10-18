@@ -13,10 +13,6 @@ class UserRepository {
     private val db = staryFirestore
     private val storage = Firebase.storage
 
-    suspend fun getProfileImageUrl(userId: String): String? =
-        db.collection("users").document(userId).get().await()
-            .getString("profileImageUrl")
-
     suspend fun uploadProfileImage(userId: String, uri: Uri): String {
         // Storage 보안 규칙(request.auth != null)을 통과하려면 인증 세션 필요.
         ImageUploadHelper.ensureAuthenticated()

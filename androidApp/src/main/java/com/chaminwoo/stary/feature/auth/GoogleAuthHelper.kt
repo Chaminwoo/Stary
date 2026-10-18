@@ -37,7 +37,13 @@ object GoogleAuthHelper {
     private val WEB_CLIENT_ID = BuildConfig.GOOGLE_WEB_CLIENT_ID
     var currentUserId: String? = null
     var currentUserName: String? = null
+    /**
+     * 내 프로필 사진 — **서버 `users/{uid}.profileImageUrl` 확정값**(사진을 정한 적 없다고 확인되면 [googlePhotoUrl]).
+     * 서버를 읽기 전엔 null — 구글 사진을 먼저 넣지 않는다(재설치 직후 구글 사진이 뜨던 원인, CLAUDE.md §2.6).
+     */
     var currentUserPhotoUrl: String? = null
+    /** 구글 계정 사진 — 프로필 사진을 정하기 전에만 쓴다. */
+    var googlePhotoUrl: String? = null
     var currentUserEmail: String? = null  // 어드민 판정용(히든 업적 선점 제외)
 
     /**
@@ -74,7 +80,9 @@ object GoogleAuthHelper {
                 val idToken = googleIdTokenCredential.idToken
                 currentUserId = getUserIdFromToken(idToken)
                 currentUserName = googleIdTokenCredential.displayName
-                currentUserPhotoUrl = googleIdTokenCredential.profilePictureUri?.toString()
+                googlePhotoUrl = googleIdTokenCredential.profilePictureUri?.toString()
+                // 내 사진은 서버(users/{uid}.profileImageUrl) 확정값만 — 아래 서버 읽기 전엔 비워 둔다(구글 사진을 먼저 싣지 않게).
+                currentUserPhotoUrl = null
                 // Firebase Auth 에도 로그인 — Firestore/Storage 보안 규칙(request.auth != null)이
                 // 통과하려면 필수. 실패해도 앱 흐름은 막지 않는다.
                 try {
@@ -128,7 +136,8 @@ object GoogleAuthHelper {
                         // 프로필 **사진**도 동일 — 앱에서 바꾼 사진이 있으면 유지한다.
                         // (예전엔 아래 upsertProfile 이 항상 구글 사진으로 덮어써서 재로그인마다 사진이 초기화됐다.)
                         val existingPhoto = saved?.profileImageUrl?.takeIf { it.isNotBlank() }
-                        if (existingPhoto != null) currentUserPhotoUrl = existingPhoto
+                        // 서버에 사진이 있으면 그것, 없다고 **확인됐을 때만** 구글 사진(프로필 사진 설정 전).
+                        if (readOk) currentUserPhotoUrl = existingPhoto ?: googlePhotoUrl
                         // 현재 값을 확실히 아는 경우에만 기록한다(읽기 실패 시엔 손대지 않는다).
                         if (readOk) {
                             FirebaseFriendRepository().upsertProfile(
@@ -193,7 +202,8 @@ object GoogleAuthHelper {
         val uid = (google?.uid ?: user.uid).takeIf { it.isNotBlank() } ?: return false
         currentUserId = uid
         currentUserName = google?.displayName ?: user.displayName
-        currentUserPhotoUrl = (google?.photoUrl ?: user.photoUrl)?.toString()
+        googlePhotoUrl = (google?.photoUrl ?: user.photoUrl)?.toString()
+        currentUserPhotoUrl = null // 서버 값(아래)으로만 채운다 — 구글 사진을 먼저 싣지 않게
         currentUserEmail = user.email
         // 앱 재시작(세션 복원)도 "로그인"으로 보고 삭제 예약을 취소(7일 유예 정책).
         // ⚠️ FCM 토큰도 여기서 다시 기록한다 — 예전엔 "구글 로그인 화면을 실제로 거친 순간"에만
@@ -205,7 +215,7 @@ object GoogleAuthHelper {
             //  구글 사진이 다시 실려 나가 사진이 되돌아간 것처럼 보인다.)
             FirebaseFriendRepository().getProfile(uid)?.let { saved ->
                 saved.userName.takeIf { it.isNotBlank() }?.let { currentUserName = it }
-                saved.profileImageUrl.takeIf { it.isNotBlank() }?.let { currentUserPhotoUrl = it }
+                currentUserPhotoUrl = saved.profileImageUrl.takeIf { it.isNotBlank() } ?: googlePhotoUrl
             }
             cancelPendingDeletion(uid)
             syncFcmToken(uid)
@@ -221,6 +231,7 @@ object GoogleAuthHelper {
             currentUserId = null
             currentUserName = null
             currentUserPhotoUrl = null
+            googlePhotoUrl = null
             currentUserEmail = null
             FirebaseAuth.getInstance().signOut()
             val credentialManager = CredentialManager.create(context)
