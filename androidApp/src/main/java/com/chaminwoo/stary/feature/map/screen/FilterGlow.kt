@@ -101,8 +101,6 @@ internal class WaveBubble(
     val tint: Color?,
     /** 거품 안의 포털 성운 세기(0..1) — 퍼지는 동안 1, 화면을 다 지나간 뒤 [REVEAL_PORTAL_DECAY_MS] 동안 0 으로. */
     val portal: Float,
-    /** 성운 속 잔별(화면 좌표). */
-    val sparks: List<PortalSpark>,
     /** 시작점의 검은 구체(null = 이미 사라짐). */
     val orb: PortalOrb?,
 )
@@ -116,39 +114,8 @@ internal class WaveFlash(
     val color: Color,
 )
 
-/** 포털 성운 속 잔별 하나(화면 좌표 px). */
-internal class PortalSpark(val x: Float, val y: Float, val radiusPx: Float, val alpha: Float)
-
 /** 시작점의 검은 구체(화면 좌표 px). */
 internal class PortalOrb(val x: Float, val y: Float, val radiusPx: Float, val alpha: Float, val rimColor: Color)
-
-/**
- * 포털 성운의 고정 배치(연출마다 무작위) — 지도 위 위치를 "내 위치에서 방위·거리(× sweep)"로 들고, 매 프레임 화면에 투영한다.
- * (거품 안의 큰 동그라미들 — 구름 얼룩·어두운 반점·청록 빛 덩이 — 은 2026-10-15 삭제. 잔별만 남았다.)
- * iOS `PortalLayout`(MapStarReveal.swift)과 같은 개수·범위.
- */
-internal class PortalLayout(seed: Int) {
-    /** 잔별: 방위(rad), 거리(× sweep), 크기(dp), 반짝임 위상·속도. */
-    class Spark(val bearing: Double, val dist: Double, val sizeDp: Float, val phase: Double, val speed: Double)
-
-    val sparks: List<Spark>
-
-    init {
-        val r = kotlin.random.Random(seed)
-        sparks = List(PORTAL_SPARKS) {
-            Spark(
-                bearing = r.nextDouble() * 2 * Math.PI,
-                dist = kotlin.math.sqrt(r.nextDouble()) * 1.35,
-                sizeDp = 0.8f + r.nextFloat() * 1.4f,
-                phase = r.nextDouble() * 2 * Math.PI,
-                speed = 2.0 + r.nextDouble() * 3.0,
-            )
-        }
-    }
-}
-
-/** 포털 성운 속 잔별 개수. */
-private const val PORTAL_SPARKS = 56
 
 /** 포털 성운의 바탕색 = 필터 색을 아주 깊은 남보라 쪽으로 섞은 것(레퍼런스의 "짙은 보라 우주"). */
 internal fun portalDeep(tint: Color): Color = lerp(tint, Color(0xFF120A2A), 0.58f)
@@ -178,12 +145,6 @@ internal fun ringScreenPath(map: MapLibreMap, center: LatLng, radiusM: Double, w
     }
     path.close()
     return path
-}
-
-/** 지도 위 지점(내 위치에서 방위 [bearing]·거리 [distM])을 지금 카메라 화면 좌표로. */
-internal fun geoToScreen(map: MapLibreMap, center: LatLng, bearing: Double, distM: Double): PointF {
-    val ll = geoDestination(center.latitude, center.longitude, bearing, distM)
-    return map.projection.toScreenLocation(MlLatLng(ll[0].coerceIn(-85.0, 85.0), ll[1]))
 }
 
 /**
@@ -365,10 +326,10 @@ private fun DrawScope.drawFilterGlow(color: Color, ph: Float) {
     )
 }
 
-/** 포털 성운 — 짙은 남보라 바탕 + 잔별. 세기는 [WaveBubble.portal]. (구름 얼룩 동그라미들은 2026-10-15 삭제) */
+/**
+ * 포털 성운 — 짙은 남보라 바탕만. 세기는 [WaveBubble.portal].
+ * ⚠️ 거품 안에 동그라미를 그리지 말 것 — 구름 얼룩(2026-10-15)과 잔별 56개(2026-10-19)가 모두 "지도에 반투명 원이 여러 개 생긴다"로 삭제됐다.
+ */
 private fun DrawScope.drawPortal(tint: Color, f: WaveBubble) {
-    val k = f.portal
-    drawRect(portalDeep(tint).copy(alpha = 0.30f * k))
-    val star = lerp(tint, Color.White, 0.75f)
-    f.sparks.forEach { s -> drawCircle(star.copy(alpha = s.alpha * k), s.radiusPx, Offset(s.x, s.y)) }
+    drawRect(portalDeep(tint).copy(alpha = 0.30f * f.portal))
 }

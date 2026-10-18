@@ -464,7 +464,8 @@ fun FloatingStatBox(
             }
         }
 
-        // 잡은 아이콘 위에 해당 수(count) + 라벨 — 손가락 위쪽, 놓으면 페이드아웃
+        // 잡은 아이콘 위에 해당 수(count) + 라벨 — **아이콘의 실제 위치** 위쪽, 놓으면 페이드아웃.
+        // (예전엔 손가락 위치(dragPos) 위에 띄워서, 아이콘은 프로필 사진 벽에 막혀 밖에 있는데 수는 사진 위로 파고들었다 — 2026-10-19)
         scaledIdx?.let { i ->
             val item = items[i]
             Column(
@@ -474,8 +475,10 @@ fun FloatingStatBox(
                     .align(Alignment.TopStart)
                     .graphicsLayer {
                         alpha = countAlpha.value
-                        translationX = dragPos.x - size.width / 2f
-                        translationY = dragPos.y - rad * grabScale.value - 12.dp.toPx() - size.height
+                        if (tick < 0) return@graphicsLayer // tick 을 읽어 매 프레임 아이콘 위치를 따라간다
+                        val p = bodies[i].pos
+                        translationX = p.x - size.width / 2f
+                        translationY = p.y - rad * grabScale.value - 12.dp.toPx() - size.height
                     }
             ) {
                 if (item.showCount) {

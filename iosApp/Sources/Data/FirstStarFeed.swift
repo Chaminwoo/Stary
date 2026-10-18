@@ -8,6 +8,9 @@ import Foundation
 /// 모든 사용자 앞으로 notifications 문서를 만들면 사용자 수만큼 쓰기가 생기므로, 앱이 이 컬렉션을 직접 읽어
 /// 알림 목록(`NotificationsViewModel`)에 `type = "FIRST_STAR"` 로 합친다.
 ///
+/// - **이 기기에 앱을 설치한 뒤에 생긴 공지만** 보인다(2026-10-19, Android 패리티) — 푸시도 그 순간 있던 기기에만 가므로 같은 규칙.
+///   예전엔 새로 깔면 지난 14일 공지가 한꺼번에 목록에 쌓였다. 설치 시각 = 앱 Documents 폴더 생성 시각
+///   (설치 때 시스템이 만들고 업데이트로는 바뀌지 않는다, 재설치하면 새로 잡힌다).
 /// - 읽음/삭제는 **이 기기에만** 저장한다(공용 문서라 사용자별 필드를 둘 수 없다).
 ///   읽음 = 마지막으로 알림 화면을 연 시각(`markAllSeen`) 이전에 생긴 공지. 처음 설치한 기기는 그 시각부터 센다.
 /// - 내 공지는 빼고, 최근 14일 안의 최신 30개만.
@@ -25,9 +28,12 @@ final class FirstStarFeed: ObservableObject {
 
     @Published private(set) var seenAt: Int64
     @Published private(set) var hidden: Set<String>
+    /// 이 기기에 앱을 설치한 시각(ms) — 이보다 먼저 생긴 공지는 보이지 않는다.
+    private let installedAt: Int64
 
     private init() {
         let d = UserDefaults.standard
+        installedAt = Self.installTimeMillis()
         if d.object(forKey: Self.seenKey) == nil { d.set(FirestoreService.nowMillis, forKey: Self.seenKey) }
         seenAt = (d.object(forKey: Self.seenKey) as? NSNumber)?.int64Value ?? 0
         hidden = Set(d.stringArray(forKey: Self.hiddenKey) ?? [])
@@ -58,14 +64,26 @@ final class FirstStarFeed: ObservableObject {
         )
     }
 
-    /// 알림 목록에 합칠 공지 — 내 것·숨긴 것 제외, 읽음 여부 반영.
+    /// 알림 목록에 합칠 공지 — 내 것·숨긴 것·설치 전 공지 제외, 읽음 여부 반영.
     func visible(_ list: [AppNotification], myId: String) -> [AppNotification] {
         list.compactMap { n in
-            guard n.actorId != myId, let id = n.id, !hidden.contains(id) else { return nil }
+            guard n.actorId != myId, let id = n.id, !hidden.contains(id), n.createdAt >= installedAt else { return nil }
             var copy = n
             copy.read = n.createdAt <= seenAt
             return copy
         }
+    }
+
+    /// 앱 설치 시각(ms) — Documents 폴더 생성 시각. 못 읽으면 처음 실행 시각을 저장해 쓴다.
+    private static func installTimeMillis() -> Int64 {
+        if let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+           let created = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.creationDate] as? Date {
+            return Int64(created.timeIntervalSince1970 * 1000)
+        }
+        let key = "first_star_installed_at"
+        let d = UserDefaults.standard
+        if d.object(forKey: key) == nil { d.set(NSNumber(value: FirestoreService.nowMillis), forKey: key) }
+        return (d.object(forKey: key) as? NSNumber)?.int64Value ?? FirestoreService.nowMillis
     }
 
     /// 알림 화면을 열면 지금까지의 공지를 모두 읽음으로.

@@ -20,9 +20,11 @@ import kotlinx.coroutines.flow.combine
  * 모든 사용자 앞으로 notifications 문서를 만들면 사용자 수만큼 쓰기가 생기므로, 앱이 이 컬렉션을 직접 읽어
  * 알림 목록([com.chaminwoo.stary.feature.diary.NotificationViewModel])에 [NotificationType.FIRST_STAR] 로 합친다.
  *
+ * - **이 기기에 앱을 설치한 뒤에 생긴 공지만** 보인다(2026-10-19) — 푸시도 그 순간 있던 기기에만 가므로 같은 규칙.
+ *   예전엔 새로 깔면 지난 14일 공지가 한꺼번에 목록에 쌓였다. 설치 시각 = `PackageInfo.firstInstallTime`
+ *   (재설치하면 새로 잡히고, 업데이트로는 바뀌지 않는다).
  * - 읽음/삭제는 **이 기기에만** 저장한다(공용 문서라 사용자별 필드를 둘 수 없다).
- *   읽음 = 마지막으로 알림 화면을 연 시각([markAllSeen]) 이전에 생긴 공지. 처음 설치한 기기는 그 시각부터 센다
- *   (설치하자마자 지난 공지들로 빨간 점이 뜨지 않게 — 목록에는 읽음으로 보인다).
+ *   읽음 = 마지막으로 알림 화면을 연 시각([markAllSeen]) 이전에 생긴 공지. 처음 설치한 기기는 그 시각부터 센다.
  * - 내 공지는 빼고, 최근 [MAX_AGE_MS] 안의 최신 [LIMIT] 개만.
  * - iOS `FirstStarFeed.swift` 패리티.
  */
@@ -36,6 +38,8 @@ object FirstStarFeed {
     private const val LIMIT = 30L
 
     private var prefs: SharedPreferences? = null
+    /** 이 기기에 앱을 설치한 시각 — 이보다 먼저 생긴 공지는 보이지 않는다. */
+    private var installedAt = Long.MAX_VALUE
     private val seenAt = MutableStateFlow(0L)
     private val hidden = MutableStateFlow<Set<String>>(emptySet())
 
@@ -44,6 +48,9 @@ object FirstStarFeed {
         if (prefs != null) return
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs = p
+        installedAt = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
+        }.getOrNull()?.takeIf { it > 0L } ?: System.currentTimeMillis()
         if (!p.contains(KEY_SEEN_AT)) p.edit().putLong(KEY_SEEN_AT, System.currentTimeMillis()).apply()
         seenAt.value = p.getLong(KEY_SEEN_AT, 0L)
         hidden.value = p.getStringSet(KEY_HIDDEN, emptySet()).orEmpty().toSet()
@@ -51,10 +58,10 @@ object FirstStarFeed {
 
     fun isFirstStar(notificationId: String) = notificationId.startsWith(ID_PREFIX)
 
-    /** 알림 목록에 합칠 첫 별 공지(내 것·숨긴 것 제외, 읽음 여부 반영). 읽기 실패면 빈 목록. */
+    /** 알림 목록에 합칠 첫 별 공지(내 것·숨긴 것·설치 전 공지 제외, 읽음 여부 반영). 읽기 실패면 빈 목록. */
     fun observe(myId: String): Flow<List<AppNotification>> =
         combine(observeServer(), seenAt, hidden) { list, seen, hiddenIds ->
-            list.filter { it.actorId != myId && it.id !in hiddenIds }
+            list.filter { it.actorId != myId && it.id !in hiddenIds && it.createdAt >= installedAt }
                 .map { it.copy(isRead = it.createdAt <= seen) }
         }
 

@@ -83,8 +83,6 @@ final class FilterWaveState: ObservableObject {
     /// 모든 거품 밖(가장 앞선 거품도 아직 안 지나간 자리)의 색. 코디네이터가 `bubbles` 보다 먼저 채운다.
     var baseHex: UInt32?
 
-    /// 포털 성운 속 잔별 / 시작점 검은 구체(지도 뷰 좌표).
-    struct Spark { let point: CGPoint; let radius: CGFloat; let alpha: Double }
     struct Orb { let point: CGPoint; let radius: CGFloat; let alpha: Double }
     /// 퍼지고 있는 거품 하나(Android `WaveBubble`).
     struct Bubble {
@@ -102,7 +100,6 @@ final class FilterWaveState: ObservableObject {
         let tintHex: UInt32?
         /// 포털 성운 세기(0..1, 퍼지는 동안 1 → 화면을 다 지나간 뒤 가라앉음).
         let portal: Double
-        let sparks: [Spark]
         let orb: Orb?
     }
     /// 첫 표시 때 지금 필터 색으로 한 번 맞췄는지.
@@ -171,7 +168,7 @@ struct FilterGlowOverlay: View {
                     Self.drawGlow(&inner, size: size, hex: hex, phase: phase)
                     // 거품 안 = 포털 성운(퍼지는 동안 짙게, 화면을 다 지나간 뒤 은은한 필터 빛으로 가라앉는다)
                     if b.portal > 0.01 {
-                        Self.drawPortal(&inner, size: size, hex: hex, portal: b.portal, sparks: b.sparks)
+                        Self.drawPortal(&inner, size: size, hex: hex, portal: b.portal)
                     }
                 }
                 // 테두리 — 안쪽으로만 번지는 빛 2겹 + 얇은 경계선. 더 새 거품에 덮인 부분은 그리지 않는다(따라잡히면 삼켜진다).
@@ -226,9 +223,9 @@ struct FilterGlowOverlay: View {
         }
     }
 
-    /// 포털 성운 — 짙은 남보라 바탕 + 잔별(Android drawPortal 과 같은 색·알파). 구름 얼룩 동그라미들은 2026-10-15 삭제.
-    private static func drawPortal(_ ctx: inout GraphicsContext, size: CGSize, hex: UInt32, portal: Double,
-                                   sparks: [FilterWaveState.Spark]) {
+    /// 포털 성운 — 짙은 남보라 바탕만(Android drawPortal 과 같은 색·알파).
+    /// ⚠️ 거품 안에 동그라미를 그리지 말 것 — 구름 얼룩(2026-10-15)과 잔별 56개(2026-10-19)가 모두 "지도에 반투명 원이 여러 개 생긴다"로 삭제됐다.
+    private static func drawPortal(_ ctx: inout GraphicsContext, size: CGSize, hex: UInt32, portal: Double) {
         let tint = UIColor(rgbHex: hex)
         func mix(_ a: UIColor, _ b: UIColor, _ t: CGFloat) -> UIColor {
             var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
@@ -239,11 +236,6 @@ struct FilterGlowOverlay: View {
         }
         let deep = mix(tint, UIColor(rgbHex: 0x120A2A), 0.58)
         ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(uiColor: deep).opacity(0.30 * portal)))
-        let star = Color(uiColor: tint.mixedWithWhite(0.75))
-        for s in sparks {
-            let rect = CGRect(x: s.point.x - s.radius, y: s.point.y - s.radius, width: s.radius * 2, height: s.radius * 2)
-            ctx.fill(Path(ellipseIn: rect), with: .color(star.opacity(s.alpha * portal)))
-        }
     }
 
     /// 필터 빛 한 장 — 아래에서 차오르는 빛 + 위쪽 맞빛 + 화면 둘레를 도는 빛 덩이.

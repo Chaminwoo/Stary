@@ -66,11 +66,12 @@ struct FloatingStatBox: View {
                             )
                     }
 
-                    // 잡은 아이콘 위 수/라벨 오버레이 — 손가락 위쪽.
+                    // 잡은 아이콘 위 수/라벨 오버레이 — **아이콘의 실제 위치** 위쪽(Android 패리티).
+                    // (예전엔 손가락 위치(dragPos) 위라 아이콘은 프로필 사진 벽에 막혀 밖에 있는데 수는 사진 위로 파고들었다 — 2026-10-19)
                     if let gi = engine.scaledIdx, gi < items.count {
                         countOverlay(items[gi])
-                            .position(x: engine.dragPos.x,
-                                      y: engine.dragPos.y - engine.overlayLift)
+                            .position(x: engine.bodyPos(gi).x,
+                                      y: engine.bodyPos(gi).y - engine.overlayLift)
                             .opacity(engine.countAlpha)
                             .allowsHitTesting(false)
                     }
@@ -208,7 +209,7 @@ final class FloatingEngine: ObservableObject {
 
     var onTap: (Int) -> Void = { _ in }
 
-    /// 손가락 위 수/라벨이 떠야 할 높이.
+    /// 잡은 아이콘 위 수/라벨이 떠야 할 높이.
     var overlayLift: CGFloat { FloatingEngine.iconBase / 2 * grabScale + 34 }
 
     private var rad: CGFloat { FloatingEngine.iconBase / 2 }

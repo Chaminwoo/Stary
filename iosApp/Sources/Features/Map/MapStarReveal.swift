@@ -43,8 +43,6 @@ enum StarRevealFx {
     /// 시작점의 검은 구체 — 반지름(pt) / 생겼다 사라지는 시간(초).
     static let orbRadius: CGFloat = 15
     static let orbTime = 0.7
-    /// 포털 성운 속 잔별 개수.
-    static let portalSparks = 56
     /// 지구 반지름(m) — 지도 위 원을 대권 기준으로 그린다.
     static let earthRadius = 6_371_000.0
     /// 링이 닿은 별 하나가 생기는 시간(초) — 크기 0.2 → 1.55 → 1 + 발광.
@@ -116,25 +114,6 @@ struct RingWobble {
     }
 }
 
-/// 포털 성운의 고정 배치(연출마다 무작위) — 지도 위 위치를 "내 위치에서 방위·거리(× sweep)"로 들고 매 프레임 투영한다.
-/// (거품 안의 큰 동그라미들 — 구름 얼룩·어두운 반점·청록 빛 덩이 — 은 2026-10-15 삭제. 잔별만 남았다.)
-/// Android `PortalLayout`(FilterGlow.kt)과 같은 개수·범위.
-struct PortalLayout {
-    struct Spark { let bearing: Double; let dist: Double; let size: CGFloat; let phase: Double; let speed: Double }
-
-    let sparks: [Spark]
-
-    init() {
-        sparks = (0..<StarRevealFx.portalSparks).map { _ in
-            Spark(bearing: Double.random(in: 0..<(2 * Double.pi)),
-                  dist: Double.random(in: 0..<1).squareRoot() * 1.35,
-                  size: CGFloat(0.8 + Double.random(in: 0..<1.4)),
-                  phase: Double.random(in: 0..<(2 * Double.pi)),
-                  speed: 2 + Double.random(in: 0..<3))
-        }
-    }
-}
-
 /// 퍼지고 있는 거품 하나 — 중심(내 위치)·화면을 쓰는 거리(m)·필터 색·출렁임·잔별 배치·출발 시각.
 /// 필터를 연속으로 바꾸면 여러 개가 함께 퍼진다(2026-10-15, Android `RevealRun`).
 final class RevealRun {
@@ -143,7 +122,6 @@ final class RevealRun {
     /// 거품 안 필터 빛 색(nil = 빛 없음, 필터를 모두 끈 경우).
     let tintHex: UInt32?
     let wobble = RingWobble()
-    let portal = PortalLayout()
     var start: CFTimeInterval = 0
     /// 링이 지금 화면을 다 지나간 시각(초, 출발 기준). −1 = 아직.
     var passedAt: Double = -1
@@ -313,12 +291,6 @@ extension MapLibreView.Coordinator {
         return sweep
     }
 
-    /// 지도 위 지점(center 에서 방위·거리)을 화면 좌표로.
-    private func screenPoint(_ mapView: MLNMapView, center: CLLocationCoordinate2D, bearing: Double, distance: Double) -> CGPoint {
-        let ll = StarRevealFx.destination(lat: center.latitude, lng: center.longitude, bearing: bearing, distance: distance)
-        return mapView.convert(CLLocationCoordinate2D(latitude: min(max(ll.lat, -85), 85), longitude: ll.lng), toPointTo: mapView)
-    }
-
     /// 지도 위 출렁이는 거품 테두리(중심, 대권, 크기 제한 없음)를 지금 카메라로 화면에 투영한 꼭짓점.
     private func ringPoints(_ mapView: MLNMapView, run: RevealRun, elapsed: Double, radius: Double) -> [CGPoint] {
         let center = run.center
@@ -378,7 +350,6 @@ extension MapLibreView.Coordinator {
             revealRuns = keep
         }
 
-        let b = mapView.bounds
         let bubbles: [FilterWaveState.Bubble] = revealRuns.map { r in
             let e = now - r.start
             let radius = StarRevealFx.radius(at: e, sweep: r.sweep)
@@ -393,16 +364,7 @@ extension MapLibreView.Coordinator {
                 let x = min(max((e - r.passedAt) / StarRevealFx.portalDecay, 0), 1)
                 portal = 1 - (x < 0.5 ? 2 * x * x : 1 - pow(-2 * x + 2, 2) / 2)
             }
-            // 성운 잔별(지도 위 위치를 투영 — 지도와 함께 움직인다)
-            var sparks: [FilterWaveState.Spark] = []
-            if portal > 0.01 {
-                for s in r.portal.sparks {
-                    let p = screenPoint(mapView, center: r.center, bearing: s.bearing, distance: s.dist * r.sweep)
-                    guard b.insetBy(dx: -4, dy: -4).contains(p) else { continue }
-                    let tw = 0.35 + 0.65 * abs(sin(e * s.speed + s.phase))
-                    sparks.append(.init(point: p, radius: s.size, alpha: 0.8 * tw))
-                }
-            }
+            // (성운 잔별 56개 — 작은 반투명 원 — 은 2026-10-19 삭제, Android 와 같이. 바탕 빛만 남았다.)
             // 시작점의 검은 구체 — 툭 생겼다가(0.15초) 거품이 터져 나오며 커지면서 사라진다.
             var orb: FilterWaveState.Orb?
             if e < StarRevealFx.orbTime {
@@ -419,7 +381,6 @@ extension MapLibreView.Coordinator {
                          ringHex: r.tintHex ?? MapFilterKind.neutralHex,
                          tintHex: r.tintHex,
                          portal: portal,
-                         sparks: sparks,
                          orb: orb)
         }
         // 필터 빛·포털·테두리 경계(SwiftUI FilterGlowOverlay) — 지도 뷰와 같은 좌표계(둘 다 전체 화면, 안전 영역 무시).

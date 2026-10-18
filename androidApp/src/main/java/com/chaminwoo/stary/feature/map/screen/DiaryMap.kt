@@ -1570,8 +1570,6 @@ private class RevealPlan(
     val oldStars: List<ShownStar>,
     /** 이번 링의 출렁임 모양(연출마다 다르게). */
     val wobble: RingWobble = RingWobble(kotlin.random.Random.nextInt()),
-    /** 이번 포털 성운의 구름·잔별 배치(연출마다 다르게). */
-    val portal: PortalLayout = PortalLayout(kotlin.random.Random.nextInt()),
 )
 
 /** 퍼지고 있는 거품 하나 — 계획 + 출발 시각(프레임 나노초). 필터를 연속으로 바꾸면 [RevealWaves] 에 여러 개가 함께 있다. */
@@ -1650,16 +1648,7 @@ private fun revealWavesFrame(
         val portal = if (plan.toTint == null) 0f
         else if (r.passedAt < 0) 1f
         else 1f - FastOutSlowInEasing.transform(((ms - r.passedAt).toFloat() / REVEAL_PORTAL_DECAY_MS).coerceIn(0f, 1f))
-        // 성운 잔별(지도 위 위치를 투영 — 지도와 함께 움직인다)
-        val sparks = ArrayList<PortalSpark>()
-        if (portal > 0.01f) {
-            for (sp in plan.portal.sparks) {
-                val pt = geoToScreen(map, plan.center, sp.bearing, sp.dist * plan.sweepM)
-                if (pt.x < -4f || pt.x > viewW + 4f || pt.y < -4f || pt.y > viewH + 4f) continue
-                val tw = 0.35f + 0.65f * kotlin.math.abs(kotlin.math.sin(tSec * sp.speed + sp.phase)).toFloat()
-                sparks.add(PortalSpark(pt.x, pt.y, sp.sizeDp * density, 0.8f * tw))
-            }
-        }
+        // (성운 잔별 56개 — 작은 반투명 원 — 은 지도에 원이 여러 개 생겨 보여 2026-10-19 삭제. 바탕 빛만 남았다.)
         // 시작점의 검은 구체 — 툭 생겼다가(150ms) 거품이 터져 나오며 커지면서 사라진다.
         val orb = if (ms < REVEAL_ORB_MS) {
             val c = map.projection.toScreenLocation(MlLatLng(plan.center.latitude, plan.center.longitude))
@@ -1681,7 +1670,6 @@ private fun revealWavesFrame(
             ringColor = ringColor,
             tint = plan.toTint,
             portal = portal,
-            sparks = sparks,
             orb = orb,
         )
     }
