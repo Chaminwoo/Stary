@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import com.chaminwoo.stary.data.repository.MeteorStatsRepository
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
@@ -212,10 +213,10 @@ object QuestStore {
         keys += gained
         val quest = mutableMapOf<String, Any>("claimed" to FieldValue.arrayUnion(id))
         if (bonusNow) quest["bonus"] = true
-        doc(uid).set(
-            mapOf(FIELD_KEYS to FieldValue.increment(gained.toLong()), FIELD_QUEST to quest),
-            SetOptions.merge(),
-        ).addOnFailureListener { Log.w(TAG, "열쇠 보상 기록 실패", it) }
+        val fields = mutableMapOf<String, Any>(FIELD_KEYS to FieldValue.increment(gained.toLong()), FIELD_QUEST to quest)
+        // 3개를 모두 끝낸 날 — 퀘스트 보상 칭호(Achievements quest_clear_*) 판정용. 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다.
+        if (bonusNow) fields[MeteorStatsRepository.FIELD_QUEST_CLEARS] = FieldValue.arrayUnion(d.day)
+        doc(uid).set(fields, SetOptions.merge()).addOnFailureListener { Log.w(TAG, "열쇠 보상 기록 실패", it) }
         return gained
     }
 

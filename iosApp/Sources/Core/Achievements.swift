@@ -48,6 +48,8 @@ struct UserStats {
     // ── 2026-10-15 유성 업적용 — 글로브에서 본 유성(users/{uid}.meteorsSeen / meteorStreaks, MeteorStats) ──
     var meteorsSeen = 0           // 본 유성 수
     var meteorBestStreak = 0      // 최고 연속 유성 수
+    // ── 2026-10-19 퀘스트 보상 칭호용 — 일일 퀘스트 3개를 모두 끝낸 날 수(users/{uid}.questClearDays) ──
+    var questClearDays = 0
 }
 
 /// 업적 보상 — 칭호 / 별 모양 / 별 색.
@@ -136,6 +138,10 @@ enum Achievements {
         titleAch("meteor_triple", "세 번의 소원", "글로브에서 유성 3개 연속으로 보기") { $0.meteorBestStreak >= 3 },
         titleAch("meteor_five", "쏟아지는 별비", "글로브에서 유성 5개 연속으로 보기") { $0.meteorBestStreak >= 5 },
         titleAch("meteor_fifty", "별똥별 수집가", "글로브에서 유성 50개 보기") { $0.meteorsSeen >= 50 },
+        // 퀘스트 보상(2026-10-19) — 지도 "!" 일일 퀘스트 3개를 모두 끝낸 날 수. 업적 화면 '특별' 탭.
+        titleAch("quest_clear_1", "별지기의 하루", "하루 퀘스트 3개를 모두 끝내기") { $0.questClearDays >= 1 },
+        titleAch("quest_clear_7", "일곱 밤의 약속", "하루 퀘스트를 모두 끝낸 날 7일 모으기") { $0.questClearDays >= 7 },
+        titleAch("quest_clear_30", "별지기의 항해일지", "하루 퀘스트를 모두 끝낸 날 30일 모으기") { $0.questClearDays >= 30 },
     ]
 
     static let rewardAchievements: [Achievement] = [
@@ -188,6 +194,63 @@ enum Achievements {
         Set(all.filter { $0.unlocked(stats) }.map { $0.id })
     }
 
+    // ── 업적 화면 분류(2026-10-19) — 공용(누구나) / 특별(모두가 갖지는 못하는) / 히든(앱 전체 1명, HiddenAchievements) ──
+    //    Android Achievements.kt 와 같은 id·순서. 목록에 없는 공용 칭호는 record 끝에 붙는다(새 업적을 빠뜨려도 화면에서 사라지지 않게).
+
+    /// 공용 칭호 주제.
+    enum Theme: CaseIterable { case record, streak, place, explore, social, decor, meteor }
+
+    /// 특별 업적 묶음(개척 칭호는 나라별로 따로 — 화면이 붙인다).
+    enum Special: CaseIterable { case moments, quest, invite }
+
+    private static let specialIds: [(Special, [String])] = [
+        (.moments, ["new_year", "christmas", "shape_clover", "shape_cat"]),
+        (.quest, ["quest_clear_1", "quest_clear_7", "quest_clear_30"]),
+        (.invite, ["invite_bond", "invite_beacon", "invite_flock"]),
+    ]
+
+    private static let themeIds: [(Theme, [String])] = [
+        (.record, ["first_step", "count_five", "storyteller", "pilgrim", "photo_ten", "video_first",
+                   "long_letter", "short_post", "private_five"]),
+        (.streak, ["streak_three", "streak_month", "days_hundred", "all_months"]),
+        (.place, ["places_five", "places_twenty", "home_cluster", "revisit", "neighbor"]),
+        (.explore, ["star_traveler", "log_ten", "log_hundred"]),
+        (.social, ["friend_first", "companion", "friends_ten", "popular", "guide", "like_ten_one",
+                   "watched_star", "views_one", "comments_ten"]),
+        (.decor, ["shapes_five", "colors_eight"]),
+        (.meteor, ["meteor_first", "meteor_triple", "meteor_five", "meteor_fifty"]),
+    ]
+
+    private static let specialSet: Set<String> = Set(specialIds.flatMap { $0.1 })
+
+    static func isSpecial(_ id: String) -> Bool { specialSet.contains(id) }
+
+    /// 특별 묶음별 업적(위 목록 순서).
+    static var specialGroups: [(Special, [Achievement])] {
+        specialIds.map { g in (g.0, g.1.compactMap { byId($0) }) }
+    }
+
+    /// 공용 칭호를 주제별로.
+    static var commonTitleGroups: [(Theme, [Achievement])] {
+        let common = titleAchievements.filter { !isSpecial($0.id) }
+        let listed = Set(themeIds.flatMap { $0.1 })
+        let rest = common.filter { !listed.contains($0.id) }
+        return themeIds.compactMap { t in
+            var list = t.1.compactMap { id in common.first { $0.id == id } }
+            if t.0 == .record { list += rest }
+            return list.isEmpty ? nil : (t.0, list)
+        }
+    }
+
+    static var commonTitles: [Achievement] { commonTitleGroups.flatMap { $0.1 } }
+    static var commonShapes: [Achievement] {
+        rewardAchievements.filter { if case .shape = $0.reward { return !isSpecial($0.id) }; return false }
+    }
+    static var commonColors: [Achievement] {
+        rewardAchievements.filter { if case .color = $0.reward { return !isSpecial($0.id) }; return false }
+    }
+    static var special: [Achievement] { specialGroups.flatMap { $0.1 } }
+
     /// 내 다이어리 + 친구/열람 수로 통계를 계산. (Android rememberUserStats 의 파생 로직 — 규칙 동일)
     /// invitedFriends/redeemedInvite 는 InviteStore.fetchStats 로 조회해 넘긴다(기본 0/false).
     /// `allDiaries`(DiaryStore.diaries)·`unlockedIds`(DiaryUnlockStore) 는 이웃 별/눈밭/별 도감 업적용 —
@@ -196,7 +259,8 @@ enum Achievements {
         diaries: [Diary], friendsCount: Int, viewedCount: Int,
         invitedFriends: Int = 0, redeemedInvite: Bool = false,
         uid: String? = nil, allDiaries: [Diary] = [], unlockedIds: Set<String> = [],
-        meteorsSeen: Int = MeteorStats.shared.seen, meteorBestStreak: Int = MeteorStats.shared.bestStreak
+        meteorsSeen: Int = MeteorStats.shared.seen, meteorBestStreak: Int = MeteorStats.shared.bestStreak,
+        questClearDays: Int = MeteorStats.shared.questClears
     ) -> UserStats {
         let coords = diaries.filter { $0.latitude != 0 || $0.longitude != 0 }
         var maxSpan = 0.0
@@ -310,6 +374,7 @@ enum Achievements {
         )
         stats.meteorsSeen = meteorsSeen
         stats.meteorBestStreak = meteorBestStreak
+        stats.questClearDays = questClearDays
         stats.achievementsDone = all.filter { $0.id != crownId && $0.unlocked(stats) }.count
         return stats
     }

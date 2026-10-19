@@ -264,7 +264,7 @@
     <string name="ach_title_equipped">「%1$s」の称号を装着しました</string>
     <string name="ach_title_unequipped">称号を解除しました</string>
     <!-- 隠し実績 -->
-    <string name="ach_tab_normal">一般</string>
+    <string name="ach_tab_normal">共通</string>
     <string name="ach_tab_hidden">隠し</string>
     <string name="ach_hidden_intro">アプリでただ一人だけが手にできる実績。条件は秘密！</string>
     <string name="ach_hidden_achiever">達成者: %1$s</string>
@@ -711,4 +711,29 @@
     <string name="detail_ad_key_unlocked">広告でもらった鍵で星を開きました</string>
     <string name="detail_key_quest_hint">今日のクエストでも鍵がもらえます</string>
     <string name="coach_step_quest">今日のクエストで鍵を集めよう\n鍵で遠くの星も開けられます</string>
+    <string name="ach_tab_special">特別</string>
+    <string name="ach_sub_shapes">星の形</string>
+    <string name="ach_sub_colors">星の色</string>
+    <string name="ach_theme_record">記録</string>
+    <string name="ach_theme_streak">継続</string>
+    <string name="ach_theme_place">場所</string>
+    <string name="ach_theme_explore">探検</string>
+    <string name="ach_theme_social">交流</string>
+    <string name="ach_theme_decor">おしゃれ</string>
+    <string name="ach_theme_meteor">流れ星</string>
+    <string name="ach_special_intro">誰もが持てるわけではない実績です。\n特別な日・クエスト・招待・開拓でしか手に入りません。</string>
+    <string name="ach_special_count">%1$d個獲得</string>
+    <string name="ach_special_moments">特別な瞬間</string>
+    <string name="ach_special_moments_sub">その日、その時だけ開きます</string>
+    <string name="ach_special_quest">クエスト報酬</string>
+    <string name="ach_special_quest_sub">マップの「!」の1日クエストをすべて終えた日を集めよう</string>
+    <string name="ach_special_invite">招待</string>
+    <string name="ach_special_invite_sub">Staryでつながった縁だけに</string>
+    <string name="ach_pioneer_empty">今週金色のビーコンが出た国に最初に星を残すと\nその国の開拓者になれます</string>
+    <string name="title_quest_clear_1">星守の一日</string>
+    <string name="title_quest_clear_7">七夜の約束</string>
+    <string name="title_quest_clear_30">星守の航海日誌</string>
+    <string name="ach_cond_quest_clear_1">1日のクエスト3つをすべて達成する</string>
+    <string name="ach_cond_quest_clear_7">クエストをすべて達成した日を7日集める</string>
+    <string name="ach_cond_quest_clear_30">クエストをすべて達成した日を30日集める</string>
 </resources>

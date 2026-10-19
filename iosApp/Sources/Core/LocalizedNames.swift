@@ -98,6 +98,10 @@ enum LocalizedNames {
         "meteor_triple": ("세 번의 소원", "Three Wishes", "三つの願い"),
         "meteor_five": ("쏟아지는 별비", "Rain of Stars", "降りそそぐ星の雨"),
         "meteor_fifty": ("별똥별 수집가", "Meteor Collector", "流れ星コレクター"),
+        // 퀘스트 보상 칭호(2026-10-19)
+        "quest_clear_1": ("별지기의 하루", "A Stargazer's Day", "星守の一日"),
+        "quest_clear_7": ("일곱 밤의 약속", "Seven Nights' Promise", "七夜の約束"),
+        "quest_clear_30": ("별지기의 항해일지", "The Stargazer's Logbook", "星守の航海日誌"),
         "shape_heart": ("하트 성운", "Heart Nebula", "ハート星雲"),
         "shape_comet": ("지평선 너머로", "Beyond the Horizon", "地平線の向こうへ"),
         "shape_snow": ("아무도 밟지 않은 눈밭", "Untouched Snow", "誰も踏んでいない雪原"),
@@ -178,6 +182,10 @@ enum LocalizedNames {
         "meteor_triple": ("글로브에서 유성 3개 연속으로 보기", "See 3 meteors in a row on the globe", "地球儀で流れ星を3つ連続で見る"),
         "meteor_five": ("글로브에서 유성 5개 연속으로 보기", "See 5 meteors in a row on the globe", "地球儀で流れ星を5つ連続で見る"),
         "meteor_fifty": ("글로브에서 유성 50개 보기", "See 50 meteors on the globe", "地球儀で流れ星を50個見る"),
+        // 퀘스트 보상 칭호(2026-10-19)
+        "quest_clear_1": ("하루 퀘스트 3개를 모두 끝내기", "Finish all 3 daily quests in a day", "1日のクエスト3つをすべて達成する"),
+        "quest_clear_7": ("하루 퀘스트를 모두 끝낸 날 7일 모으기", "Finish all daily quests on 7 days", "クエストをすべて達成した日を7日集める"),
+        "quest_clear_30": ("하루 퀘스트를 모두 끝낸 날 30일 모으기", "Finish all daily quests on 30 days", "クエストをすべて達成した日を30日集める"),
         "shape_heart": ("좋아요 500개 받기", "Receive 500 likes", "いいねを500個もらう"),
         "shape_comet": ("기록 두 곳이 5,000km 이상 떨어지기", "Have two posts 5,000 km or more apart", "2つの記録が5,000km以上離れる"),
         "shape_snow": ("1km 안에 먼저 남겨진 별이 없던 곳에 별 3개 남기기", "Leave 3 stars where no one had left a star within 1 km", "半径1km以内にまだ星がなかった場所に星を3つ残す"),

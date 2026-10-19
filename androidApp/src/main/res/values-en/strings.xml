@@ -264,7 +264,7 @@
     <string name="ach_title_equipped">Equipped the “%1$s” title</string>
     <string name="ach_title_unequipped">Title unequipped</string>
     <!-- Hidden achievements -->
-    <string name="ach_tab_normal">General</string>
+    <string name="ach_tab_normal">Common</string>
     <string name="ach_tab_hidden">Hidden</string>
     <string name="ach_hidden_intro">Achievements only ONE person in the whole app can claim. The conditions are a secret!</string>
     <string name="ach_hidden_achiever">Achiever: %1$s</string>
@@ -711,4 +711,29 @@
     <string name="detail_ad_key_unlocked">You opened the star with the key from the ad</string>
     <string name="detail_key_quest_hint">You can also earn keys from Today\'s quests</string>
     <string name="coach_step_quest">Clear today\'s quests to collect keys\nKeys open stars far away</string>
+    <string name="ach_tab_special">Special</string>
+    <string name="ach_sub_shapes">Shapes</string>
+    <string name="ach_sub_colors">Colors</string>
+    <string name="ach_theme_record">Writing</string>
+    <string name="ach_theme_streak">Consistency</string>
+    <string name="ach_theme_place">Places</string>
+    <string name="ach_theme_explore">Exploring</string>
+    <string name="ach_theme_social">Connection</string>
+    <string name="ach_theme_decor">Style</string>
+    <string name="ach_theme_meteor">Meteors</string>
+    <string name="ach_special_intro">Not everyone gets these.\nThey come only from special moments, quests, invites and pioneering.</string>
+    <string name="ach_special_count">%1$d earned</string>
+    <string name="ach_special_moments">Special moments</string>
+    <string name="ach_special_moments_sub">Opens only on that day, at that moment</string>
+    <string name="ach_special_quest">Quest rewards</string>
+    <string name="ach_special_quest_sub">Collect days you finish all daily quests (the ! button on the map)</string>
+    <string name="ach_special_invite">Invites</string>
+    <string name="ach_special_invite_sub">Only for bonds made through Stary</string>
+    <string name="ach_pioneer_empty">Be the first to leave a star in this week\'s golden-beacon country\nto become its pioneer</string>
+    <string name="title_quest_clear_1">A Stargazer\'s Day</string>
+    <string name="title_quest_clear_7">Seven Nights\' Promise</string>
+    <string name="title_quest_clear_30">The Stargazer\'s Logbook</string>
+    <string name="ach_cond_quest_clear_1">Finish all 3 daily quests in a day</string>
+    <string name="ach_cond_quest_clear_7">Finish all daily quests on 7 days</string>
+    <string name="ach_cond_quest_clear_30">Finish all daily quests on 30 days</string>
 </resources>

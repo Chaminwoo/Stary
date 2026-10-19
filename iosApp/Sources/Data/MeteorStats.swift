@@ -9,6 +9,7 @@ import Foundation
 ///  - `meteorsSeen` : 본 유성 수(`FieldValue.increment`)
 ///  - `meteorStreaks` : 도달한 연속 횟수들(`FieldValue.arrayUnion`) — 최고 연속 = 최댓값.
 ///    "최고값" 하나를 덮어쓰면 다른 기기·재설치 직후(로컬 최고값 0)에 낮은 값으로 덮일 수 있어, 줄어들 수 없는 집합으로 쌓는다.
+///  - `questClearDays` : 일일 퀘스트 3개를 모두 끝낸 날짜들(`arrayUnion`, QuestStore.claim 이 쓴다) — 퀘스트 보상 칭호 판정(2026-10-19).
 /// ⚠️ `userName`/`profileImageUrl` 은 건드리지 않는다(CLAUDE.md §2.6 — 항상 merge).
 final class MeteorStats: ObservableObject {
     static let shared = MeteorStats()
@@ -16,9 +17,12 @@ final class MeteorStats: ObservableObject {
 
     static let fieldSeen = "meteorsSeen"
     static let fieldStreaks = "meteorStreaks"
+    static let fieldQuestClears = "questClearDays"
 
     @Published private(set) var seen = 0
     @Published private(set) var bestStreak = 0
+    /// 일일 퀘스트를 모두 끝낸 날 수.
+    @Published private(set) var questClears = 0
 
     private var listener: ListenerRegistration?
     private var listeningUid: String?
@@ -31,15 +35,18 @@ final class MeteorStats: ObservableObject {
         listeningUid = uid
         seen = 0
         bestStreak = 0
+        questClears = 0
         guard let uid, !uid.isEmpty else { return }
         listener = FirestoreService.users.document(uid).addSnapshotListener { [weak self] snap, error in
             guard let self, error == nil, let snap else { return }
             let seen = (snap.get(Self.fieldSeen) as? NSNumber)?.intValue ?? 0
             let best = ((snap.get(Self.fieldStreaks) as? [Any]) ?? [])
                 .compactMap { ($0 as? NSNumber)?.intValue }.max() ?? 0
+            let clears = ((snap.get(Self.fieldQuestClears) as? [Any]) ?? []).count
             DispatchQueue.main.async {
                 self.seen = seen
                 self.bestStreak = best
+                self.questClears = clears
             }
         }
     }

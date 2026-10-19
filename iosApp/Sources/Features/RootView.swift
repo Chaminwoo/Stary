@@ -769,6 +769,7 @@ struct MainTabView: View {
         // 유성 업적(2026-10-15)
         h.combine(meteors.seen)
         h.combine(meteors.bestStreak)
+        h.combine(meteors.questClears)
         return h.finalize()
     }
 

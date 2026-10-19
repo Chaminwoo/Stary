@@ -16,12 +16,13 @@ import kotlinx.coroutines.flow.callbackFlow
  *  - `meteorStreaks` : 도달한 연속 횟수들(`FieldValue.arrayUnion`) — 최고 연속 = 최댓값.
  *    "최고값" 하나를 덮어쓰면 다른 기기·재설치 직후(로컬 최고값 0)에 낮은 값으로 덮일 수 있어,
  *    줄어들 수 없는 집합으로 쌓는다.
+ *  - `questClearDays` : 일일 퀘스트 3개를 모두 끝낸 날짜들(`arrayUnion`, QuestStore.claim 이 쓴다) — 퀘스트 보상 칭호 판정(2026-10-19).
  * ⚠️ `userName`/`profileImageUrl` 은 건드리지 않는다(CLAUDE.md §2.6 — 항상 merge).
  * iOS `MeteorStats.swift` 와 같은 필드·규칙.
  */
 class MeteorStatsRepository {
 
-    data class Stats(val seen: Int = 0, val bestStreak: Int = 0)
+    data class Stats(val seen: Int = 0, val bestStreak: Int = 0, val questClears: Int = 0)
 
     private val users = staryFirestore.collection(StaryConfig.Collections.USERS)
 
@@ -48,7 +49,8 @@ class MeteorStatsRepository {
             val seen = (snapshot.get(FIELD_SEEN) as? Number)?.toInt() ?: 0
             val best = (snapshot.get(FIELD_STREAKS) as? List<*>)
                 ?.mapNotNull { (it as? Number)?.toInt() }?.maxOrNull() ?: 0
-            trySend(Stats(seen, best))
+            val clears = (snapshot.get(FIELD_QUEST_CLEARS) as? List<*>)?.size ?: 0
+            trySend(Stats(seen, best, clears))
         }
         awaitClose { listener.remove() }
     }
@@ -56,5 +58,6 @@ class MeteorStatsRepository {
     companion object {
         const val FIELD_SEEN = "meteorsSeen"
         const val FIELD_STREAKS = "meteorStreaks"
+        const val FIELD_QUEST_CLEARS = "questClearDays"
     }
 }

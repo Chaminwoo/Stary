@@ -1,7 +1,10 @@
 import FirebaseFirestore
 import SwiftUI
 
-/// 업적 화면 — 일반(칭호/별 모양·색) / 히든 두 탭. (Android AchievementsScreen 패리티)
+/// 업적 화면 — **공용 / 특별 / 히든** 3탭(2026-10-19 재구성, Android AchievementsScreen 패리티).
+///  - 공용: 누구나 얻는 업적 — 칭호(주제별 묶음) · 별 모양 · 별 색(3열 타일).
+///  - 특별: 모두가 갖지는 못하는 업적 — 특별한 순간 · 퀘스트 보상 · 초대 · 개척 칭호.
+///  - 히든: 앱 전체에서 단 한 명.
 /// 프로필의 칭호/업적 아이콘 탭으로 진입한다. 장착한 칭호는 users/{uid}.equippedTitle 에 기록.
 struct AchievementsScreen: View {
     /// 프로필과 공유하는 장착 칭호 id(장착 즉시 프로필 칭호에 반영).
@@ -22,6 +25,8 @@ struct AchievementsScreen: View {
     @State private var redeemedInvite = false
     @State private var myPioneerCodes: [String] = []
     @State private var tab = 0
+    /// 공용 탭 안의 작은 탭 — 0 칭호 / 1 별 모양 / 2 별 색.
+    @State private var commonSub = 0
     @State private var hiddenAlert: HiddenAchievement?
 
     private var mine: [Diary] { store.mine(uid: auth.uid) }
@@ -40,20 +45,28 @@ struct AchievementsScreen: View {
         !Achievements.all.isEmpty && unlocked.count >= Achievements.all.count
     }
 
+    private static let special = Color(hex: 0xB388FF)
+    private static let gold = Color(hex: 0xFFD86F)
+
     var body: some View {
         ZStack {
             // Android AchievementsScreen 배경 — mydiary_bg + 검정 0.82 틴트.
             ScreenBackground(name: "mydiary_bg", darken: 0.82, scroll: bgScroll)
             VStack(spacing: 0) {
-                Picker("", selection: $tab) {
-                    Text(locale.t(.achTabNormal)).tag(0)
-                    Text(locale.t(.achTabHidden)).tag(1)
+                // 공용 / 특별 / 히든(2026-10-19 재구성 — Android TabBar 패리티).
+                HStack(spacing: 8) {
+                    tabChip(locale.t(.achTabNormal), 0, Theme.navyAccent)
+                    tabChip(locale.t(.achTabSpecial), 1, Self.special)
+                    tabChip(locale.t(.achTabHidden), 2, Self.gold)
                 }
-                .pickerStyle(.segmented)
                 .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
 
                 ScrollView {
-                    if tab == 0 { normalList } else { hiddenListView }
+                    switch tab {
+                    case 0: commonList
+                    case 1: specialList
+                    default: hiddenListView
+                    }
                 }
                 .backgroundScrollSource(bgScroll)
             }
@@ -94,56 +107,232 @@ struct AchievementsScreen: View {
                         message: locale.t(.onbAchievementsMsg))
     }
 
-    // ── 일반 업적 ──
-    private var normalList: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private func tabChip(_ label: String, _ index: Int, _ accent: Color) -> some View {
+        let selected = tab == index
+        return Button { tab = index } label: {
+            Text(label)
+                .font(.minSans(14, selected ? .semibold : .normal))
+                .foregroundStyle(selected ? accent : Theme.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(selected ? accent.opacity(0.16) : Color.white.opacity(0.04),
+                            in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12)
+                    .stroke(selected ? accent.opacity(0.7) : Color.white.opacity(0.06), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // ── 공용 업적 — 칭호(주제별) / 별 모양 / 별 색 ──
+    private var commonList: some View {
+        let titles = Achievements.commonTitles
+        let shapes = Achievements.commonShapes
+        let colors = Achievements.commonColors
+        let all = titles + shapes + colors
+        let done = all.filter { unlocked.contains($0.id) }.count
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(locale.t(.achIntro))
+                .font(.minSans(13)).foregroundStyle(Theme.textSecondary)
             // 진행도 = 막대 대신 **성운이 차오르는 밴드**(34-5). 달성할수록 성운이 오른쪽으로 짙어진다.
-            NebulaProgressBand(fraction: Double(unlocked.count) / Double(Swift.max(Achievements.all.count, 1))) {
-                Text("\(unlocked.count) / \(Achievements.all.count)")
+            NebulaProgressBand(fraction: Double(done) / Double(Swift.max(all.count, 1))) {
+                Text("\(done) / \(all.count)")
                     .font(.minSans(12)).foregroundStyle(Theme.navyAccent)
             }
             .frame(height: 52)
 
-            // Android 처럼 보상 종류로 섹션을 나눈다: 칭호 / 별 모양·색.
-            let titleAch = Achievements.all.filter { if case .title = $0.reward { return true }; return false }
-            let shapeColorAch = Achievements.all.filter {
-                switch $0.reward { case .shape, .color: return true; default: return false }
+            HStack(spacing: 8) {
+                subChip(locale.t(.achSectionTitles), titles, 0)
+                subChip(locale.t(.achSubShapes), shapes, 1)
+                subChip(locale.t(.achSubColors), colors, 2)
             }
+            .padding(.top, 2)
+            Text(commonSub == 0 ? locale.t(.achTitlesHint) : locale.t(.achRewardsHint))
+                .font(.minSans(11)).foregroundStyle(Theme.textSecondary.opacity(0.8))
 
-            if !titleAch.isEmpty {
-                sectionHeader(locale.t(.achSectionTitles))
-                ForEach(titleAch) { achievementRow($0) }
-            }
-            if !shapeColorAch.isEmpty {
-                sectionHeader(locale.t(.achSectionShapesColors))
-                ForEach(shapeColorAch) { achievementRow($0) }
-            }
-            // 개척 칭호(체크리스트 32) — 내가 개척한 나라만 노출, 장착 가능.
-            if !myPioneerCodes.isEmpty {
-                sectionHeader(locale.t(.achSectionPioneer))
-                ForEach(myPioneerCodes, id: \.self) { code in
-                    pioneerRow(code)
+            if commonSub == 0 {
+                let groups = Achievements.commonTitleGroups
+                ForEach(groups.indices, id: \.self) { i in
+                    let group = groups[i]
+                    themeHeader(themeLabel(group.0), group.1, accent: Theme.navyAccent)
+                    ForEach(group.1) { achievementRow($0, accent: Theme.navyAccent) }
                 }
+            } else {
+                // 모양·색은 이름이 짧고 그림이 중요해 3열 타일로 — 한눈에 무엇이 열렸는지 보인다.
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3),
+                          spacing: 10) {
+                    ForEach(commonSub == 1 ? shapes : colors) { rewardTile($0) }
+                }
+                .padding(.top, 4)
             }
         }
         .padding(16)
     }
 
-    /// 업적 구분 헤더 행(Android 섹션 제목 대응).
-    private func sectionHeader(_ text: String) -> some View {
-        Text(text)
-            .font(.minSans(15))
-            .foregroundStyle(Theme.navyAccent)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 6)
+    private func themeLabel(_ t: Achievements.Theme) -> String {
+        switch t {
+        case .record: return locale.t(.achThemeRecord)
+        case .streak: return locale.t(.achThemeStreak)
+        case .place: return locale.t(.achThemePlace)
+        case .explore: return locale.t(.achThemeExplore)
+        case .social: return locale.t(.achThemeSocial)
+        case .decor: return locale.t(.achThemeDecor)
+        case .meteor: return locale.t(.achThemeMeteor)
+        }
     }
 
-    /// 개척 칭호 행 — 항상 달성 상태, 탭으로 장착/해제. (Android NormalTab 개척 섹션 패리티)
+    /// 공용 탭 안의 작은 탭(칭호/모양/색) — 이름 아래에 달성 수.
+    private func subChip(_ label: String, _ list: [Achievement], _ index: Int) -> some View {
+        let selected = commonSub == index
+        let done = list.filter { unlocked.contains($0.id) }.count
+        return Button { commonSub = index } label: {
+            VStack(spacing: 1) {
+                Text(label).font(.minSans(13, selected ? .medium : .normal))
+                    .foregroundStyle(selected ? Theme.textPrimary : Theme.textSecondary)
+                Text("\(done) / \(list.count)").font(.minSans(10))
+                    .foregroundStyle(selected ? Theme.navyAccent : Theme.textSecondary.opacity(0.7))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(selected ? Color.white.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .stroke(selected ? Theme.navyAccent.opacity(0.45) : Color.white.opacity(0.06), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 칭호 주제 머리글 — 이름 · 가는 선 · 달성 수.
+    private func themeHeader(_ label: String, _ list: [Achievement], accent: Color) -> some View {
+        let done = list.filter { unlocked.contains($0.id) }.count
+        return HStack(spacing: 10) {
+            Text(label).font(.minSans(13, .medium)).foregroundStyle(accent)
+            Rectangle().fill(accent.opacity(0.18)).frame(height: 1)
+            Text("\(done) / \(list.count)").font(.minSans(11))
+                .foregroundStyle(done == list.count ? accent : Theme.textSecondary)
+        }
+        .padding(.top, 10)
+    }
+
+    /// 별 모양/색 타일 — 큰 미리보기 + 이름 + 조건. 열리면 그 별빛으로 은은하게 빛난다(Android RewardTile).
+    private func rewardTile(_ ach: Achievement) -> some View {
+        let done = unlocked.contains(ach.id)
+        let glow: Color = { if case .color(let c) = ach.reward { return StarStyle.color(c) }; return StarStyle.color(9) }()
+        return VStack(spacing: 6) {
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    switch ach.reward {
+                    case .shape(let t): StarView(type: t, colorIndex: 9, size: 32, glow: false)
+                    case .color(let c): Circle().fill(StarStyle.fill(c)).frame(width: 28, height: 28)
+                    case .title: Image(systemName: "star.fill").foregroundStyle(Theme.navyAccent)
+                    }
+                }
+                .frame(width: 52, height: 52)
+                .opacity(done ? 1 : 0.28)
+                .background(RadialGradient(colors: [done ? glow.opacity(0.26) : .clear, .clear],
+                                           center: .center, startRadius: 0, endRadius: 30))
+                if !done {
+                    Image(systemName: "lock.fill").font(.system(size: 9))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .frame(width: 16, height: 16)
+                        .background(Color.black.opacity(0.65), in: Circle())
+                }
+            }
+            Text(LocalizedNames.title(ach.id, fallback: ach.name) ?? ach.name)
+                .font(.minSans(12, .medium))
+                .foregroundStyle(done ? Theme.textPrimary : Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(minHeight: 30, alignment: .top)
+            Text(ach.hidden && !done ? "???" : LocalizedNames.condition(ach.id, fallback: ach.condition))
+                .font(.minSans(10))
+                .foregroundStyle(Theme.textSecondary.opacity(done ? 0.9 : 0.7))
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, minHeight: 150, alignment: .top)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16)
+            .stroke(done ? glow.opacity(0.35) : Color.white.opacity(0.06), lineWidth: 1))
+    }
+
+    // ── 특별 업적 — 특별한 순간 · 퀘스트 보상 · 초대 · 개척 ──
+    private var specialList: some View {
+        let list = Achievements.special
+        let done = list.filter { unlocked.contains($0.id) }.count + myPioneerCodes.count
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(locale.t(.achSpecialIntro))
+                .font(.minSans(13)).foregroundStyle(Self.special.opacity(0.9))
+            NebulaProgressBand(fraction: Double(done) / Double(Swift.max(list.count + myPioneerCodes.count, 1))) {
+                Text(String(format: locale.t(.achSpecialCount), done))
+                    .font(.minSans(12)).foregroundStyle(Self.special)
+            }
+            .frame(height: 52)
+
+            let groups = Achievements.specialGroups
+            ForEach(groups.indices, id: \.self) { i in
+                let group = groups[i]
+                specialHeader(specialTitle(group.0), specialSub(group.0),
+                              done: group.1.filter { unlocked.contains($0.id) }.count, total: group.1.count)
+                ForEach(group.1) { achievementRow($0, accent: Self.special) }
+            }
+
+            // 개척 칭호(체크리스트 32) — 내가 개척한 나라만, 장착 가능. 없으면 얻는 법을 한 장으로 안내.
+            specialHeader(locale.t(.achSectionPioneer), locale.t(.pioneerCondition), done: myPioneerCodes.count, total: nil)
+            if myPioneerCodes.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "flag.fill").foregroundStyle(Theme.textFaint)
+                        .frame(width: 24)
+                    Text(locale.t(.achPioneerEmpty))
+                        .font(.minSans(11)).foregroundStyle(Theme.textSecondary)
+                    Spacer(minLength: 0)
+                }
+                .padding(10)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+            } else {
+                ForEach(myPioneerCodes, id: \.self) { pioneerRow($0) }
+            }
+        }
+        .padding(16)
+    }
+
+    private func specialTitle(_ g: Achievements.Special) -> String {
+        switch g {
+        case .moments: return locale.t(.achSpecialMoments)
+        case .quest: return locale.t(.achSpecialQuest)
+        case .invite: return locale.t(.achSpecialInvite)
+        }
+    }
+
+    private func specialSub(_ g: Achievements.Special) -> String {
+        switch g {
+        case .moments: return locale.t(.achSpecialMomentsSub)
+        case .quest: return locale.t(.achSpecialQuestSub)
+        case .invite: return locale.t(.achSpecialInviteSub)
+        }
+    }
+
+    /// 특별 묶음 머리글 — 제목·달성 수 + 한 줄 설명(어떻게 얻는지). total nil = 개수 제한 없음(개척).
+    private func specialHeader(_ title: String, _ sub: String, done: Int, total: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 10) {
+                Text(title).font(.minSans(15, .semibold)).foregroundStyle(Theme.textPrimary)
+                Rectangle().fill(Self.special.opacity(0.22)).frame(height: 1)
+                Text(total.map { "\(done) / \($0)" } ?? "\(done)").font(.minSans(11))
+                    .foregroundStyle(total == done ? Self.special : Theme.textSecondary)
+            }
+            Text(sub).font(.minSans(11)).foregroundStyle(Theme.textSecondary)
+        }
+        .padding(.top, 12)
+    }
+
+    /// 개척 칭호 행 — 항상 달성 상태, 탭으로 장착/해제. (Android SpecialTab 개척 묶음 패리티)
     private func pioneerRow(_ code: String) -> some View {
         let titleId = PioneerQuest.titleId(code)
         let display = LocalizedNames.pioneerTitle(titleId) ?? LocalizedNames.countryName(code)
         return HStack(spacing: 10) {
-            Image(systemName: "flag.fill").foregroundStyle(Theme.navyAccent)
+            Image(systemName: "flag.fill").foregroundStyle(Self.special)
+                .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(display).font(.minSans(15)).foregroundStyle(Theme.textPrimary)
                 Text(locale.t(.pioneerCondition))
@@ -153,17 +342,28 @@ struct AchievementsScreen: View {
             Button(equippedTitleId == titleId ? locale.t(.achEquipped) : locale.t(.achEquip)) {
                 equipTitle(equippedTitleId == titleId ? nil : titleId)
             }
-            .font(.minSans(11)).tint(Theme.navyAccent)
+            .font(.minSans(11)).tint(Self.special)
         }
         .padding(10)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .stroke(equippedTitleId == titleId ? Self.special : .clear, lineWidth: 1.5))
     }
 
-    private func achievementRow(_ ach: Achievement) -> some View {
+    private func achievementRow(_ ach: Achievement, accent: Color) -> some View {
         let done = unlocked.contains(ach.id)
+        let isEquipped = equippedTitleId == ach.id
         return HStack(spacing: 10) {
-            Image(systemName: done ? "checkmark.seal.fill" : "lock.fill")
-                .foregroundStyle(done ? Theme.navyAccent : Theme.textFaint)
+            Group {
+                switch ach.reward {
+                case .title:
+                    Image(systemName: done ? "star.fill" : "lock.fill")
+                        .foregroundStyle(done ? accent : Theme.textFaint)
+                case .shape, .color:
+                    rewardBadge(ach)
+                }
+            }
+            .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 // 업적명·조건 모두 언어 전환에 맞춰 표시(칭호 업적 + 별 모양/색 보상 업적).
                 Text(LocalizedNames.title(ach.id, fallback: ach.name) ?? ach.name)
@@ -174,17 +374,18 @@ struct AchievementsScreen: View {
             }
             Spacer()
             if case .title = ach.reward, done {
-                Button(equippedTitleId == ach.id ? locale.t(.achEquipped) : locale.t(.achEquip)) {
-                    equipTitle(equippedTitleId == ach.id ? nil : ach.id)
+                Button(isEquipped ? locale.t(.achEquipped) : locale.t(.achEquip)) {
+                    equipTitle(isEquipped ? nil : ach.id)
                 }
-                .font(.minSans(11)).tint(Theme.navyAccent)
-            } else {
-                rewardBadge(ach)
+                .font(.minSans(11)).tint(accent)
+            } else if done {
+                Text(locale.t(.achObtained)).font(.minSans(11)).foregroundStyle(accent)
             }
         }
         .opacity(done ? 1 : 0.6)
         .padding(10)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(isEquipped ? accent : .clear, lineWidth: 1.5))
     }
 
     @ViewBuilder
@@ -194,7 +395,7 @@ struct AchievementsScreen: View {
             Text(LocalizedNames.title(ach.id, fallback: n) ?? n)
                 .font(.minSans(11)).foregroundStyle(Theme.textFaint)
         case .shape(let t):
-            StarView(type: t, colorIndex: 0, size: 22, glow: false)
+            StarView(type: t, colorIndex: 9, size: 22, glow: false)
         case .color(let c):
             Circle().fill(StarStyle.fill(c)).frame(width: 18, height: 18)
         }

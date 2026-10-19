@@ -54,6 +54,10 @@ object LocalizedNames {
         "meteor_triple" to R.string.title_meteor_triple,
         "meteor_five" to R.string.title_meteor_five,
         "meteor_fifty" to R.string.title_meteor_fifty,
+        // 퀘스트 보상 칭호(2026-10-19)
+        "quest_clear_1" to R.string.title_quest_clear_1,
+        "quest_clear_7" to R.string.title_quest_clear_7,
+        "quest_clear_30" to R.string.title_quest_clear_30,
         // 친구 초대 보상 칭호(체크리스트 31)
         "invite_bond" to R.string.title_invite_bond,
         "invite_beacon" to R.string.title_invite_beacon,
@@ -211,6 +215,10 @@ object LocalizedNames {
         "meteor_triple" to R.string.ach_cond_meteor_triple,
         "meteor_five" to R.string.ach_cond_meteor_five,
         "meteor_fifty" to R.string.ach_cond_meteor_fifty,
+        // 퀘스트 보상 칭호(2026-10-19)
+        "quest_clear_1" to R.string.ach_cond_quest_clear_1,
+        "quest_clear_7" to R.string.ach_cond_quest_clear_7,
+        "quest_clear_30" to R.string.ach_cond_quest_clear_30,
     )
 
     /** 음악 트랙 표시명(현재 언어). 매핑에 없으면 [fallback]. */

@@ -64,6 +64,8 @@ data class UserStats(
     // ── 2026-10-15 유성 업적용 — 글로브에서 본 유성(users/{uid}.meteorsSeen / meteorStreaks, MeteorStatsRepository) ──
     val meteorsSeen: Int = 0,            // 본 유성 수
     val meteorBestStreak: Int = 0,       // 최고 연속 유성 수(실패 없이 이어서 떨어진 개수)
+    // ── 2026-10-19 퀘스트 보상 칭호용 — 일일 퀘스트 3개를 모두 끝낸 날 수(users/{uid}.questClearDays) ──
+    val questClearDays: Int = 0,
 )
 
 /** 업적 보상 — 칭호 / 별 모양 / 별 색 중 하나. (칭호 업적과 별·색 업적을 분리) */
@@ -153,6 +155,10 @@ object Achievements {
         title("meteor_triple", "세 번의 소원", "글로브에서 유성 3개 연속으로 보기") { it.meteorBestStreak >= 3 },
         title("meteor_five", "쏟아지는 별비", "글로브에서 유성 5개 연속으로 보기") { it.meteorBestStreak >= 5 },
         title("meteor_fifty", "별똥별 수집가", "글로브에서 유성 50개 보기") { it.meteorsSeen >= 50 },
+        // 퀘스트 보상(2026-10-19) — 지도 "!" 일일 퀘스트 3개를 모두 끝낸 날 수. 업적 화면 '특별' 탭.
+        title("quest_clear_1", "별지기의 하루", "하루 퀘스트 3개를 모두 끝내기") { it.questClearDays >= 1 },
+        title("quest_clear_7", "일곱 밤의 약속", "하루 퀘스트를 모두 끝낸 날 7일 모으기") { it.questClearDays >= 7 },
+        title("quest_clear_30", "별지기의 항해일지", "하루 퀘스트를 모두 끝낸 날 30일 모으기") { it.questClearDays >= 30 },
     )
 
     // ── 별 모양/색 업적 — 달성 시 업로드 피커에서 해당 모양·색이 해금된다 ──
@@ -207,6 +213,57 @@ object Achievements {
     /** 왕관 판정용 — 왕관 자신을 뺀 일반 업적 달성 수를 채워 넣은 통계. */
     fun withAchievementCount(stats: UserStats): UserStats =
         stats.copy(achievementsDone = all.count { it.id != CROWN_ID && it.unlocked(stats) })
+
+    // ── 업적 화면 분류(2026-10-19) — 공용(누구나) / 특별(모두가 갖지는 못하는) / 히든(앱 전체 1명, HiddenAchievements) ──
+    //    iOS Achievements.swift 와 같은 id·순서. 목록에 없는 공용 칭호는 RECORD 끝에 붙는다(새 업적을 빠뜨려도 화면에서 사라지지 않게).
+
+    /** 공용 칭호 주제. */
+    enum class Theme { RECORD, STREAK, PLACE, EXPLORE, SOCIAL, DECOR, METEOR }
+
+    /** 특별 업적 묶음(개척 칭호는 나라별로 따로 — 화면이 붙인다). */
+    enum class Special { MOMENTS, QUEST, INVITE }
+
+    private val specialIds: List<Pair<Special, List<String>>> = listOf(
+        Special.MOMENTS to listOf("new_year", "christmas", "shape_clover", "shape_cat"),
+        Special.QUEST to listOf("quest_clear_1", "quest_clear_7", "quest_clear_30"),
+        Special.INVITE to listOf("invite_bond", "invite_beacon", "invite_flock"),
+    )
+
+    private val themeIds: List<Pair<Theme, List<String>>> = listOf(
+        Theme.RECORD to listOf("first_step", "count_five", "storyteller", "pilgrim", "photo_ten", "video_first",
+            "long_letter", "short_post", "private_five"),
+        Theme.STREAK to listOf("streak_three", "streak_month", "days_hundred", "all_months"),
+        Theme.PLACE to listOf("places_five", "places_twenty", "home_cluster", "revisit", "neighbor"),
+        Theme.EXPLORE to listOf("star_traveler", "log_ten", "log_hundred"),
+        Theme.SOCIAL to listOf("friend_first", "companion", "friends_ten", "popular", "guide", "like_ten_one",
+            "watched_star", "views_one", "comments_ten"),
+        Theme.DECOR to listOf("shapes_five", "colors_eight"),
+        Theme.METEOR to listOf("meteor_first", "meteor_triple", "meteor_five", "meteor_fifty"),
+    )
+
+    private val specialSet: Set<String> = specialIds.flatMap { it.second }.toSet()
+
+    fun isSpecial(id: String): Boolean = id in specialSet
+
+    /** 특별 묶음별 업적(정의 순서가 아니라 위 목록 순서). */
+    val specialGroups: List<Pair<Special, List<Achievement>>> =
+        specialIds.map { (g, ids) -> g to ids.mapNotNull { byId(it) } }
+
+    /** 공용 칭호를 주제별로. */
+    val commonTitleGroups: List<Pair<Theme, List<Achievement>>> = run {
+        val common = titleAchievements.filter { !isSpecial(it.id) }
+        val listed = themeIds.flatMap { it.second }.toSet()
+        val rest = common.filter { it.id !in listed }
+        themeIds.map { (t, ids) ->
+            val list = ids.mapNotNull { id -> common.firstOrNull { it.id == id } }
+            t to if (t == Theme.RECORD) list + rest else list
+        }.filter { it.second.isNotEmpty() }
+    }
+
+    val commonTitles: List<Achievement> get() = commonTitleGroups.flatMap { it.second }
+    val commonShapes: List<Achievement> = rewardAchievements.filter { it.reward is Reward.Shape && !isSpecial(it.id) }
+    val commonColors: List<Achievement> = rewardAchievements.filter { it.reward is Reward.StarColor && !isSpecial(it.id) }
+    val special: List<Achievement> get() = specialGroups.flatMap { it.second }
 }
 
 /**
@@ -302,6 +359,7 @@ fun rememberUserStats(
             starLogCount = starLogCount,
             meteorsSeen = meteors.seen,
             meteorBestStreak = meteors.bestStreak,
+            questClearDays = meteors.questClears,
         )
     )
 }

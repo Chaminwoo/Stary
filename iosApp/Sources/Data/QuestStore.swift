@@ -299,10 +299,13 @@ final class QuestStore: ObservableObject {
         keys += gained
         var quest: [String: Any] = ["claimed": FieldValue.arrayUnion([id])]
         if bonusNow { quest["bonus"] = true }
-        FirestoreService.users.document(uid).setData([
+        var fields: [String: Any] = [
             questFieldKeys: FieldValue.increment(Int64(gained)),
             questFieldQuest: quest,
-        ], merge: true)
+        ]
+        // 3개를 모두 끝낸 날 — 퀘스트 보상 칭호(Achievements quest_clear_*) 판정용. 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다.
+        if bonusNow { fields[MeteorStats.fieldQuestClears] = FieldValue.arrayUnion([d.day]) }
+        FirestoreService.users.document(uid).setData(fields, merge: true)
         return gained
     }
 

@@ -245,6 +245,14 @@ enum L10n: String {
     case questUseKey, questUseKeyHint, detailLockedTitleKey, detailLockedTitleNoKey, detailUseKey, detailGetKeyAd
     case detailKeyUnlocked, detailAdKeyUnlocked, detailKeyQuestHint, coachStepQuest
 
+    /// 업적 화면 공용/특별/히든 재구성(2026-10-19 — Android ach_tab_special / ach_theme_* / ach_special_* 와 같은 문구).
+    case achTabSpecial, achSubShapes, achSubColors, achThemeRecord, achThemeStreak, achThemePlace
+    case achThemeExplore, achThemeSocial, achThemeDecor, achThemeMeteor, achSpecialIntro, achSpecialCount
+    case achSpecialMoments, achSpecialMomentsSub, achSpecialQuest, achSpecialQuestSub, achSpecialInvite, achSpecialInviteSub
+    case achPioneerEmpty
+
+    case achIntro, achTitlesHint, achRewardsHint, achObtained
+
     /// (ko, en, ja).
     private var table: (String, String, String) {
         switch self {
@@ -405,7 +413,7 @@ enum L10n: String {
                                             "Couldn't delete. Please try again in a moment",
                                             "削除できませんでした。しばらくしてからお試しください")
         case .commonMore:           return ("더보기", "More", "その他")
-        case .achTabNormal:         return ("일반", "General", "一般")
+        case .achTabNormal:         return ("공용", "Common", "共通")
         case .achTabHidden:         return ("히든", "Hidden", "隠し")
         case .achHiddenIntro:       return ("앱에서 단 한 명만 가질 수 있는 업적이에요. \n 달성 시 특별한 칭호 및 프로필 아이콘이 제공됩니다.",
                                             "Achievements only ONE person in the whole app can claim. The conditions are a secret!",
@@ -692,6 +700,29 @@ enum L10n: String {
         case .timeDaysAgo:          return ("%d일 전", "%dd ago", "%d日前")
         case .bannerNewNotification: return ("새 알림", "New notification", "新しい通知")
         case .bannerNewMessage:     return ("새 메시지", "New message", "新しいメッセージ")
+        case .achIntro: return ("업적을 달성하면 칭호와 새로운 별 모양·색을 얻어요.", "Earn titles and new star shapes & colors by unlocking achievements.", "実績を達成すると称号や新しい星の形・色が手に入ります。")
+        case .achTitlesHint: return ("완료한 업적을 눌러 장착하세요", "Tap a completed achievement to equip", "達成した実績をタップして装着")
+        case .achRewardsHint: return ("달성하면 업로드에서 해금돼요", "Unlock them when posting", "達成すると投稿時に解放されます")
+        case .achObtained: return ("획득", "Earned", "獲得")
+        case .achTabSpecial: return ("특별", "Special", "特別")
+        case .achSubShapes: return ("별 모양", "Shapes", "星の形")
+        case .achSubColors: return ("별 색", "Colors", "星の色")
+        case .achThemeRecord: return ("기록", "Writing", "記録")
+        case .achThemeStreak: return ("꾸준함", "Consistency", "継続")
+        case .achThemePlace: return ("장소", "Places", "場所")
+        case .achThemeExplore: return ("탐험", "Exploring", "探検")
+        case .achThemeSocial: return ("교감", "Connection", "交流")
+        case .achThemeDecor: return ("꾸미기", "Style", "おしゃれ")
+        case .achThemeMeteor: return ("유성", "Meteors", "流れ星")
+        case .achSpecialIntro: return ("모두가 가질 수는 없는 업적이에요.\n특별한 날·퀘스트·초대·개척으로만 얻을 수 있어요.", "Not everyone gets these.\nThey come only from special moments, quests, invites and pioneering.", "誰もが持てるわけではない実績です。\n特別な日・クエスト・招待・開拓でしか手に入りません。")
+        case .achSpecialCount: return ("%d개 보유", "%d earned", "%d個獲得")
+        case .achSpecialMoments: return ("특별한 순간", "Special moments", "特別な瞬間")
+        case .achSpecialMomentsSub: return ("그날, 그 시각에만 열려요", "Opens only on that day, at that moment", "その日、その時だけ開きます")
+        case .achSpecialQuest: return ("퀘스트 보상", "Quest rewards", "クエスト報酬")
+        case .achSpecialQuestSub: return ("지도 ! 버튼의 하루 퀘스트를 모두 끝낸 날을 모아요", "Collect days you finish all daily quests (the ! button on the map)", "マップの「!」の1日クエストをすべて終えた日を集めよう")
+        case .achSpecialInvite: return ("초대", "Invites", "招待")
+        case .achSpecialInviteSub: return ("Stary 로 이어진 인연에게만", "Only for bonds made through Stary", "Staryでつながった縁だけに")
+        case .achPioneerEmpty: return ("이번 주 금빛 비콘이 뜬 나라에 처음으로 별을 남기면\n그 나라의 개척자가 돼요", "Be the first to leave a star in this week's golden-beacon country\nto become its pioneer", "今週金色のビーコンが出た国に最初に星を残すと\nその国の開拓者になれます")
         case .questToday: return ("오늘의 퀘스트", "Today's quests", "今日のクエスト")
         case .questSubtitle: return ("퀘스트를 깨고 열쇠를 모아요.\n열쇠로 멀리 있는 별도 열 수 있어요", "Clear quests to collect keys.\nKeys open stars that are far away", "クエストをクリアして鍵を集めよう。\n鍵があれば遠くの星も開けられます")
         case .questClaim: return ("받기", "Claim", "受け取る")
