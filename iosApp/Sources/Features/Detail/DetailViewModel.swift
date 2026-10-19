@@ -49,6 +49,8 @@ final class DetailViewModel: ObservableObject {
         do {
             let snap = try await likeRef.getDocument()
             let batch = FirestoreService.db.batch()
+            // 일일 퀘스트 — 좋아요를 "누를" 때만, 같은 별은 하루 한 번(Android InteractionViewModel 과 같은 규칙).
+            if !snap.exists { QuestStore.report(.like, key: diaryId) }
             if snap.exists {
                 batch.deleteDocument(likeRef)
                 batch.updateData(["likeCount": FieldValue.increment(Int64(-1))], forDocument: diaryRef)
@@ -81,6 +83,7 @@ final class DetailViewModel: ObservableObject {
                           forDocument: FirestoreService.notifications.document())
         }
         try? await batch.commit()
+        QuestStore.report(.comment)
     }
 
     func deleteComment(_ c: Comment) async {

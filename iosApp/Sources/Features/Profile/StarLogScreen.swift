@@ -141,6 +141,7 @@ struct StarLogScreen: View {
         }
         .navigationTitle(locale.t(.navStarLog))
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { QuestStore.report(.visitStarlog) }
         .firstVisitInfo(key: "starlog", systemImage: "star.circle.fill",
                         title: locale.t(.onbStarLogTitle),
                         message: locale.t(.onbStarLogMsg))

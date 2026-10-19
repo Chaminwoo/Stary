@@ -198,7 +198,7 @@ enum L10n: String {
     case notifLikeRow, notifCommentRow, notifFriendPostRow, notifFriendRequestRow
     // 지도 열람 게이팅(Android map_waiting_fix 대응).
     // 지도 우하단 버튼(Android map_constellation/map_only 대응).
-    case mapConstellation, mapOnlyMode
+    case mapConstellation
     // 업적 목록 구분 헤더(Android AchievementsScreen 섹션 대응).
     case achSectionTitles, achSectionShapesColors, achSectionPioneer
     // 배경음악 화면(Android music_drag_hint/music_locked_hint/common_secret 대응).
@@ -212,7 +212,7 @@ enum L10n: String {
     // 설정 > 도움말 다시 보기(Android settings_help* 패리티).
     case settingsHelp, settingsHelpReplay, settingsHelpReplayDesc
     // 첫 실행 코치마크(Android coach_step_*/coach_skip 패리티) — 예전엔 하드코딩 한국어였다(2026-09-04 버그).
-    case coachStepFilter, coachStepLocation, coachStepConstellation, coachStepImmersive
+    case coachStepFilter, coachStepLocation, coachStepConstellation
     case coachStepUpload, coachStepMenu, coachStepFinish, coachSkip
     // 일일 알림(Android settings_daily_reminder* / daily_reminder_* 패리티).
     case settingsDailyReminder, settingsDailyReminderDesc
@@ -230,6 +230,20 @@ enum L10n: String {
     case shareVideoTitle, shareVideoMaking, shareVideoSave, shareVideoSaved, shareVideoSaveFailed, shareVideoCta
     /// 3D 글로브(Android globe_hint / globe_open / globe_close).
     case globeHint, globeOpen, globeClose
+
+    /// 일일 퀘스트 · 열쇠(2026-10-19 — Android quest_* / detail_*key* / coach_step_quest 와 같은 문구).
+    case questToday, questSubtitle, questClaim, questClaimed, questBonus, questBonusDone
+    case questResetIn, questHm, questM, questLoading, questDoneToast, questKeyGained
+    case questKeysOwned, questClose, questTutorialStar, questTutorialStarHint, questUpload, questUploadHint
+    case questViewOther, questViewOther3, questViewOtherHint, questLike, questLike3, questLikeHint
+    case questComment, questCommentHint, questEquipTitle, questEquipTitleHint, questProfileEdit, questProfileEditHint
+    case questPinStar, questPinStarHint, questConstellation, questConstellationHint, questFilter, questFilterHint
+    case questGlobe, questGlobeHint, questAchievements, questAchievementsHint, questUserProfile, questUserProfileHint
+    case questUploadMorning, questUploadMorningHint, questUploadNight, questUploadNightHint, questUploadMedia, questUploadMediaHint
+    case questMeteor, questMeteorHint, questFriendRequest, questFriendRequestHint, questShare, questShareHint
+    case questMusic, questMusicHint, questStarLog, questStarLogHint, questFocus, questFocusHint
+    case questUseKey, questUseKeyHint, detailLockedTitleKey, detailLockedTitleNoKey, detailUseKey, detailGetKeyAd
+    case detailKeyUnlocked, detailAdKeyUnlocked, detailKeyQuestHint, coachStepQuest
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -253,7 +267,6 @@ enum L10n: String {
         case .coachStepFilter:        return ("보고 싶은 다이어리만 골라서 볼 수 있어요", "Pick exactly which diaries you want to see", "見たい日記だけを選んで見ることができます")
         case .coachStepLocation:      return ("시점을 현재 내 위치로 이동해요", "Move the view to your current location", "現在地に視点を移動します")
         case .coachStepConstellation: return ("별들을 이어 별자리를 만들어요", "Connect stars to draw a constellation", "星をつないで星座を作ります")
-        case .coachStepImmersive:     return ("지도에만 집중해서 별들을 감상해요", "Focus on just the map and enjoy the stars", "地図だけに集中して星を眺めます")
         case .coachStepUpload:        return ("이 버튼을 눌러 다이어리를 올려요", "Tap this button to add a diary", "このボタンを押して日記を投稿します")
         case .coachStepMenu:          return ("내 다이어리 · 프로필 · 업적 · 친구 등\n여러 설정을 여기서 관리해요", "My Diary · Profile · Achievements · Friends and\nmore settings live here", "マイ日記・プロフィール・実績・フレンドなど\nさまざまな設定をここで管理します")
         case .coachStepFinish:        return ("지금부터 우주를 탐험하고,\n별들에 이야기를 남겨보세요!", "Now go explore the universe\nand leave your stories among the stars!", "これから宇宙を探検して、\n星に物語を残してみましょう!")
@@ -588,7 +601,6 @@ enum L10n: String {
         case .notifFriendPostRow:   return ("새 다이어리 \"%@\"를 남겼어요", "Posted a new diary \"%@\"", "新しい日記「%@」を投稿しました")
         case .notifFriendRequestRow: return ("친구 요청을 보냈어요", "Sent you a friend request", "友達リクエストを送りました")
         case .mapConstellation:     return ("별자리", "Constellations", "星座")
-        case .mapOnlyMode:          return ("지도만 보기", "Map only", "地図のみ表示")
         case .achSectionTitles:     return ("칭호", "Titles", "称号")
         case .achSectionShapesColors: return ("별 모양 · 색", "Star shapes & colors", "星の形・色")
         case .achSectionPioneer:    return ("개척 칭호", "Pioneer titles", "開拓称号")
@@ -680,6 +692,76 @@ enum L10n: String {
         case .timeDaysAgo:          return ("%d일 전", "%dd ago", "%d日前")
         case .bannerNewNotification: return ("새 알림", "New notification", "新しい通知")
         case .bannerNewMessage:     return ("새 메시지", "New message", "新しいメッセージ")
+        case .questToday: return ("오늘의 퀘스트", "Today's quests", "今日のクエスト")
+        case .questSubtitle: return ("퀘스트를 깨고 열쇠를 모아요.\n열쇠로 멀리 있는 별도 열 수 있어요", "Clear quests to collect keys.\nKeys open stars that are far away", "クエストをクリアして鍵を集めよう。\n鍵があれば遠くの星も開けられます")
+        case .questClaim: return ("받기", "Claim", "受け取る")
+        case .questClaimed: return ("받음", "Claimed", "受取済み")
+        case .questBonus: return ("세 개 모두 받으면 보너스 열쇠 +%1$d", "Claim all three for a bonus key +%1$d", "3つすべて受け取るとボーナス鍵 +%1$d")
+        case .questBonusDone: return ("오늘의 보너스 열쇠를 받았어요", "You got today's bonus key", "今日のボーナス鍵を受け取りました")
+        case .questResetIn: return ("새 퀘스트까지 %@", "New quests in %@", "新しいクエストまで %@")
+        case .questHm: return ("%1$d시간 %2$d분", "%1$dh %2$dm", "%1$d時間%2$d分")
+        case .questM: return ("%1$d분", "%1$dm", "%1$d分")
+        case .questLoading: return ("퀘스트를 불러오는 중이에요…", "Loading quests…", "クエストを読み込み中…")
+        case .questDoneToast: return ("퀘스트 완료! \"%@\" — 오늘의 퀘스트에서 열쇠를 받아요", "Quest done! \"%@\" — claim your key in Today's quests", "クエスト達成！「%@」— 今日のクエストで鍵を受け取ろう")
+        case .questKeyGained: return ("열쇠 %1$d개를 받았어요", "You got %1$d key(s)", "鍵を%1$d個受け取りました")
+        case .questKeysOwned: return ("보유 열쇠 %1$d개", "Keys: %1$d", "所持している鍵 %1$d個")
+        case .questClose: return ("닫기", "Close", "閉じる")
+        case .questTutorialStar: return ("근처에 뜬 웰컴 별 열어 보기", "Open the welcome star nearby", "近くに現れたウェルカム星を開く")
+        case .questTutorialStarHint: return ("지도에서 금빛으로 빛나는 STARY 별을 눌러요", "Tap the golden STARY star on the map", "地図で金色に光る STARY の星をタップ")
+        case .questUpload: return ("별(다이어리) 하나 남기기", "Leave a star (diary)", "星（日記）をひとつ残す")
+        case .questUploadHint: return ("오른쪽 아래 + 버튼으로 지금 이 자리에 별을 남겨요", "Use the + button at the bottom right to leave a star right here", "右下の＋ボタンで今いる場所に星を残そう")
+        case .questViewOther: return ("다른 사람의 별 열어 보기", "Open someone else's star", "ほかの人の星を開く")
+        case .questViewOther3: return ("다른 사람의 별 3개 열어 보기", "Open 3 stars from other people", "ほかの人の星を3つ開く")
+        case .questViewOtherHint: return ("지도에서 별을 눌러요. 멀리 있는 별도 제목은 보여요", "Tap a star on the map. Even far stars show their title", "地図で星をタップ。遠くの星もタイトルは見えます")
+        case .questLike: return ("마음에 드는 별에 좋아요 누르기", "Like a star you enjoyed", "気に入った星にいいねする")
+        case .questLike3: return ("좋아요 3번 누르기", "Give 3 likes", "いいねを3回する")
+        case .questLikeHint: return ("열린 별에서 하트를 눌러요", "Tap the heart on an opened star", "開いた星でハートをタップ")
+        case .questComment: return ("별에 댓글 남기기", "Comment on a star", "星にコメントする")
+        case .questCommentHint: return ("댓글은 100m 안의 별에만 달 수 있어요. 방금 남긴 내 별도 돼요", "You can only comment within 100m — your own new star counts too", "コメントは100m以内の星だけ。さっき残した自分の星でもOK")
+        case .questEquipTitle: return ("칭호 장착해 보기", "Equip a title", "称号を装備する")
+        case .questEquipTitleHint: return ("메뉴 > 업적에서 얻은 칭호를 눌러 장착해요", "Go to Menu > Achievements and tap a title you earned", "メニュー > 実績で獲得した称号をタップして装備")
+        case .questProfileEdit: return ("닉네임이나 프로필 사진 바꿔 보기", "Change your nickname or profile photo", "ニックネームかプロフィール写真を変える")
+        case .questProfileEditHint: return ("메뉴 > 프로필에서 이름이나 사진을 눌러요", "Go to Menu > Profile and tap your name or photo", "メニュー > プロフィールで名前か写真をタップ")
+        case .questPinStar: return ("프로필에 마음에 드는 별 넣어 보기", "Pin a favorite star to your profile", "お気に入りの星をプロフィールに飾る")
+        case .questPinStarHint: return ("프로필에서 내 별을 골라 걸어 둘 수 있어요", "On your profile, pick one of your stars to show off", "プロフィールで自分の星を選んで飾れます")
+        case .questConstellation: return ("별자리 선 켜 보기", "Turn on constellation lines", "星座の線をつける")
+        case .questConstellationHint: return ("지도 오른쪽의 반짝이 버튼으로 근처 별을 이어요", "The sparkle button on the right links nearby stars", "地図右のキラキラボタンで近くの星をつなぐ")
+        case .questFilter: return ("지도 필터 써 보기", "Use a map filter", "地図フィルターを使う")
+        case .questFilterHint: return ("왼쪽 아래 나침반 버튼에서 보고 싶은 별만 골라요", "Pick which stars to see with the compass button at the bottom left", "左下のコンパスボタンで見たい星だけ選ぶ")
+        case .questGlobe: return ("지구로 나가 보기", "Head out to the globe", "地球に出てみる")
+        case .questGlobeHint: return ("지도를 크게 줄이면 나타나는 '우주에서 보기'를 눌러요", "Zoom far out and tap 'View from space'", "地図を大きく縮小すると出る「宇宙から見る」をタップ")
+        case .questAchievements: return ("업적 둘러보기", "Browse achievements", "実績を見てみる")
+        case .questAchievementsHint: return ("메뉴 > 업적에서 다음 목표를 확인해요", "Check your next goal in Menu > Achievements", "メニュー > 実績で次の目標をチェック")
+        case .questUserProfile: return ("다른 사람 프로필 구경하기", "Visit someone's profile", "ほかの人のプロフィールを見る")
+        case .questUserProfileHint: return ("별을 열고 작성자 이름을 눌러요", "Open a star and tap the author's name", "星を開いて作成者の名前をタップ")
+        case .questUploadMorning: return ("아침에 별 남기기 (오전 5시~11시)", "Leave a star in the morning (5–11 AM)", "朝に星を残す（午前5時〜11時）")
+        case .questUploadMorningHint: return ("하루를 시작하며 오늘의 다짐을 남겨 봐요", "Start your day by leaving a little promise", "一日の始まりに今日の目標を残してみよう")
+        case .questUploadNight: return ("밤에 별 남기기 (오후 9시~새벽 2시)", "Leave a star at night (9 PM–2 AM)", "夜に星を残す（午後9時〜深夜2時）")
+        case .questUploadNightHint: return ("하루를 마치며 오늘 있었던 일을 적어 봐요", "Wrap up your day with what happened today", "一日の終わりに今日の出来事を書いてみよう")
+        case .questUploadMedia: return ("사진이나 영상을 담아 별 남기기", "Leave a star with a photo or video", "写真か動画を入れて星を残す")
+        case .questUploadMediaHint: return ("올리기 화면에서 사진·영상을 추가해요", "Add a photo or video on the upload screen", "投稿画面で写真・動画を追加")
+        case .questMeteor: return ("지구에서 유성 보기", "Spot a meteor from the globe", "地球で流れ星を見る")
+        case .questMeteorHint: return ("'우주에서 보기'에서 잠시 기다리면 유성이 지나가요", "Wait a moment in 'View from space' and a meteor flies by", "「宇宙から見る」で少し待つと流れ星が通ります")
+        case .questFriendRequest: return ("친구 요청 보내기", "Send a friend request", "友だち申請を送る")
+        case .questFriendRequestHint: return ("다른 사람 프로필이나 메뉴 > 친구에서 보낼 수 있어요", "Send one from someone's profile or Menu > Friends", "ほかの人のプロフィールかメニュー > 友だちから送れます")
+        case .questShare: return ("별 공유 영상 만들기", "Make a star share video", "星のシェア動画を作る")
+        case .questShareHint: return ("별을 열고 공유 버튼을 눌러요", "Open a star and tap the share button", "星を開いてシェアボタンをタップ")
+        case .questMusic: return ("배경음악 바꿔 보기", "Change the background music", "BGMを変えてみる")
+        case .questMusicHint: return ("메뉴 > 배경음악에서 다른 곡을 골라요", "Pick another track in Menu > Music", "メニュー > BGMで別の曲を選ぶ")
+        case .questStarLog: return ("별 도감 둘러보기", "Browse your Star Log", "星図鑑を見てみる")
+        case .questStarLogHint: return ("메뉴 > 별 도감에서 내가 연 별을 모아 봐요", "See every star you've opened in Menu > Star Log", "メニュー > 星図鑑で開いた星を眺めよう")
+        case .questFocus: return ("지도를 20초 동안 가만히 바라보기", "Gaze at the map for 20 seconds", "地図を20秒じっと眺める")
+        case .questFocusHint: return ("아무것도 누르지 않으면 버튼이 사라지고 별만 남아요", "Don't touch anything — the buttons fade away and only stars remain", "何も触らなければボタンが消えて星だけが残ります")
+        case .questUseKey: return ("열쇠로 멀리 있는 별 열기", "Open a far-away star with a key", "鍵で遠くの星を開く")
+        case .questUseKeyHint: return ("잠긴 별에서 자물쇠를 눌러 열쇠를 써요", "Tap the lock on a locked star to use a key", "ロックされた星で南京錠をタップして鍵を使う")
+        case .detailLockedTitleKey: return ("%1$dm 이내로 다가가거나,\n열쇠를 사용해 해금하세요!", "Get within %1$dm,\nor unlock it with a key!", "%1$dm 以内に近づくか、\n鍵を使って解錠してください！")
+        case .detailLockedTitleNoKey: return ("열쇠가 없어요.\n광고를 보고 열쇠를 얻어 보세요!", "You have no keys.\nWatch an ad to get one!", "鍵がありません。\n広告を見て鍵を手に入れよう！")
+        case .detailUseKey: return ("열쇠로 열기", "Open with a key", "鍵で開く")
+        case .detailGetKeyAd: return ("광고 보고 열쇠 받기", "Watch an ad for a key", "広告を見て鍵をもらう")
+        case .detailKeyUnlocked: return ("열쇠로 별을 열었어요", "You opened the star with a key", "鍵で星を開きました")
+        case .detailAdKeyUnlocked: return ("광고로 받은 열쇠로 별을 열었어요", "You opened the star with the key from the ad", "広告でもらった鍵で星を開きました")
+        case .detailKeyQuestHint: return ("오늘의 퀘스트를 깨도 열쇠를 받을 수 있어요", "You can also earn keys from Today's quests", "今日のクエストでも鍵がもらえます")
+        case .coachStepQuest: return ("오늘의 퀘스트를 깨고 열쇠를 모아요\n열쇠로 멀리 있는 별도 열 수 있어요", "Clear today's quests to collect keys\nKeys open stars far away", "今日のクエストで鍵を集めよう\n鍵で遠くの星も開けられます")
         }
     }
 

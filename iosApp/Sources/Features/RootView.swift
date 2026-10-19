@@ -177,6 +177,13 @@ struct MainTabView: View {
 
                 drawerLayer
 
+                // 오늘의 퀘스트 창(지도 "!" 버튼) — 상단바·글쓰기 버튼까지 덮는다.
+                if chrome.questsOpen {
+                    QuestSheetView { withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = false } }
+                        .transition(.opacity)
+                        .zIndex(60)
+                }
+
                 InAppBannerHost()
                 // 별 탄생 연출(34-8) — 업로드 성공 직후 지도 위에서 재생된다(터치 통과).
                 StarBirthHost()
@@ -334,13 +341,44 @@ struct MainTabView: View {
             // 광고제거 계정(adFree/{uid}) 감시 — 해당 계정은 잠긴 게시물을 광고 없이 바로 연다.
             AdFreeAccount.shared.watch(uid: auth.uid)
             MeteorStats.shared.start(uid: auth.uid)
+            // 일일 퀘스트·열쇠(users/{uid}) — 이전 가입 계정 여부가 정해져야 1일째 목록을 만든다.
+            QuestStore.shared.start(uid: auth.uid)
+            QuestStore.shared.setReturning(auth.returningAccount)
+            // 집중 모드 해제용 창 전체 터치 감시(가로채지 않음).
+            TouchActivityRecognizer.installIfNeeded()
             maybeStartCoachMark()
+        }
+        // 이전 가입 계정 여부가 정해지면 — 퀘스트 1일째 목록 + 코치마크(새 계정일 때만).
+        .onChange(of: auth.returningAccount) { r in
+            QuestStore.shared.setReturning(r)
+            maybeStartCoachMark()
+        }
+        // 집중(지도만 보기) — 지도에서 20초 동안 아무것도 안 건드리면 들어간다(2026-10-19, Android MainScreen 패리티).
+        // 지도가 보이고(push 된 화면·드로어·코치마크·창이 없고) 앱이 앞에 있을 때만 센다. 나오는 건 TouchActivityRecognizer.
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                let eligible = chrome.mapVisible && path.isEmpty && chatTarget == nil && diaryTarget == nil &&
+                    !drawerOpen && !showCoachMark && chrome.idleHolds == 0 && scenePhase == .active
+                if !eligible {
+                    chrome.resetIdle()
+                    continue
+                }
+                if !chrome.mapOnly, Date().timeIntervalSince(chrome.lastTouchAt) >= MapChromeState.idleSeconds {
+                    chrome.enterMapOnly()
+                    QuestStore.report(.focus)
+                }
+                // 자정을 넘겨 켜 둔 경우 새 퀘스트(가벼운 비교라 매 틱 불러도 된다).
+                QuestStore.shared.ensureToday()
+            }
         }
         .onChange(of: auth.uid) { newUid in
             store.startIfNeeded(uid: newUid)
             PushManager.shared.setUser(newUid)
             AdFreeAccount.shared.watch(uid: newUid)
             MeteorStats.shared.start(uid: newUid)
+            QuestStore.shared.start(uid: newUid)
+            QuestStore.shared.setReturning(auth.returningAccount)
             if let uid = newUid {
                 viewed.start(uid: uid); blocks.start(uid: uid)
                 notifications.start(ownerId: uid)
@@ -364,6 +402,7 @@ struct MainTabView: View {
             switch phase {
             case .active:
                 MusicManager.shared.resume()
+                chrome.resetIdle()
                 // 일일 알림 예약이 지나 있으면(오래 안 켰던 경우 등) 다시 잡는다 — 로컬 알림은
                 // 한 번 울리면 자동 반복되지 않아 앱이 살아날 때마다 확인해야 한다.
                 DailyReminderScheduler.ensureScheduled()
@@ -677,14 +716,17 @@ struct MainTabView: View {
     /// 첫 로그인 코치마크 자동 표시 — Android MainScreen 조건과 동일(로그인 + main_coach_seen 미기록 + 지도 화면).
     /// 버튼 좌표(PreferenceKey/GeometryReader)가 첫 레이아웃 뒤에 들어오므로 잠깐 미뤄 켠다 —
     /// 좌표가 그보다 늦게 와도 오버레이가 onChange 로 스포트라이트를 옮긴다.
+    /// ⚠️ **새 계정으로 확인됐을 때만**(`auth.returningAccount == false`) — 이전에 가입한 계정은 재설치 첫 실행이어도 건너뛴다
+    ///    (ReturningAccountOnboarding). 아직 모르면 기다린다(`.onChange(of: auth.returningAccount)` 가 다시 부른다).
+    ///    "도움말 다시 보기"는 이 함수를 거치지 않고 바로 켠다.
     private func maybeStartCoachMark() {
-        guard auth.uid != nil, !showCoachMark,
+        guard auth.uid != nil, !showCoachMark, auth.returningAccount == false,
               !UserDefaults.standard.bool(forKey: "main_coach_seen") else { return }
         // DispatchQueue 클로저는 격리가 없어 @MainActor 객체(auth) 접근이 에러가 될 수 있다 → 메인 액터 Task.
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 600_000_000)
             // 그사이 로그아웃/다른 화면 진입/이미 표시됨이면 건너뛴다.
-            guard auth.uid != nil, !showCoachMark, path.isEmpty,
+            guard auth.uid != nil, !showCoachMark, path.isEmpty, auth.returningAccount == false,
                   chatTarget == nil, diaryTarget == nil,
                   !UserDefaults.standard.bool(forKey: "main_coach_seen") else { return }
             showCoachMark = true

@@ -22,6 +22,10 @@ struct DetailScreen: View {
     @ObservedObject private var ads = AdsManager.shared
     /// 광고제거 계정 — 잠긴 글을 광고 없이 탭 한 번에 연다(아이콘·안내 문구도 "바로 열기").
     @ObservedObject private var adFree = AdFreeAccount.shared
+    /// 열쇠 지갑(오늘의 퀘스트 보상) — 잠긴 글을 열쇠로 연다.
+    @ObservedObject private var quests = QuestStore.shared
+    /// 해금 연출 중인 이유(nil = 평소). 연출이 끝나면 실제로 연다.
+    @State private var unlockingVia: UnlockVia?
     /// 광고 결과·댓글 100m 안내 토스트(Android StaryToast 대응 — FriendsScreen 과 같은 ToastView 패턴).
     @State private var toast: String?
     @State private var didCountView = false
@@ -316,6 +320,8 @@ struct DetailScreen: View {
         .task {
             // 미조회 필터용 열람 기록(본인 글 포함 무조건 — Android markViewed 패리티).
             guard let uid = auth.uid, let id = diary.id else { return }
+            // 일일 퀘스트 "남의 별 열어 보기" — 잠겨 있어도 들어와 본 것으로 센다(서로 다른 별만).
+            if !isOwner { QuestStore.report(.viewOther, key: id) }
             await ViewedRepository.markViewed(uid: uid, diaryId: id)
         }
         // 최신 문서(서버 선번역 포함) 실시간 반영 — 화면을 떠나면 task 취소와 함께 리스너 해제.
@@ -619,28 +625,79 @@ struct DetailScreen: View {
     /// 잠긴 글의 미디어가 영상(움짤/mp4)인가 — 캡션 "영상/사진" 구분용.
     private var isGifOrVideo: Bool { !diary.videoUrl.isEmpty }
 
-    /// 잠긴 글의 본문 자리 — 좌상단·우하단 **십자 코너**(`CornerCrossFrame`) 안에 크리스탈 재생 로고(탭 = 광고)
-    /// + 여는 방법 + 현재 위치로부터의 거리. 카드 배경·테두리는 없다(2026-09-22 레퍼런스 재해석).
-    /// 광고 키가 없으면(`AdsManager.isConfigured == false` — docs/IOS_ADS_SETUP.md) 탭하면 "광고를 불러올 수 없어요" 안내.
+    /// 잠긴 글의 본문 자리 — 좌상단·우하단 **십자 코너**(`CornerCrossFrame`) 안에 크리스탈 자물쇠 + 여는 방법
+    /// + 보유 열쇠 + 현재 위치로부터의 거리(2026-10-19 열쇠 방식 — 예전 재생 로고·"광고를 통해 해금" 대체).
+    /// - 열쇠가 있으면 자물쇠 탭 → 열쇠 1개를 쓰고 [KeyUnlockAnimationView] 뒤 영구 해금.
+    /// - 열쇠가 없으면 탭(또는 "광고 보고 열쇠 받기") → 보상형 광고 → 받은 열쇠로 바로 같은 연출(열쇠 수는 그대로).
+    /// - 광고제거 계정은 광고·열쇠 없이 같은 연출로 바로 연다. 열쇠는 오늘의 퀘스트 보상(`QuestStore`).
     /// (Android `DiaryLock.kt` `LockedContentCard` 패리티 — 수치 동일)
     private var lockedContentCard: some View {
-        VStack(spacing: 0) {
-            CrystalPullIcon(
-                image: adFree.active
-                    ? DiaryLock.openLockImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 54)
-                    : DiaryLock.playLogoImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 54),
-                color: accent,
-                iconSize: 54,
-                accessibilityText: LocaleManager.shared.t(adFree.active ? .detailOpenNow : .detailWatchAd),
-                onTap: { if adFree.active { unlockWithoutAd() } else { watchAdToUnlock() } }
-            )
+        let keys = quests.keys
+        let signedIn = quests.available
+        return VStack(spacing: 0) {
+            if let via = unlockingVia {
+                KeyUnlockAnimationView(
+                    color: accent,
+                    seed: DiaryLock.seed(diary.id, slot: 1),
+                    showKey: via != .adFree
+                ) { finishUnlock(via) }
+            } else {
+                CrystalPullIcon(
+                    image: adFree.active
+                        ? DiaryLock.openLockImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 54)
+                        : DiaryLock.lockImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 54),
+                    color: accent,
+                    iconSize: 54,
+                    accessibilityText: LocaleManager.shared.t(
+                        adFree.active ? .detailOpenNow : (keys > 0 ? .detailUseKey : .detailGetKeyAd)),
+                    onTap: { startUnlock() }
+                )
+            }
             Spacer().frame(height: 6)
-            Text(String(format: LocaleManager.shared.t(adFree.active ? .detailLockedTitleAdFree : .detailLockedTitle),
-                        Int(AppConfig.diaryOpenRadiusM)))
-                .font(.minSans(14.5, .medium))
-                .lineSpacing(7)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Theme.textPrimary.opacity(0.94))
+            Group {
+                if adFree.active {
+                    Text(String(format: LocaleManager.shared.t(.detailLockedTitleAdFree), Int(AppConfig.diaryOpenRadiusM)))
+                } else if keys > 0 {
+                    Text(String(format: LocaleManager.shared.t(.detailLockedTitleKey), Int(AppConfig.diaryOpenRadiusM)))
+                } else {
+                    Text(LocaleManager.shared.t(.detailLockedTitleNoKey))
+                }
+            }
+            .font(.minSans(14.5, .medium))
+            .lineSpacing(7)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(Theme.textPrimary.opacity(0.94))
+            if !adFree.active {
+                Spacer().frame(height: 12)
+                // 보유 열쇠 — 0개면 광고 유도 버튼을 함께 둔다.
+                HStack(spacing: 8) {
+                    if signedIn { KeyChip(keys: keys) }
+                    if keys <= 0 && unlockingVia == nil {
+                        Button { startUnlock() } label: {
+                            HStack(spacing: 5) {
+                                Image(uiImage: DiaryLock.playLogoImage(color: QuestTheme.ink, seed: 0, size: 15))
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .frame(width: 15, height: 15)
+                                Text(LocaleManager.shared.t(.detailGetKeyAd))
+                                    .font(.minSans(12.5, .medium))
+                            }
+                            .foregroundStyle(QuestTheme.ink)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(LinearGradient(colors: [QuestTheme.gold, QuestTheme.goldDeep],
+                                                       startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                if keys <= 0 && signedIn {
+                    Text(LocaleManager.shared.t(.detailKeyQuestHint))
+                        .font(.minSans(11.5))
+                        .foregroundStyle(Theme.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 8)
+                }
+            }
             Spacer().frame(height: 12)
             HStack(spacing: 5) {
                 Image(systemName: "location")
@@ -662,21 +719,41 @@ struct DetailScreen: View {
         .padding(.bottom, 30)
         .background(CornerCrossFrame(color: accent.blended(with: .white, fraction: 0.18)))
         .padding(.vertical, 8)
-        // 광고제거 계정은 광고를 받지 않는다.
-        .onAppear { if !adFree.active { ads.preload() } }
+        // 열쇠가 없을 때만 광고가 필요하다 — 미리 로드(광고제거 계정은 광고를 받지 않는다).
+        .onAppear { if !adFree.active && quests.keys <= 0 { ads.preload() } }
     }
 
-    /// 광고제거 계정(`AdFreeAccount`) — 광고 없이 바로 영구 해금(광고 시청 완료와 같은 결과·연출). Android `unlockWithoutAd` 패리티.
-    private func unlockWithoutAd() {
+    /// 무엇으로 여는지 — 연출(열쇠 표시 여부)과 토스트 문구가 갈린다(Android `UnlockVia`).
+    enum UnlockVia { case key, ad, adFree }
+
+    /// 자물쇠 탭 / "광고 보고 열쇠 받기" — 광고제거 계정 → 바로, 열쇠 있음 → 1개 쓰고, 없음 → 광고로 열쇠 받기.
+    private func startUnlock() {
+        guard unlockingVia == nil else { return }
+        if adFree.active {
+            unlockingVia = .adFree
+        } else if quests.keys > 0, quests.spendKey() {
+            unlockingVia = .key
+        } else {
+            watchAdForKey()
+        }
+    }
+
+    /// 연출이 끝나면 실제로 연다(→ 화면이 본문으로 바뀐다).
+    private func finishUnlock(_ via: UnlockVia) {
         guard let id = diary.id else { return }
         DiaryUnlockStore.shared.unlock(id)
-        Haptics.celebrate()
-        showToast(LocaleManager.shared.t(.detailAdUnlocked))
+        switch via {
+        case .key:
+            showToast(LocaleManager.shared.t(.detailKeyUnlocked))
+            QuestStore.report(.unlockKey)
+        case .ad: showToast(LocaleManager.shared.t(.detailAdKeyUnlocked))
+        case .adFree: showToast(LocaleManager.shared.t(.detailAdUnlocked))
+        }
     }
 
-    /// 보상형 광고 → 끝까지 보면 이 글을 **영구 해금**(`DiaryUnlockStore`). (Android `watchAdToUnlock` 패리티)
-    private func watchAdToUnlock() {
-        guard let id = diary.id, !ads.showing else { return }
+    /// 열쇠가 없을 때 — 보상형 광고를 끝까지 보면 받은 열쇠로 바로 해금 연출(Android `watchAdForKey` 패리티).
+    private func watchAdForKey() {
+        guard !ads.showing else { return }
         guard ads.isConfigured else {
             showToast(LocaleManager.shared.t(.detailAdUnavailable))
             return
@@ -686,13 +763,8 @@ struct DetailScreen: View {
             onWaiting: { showToast(LocaleManager.shared.t(.detailAdLoading)) },
             onUnavailable: { showToast(LocaleManager.shared.t(.detailAdUnavailable)) },
             onResult: { rewarded in
-                if rewarded {
-                    DiaryUnlockStore.shared.unlock(id)
-                    Haptics.celebrate()
-                    showToast(LocaleManager.shared.t(.detailAdUnlocked))
-                } else {
-                    showToast(LocaleManager.shared.t(.detailAdNotFinished))
-                }
+                if rewarded { unlockingVia = .ad }
+                else { showToast(LocaleManager.shared.t(.detailAdNotFinished)) }
             }
         )
     }

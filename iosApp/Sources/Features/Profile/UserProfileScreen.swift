@@ -114,6 +114,8 @@ struct UserProfileScreen: View {
         }
         .coordinateSpace(name: userProfileSpace)
         .navigationTitle(locale.t(.profileTitle))
+        // 일일 퀘스트 "다른 사람 프로필 구경하기".
+        .onAppear { if let me = auth.uid, me != userId { QuestStore.report(.visitProfile) } }
         .watchUser(userId)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -352,5 +354,6 @@ struct UserProfileScreen: View {
             "toId": userId, "toName": shownName,
             "createdAt": FirestoreService.nowMillis,
         ])
+        QuestStore.report(.friendRequest)
     }
 }

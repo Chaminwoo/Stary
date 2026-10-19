@@ -337,7 +337,11 @@ struct MapScreen: View {
 
     /// 스피드 다이얼 알약 옵션(Android FilterOpt 행 대응 — 활성=민트 톤).
     private func filterPill(_ label: String, icon: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            action()
+            // 일일 퀘스트 "지도 필터 써 보기" — 켤 때만(Android FilterOpt 클릭과 같은 규칙).
+            if !active { QuestStore.report(.filter) }
+        } label: {
             HStack(spacing: 8) {
                 Image(systemName: icon)
                     .font(.system(size: 14))
@@ -380,6 +384,7 @@ struct MapScreen: View {
             try? await Task.sleep(nanoseconds: 180_000_000)
             globeCenter = GlobeCenter(lat: lat, lng: lng)
             chrome.globeOpen = true
+            QuestStore.report(.globe)
             withAnimation(.easeInOut(duration: 0.52)) { globeScrim = 0 }
         }
     }
@@ -494,7 +499,8 @@ struct MapScreen: View {
                     .allowsHitTesting(false)
             }
 
-            // 몰입(지도만 보기)에선 지도 위 모든 버튼을 숨긴다(Android MapUiState.mapOnly 대응).
+            // 집중(지도만 보기)에선 지도 위 모든 버튼을 숨긴다(Android MapUiState.mapOnly 대응).
+            // MapChromeState 가 withAnimation 으로 바꾸므로 기본 전환(opacity)으로 들어갈 땐 천천히, 나올 땐 빠르게 페이드된다.
             if !chrome.mapOnly {
             // ── 좌상단 줌 버튼(+/−) — Android DiaryMap 대응(44pt, 남색빛 검정 원형) ──
             // 탭 = 한 단계 부드럽게, 꾹 누르면 손을 뗄 때까지 연속 줌(MapZoomHold — Android ZoomHoldButton 패리티).
@@ -539,6 +545,7 @@ struct MapScreen: View {
                     tint: constellationOn ? Theme.mint : .white
                 ) {
                     constellationOn.toggle()
+                    if constellationOn { QuestStore.report(.constellation) }
                 }
                 .accessibilityLabel(locale.t(.mapConstellation))
                 .background(
@@ -556,26 +563,26 @@ struct MapScreen: View {
                             )
                     }
                 )
-                // 몰입(지도만 보기) — 탑바/필터/버튼을 모두 숨기고 지도에 집중.
-                mapCircleButton("eye", size: 48) {
-                    chrome.mapOnly = true
+                // 오늘의 퀘스트("!") — 예전 몰입 버튼 자리(2026-10-19). 집중 모드는 이제 가만히 두면 들어간다(MapChromeState).
+                // 코치마크 앵커 키는 예전 이름(.eye) 그대로 — 자리(3번째 단계)가 같다. 비로그인이면 버튼 없음.
+                if auth.uid != nil {
+                    QuestMapButton { withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = true } }
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear
+                                .preference(
+                                    key: CoachMarkPositionKey.self,
+                                    value: [
+                                        CoachMarkAnchor.eye:
+                                            CGPoint(
+                                                x: proxy.frame(in: .global).midX,
+                                                y: proxy.frame(in: .global).midY
+                                            )
+                                    ]
+                                )
+                        }
+                    )
                 }
-                .accessibilityLabel(locale.t(.mapOnlyMode))
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(
-                                key: CoachMarkPositionKey.self,
-                                value: [
-                                    CoachMarkAnchor.eye:
-                                        CGPoint(
-                                            x: proxy.frame(in: .global).midX,
-                                            y: proxy.frame(in: .global).midY
-                                        )
-                                ]
-                            )
-                    }
-                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .padding(.trailing, 16)
@@ -588,10 +595,6 @@ struct MapScreen: View {
                 .padding(.bottom, 20)
             } // if !chrome.mapOnly
 
-            // 몰입 종료 — 하단 중앙 X(3초 뒤 자동 숨김, 재탭으로 다시 표시). (Android MapOnlyOverlay 대응)
-            if chrome.mapOnly {
-                MapOnlyExitOverlay { chrome.mapOnly = false }
-            }
 
             // ── 하단 "우주에서 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
             // (Android: 0xEE111120 알약 + 0x9FB3E8 0.5 테두리, Public 아이콘 + 13sp 흰 0.9, 가로 18·세로 11, 하단 24)
@@ -680,8 +683,12 @@ struct MapScreen: View {
         }
         // 웰컴 별 배치 — 실제 위치 fix 가 오면 그 근방에 1회(이미 놨거나 끝났으면 무시). Publisher 는 구독 시
         // 현재 값도 주므로 이미 fix 가 있는 상태로 지도가 떠도 바로 놓인다.
+        // 로그인 상태면 **새 계정으로 확인됐을 때만** — 이전에 가입한 계정은 재설치여도 웰컴 별을 띄우지 않는다(ReturningAccountOnboarding).
         .onReceive(location.$coordinate) { c in
-            if let c { tutorial.ensurePlaced(near: c) }
+            if let c, auth.uid == nil || auth.returningAccount == false { tutorial.ensurePlaced(near: c) }
+        }
+        .onChange(of: auth.returningAccount) { r in
+            if r == false, let c = location.coordinate { tutorial.ensurePlaced(near: c) }
         }
         // 모의 위치 감지 시 1회 경고 — 조작된 좌표는 LocationManager 가 이미 거부한다(Android MainListScreen 패리티).
         .onChange(of: location.mockDetected) { detected in
@@ -711,12 +718,16 @@ struct MapScreen: View {
                 showToast(locale.t(.locationMockBlocked))
             }
             rootAppearedOnce = true
+            chrome.mapVisible = true
+            chrome.resetIdle()
             handleFocus(focus.pendingDiaryId)
             pioneer.start() // 개척 퀘스트 현황 구독(체크리스트 32)
         }
         // 다른 화면으로 나가면(지도가 가려짐) 글로브를 닫는다 — 가려진 채 렌더 루프가 도는 낭비 방지 +
         // "복귀하면 지도" 동작 유지(Android MainListScreen 의 mapVisible 감시와 동일).
         .onDisappear {
+            chrome.mapVisible = false
+            chrome.exitMapOnly()
             if globeCenter != nil {
                 globeCenter = nil
                 globeScrim = 0
@@ -792,44 +803,6 @@ struct MapScreen: View {
         focus.consume()
     }
 
-}
-
-/// 몰입(지도만 보기) 종료 오버레이 — 하단 중앙 X 버튼. 3초 뒤 자동 숨김, 그 자리를 다시
-/// 탭하면 X 가 재등장한다(지도 조작은 그대로 통과). (Android MapOnlyOverlay 대응)
-private struct MapOnlyExitOverlay: View {
-    let onExit: () -> Void
-    @State private var xVisible = true
-    /// 값이 바뀔 때마다 X 를 다시 보이고 3초 자동 숨김 타이머를 재시작.
-    @State private var poke = 0
-
-    var body: some View {
-        Button {
-            if xVisible { onExit() } else { poke += 1 }
-        } label: {
-            ZStack {
-                if xVisible {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(.white)
-                        .frame(width: 56, height: 56)
-                        .background(Color(hex: 0x141414).opacity(0.8), in: Circle())
-                        .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
-                        .transition(.opacity.combined(with: .scale(scale: 0.7)))
-                }
-            }
-            .frame(width: 64, height: 64)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .padding(.bottom, 24)
-        .task(id: poke) {
-            withAnimation(.easeOut(duration: 0.18)) { xVisible = true }
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeIn(duration: 0.25)) { xVisible = false }
-        }
-    }
 }
 
 /// 별 포커스 "파동" 연출 — 화면 중앙(카메라가 별을 중앙에 둔 상태)에서 동심원 물결이 퍼진다.

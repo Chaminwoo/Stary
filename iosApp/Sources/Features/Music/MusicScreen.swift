@@ -377,5 +377,6 @@ struct MusicScreen: View {
         pendingId = t.id
         // 다른 음악으로 바꾸면 그 곡의 처음부터 재생.
         MusicManager.shared.playTrack(t.id, at: 0)
+        QuestStore.report(.music)
     }
 }

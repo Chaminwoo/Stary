@@ -88,6 +88,7 @@ struct AchievementsScreen: View {
                          message: hiddenAlert.map { a in
                              "\(LocalizedNames.title(a.id, fallback: a.title) ?? a.title)\n\(LocalizedNames.condition(a.id, fallback: a.condition))\n\(locale.t(.hiddenWonFirst))"
                          }) { hiddenAlert = nil }
+        .onAppear { QuestStore.report(.visitAchievements) }
         .firstVisitInfo(key: "achievements", systemImage: "trophy.fill",
                         title: locale.t(.onbAchievementsTitle),
                         message: locale.t(.onbAchievementsMsg))
@@ -265,6 +266,7 @@ struct AchievementsScreen: View {
     private func equipTitle(_ id: String?) {
         equippedTitleId = id
         guard let uid = auth.uid else { return }
+        if id != nil { QuestStore.report(.equipTitle) }
         // 로컬 캐시 즉시 갱신 — ProfileScreen.onChange 가 저장하지만 AchievementsEntry 경로에서도 보장
         if let id, !id.isEmpty {
             UserDefaults.standard.set(id, forKey: "equipped_title_\(uid)")

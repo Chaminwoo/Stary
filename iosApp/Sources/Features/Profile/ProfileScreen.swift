@@ -309,7 +309,7 @@ struct ProfileScreen: View {
                             DispatchQueue.main.async { nicknameBlocked = true }
                             return
                         }
-                        Task { await auth.setNickname(n) }
+                        Task { if await auth.setNickname(n) { QuestStore.report(.profileEdit) } }
                     }
                 }
             }
@@ -355,6 +355,7 @@ struct ProfileScreen: View {
 
     private func savePinned(_ ids: [String]) {
         guard let uid = auth.uid else { return }
+        if !ids.isEmpty { QuestStore.report(.pinStar) }
         Task {
             try? await FirestoreService.users.document(uid)
                 .setData(["pinnedDiaries": Array(ids.prefix(3))], merge: true)
@@ -371,6 +372,7 @@ struct ProfileScreen: View {
             guard let url = try? await ImageUploader.uploadProfile(uid: uid, data: data) else { return }
             _ = await AvatarThumbCache.shared.image(for: url, maxPixel: avatarPixelSize)
             profileImageUrl = url
+            QuestStore.report(.profileEdit)
             auth.photoUrl = url // 로그인 때 확정해 둔 값도 새 사진으로(다른 화면이 옛 값을 보지 않게)
         }
     }

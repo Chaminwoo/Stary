@@ -19,6 +19,10 @@ final class AuthManager: ObservableObject {
     @Published var displayName: String = ""
     /// 서버에서 확인한 내 닉네임(`users/{uid}.userName`). nil = 아직 모름(읽기 전/실패). Android `GoogleAuthHelper.confirmedName` 패리티.
     @Published private(set) var confirmedName: String?
+    /// 이번 로그인 계정이 **이전에 가입했던 계정**인지 — 로그인 후 첫 서버 읽기에서 `users/{uid}` 에 닉네임/사진이 이미 있었으면 true.
+    /// nil = 아직 모름. 로그인마다 첫 서버 읽기에서 한 번만 정한다(이후엔 이 기기가 방금 쓴 프로필 때문에 새 계정도 "있음"이 된다).
+    /// 재설치 첫 실행이어도 이전 계정이면 코치마크·웰컴 별·화면 안내를 건너뛴다([ReturningAccountOnboarding]). Android `GoogleAuthHelper.returningAccount` 패리티.
+    @Published private(set) var returningAccount: Bool?
     @Published var isBusy = false
     @Published var errorMessage: String?
     /// "로그인 없이 둘러보기"(게스트) 모드 — Android `GoogleAuthHelper.currentUserId == null` 상태 대응.
@@ -32,6 +36,7 @@ final class AuthManager: ObservableObject {
             Task { @MainActor in
                 self?.uid = Self.appUserId(of: user)
                 self?.confirmedName = nil
+                self?.returningAccount = nil
                 if let user, !user.isAnonymous {
                     let appUid = Self.appUserId(of: user) ?? user.uid
                     // 캐시된 커스텀 닉네임이 있으면 즉시 반영(기본=구글 이름). Firestore 값으로 ensureProfile 에서 확정.
@@ -375,6 +380,12 @@ final class AuthManager: ObservableObject {
         // (예전엔 항상 구글 사진으로 덮어써서 재로그인마다 프로필 사진이 초기화됐다 — 2026-08-15 수정.)
         let existingPhoto = (saved?.get("profileImageUrl") as? String).flatMap { $0.isEmpty ? nil : $0 }
         let photo = existingPhoto ?? (user.photoURL?.absoluteString ?? "")
+        // 첫 서버 읽기에서만 — 아래 setData 가 채우면 새 계정도 "있음"이 된다.
+        if readOk, returningAccount == nil {
+            let returning = existing != nil || existingPhoto != nil
+            returningAccount = returning
+            if returning { ReturningAccountOnboarding.apply() }
+        }
         displayName = name
         // 현재 값을 확실히 아는 경우에만 기록한다(읽기 실패 시엔 손대지 않고, 앱 복귀 시 retryProfileSyncIfNeeded 가 다시 시도).
         // 기기 캐시도 마찬가지 — 읽기 실패 때 구글 기본값을 "닉네임 캐시"로 굳히면 이후 실패 폴백이 그 값을 믿게 된다.
@@ -458,5 +469,21 @@ final class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate,
             .compactMap { $0 as? UIWindowScene }
             .flatMap { $0.windows }
             .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+    }
+}
+
+/// 기기 첫 실행(재설치)이라도 **이전에 가입했던 계정**으로 로그인하면 처음 쓰는 사람용 안내를 건너뛴다(2026-10-19).
+/// 건너뛰는 것: 지도 코치마크(`main_coach_seen`) · 웰컴(튜토리얼) 별 · 화면별 첫 진입 안내(`onb_*`).
+/// 설정 > "도움말 다시 보기"는 그대로 동작한다. Android `core/util/ReturningAccountOnboarding.kt` 패리티.
+@MainActor
+enum ReturningAccountOnboarding {
+    /// 화면별 첫 진입 안내 키(`firstVisitInfo(key:)`) — 새 안내를 추가하면 여기에도 넣는다.
+    private static let firstVisitKeys = ["friends", "music", "achievements", "mydiary", "profile", "starlog"]
+
+    static func apply() {
+        let d = UserDefaults.standard
+        d.set(true, forKey: "main_coach_seen")
+        for k in firstVisitKeys { d.set(true, forKey: "onb_\(k)") }
+        if !TutorialStarState.shared.done { TutorialStarState.shared.markDone() }
     }
 }

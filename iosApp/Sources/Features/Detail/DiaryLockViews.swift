@@ -5,10 +5,10 @@ import UIKit
 ///
 /// - 히어로: 미디어가 **있을 때만** 미디어 로딩 플레이스홀더(loading_dipper) + 우하단 작은 캡션 "이 사진/영상은 잠겨 있어요".
 ///   미디어가 없으면 잠금 표시 없이 일반 글과 같은 image_frame.
-/// - 본문 자리: 좌상단·우하단 십자 코너([CornerCrossFrame]) 안에 크리스탈 재생 로고(유튜브형)
-///   + "100m 이내로 다가가거나, 광고를 통해 해금하세요!" + 현재 거리.
-/// - 재생 로고는 [CrystalPullIcon] — 제자리에 고정돼 있다가 잡아당기면 버티며 조금만 끌려오고,
-///   놓으면 튕기듯 돌아간다. **탭 = 보상형 광고**. 따로 "광고 보기" 버튼은 없다.
+/// - 본문 자리: 좌상단·우하단 십자 코너([CornerCrossFrame]) 안에 크리스탈 자물쇠
+///   + "100m 이내로 다가가거나, 열쇠를 사용해 해금하세요!" + 보유 열쇠 + 현재 거리(2026-10-19 — 예전 재생 로고·광고 문구 대체).
+/// - 자물쇠는 [CrystalPullIcon] — 제자리에 고정돼 있다가 잡아당기면 버티며 조금만 끌려오고,
+///   놓으면 튕기듯 돌아간다. **탭 = 열쇠 사용**(없으면 보상형 광고로 열쇠 받기) → [KeyUnlockAnimationView].
 enum DiaryLock {
     /// 잡아당겼을 때 끌려오는 최대 거리 — Android `PULL_MAX`(16dp).
     static let pullMax: CGFloat = 16
@@ -74,10 +74,124 @@ enum DiaryLock {
         return p
     }()
 
-    /// 크리스탈 열린 자물쇠(광고제거 계정 본문 카드용).
+    /// 크리스탈 열린 자물쇠(광고제거 계정 본문 카드 · 해금 연출 끝 장면).
     static func openLockImage(color: Color, seed: Int, size: CGFloat) -> UIImage {
         StarCrystal.pathIconImage(name: "open-lock", path: openLockPath, color: UIColor(color), seed: seed, size: size)
     }
+
+    /// 닫힌 자물쇠(열쇠로 여는 잠금, 2026-10-19 — 예전 유튜브형 재생 로고 대체) — [openLockPath] 와 같은 몸통·구멍에
+    /// 고리 양쪽 기둥이 모두 몸통에 닿는다. Android `DiaryLock.kt` 의 `LockLogo` 와 같은 좌표.
+    static let lockPath: CGPath = {
+        let p = CGMutablePath()
+        p.addRoundedRect(in: CGRect(x: 4.5, y: 10.5, width: 15, height: 11), cornerWidth: 2.4, cornerHeight: 2.4)
+        p.addEllipse(in: CGRect(x: 10.4, y: 14.0, width: 3.2, height: 3.2))
+        p.move(to: CGPoint(x: 6.9, y: 10.5))
+        p.addLine(to: CGPoint(x: 6.9, y: 7))
+        p.addArc(center: CGPoint(x: 12, y: 7), radius: 5.1, startAngle: .pi, endAngle: 0, clockwise: false)
+        p.addLine(to: CGPoint(x: 17.1, y: 10.5))
+        p.addLine(to: CGPoint(x: 14.9, y: 10.5))
+        p.addLine(to: CGPoint(x: 14.9, y: 7))
+        p.addArc(center: CGPoint(x: 12, y: 7), radius: 2.9, startAngle: 0, endAngle: .pi, clockwise: true)
+        p.addLine(to: CGPoint(x: 9.1, y: 10.5))
+        p.closeSubpath()
+        return p
+    }()
+
+    /// 크리스탈 닫힌 자물쇠(잠긴 본문 카드용).
+    static func lockImage(color: Color, seed: Int, size: CGFloat) -> UIImage {
+        StarCrystal.pathIconImage(name: "lock", path: lockPath, color: UIColor(color), seed: seed, size: size)
+    }
+
+    /// 해금 연출 길이 — 열쇠가 들어가 도는 앞부분 / 고리가 튀고 빛이 퍼지는 뒷부분(Android `UNLOCK_TURN_MS/UNLOCK_BURST_MS`).
+    static let unlockTurnSec: Double = 0.72
+    static let unlockBurstSec: Double = 0.78
+}
+
+/// 자물쇠 해금 연출(약 1.5초) — Android `KeyUnlockAnimation` 패리티. 끝나면 [onFinished](실제 해금).
+/// ① 열쇠가 아래에서 떠올라 구멍에 꽂히고(앞 42%) ② 90° 돌며 자물쇠가 살짝 흔들린다
+/// ③ 열린 자물쇠로 바뀌며 고리가 튀어 오르고, 금빛 고리 2겹이 퍼지며 자물쇠가 커졌다 사라진다.
+/// `showKey == false`(광고제거 계정)면 열쇠 없이 ③만.
+struct KeyUnlockAnimationView: View {
+    let color: Color
+    let seed: Int
+    let showKey: Bool
+    let onFinished: () -> Void
+
+    @State private var start = Date()
+    @State private var finished = false
+    @State private var clicked = false
+
+    var body: some View {
+        let closed = DiaryLock.lockImage(color: color, seed: seed, size: 54)
+        let open = DiaryLock.openLockImage(color: color, seed: seed, size: 54)
+        TimelineView(.animation) { ctx in
+            let el: Double = ctx.date.timeIntervalSince(start)
+            let turnLen: Double = showKey ? DiaryLock.unlockTurnSec : 0
+            let t: Double = turnLen > 0 ? min(1, el / turnLen) : 1
+            let b: Double = max(0, min(1, (el - turnLen) / DiaryLock.unlockBurstSec))
+            let bE = Self.easeOut(b)
+            let opened = t >= 1
+            let rise = min(1, t / 0.42)
+            let spin = max(0, min(1, (t - 0.42) / 0.58))
+            let keyY = 48 + (10 - 48) * Self.easeOut(rise)
+            let keyAlpha = opened ? max(0, 1 - bE * 3) : rise
+            let jiggle: Double = (spin > 0.05 && spin < 0.95) ? sin(spin * 18) * 3.5 * (1 - spin) : 0
+            let lockScale: Double = 1 + 0.18 * max(0, sin(bE * .pi)) + 0.10 * bE
+            let lockAlpha = max(0, min(1, 1 - (bE - 0.62) / 0.38))
+            // 고리 튀어 오름 — 열린 직후 위로 3pt 튀었다 가라앉는 감쇠 진동.
+            let bounce: Double = opened ? -3 * exp(-b * 6) * cos(b * 22) * (1 - b) : 0
+            ZStack {
+                if b > 0 {
+                    Circle()
+                        .fill(RadialGradient(colors: [QuestTheme.gold.opacity(0.55 * (1 - bE)), .clear],
+                                             center: .center, startRadius: 0, endRadius: CGFloat(46 * (0.6 + bE))))
+                        .frame(width: CGFloat(92 * (0.6 + bE)), height: CGFloat(92 * (0.6 + bE)))
+                    ForEach(0..<2, id: \.self) { i in
+                        let p: Double = max(0, min(1, (bE - Double(i) * 0.12) / (1 - Double(i) * 0.12)))
+                        if p > 0 {
+                            Circle()
+                                .stroke((i == 0 ? QuestTheme.gold : color.blended(with: .white, fraction: 0.3))
+                                    .opacity((1 - p) * 0.85), lineWidth: CGFloat((1 - p) * 3 + 0.6))
+                                .frame(width: CGFloat(92 * (0.45 + p * 1.25)), height: CGFloat(92 * (0.45 + p * 1.25)))
+                        }
+                    }
+                }
+                Image(uiImage: opened ? open : closed)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 54, height: 54)
+                    .rotationEffect(.degrees(jiggle))
+                    .scaleEffect(CGFloat(lockScale))
+                    .offset(y: CGFloat(bounce))
+                    .opacity(lockAlpha)
+                if showKey && keyAlpha > 0 {
+                    // SF key.fill 은 비스듬히 서 있다(고리 위·이 아래) — 세운 채 올라와 꽂힌 뒤 90° 돌린다.
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(QuestTheme.gold)
+                        .rotationEffect(.degrees(-45 + 90 * Self.easeInOut(spin)))
+                        .offset(y: CGFloat(keyY))
+                        .opacity(keyAlpha)
+                }
+            }
+            .frame(width: 92, height: 92)
+            .onChange(of: opened) { o in
+                // 딸깍 — 열린 자물쇠로 바뀌는 순간.
+                if o, !clicked { clicked = true; Haptics.celebrate(); MusicManager.shared.playRevealChime() }
+            }
+            .onChange(of: b >= 1) { done in
+                if done, !finished { finished = true; onFinished() }
+            }
+        }
+        .onAppear {
+            start = Date()
+            if showKey { Haptics.soft() }
+            else { clicked = true; Haptics.celebrate(); MusicManager.shared.playRevealChime() }
+        }
+    }
+
+    private static func easeOut(_ t: Double) -> Double { 1 - (1 - t) * (1 - t) }
+    private static func easeInOut(_ t: Double) -> Double { t < 0.5 ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2 }
 }
 
 /// 크리스탈 파편 아이콘 — **제자리 고정 + 고무줄**(Android `CrystalPullIcon` 패리티).

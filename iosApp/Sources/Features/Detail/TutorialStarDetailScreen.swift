@@ -49,7 +49,10 @@ struct TutorialStarDetailScreen: View {
         }
         .navigationTitle(LocaleManager.shared.t(.navDetail))
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { TutorialStarState.shared.markDone() }
+        .onAppear {
+            TutorialStarState.shared.markDone()
+            QuestStore.report(.tutorialStar)
+        }
     }
 
     // ── 헤더: 별자리 플레이스홀더 영상 + 하단 스크림 + 별/작성자/날짜 (DetailScreen heroHeader 와 같은 구조) ──

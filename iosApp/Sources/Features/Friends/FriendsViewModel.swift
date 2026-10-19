@@ -149,6 +149,7 @@ final class FriendsViewModel: ObservableObject {
             // 상대에게 알림 문서 생성 — 전면이면 인앱 배너, 후면/종료면 Cloud Functions 가 FCM 푸시.
             // (Android FirebaseFriendRepository.sendRequest 와 동일 — 중복 요청일 땐 위에서 return.)
             await Self.notifyFriendRequest(actorId: fromId, actorName: fromName, toId: to.userId)
+            QuestStore.report(.friendRequest)
             return true
         } catch {
             return false

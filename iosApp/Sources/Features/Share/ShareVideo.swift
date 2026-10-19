@@ -22,6 +22,7 @@ enum ShareVideo {
                                                  untitled: L10n.shareCardUntitled.value(for: lang),
                                                  cta: L10n.shareVideoCta.value(for: lang),
                                                  to: url, onProgress: onProgress)
+        if ok { QuestStore.report(.share, key: diary.id) }
         return ok ? url : nil
     }
 

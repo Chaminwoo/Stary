@@ -6,7 +6,7 @@ import SwiftUI
 /// 0 필터
 /// 1 내 위치
 /// 2 별자리
-/// 3 몰입
+/// 3 오늘의 퀘스트("!", 예전 몰입 버튼 자리 — 앵커 이름은 eye 그대로)
 /// 4 업로드 FAB
 /// 5 메뉴
 /// 6 마무리
@@ -364,7 +364,7 @@ struct MainOnboardingOverlay: View {
             return LocaleManager.shared.t(.coachStepConstellation)
 
         case 3:
-            return LocaleManager.shared.t(.coachStepImmersive)
+            return LocaleManager.shared.t(.coachStepQuest)
 
         case 4:
             return LocaleManager.shared.t(.coachStepUpload)
