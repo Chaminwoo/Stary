@@ -119,7 +119,11 @@ struct FriendsScreen: View {
                         Button(LocaleManager.shared.t(.friendAdd)) {
                             guard let uid = auth.uid else { return }
                             Task {
-                                let ok = await vm.sendRequest(fromId: uid, fromName: auth.displayName, to: user)
+                                // 요청에 박히는 내 이름은 서버 확인값(첫 실행 직후 구글 기본 이름 방지, CLAUDE.md §2.6).
+                                guard let name = await auth.confirmedNameOrWait() else {
+                                    showToast(LocaleManager.shared.t(.profileNotReady)); return
+                                }
+                                let ok = await vm.sendRequest(fromId: uid, fromName: name, to: user)
                                 showToast(ok
                                     ? String(format: LocaleManager.shared.t(.friendRequestSent), user.userName)
                                     : LocaleManager.shared.t(.friendRequestFail))
@@ -197,7 +201,12 @@ struct FriendsScreen: View {
                     Spacer()
                     Button(LocaleManager.shared.t(.friendAccept)) {
                         guard let uid = auth.uid else { return }
-                        Task { await vm.accept(req, myUid: uid, myName: auth.displayName) }
+                        Task {
+                            guard let name = await auth.confirmedNameOrWait() else {
+                                showToast(LocaleManager.shared.t(.profileNotReady)); return
+                            }
+                            await vm.accept(req, myUid: uid, myName: name)
+                        }
                     }
                     .font(.minSans(12)).tint(Theme.navyAccent)
                     Button(LocaleManager.shared.t(.friendDecline)) { Task { await vm.decline(req) } }

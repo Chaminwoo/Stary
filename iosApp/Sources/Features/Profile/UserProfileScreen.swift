@@ -338,6 +338,8 @@ struct UserProfileScreen: View {
     private func sendRequest() async {
         guard let myUid = auth.uid, !isMe else { return }
         requested = true
+        // 요청에 박히는 내 이름은 서버 확인값 — 끝내 모르면 보내지 않고 버튼을 되돌린다(CLAUDE.md §2.6).
+        guard let myName = await auth.confirmedNameOrWait() else { requested = false; return }
         let dup = try? await FirestoreService.friendRequests
             .whereField("fromId", isEqualTo: myUid)
             .whereField("toId", isEqualTo: userId)
@@ -345,7 +347,7 @@ struct UserProfileScreen: View {
         if let dup, !dup.documents.isEmpty { return } // 이미 요청됨
         let ref = FirestoreService.friendRequests.document()
         try? await ref.setData([
-            "fromId": myUid, "fromName": auth.displayName,
+            "fromId": myUid, "fromName": myName,
             "fromPhotoUrl": "",
             "toId": userId, "toName": shownName,
             "createdAt": FirestoreService.nowMillis,

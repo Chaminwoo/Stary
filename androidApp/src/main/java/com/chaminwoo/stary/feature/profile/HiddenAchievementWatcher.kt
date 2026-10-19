@@ -77,8 +77,10 @@ fun HiddenAchievementWatcher(userId: String, suppressed: Boolean = false) {
         }
     }
 
-    LaunchedEffect(satisfied, claims) {
-        val name = GoogleAuthHelper.currentUserName ?: userId.take(12)
+    // 선점 기록에 박히는 이름은 서버 확인값 — 확인되기 전엔 시도하지 않고, 확인되면 이 effect 가 다시 돈다(CLAUDE.md §2.6).
+    val confirmedName by GoogleAuthHelper.confirmedName.collectAsState()
+    LaunchedEffect(satisfied, claims, confirmedName) {
+        val name = confirmedName?.ifBlank { userId.take(12) } ?: return@LaunchedEffect
         for (id in satisfied) {
             if (id in attempted) continue
             if (claims[id]?.claimed == true) continue // 이미 누군가 달성함

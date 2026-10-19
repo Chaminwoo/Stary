@@ -385,6 +385,11 @@ struct UploadScreen: View {
         // 올리기 성공 순간의 축하 진동(StarBirthStore.trigger → Haptics.celebrate)이 확실히 울리도록
         // 지금 탭틱 엔진을 깨워 둔다 — 예열 없이 부르면 첫 진동이 씹힌다(사용자 요청 #5).
         Haptics.prepare()
+        // 작성자 이름은 서버에서 확인한 닉네임 — 기기 첫 실행 직후 구글 기본 이름이 박히지 않게(CLAUDE.md §2.6).
+        // 첨부 업로드 전에 확인해 Storage 에 주인 없는 파일이 남지 않게 한다. (Android requireConfirmedName 패리티)
+        guard let authorName = await auth.confirmedNameOrWait() else {
+            showToast(LocaleManager.shared.t(.profileNotReady)); return
+        }
 
         // 첨부는 움짤/사진 중 하나(배타). 둘 다 **지금 프레임에 보이는 그대로** 잘라서 올린다.
         // 움짤(GIF)은 videoUrl 필드에 저장(스키마 유지, .gif 로 판별).
@@ -410,7 +415,7 @@ struct UploadScreen: View {
 
         let diary = Diary(
             userId: uid,
-            userName: auth.displayName,
+            userName: authorName,
             title: title,
             content: content,
             imageUrl: imageUrl,
@@ -426,7 +431,7 @@ struct UploadScreen: View {
             let newId = try await store.save(diary)
             // 전체/친구 공개 글이면 친구들에게 알림(나만보기는 제외).
             if visibility != .privateOnly {
-                await store.notifyFriends(uid: uid, name: auth.displayName, diaryId: newId, title: title)
+                await store.notifyFriends(uid: uid, name: authorName, diaryId: newId, title: title)
             }
             title = ""; content = ""; clearMedia()
             showToast(LocaleManager.shared.t(.uploadDone))
@@ -435,10 +440,9 @@ struct UploadScreen: View {
             StarBirthStore.shared.trigger(starType: starType, starColor: starColor)
             TabRouter.shared.go(TabRouter.map)
             // 개척 퀘스트 선점 시도(체크리스트 32) — 화면 이탈과 무관하게 진행, 실패는 무시.
-            let myName = auth.displayName
             Task.detached {
                 await PioneerStore.attemptClaim(
-                    lat: diary.latitude, lng: diary.longitude, uid: uid, name: myName
+                    lat: diary.latitude, lng: diary.longitude, uid: uid, name: authorName
                 )
             }
         } catch {

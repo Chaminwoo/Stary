@@ -116,12 +116,13 @@ struct ProfileScreen: View {
                 VStack(spacing: 14) {
                     avatar
                     // 닉네임 — 누르면 변경(기본=구글 닉네임). 레이아웃은 그대로.
+                    // 서버에서 확인한 값만 보여 준다(모르는 동안 "···") — 기기 첫 실행 직후 구글 이름이 보이던 문제(CLAUDE.md §2.6).
                     HStack(spacing: 6) {
-                        Text(auth.displayName.isEmpty ? "Stargazer" : auth.displayName)
+                        Text(auth.confirmedName.map { $0.isEmpty ? "Stargazer" : $0 } ?? "···")
                             .font(.minSans(26))
                             .foregroundStyle(Theme.textPrimary)
                             .onTapGesture {
-                                nicknameDraft = auth.displayName
+                                nicknameDraft = auth.confirmedName ?? ""
                                 showNicknameEditor = true
                             }
                         // 내가 달성한 히든 업적 전용 크리스탈 배지(34-4).
@@ -326,8 +327,9 @@ struct ProfileScreen: View {
         guard let uid = auth.uid else { return }
         let s = stats
         let done = allNormalDone
-        let name = auth.displayName
         Task {
+            // 선점 기록에 박히는 이름은 서버 확인값 — 모르면 이번엔 시도하지 않는다(CLAUDE.md §2.6).
+            guard let name = await auth.confirmedNameOrWait() else { return }
             let won = await hidden.attemptAutoClaims(stats: s, allNormalDone: done, uid: uid, name: name)
             if let first = won.first { hiddenAlert = first }
         }

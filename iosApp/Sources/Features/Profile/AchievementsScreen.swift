@@ -282,8 +282,9 @@ struct AchievementsScreen: View {
         guard let uid = auth.uid else { return }
         let s = stats
         let done = allNormalDone
-        let name = auth.displayName
         Task {
+            // 선점 기록에 박히는 이름은 서버 확인값 — 모르면 이번엔 시도하지 않는다(CLAUDE.md §2.6).
+            guard let name = await auth.confirmedNameOrWait() else { return }
             let won = await hidden.attemptAutoClaims(stats: s, allNormalDone: done, uid: uid, name: name)
             if let first = won.first { hiddenAlert = first }
         }

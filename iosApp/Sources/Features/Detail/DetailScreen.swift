@@ -555,7 +555,13 @@ struct DetailScreen: View {
             LikeButton(isLiked: vm.isLiked, count: vm.likeCount, accent: accent) {
                 // 비로그인 시 좋아요 잠금 — 로그인 안내만.
                 guard auth.uid != nil else { showLoginRequired = true; return }
-                Task { await vm.toggleLike(uid: auth.uid, userName: auth.displayName) }
+                Task {
+                    // 좋아요 알림에 박히는 이름 — 서버 확인값만(첫 실행 직후 구글 기본 이름 방지, CLAUDE.md §2.6).
+                    guard let name = await auth.confirmedNameOrWait() else {
+                        showToast(LocaleManager.shared.t(.profileNotReady)); return
+                    }
+                    await vm.toggleLike(uid: auth.uid, userName: name)
+                }
             }
             // 공유 → 공유 영상 화면(스토리용 영상을 만들어 보여 주고 SNS 공유/저장 — Android ShareDiaryButton → ShareVideoDialog 패리티).
             // (예전 공유 카드 편집 화면은 2026-10-11 영상으로 대체)
@@ -746,7 +752,13 @@ struct DetailScreen: View {
                     }
                     let t = commentText
                     commentText = ""
-                    Task { await vm.addComment(uid: auth.uid, userName: auth.displayName, text: t) }
+                    Task {
+                        guard let name = await auth.confirmedNameOrWait() else {
+                            if commentText.isEmpty { commentText = t } // 입력을 되돌려 다시 보낼 수 있게
+                            showToast(LocaleManager.shared.t(.profileNotReady)); return
+                        }
+                        await vm.addComment(uid: auth.uid, userName: name, text: t)
+                    }
                 } label: {
                     Image(systemName: "paperplane.fill")
                         .foregroundStyle(!canComment || commentText.isEmpty ? Theme.textFaint : Theme.mint)

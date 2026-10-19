@@ -498,6 +498,11 @@ fun UploadScreen(
                             com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.upload_no_location))
                             isUploading = false; return@launch
                         }
+                        // 작성자 이름은 서버에서 확인한 닉네임 — 기기 첫 실행 직후 구글 기본 이름이 박히지 않게(CLAUDE.md §2.6).
+                        // 첨부 업로드 전에 확인해 Storage 에 주인 없는 파일이 남지 않게 한다.
+                        val uName = if (!isLoggedIn) "익명" else GoogleAuthHelper.requireConfirmedName() ?: run {
+                            isUploading = false; return@launch
+                        }
                         // 첨부는 영상/이미지 중 하나(배타). 영상이 있으면 영상 우선.
                         var imageUrl = ""
                         var videoUrl = ""
@@ -547,7 +552,6 @@ fun UploadScreen(
                                 imageUrl = result.url!!
                             }
                         }
-                        val uName = if (!isLoggedIn) "익명" else GoogleAuthHelper.currentUserName ?: "알 수 없음"
                         pioneerClaimTarget = lat to lng // 저장 성공 이벤트에서 개척 선점 시도(체크리스트 32)
                         diaryViewModel.saveDiary(
                             Diary(

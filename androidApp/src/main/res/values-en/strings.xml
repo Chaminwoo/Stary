@@ -175,6 +175,7 @@
     <string name="toast_image_upload_failed">Image upload failed: %1$s</string>
     <string name="upload_daily_limit">You\'ve used all %1$d stars you can post today</string>
     <string name="upload_no_location">Couldn\'t find your current location. Turn on location permission and GPS, then try again</string>
+    <string name="profile_not_ready">Still loading your profile. Check your connection and try again in a moment</string>
 
     <!-- Friends screen -->
     <string name="friend_searching">Searching...</string>

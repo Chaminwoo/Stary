@@ -31,9 +31,10 @@ object PioneerClaimHelper {
         if (lat == 0.0 && lng == 0.0) return
         val appContext = context.applicationContext
         val uid = GoogleAuthHelper.currentUserId ?: return
-        val name = GoogleAuthHelper.currentUserName ?: ""
         scope.launch {
             try {
+                // 선점 기록에 박히는 이름은 서버 확인값 — 끝내 모르면 이번 선점은 건너뛴다(구글 기본 이름 방지, CLAUDE.md §2.6).
+                val name = GoogleAuthHelper.requireConfirmedName(notify = false) ?: return@launch
                 @Suppress("DEPRECATION")
                 val code = Geocoder(appContext, Locale.getDefault())
                     .getFromLocation(lat, lng, 1)?.firstOrNull()?.countryCode?.uppercase()

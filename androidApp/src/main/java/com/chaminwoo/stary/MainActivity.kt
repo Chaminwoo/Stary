@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // 영속된 로그인 세션 복원 — 있으면 로그인 화면을 건너뛰고 바로 지도로 진입한다.
-        GoogleAuthHelper.restoreSession()
+        GoogleAuthHelper.restoreSession(this)
         // 같은 기기에 저장해 둔 커스텀 닉네임이 있으면 표시명에 즉시 반영(기본=구글 닉네임).
         GoogleAuthHelper.applyStoredNickname(this)
 
@@ -74,6 +74,12 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 로그인/세션 복원 때 서버 프로필을 못 읽었으면 다시 읽는다(닉네임·사진 확정 — iOS retryProfileSyncIfNeeded 패리티).
+        GoogleAuthHelper.retryProfileSyncIfNeeded()
     }
 
     // 앱이 살아있는(백그라운드) 상태에서 알림 탭 → 새 인텐트로 들어옴(launchMode=singleTop).

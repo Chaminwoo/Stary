@@ -14,7 +14,11 @@ import SwiftUI
 @MainActor
 final class AuthManager: ObservableObject {
     @Published var uid: String?
+    /// 화면 표시용 내 이름 — 서버를 읽기 전엔 **임시값**(기기 닉네임 캐시 또는 구글 이름)일 수 있다.
+    /// 다른 사람에게 나가는 문서에 이름을 박을 땐 쓰지 말고 [confirmedNameOrWait] 를 쓴다(CLAUDE.md §2.6).
     @Published var displayName: String = ""
+    /// 서버에서 확인한 내 닉네임(`users/{uid}.userName`). nil = 아직 모름(읽기 전/실패). Android `GoogleAuthHelper.confirmedName` 패리티.
+    @Published private(set) var confirmedName: String?
     @Published var isBusy = false
     @Published var errorMessage: String?
     /// "로그인 없이 둘러보기"(게스트) 모드 — Android `GoogleAuthHelper.currentUserId == null` 상태 대응.
@@ -27,6 +31,7 @@ final class AuthManager: ObservableObject {
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
                 self?.uid = Self.appUserId(of: user)
+                self?.confirmedName = nil
                 if let user, !user.isAnonymous {
                     let appUid = Self.appUserId(of: user) ?? user.uid
                     // 캐시된 커스텀 닉네임이 있으면 즉시 반영(기본=구글 이름). Firestore 값으로 ensureProfile 에서 확정.
@@ -306,6 +311,21 @@ final class AuthManager: ObservableObject {
         Task { await ensureProfile(user) }
     }
 
+    /// 다른 사람에게 나가는 문서(별·댓글·좋아요·친구 요청·채팅·선점)에 박을 내 이름 — **서버 확인값**.
+    /// 아직 모르면 프로필을 다시 읽으며 최대 `timeout` 초 기다리고, 끝내 모르면 nil(호출부는 그 동작을 취소하고 `profileNotReady` 안내).
+    /// 구글 기본 이름을 대신 쓰지 않는다 — 기기 첫 실행 직후 설정해 둔 닉네임 대신 구글 이름이 퍼졌다(Android requireConfirmedName 패리티).
+    func confirmedNameOrWait(timeout: TimeInterval = 10) async -> String? {
+        if let confirmedName { return confirmedName }
+        guard uid != nil else { return nil }
+        retryProfileSyncIfNeeded()
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            if let confirmedName { return confirmedName }
+        }
+        return nil
+    }
+
     /// users/{uid} 를 **서버에서** 읽는다(최대 3번, 2초·4초 간격). 끝내 못 읽으면 nil.
     ///
     /// ⚠️ 기본 `getDocument()` 를 쓰면 안 된다 — 서버에 못 닿을 때 **로컬 캐시**를 성공으로 돌려주는데,
@@ -358,7 +378,18 @@ final class AuthManager: ObservableObject {
         displayName = name
         // 현재 값을 확실히 아는 경우에만 기록한다(읽기 실패 시엔 손대지 않고, 앱 복귀 시 retryProfileSyncIfNeeded 가 다시 시도).
         // 기기 캐시도 마찬가지 — 읽기 실패 때 구글 기본값을 "닉네임 캐시"로 굳히면 이후 실패 폴백이 그 값을 믿게 된다.
+        if !readOk {
+            // 이름을 박는 동작이 기다릴 값 — 값이 **있는** 캐시만 믿는다(Firestore 로컬 캐시 / 닉네임 캐시 둘 다
+            // 서버 확인값·본인 변경으로만 채워진다). 둘 다 없으면(기기 첫 실행) nil 로 두고 재시도를 기다린다.
+            let cachedDoc = try? await ref.getDocument(source: .cache)
+            let cachedServerName = (cachedDoc?.get("userName") as? String).flatMap { $0.isEmpty ? nil : $0 }
+            if let known = cachedServerName ?? cached {
+                confirmedName = known
+                displayName = known
+            }
+        }
         if readOk {
+            confirmedName = name
             UserDefaults.standard.set(name, forKey: "nickname_\(appUid)")
             photoUrl = photo.isEmpty ? nil : photo
             // Android upsertProfile 과 동일한 3필드(검색 가능하도록) + 서버 계정삭제용 authUid.
@@ -381,6 +412,7 @@ final class AuthManager: ObservableObject {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let uid = uid, !trimmed.isEmpty else { return false }
         displayName = trimmed
+        confirmedName = trimmed
         UserDefaults.standard.set(trimmed, forKey: "nickname_\(uid)")
         do {
             try await FirestoreService.users.document(uid).setData(["userName": trimmed], merge: true)

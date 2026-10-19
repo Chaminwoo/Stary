@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.chaminwoo.stary.core.model.FriendRequest
 import com.chaminwoo.stary.core.model.UserProfile
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
+import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.shared.data.repository.FriendRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +53,10 @@ class FriendViewModel(
 
     fun sendRequest(to: UserProfile) {
         viewModelScope.launch {
-            val ok = repository.sendRequest(me, to)
+            // 요청에 박히는 내 이름/사진은 보내는 순간의 서버 확인값 — 화면을 열 때 잡아 둔 [me] 는 첫 실행 직후 구글 기본값일 수 있다.
+            val name = GoogleAuthHelper.requireConfirmedName() ?: return@launch
+            val from = me.copy(userName = name, profileImageUrl = GoogleAuthHelper.currentUserPhotoUrl ?: me.profileImageUrl)
+            val ok = repository.sendRequest(from, to)
             _event.emit(
                 if (ok) FriendMessage(com.chaminwoo.stary.R.string.friend_toast_request_sent, to.userName)
                 else FriendMessage(com.chaminwoo.stary.R.string.friend_toast_request_failed)

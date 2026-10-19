@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.chaminwoo.stary.core.model.Comment
 import com.chaminwoo.stary.data.repository.FirebaseCommentRepository
 import com.chaminwoo.stary.data.repository.FirebaseLikeRepository
+import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -16,7 +17,6 @@ class InteractionViewModel(
     private val diaryTitle: String,
     private val diaryOwnerId: String,
     private val userId: String,
-    private val userName: String
 ) : ViewModel() {
 
     private val likeRepo = FirebaseLikeRepository()
@@ -33,6 +33,8 @@ class InteractionViewModel(
 
     fun toggleLike() {
         viewModelScope.launch {
+            // 좋아요/댓글 알림에 박히는 이름 — 서버 확인값만(첫 실행 직후 구글 기본 이름 방지, CLAUDE.md §2.6).
+            val userName = GoogleAuthHelper.requireConfirmedName() ?: return@launch
             likeRepo.toggleLike(diaryId, diaryTitle, diaryOwnerId, userId, userName)
         }
     }
@@ -40,6 +42,7 @@ class InteractionViewModel(
     fun addComment(content: String) {
         if (content.isBlank()) return
         viewModelScope.launch {
+            val userName = GoogleAuthHelper.requireConfirmedName() ?: return@launch
             commentRepo.addComment(diaryId, diaryTitle, diaryOwnerId, userId, userName, content)
         }
     }
@@ -56,11 +59,10 @@ class InteractionViewModel(
             diaryTitle: String,
             diaryOwnerId: String,
             userId: String,
-            userName: String
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                InteractionViewModel(diaryId, diaryTitle, diaryOwnerId, userId, userName) as T
+                InteractionViewModel(diaryId, diaryTitle, diaryOwnerId, userId) as T
         }
     }
 }

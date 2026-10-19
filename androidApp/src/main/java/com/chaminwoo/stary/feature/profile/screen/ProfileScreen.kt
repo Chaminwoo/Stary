@@ -173,9 +173,14 @@ fun ProfileScreen(
     val myDiaries by diaryVm.getMyDiaries(userId).collectAsState()
     var pinnedIds by remember(userId) { mutableStateOf<List<String>>(emptyList()) }
     var showPinPicker by remember { mutableStateOf(false) }
-    // 표시 닉네임(기본=구글 닉네임). 이름을 누르면 변경 다이얼로그. currentUserName 은 일반 var 라
-    // 즉시 반영을 위해 화면 로컬 상태로 들고 변경 시 함께 갱신한다.
-    var displayName by remember(userId) { mutableStateOf(GoogleAuthHelper.currentUserName ?: userId.take(12)) }
+    // 표시 닉네임 — **서버에서 확인한 값**(설정 전이면 구글 닉네임). 이름을 누르면 변경 다이얼로그.
+    // 확인 전엔 이 기기에 남은 닉네임(서버 확인값만 저장된다), 그것도 없으면 빈 칸("···") — 예전엔 화면을 열 때
+    // currentUserName 을 한 번만 읽어, 기기 첫 실행 직후엔 설정한 닉네임 대신 구글 이름이 계속 보였다(CLAUDE.md §2.6).
+    val confirmedName by GoogleAuthHelper.confirmedName.collectAsState()
+    var displayName by remember(userId) {
+        mutableStateOf(confirmedName ?: com.chaminwoo.stary.core.util.NicknameStore.get(context, userId) ?: "")
+    }
+    LaunchedEffect(confirmedName) { confirmedName?.let { displayName = it } }
     var showNicknameDialog by remember { mutableStateOf(false) }
     // 프로필 사진 크게 보기(탭). 사진이 없으면 볼 게 없으므로 바로 갤러리로 간다.
     var showPhotoViewer by remember { mutableStateOf(false) }
@@ -301,7 +306,7 @@ fun ProfileScreen(
             // 내가 달성한 히든 업적이 있으면 이름 옆에 전용 크리스탈 배지(다른 사람이 보는 것과 같은 표시).
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = displayName,
+                    text = displayName.ifBlank { "···" },
                     fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = TextMain,
                     modifier = Modifier.clickable(
                         interactionSource = remember { MutableInteractionSource() },

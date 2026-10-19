@@ -203,7 +203,6 @@ fun DetailScreen(
     }
     val hasMedia = currentDiary.videoUrl.isNotEmpty() || currentDiary.imageUrl.isNotEmpty()
     val userId = GoogleAuthHelper.currentUserId ?: ""
-    val userName = GoogleAuthHelper.currentUserName ?: "익명"
     // 비로그인(둘러보기) 상태 — 댓글/좋아요/신고 등 상호작용은 잠그고 안내만 띄운다.
     val isLoggedIn = userId.isNotBlank()
     val requireLogin: () -> Unit = {
@@ -220,7 +219,6 @@ fun DetailScreen(
             diaryTitle = currentDiary.title,
             diaryOwnerId = currentDiary.userId,
             userId = userId,
-            userName = userName
         )
     )
     val isLiked by interactionVm.isLiked.collectAsState()

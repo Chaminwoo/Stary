@@ -55,7 +55,9 @@ class ChatViewModel(
     fun send(text: String) {
         if (text.isBlank()) return
         viewModelScope.launch {
-            repository.sendMessage(chatId, myId, myName, text)
+            // 메시지·채팅 푸시에 박히는 이름은 서버 확인값 — [myName] 은 화면을 열 때의 표시용 값이라 구글 기본 이름일 수 있다.
+            val name = com.chaminwoo.stary.feature.auth.GoogleAuthHelper.requireConfirmedName() ?: return@launch
+            repository.sendMessage(chatId, myId, name, text)
         }
     }
 

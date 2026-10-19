@@ -252,7 +252,12 @@ struct ChatScreen: View {
                 text = ""
                 Haptics.soft()
                 Task {
-                    let ok = await vm.send(senderId: auth.uid ?? "", senderName: auth.displayName, text: t)
+                    // 메시지·채팅 푸시에 박히는 이름은 서버 확인값(CLAUDE.md §2.6).
+                    guard let name = await auth.confirmedNameOrWait() else {
+                        text = t
+                        showToast(locale.t(.profileNotReady)); return
+                    }
+                    let ok = await vm.send(senderId: auth.uid ?? "", senderName: name, text: t)
                     if !ok {
                         text = t   // 실패하면 입력 내용을 되돌려 준다(다시 보낼 수 있게)
                         showToast(locale.t(.chatSendFailed))

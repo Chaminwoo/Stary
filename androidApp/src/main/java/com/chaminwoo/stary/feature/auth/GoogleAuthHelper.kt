@@ -15,6 +15,7 @@ import com.chaminwoo.stary.core.util.NicknameStore
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.shared.config.StaryConfig
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
 import com.google.firebase.messaging.FirebaseMessaging
@@ -25,9 +26,16 @@ import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 object GoogleAuthHelper {
     private const val TAG = "GoogleAuthHelper"
@@ -36,6 +44,11 @@ object GoogleAuthHelper {
     // TODO: secrets.properties 에 GOOGLE_WEB_CLIENT_ID 실제 값 설정 (커밋 금지)
     private val WEB_CLIENT_ID = BuildConfig.GOOGLE_WEB_CLIENT_ID
     var currentUserId: String? = null
+    /**
+     * 화면 표시용 내 이름 — 서버를 읽기 전엔 **임시값**(기기에 남은 닉네임 또는 구글 이름)일 수 있다.
+     * 다른 사람에게 나가는 문서(별·댓글·좋아요·친구 요청·채팅·선점)에 이름을 박을 땐 쓰지 말고 [requireConfirmedName] 을 쓴다
+     * — 기기 첫 실행(재설치) 직후엔 이 값이 구글 기본 이름이라 설정해 둔 닉네임 대신 구글 이름이 퍼졌다(CLAUDE.md §2.6).
+     */
     var currentUserName: String? = null
     /**
      * 내 프로필 사진 — **서버 `users/{uid}.profileImageUrl` 확정값**(사진을 정한 적 없다고 확인되면 [googlePhotoUrl]).
@@ -45,6 +58,18 @@ object GoogleAuthHelper {
     /** 구글 계정 사진 — 프로필 사진을 정하기 전에만 쓴다. */
     var googlePhotoUrl: String? = null
     var currentUserEmail: String? = null  // 어드민 판정용(히든 업적 선점 제외)
+    /** 구글 계정 이름 — 서버에 닉네임이 없다고 **확인됐을 때만** 쓴다(처음 가입). */
+    private var googleName: String? = null
+
+    /** 서버에서 확인한 내 닉네임(`users/{uid}.userName`). null = 아직 모름(읽기 전/실패). */
+    private val _confirmedName = MutableStateFlow<String?>(null)
+    val confirmedName: StateFlow<String?> = _confirmedName.asStateFlow()
+
+    private var appContext: Context? = null
+    private var profileSyncJob: Job? = null
+    private var profileSyncUid: String? = null
+    /** 서버 프로필을 못 읽어 아직 동기화가 안 된 상태 — 앱 복귀 때 [retryProfileSyncIfNeeded] 가 다시 읽는다. */
+    @Volatile private var profileSyncPending = false
 
     /**
      * 마지막 구글 로그인 실패 사유(사람이 읽을 수 있는 한 줄).
@@ -79,7 +104,9 @@ object GoogleAuthHelper {
                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
                 val idToken = googleIdTokenCredential.idToken
                 currentUserId = getUserIdFromToken(idToken)
-                currentUserName = googleIdTokenCredential.displayName
+                googleName = googleIdTokenCredential.displayName
+                currentUserName = googleName
+                _confirmedName.value = null
                 googlePhotoUrl = googleIdTokenCredential.profilePictureUri?.toString()
                 // 내 사진은 서버(users/{uid}.profileImageUrl) 확정값만 — 아래 서버 읽기 전엔 비워 둔다(구글 사진을 먼저 싣지 않게).
                 currentUserPhotoUrl = null
@@ -93,61 +120,16 @@ object GoogleAuthHelper {
                 } catch (e: Exception) {
                     Log.e(TAG, "Firebase Auth 로그인 실패: ${e.localizedMessage}")
                 }
-                // 친구 검색이 가능하도록 공개 프로필(users/{uid}) 기록.
+                // 친구 검색이 가능하도록 공개 프로필(users/{uid}) 확정·기록 — startProfileSync 주석 참고.
                 // fire-and-forget: Firestore 쓰기가 지연/실패해도 로그인 흐름을 막지 않는다.
                 val appCtx = context.applicationContext
+                appContext = appCtx
                 currentUserId?.let { uid ->
+                    // 화면 표시용 임시 이름 — 이 기기에 남은 닉네임(서버 확인값만 저장된다)이 구글 이름보다 정확하다.
+                    NicknameStore.get(appCtx, uid)?.let { currentUserName = it }
+                    val sync = startProfileSync(appCtx, uid)
                     CoroutineScope(Dispatchers.IO).launch {
-                        // ⚠️ **"읽기 실패"와 "문서 없음"을 반드시 구분한다.**
-                        //    둘 다 null 로 뭉뚱그리면, 네트워크가 잠깐 안 될 때 아래 upsertProfile 이
-                        //    커스텀 닉네임/프로필 사진을 **구글 기본값으로 덮어써** 버린다.
-                        //    (다른 사람 화면에도 그 값이 그대로 보이므로 계정 전체가 구글 기본으로 되돌아간 것처럼 된다)
-                        // ⚠️ 읽기는 반드시 **서버**(Source.SERVER)에서, 못 읽으면 최대 3번 재시도.
-                        //    기본 get() 은 서버에 못 닿을 때 로컬 캐시를 성공으로 돌려주는데, 그 캐시가 "쓰기 대기분만 있는
-                        //    불완전한 문서"(닉네임/사진 필드 없음)면 아래 upsertProfile 이 진짜 값을 구글 기본값으로 덮어쓴다.
-                        //    SERVER 는 못 닿으면 예외를 던지므로 "읽기 실패"로 정확히 구분된다. (iOS AuthManager.fetchServerProfile 동일)
-                        var loadedProfile: Pair<Boolean, UserProfile?> = false to null
-                        for (attempt in 0 until 3) {
-                            try {
-                                val doc = staryFirestore
-                                    .collection(StaryConfig.Collections.USERS).document(uid)
-                                    .get(Source.SERVER).await()
-                                val profile =
-                                    if (doc.exists()) doc.toObject(UserProfile::class.java)?.copy(userId = uid)
-                                    else null
-                                loadedProfile = true to profile
-                                break
-                            } catch (e: Exception) {
-                                Log.w(TAG, "공개 프로필 조회 실패(${attempt + 1}/3): ${e.localizedMessage}")
-                                if (attempt < 2) delay(2000L * (attempt + 1))
-                            }
-                        }
-                        val loaded = loadedProfile
-                        if (!loaded.first) Log.w(TAG, "공개 프로필 조회 최종 실패 — 프로필 기록을 건너뜀")
-                        val readOk = loaded.first
-                        val saved = loaded.second
-                        // 이미 정해둔 닉네임(커스텀 포함)이 있으면 그걸 우선 — 구글 이름으로 덮어쓰지 않는다.
-                        // (다른 기기에서 재로그인해도 닉네임이 유지되도록.)
-                        val existing = saved?.userName?.takeIf { it.isNotBlank() }
-                        if (existing != null) {
-                            currentUserName = existing
-                            NicknameStore.set(appCtx, uid, existing)
-                        }
-                        // 프로필 **사진**도 동일 — 앱에서 바꾼 사진이 있으면 유지한다.
-                        // (예전엔 아래 upsertProfile 이 항상 구글 사진으로 덮어써서 재로그인마다 사진이 초기화됐다.)
-                        val existingPhoto = saved?.profileImageUrl?.takeIf { it.isNotBlank() }
-                        // 서버에 사진이 있으면 그것, 없다고 **확인됐을 때만** 구글 사진(프로필 사진 설정 전).
-                        if (readOk) currentUserPhotoUrl = existingPhoto ?: googlePhotoUrl
-                        // 현재 값을 확실히 아는 경우에만 기록한다(읽기 실패 시엔 손대지 않는다).
-                        if (readOk) {
-                            FirebaseFriendRepository().upsertProfile(
-                                UserProfile(
-                                    userId = uid,
-                                    userName = currentUserName ?: "",
-                                    profileImageUrl = currentUserPhotoUrl ?: ""
-                                )
-                            )
-                        }
+                        sync.join()
                         // 삭제 예약이 걸려 있으면 재로그인으로 취소(7일 유예 정책).
                         cancelPendingDeletion(uid)
                         // FCM 토큰 + authUid 저장 — 친구 새 글 푸시(Cloud Functions) 발송 대상 / 서버 계정삭제용
@@ -195,33 +177,127 @@ object GoogleAuthHelper {
      * 영속된 FirebaseUser 의 google.com providerData(uid=Google sub) 에서 식별자를 복원한다.
      * @return 복원 성공(=로그인 유지) 시 true.
      */
-    fun restoreSession(): Boolean {
+    fun restoreSession(context: Context): Boolean {
         if (currentUserId != null) return true
         val user = FirebaseAuth.getInstance().currentUser ?: return false
         val google = user.providerData.firstOrNull { it.providerId == GoogleAuthProvider.PROVIDER_ID }
         val uid = (google?.uid ?: user.uid).takeIf { it.isNotBlank() } ?: return false
         currentUserId = uid
-        currentUserName = google?.displayName ?: user.displayName
+        googleName = google?.displayName ?: user.displayName
+        currentUserName = googleName // 표시용 임시값 — 이어지는 applyStoredNickname/서버 확정으로 바뀐다
+        _confirmedName.value = null
         googlePhotoUrl = (google?.photoUrl ?: user.photoUrl)?.toString()
         currentUserPhotoUrl = null // 서버 값(아래)으로만 채운다 — 구글 사진을 먼저 싣지 않게
         currentUserEmail = user.email
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        // 앱에서 바꾼 닉네임/프로필 사진을 서버에서 확정한다(예전엔 기본 get() 이라 캐시 응답을 믿었다).
+        val sync = startProfileSync(appCtx, uid)
         // 앱 재시작(세션 복원)도 "로그인"으로 보고 삭제 예약을 취소(7일 유예 정책).
         // ⚠️ FCM 토큰도 여기서 다시 기록한다 — 예전엔 "구글 로그인 화면을 실제로 거친 순간"에만
         //    저장해서, 로그인이 유지되는 기기(대부분)는 토큰이 재발급돼도 갱신되지 않아
         //    푸시가 조용히 끊길 수 있었다(친구 새 글/친구 요청 알림 미수신 원인).
         CoroutineScope(Dispatchers.IO).launch {
-            // 앱에서 바꾼 닉네임/프로필 사진이 있으면 구글 값 대신 그걸 쓴다.
-            // (사진은 users/{uid}.profileImageUrl 이 원본 — 여기서 안 채우면 재시작 후 친구 요청 등에
-            //  구글 사진이 다시 실려 나가 사진이 되돌아간 것처럼 보인다.)
-            FirebaseFriendRepository().getProfile(uid)?.let { saved ->
-                saved.userName.takeIf { it.isNotBlank() }?.let { currentUserName = it }
-                currentUserPhotoUrl = saved.profileImageUrl.takeIf { it.isNotBlank() } ?: googlePhotoUrl
-            }
+            sync.join()
             cancelPendingDeletion(uid)
             syncFcmToken(uid)
         }
 
         return true
+    }
+
+    /**
+     * `users/{uid}` 를 **서버에서** 읽어 내 닉네임/사진을 확정한다(로그인·세션 복원·앱 복귀 재시도 공용, 이미 도는 중이면 그 작업).
+     *
+     * ⚠️ **"읽기 실패" / "문서 없음" / "필드 없음"을 구분한다**(CLAUDE.md §2.6, iOS `AuthManager.ensureProfile` 동일).
+     *  - 읽기는 반드시 [Source.SERVER] — 기본 get() 은 서버에 못 닿을 때 "쓰기 대기분만 있는 불완전한 캐시"를 성공으로 돌려줘,
+     *    그걸 믿으면 진짜 닉네임·사진을 구글 기본값으로 덮어쓴다.
+     *  - 읽기 성공: 서버 값 우선. **없다고 확인된 필드만** 구글 기본값으로 채워 merge 기록(처음 가입).
+     *  - 읽기 실패: 서버·기기 캐시 둘 다 쓰지 않는다. 값이 **있는** 캐시(Firestore 로컬 캐시 / [NicknameStore] — 둘 다
+     *    서버 확인값·본인 변경으로만 채워진다)만 믿고, 앱 복귀 때 [retryProfileSyncIfNeeded] 가 다시 읽는다.
+     */
+    @Synchronized
+    private fun startProfileSync(appCtx: Context, uid: String): Job {
+        profileSyncJob?.takeIf { it.isActive && profileSyncUid == uid }?.let { return it }
+        profileSyncJob?.cancel()
+        profileSyncUid = uid
+        return CoroutineScope(Dispatchers.IO).launch {
+            val (readOk, doc) = readServerProfile(uid)
+            if (currentUserId != uid) return@launch // 그사이 로그아웃/계정 전환
+            if (readOk) {
+                val savedName = doc?.getString("userName")?.takeIf { it.isNotBlank() }
+                val savedPhoto = doc?.getString("profileImageUrl")?.takeIf { it.isNotBlank() }
+                val name = savedName ?: googleName.orEmpty()
+                val photo = savedPhoto ?: googlePhotoUrl
+                currentUserName = name
+                currentUserPhotoUrl = photo
+                if (name.isNotBlank()) NicknameStore.set(appCtx, uid, name)
+                _confirmedName.value = name
+                profileSyncPending = false
+                // 빠진 필드가 있을 때만 기록(merge) — 있는 값은 그대로 다시 쓰일 뿐 바뀌지 않는다.
+                if (savedName == null || savedPhoto == null || doc?.getString("userId").isNullOrBlank()) {
+                    FirebaseFriendRepository().upsertProfile(
+                        UserProfile(userId = uid, userName = name, profileImageUrl = photo ?: "")
+                    )
+                }
+            } else {
+                Log.w(TAG, "공개 프로필 조회 최종 실패 — 기록하지 않고 앱 복귀 때 다시 시도")
+                profileSyncPending = true
+                val cached = runCatching {
+                    staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
+                        .get(Source.CACHE).await()
+                }.getOrNull()
+                val cachedName = cached?.getString("userName")?.takeIf { it.isNotBlank() }
+                    ?: NicknameStore.get(appCtx, uid)
+                cachedName?.let {
+                    currentUserName = it
+                    _confirmedName.value = it
+                }
+                cached?.getString("profileImageUrl")?.takeIf { it.isNotBlank() }?.let { currentUserPhotoUrl = it }
+            }
+        }.also { profileSyncJob = it }
+    }
+
+    /** users/{uid} 를 서버에서 읽는다(최대 3번, 2초·4초 간격). first = 읽기 성공 여부(문서가 없어도 성공). */
+    private suspend fun readServerProfile(uid: String): Pair<Boolean, DocumentSnapshot?> {
+        for (attempt in 0 until 3) {
+            try {
+                val doc = staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
+                    .get(Source.SERVER).await()
+                return true to doc
+            } catch (e: Exception) {
+                Log.w(TAG, "공개 프로필 조회 실패(${attempt + 1}/3): ${e.localizedMessage}")
+                if (attempt < 2) delay(2000L * (attempt + 1))
+            }
+        }
+        return false to null
+    }
+
+    /** 읽기 실패로 미뤄 둔 프로필 동기화를 다시 시도 — 앱 복귀(MainActivity.onResume) 때 부른다. */
+    fun retryProfileSyncIfNeeded() {
+        if (!profileSyncPending) return
+        val uid = currentUserId ?: return
+        val ctx = appContext ?: return
+        startProfileSync(ctx, uid)
+    }
+
+    /**
+     * 다른 사람에게 나가는 문서에 박을 내 이름 — **서버 확인값**. 아직 모르면 프로필을 다시 읽으며 최대 [timeoutMs] 기다린다.
+     * 끝내 모르면 null(호출부는 그 동작을 취소) — 구글 기본 이름을 대신 쓰지 않는다. [notify] 면 "프로필 불러오는 중" 토스트.
+     */
+    suspend fun requireConfirmedName(timeoutMs: Long = 10_000, notify: Boolean = true): String? {
+        _confirmedName.value?.let { return it }
+        val uid = currentUserId ?: return null
+        appContext?.let { startProfileSync(it, uid) }
+        val name = withTimeoutOrNull(timeoutMs) { _confirmedName.filterNotNull().first() }
+        if (name == null && notify) {
+            appContext?.let {
+                com.chaminwoo.stary.core.ui.StaryToast.show(
+                    com.chaminwoo.stary.core.util.LocaleManager.wrap(it).getString(com.chaminwoo.stary.R.string.profile_not_ready)
+                )
+            }
+        }
+        return name
     }
 
     suspend fun signOut(context: Context) = withContext(Dispatchers.IO) {
@@ -230,6 +306,10 @@ object GoogleAuthHelper {
             currentUserId?.let { clearFcmToken(it) }
             currentUserId = null
             currentUserName = null
+            googleName = null
+            _confirmedName.value = null
+            profileSyncPending = false
+            profileSyncJob?.cancel()
             currentUserPhotoUrl = null
             googlePhotoUrl = null
             currentUserEmail = null
@@ -257,6 +337,7 @@ object GoogleAuthHelper {
         val trimmed = name.trim()
         if (trimmed.isBlank()) return@withContext false
         currentUserName = trimmed
+        _confirmedName.value = trimmed
         NicknameStore.set(context, uid, trimmed)
         try {
             staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
