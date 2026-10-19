@@ -156,8 +156,11 @@ final class QuestStore: ObservableObject {
         func isComplete(_ q: QuestDef) -> Bool { progressOf(q.id) >= q.target }
         var quests: [QuestDef] { ids.compactMap { DailyQuests.byId($0) } }
         /// 완료했지만 아직 보상을 안 받은 수 — 지도 "!" 버튼 배지.
-        var claimable: Int { quests.filter { isComplete($0) && !claimed.contains($0.id) }.count }
-        var allClaimed: Bool { !ids.isEmpty && ids.allSatisfy { claimed.contains($0) } }
+        var claimable: Int { quests.filter { isComplete($0) && !claimed.contains($0.id) }.count + (bonusReady && !bonus ? 1 : 0) }
+        /// 보너스 퀘스트(4번째 행)를 받을 수 있는가 — 3개 보상을 모두 받았다.
+        var bonusReady: Bool { !ids.isEmpty && ids.allSatisfy { claimed.contains($0) } }
+        /// 오늘 것을 보너스까지 전부 받았다.
+        var allClaimed: Bool { bonusReady && bonus }
     }
 
 
@@ -302,27 +305,44 @@ final class QuestStore: ObservableObject {
         }
     }
 
-    /// 완료한 퀘스트의 보상(열쇠)을 받는다. 3개를 모두 받으면 보너스까지. 반환 = 받은 열쇠 수(0 = 못 받음).
+    /// 완료한 퀘스트의 보상(열쇠)을 받는다. 반환 = 받은 열쇠 수(0 = 못 받음). 보너스는 따로 [claimBonus].
     @discardableResult
     func claim(_ id: String) -> Int {
         guard let uid, var d = daily, let q = d.quests.first(where: { $0.id == id }),
               d.isComplete(q), !d.claimed.contains(id) else { return 0 }
         d.claimed.insert(id)
-        let bonusNow = !d.bonus && d.ids.allSatisfy { d.claimed.contains($0) }
-        let gained = DailyQuests.rewardKeys + (bonusNow ? DailyQuests.bonusKeys : 0)
-        if bonusNow { d.bonus = true }
         daily = d
+        let gained = DailyQuests.rewardKeys
         keys += gained
-        var quest: [String: Any] = ["claimed": FieldValue.arrayUnion([id])]
-        if bonusNow { quest["bonus"] = true }
-        var fields: [String: Any] = [
+        FirestoreService.users.document(uid).setData([
             questFieldKeys: FieldValue.increment(Int64(gained)),
-            questFieldQuest: quest,
-        ]
-        // 3개를 모두 끝낸 날 — 퀘스트 보상 칭호(Achievements quest_clear_*) 판정용. 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다.
-        if bonusNow { fields[MeteorStats.fieldQuestClears] = FieldValue.arrayUnion([d.day]) }
-        FirestoreService.users.document(uid).setData(fields, merge: true)
+            questFieldQuest: ["claimed": FieldValue.arrayUnion([id])],
+        ], merge: true)
         return gained
+    }
+
+    /// 보너스 퀘스트(4번째 행, 2026-10-19 — 예전엔 3번째 보상과 함께 자동 지급) — 3개 보상을 모두 받았으면 열쇠 `bonusKeys`.
+    /// 이 날짜를 `questClearDays` 에도 남긴다(퀘스트 보상 칭호 — 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다). Android `claimBonus` 패리티.
+    @discardableResult
+    func claimBonus() -> Int {
+        guard let uid, var d = daily, d.bonusReady, !d.bonus else { return 0 }
+        d.bonus = true
+        daily = d
+        let gained = DailyQuests.bonusKeys
+        keys += gained
+        FirestoreService.users.document(uid).setData([
+            questFieldKeys: FieldValue.increment(Int64(gained)),
+            questFieldQuest: ["bonus": true],
+            MeteorStats.fieldQuestClears: FieldValue.arrayUnion([d.day]),
+        ], merge: true)
+        return gained
+    }
+
+    /// 광고 보상 — 열쇠 1개(퀘스트 창 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?").
+    func grantAdKey() {
+        guard let uid else { return }
+        keys += 1
+        FirestoreService.users.document(uid).setData([questFieldKeys: FieldValue.increment(Int64(1))], merge: true)
     }
 
     /// 열쇠 1개를 쓴다(별 해금). 없으면 false.

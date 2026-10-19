@@ -307,6 +307,9 @@ internal fun FilterWaveOverlay(frame: State<FilterWaveFrame?>, modifier: Modifie
     }
 }
 
+/** 필터 빛이 도는 위상 — 지도 화면 하나뿐이라 파일 공용으로 둔다([FilterGlowOverlay] 의 `advance`). */
+private val SharedGlowPhase = androidx.compose.runtime.mutableFloatStateOf(0f)
+
 /** 은은한 빛이 화면을 한 바퀴 도는 시간(초). iOS `FilterGlowFx.orbitSeconds` 와 같은 값. */
 private const val GLOW_ORBIT_SEC = 16f
 
@@ -320,10 +323,17 @@ private const val GLOW_ORBIT_SEC = 16f
  * iOS `FilterGlowOverlay`(FilterGlow.swift)와 같은 수치.
  */
 @Composable
-internal fun FilterGlowOverlay(tint: Color?, wave: State<FilterWaveFrame?>, modifier: Modifier = Modifier) {
+internal fun FilterGlowOverlay(
+    tint: Color?,
+    wave: State<FilterWaveFrame?>,
+    modifier: Modifier = Modifier,
+    /** false = 위상을 흘리지 않고 같은 위상만 읽는다 — 별 열람 파장(지도 스냅샷) 위에 겹쳐 그리는 사본용(2026-10-19). */
+    advance: Boolean = true,
+) {
     // 빛이 도는 위상(라디안) — 빛이 있고 지도가 보일 때만 흐른다(가려진 동안 프레임 낭비 방지).
-    val phase = remember { mutableFloatStateOf(0f) }
-    val running = (tint != null || wave.value != null) && MapUiState.mapVisible
+    // 화면 공용([SharedGlowPhase]) — 파장 위에 겹친 사본이 같은 위상으로 이어져 빛이 튀지 않게.
+    val phase = SharedGlowPhase
+    val running = advance && (tint != null || wave.value != null) && MapUiState.mapVisible
     LaunchedEffect(running) {
         if (!running) return@LaunchedEffect
         var last = 0L

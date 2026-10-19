@@ -743,7 +743,11 @@ fun DiaryMap(
 
         // 업로드 버튼 파장 연출 — 버튼들이 연출 내내 그대로 보여야 하므로 버튼보다 아래(먼저) 그린다.
         warpState.value?.let { wd ->
-            if (wd.openCreate) DiaryOpenWarp(wd) { onWarpFinished(wd) }
+            if (wd.openCreate) {
+                DiaryOpenWarp(wd) { onWarpFinished(wd) }
+                // 파장은 지도 스냅샷이라 Compose 오버레이인 필터 빛이 안 찍힌다 — 위에 같은 빛을 이어 그려 필터 색을 유지.
+                FilterGlowOverlay(tint = glowTint, wave = filterWave, advance = false, modifier = Modifier.fillMaxSize())
+            }
         }
 
         // 집중(지도만 보기) 모드에선 모든 버튼(좌상단 줌 + 우하단 FAB)을 숨긴다 — 들어갈 땐 천천히, 나올 땐 빠르게 페이드.
@@ -877,7 +881,12 @@ fun DiaryMap(
         // 지도 왜곡 연출(별 열람/알림 포커스) — 스냅샷 이미지를 1초간 파장+울렁시킨 뒤 이동(세부는 멀쩡).
         // 업로드 연출과 달리 버튼까지 덮는 몰입 연출이라 버튼 위에 그린다.
         warpState.value?.let { wd ->
-            if (!wd.openCreate) DiaryOpenWarp(wd) { onWarpFinished(wd) }
+            if (!wd.openCreate) {
+                DiaryOpenWarp(wd) { onWarpFinished(wd) }
+                // 파장은 지도 스냅샷이라 Compose 오버레이인 필터 빛이 안 찍혀 연출 동안 필터 색이 풀려 보였다(2026-10-19)
+                // — 같은 위상의 빛을 위에 이어 그려 필터 색을 유지한다.
+                FilterGlowOverlay(tint = glowTint, wave = filterWave, advance = false, modifier = Modifier.fillMaxSize())
+            }
         }
 
         // 연출 중 입력 차단 — 파장이 끝날 때까지 지도/버튼 탭을 전부 무시(끝나면 자동 해제).

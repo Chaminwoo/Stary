@@ -60,8 +60,11 @@ object QuestStore {
         fun isComplete(def: QuestDef) = progressOf(def.id) >= def.target
         val quests: List<QuestDef> get() = ids.mapNotNull { DailyQuests.byId(it) }
         /** 완료했지만 아직 보상을 안 받은 수 — 지도 "!" 버튼 배지. */
-        val claimable: Int get() = quests.count { isComplete(it) && it.id !in claimed }
-        val allClaimed: Boolean get() = ids.isNotEmpty() && ids.all { it in claimed }
+        val claimable: Int get() = quests.count { isComplete(it) && it.id !in claimed } + if (bonusReady && !bonus) 1 else 0
+        /** 보너스 퀘스트(4번째 행)를 받을 수 있는가 — 3개 보상을 모두 받았다. */
+        val bonusReady: Boolean get() = ids.isNotEmpty() && ids.all { it in claimed }
+        /** 오늘 것을 보너스까지 전부 받았다. */
+        val allClaimed: Boolean get() = bonusReady && bonus
     }
 
     /** 가진 열쇠 수(Compose 상태). 비로그인이면 0. */
@@ -224,18 +227,44 @@ object QuestStore {
         val d = daily ?: return 0
         val def = d.quests.firstOrNull { it.id == id } ?: return 0
         if (!d.isComplete(def) || id in d.claimed) return 0
-        val claimed = d.claimed + id
-        val bonusNow = !d.bonus && d.ids.all { it in claimed }
-        val gained = DailyQuests.REWARD_KEYS + if (bonusNow) DailyQuests.BONUS_KEYS else 0
-        daily = d.copy(claimed = claimed, bonus = d.bonus || bonusNow)
+        val gained = DailyQuests.REWARD_KEYS
+        daily = d.copy(claimed = d.claimed + id)
         keys += gained
-        val quest = mutableMapOf<String, Any>("claimed" to FieldValue.arrayUnion(id))
-        if (bonusNow) quest["bonus"] = true
-        val fields = mutableMapOf<String, Any>(FIELD_KEYS to FieldValue.increment(gained.toLong()), FIELD_QUEST to quest)
-        // 3개를 모두 끝낸 날 — 퀘스트 보상 칭호(Achievements quest_clear_*) 판정용. 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다.
-        if (bonusNow) fields[MeteorStatsRepository.FIELD_QUEST_CLEARS] = FieldValue.arrayUnion(d.day)
-        doc(uid).set(fields, SetOptions.merge()).addOnFailureListener { Log.w(TAG, "열쇠 보상 기록 실패", it) }
+        doc(uid).set(
+            mapOf(FIELD_KEYS to FieldValue.increment(gained.toLong()), FIELD_QUEST to mapOf("claimed" to FieldValue.arrayUnion(id))),
+            SetOptions.merge(),
+        ).addOnFailureListener { Log.w(TAG, "열쇠 보상 기록 실패", it) }
         return gained
+    }
+
+    /**
+     * 보너스 퀘스트(4번째 행, 2026-10-19 — 예전엔 3번째 보상과 함께 자동 지급) — 3개 보상을 모두 받았으면 열쇠 [DailyQuests.BONUS_KEYS].
+     * 이 날짜를 `questClearDays` 에도 남긴다(퀘스트 보상 칭호 — 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다).
+     */
+    fun claimBonus(): Int {
+        val uid = uid ?: return 0
+        val d = daily ?: return 0
+        if (!d.bonusReady || d.bonus) return 0
+        val gained = DailyQuests.BONUS_KEYS
+        daily = d.copy(bonus = true)
+        keys += gained
+        doc(uid).set(
+            mapOf(
+                FIELD_KEYS to FieldValue.increment(gained.toLong()),
+                FIELD_QUEST to mapOf("bonus" to true),
+                MeteorStatsRepository.FIELD_QUEST_CLEARS to FieldValue.arrayUnion(d.day),
+            ),
+            SetOptions.merge(),
+        ).addOnFailureListener { Log.w(TAG, "보너스 열쇠 기록 실패", it) }
+        return gained
+    }
+
+    /** 광고 보상 — 열쇠 1개(퀘스트 창 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?"). */
+    fun grantAdKey() {
+        val uid = uid ?: return
+        keys += 1
+        doc(uid).set(mapOf(FIELD_KEYS to FieldValue.increment(1)), SetOptions.merge())
+            .addOnFailureListener { Log.w(TAG, "광고 열쇠 기록 실패", it) }
     }
 
     /** 열쇠 1개를 쓴다(별 해금). 없으면 false. */

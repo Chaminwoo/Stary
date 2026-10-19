@@ -736,4 +736,7 @@
     <string name="ach_cond_quest_clear_1">Finish all 3 daily quests in a day</string>
     <string name="ach_cond_quest_clear_7">Finish all daily quests on 7 days</string>
     <string name="ach_cond_quest_clear_30">Finish all daily quests on 30 days</string>
+    <string name="quest_bonus_title">Finish all of today\'s quests</string>
+    <string name="quest_bonus_hint">Claim the keys from all 3 quests above for a bonus key</string>
+    <string name="quest_ad_key_ask">Watch an ad to get a key?\nWatch it to the end for 1 key.</string>
 </resources>

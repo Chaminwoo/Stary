@@ -31,23 +31,41 @@ enum HiddenIcon {
     var color: Color {
         switch self {
         case .comet: return Color(hex: 0x9BE7FF)
-        case .glacier: return Color(hex: 0xCFE8FF)
-        case .desert: return Color(hex: 0xF2C46B)
-        case .trench: return Color(hex: 0x4FC3E0)
-        case .triangle: return Color(hex: 0x9AE6C4)
-        case .crown: return Color(hex: 0xFFD86F)
-        case .trickster: return Color(hex: 0xB388FF)
-        case .loneEye: return Color(hex: 0x9AA7B0)
-        case .heart: return Color(hex: 0xFF6FA3)
-        case .baton: return Color(hex: 0x7CE0C0)
-        case .globe: return Color(hex: 0x6EE7B7)
-        case .meteor: return Color(hex: 0x8FE3FF)
+        case .glacier: return Color(hex: 0xE3F4FF)
+        case .desert: return Color(hex: 0xFFD27A)
+        case .trench: return Color(hex: 0x4FD8EE)
+        case .triangle: return Color(hex: 0x9AF0CF)
+        case .crown: return Color(hex: 0xFFE38A)
+        case .trickster: return Color(hex: 0xCDA8FF)
+        case .loneEye: return Color(hex: 0xC8D2DA)
+        case .heart: return Color(hex: 0xFF9EC2)
+        case .baton: return Color(hex: 0x8CF0D2)
+        case .globe: return Color(hex: 0x7CF0C0)
+        case .meteor: return Color(hex: 0xA8EEFF)
+        }
+    }
+
+    /// 엠블럼 그라데이션의 깊은 쪽 색([color] → color2, `HiddenEmblemView`). Android `HiddenIcon.color2` 와 같은 값.
+    var color2: Color {
+        switch self {
+        case .comet: return Color(hex: 0x5B6CFF)
+        case .glacier: return Color(hex: 0x6FA8F5)
+        case .desert: return Color(hex: 0xE0663A)
+        case .trench: return Color(hex: 0x1B3A8C)
+        case .triangle: return Color(hex: 0x2B7F86)
+        case .crown: return Color(hex: 0xC07F22)
+        case .trickster: return Color(hex: 0x5E35C8)
+        case .loneEye: return Color(hex: 0x39424E)
+        case .heart: return Color(hex: 0xD1356A)
+        case .baton: return Color(hex: 0x2F8C99)
+        case .globe: return Color(hex: 0x2A6FD0)
+        case .meteor: return Color(hex: 0x7354F0)
         }
     }
 }
 
-/// 아이콘 주변 파티클 종류.
-enum ParticleEffect: Int { case stardust, snow, aurora, ember, shadow, heart, music, orbit, bubble }
+/// 엠블럼 바깥 이펙트 — 업적마다 하나씩, 겹치지 않는다(2026-10-19 9종 → 12종). Android `ParticleEffect` 와 같은 케이스·순서.
+enum ParticleEffect: Int { case sparkle, snow, sun, bubble, rift, crown, spark, shadow, meteor, heart, music, orbit }
 
 // MARK: - 모델
 
@@ -96,7 +114,7 @@ enum HiddenAchievements {
     static let all: [HiddenAchievement] = [
         HiddenAchievement(id: "secret_word", title: "별의 암호",
                           condition: "다이어리 제목에 ‘\(secretKeyword)’ 를 넣기",
-                          icon: .comet, effect: .stardust,
+                          icon: .comet, effect: .sparkle,
                           badgeType: 0, badgeColor: 8,   // 4꼭지 스파클 · 시안
                           auto: { $0.stats.secretKeywordTitle }),
         HiddenAchievement(id: "remote_place", title: "극야의 개척자",
@@ -106,7 +124,7 @@ enum HiddenAchievements {
                           auto: { $0.stats.remoteRegions.contains("glacier") }),
         HiddenAchievement(id: "place_desert", title: "태양의 잔영",
                           condition: "사하라 사막에 별 남기기",
-                          icon: .desert, effect: .ember,
+                          icon: .desert, effect: .sun,
                           badgeType: 1, badgeColor: 15,  // 5꼭지 별 · 앰버골드
                           auto: { $0.stats.remoteRegions.contains("desert") }),
         HiddenAchievement(id: "place_trench", title: "심연의 별",
@@ -116,17 +134,17 @@ enum HiddenAchievements {
                           auto: { $0.stats.remoteRegions.contains("trench") }),
         HiddenAchievement(id: "place_triangle", title: "사라진 항로",
                           condition: "버뮤다 삼각지대에 별 남기기",
-                          icon: .triangle, effect: .aurora,
+                          icon: .triangle, effect: .rift,
                           badgeType: 4, badgeColor: 17,  // 다이아 스파클 · 에메랄드 오로라
                           auto: { $0.stats.remoteRegions.contains("triangle") }),
         HiddenAchievement(id: "all_rounder", title: "은하의 정점",
                           condition: "히든을 제외한 모든 업적 달성하기",
-                          icon: .crown, effect: .aurora,
+                          icon: .crown, effect: .crown,
                           badgeType: 2, badgeColor: 18,  // 6꼭지 별 · 석양(골드→코랄)
                           auto: { $0.allNormalDone }),
         HiddenAchievement(id: "cosmic_rascal", title: "별도둑",
                           condition: "다른 사람의 다이어리 300개 열람하기",
-                          icon: .trickster, effect: .ember,
+                          icon: .trickster, effect: .spark,
                           badgeType: 7, badgeColor: 6,   // 초승달 · 퍼플
                           auto: { $0.stats.diariesViewed >= 300 }),
         HiddenAchievement(id: "lone_observer", title: "홀로 빛나는 별",
@@ -136,7 +154,7 @@ enum HiddenAchievements {
                           auto: { $0.stats.diariesCreated >= 50 && $0.stats.friends == 0 }),
         HiddenAchievement(id: "meteor_seven", title: "일곱 번째 소원",
                           condition: "글로브에서 유성 7개 연속으로 보기",
-                          icon: .meteor, effect: .stardust,
+                          icon: .meteor, effect: .meteor,
                           badgeType: 10, badgeColor: 16, // 혜성 · 오로라
                           auto: { $0.stats.meteorBestStreak >= 7 }),
         // ── 이벤트형(후속 라운드에서 화면 연동) ──
@@ -174,123 +192,16 @@ func equippedTitleName(_ id: String?) -> String? {
     return Achievements.byId(id)?.titleName ?? HiddenAchievements.byId(id)?.title
 }
 
-// MARK: - 배지 + 파티클 뷰
+// MARK: - 엠블럼
 
-/// 히든 업적 아이콘 + 주변 파티클(팝업·프로필·목록 공용).
+/// 히든 업적 엠블럼(팝업·프로필·목록 공용) — 그리는 법은 `HiddenEmblemView`(Core/HiddenEmblem.swift).
 struct HiddenIconBadge: View {
     let ach: HiddenAchievement
     var size: CGFloat = 40
+    var state: EmblemState = .owned
 
     var body: some View {
-        ZStack {
-            HiddenParticlesView(effect: ach.effect, tint: ach.icon.color, size: size)
-            Image(systemName: ach.icon.systemImage)
-                .font(.system(size: size * 0.5, weight: .semibold))
-                .foregroundStyle(ach.icon.color)
-        }
-        .frame(width: size, height: size)
-    }
-}
-
-private struct PSeed {
-    let angle: Double, radiusFrac: Double, speed: Double, phase: Double, sizeFrac: Double, drift: Double
-}
-
-/// 결정적(시드) 난수 — 플랫폼 간 재현성보다 "안정된 배치"가 목적.
-private struct SeededRNG {
-    var state: UInt64
-    init(_ seed: UInt64) { state = seed &* 2862933555777941757 &+ 3037000493 }
-    mutating func nextDouble() -> Double {
-        state = state &* 6364136223846793005 &+ 1442695040888963407
-        return Double(state >> 11) / Double(UInt64(1) << 53)
-    }
-}
-
-private enum Motion { case orbit, rise, fall }
-
-/// 아이콘 주변에 효과별로 움직이는 입자. 레이아웃은 [size] 로 두되 그리기는 넉넉히 넘치게 한다.
-struct HiddenParticlesView: View {
-    let effect: ParticleEffect
-    let tint: Color
-    let size: CGFloat
-    private let seeds: [PSeed]
-
-    init(effect: ParticleEffect, tint: Color, size: CGFloat, count: Int = 12) {
-        self.effect = effect
-        self.tint = tint
-        self.size = size
-        var arr: [PSeed] = []
-        for i in 0..<count {
-            var r = SeededRNG(UInt64(i * 9973 + effect.rawValue * 31 + 7))
-            arr.append(PSeed(
-                angle: r.nextDouble() * 2 * .pi,
-                radiusFrac: 0.30 + r.nextDouble() * 0.22,
-                speed: 0.35 + r.nextDouble() * 0.85,
-                phase: r.nextDouble(),
-                sizeFrac: 0.035 + r.nextDouble() * 0.05,
-                drift: (r.nextDouble() - 0.5) * 0.5
-            ))
-        }
-        seeds = arr
-    }
-
-    private var motion: Motion {
-        switch effect {
-        case .snow: return .fall
-        case .ember, .heart, .music, .bubble: return .rise
-        default: return .orbit
-        }
-    }
-
-    var body: some View {
-        TimelineView(.animation) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
-            Canvas { ctx, sz in
-                let cx = Double(sz.width) / 2, cy = Double(sz.height) / 2
-                let half = Double(min(sz.width, sz.height)) / 2
-                let dim: Double = (effect == .shadow) ? 0.5 : 1
-                for s in seeds {
-                    let rad = s.sizeFrac * half * (0.8 + 0.4 * sin(t * s.speed * 3 + s.phase * 6.28))
-                    var x = cx, y = cy, alpha = 1.0
-                    switch motion {
-                    case .orbit:
-                        let a = s.angle + t * s.speed * 0.9
-                        let rr = s.radiusFrac * half * (1 + 0.10 * sin(t * 1.3 + s.phase * 6.28))
-                        x = cx + cos(a) * rr
-                        y = cy + sin(a) * rr
-                        alpha = (0.35 + 0.55 * (0.5 + 0.5 * sin(t * 2.2 * s.speed + s.phase * 6.28))) * dim
-                    case .rise:
-                        let p = (t * s.speed * 0.5 + s.phase).truncatingRemainder(dividingBy: 1)
-                        x = cx + s.drift * half + sin((p + s.phase) * 6.28) * half * 0.14
-                        y = cy + half * 0.9 - p * half * 1.8
-                        alpha = (1 - p) * 0.85
-                    case .fall:
-                        let p = (t * s.speed * 0.4 + s.phase).truncatingRemainder(dividingBy: 1)
-                        x = cx + s.drift * half + sin((p + s.phase) * 6.28) * half * 0.16
-                        y = cy - half * 0.9 + p * half * 1.8
-                        alpha = p < 0.15 ? p / 0.15 : (p > 0.85 ? (1 - p) / 0.15 : 0.85)
-                    }
-                    let col = particleColor(s: s, t: t)
-                    let rect = CGRect(x: x - rad, y: y - rad, width: rad * 2, height: rad * 2)
-                    ctx.fill(Path(ellipseIn: rect), with: .color(col.opacity(max(0, min(1, alpha)))))
-                }
-            }
-        }
-        .frame(width: size * 1.7, height: size * 1.7)
-        .allowsHitTesting(false)
-    }
-
-    private func particleColor(s: PSeed, t: Double) -> Color {
-        switch effect {
-        case .stardust: return tint.blended(with: .white, fraction: 0.5 + 0.5 * sin(t * 2 + s.phase * 6.28))
-        case .aurora: return Color(hex: 0xFFD86F).blended(with: Color(hex: 0xB388FF), fraction: 0.5 + 0.5 * sin(t * 1.2 + s.phase * 6.28))
-        case .shadow: return Color(hex: 0x9AA7B0)
-        case .ember: return Color(hex: 0xFFB74D).blended(with: Color(hex: 0xFF7043), fraction: s.phase)
-        case .heart: return Color(hex: 0xFF8FB3).blended(with: Color(hex: 0xFF4D79), fraction: s.phase)
-        case .music: return tint.blended(with: .white, fraction: 0.3)
-        case .snow: return .white
-        case .orbit: return tint
-        case .bubble: return Color(hex: 0x7FE0FF).blended(with: .white, fraction: 0.5 + 0.5 * sin(t * 2.4 + s.phase * 6.28))
-        }
+        HiddenEmblemView(ach: ach, size: size, state: state)
+            .frame(width: size, height: size)
     }
 }

@@ -210,6 +210,23 @@ fun QuestSheet(onDismiss: () -> Unit) {
     val daily = QuestStore.daily
     val keys = QuestStore.keys
     var bump by remember { mutableStateOf(0) }
+    var showAdKey by remember { mutableStateOf(false) }
+    if (showAdKey) {
+        com.chaminwoo.stary.feature.diary.screen.KeyAdDialog(
+            accent = QuestGold,
+            message = stringResource(R.string.quest_ad_key_ask),
+            onWatchAd = {
+                showAdKey = false
+                com.chaminwoo.stary.feature.diary.screen.watchAdForKey(context) {
+                    QuestStore.grantAdKey()
+                    Haptics.celebrate()
+                    bump++
+                    StaryToast.show(context.getString(R.string.quest_key_gained, 1))
+                }
+            },
+            onDismiss = { showAdKey = false },
+        )
+    }
     // 열린 동안 날짜가 바뀌면 새 목록으로.
     LaunchedEffect(Unit) { QuestStore.ensureToday() }
     // 창이 떠 있는 동안엔 지도 집중 모드(가만히 10초)에 들어가지 않는다 — Dialog 터치는 지도 루트가 못 본다.
@@ -238,7 +255,8 @@ fun QuestSheet(onDismiss: () -> Unit) {
                     color = Color(0xFFF0F0F0), fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                KeyChip(keys = keys, bump = bump)
+                // 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?"
+                KeyChip(keys = keys, bump = bump, modifier = Modifier.clickable { showAdKey = true })
                 Spacer(Modifier.width(6.dp))
                 Box(
                     modifier = Modifier
@@ -272,7 +290,11 @@ fun QuestSheet(onDismiss: () -> Unit) {
                     daily.quests.forEachIndexed { i, def ->
                         QuestRow(
                             index = i,
-                            def = def,
+                            icon = iconOf(def.event),
+                            title = stringResource(def.title),
+                            hint = stringResource(def.hint),
+                            target = def.target,
+                            reward = DailyQuests.REWARD_KEYS,
                             progress = daily.progressOf(def.id).coerceAtMost(def.target),
                             claimed = def.id in daily.claimed,
                             onClaim = {
@@ -285,19 +307,24 @@ fun QuestSheet(onDismiss: () -> Unit) {
                             },
                         )
                     }
-                }
-                Spacer(Modifier.height(14.dp))
-                // 보너스 — 3개 모두 받으면 열쇠 +1.
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        if (daily.bonus) Icons.Filled.Check else Icons.Filled.StarOutline, null,
-                        tint = if (daily.bonus) Mint else QuestGold.copy(alpha = 0.8f), modifier = Modifier.size(15.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        if (daily.bonus) stringResource(R.string.quest_bonus_done)
-                        else stringResource(R.string.quest_bonus, DailyQuests.BONUS_KEYS),
-                        color = if (daily.bonus) Mint else Color(0xFFD6DCE6), fontSize = 12.5.sp,
+                    // 보너스 퀘스트(4번째 행) — 위 3개 보상을 모두 받으면 받을 수 있다(진행도 = 받은 보상 수).
+                    QuestRow(
+                        index = daily.quests.size,
+                        icon = Icons.Filled.EmojiEvents,
+                        title = stringResource(R.string.quest_bonus_title),
+                        hint = stringResource(R.string.quest_bonus_hint),
+                        target = daily.ids.size.coerceAtLeast(1),
+                        reward = DailyQuests.BONUS_KEYS,
+                        progress = daily.ids.count { it in daily.claimed },
+                        claimed = daily.bonus,
+                        onClaim = {
+                            val gained = QuestStore.claimBonus()
+                            if (gained > 0) {
+                                Haptics.celebrate()
+                                bump++
+                                StaryToast.show(context.getString(R.string.quest_key_gained, gained))
+                            }
+                        },
                     )
                 }
             }
@@ -332,12 +359,22 @@ private fun ResetCountdown() {
 }
 
 @Composable
-private fun QuestRow(index: Int, def: QuestDef, progress: Int, claimed: Boolean, onClaim: () -> Unit) {
-    val complete = progress >= def.target
+private fun QuestRow(
+    index: Int,
+    icon: ImageVector,
+    title: String,
+    hint: String,
+    target: Int,
+    reward: Int,
+    progress: Int,
+    claimed: Boolean,
+    onClaim: () -> Unit,
+) {
+    val complete = progress >= target
     val shown = remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(60L * index); shown.value = true }
     val fill by animateFloatAsState(
-        targetValue = progress / def.target.toFloat(),
+        targetValue = progress / target.toFloat(),
         animationSpec = tween(500), label = "quest_progress",
     )
     AnimatedVisibility(
@@ -369,20 +406,20 @@ private fun QuestRow(index: Int, def: QuestDef, progress: Int, claimed: Boolean,
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    if (claimed) Icons.Filled.Check else iconOf(def.event), null,
+                    if (claimed) Icons.Filled.Check else icon, null,
                     tint = if (claimed) Mint else QuestGold, modifier = Modifier.size(19.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    stringResource(def.title),
+                    title,
                     color = if (claimed) Color(0xFF8A93A3) else Color(0xFFF0F0F0),
                     fontSize = 14.sp, fontWeight = FontWeight.Medium, lineHeight = 19.sp,
                 )
                 Spacer(Modifier.height(2.dp))
-                Text(stringResource(def.hint), color = Color(0xFF8A93A3), fontSize = 11.5.sp, lineHeight = 16.sp)
-                if (def.target > 1 && !claimed) {
+                Text(hint, color = Color(0xFF8A93A3), fontSize = 11.5.sp, lineHeight = 16.sp)
+                if (target > 1 && !claimed) {
                     Spacer(Modifier.height(7.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -402,7 +439,7 @@ private fun QuestRow(index: Int, def: QuestDef, progress: Int, claimed: Boolean,
                         }
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "$progress/${def.target}",
+                            "$progress/$target",
                             style = TextStyle(color = Color(0xFFB8C0CC), fontSize = 11.sp, fontFeatureSettings = "tnum"),
                         )
                     }
@@ -429,7 +466,7 @@ private fun QuestRow(index: Int, def: QuestDef, progress: Int, claimed: Boolean,
                 else -> Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Key, null, tint = QuestGold.copy(alpha = 0.75f), modifier = Modifier.size(14.dp))
                     Text(
-                        "×${DailyQuests.REWARD_KEYS}",
+                        "×$reward",
                         color = QuestGold.copy(alpha = 0.75f), fontSize = 12.sp, fontWeight = FontWeight.Medium,
                     )
                 }

@@ -419,8 +419,9 @@ struct AchievementsScreen: View {
         let claimed = claim?.claimed == true
         let mineClaim = claim?.achieverId == auth.uid && (auth.uid?.isEmpty == false)
         return HStack(spacing: 10) {
-            HiddenIconBadge(ach: ach, size: 40)
-                .frame(width: 44, height: 44)
+            // 엠블럼(수집 진열장): 내 것 = 이펙트까지 / 남의 것 = 색·광택만 / 아직 아무도 = 어두운 봉인 + 흐린 이펙트.
+            HiddenIconBadge(ach: ach, size: 48, state: mineClaim ? .owned : (claimed ? .claimed : .sealed))
+                .frame(width: 52, height: 52)
             VStack(alignment: .leading, spacing: 2) {
                 // 칭호는 항상 노출 + 이 업적 달성자에게 붙는 전용 크리스탈 배지 미리보기(34-4).
                 HStack(spacing: 6) {

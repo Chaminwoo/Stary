@@ -736,4 +736,7 @@
     <string name="ach_cond_quest_clear_1">1日のクエスト3つをすべて達成する</string>
     <string name="ach_cond_quest_clear_7">クエストをすべて達成した日を7日集める</string>
     <string name="ach_cond_quest_clear_30">クエストをすべて達成した日を30日集める</string>
+    <string name="quest_bonus_title">今日のクエストをすべて達成</string>
+    <string name="quest_bonus_hint">上の3つのクエストの鍵をすべて受け取るとボーナスの鍵がもらえます</string>
+    <string name="quest_ad_key_ask">広告を見て鍵をもらいますか？\n最後まで見ると鍵を1つもらえます。</string>
 </resources>

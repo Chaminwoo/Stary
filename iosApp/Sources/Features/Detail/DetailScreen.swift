@@ -689,64 +689,16 @@ struct DetailScreen: View {
 
     /// 열쇠 없이 자물쇠를 눌렀을 때의 팝업 — "열쇠가 없어요" + 광고 보고 열쇠 받기(금색) / 취소. (Android `NoKeyDialog` 패리티)
     private var noKeyDialog: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                Circle()
-                    .fill(RadialGradient(colors: [QuestTheme.gold.opacity(0.28), .clear],
-                                         center: .center, startRadius: 0, endRadius: 32))
-                    .frame(width: 64, height: 64)
-                Image(uiImage: DiaryLock.lockImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 34))
-                    .resizable()
-                    .frame(width: 34, height: 34)
-                Image(systemName: "key.fill")
-                    .font(.system(size: 15))
-                    .foregroundStyle(QuestTheme.gold.opacity(0.9))
-                    .rotationEffect(.degrees(-40))
-                    .offset(x: 20, y: 20)
-            }
-            .frame(width: 64, height: 64)
-            Text(LocaleManager.shared.t(.detailLockedTitleNoKey))
-                .font(.minSans(15, .medium))
-                .lineSpacing(7)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Theme.textPrimary)
-                .padding(.top, 14)
-            Button {
+        KeyAdDialogCard(
+            accent: accent,
+            message: LocaleManager.shared.t(.detailLockedTitleNoKey),
+            onWatchAd: {
                 showNoKey = false
                 // 팝업(fullScreenCover)이 닫힌 뒤에 광고를 띄워야 표시가 씹히지 않는다.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { watchAdForKey() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(uiImage: DiaryLock.playLogoImage(color: QuestTheme.ink, seed: 0, size: 17))
-                        .renderingMode(.template)
-                        .resizable()
-                        .frame(width: 17, height: 17)
-                    Text(LocaleManager.shared.t(.detailGetKeyAd))
-                        .font(.minSans(14, .semibold))
-                }
-                .foregroundStyle(QuestTheme.ink)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(LinearGradient(colors: [QuestTheme.gold, QuestTheme.goldDeep],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 18)
-            Button { showNoKey = false } label: {
-                Text(LocaleManager.shared.t(.commonCancel))
-                    .font(.minSans(13))
-                    .foregroundStyle(Theme.textSecondary)
-                    .padding(.horizontal, 18).padding(.vertical, 10)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
-        }
-        .padding(.horizontal, 22).padding(.top, 24).padding(.bottom, 14)
-        .frame(maxWidth: StaryDialogStyle.maxWidth)
-        .background(Color(hex: 0x12141C), in: RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22)
-            .stroke(accent.blended(with: .white, fraction: 0.2).opacity(0.35), lineWidth: 1))
-        .padding(.horizontal, StaryDialogStyle.screenPadding)
+            },
+            onCancel: { showNoKey = false }
+        )
     }
 
     /// 무엇으로 여는지 — 연출(열쇠 표시 여부)과 토스트 문구가 갈린다(Android `UnlockVia`).

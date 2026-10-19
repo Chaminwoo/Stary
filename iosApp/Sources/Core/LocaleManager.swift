@@ -253,6 +253,8 @@ enum L10n: String {
 
     case achIntro, achTitlesHint, achRewardsHint, achObtained
 
+    case questBonusTitle, questBonusHint, questAdKeyAsk
+
     /// (ko, en, ja).
     private var table: (String, String, String) {
         switch self {
@@ -700,6 +702,9 @@ enum L10n: String {
         case .timeDaysAgo:          return ("%d일 전", "%dd ago", "%d日前")
         case .bannerNewNotification: return ("새 알림", "New notification", "新しい通知")
         case .bannerNewMessage:     return ("새 메시지", "New message", "新しいメッセージ")
+        case .questBonusTitle: return ("오늘의 퀘스트 모두 끝내기", "Finish all of today's quests", "今日のクエストをすべて達成")
+        case .questBonusHint: return ("위 퀘스트 3개의 열쇠를 모두 받으면 보너스 열쇠를 드려요", "Claim the keys from all 3 quests above for a bonus key", "上の3つのクエストの鍵をすべて受け取るとボーナスの鍵がもらえます")
+        case .questAdKeyAsk: return ("광고를 보고 열쇠를 얻으시겠어요?\n광고를 끝까지 보면 열쇠 1개를 드려요.", "Watch an ad to get a key?\nWatch it to the end for 1 key.", "広告を見て鍵をもらいますか？\n最後まで見ると鍵を1つもらえます。")
         case .achIntro: return ("업적을 달성하면 칭호와 새로운 별 모양·색을 얻어요.", "Earn titles and new star shapes & colors by unlocking achievements.", "実績を達成すると称号や新しい星の形・色が手に入ります。")
         case .achTitlesHint: return ("완료한 업적을 눌러 장착하세요", "Tap a completed achievement to equip", "達成した実績をタップして装着")
         case .achRewardsHint: return ("달성하면 업로드에서 해금돼요", "Unlock them when posting", "達成すると投稿時に解放されます")

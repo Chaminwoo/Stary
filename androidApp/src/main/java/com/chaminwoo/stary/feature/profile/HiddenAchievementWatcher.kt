@@ -187,16 +187,12 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
     }
 }
 
-/** 히든 아이콘 + 주변 파티클 이펙트 (팝업·프로필 공용). */
+/** 히든 엠블럼(아이콘 + 크리스탈 + 이펙트) — 팝업·업적 목록 공용. 모양은 [HiddenEmblem]. */
 @Composable
-fun HiddenIconWithEffect(achievement: HiddenAchievement, size: androidx.compose.ui.unit.Dp) {
-    Box(contentAlignment = Alignment.Center) {
-        HiddenParticles(effect = achievement.effect, tint = achievement.icon.color, boxSize = size)
-        Icon(
-            imageVector = achievement.icon.vector,
-            contentDescription = achievement.title,
-            tint = achievement.icon.color,
-            modifier = Modifier.size(size * 0.62f)
-        )
-    }
+fun HiddenIconWithEffect(
+    achievement: HiddenAchievement,
+    size: androidx.compose.ui.unit.Dp,
+    state: EmblemState = EmblemState.OWNED,
+) {
+    HiddenEmblem(achievement, size, state)
 }

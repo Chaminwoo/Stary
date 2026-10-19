@@ -678,17 +678,16 @@ private fun HiddenAchievementRow(
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 아이콘 + 파티클 (항상 노출 — 달성 전이라도 궁금증 유발)
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .background(
-                    Brush.radialGradient(listOf(ach.icon.color.copy(alpha = 0.16f), Color.Transparent)),
-                    CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            HiddenIconWithEffect(ach, size = 40.dp)
+        // 엠블럼(항상 노출 — 수집 진열장): 내 것 = 이펙트까지 / 남의 것 = 색·광택만 / 아직 아무도 = 어두운 봉인 + 흐린 이펙트.
+        Box(modifier = Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+            HiddenIconWithEffect(
+                ach, size = 48.dp,
+                state = when {
+                    mine -> com.chaminwoo.stary.feature.profile.EmblemState.OWNED
+                    claimed -> com.chaminwoo.stary.feature.profile.EmblemState.CLAIMED
+                    else -> com.chaminwoo.stary.feature.profile.EmblemState.SEALED
+                },
+            )
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {

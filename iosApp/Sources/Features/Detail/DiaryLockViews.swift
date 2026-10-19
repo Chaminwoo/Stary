@@ -55,12 +55,11 @@ enum DiaryLock {
         StarCrystal.pathIconImage(name: "play-logo", path: playLogoPath, color: UIColor(color), seed: seed, size: size)
     }
 
-    /// 열린 자물쇠(광고제거 계정의 "바로 열기", 24×24 뷰포트) — 몸통(15×11, 반경 2.4) + 열쇠 구멍 + 오른쪽이 들린 고리.
-    /// Android `DiaryLock.kt` 의 `OpenLockLogo` 와 같은 좌표. 열쇠 구멍은 even-odd 로 뚫린다.
+    /// 열린 자물쇠(광고제거 계정의 "바로 열기", 24×24 뷰포트) — 몸통(15×11, 반경 2.4, 구멍 없음) + 오른쪽이 들린 고리.
+    /// Android `DiaryLock.kt` 의 `OpenLockLogo` 와 같은 좌표.
     static let openLockPath: CGPath = {
         let p = CGMutablePath()
         p.addRoundedRect(in: CGRect(x: 4.5, y: 10.5, width: 15, height: 11), cornerWidth: 2.4, cornerHeight: 2.4)
-        p.addEllipse(in: CGRect(x: 10.4, y: 14.0, width: 3.2, height: 3.2))
         // 고리 — 왼쪽 기둥은 몸통에 닿고, 오른쪽은 짧게 끝나 열려 있다(바깥 호 → 안쪽 호를 되돌아오는 띠).
         p.move(to: CGPoint(x: 6.9, y: 10.5))
         p.addLine(to: CGPoint(x: 6.9, y: 7))
@@ -79,12 +78,11 @@ enum DiaryLock {
         StarCrystal.pathIconImage(name: "open-lock", path: openLockPath, color: UIColor(color), seed: seed, size: size)
     }
 
-    /// 닫힌 자물쇠(열쇠로 여는 잠금, 2026-10-19 — 예전 유튜브형 재생 로고 대체) — [openLockPath] 와 같은 몸통·구멍에
+    /// 닫힌 자물쇠(열쇠로 여는 잠금, 2026-10-19 — 예전 유튜브형 재생 로고 대체) — [openLockPath] 와 같은 몸통(구멍 없음)에
     /// 고리 양쪽 기둥이 모두 몸통에 닿는다. Android `DiaryLock.kt` 의 `LockLogo` 와 같은 좌표.
     static let lockPath: CGPath = {
         let p = CGMutablePath()
         p.addRoundedRect(in: CGRect(x: 4.5, y: 10.5, width: 15, height: 11), cornerWidth: 2.4, cornerHeight: 2.4)
-        p.addEllipse(in: CGRect(x: 10.4, y: 14.0, width: 3.2, height: 3.2))
         p.move(to: CGPoint(x: 6.9, y: 10.5))
         p.addLine(to: CGPoint(x: 6.9, y: 7))
         p.addArc(center: CGPoint(x: 12, y: 7), radius: 5.1, startAngle: .pi, endAngle: 0, clockwise: false)
@@ -105,10 +103,44 @@ enum DiaryLock {
     /// 해금 연출 길이 — 열쇠가 들어가 도는 앞부분 / 고리가 튀고 빛이 퍼지는 뒷부분(Android `UNLOCK_TURN_MS/UNLOCK_BURST_MS`).
     static let unlockTurnSec: Double = 0.72
     static let unlockBurstSec: Double = 0.78
+
+    /// [lockPath] 몸통 아랫변의 세로 위치 — 아이콘 가운데 기준, 아이콘 크기 대비(뷰포트 24 중 21.5). Android `LOCK_BOTTOM_Y`.
+    static let lockBottomY: CGFloat = 21.5 / 24 - 0.5
+
+    /// 해금 연출의 열쇠(원점 = 몸통 아랫변 가운데) — **자물쇠 뒤**에 그린다. 위로 자루가 몸통 뒤로 들어가 가려지고,
+    /// 아래로 턱 · 고리만 보인다 = 자물쇠 밑면에 꽂힌 모습.
+    /// 몸통 = 별 색을 살짝 밝힌 색, 윤곽 = 별 색을 어둡게. Android `drawUnlockKey` 와 같은 치수.
+    static func drawUnlockKey(_ g: inout GraphicsContext, color: Color, alpha: Double) {
+        let body = color.blended(with: .white, fraction: 0.18).opacity(alpha)
+        let edge = color.blended(with: .black, fraction: 0.5).opacity(alpha)
+        let shaftW: CGFloat = 3.4
+        let top: CGFloat = -9
+        let bottom: CGFloat = 5
+        let collarY: CGFloat = bottom - 1.6
+        let bow = CGPoint(x: 0, y: 10.6)
+        let ringR: CGFloat = 4.6
+        let ring: CGFloat = 3.6
+        let o: CGFloat = 0.9
+        let shaft = CGRect(x: -shaftW / 2, y: top, width: shaftW, height: bottom - top)
+        let collar = CGRect(x: -3.8, y: collarY, width: 7.6, height: 2.6)
+        let ringPath = Path(ellipseIn: CGRect(x: bow.x - ringR, y: bow.y - ringR, width: ringR * 2, height: ringR * 2))
+        // 윤곽 먼저(전부) → 몸통 — 겹치는 곳에 윤곽선이 남지 않게.
+        g.fill(Path(roundedRect: shaft.insetBy(dx: -o, dy: -o), cornerRadius: 1.4), with: .color(edge))
+        g.fill(Path(roundedRect: collar.insetBy(dx: -o, dy: -o), cornerRadius: 1.4), with: .color(edge))
+        g.stroke(ringPath, with: .color(edge), lineWidth: ring + o * 2)
+        g.fill(Path(roundedRect: shaft, cornerRadius: 1.4), with: .color(body))
+        g.fill(Path(roundedRect: collar, cornerRadius: 1.4), with: .color(body))
+        g.stroke(ringPath, with: .color(body), lineWidth: ring)
+        let hi = Color.white.opacity(0.6 * alpha)
+        var arc = Path()
+        arc.addArc(center: bow, radius: ringR, startAngle: .degrees(195), endAngle: .degrees(270), clockwise: false)
+        g.stroke(arc, with: .color(hi), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+    }
 }
 
 /// 자물쇠 해금 연출(약 1.5초) — Android `KeyUnlockAnimation` 패리티. 끝나면 [onFinished](실제 해금).
-/// ① 열쇠가 아래에서 떠올라 구멍에 꽂히고(앞 42%) ② 90° 돌며 자물쇠가 살짝 흔들린다
+/// ① 열쇠가 자물쇠 **뒤** 아래에서 올라와 밑면에 꽂히고(앞 42%) ② 살짝 더 밀어 넣은 뒤 그 자리에서 비틀어 돌린다
+///    (자루를 축으로 도는 모습 = 가로로 좁아짐 + 아주 조금 기울기) — 자물쇠가 살짝 흔들린다
 /// ③ 열린 자물쇠로 바뀌며 고리가 튀어 오르고, 금빛 고리 2겹이 퍼지며 자물쇠가 커졌다 사라진다.
 /// `showKey == false`(광고제거 계정)면 열쇠 없이 ③만.
 struct KeyUnlockAnimationView: View {
@@ -133,7 +165,11 @@ struct KeyUnlockAnimationView: View {
             let opened = t >= 1
             let rise = min(1, t / 0.42)
             let spin = max(0, min(1, (t - 0.42) / 0.58))
-            let keyY = 48 + (10 - 48) * Self.easeOut(rise)
+            // 열쇠(자물쇠 뒤): 아래(+18pt)에서 올라와 밑면에 꽂히고, 1.5pt 더 밀어 넣은 뒤 그 자리에서 비튼다
+            // (가로 1 → 0.32 + 9° 기울기). 색 = 별 색. Android KeyUnlockAnimation 과 같은 값.
+            let push = min(1, spin / 0.22)
+            let twist = Self.easeInOut(max(0, min(1, (spin - 0.22) / 0.78)))
+            let keySlide: Double = 18 * (1 - Self.easeOut(rise)) - 1.5 * Self.easeOut(push)
             let keyAlpha = opened ? max(0, 1 - bE * 3) : rise
             let jiggle: Double = (spin > 0.05 && spin < 0.95) ? sin(spin * 18) * 3.5 * (1 - spin) : 0
             let lockScale: Double = 1 + 0.18 * max(0, sin(bE * .pi)) + 0.10 * bE
@@ -156,6 +192,18 @@ struct KeyUnlockAnimationView: View {
                         }
                     }
                 }
+                if showKey && keyAlpha > 0 {
+                    // 자물쇠 **뒤** — 자루 윗부분은 몸통에 가려져 "밑면에 꽂힌" 모습. 자물쇠와 같이 흔들린다(jiggle, 같은 축).
+                    Canvas { g, sz in
+                        g.translateBy(x: sz.width / 2, y: sz.height / 2 + 54 * DiaryLock.lockBottomY + CGFloat(keySlide))
+                        g.rotate(by: .degrees(9 * twist))
+                        g.scaleBy(x: CGFloat(1 - 0.68 * twist), y: 1)
+                        DiaryLock.drawUnlockKey(&g, color: color, alpha: keyAlpha)
+                    }
+                    .frame(width: 92, height: 92)
+                    .rotationEffect(.degrees(jiggle))
+                    .allowsHitTesting(false)
+                }
                 Image(uiImage: opened ? open : closed)
                     .resizable()
                     .interpolation(.high)
@@ -164,15 +212,6 @@ struct KeyUnlockAnimationView: View {
                     .scaleEffect(CGFloat(lockScale))
                     .offset(y: CGFloat(bounce))
                     .opacity(lockAlpha)
-                if showKey && keyAlpha > 0 {
-                    // SF key.fill 은 비스듬히 서 있다(고리 위·이 아래) — 세운 채 올라와 꽂힌 뒤 90° 돌린다.
-                    Image(systemName: "key.fill")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(QuestTheme.gold)
-                        .rotationEffect(.degrees(-45 + 90 * Self.easeInOut(spin)))
-                        .offset(y: CGFloat(keyY))
-                        .opacity(keyAlpha)
-                }
             }
             .frame(width: 92, height: 92)
             .onChange(of: opened) { o in
@@ -356,4 +395,67 @@ struct ReadingSurface: View {
 
     /// 순흑 배경(#0D0D0D)보다 한 톤만 밝은 남빛 — 옛 본문 카드(#14181C)의 역할을 대신한다.
     private static let surface = Color(hex: 0x15191F).opacity(0.70)
+}
+
+/// 열쇠 광고 팝업 카드 — 큰 열쇠 하나(대각선) + 안내 문구 + "광고 보고 열쇠 받기"(금색) / 취소.
+/// 잠긴 별(열쇠 없음)과 퀘스트 창 열쇠 칩이 같이 쓴다. Android `KeyAdDialog` 패리티.
+struct KeyAdDialogCard: View {
+    let accent: Color
+    let message: String
+    let onWatchAd: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                Circle()
+                    .fill(RadialGradient(colors: [QuestTheme.gold.opacity(0.30), .clear],
+                                         center: .center, startRadius: 0, endRadius: 38))
+                    .frame(width: 76, height: 76)
+                // SF key.fill 은 원래 고리가 왼쪽 위인 대각선 — Android(가로 Key 아이콘을 45° 돌림)와 같은 방향.
+                Image(systemName: "key.fill")
+                    .font(.system(size: 36, weight: .semibold))
+                    .foregroundStyle(QuestTheme.gold)
+            }
+            .frame(width: 76, height: 76)
+            Text(message)
+                .font(.minSans(15, .medium))
+                .lineSpacing(7)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 14)
+            Button(action: onWatchAd) {
+                HStack(spacing: 6) {
+                    Image(uiImage: DiaryLock.playLogoImage(color: QuestTheme.ink, seed: 0, size: 17))
+                        .renderingMode(.template)
+                        .resizable()
+                        .frame(width: 17, height: 17)
+                    Text(LocaleManager.shared.t(.detailGetKeyAd))
+                        .font(.minSans(14, .semibold))
+                }
+                .foregroundStyle(QuestTheme.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(LinearGradient(colors: [QuestTheme.gold, QuestTheme.goldDeep],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 18)
+            Button(action: onCancel) {
+                Text(LocaleManager.shared.t(.commonCancel))
+                    .font(.minSans(13))
+                    .foregroundStyle(Theme.textSecondary)
+                    .padding(.horizontal, 18).padding(.vertical, 10)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+        }
+        .padding(.horizontal, 22).padding(.top, 24).padding(.bottom, 14)
+        .frame(maxWidth: StaryDialogStyle.maxWidth)
+        .background(Color(hex: 0x12141C), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22)
+            .stroke(accent.blended(with: .white, fraction: 0.2).opacity(0.35), lineWidth: 1))
+        .padding(.horizontal, StaryDialogStyle.screenPadding)
+    }
 }

@@ -739,4 +739,7 @@
     <string name="ach_cond_quest_clear_1">하루 퀘스트 3개를 모두 끝내기</string>
     <string name="ach_cond_quest_clear_7">하루 퀘스트를 모두 끝낸 날 7일 모으기</string>
     <string name="ach_cond_quest_clear_30">하루 퀘스트를 모두 끝낸 날 30일 모으기</string>
+    <string name="quest_bonus_title">오늘의 퀘스트 모두 끝내기</string>
+    <string name="quest_bonus_hint">위 퀘스트 3개의 열쇠를 모두 받으면 보너스 열쇠를 드려요</string>
+    <string name="quest_ad_key_ask">광고를 보고 열쇠를 얻으시겠어요?\n광고를 끝까지 보면 열쇠 1개를 드려요.</string>
 </resources>

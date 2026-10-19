@@ -78,6 +78,7 @@ struct QuestSheetView: View {
     let onDismiss: () -> Void
     @State private var bump = 0
     @State private var now = Date()
+    @State private var showAdKey = false
 
     var body: some View {
         ZStack {
@@ -89,7 +90,10 @@ struct QuestSheetView: View {
                         .font(.minSans(20, .medium))
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
+                    // 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?"
                     KeyChip(keys: quests.keys, bump: bump)
+                        .contentShape(Capsule())
+                        .onTapGesture { showAdKey = true }
                     Button(action: onDismiss) {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .semibold))
@@ -112,29 +116,22 @@ struct QuestSheetView: View {
                     VStack(spacing: 10) {
                         ForEach(Array(d.quests.enumerated()), id: \.element.id) { i, q in
                             QuestRowView(
-                                index: i, quest: q,
+                                index: i, symbol: questSymbol(q.event),
+                                title: locale.t(q.title), hint: locale.t(q.hint),
+                                target: q.target, reward: DailyQuests.rewardKeys,
                                 progress: min(d.progressOf(q.id), q.target),
                                 claimed: d.claimed.contains(q.id)
-                            ) {
-                                let gained = quests.claim(q.id)
-                                if gained > 0 {
-                                    Haptics.celebrate()
-                                    bump += 1
-                                    GlobalToast.shared.show(String(format: locale.t(.questKeyGained), gained))
-                                }
-                            }
+                            ) { rewarded(quests.claim(q.id)) }
                         }
+                        // 보너스 퀘스트 — 위 3개 보상을 모두 받으면 받을 수 있다(Android QuestSheet 4번째 행 패리티).
+                        QuestRowView(
+                            index: d.ids.count, symbol: "trophy.fill",
+                            title: locale.t(.questBonusTitle), hint: locale.t(.questBonusHint),
+                            target: d.ids.count, reward: DailyQuests.bonusKeys,
+                            progress: d.claimed.intersection(d.ids).count,
+                            claimed: d.bonus
+                        ) { rewarded(quests.claimBonus()) }
                     }
-                    HStack(spacing: 6) {
-                        Image(systemName: d.bonus ? "checkmark" : "star")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(d.bonus ? Theme.mint : QuestTheme.gold.opacity(0.8))
-                        Text(d.bonus ? locale.t(.questBonusDone)
-                             : String(format: locale.t(.questBonus), DailyQuests.bonusKeys))
-                            .font(.minSans(12.5))
-                            .foregroundStyle(d.bonus ? Theme.mint : Color(hex: 0xD6DCE6))
-                    }
-                    .padding(.top, 14)
                 } else {
                     HStack(spacing: 10) {
                         ProgressView().tint(QuestTheme.gold)
@@ -161,6 +158,22 @@ struct QuestSheetView: View {
             )
             .padding(.horizontal, 18)
             .frame(maxWidth: 520)
+
+            // 열쇠 칩 → 광고 팝업. 퀘스트 창 자체가 오버레이라 그 위에 한 겹 더 얹는다.
+            if showAdKey {
+                Color.black.opacity(0.45).ignoresSafeArea()
+                    .onTapGesture { showAdKey = false }
+                KeyAdDialogCard(
+                    accent: QuestTheme.gold,
+                    message: locale.t(.questAdKeyAsk),
+                    onWatchAd: {
+                        showAdKey = false
+                        watchAdForKey()
+                    },
+                    onCancel: { showAdKey = false }
+                )
+                .transition(.opacity)
+            }
         }
         .onAppear {
             quests.ensureToday()
@@ -175,6 +188,36 @@ struct QuestSheetView: View {
                 quests.ensureToday()
             }
         }
+    }
+
+    /// 보상 수령 결과 — 받았으면 진동 + 칩 튀기기 + 토스트.
+    private func rewarded(_ gained: Int) {
+        guard gained > 0 else { return }
+        Haptics.celebrate()
+        bump += 1
+        GlobalToast.shared.show(String(format: locale.t(.questKeyGained), gained))
+    }
+
+    /// 광고를 끝까지 보면 열쇠 1개(Android QuestSheet `watchAdForKey` → `grantAdKey` 패리티).
+    private func watchAdForKey() {
+        let ads = AdsManager.shared
+        guard !ads.showing else { return }
+        guard ads.isConfigured else {
+            GlobalToast.shared.show(locale.t(.detailAdUnavailable))
+            return
+        }
+        ads.showRewardedWhenReady(
+            onWaiting: { GlobalToast.shared.show(locale.t(.detailAdLoading)) },
+            onUnavailable: { GlobalToast.shared.show(locale.t(.detailAdUnavailable)) },
+            onResult: { ok in
+                if ok {
+                    quests.grantAdKey()
+                    rewarded(1)
+                } else {
+                    GlobalToast.shared.show(locale.t(.detailAdNotFinished))
+                }
+            }
+        )
     }
 
     /// "N시간 M분" — 기기 현지 자정까지.
@@ -216,7 +259,11 @@ private func questSymbol(_ e: QuestEvent) -> String {
 
 private struct QuestRowView: View {
     let index: Int
-    let quest: QuestDef
+    let symbol: String
+    let title: String
+    let hint: String
+    let target: Int
+    let reward: Int
     let progress: Int
     let claimed: Bool
     let onClaim: () -> Void
@@ -224,40 +271,40 @@ private struct QuestRowView: View {
     @State private var shown = false
 
     var body: some View {
-        let complete = progress >= quest.target
+        let complete = progress >= target
         let glow = complete && !claimed
         HStack(spacing: 12) {
             ZStack {
                 Circle().fill(claimed
                     ? LinearGradient(colors: [Theme.mint.opacity(0.35), Color(hex: 0x3B82F6).opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     : LinearGradient(colors: [Color(hex: 0x26304A), Color(hex: 0x161C2C)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                Image(systemName: claimed ? "checkmark" : questSymbol(quest.event))
+                Image(systemName: claimed ? "checkmark" : symbol)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(claimed ? Theme.mint : QuestTheme.gold)
             }
             .frame(width: 38, height: 38)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(locale.t(quest.title))
+                Text(title)
                     .font(.minSans(14, .medium))
                     .foregroundStyle(claimed ? Color(hex: 0x8A93A3) : Theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(locale.t(quest.hint))
+                Text(hint)
                     .font(.minSans(11.5))
                     .foregroundStyle(Color(hex: 0x8A93A3))
                     .fixedSize(horizontal: false, vertical: true)
-                if quest.target > 1 && !claimed {
+                if target > 1 && !claimed {
                     HStack(spacing: 8) {
                         GeometryReader { g in
                             ZStack(alignment: .leading) {
                                 Capsule().fill(Color.white.opacity(0.13))
                                 Capsule()
                                     .fill(LinearGradient(colors: [Theme.mint, QuestTheme.gold], startPoint: .leading, endPoint: .trailing))
-                                    .frame(width: g.size.width * CGFloat(progress) / CGFloat(max(1, quest.target)))
+                                    .frame(width: g.size.width * CGFloat(progress) / CGFloat(max(1, target)))
                             }
                         }
                         .frame(height: 4)
-                        Text("\(progress)/\(quest.target)")
+                        Text("\(progress)/\(target)")
                             .font(.system(size: 11).monospacedDigit())
                             .foregroundStyle(Color(hex: 0xB8C0CC))
                     }
@@ -285,7 +332,7 @@ private struct QuestRowView: View {
             } else {
                 HStack(spacing: 2) {
                     Image(systemName: "key.fill").font(.system(size: 11))
-                    Text("×\(DailyQuests.rewardKeys)").font(.minSans(12, .medium))
+                    Text("×\(reward)").font(.minSans(12, .medium))
                 }
                 .foregroundStyle(QuestTheme.gold.opacity(0.75))
             }

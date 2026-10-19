@@ -28,24 +28,30 @@ import androidx.compose.ui.graphics.vector.ImageVector
  * ⚠️ iOS(`iosApp/.../Core/HiddenAchievements.swift`)와 정의(조건/보상/판정)를 항상 동일하게 유지한다.
  */
 
-/** 히든 업적의 프로필 아이콘. (Material 아이콘 + 대표색) */
-enum class HiddenIcon(val vector: ImageVector, val color: Color) {
-    COMET(Icons.Filled.AutoAwesome, Color(0xFF9BE7FF)),
-    GLACIER(Icons.Filled.AcUnit, Color(0xFFCFE8FF)),
-    DESERT(Icons.Filled.WbSunny, Color(0xFFF2C46B)),
-    TRENCH(Icons.Filled.Waves, Color(0xFF4FC3E0)),
-    TRIANGLE(Icons.Filled.ChangeHistory, Color(0xFF9AE6C4)),
-    CROWN(Icons.Filled.WorkspacePremium, Color(0xFFFFD86F)),
-    TRICKSTER(Icons.Filled.Bolt, Color(0xFFB388FF)),
-    LONE_EYE(Icons.Filled.RemoveRedEye, Color(0xFF9AA7B0)),
-    HEART(Icons.Filled.Favorite, Color(0xFFFF6FA3)),
-    BATON(Icons.Filled.MusicNote, Color(0xFF7CE0C0)),
-    GLOBE(Icons.Filled.Public, Color(0xFF6EE7B7)),
-    METEOR(Icons.Filled.Flare, Color(0xFF8FE3FF)),
+/**
+ * 히든 업적의 상징 아이콘 + 엠블럼 두 색([color] 밝은 쪽 → [color2] 깊은 쪽 그라데이션 — [HiddenEmblem]).
+ * ⚠️ iOS `HiddenIcon.color/color2` 와 같은 값.
+ */
+enum class HiddenIcon(val vector: ImageVector, val color: Color, val color2: Color) {
+    COMET(Icons.Filled.AutoAwesome, Color(0xFF9BE7FF), Color(0xFF5B6CFF)),
+    GLACIER(Icons.Filled.AcUnit, Color(0xFFE3F4FF), Color(0xFF6FA8F5)),
+    DESERT(Icons.Filled.WbSunny, Color(0xFFFFD27A), Color(0xFFE0663A)),
+    TRENCH(Icons.Filled.Waves, Color(0xFF4FD8EE), Color(0xFF1B3A8C)),
+    TRIANGLE(Icons.Filled.ChangeHistory, Color(0xFF9AF0CF), Color(0xFF2B7F86)),
+    CROWN(Icons.Filled.WorkspacePremium, Color(0xFFFFE38A), Color(0xFFC07F22)),
+    TRICKSTER(Icons.Filled.Bolt, Color(0xFFCDA8FF), Color(0xFF5E35C8)),
+    LONE_EYE(Icons.Filled.RemoveRedEye, Color(0xFFC8D2DA), Color(0xFF39424E)),
+    HEART(Icons.Filled.Favorite, Color(0xFFFF9EC2), Color(0xFFD1356A)),
+    BATON(Icons.Filled.MusicNote, Color(0xFF8CF0D2), Color(0xFF2F8C99)),
+    GLOBE(Icons.Filled.Public, Color(0xFF7CF0C0), Color(0xFF2A6FD0)),
+    METEOR(Icons.Filled.Flare, Color(0xFFA8EEFF), Color(0xFF7354F0)),
 }
 
-/** 프로필 아이콘 주변에 흩뿌려지는 파티클/이펙트 종류. */
-enum class ParticleEffect { STARDUST, SNOW, AURORA, EMBER, SHADOW, HEART, MUSIC, ORBIT, BUBBLE }
+/**
+ * 엠블럼 바깥 이펙트 — 업적마다 하나씩, 겹치지 않는다(2026-10-19 9종 → 12종).
+ * 그리는 법은 [HiddenEmblem](HiddenParticles.kt). iOS `ParticleEffect` 와 같은 케이스·순서.
+ */
+enum class ParticleEffect { SPARKLE, SNOW, SUN, BUBBLE, RIFT, CROWN, SPARK, SHADOW, METEOR, HEART, MUSIC, ORBIT }
 
 /** 자동 판정에 쓰는 컨텍스트. */
 data class HiddenContext(
@@ -106,7 +112,7 @@ object HiddenAchievements {
         HiddenAchievement(
             id = "secret_word", title = "별의 암호",
             condition = "다이어리 제목에 ‘$SECRET_KEYWORD’ 를 넣기",
-            icon = HiddenIcon.COMET, effect = ParticleEffect.STARDUST,
+            icon = HiddenIcon.COMET, effect = ParticleEffect.SPARKLE,
             badgeType = 0, badgeColor = 8,   // 4꼭지 스파클 · 시안
             auto = { it.stats.secretKeywordTitle },
         ),
@@ -120,7 +126,7 @@ object HiddenAchievements {
         HiddenAchievement(
             id = "place_desert", title = "태양의 잔영",
             condition = "사하라 사막에 별 남기기",
-            icon = HiddenIcon.DESERT, effect = ParticleEffect.EMBER,
+            icon = HiddenIcon.DESERT, effect = ParticleEffect.SUN,
             badgeType = 1, badgeColor = 15,  // 5꼭지 별 · 앰버골드
             auto = { "desert" in it.stats.remoteRegions },
         ),
@@ -134,21 +140,21 @@ object HiddenAchievements {
         HiddenAchievement(
             id = "place_triangle", title = "사라진 항로",
             condition = "버뮤다 삼각지대에 별 남기기",
-            icon = HiddenIcon.TRIANGLE, effect = ParticleEffect.AURORA,
+            icon = HiddenIcon.TRIANGLE, effect = ParticleEffect.RIFT,
             badgeType = 4, badgeColor = 17,  // 다이아 스파클 · 에메랄드 오로라
             auto = { "triangle" in it.stats.remoteRegions },
         ),
         HiddenAchievement(
             id = "all_rounder", title = "은하의 정점",
             condition = "히든을 제외한 모든 업적 달성하기",
-            icon = HiddenIcon.CROWN, effect = ParticleEffect.AURORA,
+            icon = HiddenIcon.CROWN, effect = ParticleEffect.CROWN,
             badgeType = 2, badgeColor = 18,  // 6꼭지 별 · 석양(골드→코랄)
             auto = { it.allNormalDone },
         ),
         HiddenAchievement(
             id = "cosmic_rascal", title = "별도둑",
             condition = "다른 사람의 다이어리 300개 열람하기",
-            icon = HiddenIcon.TRICKSTER, effect = ParticleEffect.EMBER,
+            icon = HiddenIcon.TRICKSTER, effect = ParticleEffect.SPARK,
             badgeType = 7, badgeColor = 6,   // 초승달 · 퍼플
             auto = { it.stats.diariesViewed >= 300 },
         ),
@@ -162,7 +168,7 @@ object HiddenAchievements {
         HiddenAchievement(
             id = "meteor_seven", title = "일곱 번째 소원",
             condition = "글로브에서 유성 7개 연속으로 보기",
-            icon = HiddenIcon.METEOR, effect = ParticleEffect.STARDUST,
+            icon = HiddenIcon.METEOR, effect = ParticleEffect.METEOR,
             badgeType = 10, badgeColor = 16, // 혜성 · 오로라
             auto = { it.stats.meteorBestStreak >= 7 },
         ),

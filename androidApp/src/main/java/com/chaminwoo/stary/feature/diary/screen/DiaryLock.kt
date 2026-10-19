@@ -51,6 +51,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType
@@ -143,7 +145,7 @@ private val PlayLogo: ImageVector by lazy {
 }
 
 /**
- * 열린 자물쇠(광고제거 계정의 "바로 열기") — 몸통(15×11, 반경 2.4) + 열쇠 구멍 + 오른쪽이 들린 고리.
+ * 열린 자물쇠(광고제거 계정의 "바로 열기") — 몸통(15×11, 반경 2.4, 구멍 없음 — 2026-10-19) + 오른쪽이 들린 고리.
  * [PlayLogo] 와 같은 크리스탈 재질로 굽는다. iOS `DiaryLock.openLockPath` 와 같은 좌표.
  */
 private val OpenLockLogo: ImageVector by lazy {
@@ -164,11 +166,6 @@ private val OpenLockLogo: ImageVector by lazy {
             lineTo(4.5f, 12.9f)
             arcTo(2.4f, 2.4f, 0f, false, true, 6.9f, 10.5f)
             close()
-            // 열쇠 구멍 — EvenOdd 라 몸통에서 뚫린다.
-            moveTo(10.4f, 15.6f)
-            arcTo(1.6f, 1.6f, 0f, true, true, 13.6f, 15.6f)
-            arcTo(1.6f, 1.6f, 0f, true, true, 10.4f, 15.6f)
-            close()
             // 고리 — 왼쪽 기둥은 몸통에 닿고, 오른쪽은 짧게 끝나 열려 있다.
             moveTo(6.9f, 10.5f)
             lineTo(6.9f, 7f)
@@ -184,7 +181,7 @@ private val OpenLockLogo: ImageVector by lazy {
 }
 
 /**
- * 닫힌 자물쇠(열쇠로 여는 잠금, 2026-10-19 — 예전 유튜브형 재생 로고 대체) — [OpenLockLogo] 와 같은 몸통·열쇠 구멍에
+ * 닫힌 자물쇠(열쇠로 여는 잠금, 2026-10-19 — 예전 유튜브형 재생 로고 대체) — [OpenLockLogo] 와 같은 몸통(구멍 없음)에
  * 고리 양쪽 기둥이 모두 몸통에 닿는다. iOS `DiaryLock.lockPath` 와 같은 좌표.
  */
 private val LockLogo: ImageVector by lazy {
@@ -204,11 +201,6 @@ private val LockLogo: ImageVector by lazy {
             arcTo(2.4f, 2.4f, 0f, false, true, 4.5f, 19.1f)
             lineTo(4.5f, 12.9f)
             arcTo(2.4f, 2.4f, 0f, false, true, 6.9f, 10.5f)
-            close()
-            // 열쇠 구멍
-            moveTo(10.4f, 15.6f)
-            arcTo(1.6f, 1.6f, 0f, true, true, 13.6f, 15.6f)
-            arcTo(1.6f, 1.6f, 0f, true, true, 10.4f, 15.6f)
             close()
             // 고리 — 양쪽 기둥이 몸통까지 내려와 닫혀 있다.
             moveTo(6.9f, 10.5f)
@@ -389,12 +381,17 @@ internal fun LockedContentCard(
     }
 }
 
+/** 열쇠 없이 자물쇠를 눌렀을 때의 팝업 — "열쇠가 없어요" + 광고 보고 열쇠 받기. */
+@Composable
+private fun NoKeyDialog(accent: Color, onWatchAd: () -> Unit, onDismiss: () -> Unit) =
+    KeyAdDialog(accent, stringResource(R.string.detail_locked_title_no_key), onWatchAd, onDismiss)
+
 /**
- * 열쇠 없이 자물쇠를 눌렀을 때의 팝업 — "열쇠가 없어요" + 광고 보고 열쇠 받기(금색) / 취소.
- * iOS `DetailScreen.noKeyDialog` 와 같은 구성.
+ * 광고로 열쇠 받기 팝업 — 자물쇠+열쇠 그림 · [message] · 금색 "광고 보고 열쇠 받기" / 취소.
+ * 잠긴 별(열쇠 없음)과 퀘스트 창 열쇠 칩이 같이 쓴다. iOS `KeyAdDialogCard` 와 같은 구성.
  */
 @Composable
-private fun NoKeyDialog(accent: Color, onWatchAd: () -> Unit, onDismiss: () -> Unit) {
+internal fun KeyAdDialog(accent: Color, message: String, onWatchAd: () -> Unit, onDismiss: () -> Unit) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -405,19 +402,19 @@ private fun NoKeyDialog(accent: Color, onWatchAd: () -> Unit, onDismiss: () -> U
                 .padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
+            // 큰 열쇠 하나만 대각선으로(자물쇠 + 작은 열쇠 겹침 → 한 아이콘으로 정리). iOS noKeyDialog 와 같은 구성.
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(76.dp)) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawCircle(Brush.radialGradient(listOf(QuestGold.copy(alpha = 0.28f), Color.Transparent)))
+                    drawCircle(Brush.radialGradient(listOf(QuestGold.copy(alpha = 0.30f), Color.Transparent)))
                 }
-                Icon(LockLogo, contentDescription = null, tint = lerp(accent, Color.White, 0.35f), modifier = Modifier.size(34.dp))
                 Icon(
-                    Icons.Filled.Key, contentDescription = null, tint = QuestGold.copy(alpha = 0.9f),
-                    modifier = Modifier.align(Alignment.BottomEnd).size(20.dp).graphicsLayer { rotationZ = -40f },
+                    Icons.Filled.Key, contentDescription = null, tint = QuestGold,
+                    modifier = Modifier.size(46.dp).graphicsLayer { rotationZ = 45f },
                 )
             }
             Spacer(modifier = Modifier.height(14.dp))
             Text(
-                stringResource(R.string.detail_locked_title_no_key),
+                message,
                 fontSize = 15.sp, lineHeight = 23.sp, fontWeight = FontWeight.Medium,
                 color = Color(0xFFF0F0F0), textAlign = TextAlign.Center,
             )
@@ -452,6 +449,41 @@ private fun NoKeyDialog(accent: Color, onWatchAd: () -> Unit, onDismiss: () -> U
     }
 }
 
+/** [LockLogo] 몸통 아랫변의 세로 위치 — 아이콘 가운데 기준, 아이콘 크기 대비(뷰포트 24 중 21.5). iOS `DiaryLock.lockBottomY` 와 같은 값. */
+private const val LOCK_BOTTOM_Y = 21.5f / 24f - 0.5f
+
+/**
+ * 해금 연출의 열쇠 — **자물쇠 뒤**에 그린다. [anchor](몸통 아랫변 가운데)에서 위로 자루가 몸통 뒤로 들어가 가려지고,
+ * 아래로 턱 · 고리만 보인다 = 자물쇠 밑면에 꽂힌 모습. 몸통 = 별 색을 살짝 밝힌 색, 윤곽 = 별 색을 어둡게, 왼쪽 위 하이라이트.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawUnlockKey(anchor: Offset, color: Color, alpha: Float) {
+    val u = 1.dp.toPx()
+    val body = lerp(color, Color.White, 0.18f).copy(alpha = alpha)
+    val edge = lerp(color, Color.Black, 0.5f).copy(alpha = alpha)
+    val shaftW = 3.4f * u
+    val top = anchor.y - 9f * u
+    val bottom = anchor.y + 5f * u
+    val collarY = bottom - 1.6f * u
+    val bow = Offset(anchor.x, anchor.y + 10.6f * u)
+    val ringR = 4.6f * u
+    val ring = 3.6f * u
+    val o = 0.9f * u
+    val cr = androidx.compose.ui.geometry.CornerRadius(1.4f * u)
+    // 윤곽 먼저(전부) → 몸통 — 겹치는 곳에 윤곽선이 남지 않게.
+    drawRoundRect(edge, Offset(anchor.x - shaftW / 2 - o, top - o), androidx.compose.ui.geometry.Size(shaftW + o * 2, bottom - top + o * 2), cr)
+    drawRoundRect(edge, Offset(anchor.x - 3.8f * u - o, collarY - o), androidx.compose.ui.geometry.Size(7.6f * u + o * 2, 2.6f * u + o * 2), cr)
+    drawCircle(edge, ringR, bow, style = androidx.compose.ui.graphics.drawscope.Stroke(width = ring + o * 2))
+    drawRoundRect(body, Offset(anchor.x - shaftW / 2, top), androidx.compose.ui.geometry.Size(shaftW, bottom - top), cr)
+    drawRoundRect(body, Offset(anchor.x - 3.8f * u, collarY), androidx.compose.ui.geometry.Size(7.6f * u, 2.6f * u), cr)
+    drawCircle(body, ringR, bow, style = androidx.compose.ui.graphics.drawscope.Stroke(width = ring))
+    val hi = Color.White.copy(alpha = 0.6f * alpha)
+    drawArc(
+        hi, startAngle = 195f, sweepAngle = 75f, useCenter = false,
+        topLeft = Offset(bow.x - ringR, bow.y - ringR), size = androidx.compose.ui.geometry.Size(ringR * 2, ringR * 2),
+        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f * u, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+    )
+}
+
 /** 무엇으로 여는지 — 연출(열쇠 표시 여부)과 토스트 문구가 갈린다. */
 private enum class UnlockVia { KEY, AD, AD_FREE }
 
@@ -461,7 +493,8 @@ private const val UNLOCK_BURST_MS = 780
 
 /**
  * 자물쇠 해금 연출(약 1.5초) — 끝나면 [onFinished](실제 해금 → 상세가 본문으로 바뀐다).
- * ① 열쇠가 아래에서 떠올라 열쇠 구멍에 꽂히고(0~42%) ② 90° 돌며 자물쇠가 살짝 흔들린다(42~100% of turn)
+ * ① 열쇠가 자물쇠 **뒤** 아래에서 올라와 밑면에 꽂히고(0~42%) ② 살짝 더 밀어 넣은 뒤 그 자리에서 비틀어 돌린다
+ *    (자루를 축으로 도는 모습 = 가로로 좁아짐 + 아주 조금 기울기, 42~100%) — 자물쇠가 살짝 흔들린다
  * ③ 열린 자물쇠로 바뀌며 고리가 튀어 오르고, 금빛 고리 2겹이 퍼지며 자물쇠가 커졌다 사라진다.
  * [showKey] = false(광고제거 계정)면 열쇠 없이 ③만.
  */
@@ -499,10 +532,13 @@ private fun KeyUnlockAnimation(color: Color, seed: Int, showKey: Boolean, onFini
     val t = turn.value
     val b = burst.value
     val opened = t >= 1f
-    // 열쇠: 앞 42% 동안 아래(+48dp)에서 구멍(+10dp)까지 올라오고, 나머지 동안 90° 돈다. 열리면 빠르게 사라진다.
+    // 열쇠(자물쇠 뒤): 앞 42% 동안 아래(+18dp)에서 올라와 밑면에 꽂히고, 다음 13% 동안 1.5dp 더 밀어 넣은 뒤
+    // 나머지 동안 그 자리에서 비튼다(가로 1 → 0.32 + 9° 기울기). 열리면 빠르게 사라진다. 색은 별(자물쇠) 색 — [drawUnlockKey].
     val rise = (t / 0.42f).coerceIn(0f, 1f)
     val spin = ((t - 0.42f) / 0.58f).coerceIn(0f, 1f)
-    val keyY = lerpF(48f, 10f, easeOut(rise))
+    val push = (spin / 0.22f).coerceIn(0f, 1f)
+    val twist = easeInOut(((spin - 0.22f) / 0.78f).coerceIn(0f, 1f))
+    val keySlide = lerpF(18f, 0f, easeOut(rise)) - 1.5f * easeOut(push)
     val keyAlpha = if (!opened) rise else (1f - b * 3f).coerceIn(0f, 1f)
     val jiggle = if (spin in 0.05f..0.95f) kotlin.math.sin(spin * 18f) * 3.5f * (1f - spin) else 0f
     val lockScale = 1f + 0.18f * kotlin.math.sin(b * Math.PI.toFloat()).coerceAtLeast(0f) + 0.10f * b
@@ -530,6 +566,19 @@ private fun KeyUnlockAnimation(color: Color, seed: Int, showKey: Boolean, onFini
                 )
             }
         }
+        if (showKey && keyAlpha > 0f) {
+            // 자물쇠 **뒤** — 자루 윗부분은 몸통에 가려져 "밑면에 꽂힌" 모습. 자물쇠와 같이 흔들린다(jiggle, 같은 축).
+            Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = jiggle }) {
+                val anchor = Offset(center.x, center.y + (iconSize * LOCK_BOTTOM_Y).toPx())
+                translate(top = keySlide.dp.toPx()) {
+                    rotate(9f * twist, anchor) {
+                        scale(scaleX = 1f - 0.68f * twist, scaleY = 1f, pivot = anchor) {
+                            drawUnlockKey(anchor, color, keyAlpha)
+                        }
+                    }
+                }
+            }
+        }
         Image(
             bitmap = if (opened) open else closed,
             contentDescription = null,
@@ -543,19 +592,6 @@ private fun KeyUnlockAnimation(color: Color, seed: Int, showKey: Boolean, onFini
                     translationY = if (opened) -3.dp.toPx() * shackle.value * (1f - b) else 0f
                 },
         )
-        if (showKey && keyAlpha > 0f) {
-            Icon(
-                Icons.Filled.Key, contentDescription = null, tint = QuestGold,
-                modifier = Modifier
-                    .size(26.dp)
-                    .graphicsLayer {
-                        translationY = keyY.dp.toPx()
-                        alpha = keyAlpha
-                        // 머티리얼 Key 는 가로(고리 왼쪽) — -90° 로 세워 구멍에 꽂고, 돌리면 0° 로 눕는다.
-                        rotationZ = -90f + 90f * easeInOut(spin)
-                    },
-            )
-        }
     }
 }
 
@@ -770,7 +806,7 @@ private fun rubberBand(delta: Offset, maxPx: Float, softPx: Float): Offset {
  * 키 없음/로드 실패/시간 초과/Activity 없음 → "지금은 광고를 불러올 수 없어요".
  * 디버그 빌드에서는 원인(키 미설정 / LevelPlay 오류 코드)을 그대로 알려 준다(릴리스엔 일반 안내만).
  */
-private fun watchAdForKey(context: Context, onRewarded: () -> Unit) {
+internal fun watchAdForKey(context: Context, onRewarded: () -> Unit) {
     val ads = AdsManager
     if (ads.showing) return
     val activity = context.findHostActivity()
