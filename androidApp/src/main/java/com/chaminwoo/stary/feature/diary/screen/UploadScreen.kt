@@ -237,6 +237,8 @@ fun UploadScreen(
 
     // 개척 퀘스트(체크리스트 32) — 저장 성공 시 이 좌표로 선점 시도(자체 스코프라 네비게이션에 안 죽음).
     var pioneerClaimTarget by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    // 일일 퀘스트 "사진·영상을 담아 별 남기기" 판정용 — 저장 직전에 정한다.
+    var savedWithMedia by remember { mutableStateOf(false) }
     // LaunchedEffect(Unit) 의 람다는 첫 컴포지션 값을 캡처하므로, 저장 직전에 고른 별을 쓰려면
     // 최신값 참조가 필요하다(선택을 바꾼 뒤 저장해도 그 별로 연출되게).
     val starTypeRef = androidx.compose.runtime.rememberUpdatedState(starType)
@@ -251,6 +253,9 @@ fun UploadScreen(
                 // 별 탄생 연출(34-8) — 저장 성공에서만. 화면이 pop 된 뒤 지도 위에서 이어 재생된다
                 // (전역 오버레이 StarBirthHost — MainScreen).
                 com.chaminwoo.stary.core.ui.StarBirthState.trigger(starTypeRef.value, starColorRef.value)
+                // 일일 퀘스트 — 올리기(시간대 퀘스트도 이 이벤트, 올린 시각으로 판정) + 사진/영상.
+                com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.UPLOAD)
+                if (savedWithMedia) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.UPLOAD_MEDIA)
                 onSaveClick()
             }
         }
@@ -553,6 +558,7 @@ fun UploadScreen(
                             }
                         }
                         pioneerClaimTarget = lat to lng // 저장 성공 이벤트에서 개척 선점 시도(체크리스트 32)
+                        savedWithMedia = imageUrl.isNotEmpty() || videoUrl.isNotEmpty()
                         diaryViewModel.saveDiary(
                             Diary(
                                 title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,

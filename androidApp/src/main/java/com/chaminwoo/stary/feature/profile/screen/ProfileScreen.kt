@@ -433,6 +433,7 @@ fun ProfileScreen(
                     scope.launch {
                         com.chaminwoo.stary.data.repository.FirebaseFriendRepository().setPinnedDiaries(userId, ids)
                     }
+                    if (ids.isNotEmpty()) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.PIN_STAR)
                 }
             )
         }
@@ -448,7 +449,9 @@ fun ProfileScreen(
                         com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)) // 부적절한 표현 필터(App Store 1.2)
                     } else if (trimmed.isNotBlank() && trimmed != displayName) {
                         displayName = trimmed
-                        scope.launch { GoogleAuthHelper.setNickname(context, trimmed) }
+                        scope.launch {
+                            if (GoogleAuthHelper.setNickname(context, trimmed)) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.PROFILE_EDIT)
+                        }
                     }
                 }
             )

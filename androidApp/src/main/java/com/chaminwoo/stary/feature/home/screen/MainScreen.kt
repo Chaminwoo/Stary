@@ -53,6 +53,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -296,9 +297,22 @@ fun MainScreen(
         mutableStateOf(!onboardPrefs.getBoolean("main_coach_seen", false))
     }
 
+    // 설정 > "도움말 다시 보기"로 다시 띄운 코치마크인지 — 이땐 이전 가입 계정이어도 보여 준다.
+    var onboardingReplay by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    // 이전에 가입했던 계정이면(재설치 첫 실행이라도) 코치마크·웰컴 별·화면 안내를 건너뛴다(2026-10-19, ReturningAccountOnboarding).
+    // 새 계정인지 아직 모르는 동안엔 코치마크를 띄우지 않는다(서버 확인 후 결정 — 이전 계정에 잠깐 떴다 사라지지 않게).
+    val returningAccount by GoogleAuthHelper.returningAccount.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(returningAccount) {
+        if (returningAccount == true) {
+            com.chaminwoo.stary.core.util.ReturningAccountOnboarding.apply(context)
+            if (!onboardingReplay) showOnboarding = false
+        }
+    }
+
     // 설정 > "도움말 다시 보기" — OnboardingReplayState 요청을 감지해 지도로 돌아가 코치마크를 재생.
     androidx.compose.runtime.LaunchedEffect(OnboardingReplayState.requested) {
         if (OnboardingReplayState.requested) {
+            onboardingReplay = true
             showOnboarding = true
             navController.navigate(NavRoute.Main) { popUpTo<NavRoute.Main> { inclusive = true } }
             OnboardingReplayState.consume()
@@ -306,6 +320,20 @@ fun MainScreen(
     }
 
     val userId = GoogleAuthHelper.currentUserId
+
+    // 일일 퀘스트·열쇠 — 로그인 계정의 users/{uid} 구독. 자정을 넘겨 켜 둔 경우를 위해 1분마다 날짜 확인.
+    androidx.compose.runtime.LaunchedEffect(userId) {
+        if (userId == null) {
+            com.chaminwoo.stary.feature.quest.QuestStore.stop()
+            return@LaunchedEffect
+        }
+        com.chaminwoo.stary.feature.quest.QuestStore.start(context, userId)
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            com.chaminwoo.stary.feature.quest.QuestStore.ensureToday()
+        }
+    }
+
     val notifVm: NotificationViewModel? = if (userId != null) {
         // ⚠️ key = userId 필수. viewModel() 의 기본 키는 **클래스 이름**이라, 로그아웃 후 다른 계정으로
         //    로그인해도 처음 만들어진(이전 userId 에 바인딩된) 인스턴스가 그대로 돌아온다.
@@ -341,7 +369,57 @@ fun MainScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // 집중(지도만 보기) 모드 — 지도에서 MapUiState.IDLE_MS(20초) 동안 아무것도 안 건드리면 들어간다(2026-10-19, 예전 버튼 대체).
+    // 지도가 보이고(다른 화면·로그인·드로어가 없고, 코치마크·창은 idleHolds) 앱이 앞에 있을 때만 센다. 나오는 건 루트 터치 관찰(아래 pointerInput).
+    val focusEligible = isMapRoute && !showLogin &&
+        drawerState.currentValue == DrawerValue.Closed && !drawerState.isAnimationRunning &&
+        MapUiState.idleHolds == 0
+    val focusLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var appResumed by remember { mutableStateOf(true) }
+    androidx.compose.runtime.DisposableEffect(focusLifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> { appResumed = true; MapUiState.resetIdle() }
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> appResumed = false
+                else -> {}
+            }
+        }
+        focusLifecycle.lifecycle.addObserver(observer)
+        onDispose { focusLifecycle.lifecycle.removeObserver(observer) }
+    }
+    androidx.compose.runtime.LaunchedEffect(focusEligible, appResumed) {
+        if (!focusEligible || !appResumed) {
+            // 지도를 떠나면 바로 나온다(다른 화면 탑바까지 숨은 채로 남지 않게).
+            if (!isMapRoute || showLogin) MapUiState.exitMapOnly()
+            return@LaunchedEffect
+        }
+        MapUiState.resetIdle()
+        while (true) {
+            kotlinx.coroutines.delay(500)
+            if (!MapUiState.mapOnly &&
+                System.currentTimeMillis() - MapUiState.lastTouchAt >= MapUiState.IDLE_MS
+            ) {
+                MapUiState.enterMapOnly()
+                com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FOCUS)
+            }
+        }
+    }
+    // 집중 모드에서 뒤로가기 = 나오기(앱 종료 방지).
+    androidx.activity.compose.BackHandler(enabled = MapUiState.mapOnly) { MapUiState.noteTouch() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // 모든 터치를 **소비하지 않고** 먼저 본다(Initial 패스) — 집중 모드 해제 + 대기 시간 초기화.
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                        MapUiState.noteTouch()
+                    }
+                }
+            }
+    ) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             gesturesEnabled = drawerState.isOpen,
@@ -456,7 +534,12 @@ fun MainScreen(
             Scaffold(
                 containerColor = Color(0xFF0D0D0D),
                 topBar = {
-                    if (currentRoute.showTopBar && !MapUiState.mapOnly) {
+                    // 집중 모드에선 지도 버튼들과 같은 페이드로 숨는다(들어갈 땐 천천히, 나올 땐 빠르게).
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = currentRoute.showTopBar && !MapUiState.mapOnly,
+                        enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(MapUiState.CHROME_SHOW_MS)),
+                        exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(MapUiState.CHROME_HIDE_MS)),
+                    ) {
                         CenterAlignedTopAppBar(
                             // 반투명 탑바 — 컨테이너는 투명으로 두고 스크림 그라데이션을 직접 깐다.
                             // (화면 배경/지도가 탑바 뒤까지 올라와 비치고, 아래로 갈수록 옅어져 이어진다.)
@@ -808,20 +891,23 @@ fun MainScreen(
         }
 
         // 첫 로그인 코치마크 — 로그인한 상태에서 지도(Main) 화면에 처음 들어왔을 때 1회만.
-        // (비로그인 둘러보기에선 표시하지 않는다)
-        if (showOnboarding && !showLogin && userId != null && termsAccepted && currentRoute is NavRoute.Main) {
+        // (비로그인 둘러보기에선 표시하지 않는다. 이전 가입 계정이면 건너뛴다 — 새 계정으로 확인된 뒤에만, "도움말 다시 보기"는 예외.)
+        if (showOnboarding && !showLogin && userId != null && termsAccepted && currentRoute is NavRoute.Main &&
+            (onboardingReplay || returningAccount == false)
+        ) {
+            // 코치마크가 떠 있는 동안엔 집중 모드에 들어가지 않는다(안내하던 버튼이 사라지지 않게).
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                MapUiState.holdIdle()
+                onDispose { MapUiState.releaseIdle() }
+            }
             MainOnboardingOverlay(
                 onDismiss = {
                     onboardPrefs.edit().putBoolean("main_coach_seen", true).apply()
                     showOnboarding = false
+                    onboardingReplay = false
                 },
                 tutorialNeeded = !com.chaminwoo.stary.core.util.TutorialStarState.done,
             )
-        }
-
-        // 지도만 보기(몰입) — 하단 중앙 X 로 복귀. 지도 위에 떠 있어 지도 조작은 그대로.
-        if (MapUiState.mapOnly && !showLogin) {
-            MapOnlyOverlay(onExit = { MapUiState.exitMapOnly() })
         }
 
         // 업적 해금 팝업 감시 — 로그인 상태에서 통계 변화 시 새 업적 달성을 팝업으로 알림.

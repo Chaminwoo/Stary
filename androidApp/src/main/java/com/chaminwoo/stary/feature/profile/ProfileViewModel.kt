@@ -64,6 +64,7 @@ class ProfileViewModel(private val userId: String) : ViewModel() {
             _isUploading.value = true
             try {
                 _profileImageUrl.value = repo.uploadProfileImage(userId, uri)
+                com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.PROFILE_EDIT)
             } catch (e: Exception) {
                 _uploadError.value = e.localizedMessage ?: e.toString()
             } finally {

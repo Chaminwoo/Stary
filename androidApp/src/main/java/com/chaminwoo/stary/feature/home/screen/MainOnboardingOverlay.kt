@@ -58,9 +58,9 @@ private enum class PillSide { Above, Below, LeftOf, Center }
  * 첫 실행 코치마크 — 한 번에 하나씩 주요 컨트롤만 스포트라이트로 밝히고 나머지는 어둡게.
  * 화면을 탭하면 다음 단계로 넘어가고, 마지막에서 탭하면 닫힌다. 단계 전환/등장/퇴장은 페이드.
  *
- * 단계: 0 위치 필터(좌하단) · 1 내 위치 · 2 별자리 · 3 몰입(지도만 보기) · 4 업로드 ·
+ * 단계: 0 위치 필터(좌하단) · 1 내 위치 · 2 별자리 · 3 오늘의 퀘스트("!", 예전 몰입 자리) · 4 업로드 ·
  *       5 메뉴(좌상단) · 6 마무리. (지도 우측 FAB 컬럼 순서와 동일 — iOS `MainOnboardingOverlay.swift` 와 동일)
- * 우측 버튼 중심의 콘텐츠 하단 거리(dp): 내위치 228 / 별자리 168 / 몰입 108 / 업로드 44.
+ * 우측 버튼 중심의 콘텐츠 하단 거리(dp): 내위치 228 / 별자리 168 / 퀘스트 108 / 업로드 44.
  *
  * ⚠️ **말풍선 위치는 하드코딩하지 않는다.** 예전엔 원(스포트라이트)과 말풍선이 각각 화면 가장자리
  *    기준 dp 상수로 따로 적혀 있어서, 지도 버튼이 바뀌어 원 좌표만 손보면 말풍선이 그대로 남아
@@ -112,7 +112,7 @@ fun MainOnboardingOverlay(onDismiss: () -> Unit, tutorialNeeded: Boolean = false
                 Triple(px(40f), contentBottom - px(44f), px(30f)),        // 0 필터
                 Triple(rightX, contentBottom - px(228f), px(30f)),        // 1 내위치
                 Triple(rightX, contentBottom - px(168f), px(30f)),        // 2 별자리
-                Triple(rightX, contentBottom - px(108f), px(30f)),        // 3 몰입(지도만 보기)
+                Triple(rightX, contentBottom - px(108f), px(30f)),        // 3 오늘의 퀘스트("!")
                 Triple(rightX, contentBottom - px(44f), px(36f)),         // 4 업로드
                 Triple(px(28f), statusTopPx + px(32f), px(28f)),          // 5 메뉴
                 Triple(wPx / 2f, hPx / 2f, 0f),                           // 6 마무리(스포트라이트 없음)
@@ -155,9 +155,8 @@ fun MainOnboardingOverlay(onDismiss: () -> Unit, tutorialNeeded: Boolean = false
                     0 -> stringResource(R.string.coach_step_filter)
                     1 -> stringResource(R.string.coach_step_location)
                     2 -> stringResource(R.string.coach_step_constellation)
-                    // ⚠️ 이 자리의 버튼은 **배경음악 토글이 아니라 몰입(지도만 보기)** 이다.
-                    //    지도 FAB 이 음악 → 몰입으로 바뀐 뒤에도 문구가 음악으로 남아 있었다.
-                    3 -> stringResource(R.string.coach_step_immersive)
+                    // ⚠️ 이 자리의 버튼은 **오늘의 퀘스트("!")** 다(음악 → 몰입 → 2026-10-19 퀘스트). 버튼을 바꾸면 문구도 같이.
+                    3 -> stringResource(R.string.coach_step_quest)
                     4 -> stringResource(R.string.coach_step_upload)
                     5 -> stringResource(R.string.coach_step_menu)
                     else -> if (tutorialNeeded) stringResource(R.string.coach_step_finish_tutorial)

@@ -13,6 +13,17 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import com.chaminwoo.stary.feature.quest.KeyChip
+import com.chaminwoo.stary.feature.quest.QuestEvent
+import com.chaminwoo.stary.feature.quest.QuestGold
+import com.chaminwoo.stary.feature.quest.QuestStore
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -86,10 +97,10 @@ import kotlin.math.exp
 //
 // - 히어로: 미디어가 **있을 때만** 미디어 로딩 플레이스홀더(loading_dipper) + 우하단 작은 캡션 "이 사진/영상은 잠겨 있어요".
 //   미디어가 없으면 잠금 표시 없이 일반 글과 같은 image_frame(DetailScreen 의 else 분기).
-// - 본문 자리: 좌상단·우하단 십자 코너 안에 크리스탈 재생 로고(유튜브형) + "100m 이내로 다가가거나, 광고를 통해 열어보세요!"
-//   + 현재 거리.
-// - 재생 로고는 [CrystalPullIcon] — 제자리에 고정돼 있다가 잡아당기면 버티며 조금만 끌려오고,
-//   놓으면 튕기듯 돌아간다. **탭 = 보상형 광고**([watchAdToUnlock]). 따로 "광고 보기" 버튼은 없다.
+// - 본문 자리: 좌상단·우하단 십자 코너 안에 크리스탈 자물쇠 + "100m 이내로 다가가거나, 열쇠를 사용해 해금하세요!"
+//   + 보유 열쇠 + 현재 거리(2026-10-19 — 예전 유튜브형 재생 로고 + "광고를 통해 해금" 을 대체).
+// - 자물쇠는 [CrystalPullIcon] — 제자리에 고정돼 있다가 잡아당기면 버티며 조금만 끌려오고,
+//   놓으면 튕기듯 돌아간다. **탭 = 열쇠 사용**(없으면 보상형 광고로 열쇠 받기, [watchAdForKey]) → [KeyUnlockAnimation].
 
 /** 잡아당겼을 때 끌려오는 최대 거리 — "아주 약간". */
 private val PULL_MAX = 16.dp
@@ -171,6 +182,47 @@ private val OpenLockLogo: ImageVector by lazy {
     }.build()
 }
 
+/**
+ * 닫힌 자물쇠(열쇠로 여는 잠금, 2026-10-19 — 예전 유튜브형 재생 로고 대체) — [OpenLockLogo] 와 같은 몸통·열쇠 구멍에
+ * 고리 양쪽 기둥이 모두 몸통에 닿는다. iOS `DiaryLock.lockPath` 와 같은 좌표.
+ */
+private val LockLogo: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "StaryLock",
+        defaultWidth = 24.dp, defaultHeight = 24.dp,
+        viewportWidth = 24f, viewportHeight = 24f,
+    ).apply {
+        path(fill = SolidColor(Color.Black), pathFillType = PathFillType.EvenOdd) {
+            // 몸통
+            moveTo(6.9f, 10.5f)
+            lineTo(17.1f, 10.5f)
+            arcTo(2.4f, 2.4f, 0f, false, true, 19.5f, 12.9f)
+            lineTo(19.5f, 19.1f)
+            arcTo(2.4f, 2.4f, 0f, false, true, 17.1f, 21.5f)
+            lineTo(6.9f, 21.5f)
+            arcTo(2.4f, 2.4f, 0f, false, true, 4.5f, 19.1f)
+            lineTo(4.5f, 12.9f)
+            arcTo(2.4f, 2.4f, 0f, false, true, 6.9f, 10.5f)
+            close()
+            // 열쇠 구멍
+            moveTo(10.4f, 15.6f)
+            arcTo(1.6f, 1.6f, 0f, true, true, 13.6f, 15.6f)
+            arcTo(1.6f, 1.6f, 0f, true, true, 10.4f, 15.6f)
+            close()
+            // 고리 — 양쪽 기둥이 몸통까지 내려와 닫혀 있다.
+            moveTo(6.9f, 10.5f)
+            lineTo(6.9f, 7f)
+            arcTo(5.1f, 5.1f, 0f, false, true, 17.1f, 7f)
+            lineTo(17.1f, 10.5f)
+            lineTo(14.9f, 10.5f)
+            lineTo(14.9f, 7f)
+            arcTo(2.9f, 2.9f, 0f, false, false, 9.1f, 7f)
+            lineTo(9.1f, 10.5f)
+            close()
+        }
+    }.build()
+}
+
 /** 파편 무늬 시드 — 게시물마다 다른 무늬, 같은 게시물은 항상 같은 무늬. */
 private fun lockSeed(diaryId: String, slot: Int): Int = (diaryId.hashCode() and 0x3FF) * 2 + slot
 
@@ -212,8 +264,12 @@ private val LOCK_CAPTION_COLOR = Color(0xE6AEBBDF)
 private val LOCK_CAPTION_GLOW = Color(0x997F93CC)
 
 /**
- * 잠긴 글의 본문 자리 — 크리스탈 재생 로고 + 여는 방법 + 현재 위치로부터의 거리.
- * 재생 로고를 탭하면 보상형 광고([watchAdToUnlock]).
+ * 잠긴 글의 본문 자리 — 크리스탈 자물쇠 + 여는 방법 + 보유 열쇠 + 현재 위치로부터의 거리(2026-10-19 열쇠 방식).
+ *
+ * - 열쇠가 있으면 자물쇠를 탭 → 열쇠 1개를 쓰고 [KeyUnlockAnimation](열쇠가 들어가 돌고 고리가 튀어 오름) 뒤 영구 해금.
+ * - 열쇠가 없으면 탭(또는 "광고 보고 열쇠 받기") → 보상형 광고 → 받은 열쇠로 바로 같은 연출 뒤 해금(열쇠 수는 그대로).
+ * - 광고제거 계정은 광고·열쇠 없이 같은 연출로 바로 연다.
+ * 열쇠는 오늘의 퀘스트 보상([QuestStore]). 비로그인이면 열쇠가 없으니 광고로만 연다.
  *
  * 카드(배경+테두리) 대신 **좌상단·우하단 십자 코너**([cornerCrossFrame])로 영역만 암시한다(2026-09-22 레퍼런스 재해석).
  */
@@ -226,10 +282,24 @@ internal fun LockedContentCard(
 ) {
     val context = LocalContext.current
     val ads = AdsManager
-    // 광고제거 계정 — 광고 없이 탭 한 번에 해금(아이콘·안내 문구도 광고 대신 "바로 열기").
+    // 광고제거 계정 — 광고 없이 탭 한 번에 해금(안내 문구도 "바로 열기").
     val adFree = AdFreeAccount.active
-    // 화면에 들어온 순간 미리 로드 — 아이콘을 눌렀을 때 기다림이 없다(광고제거 계정은 광고를 받지 않는다).
-    LaunchedEffect(ads.initialized, adFree) { if (!adFree) ads.preload() }
+    val keys = QuestStore.keys
+    val signedIn = QuestStore.available
+    // 열쇠가 없을 때만 광고가 필요하다 — 화면에 들어온 순간 미리 로드해 두면 눌렀을 때 기다림이 없다.
+    LaunchedEffect(ads.initialized, adFree, keys) { if (!adFree && keys <= 0) ads.preload() }
+
+    /** 해금 연출 중인 이유(null = 평소). 연출이 끝나면 실제로 연다. */
+    var unlocking by remember { mutableStateOf<UnlockVia?>(null) }
+
+    val startUnlock: () -> Unit = start@{
+        if (unlocking != null) return@start
+        when {
+            adFree -> unlocking = UnlockVia.AD_FREE
+            keys > 0 && QuestStore.spendKey() -> unlocking = UnlockVia.KEY
+            else -> watchAdForKey(context) { unlocking = UnlockVia.AD }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -240,28 +310,89 @@ internal fun LockedContentCard(
             .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 30.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        CrystalPullIcon(
-            icon = if (adFree) OpenLockLogo else PlayLogo,
-            color = accent,
-            iconSize = 54.dp,
-            seed = lockSeed(diaryId, 1),
-            contentDescription = stringResource(if (adFree) R.string.detail_open_now else R.string.detail_watch_ad),
-            onTap = { if (adFree) unlockWithoutAd(context, diaryId) else watchAdToUnlock(context, diaryId) },
-            // 디버그 빌드 전용: 길게 누르면 LevelPlay 테스트 스위트(네트워크별 연결/테스트 광고) — "No fill" 진단용.
-            onLongPress = if (BuildConfig.DEBUG) {
-                { context.findHostActivity()?.let { AdsManager.launchTestSuite(it) } }
-            } else null,
-        )
+        val via = unlocking
+        if (via != null) {
+            KeyUnlockAnimation(
+                color = accent,
+                seed = lockSeed(diaryId, 1),
+                showKey = via != UnlockVia.AD_FREE,
+                onFinished = {
+                    DiaryUnlockStore.unlock(context, diaryId)
+                    StaryToast.show(
+                        context.getString(
+                            when (via) {
+                                UnlockVia.KEY -> R.string.detail_key_unlocked
+                                UnlockVia.AD -> R.string.detail_ad_key_unlocked
+                                UnlockVia.AD_FREE -> R.string.detail_ad_unlocked
+                            }
+                        )
+                    )
+                    if (via == UnlockVia.KEY) QuestStore.report(QuestEvent.UNLOCK_KEY)
+                },
+            )
+        } else {
+            CrystalPullIcon(
+                icon = if (adFree) OpenLockLogo else LockLogo,
+                color = accent,
+                iconSize = 54.dp,
+                seed = lockSeed(diaryId, 1),
+                contentDescription = stringResource(
+                    when {
+                        adFree -> R.string.detail_open_now
+                        keys > 0 -> R.string.detail_use_key
+                        else -> R.string.detail_get_key_ad
+                    }
+                ),
+                onTap = startUnlock,
+                // 디버그 빌드 전용: 길게 누르면 LevelPlay 테스트 스위트(네트워크별 연결/테스트 광고) — "No fill" 진단용.
+                onLongPress = if (BuildConfig.DEBUG) {
+                    { context.findHostActivity()?.let { AdsManager.launchTestSuite(it) } }
+                } else null,
+            )
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            stringResource(
-                if (adFree) R.string.detail_locked_title_ad_free else R.string.detail_locked_title,
-                StaryConfig.DIARY_OPEN_RADIUS_M.toInt()
-            ),
+            when {
+                adFree -> stringResource(R.string.detail_locked_title_ad_free, StaryConfig.DIARY_OPEN_RADIUS_M.toInt())
+                keys > 0 -> stringResource(R.string.detail_locked_title_key, StaryConfig.DIARY_OPEN_RADIUS_M.toInt())
+                else -> stringResource(R.string.detail_locked_title_no_key)
+            },
             fontSize = 14.5.sp, lineHeight = 23.sp, fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.94f),
             textAlign = TextAlign.Center,
         )
+        if (!adFree) {
+            Spacer(modifier = Modifier.height(12.dp))
+            // 보유 열쇠 — 0개면 광고 유도 버튼을 함께 둔다.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (signedIn) KeyChip(keys = keys)
+                if (keys <= 0 && unlocking == null) {
+                    if (signedIn) Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Brush.linearGradient(listOf(QuestGold, Color(0xFFFFB259))))
+                            .clickable(onClick = startUnlock)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(PlayLogo, contentDescription = null, tint = Color(0xFF2A1A00), modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            stringResource(R.string.detail_get_key_ad),
+                            color = Color(0xFF2A1A00), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+            if (keys <= 0 && signedIn) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.detail_key_quest_hint),
+                    fontSize = 11.5.sp, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center,
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(12.dp))
         // 현재 위치로부터의 거리 — 위치를 아직 못 잡았으면 "확인 중". 숫자는 고정폭(tnum)이라 갱신돼도 흔들리지 않는다.
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -283,6 +414,117 @@ internal fun LockedContentCard(
         }
     }
 }
+
+/** 무엇으로 여는지 — 연출(열쇠 표시 여부)과 토스트 문구가 갈린다. */
+private enum class UnlockVia { KEY, AD, AD_FREE }
+
+/** 해금 연출 길이 — 열쇠가 들어가 도는 앞부분 / 고리가 튀고 빛이 퍼지는 뒷부분. iOS `DiaryLock.unlockTurnSec/unlockBurstSec` 와 같은 값. */
+private const val UNLOCK_TURN_MS = 720
+private const val UNLOCK_BURST_MS = 780
+
+/**
+ * 자물쇠 해금 연출(약 1.5초) — 끝나면 [onFinished](실제 해금 → 상세가 본문으로 바뀐다).
+ * ① 열쇠가 아래에서 떠올라 열쇠 구멍에 꽂히고(0~42%) ② 90° 돌며 자물쇠가 살짝 흔들린다(42~100% of turn)
+ * ③ 열린 자물쇠로 바뀌며 고리가 튀어 오르고, 금빛 고리 2겹이 퍼지며 자물쇠가 커졌다 사라진다.
+ * [showKey] = false(광고제거 계정)면 열쇠 없이 ③만.
+ */
+@Composable
+private fun KeyUnlockAnimation(color: Color, seed: Int, showKey: Boolean, onFinished: () -> Unit) {
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val iconSize = 54.dp
+    val bakePx = with(density) { (iconSize * 1.5f).roundToPx() }.coerceIn(48, 512)
+    val closedPainter = rememberVectorPainter(LockLogo)
+    val openPainter = rememberVectorPainter(OpenLockLogo)
+    val closed = remember(closedPainter, color, seed, bakePx) {
+        bakeCrystalIcon(closedPainter, color, seed = seed, sizePx = bakePx, layoutDirection = layoutDirection)
+    }
+    val open = remember(openPainter, color, seed, bakePx) {
+        bakeCrystalIcon(openPainter, color, seed = seed, sizePx = bakePx, layoutDirection = layoutDirection)
+    }
+    val turn = remember { Animatable(if (showKey) 0f else 1f) }
+    val burst = remember { Animatable(0f) }
+    val shackle = remember { Animatable(0f) }
+    val latestOnFinished by rememberUpdatedState(onFinished)
+    LaunchedEffect(Unit) {
+        if (showKey) {
+            Haptics.light()
+            turn.animateTo(1f, tween(UNLOCK_TURN_MS, easing = FastOutSlowInEasing))
+        }
+        // 딸깍 — 열린 자물쇠로 바뀌는 순간.
+        Haptics.celebrate()
+        com.chaminwoo.stary.core.util.MusicManager.playRevealChime()
+        launch { shackle.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 520f)) }
+        burst.animateTo(1f, tween(UNLOCK_BURST_MS, easing = FastOutSlowInEasing))
+        latestOnFinished()
+    }
+
+    val t = turn.value
+    val b = burst.value
+    val opened = t >= 1f
+    // 열쇠: 앞 42% 동안 아래(+48dp)에서 구멍(+10dp)까지 올라오고, 나머지 동안 90° 돈다. 열리면 빠르게 사라진다.
+    val rise = (t / 0.42f).coerceIn(0f, 1f)
+    val spin = ((t - 0.42f) / 0.58f).coerceIn(0f, 1f)
+    val keyY = lerpF(48f, 10f, easeOut(rise))
+    val keyAlpha = if (!opened) rise else (1f - b * 3f).coerceIn(0f, 1f)
+    val jiggle = if (spin in 0.05f..0.95f) kotlin.math.sin(spin * 18f) * 3.5f * (1f - spin) else 0f
+    val lockScale = 1f + 0.18f * kotlin.math.sin(b * Math.PI.toFloat()).coerceAtLeast(0f) + 0.10f * b
+    val lockAlpha = (1f - ((b - 0.62f) / 0.38f)).coerceIn(0f, 1f)
+
+    Box(modifier = Modifier.size(iconSize * 1.7f), contentAlignment = Alignment.Center) {
+        // 금빛 고리 2겹 + 중심 섬광 — 열린 뒤에만.
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            if (b <= 0f) return@Canvas
+            val base = size.minDimension / 2f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(QuestGold.copy(alpha = 0.55f * (1f - b)), Color.Transparent),
+                    center = center, radius = base * (0.6f + b),
+                ),
+                radius = base * (0.6f + b),
+            )
+            for ((i, c) in listOf(QuestGold, lerp(color, Color.White, 0.3f)).withIndex()) {
+                val p = ((b - i * 0.12f) / (1f - i * 0.12f)).coerceIn(0f, 1f)
+                if (p <= 0f) continue
+                drawCircle(
+                    color = c.copy(alpha = (1f - p) * 0.85f),
+                    radius = base * (0.45f + p * 1.25f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = (1f - p) * 3.dp.toPx() + 0.6f),
+                )
+            }
+        }
+        Image(
+            bitmap = if (opened) open else closed,
+            contentDescription = null,
+            modifier = Modifier
+                .size(iconSize)
+                .graphicsLayer {
+                    scaleX = lockScale; scaleY = lockScale
+                    alpha = lockAlpha
+                    rotationZ = jiggle
+                    // 고리가 튀어 오르는 느낌 — 열린 직후 살짝 위로 튄다(스프링 출렁).
+                    translationY = if (opened) -3.dp.toPx() * shackle.value * (1f - b) else 0f
+                },
+        )
+        if (showKey && keyAlpha > 0f) {
+            Icon(
+                Icons.Filled.Key, contentDescription = null, tint = QuestGold,
+                modifier = Modifier
+                    .size(26.dp)
+                    .graphicsLayer {
+                        translationY = keyY.dp.toPx()
+                        alpha = keyAlpha
+                        // 머티리얼 Key 는 가로(고리 왼쪽) — -90° 로 세워 구멍에 꽂고, 돌리면 0° 로 눕는다.
+                        rotationZ = -90f + 90f * easeInOut(spin)
+                    },
+            )
+        }
+    }
+}
+
+private fun lerpF(a: Float, b: Float, t: Float) = a + (b - a) * t
+private fun easeOut(t: Float) = 1f - (1f - t) * (1f - t)
+private fun easeInOut(t: Float) = if (t < 0.5f) 2f * t * t else 1f - (-2f * t + 2f).let { it * it } / 2f
 
 /**
  * 십자 코너 프레임 — **좌상단·우하단 두 모서리에만** 가는 십자선(천체 관측 레티클 / 인쇄 재단선 느낌).
@@ -486,12 +728,12 @@ private fun rubberBand(delta: Offset, maxPx: Float, softPx: Float): Offset {
 }
 
 /**
- * 보상형 광고를 보여주고, 끝까지 보면 이 게시물을 **영구 해금**한다([DiaryUnlockStore]).
+ * 열쇠가 없을 때 — 보상형 광고를 보여 주고, 끝까지 보면 [onRewarded](받은 열쇠로 바로 해금 연출).
  * 아직 로드 전이면 "광고를 불러오는 중이에요" 후 도착 즉시 재생([AdsManager.showRewardedWhenReady]).
  * 키 없음/로드 실패/시간 초과/Activity 없음 → "지금은 광고를 불러올 수 없어요".
  * 디버그 빌드에서는 원인(키 미설정 / LevelPlay 오류 코드)을 그대로 알려 준다(릴리스엔 일반 안내만).
  */
-internal fun watchAdToUnlock(context: Context, diaryId: String) {
+private fun watchAdForKey(context: Context, onRewarded: () -> Unit) {
     val ads = AdsManager
     if (ads.showing) return
     val activity = context.findHostActivity()
@@ -516,22 +758,10 @@ internal fun watchAdToUnlock(context: Context, diaryId: String) {
             )
         },
         onResult = { rewarded ->
-            if (rewarded) {
-                DiaryUnlockStore.unlock(context, diaryId)
-                Haptics.celebrate()
-                StaryToast.show(context.getString(R.string.detail_ad_unlocked))
-            } else {
-                StaryToast.show(context.getString(R.string.detail_ad_not_finished))
-            }
+            if (rewarded) onRewarded()
+            else StaryToast.show(context.getString(R.string.detail_ad_not_finished))
         },
     )
-}
-
-/** 광고제거 계정([AdFreeAccount]) — 광고 없이 바로 영구 해금(광고 시청 완료와 같은 결과·연출). */
-internal fun unlockWithoutAd(context: Context, diaryId: String) {
-    DiaryUnlockStore.unlock(context, diaryId)
-    Haptics.celebrate()
-    StaryToast.show(context.getString(R.string.detail_ad_unlocked))
 }
 
 /** 거리 표기 — 1km 이상이면 소수 1자리 km, 그 미만이면 정수 m. */

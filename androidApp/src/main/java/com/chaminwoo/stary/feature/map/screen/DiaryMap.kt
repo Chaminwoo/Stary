@@ -5,6 +5,9 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.view.View
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -170,6 +173,8 @@ fun DiaryMap(
      * 걸러서 남은 별이 더 눈에 띄게 하려는 것(2026-10-10). 모든 별에 깔던 오오라 하한(반투명 원)은 2026-10-19 삭제.
      */
     highlight: Boolean = false,
+    /** 우측 FAB 열 "!"(오늘의 퀘스트) — null 이면 버튼 없음(비로그인). 예전 몰입 버튼 자리(2026-10-19). */
+    onQuestClick: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val mapView = rememberMapViewWithLifecycle()
@@ -741,8 +746,14 @@ fun DiaryMap(
             if (wd.openCreate) DiaryOpenWarp(wd) { onWarpFinished(wd) }
         }
 
-        // 지도만 보기 모드에선 모든 버튼(좌상단 줌 + 우하단 FAB)을 숨긴다.
-        if (!MapUiState.mapOnly) {
+        // 집중(지도만 보기) 모드에선 모든 버튼(좌상단 줌 + 우하단 FAB)을 숨긴다 — 들어갈 땐 천천히, 나올 땐 빠르게 페이드.
+        AnimatedVisibility(
+            visible = !MapUiState.mapOnly,
+            enter = fadeIn(tween(MapUiState.CHROME_SHOW_MS)),
+            exit = fadeOut(tween(MapUiState.CHROME_HIDE_MS)),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
         // 좌상단 줌 버튼 (+/-) — 탭 1회당 한 단계 부드럽게, 꾹 누르면 연속 줌.
         // 지도는 Scaffold padding 을 안 먹으므로(MainScreen) 상태바 인셋 + 탑바 실제 높이(Material3
         // CenterAlignedTopAppBar 표준 64dp)를 직접 더해 기종별 상태바 높이 차이에 안전하게 대응한다.
@@ -785,7 +796,10 @@ fun DiaryMap(
 
             // 별자리 토글
             FloatingActionButton(
-                onClick = { constellationEnabled = !constellationEnabled },
+                onClick = {
+                    constellationEnabled = !constellationEnabled
+                    if (constellationEnabled) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.CONSTELLATION)
+                },
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp),
                 containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
@@ -799,20 +813,10 @@ fun DiaryMap(
                 )
             }
 
-            // 몰입(지도만 보기) — 탑바/필터/버튼을 모두 숨기고 지도에 집중
-            FloatingActionButton(
-                onClick = { MapUiState.enterMapOnly() },
-                shape = CircleShape,
-                elevation = FloatingActionButtonDefaults.elevation(0.dp),
-                containerColor = Color(0xEE111120), // 필터 버튼과 동일한 남색빛 검정
-                modifier = Modifier.size(48.dp).clickBounce().raisedCosmicBorder()
-            ) {
-                Icon(
-                    Icons.Filled.Visibility,
-                    stringResource(R.string.map_only),
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
-                )
+            // 오늘의 퀘스트("!") — 예전 몰입 버튼 자리. 집중 모드는 이제 가만히 두면 들어간다(MapUiState).
+            // 비로그인이면 버튼 없음(코치마크는 로그인 상태에서만 뜬다).
+            if (onQuestClick != null) {
+                com.chaminwoo.stary.feature.quest.QuestButton(onClick = onQuestClick)
             }
 
             // 다이어리 생성 (로그인 상태에서만 노출) — 탭하면 별 열람과 같은 파장 연출 후 작성 화면으로.
@@ -867,7 +871,8 @@ fun DiaryMap(
                 }
             }
         }
-        } // if (!MapUiState.mapOnly)
+        } // Box
+        } // AnimatedVisibility(!MapUiState.mapOnly)
 
         // 지도 왜곡 연출(별 열람/알림 포커스) — 스냅샷 이미지를 1초간 파장+울렁시킨 뒤 이동(세부는 멀쩡).
         // 업로드 연출과 달리 버튼까지 덮는 몰입 연출이라 버튼 위에 그린다.

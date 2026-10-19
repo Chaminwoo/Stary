@@ -146,7 +146,10 @@ fun MainListScreen(
     LaunchedEffect(liveLocation) { liveLocation?.let { currentLatLng = it } }
 
     // 첫 실행 기기 전용 웰컴 별 — 실제 위치 fix 가 잡히면 그 근방에 1회 배치(TutorialStarState 참고).
-    LaunchedEffect(liveLocation, TutorialStarState.done) {
+    // 로그인 상태면 **새 계정으로 확인됐을 때만** — 이전에 가입한 계정은 재설치여도 웰컴 별을 띄우지 않는다(ReturningAccountOnboarding).
+    val returningAccount by GoogleAuthHelper.returningAccount.collectAsState()
+    LaunchedEffect(liveLocation, TutorialStarState.done, returningAccount) {
+        if (GoogleAuthHelper.currentUserId != null && returningAccount != false) return@LaunchedEffect
         liveLocation?.let { TutorialStarState.ensurePlaced(context, it) }
     }
 
@@ -188,6 +191,10 @@ fun MainListScreen(
     }
     var showPeriodPicker by remember { mutableStateOf(false) }
     var speedDialExpanded by remember { mutableStateOf(false) }
+    // 집중 모드로 들어가면 펼친 필터 다이얼도 접는다(나왔을 때 옵션이 덮고 있지 않게).
+    LaunchedEffect(MapUiState.mapOnly) { if (MapUiState.mapOnly) speedDialExpanded = false }
+    // 오늘의 퀘스트 창(지도 "!" 버튼).
+    var showQuests by remember { mutableStateOf(false) }
 
     // 지금 색을 정하는 필터 = 가장 마지막에 켠 필터 — 빛의 고리(필터 전환 등장)와 지도에 도는 은은한 빛의 색.
     // 필터가 없으면 null(빛 꺼짐). 필터 조합(revealKey)과 같은 컴포지션에서 값이 정해져야 링 색이 한 박자 늦지 않는다.
@@ -516,11 +523,17 @@ fun MainListScreen(
             // 필터가 걸려 있으면 남은 별의 후광을 조금 더 밝게(2026-10-10).
             highlight = lockedOnly || friendsOnly || myOnly || unlockedOnly ||
                     selectedFriendIds.isNotEmpty() || periodDays != null,
+            onQuestClick = if (userId != null) {
+                { showQuests = true }
+            } else null,
             modifier = modifier,
         )
+        if (showQuests) {
+            com.chaminwoo.stary.feature.quest.QuestSheet(onDismiss = { showQuests = false })
+        }
 
-        // 필터 스피드 다이얼 (로그인한 경우 + 지도만 보기 모드가 아닐 때)
-        if (userId != null && !MapUiState.mapOnly) {
+        // 필터 스피드 다이얼 (로그인한 경우) — 집중(지도만 보기) 모드에선 다른 버튼과 같이 페이드로 숨는다.
+        if (userId != null) {
             val anyActive =
                 lockedOnly || friendsOnly || myOnly || unlockedOnly ||
                         selectedFriendIds.isNotEmpty() || periodDays != null
@@ -579,11 +592,16 @@ fun MainListScreen(
                 // (지도만 보기 항목은 제거됨 — 지도 우하단 몰입 버튼으로 대체)
             )
 
-            Column(
+            AnimatedVisibility(
+                visible = !MapUiState.mapOnly,
+                enter = fadeIn(tween(MapUiState.CHROME_SHOW_MS)),
+                exit = fadeOut(tween(MapUiState.CHROME_HIDE_MS)),
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 16.dp, bottom = 20.dp)
                     .navigationBarsPadding(),
+            ) {
+            Column(
                 horizontalAlignment = Alignment.Start,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -608,7 +626,13 @@ fun MainListScreen(
                                         color = if (opt.isActive) mint else Color.White.copy(alpha = 0.12f),
                                         shape = RoundedCornerShape(50)
                                     )
-                                    .clickable { opt.onClick() }
+                                    .clickable {
+                                        val wasActive = opt.isActive
+                                        opt.onClick()
+                                        if (!wasActive) com.chaminwoo.stary.feature.quest.QuestStore.report(
+                                            com.chaminwoo.stary.feature.quest.QuestEvent.FILTER
+                                        )
+                                    }
                                     .padding(horizontal = 16.dp, vertical = 10.dp)
                             ) {
                                 Icon(
@@ -650,11 +674,12 @@ fun MainListScreen(
                     )
                 }
             }
+            } // AnimatedVisibility(!mapOnly)
         }
 
         // ── 하단 "지구 보기" 버튼 — 줌을 충분히 빼면 나타나고, 눌러야 글로브로 전환 ──
         AnimatedVisibility(
-            visible = globeButtonCenter != null && globeCenter == null,
+            visible = globeButtonCenter != null && globeCenter == null && !MapUiState.mapOnly,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
@@ -675,6 +700,7 @@ fun MainListScreen(
                                 globeScrim.snapTo(0f)
                                 globeScrim.animateTo(1f, tween(170))
                                 globeCenter = lat to lng
+                                com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.GLOBE)
                                 globeScrim.animateTo(0f, tween(520))
                             }
                         }

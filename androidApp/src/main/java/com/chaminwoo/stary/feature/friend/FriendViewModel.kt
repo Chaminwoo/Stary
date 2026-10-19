@@ -57,6 +57,7 @@ class FriendViewModel(
             val name = GoogleAuthHelper.requireConfirmedName() ?: return@launch
             val from = me.copy(userName = name, profileImageUrl = GoogleAuthHelper.currentUserPhotoUrl ?: me.profileImageUrl)
             val ok = repository.sendRequest(from, to)
+            if (ok) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FRIEND_REQUEST)
             _event.emit(
                 if (ok) FriendMessage(com.chaminwoo.stary.R.string.friend_toast_request_sent, to.userName)
                 else FriendMessage(com.chaminwoo.stary.R.string.friend_toast_request_failed)

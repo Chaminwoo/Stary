@@ -120,6 +120,7 @@ fun GlobeScreen(
             onMeteor = { streak ->
                 com.chaminwoo.stary.core.util.MusicManager.playMeteor(streak) // 별가루 쉬머(연속일수록 높게)
                 com.chaminwoo.stary.feature.auth.GoogleAuthHelper.currentUserId?.let { meteorRepo.record(it, streak) }
+                com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.METEOR)
             }
         }
     }

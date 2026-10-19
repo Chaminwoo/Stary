@@ -65,6 +65,15 @@ object GoogleAuthHelper {
     private val _confirmedName = MutableStateFlow<String?>(null)
     val confirmedName: StateFlow<String?> = _confirmedName.asStateFlow()
 
+    /**
+     * 이번 로그인의 계정이 **이전에 가입했던 계정**인지 — 서버 `users/{uid}` 를 처음 읽었을 때 닉네임/사진이 이미 있었으면 true.
+     * null = 아직 모름(읽기 전/실패). 로그인(세션 복원 포함)마다 **첫 서버 읽기에서 한 번만** 정한다 — 그 뒤 재시도 때는
+     * 방금 이 기기가 쓴 프로필 때문에 새 계정도 "이미 있음"으로 보이므로 바꾸지 않는다.
+     * 기기 첫 실행(재설치)이라도 이미 가입한 계정이면 코치마크·웰컴 별·화면 안내를 건너뛰는 데 쓴다(MainScreen).
+     */
+    private val _returningAccount = MutableStateFlow<Boolean?>(null)
+    val returningAccount: StateFlow<Boolean?> = _returningAccount.asStateFlow()
+
     private var appContext: Context? = null
     private var profileSyncJob: Job? = null
     private var profileSyncUid: String? = null
@@ -107,6 +116,7 @@ object GoogleAuthHelper {
                 googleName = googleIdTokenCredential.displayName
                 currentUserName = googleName
                 _confirmedName.value = null
+                _returningAccount.value = null
                 googlePhotoUrl = googleIdTokenCredential.profilePictureUri?.toString()
                 // 내 사진은 서버(users/{uid}.profileImageUrl) 확정값만 — 아래 서버 읽기 전엔 비워 둔다(구글 사진을 먼저 싣지 않게).
                 currentUserPhotoUrl = null
@@ -186,6 +196,7 @@ object GoogleAuthHelper {
         googleName = google?.displayName ?: user.displayName
         currentUserName = googleName // 표시용 임시값 — 이어지는 applyStoredNickname/서버 확정으로 바뀐다
         _confirmedName.value = null
+        _returningAccount.value = null
         googlePhotoUrl = (google?.photoUrl ?: user.photoUrl)?.toString()
         currentUserPhotoUrl = null // 서버 값(아래)으로만 채운다 — 구글 사진을 먼저 싣지 않게
         currentUserEmail = user.email
@@ -227,6 +238,8 @@ object GoogleAuthHelper {
             if (readOk) {
                 val savedName = doc?.getString("userName")?.takeIf { it.isNotBlank() }
                 val savedPhoto = doc?.getString("profileImageUrl")?.takeIf { it.isNotBlank() }
+                // 첫 서버 읽기에서만 — 이 뒤 upsertProfile 이 채우면 새 계정도 "있음"이 된다.
+                if (_returningAccount.value == null) _returningAccount.value = savedName != null || savedPhoto != null
                 val name = savedName ?: googleName.orEmpty()
                 val photo = savedPhoto ?: googlePhotoUrl
                 currentUserName = name
@@ -308,6 +321,7 @@ object GoogleAuthHelper {
             currentUserName = null
             googleName = null
             _confirmedName.value = null
+            _returningAccount.value = null
             profileSyncPending = false
             profileSyncJob?.cancel()
             currentUserPhotoUrl = null

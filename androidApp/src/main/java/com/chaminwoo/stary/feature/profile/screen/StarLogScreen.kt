@@ -180,6 +180,9 @@ fun StarLogScreen(
     modifier: Modifier = Modifier,
 ) {
     val userId = GoogleAuthHelper.currentUserId
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.VISIT_STARLOG)
+    }
     val bgScroll = rememberBackgroundScroll()
     Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize().background(Color(0xFF0D0D0D))) {
         ScreenBackground(R.drawable.mydiary_bg, darken = 0.86f, scroll = bgScroll)

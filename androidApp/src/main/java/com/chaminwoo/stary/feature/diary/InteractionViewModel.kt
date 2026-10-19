@@ -35,7 +35,10 @@ class InteractionViewModel(
         viewModelScope.launch {
             // 좋아요/댓글 알림에 박히는 이름 — 서버 확인값만(첫 실행 직후 구글 기본 이름 방지, CLAUDE.md §2.6).
             val userName = GoogleAuthHelper.requireConfirmedName() ?: return@launch
+            val liking = !isLiked.value
             likeRepo.toggleLike(diaryId, diaryTitle, diaryOwnerId, userId, userName)
+            // 퀘스트는 좋아요를 "누를" 때만, 같은 별은 하루 한 번(눌렀다 취소 반복으로 채우지 않게).
+            if (liking) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.LIKE, key = diaryId)
         }
     }
 
@@ -44,6 +47,7 @@ class InteractionViewModel(
         viewModelScope.launch {
             val userName = GoogleAuthHelper.requireConfirmedName() ?: return@launch
             commentRepo.addComment(diaryId, diaryTitle, diaryOwnerId, userId, userName, content)
+            com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.COMMENT)
         }
     }
 

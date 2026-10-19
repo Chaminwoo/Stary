@@ -144,6 +144,10 @@ fun DetailScreen(
             repository.incrementViewCount(diaryId)
         }
         uid?.let { FirebaseViewedRepository().markViewed(it, diaryId) }
+        // 퀘스트 "남의 별 열어 보기" — 잠겨 있어도 들어와 본 것으로 센다(서로 다른 별만).
+        if (loaded != null && uid != null && loaded.userId != uid) {
+            com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.VIEW_OTHER, key = diaryId)
+        }
     }
 
     LaunchedEffect(Unit) {

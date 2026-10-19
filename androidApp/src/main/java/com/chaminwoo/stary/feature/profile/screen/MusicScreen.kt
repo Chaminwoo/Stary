@@ -122,6 +122,7 @@ fun MusicScreen(modifier: Modifier = Modifier) {
             pendingId = t.id
             // 다른 음악으로 바꾸면 그 곡의 처음부터 재생.
             MusicManager.playTrack(t.id, 0)
+            com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.MUSIC)
         } else {
             // ⚠️ 업적 이름은 한국어로 정의돼 있어 **표시 시점에 로케일 해석**을 거쳐야 한다
             //    (그냥 ach.name 을 넘기면 영어/일본어로 바꿔도 업적명만 한국어로 뜬다 — 2026-09-04 수정).

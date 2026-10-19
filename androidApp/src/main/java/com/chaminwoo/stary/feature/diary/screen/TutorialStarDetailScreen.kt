@@ -71,7 +71,10 @@ fun TutorialStarDetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { TutorialStarState.markDone(context) }
+    LaunchedEffect(Unit) {
+        TutorialStarState.markDone(context)
+        com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.TUTORIAL_STAR)
+    }
 
     val accent = StarStyle.colorOf(TutorialStarState.STAR_COLOR)
     // 방금 근처에 놓아 둔 별이라는 설정 — 날짜는 여는 시점. 형식은 DetailScreen 과 같게.

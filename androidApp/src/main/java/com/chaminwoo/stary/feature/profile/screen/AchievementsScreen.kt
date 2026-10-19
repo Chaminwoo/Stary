@@ -84,6 +84,7 @@ private val CardBg = Color(0xFF15151F)
 fun AchievementsScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val userId = GoogleAuthHelper.currentUserId
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.VISIT_ACHIEVEMENTS) }
 
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -136,6 +137,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
                         val next = if (equipped == ach.id) null else ach.id
                         StigmaStore.equip(context, userId, next)
                         equipped = next
+                        if (next != null) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.EQUIP_TITLE)
                         scope.launch {
                             com.chaminwoo.stary.data.repository.FirebaseFriendRepository()
                                 .setEquippedTitle(userId, next)
@@ -157,6 +159,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
                         val next = if (equipped == ach.id) null else ach.id
                         StigmaStore.equip(context, userId, next)
                         equipped = next
+                        if (next != null) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.EQUIP_TITLE)
                         scope.launch {
                             com.chaminwoo.stary.data.repository.FirebaseFriendRepository()
                                 .setEquippedTitle(userId, next)

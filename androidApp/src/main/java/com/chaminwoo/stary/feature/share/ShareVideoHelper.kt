@@ -47,6 +47,7 @@ object ShareVideoHelper {
             val out = File(context.cacheDir, "share_video_${diary.id}.mp4")
             // ⚠️ render 는 한 스레드에서 끝까지 돈다(EGL) — 이 블록 안에서 suspend 하지 않는다.
             val ok = ShareVideoRenderer(context, diary, sky).render(out, onProgress) { !job.isActive }
+            if (ok) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.SHARE, key = diary.id)
             if (ok) out else null
         }
     }

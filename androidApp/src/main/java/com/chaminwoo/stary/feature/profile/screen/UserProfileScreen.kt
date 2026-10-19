@@ -120,6 +120,10 @@ fun UserProfileScreen(
     onOpenChat: (friendId: String, friendName: String) -> Unit = { _, _ -> },
 ) {
     val myId = GoogleAuthHelper.currentUserId
+    // 일일 퀘스트 "다른 사람 프로필 구경하기".
+    androidx.compose.runtime.LaunchedEffect(userId) {
+        if (myId != null && userId != myId) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.VISIT_PROFILE)
+    }
 
     // 대상의 공개 프로필(사진/이름/장착 칭호) 로드 — 첫 페인트용 1회 조회.
     var fetchedPhoto by remember(userId) { mutableStateOf("") }
