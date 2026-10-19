@@ -486,9 +486,18 @@ fun UploadScreen(
                     }
                     coroutineScope.launch {
                         isUploading = true
+                        // 실제 위치를 못 잡으면(권한 없음·GPS 꺼짐·모의 위치) 올리지 않는다 — 예전엔 (0,0) 으로 저장돼
+                        // 지도에서 안 보이는 별이 생겼다(지도는 (0,0) 을 거른다). GPS 가 꺼져 있으면 응답이 없을 수 있어 10초 제한.
                         val curLatLng = LocationHelper.getCurrentLatLng()
-                        val lat = curLatLng?.latitude ?: LocationHelper.getCurrentLocation(context)?.latitude ?: 0.0
-                        val lng = curLatLng?.longitude ?: LocationHelper.getCurrentLocation(context)?.longitude ?: 0.0
+                        val fix = if (curLatLng == null) {
+                            kotlinx.coroutines.withTimeoutOrNull(10_000) { LocationHelper.getCurrentLocation(context) }
+                        } else null
+                        val lat = curLatLng?.latitude ?: fix?.latitude
+                        val lng = curLatLng?.longitude ?: fix?.longitude
+                        if (lat == null || lng == null) {
+                            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.upload_no_location))
+                            isUploading = false; return@launch
+                        }
                         // 첨부는 영상/이미지 중 하나(배타). 영상이 있으면 영상 우선.
                         var imageUrl = ""
                         var videoUrl = ""

@@ -375,6 +375,11 @@ struct UploadScreen: View {
             showToast(String(format: LocaleManager.shared.t(.uploadDailyLimit), AppConfig.dailyUploadLimit))
             return
         }
+        // 실제 위치(fix)가 없으면 올리지 않는다 — 예전엔 기본좌표(서울)로 저장돼 엉뚱한 곳에 별이 생겼다.
+        // 첨부 업로드 전에 막아 Storage 에 주인 없는 파일이 남지 않게. (Android UploadScreen 패리티)
+        guard let coord = location.coordinate else {
+            showToast(LocaleManager.shared.t(.uploadNoLocation)); return
+        }
         saving = true
         defer { saving = false }
         // 올리기 성공 순간의 축하 진동(StarBirthStore.trigger → Haptics.celebrate)이 확실히 울리도록
@@ -403,7 +408,6 @@ struct UploadScreen: View {
             catch { showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
         }
 
-        let coord = location.coordinateOrDefault
         let diary = Diary(
             userId: uid,
             userName: auth.displayName,

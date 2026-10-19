@@ -175,7 +175,7 @@ enum L10n: String {
     case toastCameraPermission, toastCameraUnavailable, commonDone
     case uploadStarShape, uploadStarColor, uploadVisibility, uploadAnonymous
     case uploadVisPublic, uploadVisFriends, uploadVisPrivate
-    case uploadDailyLimit, toastUnlockAchievement, toastImageUploadFailed, uploadDone, uploadPreview
+    case uploadDailyLimit, toastUnlockAchievement, toastImageUploadFailed, uploadDone, uploadPreview, uploadNoLocation
     // 친구/채팅/로그인/알림 화면.
     case friendSearchPlaceholder, friendAdd, friendAccept, friendDecline
     case friendRequests, friendMyFriends, friendEmpty, friendNoName, commonSearch
@@ -520,6 +520,9 @@ enum L10n: String {
                                               "Unlock by earning the “%@” achievement!",
                                               "「%@」の実績を達成して解放しましょう！")
         case .toastImageUploadFailed: return ("이미지 업로드 실패: %@", "Image upload failed: %@", "画像のアップロードに失敗: %@")
+        case .uploadNoLocation:     return ("현재 위치를 확인할 수 없어요. 위치 권한과 GPS를 켜고 다시 시도해 주세요",
+                                            "Couldn't find your current location. Turn on location permission and GPS, then try again",
+                                            "現在地を確認できません。位置情報の許可とGPSをオンにしてもう一度お試しください")
         case .uploadDone:           return ("별을 남겼어요 ✨", "Star saved ✨", "星を残しました ✨")
         case .uploadPreview:        return ("미리보기", "Preview", "プレビュー")
         case .friendSearchPlaceholder: return ("이름으로 친구 찾기", "Find friends by name", "名前で友達を探す")
