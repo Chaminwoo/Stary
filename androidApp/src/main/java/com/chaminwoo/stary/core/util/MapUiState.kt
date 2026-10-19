@@ -15,7 +15,7 @@ import androidx.compose.runtime.setValue
  */
 object MapUiState {
     /** 이만큼 가만히 있으면 집중 모드(iOS `MapChromeState.idleSeconds` 와 같은 값). */
-    const val IDLE_MS = 20_000L
+    const val IDLE_MS = 10_000L
     /** 집중 모드로 들어갈 때 버튼·탑바가 사라지는 페이드(천천히) / 나올 때 다시 보이는 페이드(빠르게). iOS 와 같은 값. */
     const val CHROME_HIDE_MS = 1200
     const val CHROME_SHOW_MS = 260

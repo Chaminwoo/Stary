@@ -702,7 +702,7 @@
     <string name="quest_music_hint">메뉴 > 배경음악에서 다른 곡을 골라요</string>
     <string name="quest_star_log">별 도감 둘러보기</string>
     <string name="quest_star_log_hint">메뉴 > 별 도감에서 내가 연 별을 모아 봐요</string>
-    <string name="quest_focus">지도를 20초 동안 가만히 바라보기</string>
+    <string name="quest_focus">지도를 10초 동안 가만히 바라보기</string>
     <string name="quest_focus_hint">아무것도 누르지 않으면 버튼이 사라지고 별만 남아요</string>
     <string name="quest_use_key">열쇠로 멀리 있는 별 열기</string>
     <string name="quest_use_key_hint">잠긴 별에서 자물쇠를 눌러 열쇠를 써요</string>

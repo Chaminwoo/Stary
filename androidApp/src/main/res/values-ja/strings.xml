@@ -699,7 +699,7 @@
     <string name="quest_music_hint">メニュー > BGMで別の曲を選ぶ</string>
     <string name="quest_star_log">星図鑑を見てみる</string>
     <string name="quest_star_log_hint">メニュー > 星図鑑で開いた星を眺めよう</string>
-    <string name="quest_focus">地図を20秒じっと眺める</string>
+    <string name="quest_focus">地図を10秒じっと眺める</string>
     <string name="quest_focus_hint">何も触らなければボタンが消えて星だけが残ります</string>
     <string name="quest_use_key">鍵で遠くの星を開く</string>
     <string name="quest_use_key_hint">ロックされた星で南京錠をタップして鍵を使う</string>

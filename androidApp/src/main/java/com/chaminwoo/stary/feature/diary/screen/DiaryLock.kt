@@ -20,7 +20,8 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
-import com.chaminwoo.stary.feature.quest.KeyChip
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import com.chaminwoo.stary.feature.quest.QuestEvent
 import com.chaminwoo.stary.feature.quest.QuestGold
 import com.chaminwoo.stary.feature.quest.QuestStore
@@ -264,10 +265,11 @@ private val LOCK_CAPTION_COLOR = Color(0xE6AEBBDF)
 private val LOCK_CAPTION_GLOW = Color(0x997F93CC)
 
 /**
- * 잠긴 글의 본문 자리 — 크리스탈 자물쇠 + 여는 방법 + 보유 열쇠 + 현재 위치로부터의 거리(2026-10-19 열쇠 방식).
+ * 잠긴 글의 본문 자리 — 크리스탈 자물쇠 + 여는 방법(문구 고정) + 현재 위치로부터의 거리(2026-10-19 열쇠 방식).
  *
  * - 열쇠가 있으면 자물쇠를 탭 → 열쇠 1개를 쓰고 [KeyUnlockAnimation](열쇠가 들어가 돌고 고리가 튀어 오름) 뒤 영구 해금.
- * - 열쇠가 없으면 탭(또는 "광고 보고 열쇠 받기") → 보상형 광고 → 받은 열쇠로 바로 같은 연출 뒤 해금(열쇠 수는 그대로).
+ * - 열쇠가 없으면 탭 → "열쇠가 없어요" 팝업([NoKeyDialog]) → "광고 보고 열쇠 받기" → 보상형 광고 → 받은 열쇠로 같은 연출 뒤 해금.
+ *   (카드에는 열쇠 개수·광고 버튼·퀘스트 안내를 두지 않는다 — 사용자 지시 2026-10-19.)
  * - 광고제거 계정은 광고·열쇠 없이 같은 연출로 바로 연다.
  * 열쇠는 오늘의 퀘스트 보상([QuestStore]). 비로그인이면 열쇠가 없으니 광고로만 연다.
  *
@@ -285,20 +287,32 @@ internal fun LockedContentCard(
     // 광고제거 계정 — 광고 없이 탭 한 번에 해금(안내 문구도 "바로 열기").
     val adFree = AdFreeAccount.active
     val keys = QuestStore.keys
-    val signedIn = QuestStore.available
     // 열쇠가 없을 때만 광고가 필요하다 — 화면에 들어온 순간 미리 로드해 두면 눌렀을 때 기다림이 없다.
     LaunchedEffect(ads.initialized, adFree, keys) { if (!adFree && keys <= 0) ads.preload() }
 
     /** 해금 연출 중인 이유(null = 평소). 연출이 끝나면 실제로 연다. */
     var unlocking by remember { mutableStateOf<UnlockVia?>(null) }
+    /** 열쇠 없이 자물쇠를 눌렀을 때 — 광고로 열쇠를 받으라는 팝업. */
+    var showNoKey by remember { mutableStateOf(false) }
 
     val startUnlock: () -> Unit = start@{
         if (unlocking != null) return@start
         when {
             adFree -> unlocking = UnlockVia.AD_FREE
             keys > 0 && QuestStore.spendKey() -> unlocking = UnlockVia.KEY
-            else -> watchAdForKey(context) { unlocking = UnlockVia.AD }
+            else -> showNoKey = true
         }
+    }
+
+    if (showNoKey) {
+        NoKeyDialog(
+            accent = accent,
+            onWatchAd = {
+                showNoKey = false
+                watchAdForKey(context) { unlocking = UnlockVia.AD }
+            },
+            onDismiss = { showNoKey = false },
+        )
     }
 
     Column(
@@ -336,13 +350,7 @@ internal fun LockedContentCard(
                 color = accent,
                 iconSize = 54.dp,
                 seed = lockSeed(diaryId, 1),
-                contentDescription = stringResource(
-                    when {
-                        adFree -> R.string.detail_open_now
-                        keys > 0 -> R.string.detail_use_key
-                        else -> R.string.detail_get_key_ad
-                    }
-                ),
+                contentDescription = stringResource(if (adFree) R.string.detail_open_now else R.string.detail_use_key),
                 onTap = startUnlock,
                 // 디버그 빌드 전용: 길게 누르면 LevelPlay 테스트 스위트(네트워크별 연결/테스트 광고) — "No fill" 진단용.
                 onLongPress = if (BuildConfig.DEBUG) {
@@ -351,48 +359,14 @@ internal fun LockedContentCard(
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
+        // 문구 고정 — 열쇠가 있든 없든 같은 안내(없으면 탭했을 때 팝업이 광고를 안내한다). 광고제거 계정만 "바로 열기".
         Text(
-            when {
-                adFree -> stringResource(R.string.detail_locked_title_ad_free, StaryConfig.DIARY_OPEN_RADIUS_M.toInt())
-                keys > 0 -> stringResource(R.string.detail_locked_title_key, StaryConfig.DIARY_OPEN_RADIUS_M.toInt())
-                else -> stringResource(R.string.detail_locked_title_no_key)
-            },
+            if (adFree) stringResource(R.string.detail_locked_title_ad_free, StaryConfig.DIARY_OPEN_RADIUS_M.toInt())
+            else stringResource(R.string.detail_locked_title_key, StaryConfig.DIARY_OPEN_RADIUS_M.toInt()),
             fontSize = 14.5.sp, lineHeight = 23.sp, fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.94f),
             textAlign = TextAlign.Center,
         )
-        if (!adFree) {
-            Spacer(modifier = Modifier.height(12.dp))
-            // 보유 열쇠 — 0개면 광고 유도 버튼을 함께 둔다.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (signedIn) KeyChip(keys = keys)
-                if (keys <= 0 && unlocking == null) {
-                    if (signedIn) Spacer(modifier = Modifier.width(8.dp))
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Brush.linearGradient(listOf(QuestGold, Color(0xFFFFB259))))
-                            .clickable(onClick = startUnlock)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(PlayLogo, contentDescription = null, tint = Color(0xFF2A1A00), modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            stringResource(R.string.detail_get_key_ad),
-                            color = Color(0xFF2A1A00), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
-            }
-            if (keys <= 0 && signedIn) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.detail_key_quest_hint),
-                    fontSize = 11.5.sp, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center,
-                )
-            }
-        }
         Spacer(modifier = Modifier.height(12.dp))
         // 현재 위치로부터의 거리 — 위치를 아직 못 잡았으면 "확인 중". 숫자는 고정폭(tnum)이라 갱신돼도 흔들리지 않는다.
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -410,6 +384,69 @@ internal fun LockedContentCard(
                     fontFeatureSettings = "tnum",
                     color = MaterialTheme.colorScheme.secondary,
                 ),
+            )
+        }
+    }
+}
+
+/**
+ * 열쇠 없이 자물쇠를 눌렀을 때의 팝업 — "열쇠가 없어요" + 광고 보고 열쇠 받기(금색) / 취소.
+ * iOS `DetailScreen.noKeyDialog` 와 같은 구성.
+ */
+@Composable
+private fun NoKeyDialog(accent: Color, onWatchAd: () -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xFF12141C))
+                .border(1.dp, lerp(accent, Color.White, 0.2f).copy(alpha = 0.35f), RoundedCornerShape(22.dp))
+                .padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawCircle(Brush.radialGradient(listOf(QuestGold.copy(alpha = 0.28f), Color.Transparent)))
+                }
+                Icon(LockLogo, contentDescription = null, tint = lerp(accent, Color.White, 0.35f), modifier = Modifier.size(34.dp))
+                Icon(
+                    Icons.Filled.Key, contentDescription = null, tint = QuestGold.copy(alpha = 0.9f),
+                    modifier = Modifier.align(Alignment.BottomEnd).size(20.dp).graphicsLayer { rotationZ = -40f },
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                stringResource(R.string.detail_locked_title_no_key),
+                fontSize = 15.sp, lineHeight = 23.sp, fontWeight = FontWeight.Medium,
+                color = Color(0xFFF0F0F0), textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(50))
+                    .background(Brush.linearGradient(listOf(QuestGold, Color(0xFFFFB259))))
+                    .clickable(onClick = onWatchAd)
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(PlayLogo, contentDescription = null, tint = Color(0xFF2A1A00), modifier = Modifier.size(17.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.detail_get_key_ad),
+                    color = Color(0xFF2A1A00), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.common_cancel),
+                color = Color(0xFF8A8A8A), fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .clickable(onClick = onDismiss)
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
             )
         }
     }

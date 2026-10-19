@@ -699,7 +699,7 @@
     <string name="quest_music_hint">Pick another track in Menu > Music</string>
     <string name="quest_star_log">Browse your Star Log</string>
     <string name="quest_star_log_hint">See every star you\'ve opened in Menu > Star Log</string>
-    <string name="quest_focus">Gaze at the map for 20 seconds</string>
+    <string name="quest_focus">Gaze at the map for 10 seconds</string>
     <string name="quest_focus_hint">Don\'t touch anything — the buttons fade away and only stars remain</string>
     <string name="quest_use_key">Open a far-away star with a key</string>
     <string name="quest_use_key_hint">Tap the lock on a locked star to use a key</string>

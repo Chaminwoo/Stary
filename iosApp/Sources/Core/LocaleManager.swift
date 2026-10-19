@@ -781,7 +781,7 @@ enum L10n: String {
         case .questMusicHint: return ("메뉴 > 배경음악에서 다른 곡을 골라요", "Pick another track in Menu > Music", "メニュー > BGMで別の曲を選ぶ")
         case .questStarLog: return ("별 도감 둘러보기", "Browse your Star Log", "星図鑑を見てみる")
         case .questStarLogHint: return ("메뉴 > 별 도감에서 내가 연 별을 모아 봐요", "See every star you've opened in Menu > Star Log", "メニュー > 星図鑑で開いた星を眺めよう")
-        case .questFocus: return ("지도를 20초 동안 가만히 바라보기", "Gaze at the map for 20 seconds", "地図を20秒じっと眺める")
+        case .questFocus: return ("지도를 10초 동안 가만히 바라보기", "Gaze at the map for 10 seconds", "地図を10秒じっと眺める")
         case .questFocusHint: return ("아무것도 누르지 않으면 버튼이 사라지고 별만 남아요", "Don't touch anything — the buttons fade away and only stars remain", "何も触らなければボタンが消えて星だけが残ります")
         case .questUseKey: return ("열쇠로 멀리 있는 별 열기", "Open a far-away star with a key", "鍵で遠くの星を開く")
         case .questUseKeyHint: return ("잠긴 별에서 자물쇠를 눌러 열쇠를 써요", "Tap the lock on a locked star to use a key", "ロックされた星で南京錠をタップして鍵を使う")

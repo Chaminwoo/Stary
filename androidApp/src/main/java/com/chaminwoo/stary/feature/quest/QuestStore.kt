@@ -23,6 +23,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import com.chaminwoo.stary.data.repository.MeteorStatsRepository
+import com.google.firebase.firestore.MetadataChanges
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
@@ -44,6 +46,7 @@ object QuestStore {
     private const val TAG = "QuestStore"
     private const val FIELD_KEYS = "questKeys"
     private const val FIELD_QUEST = "quest"
+    private const val RETURNING_WAIT_MS = 8_000L
 
     data class Daily(
         val day: String,
@@ -74,6 +77,9 @@ object QuestStore {
     private var registration: ListenerRegistration? = null
     private var returningJob: Job? = null
     private var serverSeen = false
+    /** 서버 확인 뒤에도 [GoogleAuthHelper.returningAccount] 를 끝내 모르면(프로필 읽기 실패) "이전 계정"으로 보고 목록을 만든다. */
+    private var returningFallback = false
+    private var fallbackJob: Job? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private fun doc(uid: String) = staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
@@ -86,9 +92,18 @@ object QuestStore {
         stop()
         this.uid = uid
         appContext = context.applicationContext
-        registration = doc(uid).addSnapshotListener { snap, error ->
+        // MetadataChanges.INCLUDE — 캐시 값이 서버와 같으면 "서버 확인됨"은 메타데이터만 바뀐 이벤트로 온다.
+        // 이걸 안 받으면 serverSeen 이 영영 false 라 오늘 목록을 못 만들어 퀘스트 창이 무한 로딩이었다(2026-10-19).
+        registration = doc(uid).addSnapshotListener(MetadataChanges.INCLUDE) { snap, error ->
             if (error != null || snap == null || this.uid != uid) return@addSnapshotListener
-            if (!snap.metadata.isFromCache) serverSeen = true
+            if (!snap.metadata.isFromCache && !serverSeen) {
+                serverSeen = true
+                fallbackJob = scope.launch {
+                    delay(RETURNING_WAIT_MS)
+                    returningFallback = true
+                    ensureToday()
+                }
+            }
             apply(snap)
             ensureToday()
         }
@@ -103,8 +118,11 @@ object QuestStore {
         registration = null
         returningJob?.cancel()
         returningJob = null
+        fallbackJob?.cancel()
+        fallbackJob = null
         uid = null
         serverSeen = false
+        returningFallback = false
         keys = 0
         daily = null
     }
@@ -134,7 +152,7 @@ object QuestStore {
         val today = today()
         val cur = daily
         if (cur != null && cur.day == today) return
-        val returning = GoogleAuthHelper.returningAccount.value ?: return
+        val returning = GoogleAuthHelper.returningAccount.value ?: if (returningFallback) true else return
         val dayNo = (cur?.dayNo ?: 0) + 1
         val tutorial = !returning && !TutorialStarState.done
         val ids = DailyQuests.pick(uid, today, dayNo, cur?.ids ?: emptyList(), tutorial)

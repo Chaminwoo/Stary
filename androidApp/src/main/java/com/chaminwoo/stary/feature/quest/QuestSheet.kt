@@ -212,7 +212,7 @@ fun QuestSheet(onDismiss: () -> Unit) {
     var bump by remember { mutableStateOf(0) }
     // 열린 동안 날짜가 바뀌면 새 목록으로.
     LaunchedEffect(Unit) { QuestStore.ensureToday() }
-    // 창이 떠 있는 동안엔 지도 집중 모드(가만히 20초)에 들어가지 않는다 — Dialog 터치는 지도 루트가 못 본다.
+    // 창이 떠 있는 동안엔 지도 집중 모드(가만히 10초)에 들어가지 않는다 — Dialog 터치는 지도 루트가 못 본다.
     DisposableEffect(Unit) {
         MapUiState.holdIdle()
         onDispose { MapUiState.releaseIdle() }

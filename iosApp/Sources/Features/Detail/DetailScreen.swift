@@ -26,6 +26,8 @@ struct DetailScreen: View {
     @ObservedObject private var quests = QuestStore.shared
     /// 해금 연출 중인 이유(nil = 평소). 연출이 끝나면 실제로 연다.
     @State private var unlockingVia: UnlockVia?
+    /// 열쇠 없이 자물쇠를 눌렀을 때 — 광고로 열쇠를 받으라는 팝업(Android `NoKeyDialog`).
+    @State private var showNoKey = false
     /// 광고 결과·댓글 100m 안내 토스트(Android StaryToast 대응 — FriendsScreen 과 같은 ToastView 패턴).
     @State private var toast: String?
     @State private var didCountView = false
@@ -625,16 +627,15 @@ struct DetailScreen: View {
     /// 잠긴 글의 미디어가 영상(움짤/mp4)인가 — 캡션 "영상/사진" 구분용.
     private var isGifOrVideo: Bool { !diary.videoUrl.isEmpty }
 
-    /// 잠긴 글의 본문 자리 — 좌상단·우하단 **십자 코너**(`CornerCrossFrame`) 안에 크리스탈 자물쇠 + 여는 방법
-    /// + 보유 열쇠 + 현재 위치로부터의 거리(2026-10-19 열쇠 방식 — 예전 재생 로고·"광고를 통해 해금" 대체).
+    /// 잠긴 글의 본문 자리 — 좌상단·우하단 **십자 코너**(`CornerCrossFrame`) 안에 크리스탈 자물쇠 + 여는 방법(문구 고정)
+    /// + 현재 위치로부터의 거리(2026-10-19 열쇠 방식 — 예전 재생 로고·"광고를 통해 해금" 대체).
     /// - 열쇠가 있으면 자물쇠 탭 → 열쇠 1개를 쓰고 [KeyUnlockAnimationView] 뒤 영구 해금.
-    /// - 열쇠가 없으면 탭(또는 "광고 보고 열쇠 받기") → 보상형 광고 → 받은 열쇠로 바로 같은 연출(열쇠 수는 그대로).
+    /// - 열쇠가 없으면 탭 → "열쇠가 없어요" 팝업 → "광고 보고 열쇠 받기" → 보상형 광고 → 받은 열쇠로 같은 연출.
+    ///   (카드에는 열쇠 개수·광고 버튼·퀘스트 안내를 두지 않는다 — 사용자 지시 2026-10-19.)
     /// - 광고제거 계정은 광고·열쇠 없이 같은 연출로 바로 연다. 열쇠는 오늘의 퀘스트 보상(`QuestStore`).
     /// (Android `DiaryLock.kt` `LockedContentCard` 패리티 — 수치 동일)
     private var lockedContentCard: some View {
-        let keys = quests.keys
-        let signedIn = quests.available
-        return VStack(spacing: 0) {
+        VStack(spacing: 0) {
             if let via = unlockingVia {
                 KeyUnlockAnimationView(
                     color: accent,
@@ -648,56 +649,18 @@ struct DetailScreen: View {
                         : DiaryLock.lockImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 54),
                     color: accent,
                     iconSize: 54,
-                    accessibilityText: LocaleManager.shared.t(
-                        adFree.active ? .detailOpenNow : (keys > 0 ? .detailUseKey : .detailGetKeyAd)),
+                    accessibilityText: LocaleManager.shared.t(adFree.active ? .detailOpenNow : .detailUseKey),
                     onTap: { startUnlock() }
                 )
             }
             Spacer().frame(height: 6)
-            Group {
-                if adFree.active {
-                    Text(String(format: LocaleManager.shared.t(.detailLockedTitleAdFree), Int(AppConfig.diaryOpenRadiusM)))
-                } else if keys > 0 {
-                    Text(String(format: LocaleManager.shared.t(.detailLockedTitleKey), Int(AppConfig.diaryOpenRadiusM)))
-                } else {
-                    Text(LocaleManager.shared.t(.detailLockedTitleNoKey))
-                }
-            }
-            .font(.minSans(14.5, .medium))
-            .lineSpacing(7)
-            .multilineTextAlignment(.center)
-            .foregroundStyle(Theme.textPrimary.opacity(0.94))
-            if !adFree.active {
-                Spacer().frame(height: 12)
-                // 보유 열쇠 — 0개면 광고 유도 버튼을 함께 둔다.
-                HStack(spacing: 8) {
-                    if signedIn { KeyChip(keys: keys) }
-                    if keys <= 0 && unlockingVia == nil {
-                        Button { startUnlock() } label: {
-                            HStack(spacing: 5) {
-                                Image(uiImage: DiaryLock.playLogoImage(color: QuestTheme.ink, seed: 0, size: 15))
-                                    .renderingMode(.template)
-                                    .resizable()
-                                    .frame(width: 15, height: 15)
-                                Text(LocaleManager.shared.t(.detailGetKeyAd))
-                                    .font(.minSans(12.5, .medium))
-                            }
-                            .foregroundStyle(QuestTheme.ink)
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(LinearGradient(colors: [QuestTheme.gold, QuestTheme.goldDeep],
-                                                       startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                if keys <= 0 && signedIn {
-                    Text(LocaleManager.shared.t(.detailKeyQuestHint))
-                        .font(.minSans(11.5))
-                        .foregroundStyle(Theme.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 8)
-                }
-            }
+            // 문구 고정 — 열쇠가 있든 없든 같은 안내(없으면 탭했을 때 팝업이 광고를 안내한다). 광고제거 계정만 "바로 열기".
+            Text(String(format: LocaleManager.shared.t(adFree.active ? .detailLockedTitleAdFree : .detailLockedTitleKey),
+                        Int(AppConfig.diaryOpenRadiusM)))
+                .font(.minSans(14.5, .medium))
+                .lineSpacing(7)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Theme.textPrimary.opacity(0.94))
             Spacer().frame(height: 12)
             HStack(spacing: 5) {
                 Image(systemName: "location")
@@ -721,12 +684,75 @@ struct DetailScreen: View {
         .padding(.vertical, 8)
         // 열쇠가 없을 때만 광고가 필요하다 — 미리 로드(광고제거 계정은 광고를 받지 않는다).
         .onAppear { if !adFree.active && quests.keys <= 0 { ads.preload() } }
+        .staryDialog(isPresented: $showNoKey) { noKeyDialog }
+    }
+
+    /// 열쇠 없이 자물쇠를 눌렀을 때의 팝업 — "열쇠가 없어요" + 광고 보고 열쇠 받기(금색) / 취소. (Android `NoKeyDialog` 패리티)
+    private var noKeyDialog: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                Circle()
+                    .fill(RadialGradient(colors: [QuestTheme.gold.opacity(0.28), .clear],
+                                         center: .center, startRadius: 0, endRadius: 32))
+                    .frame(width: 64, height: 64)
+                Image(uiImage: DiaryLock.lockImage(color: accent, seed: DiaryLock.seed(diary.id, slot: 1), size: 34))
+                    .resizable()
+                    .frame(width: 34, height: 34)
+                Image(systemName: "key.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(QuestTheme.gold.opacity(0.9))
+                    .rotationEffect(.degrees(-40))
+                    .offset(x: 20, y: 20)
+            }
+            .frame(width: 64, height: 64)
+            Text(LocaleManager.shared.t(.detailLockedTitleNoKey))
+                .font(.minSans(15, .medium))
+                .lineSpacing(7)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.top, 14)
+            Button {
+                showNoKey = false
+                // 팝업(fullScreenCover)이 닫힌 뒤에 광고를 띄워야 표시가 씹히지 않는다.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { watchAdForKey() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(uiImage: DiaryLock.playLogoImage(color: QuestTheme.ink, seed: 0, size: 17))
+                        .renderingMode(.template)
+                        .resizable()
+                        .frame(width: 17, height: 17)
+                    Text(LocaleManager.shared.t(.detailGetKeyAd))
+                        .font(.minSans(14, .semibold))
+                }
+                .foregroundStyle(QuestTheme.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(LinearGradient(colors: [QuestTheme.gold, QuestTheme.goldDeep],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 18)
+            Button { showNoKey = false } label: {
+                Text(LocaleManager.shared.t(.commonCancel))
+                    .font(.minSans(13))
+                    .foregroundStyle(Theme.textSecondary)
+                    .padding(.horizontal, 18).padding(.vertical, 10)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+        }
+        .padding(.horizontal, 22).padding(.top, 24).padding(.bottom, 14)
+        .frame(maxWidth: StaryDialogStyle.maxWidth)
+        .background(Color(hex: 0x12141C), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22)
+            .stroke(accent.blended(with: .white, fraction: 0.2).opacity(0.35), lineWidth: 1))
+        .padding(.horizontal, StaryDialogStyle.screenPadding)
     }
 
     /// 무엇으로 여는지 — 연출(열쇠 표시 여부)과 토스트 문구가 갈린다(Android `UnlockVia`).
     enum UnlockVia { case key, ad, adFree }
 
-    /// 자물쇠 탭 / "광고 보고 열쇠 받기" — 광고제거 계정 → 바로, 열쇠 있음 → 1개 쓰고, 없음 → 광고로 열쇠 받기.
+    /// 자물쇠 탭 — 광고제거 계정 → 바로, 열쇠 있음 → 1개 쓰고, 없음 → "열쇠가 없어요" 팝업(광고로 열쇠 받기).
     private func startUnlock() {
         guard unlockingVia == nil else { return }
         if adFree.active {
@@ -734,7 +760,7 @@ struct DetailScreen: View {
         } else if quests.keys > 0, quests.spendKey() {
             unlockingVia = .key
         } else {
-            watchAdForKey()
+            showNoKey = true
         }
     }
 

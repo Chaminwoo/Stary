@@ -170,6 +170,9 @@ final class QuestStore: ObservableObject {
     private var listener: ListenerRegistration?
     private var serverSeen = false
     private var returning: Bool?
+    /// 서버 확인 뒤에도 이전 계정 여부를 끝내 모르면(프로필 읽기 실패) "이전 계정"으로 보고 목록을 만든다(Android 동일).
+    private var returningFallback = false
+    private var fallbackTask: Task<Void, Never>?
     private var countedKeys = Set<String>()
     private var countedDay: String?
 
@@ -192,10 +195,15 @@ final class QuestStore: ObservableObject {
         listener = nil
         self.uid = uid
         serverSeen = false
+        returningFallback = false
+        fallbackTask?.cancel()
+        fallbackTask = nil
         keys = 0
         daily = nil
         guard let uid, !uid.isEmpty else { self.uid = nil; return }
-        listener = FirestoreService.users.document(uid).addSnapshotListener { snap, error in
+        // includeMetadataChanges — 캐시 값이 서버와 같으면 "서버 확인됨"은 메타데이터만 바뀐 이벤트로 온다.
+        // 이걸 안 받으면 serverSeen 이 영영 false 라 오늘 목록을 못 만들어 퀘스트 창이 무한 로딩이었다(2026-10-19).
+        listener = FirestoreService.users.document(uid).addSnapshotListener(includeMetadataChanges: true) { snap, error in
             guard error == nil, let snap else { return }
             // 값만 꺼내 메인 액터로 넘긴다(스냅샷 객체는 넘기지 않는다).
             let parsed = Self.parse(snap)
@@ -203,7 +211,15 @@ final class QuestStore: ObservableObject {
             Task { @MainActor in
                 let store = QuestStore.shared
                 guard store.uid == uid else { return }
-                if fromServer { store.serverSeen = true }
+                if fromServer && !store.serverSeen {
+                    store.serverSeen = true
+                    store.fallbackTask = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 8_000_000_000)
+                        guard !Task.isCancelled, QuestStore.shared.uid == uid else { return }
+                        QuestStore.shared.returningFallback = true
+                        QuestStore.shared.ensureToday()
+                    }
+                }
                 store.keys = parsed.keys
                 store.daily = parsed.daily
                 store.ensureToday()
@@ -239,7 +255,7 @@ final class QuestStore: ObservableObject {
 
     /// 날짜가 바뀌었으면 새 목록을 만든다(서버 확인 후). 자정을 넘겨 켜 둔 경우를 위해 RootView 가 1분마다도 부른다.
     func ensureToday() {
-        guard let uid, serverSeen, let returning else { return }
+        guard let uid, serverSeen, let returning = returning ?? (returningFallback ? true : nil) else { return }
         let today = Self.today()
         if let cur = daily, cur.day == today { return }
         let dayNo = (daily?.dayNo ?? 0) + 1

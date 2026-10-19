@@ -11,7 +11,7 @@ final class MapChromeState: ObservableObject {
     private init() {}
 
     /// 이만큼 가만히 있으면 집중 모드(Android `MapUiState.IDLE_MS` 와 같은 값).
-    static let idleSeconds: TimeInterval = 20
+    static let idleSeconds: TimeInterval = 10
     /// 집중 모드로 들어갈 때 버튼·상단바가 사라지는 페이드(천천히) / 나올 때 다시 보이는 페이드(빠르게) — Android `CHROME_HIDE_MS/SHOW_MS`.
     static let hideSeconds: Double = 1.2
     static let showSeconds: Double = 0.26

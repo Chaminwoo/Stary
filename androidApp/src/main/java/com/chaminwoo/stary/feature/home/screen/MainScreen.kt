@@ -369,7 +369,7 @@ fun MainScreen(
         }
     }
 
-    // 집중(지도만 보기) 모드 — 지도에서 MapUiState.IDLE_MS(20초) 동안 아무것도 안 건드리면 들어간다(2026-10-19, 예전 버튼 대체).
+    // 집중(지도만 보기) 모드 — 지도에서 MapUiState.IDLE_MS(10초) 동안 아무것도 안 건드리면 들어간다(2026-10-19, 예전 버튼 대체).
     // 지도가 보이고(다른 화면·로그인·드로어가 없고, 코치마크·창은 idleHolds) 앱이 앞에 있을 때만 센다. 나오는 건 루트 터치 관찰(아래 pointerInput).
     val focusEligible = isMapRoute && !showLogin &&
         drawerState.currentValue == DrawerValue.Closed && !drawerState.isAnimationRunning &&

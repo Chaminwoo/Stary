@@ -353,7 +353,7 @@ struct MainTabView: View {
             QuestStore.shared.setReturning(r)
             maybeStartCoachMark()
         }
-        // 집중(지도만 보기) — 지도에서 20초 동안 아무것도 안 건드리면 들어간다(2026-10-19, Android MainScreen 패리티).
+        // 집중(지도만 보기) — 지도에서 10초 동안 아무것도 안 건드리면 들어간다(2026-10-19, Android MainScreen 패리티).
         // 지도가 보이고(push 된 화면·드로어·코치마크·창이 없고) 앱이 앞에 있을 때만 센다. 나오는 건 TouchActivityRecognizer.
         .task {
             while !Task.isCancelled {
