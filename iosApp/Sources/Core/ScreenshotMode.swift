@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 
 /// App Store 스크린샷 자동 촬영 모드 — CI(`.github/workflows/ios.yml` 의 screenshots 잡)가
@@ -21,8 +22,16 @@ enum ScreenshotMode {
     static var entersAsGuest: Bool { isActive && scene != "login" }
 
     /// 지도 최초 자동 이동 줌(`-StaryShotZoom 12`) — 없으면 nil(앱 기본 15).
-    static var mapZoom: Double? {
-        guard isActive, UserDefaults.standard.object(forKey: "StaryShotZoom") != nil else { return nil }
-        return UserDefaults.standard.double(forKey: "StaryShotZoom")
+    static var mapZoom: Double? { number("StaryShotZoom") }
+
+    /// 시뮬레이터 시작 위치(`-StaryShotLat 37.56 -StaryShotLng 126.97`) — 없으면 nil(앱 기본 위치).
+    static var coordinate: CLLocationCoordinate2D? {
+        guard let lat = number("StaryShotLat"), let lng = number("StaryShotLng") else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+
+    private static func number(_ key: String) -> Double? {
+        guard isActive, UserDefaults.standard.object(forKey: key) != nil else { return nil }
+        return UserDefaults.standard.double(forKey: key)
     }
 }

@@ -67,38 +67,93 @@ create_device() {
   return 1
 }
 
-shoot_device() {
-  local name="$1" udid="$2" slug
-  slug=$(echo "$name" | tr ' ' '_' | tr -cd '[:alnum:]_')
-  echo "── $name ($udid) ──"
-  xcrun simctl boot "$udid" || true
+prepare_device() {
+  local udid="$1"
+  xcrun simctl boot "$udid" 2>/dev/null || true
   xcrun simctl bootstatus "$udid" -b
   xcrun simctl status_bar "$udid" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
     --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
   xcrun simctl install "$udid" "$APP_PATH"
   xcrun simctl privacy "$udid" grant location "$BUNDLE_ID" || true
   xcrun simctl location "$udid" set "$SHOT_LAT,$SHOT_LNG" || true
+}
 
+# 장면 전부 촬영. $3 = 찍을 화면(--display, 빈 값이면 기본 화면).
+# 앱 stdout(print — 익명 로그인/Firestore 오류)은 장면별 .log 로 함께 남긴다.
+shoot_scenes() {
+  local udid="$1" slug="$2" display="${3:-}"
+  local disp_arg=()
+  [ -n "$display" ] && disp_arg=(--display="$display")
   for lang in $LANGS; do
     local dir="$OUT_DIR/$slug/$lang" i=0
     mkdir -p "$dir"
     for scene in $SCENES; do
       i=$((i + 1))
-      local wait=14
+      local wait=16 base
       case "$scene" in
         login) wait=8 ;;
-        globe) wait=16 ;;
+        globe) wait=20 ;;
       esac
-      xcrun simctl terminate "$udid" "$BUNDLE_ID" 2>/dev/null || true
-      xcrun simctl launch "$udid" "$BUNDLE_ID" \
-        -StaryShot "$scene" -StaryShotZoom "$SHOT_ZOOM" \
+      base="$dir/$(printf '%02d' "$i")_$scene"
+      SIMCTL_CHILD_NSUnbufferedIO=YES xcrun simctl launch --terminate-running-process \
+        --stdout="$base.log" --stderr="$base.err.log" "$udid" "$BUNDLE_ID" \
+        -StaryShot "$scene" -StaryShotZoom "$SHOT_ZOOM" -StaryShotLat "$SHOT_LAT" -StaryShotLng "$SHOT_LNG" \
         -app_language "$lang" -AppleLanguages "($lang)" -AppleLocale "$lang" >/dev/null
       sleep "$wait"
-      local file="$dir/$(printf '%02d' "$i")_$scene.png"
-      xcrun simctl io "$udid" screenshot "$file"
-      echo "  $file  $(sips -g pixelWidth -g pixelHeight "$file" | awk '/pixel/{printf "%s ", $2}')"
+      # (macOS 기본 bash 3.2 는 set -u 에서 빈 배열 전개가 오류 → ${arr[@]+…} 형태)
+      xcrun simctl io "$udid" screenshot ${disp_arg[@]+"${disp_arg[@]}"} "$base.png" 2>/dev/null
+      echo "  $base.png  $(sips -g pixelWidth -g pixelHeight "$base.png" | awk '/pixel/{printf "%s ", $2}')"
+      cat "$base.log" "$base.err.log" 2>/dev/null | grep -E "❌|⚠️|Firestore 원본 문서 개수" | head -5 | sed 's/^/    log: /'
     done
   done
+}
+
+shoot_device() {
+  local name="$1" udid="$2" slug
+  slug=$(echo "$name" | tr ' ' '_' | tr -cd '[:alnum:]_')
+  echo "── $name ($udid) ──"
+  prepare_device "$udid"
+  shoot_scenes "$udid" "$slug"
+  xcrun simctl shutdown "$udid" || true
+}
+
+# 폴더블(iPhone Duo) — 화면이 둘(바깥/안쪽)이라 화면 id 를 찾아 하나씩 켜고(나머지는 끄고) 찍는다.
+# 1회차(2026-10-21): 기본 화면(안쪽 2007×2853)이 꺼진 채라 전부 검정 → 전원을 직접 켠다.
+shoot_foldable() {
+  local name="$1" udid="$2" slug id w h ids=() sizes=()
+  slug=$(echo "$name" | tr ' ' '_' | tr -cd '[:alnum:]_')
+  echo "── $name ($udid) — 폴더블 ──"
+  prepare_device "$udid"
+  echo "  io enumerate:"
+  xcrun simctl io "$udid" enumerate 2>&1 | sed 's/^/    /' | head -80
+  for id in 1 2 3 4 5 6; do
+    if xcrun simctl io "$udid" screenshot --display="$id" "/tmp/probe_$id.png" >/dev/null 2>&1; then
+      w=$(sips -g pixelWidth "/tmp/probe_$id.png" | awk '/pixel/{print $2}')
+      h=$(sips -g pixelHeight "/tmp/probe_$id.png" | awk '/pixel/{print $2}')
+      echo "  화면 $id: ${w}x${h}"
+      ids+=("$id"); sizes+=("$((w * h))")
+    fi
+  done
+  if [ "${#ids[@]}" -lt 2 ]; then
+    echo "::warning::$name 화면이 ${#ids[@]}개만 보인다 — 기본 화면만 찍는다"
+    shoot_scenes "$udid" "$slug"
+  else
+    # 넓이가 가장 큰 화면 = 안쪽(펼친 화면), 가장 작은 화면 = 바깥.
+    local inner="" outer="" maxa=0 mina=999999999 k
+    for k in "${!ids[@]}"; do
+      if [ "${sizes[$k]}" -gt "$maxa" ]; then maxa="${sizes[$k]}"; inner="${ids[$k]}"; fi
+      if [ "${sizes[$k]}" -lt "$mina" ]; then mina="${sizes[$k]}"; outer="${ids[$k]}"; fi
+    done
+    for mode in inner outer; do
+      local on off
+      if [ "$mode" = inner ]; then on="$inner"; off="$outer"; else on="$outer"; off="$inner"; fi
+      echo "  [$mode] 화면 $on 켜기 / 화면 $off 끄기"
+      xcrun simctl io "$udid" screenConfig --display="$on" power on || true
+      xcrun simctl io "$udid" screenConfig --display="$off" power off || true
+      sleep 3
+      shoot_scenes "$udid" "${slug}_$mode" "$on"
+    done
+  fi
   xcrun simctl shutdown "$udid" || true
 }
 
@@ -136,7 +191,10 @@ for entry in "${DEVICES[@]}"; do
       echo "::warning::$name 시뮬레이터를 만들지 못했다"; continue
     fi
   fi
-  shoot_device "$name" "$udid"
+  case "$name" in
+    *Duo*) shoot_foldable "$name" "$udid" ;;
+    *) shoot_device "$name" "$udid" ;;
+  esac
 done
 
 echo "── 결과 ──"

@@ -79,7 +79,12 @@ final class AuthManager: ObservableObject {
         isBusy = true
         errorMessage = nil
         if Auth.auth().currentUser == nil {
-            _ = try? await Auth.auth().signInAnonymously()
+            do {
+                _ = try await Auth.auth().signInAnonymously()
+            } catch {
+                // 실패해도 진입은 막지 않는다 — 다만 이 경우 규칙(request.auth != null) 때문에 별 목록 읽기가 거부된다.
+                print("❌ 둘러보기 익명 로그인 실패:", error)
+            }
         }
         isBusy = false
         isGuest = true
