@@ -17,6 +17,11 @@ SHOT_LAT="${SHOT_LAT:-37.5665}"
 SHOT_LNG="${SHOT_LNG:-126.9780}"
 SHOT_ZOOM="${SHOT_ZOOM:-11}"
 mkdir -p "$OUT_DIR"
+# simctl launch --stdout/--stderr 는 절대 경로만 받는다(상대 경로면 앱 실행 자체가 "No such process" 로 실패 — 2차 실행).
+OUT_DIR=$(cd "$OUT_DIR" && pwd)
+
+# 명령 시간 제한(macOS 에는 timeout 이 없다) — 시뮬레이터가 꼬이면 명령이 하염없이 기다려 잡 전체가 멈췄다(2차 실행).
+limit() { local s="$1"; shift; perl -e 'alarm shift; exec @ARGV' "$s" "$@"; }
 
 echo "── 설치된 기기 종류(iPhone) ──"
 xcrun simctl list devicetypes | grep -i iphone || true
@@ -95,13 +100,18 @@ shoot_scenes() {
         globe) wait=20 ;;
       esac
       base="$dir/$(printf '%02d' "$i")_$scene"
-      SIMCTL_CHILD_NSUnbufferedIO=YES xcrun simctl launch --terminate-running-process \
-        --stdout="$base.log" --stderr="$base.err.log" "$udid" "$BUNDLE_ID" \
-        -StaryShot "$scene" -StaryShotZoom "$SHOT_ZOOM" -StaryShotLat "$SHOT_LAT" -StaryShotLng "$SHOT_LNG" \
-        -app_language "$lang" -AppleLanguages "($lang)" -AppleLocale "$lang" >/dev/null
+      local args=(-StaryShot "$scene" -StaryShotZoom "$SHOT_ZOOM" -StaryShotLat "$SHOT_LAT" -StaryShotLng "$SHOT_LNG"
+        -app_language "$lang" -AppleLanguages "($lang)" -AppleLocale "$lang")
+      if ! limit 60 env SIMCTL_CHILD_NSUnbufferedIO=YES xcrun simctl launch --terminate-running-process \
+        --stdout="$base.log" --stderr="$base.err.log" "$udid" "$BUNDLE_ID" "${args[@]}" >/dev/null; then
+        # 로그 리다이렉트가 문제면 로그 없이라도 찍는다.
+        echo "    (로그 없이 다시 실행)"
+        limit 60 xcrun simctl launch --terminate-running-process "$udid" "$BUNDLE_ID" "${args[@]}" >/dev/null \
+          || { echo "::warning::$slug/$lang/$scene 앱 실행 실패"; continue; }
+      fi
       sleep "$wait"
       # (macOS 기본 bash 3.2 는 set -u 에서 빈 배열 전개가 오류 → ${arr[@]+…} 형태)
-      xcrun simctl io "$udid" screenshot ${disp_arg[@]+"${disp_arg[@]}"} "$base.png" 2>/dev/null
+      limit 30 xcrun simctl io "$udid" screenshot ${disp_arg[@]+"${disp_arg[@]}"} "$base.png" 2>/dev/null
       echo "  $base.png  $(sips -g pixelWidth -g pixelHeight "$base.png" | awk '/pixel/{printf "%s ", $2}')"
       cat "$base.log" "$base.err.log" 2>/dev/null | grep -E "❌|⚠️|Firestore 원본 문서 개수" | head -5 | sed 's/^/    log: /'
     done
@@ -117,8 +127,9 @@ shoot_device() {
   xcrun simctl shutdown "$udid" || true
 }
 
-# 폴더블(iPhone Duo) — 화면이 둘(바깥/안쪽)이라 화면 id 를 찾아 하나씩 켜고(나머지는 끄고) 찍는다.
-# 1회차(2026-10-21): 기본 화면(안쪽 2007×2853)이 꺼진 채라 전부 검정 → 전원을 직접 켠다.
+# 폴더블(iPhone Duo) — 화면이 둘(바깥 1398×2034 = 화면 1, 안쪽 2007×2853 = 화면 3)이라 화면 id 를 찾아 **안쪽만** 켜고 찍는다.
+# 1차(2026-10-21): 기본 화면(안쪽)이 꺼진 채라 전부 검정 → 전원을 직접 켠다.
+# 2차: 안쪽을 끄고 바깥만 켜자 SpringBoard 가 죽어 잡이 멈췄다 → 화면은 끄지 않고, 바깥 화면 촬영은 하지 않는다(스토어는 둘 중 하나면 된다).
 shoot_foldable() {
   local name="$1" udid="$2" slug id w h ids=() sizes=()
   slug=$(echo "$name" | tr ' ' '_' | tr -cd '[:alnum:]_')
@@ -127,7 +138,7 @@ shoot_foldable() {
   echo "  io enumerate:"
   xcrun simctl io "$udid" enumerate 2>&1 | sed 's/^/    /' | head -80
   for id in 1 2 3 4 5 6; do
-    if xcrun simctl io "$udid" screenshot --display="$id" "/tmp/probe_$id.png" >/dev/null 2>&1; then
+    if limit 30 xcrun simctl io "$udid" screenshot --display="$id" "/tmp/probe_$id.png" >/dev/null 2>&1; then
       w=$(sips -g pixelWidth "/tmp/probe_$id.png" | awk '/pixel/{print $2}')
       h=$(sips -g pixelHeight "/tmp/probe_$id.png" | awk '/pixel/{print $2}')
       echo "  화면 $id: ${w}x${h}"
@@ -138,21 +149,15 @@ shoot_foldable() {
     echo "::warning::$name 화면이 ${#ids[@]}개만 보인다 — 기본 화면만 찍는다"
     shoot_scenes "$udid" "$slug"
   else
-    # 넓이가 가장 큰 화면 = 안쪽(펼친 화면), 가장 작은 화면 = 바깥.
-    local inner="" outer="" maxa=0 mina=999999999 k
+    # 넓이가 가장 큰 화면 = 안쪽(펼친 화면).
+    local inner="" maxa=0 k
     for k in "${!ids[@]}"; do
       if [ "${sizes[$k]}" -gt "$maxa" ]; then maxa="${sizes[$k]}"; inner="${ids[$k]}"; fi
-      if [ "${sizes[$k]}" -lt "$mina" ]; then mina="${sizes[$k]}"; outer="${ids[$k]}"; fi
     done
-    for mode in inner outer; do
-      local on off
-      if [ "$mode" = inner ]; then on="$inner"; off="$outer"; else on="$outer"; off="$inner"; fi
-      echo "  [$mode] 화면 $on 켜기 / 화면 $off 끄기"
-      xcrun simctl io "$udid" screenConfig --display="$on" power on || true
-      xcrun simctl io "$udid" screenConfig --display="$off" power off || true
-      sleep 3
-      shoot_scenes "$udid" "${slug}_$mode" "$on"
-    done
+    echo "  안쪽 화면 $inner 켜기"
+    limit 30 xcrun simctl io "$udid" screenConfig --display="$inner" power on || true
+    sleep 3
+    shoot_scenes "$udid" "${slug}_inner" "$inner"
   fi
   xcrun simctl shutdown "$udid" || true
 }
