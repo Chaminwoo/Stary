@@ -230,7 +230,8 @@ struct MapLibreView: UIViewRepresentable {
 
             context.coordinator.didAutoCenter = true
 
-            context.coordinator.movePitchedCamera(mapView, to: me, zoomLevel: 15, animated: true)
+            // 스크린샷 자동 촬영은 별이 여럿 보이게 줌을 실행 인자로 받는다(Core/ScreenshotMode.swift).
+            context.coordinator.movePitchedCamera(mapView, to: me, zoomLevel: ScreenshotMode.mapZoom ?? 15, animated: true)
         }
 
         // 외부 포커스 요청.

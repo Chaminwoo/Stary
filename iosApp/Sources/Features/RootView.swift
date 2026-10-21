@@ -42,9 +42,16 @@ struct RootView: View {
         // 새 버전 안내 — 로그인/메인 어느 화면이든 맨 위에(Android MainScreen AppUpdatePromptHost 패리티).
         .overlay { AppUpdatePromptOverlay() }
         // 앱을 열 때와 앞으로 돌아올 때마다 App Store 에 새 버전이 있는지 확인 — 있으면 닫을 수 없는 강제 업데이트 팝업.
-        .task { await AppUpdateChecker.shared.check() }
+        // (스크린샷 자동 촬영 중엔 업데이트 팝업 대신 둘러보기로 바로 진입 — Core/ScreenshotMode.swift)
+        .task {
+            if ScreenshotMode.isActive {
+                if ScreenshotMode.entersAsGuest && !auth.canEnterApp { await auth.browseAsGuest() }
+                return
+            }
+            await AppUpdateChecker.shared.check()
+        }
         .onChange(of: scenePhase) { phase in
-            if phase == .active { Task { await AppUpdateChecker.shared.check() } }
+            if phase == .active, !ScreenshotMode.isActive { Task { await AppUpdateChecker.shared.check() } }
         }
         .font(.minSans(16))   // 앱 기본 폰트(Android bodyLarge = MinSans 16sp 대응)
         // 시스템 글꼴 크기 상한 — 고정 높이 카드가 많아 그대로 두면 큰 글꼴에서 글자가 잘린다

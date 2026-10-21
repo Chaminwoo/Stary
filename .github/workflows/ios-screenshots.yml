@@ -1,0 +1,106 @@
+name: iOS Screenshots
+
+# App Store 스크린샷 자동 촬영(수동 실행 — Actions 탭 → iOS Screenshots → Run workflow).
+#  - Xcode 27 러너(iOS 27 SDK)에서 시뮬레이터 빌드 → 6.3"(필수) · 6.9" · iPhone Duo(기기 종류가 있으면) 시뮬레이터에서
+#    앱을 `-StaryShot <장면>` 으로 띄워(iosApp/Sources/Core/ScreenshotMode.swift) 찍는다. 둘러보기(게스트) 화면만 — 로그인 불필요.
+#  - 결과 PNG 는 Actions 아티팩트 "Stary-screenshots"(로컬에서 `gh run download`).
+#  - 지도 스타일은 MAPTILER_KEY 시크릿이 있어야 실제(야경) 스타일 — 없으면 데모 스타일로 찍힌다.
+#  - 촬영 스크립트: .github/scripts/ios-screenshots.sh (기기 종류·런타임·simctl io 옵션을 로그에 남겨 Duo 지원 여부도 확인)
+on:
+  workflow_dispatch:
+    inputs:
+      xcode:
+        description: "Xcode 앱 이름(/Applications/<이름>.app)"
+        default: "Xcode_27.1"
+      langs:
+        description: "언어(공백 구분)"
+        default: "ko en ja"
+      scenes:
+        description: "장면(login map constellation globe)"
+        default: "login map constellation globe"
+      lat:
+        description: "지도 위도"
+        default: "37.5665"
+      lng:
+        description: "지도 경도"
+        default: "126.9780"
+      zoom:
+        description: "지도 줌"
+        default: "11"
+
+jobs:
+  shots:
+    name: Screenshots (simulator)
+    runs-on: xcode-27   # GitHub 프리뷰 이미지 — Xcode 27.x + iOS 27 시뮬레이터
+    timeout-minutes: 90
+    env:
+      MAPTILER_KEY: ${{ secrets.MAPTILER_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "/Applications/${{ inputs.xcode }}.app"
+          xcodebuild -version
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: local.properties 작성 (Android SDK 위치)
+        run: echo "sdk.dir=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" > local.properties
+
+      # 지도 키만 주입(광고 키는 촬영에 불필요). 값은 로그에 찍지 않는다.
+      - name: (선택) 지도 키 → Local.secrets.xcconfig
+        run: |
+          echo "MAPTILER_KEY = $MAPTILER_KEY" > iosApp/Config/Local.secrets.xcconfig
+          if [ -z "$MAPTILER_KEY" ]; then echo "::warning::MAPTILER_KEY 시크릿이 없다 — 지도가 데모 스타일로 찍힌다"; fi
+
+      - name: Generate Xcode project
+        run: cd iosApp && xcodegen generate
+
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          if ! xcodebuild \
+            -project iosApp/Stary.xcodeproj \
+            -scheme Stary \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build.log | tail -60; then
+            grep -E " error: " build.log | head -40 | sort -u | while IFS= read -r l; do
+              echo "::error::${l}"
+            done
+            exit 65
+          fi
+
+      - name: Take screenshots
+        env:
+          APP_PATH: build/dd/Build/Products/Debug-iphonesimulator/Stary.app
+          OUT_DIR: screenshots
+          LANGS: ${{ inputs.langs }}
+          SCENES: ${{ inputs.scenes }}
+          SHOT_LAT: ${{ inputs.lat }}
+          SHOT_LNG: ${{ inputs.lng }}
+          SHOT_ZOOM: ${{ inputs.zoom }}
+        run: bash .github/scripts/ios-screenshots.sh
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stary-screenshots
+          path: screenshots/
+          retention-days: 30
+          if-no-files-found: warn
