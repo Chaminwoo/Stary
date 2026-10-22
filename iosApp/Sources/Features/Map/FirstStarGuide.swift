@@ -14,7 +14,7 @@ import UIKit
 /// 앞 세 단계의 진행은 이 기기의 계정별 UserDefaults(`FirstStarGuideProgress`), 별·열쇠는 서버 상태에서 계산한다.
 /// ⚠️ **새 계정으로 확인된 계정만**(`started` — 로그인 때 returningAccount == false) 안내한다. 닫기(X)·"나중에"는 이번 실행에서만 숨긴다.
 enum GuideStep: String {
-    case quest, profile, write, claim, open
+    case quest, profile, write, claim, exchange, open
 }
 
 /// 계정별 안내 진행(이 기기) — Android `GuideProgress` 패리티.
@@ -77,8 +77,13 @@ enum FirstStarGuideLogic {
             if !progress.profileDone { return .profile }
             return .write
         }
-        let claimable = quests.daily?.claimable ?? 0
-        return claimable > 0 || quests.keys <= 0 ? .claim : .open
+        if (quests.daily?.claimable ?? 0) > 0 { return .claim }
+        if quests.keys > 0 { return .open }
+        // 열쇠가 없다 — 별가루로 만들 수 있으면 공방으로(지갑을 아직 모르면 기다린다: 안내 열쇠를 괜히 주지 않게).
+        // (2026-10-22 퀘스트 보상이 별가루가 되며 추가 — Android guideStep 패리티)
+        let starlight = StarlightStore.shared
+        guard starlight.walletLoaded else { return nil }
+        return starlight.stardust >= starlight.config.keyCost ? .exchange : .claim
     }
 
     /// 열쇠로 열어 볼 별 — 남의 공개 별 중 아직 안 연 것, **100m 밖(= 잠긴) 가장 가까운 별** 우선.
@@ -114,6 +119,7 @@ struct FirstStarGuideCard: View {
         case .quest, .profile: return ("pencil", .guideProfileTitle, .guideProfileMsg, .questGo)
         case .write: return ("plus", .guideWriteTitle, .guideWriteMsg, .guideWriteBtn)
         case .claim: return ("key.fill", .guideClaimTitle, .guideClaimMsg, .guideClaimBtn)
+        case .exchange: return ("sparkles", .guideExchangeTitle, .guideExchangeMsg, .starlightGo)
         case .open: return ("lock.open.fill", .guideOpenTitle, .guideOpenMsg, .guideOpenBtn)
         }
     }
@@ -131,7 +137,7 @@ struct FirstStarGuideCard: View {
                 Text(locale.t(t.title))
                     .font(.minSans(14, .semibold))
                     .foregroundStyle(Theme.textPrimary)
-                Text(locale.t(t.msg))
+                Text(step == .exchange ? String(format: locale.t(t.msg), StarlightStore.shared.config.keyCost) : locale.t(t.msg))
                     .font(.minSans(12))
                     .foregroundStyle(Color(hex: 0xB8BCCB))
                     .fixedSize(horizontal: false, vertical: true)

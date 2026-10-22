@@ -44,6 +44,16 @@ private enum StyleFx {
     static let freshWindowMs: Int64 = 86_400_000
     static let freshAuraOpacity = 0.16
 
+    /// 별빛 공방 오라(장착한 사람의 별) — Android sl-aura-glow/pulse/ring 패리티(위상 그룹 없이 1벌).
+    ///  · glow : 은은한 빛(모든 패턴의 바탕, 숨 쉬듯 밝기만 변함)
+    ///  · pulse: 별에서 퍼져 나가며 사라지는 고리
+    ///  · ring : 별을 두른 가는 고리가 숨 쉬듯 커졌다 작아짐
+    /// 모르는 패턴은 halo(glow 만)로 그린다 — 새 패턴을 DB 에 넣어도 이전 버전은 빛으로만 보인다.
+    static let slGlowLayerID = "sl-aura-glow"
+    static let slPulseLayerID = "sl-aura-pulse"
+    static let slRingLayerID = "sl-aura-ring"
+    static let slPatterns: Set<String> = ["halo", "pulse", "ring"]
+
     /// 내 위치 점(초록 원) — Android `current-location` 소스 / `current-location-layer` 패리티.
     static let myLocationSourceID = "current-location-src"
     static let myLocationLayerID = "current-location-layer"
@@ -189,6 +199,25 @@ extension MapLibreView.Coordinator {
              ["*", ["get", "fresh"] as [Any], StyleFx.freshAuraOpacity] as [Any]] as [Any])
         aura.circleBlur = NSExpression(forConstantValue: 1.0)
         style.addLayer(aura)
+
+        // 별빛 공방 오라 — 빛 · 퍼지는 고리 · 숨 쉬는 고리. 트윙클 루프가 밝기/반경을 갱신한다.
+        let slGlow = MLNCircleStyleLayer(identifier: StyleFx.slGlowLayerID, source: auraSource)
+        slGlow.circleColor = NSExpression(mglJSONObject: ["to-color", ["get", "slAuraColor"]] as [Any])
+        slGlow.circleRadius = Self.slAuraRadius(1)
+        slGlow.circleOpacity = NSExpression(forConstantValue: 0.45)
+        slGlow.circleBlur = NSExpression(forConstantValue: 1.0)
+        slGlow.predicate = NSPredicate(format: "slAura != ''")
+        style.addLayer(slGlow)
+        for (id, pattern) in [(StyleFx.slPulseLayerID, "pulse"), (StyleFx.slRingLayerID, "ring")] {
+            let l = MLNCircleStyleLayer(identifier: id, source: auraSource)
+            l.circleOpacity = NSExpression(forConstantValue: 0)
+            l.circleRadius = Self.slAuraRadius(0.8)
+            l.circleStrokeColor = NSExpression(mglJSONObject: ["to-color", ["get", "slAuraColor2"]] as [Any])
+            l.circleStrokeWidth = NSExpression(forConstantValue: 1.6)
+            l.circleStrokeOpacity = NSExpression(forConstantValue: 0.7)
+            l.predicate = NSPredicate(format: "slAura == %@", pattern)
+            style.addLayer(l)
+        }
 
         // ── 내 위치 점(초록 원) — Android 는 이걸 맨 위 레이어로 그린다. 줌을 풀수록 작아진다(StyleFx.myLocationStops).
         //    MapLibre 기본 퍽(파란 점)은 끄고(`showsUserLocation = false`) 이 레이어로 대체했다.
@@ -341,6 +370,42 @@ extension MapLibreView.Coordinator {
                       Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
     }
 
+    /// 공방 오라 반경 — 인기 오오라와 같은 줌 곡선 × scale × sizeMult(Android slAuraRadiusExpression 패리티).
+    static func slAuraRadius(_ scale: Double) -> NSExpression {
+        var json: [Any] = ["interpolate", ["linear"], ["zoom"]]
+        for (zoom, base) in [(6.0, 2.5), (10.0, 7.0), (13.0, 15.0), (15.0, 24.0)] {
+            json.append(zoom)
+            json.append(["*", base * scale, ["get", "sizeMult"] as [Any]] as [Any])
+        }
+        return NSExpression(mglJSONObject: json)
+    }
+
+    /// 그 사람이 단 오라 → (패턴, 색1, 색2) "#RRGGBB". 안 달았거나 아이템을 모르면 nil. (Android slAuraOf 패리티)
+    @MainActor
+    static func slAuraOf(_ userId: String) -> (String, String, String)? {
+        let store = StarlightStore.shared
+        guard let id = store.auraByUser[userId], let item = store.item(id) else { return nil }
+        let pattern = item.str("pattern").flatMap { StyleFx.slPatterns.contains($0) ? $0 : nil } ?? "halo"
+        let hexes = item.hexColors
+        let c1 = hexes.first ?? "#BFD8FF"
+        return (pattern, c1, hexes.count > 1 ? hexes[1] : c1)
+    }
+
+    /// 공방 오라 구성이 바뀌었으면(누가 달았나 · 아이템 목록) 후광 소스를 다시 만든다 — updateUIView 에서 매번 부른다.
+    @MainActor
+    func refreshStarlightAuraIfNeeded(_ mapView: MLNMapView) {
+        let store = StarlightStore.shared
+        let key = store.auraByUser.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            + "|\(store.items.count)"
+        guard key != lastSlAuraKey else { return }
+        lastSlAuraKey = key
+        // 후광 소스 갱신(비격리)에서 쓰도록 사람별 오라를 미리 풀어 둔다.
+        var byUser: [String: (String, String, String)] = [:]
+        for uid in store.auraByUser.keys { if let sl = Self.slAuraOf(uid) { byUser[uid] = sl } }
+        slAuraByUser = byUser
+        refreshAuraFeatures(mapView)
+    }
+
     /// 후광 소스 갱신 — 현재 대표 별(머지 결과) 좌표 + sizeMult + 별색. 마커 갱신 시 함께 호출.
     func refreshAuraFeatures(_ mapView: MLNMapView) {
         guard let style = styleRef,
@@ -355,10 +420,14 @@ extension MapLibreView.Coordinator {
                 let f = MLNPointFeature()
                 f.coordinate = a.coordinate
                 let fresh = nowMs - a.diary.createdAt <= StyleFx.freshWindowMs
+                let sl = self.slAuraByUser[a.diary.userId]
                 f.attributes = [
                     "sizeMult": max(a.sizeMult, 1.0),
                     "auraColor": Self.starColorHex(a.diary.starColor),
                     "fresh": fresh ? 1.0 : 0.0,
+                    "slAura": sl?.0 ?? "",
+                    "slAuraColor": sl?.1 ?? "#000000",
+                    "slAuraColor2": sl?.2 ?? "#000000",
                 ]
                 return f
             }
@@ -374,6 +443,9 @@ extension MapLibreView.Coordinator {
             self.twinkleT += 0.05
             // 카메라 이동 중엔 스타일 변경을 멈춰 팬/줌 끊김을 방지(Android 동일).
             guard !self.isCameraMoving, let style = self.styleRef, let map = self.mapRef else { return }
+            // 별빛 공방 오라 — 빛은 숨 쉬고, pulse 고리는 퍼지며 사라지고, ring 고리는 천천히 커졌다 작아진다.
+            // (오라를 단 사람이 없으면 건너뛴다 — 레이어는 비어 있다.)
+            if !self.lastSlAuraKey.hasPrefix("|") { self.animateStarlightAura(style) }
             let zoom = map.zoomLevel
             // 저줌 게이트: 9 밑 숨김 → 12 에서 트윙클 최대(Android particleOpacityExpression 스톱).
             let gate = min(max((zoom - 9) / 3, 0), 1)
@@ -394,6 +466,31 @@ extension MapLibreView.Coordinator {
         }
         twinkleTimer = timer
         RunLoop.main.add(timer, forMode: .common)
+    }
+
+    /// 공방 오라 한 틱(Android 애니메이션 루프의 sl-aura 부분 패리티). 반경 표현식은 1/32 단위로 캐시한다.
+    private func animateStarlightAura(_ style: MLNStyle) {
+        let t = twinkleT
+        let breathe = (sin(t * 1.8) + 1) / 2              // 0..1
+        let spread = (t * 0.45).truncatingRemainder(dividingBy: 1) // 0..1 퍼짐
+        func radius(_ scale: Double) -> NSExpression {
+            let q = Int(scale * 32)
+            if let e = slRadiusCache[q] { return e }
+            let e = Self.slAuraRadius(Double(q) / 32)
+            slRadiusCache[q] = e
+            return e
+        }
+        if let glow = style.layer(withIdentifier: StyleFx.slGlowLayerID) as? MLNCircleStyleLayer {
+            glow.circleOpacity = NSExpression(forConstantValue: 0.32 + 0.26 * breathe)
+        }
+        if let pulse = style.layer(withIdentifier: StyleFx.slPulseLayerID) as? MLNCircleStyleLayer {
+            pulse.circleRadius = radius(0.45 + 0.85 * spread)
+            pulse.circleStrokeOpacity = NSExpression(forConstantValue: 0.85 * (1 - spread))
+        }
+        if let ring = style.layer(withIdentifier: StyleFx.slRingLayerID) as? MLNCircleStyleLayer {
+            ring.circleRadius = radius(0.78 + 0.12 * breathe)
+            ring.circleStrokeOpacity = NSExpression(forConstantValue: 0.55 + 0.3 * breathe)
+        }
     }
 
     // MARK: 별자리 라인

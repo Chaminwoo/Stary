@@ -12,6 +12,8 @@ struct ProfileScreen: View {
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var viewed: ViewedStore
     @ObservedObject private var locale = LocaleManager.shared
+    /// 별빛 공방 장착(프레임·이름 배지·칭호).
+    @ObservedObject private var starlight = StarlightStore.shared
 
     @State private var friendsCount = 0
     @State private var profileImageUrl: String?
@@ -127,14 +129,21 @@ struct ProfileScreen: View {
                             }
                         // 내가 달성한 히든 업적 전용 크리스탈 배지(34-4).
                         HiddenStarBadges(userId: auth.uid ?? "", size: 13)
+                        // 별빛 공방 이름 배지.
+                        EquippedBadge(equips: starlight.myEquips, size: 22)
                     }
                     Button { showAchievements = true } label: {
-                        Text(titleDisplayText)
-                            .font(.minSans(15))
-                            .foregroundStyle(titleDisplayColor)
-                            .shadow(color: (equippedTitle == nil ? .clear : titleDisplayColor).opacity(0.9),
-                                    radius: equippedTitleIsHidden ? 16 : 12)
-                            .padding(6)
+                        // 공방 칭호(sl:)는 아이템이 정한 색·반짝임으로.
+                        if let t = equippedTitle, let art = starlightTitleView(equippedTitleId, t, fontSize: 15) {
+                            art.padding(6)
+                        } else {
+                            Text(titleDisplayText)
+                                .font(.minSans(15))
+                                .foregroundStyle(titleDisplayColor)
+                                .shadow(color: (equippedTitle == nil ? .clear : titleDisplayColor).opacity(0.9),
+                                        radius: equippedTitleIsHidden ? 16 : 12)
+                                .padding(6)
+                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -400,6 +409,8 @@ struct ProfileScreen: View {
                                 .onChange(of: g.frame(in: .named(profileSpace))) { avatarCircle = $0 }
                         }
                     )
+                // 별빛 공방 프로필 프레임 — 사진 바깥을 두른다(사진 지름 기준 크기).
+                EquippedFrame(equips: starlight.myEquips, photo: 150)
             }
         }
         .buttonStyle(.plain)

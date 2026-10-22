@@ -239,10 +239,14 @@ enum LocalizedNames {
         return pick(t)
     }
 
-    /// 장착 칭호 id → 표시명(현재 언어). 일반+히든+개척 통합(Android `equippedTitle` 패리티).
+    /// 장착 칭호 id → 표시명(현재 언어). 일반+히든+개척+별빛 공방(sl:) 통합(Android `equippedTitle` 패리티).
     static func equippedTitle(_ id: String?) -> String? {
         guard let id, !id.isEmpty else { return nil }
         if let pioneer = pioneerTitle(id) { return pioneer }
+        // 성운 상자에서 뽑은 칭호 — 이름은 DB(starlightItems)에 언어별로. 목록을 아직 못 받았으면 숨긴다.
+        if id.hasPrefix(StarlightStore.titlePrefix) {
+            return StarlightStore.shared.titleItem(id)?.name(in: LocaleManager.shared.effectiveLanguage)
+        }
         let fallback = Achievements.byId(id)?.titleName ?? HiddenAchievements.byId(id)?.title
         return title(id, fallback: fallback)
     }

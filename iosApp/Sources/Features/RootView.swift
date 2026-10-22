@@ -67,7 +67,7 @@ private struct ChatTarget: Identifiable {
 
 /// 드로어(좌측 메뉴)/FAB 에서 여는 하위 화면 — Android `NavRoute` 대응.
 enum DrawerDest: Hashable {
-    case myDiary, starLog, profile, achievements, music, friends, settings, notifications, upload
+    case myDiary, starLog, profile, achievements, workshop, music, friends, settings, notifications, upload
 }
 
 /// 메인 홈 — Android `MainScreen` 대응.
@@ -186,6 +186,10 @@ struct MainTabView: View {
                             withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = false }
                             StaryAnalytics.log("guide_action", ["step": "quest_go_" + q.id])
                             if q.event == .profileEdit { TabRouter.shared.go(TabRouter.profile) }
+                        },
+                        onOpenWorkshop: {
+                            withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = false }
+                            TabRouter.shared.go(TabRouter.workshop)
                         }
                     ) { withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = false } }
                         .transition(.opacity)
@@ -350,6 +354,7 @@ struct MainTabView: View {
             case TabRouter.friends: path.append(DrawerDest.friends)
             case TabRouter.upload: path.append(DrawerDest.upload)
             case TabRouter.profile: path.append(DrawerDest.profile)
+            case TabRouter.workshop: path.append(DrawerDest.workshop)
             default: path.append(DrawerDest.myDiary)
             }
         }
@@ -380,6 +385,8 @@ struct MainTabView: View {
             // 일일 퀘스트·열쇠(users/{uid}) — 이전 가입 계정 여부가 정해져야 1일째 목록을 만든다.
             QuestStore.shared.start(uid: auth.uid)
             QuestStore.shared.setReturning(auth.returningAccount)
+            // 별빛 공방(별가루 지갑·뽑기 풀·장착) — 퀘스트 보상이 별가루라 함께 붙인다.
+            StarlightStore.shared.start(uid: auth.uid)
             if auth.returningAccount == false, let uid = auth.uid { FirstStarGuideProgress.shared.markStarted(uid) }
             // 집중 모드 해제용 창 전체 터치 감시(가로채지 않음).
             TouchActivityRecognizer.installIfNeeded()
@@ -418,6 +425,7 @@ struct MainTabView: View {
             MeteorStats.shared.start(uid: newUid)
             QuestStore.shared.start(uid: newUid)
             QuestStore.shared.setReturning(auth.returningAccount)
+            StarlightStore.shared.start(uid: newUid)
             if auth.returningAccount == false, let uid = auth.uid { FirstStarGuideProgress.shared.markStarted(uid) }
             if let uid = newUid {
                 viewed.start(uid: uid); blocks.start(uid: uid)
@@ -664,17 +672,22 @@ struct MainTabView: View {
             drawerItem(locale.t(.navStarLog), "star.circle.fill", index: 1) { open(.starLog) }
             drawerItem(locale.t(.tabProfile), "person.fill", index: 2) { open(.profile) }
             drawerItem(locale.t(.navAchievements), "trophy.fill", index: 3) { open(.achievements) }
-            drawerItem(locale.t(.navMusic), "music.note", index: 4) { open(.music) }
-            drawerItem(locale.t(.tabFriends), "person.2.fill", index: 5) { open(.friends) }
-            drawerItem(locale.t(.navSettings), "gearshape.fill", index: 6) { open(.settings) }
+            // 별빛 공방 — 별가루 지갑이 계정에 붙어 있어 로그인했을 때만(Android 드로어와 같은 자리).
+            let ws = auth.isSignedIn ? 1 : 0
+            if auth.isSignedIn {
+                drawerItem(locale.t(.navWorkshop), "sparkles", index: 4) { open(.workshop) }
+            }
+            drawerItem(locale.t(.navMusic), "music.note", index: 4 + ws) { open(.music) }
+            drawerItem(locale.t(.tabFriends), "person.2.fill", index: 5 + ws) { open(.friends) }
+            drawerItem(locale.t(.navSettings), "gearshape.fill", index: 6 + ws) { open(.settings) }
             // 둘러보기(게스트)면 "로그인" — 로그인 화면으로 되돌아간다. Android 드로어와 동일.
             if auth.isGuest && !auth.isSignedIn {
-                drawerItem(locale.t(.drawerLogin), "rectangle.portrait.and.arrow.right", index: 7) {
+                drawerItem(locale.t(.drawerLogin), "rectangle.portrait.and.arrow.right", index: 7 + ws) {
                     withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
                     auth.exitGuest()
                 }
             } else {
-                drawerItem(locale.t(.drawerLogout), "rectangle.portrait.and.arrow.right", index: 7, danger: true) {
+                drawerItem(locale.t(.drawerLogout), "rectangle.portrait.and.arrow.right", index: 7 + ws, danger: true) {
                     withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
                     auth.signOut()
                 }
@@ -743,6 +756,7 @@ struct MainTabView: View {
             case .starLog: StarLogScreen()
             case .profile: ProfileScreen()
             case .achievements: AchievementsEntry()
+            case .workshop: WorkshopScreen()
             case .music: MusicScreen()
             case .friends: FriendsScreen()
             case .settings: SettingsScreen()

@@ -92,6 +92,8 @@ struct MapScreen: View {
     @ObservedObject private var quests = QuestStore.shared
     /// 첫 사용 안내 진행(퀘스트 창을 봤는지·프로필을 바꿨는지) — 바뀌면 카드도 바뀐다.
     @ObservedObject private var guideProgress = FirstStarGuideProgress.shared
+    /// 별가루 지갑 — 열쇠가 없을 때 "별가루로 열쇠 만들기" 안내 단계가 이 값으로 바뀐다.
+    @ObservedObject private var starlight = StarlightStore.shared
 
     // 포커스(카메라 이동) 대상 + 요청 번호(같은 별을 다시 요청해도 카메라가 움직이게 — MapLibreView.focusNonce).
     @State private var focusTarget: CLLocationCoordinate2D?
@@ -444,6 +446,8 @@ struct MapScreen: View {
             } else {
                 withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = true }
             }
+        case .exchange:
+            TabRouter.shared.go(TabRouter.workshop)
         case .open:
             guard let target = FirstStarGuideLogic.target(diaries: store.diaries, uid: uid,
                                                           here: location.coordinate, blocked: blocks.blockedIds),

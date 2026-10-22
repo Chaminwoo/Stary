@@ -642,16 +642,16 @@
     <string name="update_go">Go to update</string>
     <!-- 일일 퀘스트 · 열쇠(2026-10-19) — iOS L10n 과 같은 문구 -->
     <string name="quest_today">Today\'s quests</string>
-    <string name="quest_subtitle">Clear quests to collect keys.\nKeys open stars that are far away</string>
+    <string name="quest_subtitle">Clear quests to collect stardust.\nTrade it for keys or nebula boxes at the Starlight Workshop</string>
     <string name="quest_claim">Claim</string>
     <string name="quest_claimed">Claimed</string>
-    <string name="quest_bonus">Claim all three for a bonus key +%1$d</string>
-    <string name="quest_bonus_done">You got today\'s bonus key</string>
+    <string name="quest_bonus">Claim all three for bonus stardust +%1$d</string>
+    <string name="quest_bonus_done">You got today\'s bonus stardust</string>
     <string name="quest_reset_in">New quests in %1$s</string>
     <string name="quest_hm">%1$dh %2$dm</string>
     <string name="quest_m">%1$dm</string>
     <string name="quest_loading">Loading quests…</string>
-    <string name="quest_done_toast">Quest done! \"%1$s\" — claim your key in Today\'s quests</string>
+    <string name="quest_done_toast">Quest done! \"%1$s\" — claim your stardust in Today\'s quests</string>
     <string name="quest_key_gained">You got %1$d key(s)</string>
     <string name="quest_keys_owned">Keys: %1$d</string>
     <string name="quest_close">Close</string>
@@ -709,8 +709,8 @@
     <string name="detail_get_key_ad">Watch an ad for a key</string>
     <string name="detail_key_unlocked">You opened the star with a key</string>
     <string name="detail_ad_key_unlocked">You opened the star with the key from the ad</string>
-    <string name="detail_key_quest_hint">You can also earn keys from Today\'s quests</string>
-    <string name="coach_step_quest">Clear today\'s quests to collect keys\nKeys open stars far away</string>
+    <string name="detail_key_quest_hint">Trade quest stardust for keys at the Starlight Workshop</string>
+    <string name="coach_step_quest">Clear today\'s quests to collect stardust\nTurn it into keys and nebula boxes</string>
     <string name="ach_tab_special">Special</string>
     <string name="ach_sub_shapes">Shapes</string>
     <string name="ach_sub_colors">Colors</string>
@@ -737,11 +737,11 @@
     <string name="ach_cond_quest_clear_7">Finish all daily quests on 7 days</string>
     <string name="ach_cond_quest_clear_30">Finish all daily quests on 30 days</string>
     <string name="quest_bonus_title">Finish all of today\'s quests</string>
-    <string name="quest_bonus_hint">Claim the keys from all 3 quests above for a bonus key</string>
+    <string name="quest_bonus_hint">Claim the rewards from all 3 quests above for bonus stardust</string>
     <string name="quest_ad_key_ask">Watch an ad to get a key?\nWatch it to the end for 1 key.</string>
     <!-- 첫 별 안내(FirstStarGuide, 2026-10-22) -->
     <string name="guide_write_title">Leave your first star</string>
-    <string name="guide_write_msg">Turn this moment, right where you are, into a star and earn a key.</string>
+    <string name="guide_write_msg">Turn this moment, right where you are, into a star and earn stardust.</string>
     <string name="guide_write_btn">Leave a star</string>
     <string name="guide_claim_title">Your first star is shining!</string>
     <string name="guide_claim_msg">Claim your stardust in today\'s quests.</string>
@@ -755,7 +755,7 @@
     <string name="guide_quest_tip">Your first quest is here!\nTap to check it out</string>
     <string name="guide_later">Later</string>
     <string name="guide_profile_title">Change your name or profile photo!</string>
-    <string name="guide_profile_msg">It\'s your first quest. You\'ll get a key.</string>
+    <string name="guide_profile_msg">It\'s your first quest. Change it to earn stardust.</string>
     <string name="quest_go">Go</string>
     <string name="quest_start_here">Start here</string>
     <!-- 별빛 공방(2026-10-22) -->

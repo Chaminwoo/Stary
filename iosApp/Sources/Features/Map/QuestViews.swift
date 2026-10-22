@@ -70,23 +70,54 @@ struct KeyChip: View {
     }
 }
 
+/// 보유 별가루 칩 — 퀘스트 창 머리(탭 → 별빛 공방). 별가루를 받으면 `bump` 가 바뀌어 통통 튄다. Android `StardustChip` 패리티.
+struct StardustChip: View {
+    let stardust: Int
+    var bump: Int = 0
+    @State private var scale: CGFloat = 1
+
+    var body: some View {
+        HStack(spacing: 5) {
+            StardustIcon().frame(width: 15, height: 15)
+            Text("\(stardust)")
+                .font(.system(size: 13, weight: .semibold).monospacedDigit())
+        }
+        .foregroundStyle(StarlightArt.dust)
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(StarlightArt.dust.opacity(0.12), in: Capsule())
+        .overlay(Capsule().strokeBorder(StarlightArt.dust.opacity(0.45), lineWidth: 0.75))
+        .scaleEffect(scale)
+        .accessibilityLabel(String(format: LocaleManager.shared.t(.starlightStardustOwned), stardust))
+        .onChange(of: bump) { _ in
+            scale = 1.35
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.4)) { scale = 1 }
+        }
+    }
+}
+
 /// 오늘의 퀘스트 창 — Android `QuestSheet` 패리티(3개 퀘스트 + 보너스 + 새 퀘스트까지 남은 시간).
 /// 화면 첫 진입 안내(FirstVisitInfoCard)와 같은 카드 모양. 떠 있는 동안 지도 집중 모드는 멈춘다(`MapChromeState.holdIdle`).
 struct QuestSheetView: View {
     @ObservedObject private var quests = QuestStore.shared
+    @ObservedObject private var starlight = StarlightStore.shared
     @ObservedObject private var locale = LocaleManager.shared
     /// 첫 사용 안내 중 강조할 퀘스트 id(그 행에 금빛 맥박 테두리 + "하러 가기").
     let highlightId: String?
     /// 강조한 행의 "하러 가기" — 그 기능 화면으로 보낸다(창은 호출부가 닫는다).
     let onGo: ((QuestDef) -> Void)?
+    /// 별가루 칩 → 별빛 공방(창은 호출부가 닫는다). nil 이면 칩만 보인다.
+    let onOpenWorkshop: (() -> Void)?
     let onDismiss: () -> Void
 
-    init(highlightId: String? = nil, onGo: ((QuestDef) -> Void)? = nil, onDismiss: @escaping () -> Void) {
+    init(highlightId: String? = nil, onGo: ((QuestDef) -> Void)? = nil, onOpenWorkshop: (() -> Void)? = nil,
+         onDismiss: @escaping () -> Void) {
         self.highlightId = highlightId
         self.onGo = onGo
+        self.onOpenWorkshop = onOpenWorkshop
         self.onDismiss = onDismiss
     }
     @State private var bump = 0
+    @State private var dustBump = 0
     @State private var now = Date()
     @State private var showAdKey = false
 
@@ -100,7 +131,10 @@ struct QuestSheetView: View {
                         .font(.minSans(20, .medium))
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
-                    // 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?"
+                    // 별가루 칩 → 별빛 공방 / 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?"
+                    StardustChip(stardust: starlight.stardust, bump: dustBump)
+                        .contentShape(Capsule())
+                        .onTapGesture { onOpenWorkshop?() }
                     KeyChip(keys: quests.keys, bump: bump)
                         .contentShape(Capsule())
                         .onTapGesture { showAdKey = true }
@@ -128,28 +162,24 @@ struct QuestSheetView: View {
                             QuestRowView(
                                 index: i, symbol: questSymbol(q.event),
                                 title: locale.t(q.title), hint: locale.t(q.hint),
-                                target: q.target, reward: DailyQuests.rewardKeys,
+                                target: q.target, reward: starlight.config.questStardust,
                                 progress: min(d.progressOf(q.id), q.target),
                                 claimed: d.claimed.contains(q.id),
                                 highlight: q.id == highlightId,
                                 onGo: onGo.map { go in { go(q) } }
                             ) {
-                                let gained = quests.claim(q.id)
-                                if gained > 0 { StaryAnalytics.log("quest_claim", ["quest": q.id]) }
-                                rewarded(gained)
+                                Task { claimed(await quests.claim(q.id), q.id) }
                             }
                         }
                         // 보너스 퀘스트 — 위 3개 보상을 모두 받으면 받을 수 있다(Android QuestSheet 4번째 행 패리티).
                         QuestRowView(
                             index: d.ids.count, symbol: "trophy.fill",
                             title: locale.t(.questBonusTitle), hint: locale.t(.questBonusHint),
-                            target: d.ids.count, reward: DailyQuests.bonusKeys,
+                            target: d.ids.count, reward: starlight.config.bonusStardust,
                             progress: d.claimed.intersection(d.ids).count,
                             claimed: d.bonus
                         ) {
-                            let gained = quests.claimBonus()
-                            if gained > 0 { StaryAnalytics.log("quest_claim", ["quest": "bonus"]) }
-                            rewarded(gained)
+                            Task { claimed(await quests.claimBonus(), "bonus") }
                         }
                     }
                 } else {
@@ -211,7 +241,20 @@ struct QuestSheetView: View {
         }
     }
 
-    /// 보상 수령 결과 — 받았으면 진동 + 칩 튀기기 + 토스트.
+    /// 별가루 보상 결과 — 받았으면 진동 + 별가루 칩 튀기기 + 토스트, 실패면 안내.
+    private func claimed(_ gained: Int?, _ questId: String) {
+        guard let gained else {
+            GlobalToast.shared.show(locale.t(.starlightErrGeneric))
+            return
+        }
+        guard gained > 0 else { return }
+        StaryAnalytics.log("quest_claim", ["quest": questId])
+        Haptics.celebrate()
+        dustBump += 1
+        GlobalToast.shared.show(String(format: locale.t(.starlightStardustGained), gained))
+    }
+
+    /// 열쇠 보상(광고) — 받았으면 진동 + 칩 튀기기 + 토스트.
     private func rewarded(_ gained: Int) {
         guard gained > 0 else { return }
         Haptics.celebrate()
@@ -360,7 +403,7 @@ private struct QuestRowView: View {
             } else if complete {
                 Button(action: onClaim) {
                     HStack(spacing: 4) {
-                        Image(systemName: "key.fill").font(.system(size: 12, weight: .semibold))
+                        StardustIcon(tint: QuestTheme.ink).frame(width: 14, height: 14)
                         Text(locale.t(.questClaim)).font(.minSans(13, .medium))
                     }
                     .foregroundStyle(QuestTheme.ink)
@@ -371,7 +414,7 @@ private struct QuestRowView: View {
                 .buttonStyle(.plain)
             } else {
                 HStack(spacing: 2) {
-                    Image(systemName: "key.fill").font(.system(size: 11))
+                    StardustIcon(tint: QuestTheme.gold.opacity(0.75)).frame(width: 14, height: 14)
                     Text("×\(reward)").font(.minSans(12, .medium))
                 }
                 .foregroundStyle(QuestTheme.gold.opacity(0.75))

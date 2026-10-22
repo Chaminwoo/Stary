@@ -34,6 +34,9 @@ struct UserProfileScreen: View {
     @ObservedObject private var hidden = HiddenAchievementStore.shared
     /// 이름/사진의 최종 출처는 users/{uid} **실시간 구독** — 넘겨받은 인자/1회 조회값은 폴백.
     @ObservedObject private var directory = UserDirectory.shared
+    /// 그 사람의 별빛 공방 장착(프레임·이름 배지·칭호 색).
+    @StateObject private var equipsWatcher = EquipsWatcher()
+    @ObservedObject private var starlight = StarlightStore.shared
 
     /// 화면 전체에서 쓰는 표시 이름(현재 닉네임 우선).
     private var shownName: String { directory.name(userId, fallback: userName) }
@@ -81,14 +84,19 @@ struct UserProfileScreen: View {
                         .font(.minSans(26))
                         .foregroundStyle(Theme.textPrimary)
                     HiddenStarBadges(userId: userId, size: 13)
+                    EquippedBadge(equips: equipsWatcher.equips, size: 22)
                 }
                 if let title = LocalizedNames.equippedTitle(equippedTitleId) {
-                    let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
-                    let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.navyAccent
-                    Text(hiddenT ? "『\(title)』" : title)
-                        .font(.minSans(15))
-                        .foregroundStyle(titleColor)
-                        .shadow(color: titleColor.opacity(0.9), radius: hiddenT ? 16 : 12)
+                    if let art = starlightTitleView(equippedTitleId, title, fontSize: 15) {
+                        art
+                    } else {
+                        let hiddenT = HiddenAchievements.byId(equippedTitleId) != nil
+                        let titleColor = hiddenT ? Color(hex: 0xFFD86F) : Theme.navyAccent
+                        Text(hiddenT ? "『\(title)』" : title)
+                            .font(.minSans(15))
+                            .foregroundStyle(titleColor)
+                            .shadow(color: titleColor.opacity(0.9), radius: hiddenT ? 16 : 12)
+                    }
                 }
             }
             // ZStack 가운데 정렬 기준을 60pt 위로 — `.offset` 은 GeometryReader 좌표에 잡히지 않아
@@ -115,7 +123,11 @@ struct UserProfileScreen: View {
         .coordinateSpace(name: userProfileSpace)
         .navigationTitle(locale.t(.profileTitle))
         // 일일 퀘스트 "다른 사람 프로필 구경하기".
-        .onAppear { if let me = auth.uid, me != userId { QuestStore.report(.visitProfile) } }
+        .onAppear {
+            if let me = auth.uid, me != userId { QuestStore.report(.visitProfile) }
+            equipsWatcher.watch(userId)
+        }
+        .onDisappear { equipsWatcher.stop() }
         .watchUser(userId)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -258,6 +270,8 @@ struct UserProfileScreen: View {
             .onTapGesture {
                 if let url = shownPhoto, !url.isEmpty { showPhotoViewer = true }
             }
+            // 별빛 공방 프로필 프레임.
+            EquippedFrame(equips: equipsWatcher.equips, photo: 96)
         }
     }
 

@@ -18,6 +18,8 @@ struct UploadScreen: View {
     @State private var visibility: Visibility = .publicAll
     @State private var starType = 1
     @State private var starColor = 9
+    /// 성운 상자에서 얻은 별 모양·색 — 휠 끝에 덧붙인다.
+    @ObservedObject private var starlight = StarlightStore.shared
     @State private var saving = false
     @State private var toast: String?
     @State private var photoItem: PhotosPickerItem?
@@ -255,22 +257,42 @@ struct UploadScreen: View {
         crop.clear()
     }
 
+    /// 휠에 놓을 별 모양 id — 기본 모양 + 성운 상자에서 얻은 새 모양(Android `shapeIds` 패리티).
+    private var shapeIds: [Int] {
+        Array(0..<StarStyle.typeCount) + starlight.ownedShapeTypes.filter { $0 >= StarStyle.typeCount }
+    }
+
+    /// 휠에 놓을 별 색 id — 기본 색 + 성운 상자에서 얻은 새 색.
+    private var colorIds: [Int] {
+        Array(0..<StarStyle.colorCount) + starlight.ownedColorIndices.filter { $0 >= StarStyle.colorCount }
+    }
+
+    /// 휠은 자리(0..<count)로 돌고, 자리 ↔ 실제 id 는 여기서 바꾼다.
+    private func positionBinding(_ ids: [Int], _ value: Binding<Int>) -> Binding<Int> {
+        Binding(
+            get: { ids.firstIndex(of: value.wrappedValue) ?? 0 },
+            set: { p in if ids.indices.contains(p) { value.wrappedValue = ids[p] } }
+        )
+    }
+
     private var starPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let ids = shapeIds
+        return VStack(alignment: .leading, spacing: 8) {
             label(LocaleManager.shared.t(.uploadStarShape))
             WheelPicker(
-                count: StarStyle.typeCount,
-                selection: $starType,
+                count: ids.count,
+                selection: positionBinding(ids, $starType),
                 itemSize: 40,
-                isLocked: { StarUnlocks.lockedShapeAch($0, unlocked) != nil },
-                onLocked: { t in
-                    if let a = StarUnlocks.lockedShapeAch(t, unlocked) {
+                isLocked: { StarUnlocks.lockedShapeAch(ids[$0], unlocked) != nil },
+                onLocked: { p in
+                    if let a = StarUnlocks.lockedShapeAch(ids[p], unlocked) {
                         showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name))
                     }
                 },
                 // 업로드(저장) 진행 중에는 별 모양도 공개 범위와 마찬가지로 바꿀 수 없게 잠근다.
                 enabled: !saving
-            ) { t in
+            ) { p in
+                let t = ids[p]
                 ZStack {
                     StarView(type: t, colorIndex: starColor, size: 40, glow: false)
                         .opacity(StarUnlocks.lockedShapeAch(t, unlocked) == nil ? 1 : 0.25)
@@ -283,21 +305,23 @@ struct UploadScreen: View {
     }
 
     private var colorPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let ids = colorIds
+        return VStack(alignment: .leading, spacing: 8) {
             label(LocaleManager.shared.t(.uploadStarColor))
             WheelPicker(
-                count: StarStyle.colorCount,
-                selection: $starColor,
+                count: ids.count,
+                selection: positionBinding(ids, $starColor),
                 itemSize: 32,
-                isLocked: { StarUnlocks.lockedColorAch($0, unlocked) != nil },
-                onLocked: { c in
-                    if let a = StarUnlocks.lockedColorAch(c, unlocked) {
+                isLocked: { StarUnlocks.lockedColorAch(ids[$0], unlocked) != nil },
+                onLocked: { p in
+                    if let a = StarUnlocks.lockedColorAch(ids[p], unlocked) {
                         showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name))
                     }
                 },
                 // 업로드(저장) 진행 중에는 별 색도 바꿀 수 없게 잠근다.
                 enabled: !saving
-            ) { c in
+            ) { p in
+                let c = ids[p]
                 ZStack {
                     Circle()
                         .fill(StarStyle.fill(c))

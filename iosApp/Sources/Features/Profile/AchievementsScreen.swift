@@ -28,6 +28,9 @@ struct AchievementsScreen: View {
     /// 공용 탭 안의 작은 탭 — 0 칭호 / 1 별 모양 / 2 별 색.
     @State private var commonSub = 0
     @State private var hiddenAlert: HiddenAchievement?
+    /// 별빛 공방 — 천체 망원경(굴절: ??? 조건 공개 / 반사·전파: 히든 업적 단서).
+    @ObservedObject private var starlight = StarlightStore.shared
+    @State private var telescopeAsk: TelescopeAsk?
 
     private var mine: [Diary] { store.mine(uid: auth.uid) }
     /// 열람 업적은 "다른 사람의 다이어리" 기준 — 내 글 열람 기록 제외.
@@ -69,6 +72,11 @@ struct AchievementsScreen: View {
                     }
                 }
                 .backgroundScrollSource(bgScroll)
+            }
+            if let ask = telescopeAsk {
+                TelescopeDialog(ask: ask) { withAnimation(.easeOut(duration: 0.18)) { telescopeAsk = nil } }
+                    .transition(.opacity)
+                    .zIndex(5)
             }
         }
         .navigationTitle(locale.t(.navAchievements))
@@ -242,11 +250,12 @@ struct AchievementsScreen: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .frame(minHeight: 30, alignment: .top)
-            Text(ach.hidden && !done ? "???" : LocalizedNames.condition(ach.id, fallback: ach.condition))
+            Text(conditionText(ach, done))
                 .font(.minSans(10))
                 .foregroundStyle(Theme.textSecondary.opacity(done ? 0.9 : 0.7))
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
+            if needsReveal(ach, done) { telescopeChip(ach.id, mode: "reveal").padding(.top, 2) }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 8).padding(.vertical, 12)
@@ -368,9 +377,10 @@ struct AchievementsScreen: View {
                 // 업적명·조건 모두 언어 전환에 맞춰 표시(칭호 업적 + 별 모양/색 보상 업적).
                 Text(LocalizedNames.title(ach.id, fallback: ach.name) ?? ach.name)
                     .font(.minSans(15)).foregroundStyle(Theme.textPrimary)
-                // 숨김 업적은 달성 전까지 조건을 ??? 로 가린다(이름은 힌트로 보여 준다). Android 패리티.
-                Text(ach.hidden && !done ? "???" : LocalizedNames.condition(ach.id, fallback: ach.condition))
+                // 숨김 업적은 달성 전까지 조건을 ??? 로 가린다(이름은 힌트로 보여 준다). 굴절 망원경으로 열 수 있다. Android 패리티.
+                Text(conditionText(ach, done))
                     .font(.minSans(11)).foregroundStyle(Theme.textSecondary)
+                if needsReveal(ach, done) { telescopeChip(ach.id, mode: "reveal").padding(.top, 4) }
             }
             Spacer()
             if case .title = ach.reward, done {
@@ -433,6 +443,21 @@ struct AchievementsScreen: View {
                 Text(claimed ? LocalizedNames.condition(ach.id, fallback: ach.condition) : "???")
                     .font(.minSans(11))
                     .foregroundStyle(claimed ? Theme.textSecondary : Color(hex: 0xB388FF).opacity(0.85))
+                // 아직 아무도 못 얻은 업적 — 반사·전파 망원경으로 찾은 단서(서버가 지갑에 넣어 준 문구).
+                if !claimed {
+                    let hint = starlight.hints[ach.id]
+                    if let hint {
+                        Text(locale.t(hint.level >= 2 ? .hintClear : .hintFaint))
+                            .font(.minSans(10.5, .semibold)).foregroundStyle(Theme.navyAccent)
+                            .padding(.top, 3)
+                        Text(hint.text(in: locale.effectiveLanguage))
+                            .font(.minSans(12)).italic().foregroundStyle(Theme.navyAccent.opacity(0.85))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if starlight.config.hintTargets.contains(ach.id) {
+                        telescopeChip(ach.id, mode: "hint", aboveLevel: hint?.level ?? 0).padding(.top, 4)
+                    }
+                }
                 if claimed {
                     // 달성자 이름은 선점 시점 스냅샷이 아니라 users/{uid} 의 **현재 닉네임**(34-4a).
                     let snapshot = (claim?.achieverName.isEmpty == false) ? claim!.achieverName : "?"
@@ -461,6 +486,36 @@ struct AchievementsScreen: View {
         // 달성자 현재 이름 구독 시작(이미 구독 중이면 no-op).
         .task(id: claim?.achieverId) {
             if let id = claim?.achieverId, !id.isEmpty { directory.ensureWatching(id) }
+        }
+    }
+
+    // ── 천체 망원경(별빛 공방) ──
+
+    /// 아직 가려진 조건인가 — 숨김 업적 · 미달성 · 굴절 망원경으로 안 열어 봄.
+    private func needsReveal(_ ach: Achievement, _ done: Bool) -> Bool {
+        ach.hidden && !done && !starlight.revealed.contains(ach.id)
+    }
+
+    private func conditionText(_ ach: Achievement, _ done: Bool) -> String {
+        needsReveal(ach, done) ? "???" : LocalizedNames.condition(ach.id, fallback: ach.condition)
+    }
+
+    /// "망원경으로 보기" 칩 — 쓸 수 있는 망원경이 없으면 아무것도 안 그린다(가진 사람에게만 보이는 길).
+    @ViewBuilder
+    private func telescopeChip(_ achId: String, mode: String, aboveLevel: Int = 0) -> some View {
+        if let item = usableTelescopes(mode, aboveLevel).first {
+            Button {
+                withAnimation(.easeOut(duration: 0.18)) { telescopeAsk = TelescopeAsk(achId: achId, mode: mode) }
+            } label: {
+                HStack(spacing: 4) {
+                    ItemArt(item: item).frame(width: 16, height: 16)
+                    Text(locale.t(.telescopeLook)).font(.minSans(10.5)).foregroundStyle(Theme.navyAccent)
+                }
+                .padding(.leading, 6).padding(.trailing, 9).padding(.vertical, 3)
+                .background(Theme.navyAccent.opacity(0.12), in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.navyAccent.opacity(0.35), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -572,6 +627,96 @@ private struct NebulaCanvas: View, Animatable {
                     Path(ellipseIn: CGRect(x: cx - rad, y: cy - rad, width: rad * 2, height: rad * 2)),
                     with: .color(.white.opacity(alpha))
                 )
+            }
+        }
+    }
+}
+
+
+// MARK: - 천체 망원경(별빛 공방) — Android AchievementsScreen TelescopeDialog 패리티
+
+/// 망원경을 쓸 업적 — mode reveal(??? 조건 공개) / hint(히든 업적 단서).
+private struct TelescopeAsk: Equatable {
+    let achId: String
+    let mode: String
+}
+
+/// 그 업적에 쓸 수 있는 망원경 — 단서는 지금 가진 단서보다 또렷한 것만.
+@MainActor
+private func usableTelescopes(_ mode: String, _ aboveLevel: Int) -> [StarlightStore.Item] {
+    StarlightStore.shared.telescopes(mode).filter { mode == "reveal" || ($0.int("level") ?? 0) > aboveLevel }
+}
+
+/// 망원경 고르기 → 사용(서버가 소유·중복을 확인하고 지갑에 공개/단서를 넣는다).
+private struct TelescopeDialog: View {
+    let ask: TelescopeAsk
+    let onDismiss: () -> Void
+    @ObservedObject private var store = StarlightStore.shared
+    @ObservedObject private var locale = LocaleManager.shared
+    @State private var busy = false
+
+    var body: some View {
+        let have = store.hints[ask.achId]?.level ?? 0
+        let scopes = usableTelescopes(ask.mode, have)
+        let name = LocalizedNames.title(ask.achId, fallback: Achievements.byId(ask.achId)?.name ?? HiddenAchievements.byId(ask.achId)?.title)
+            ?? ask.achId
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea().onTapGesture { if !busy { onDismiss() } }
+            VStack(spacing: 0) {
+                Text(locale.t(.telescopeTitle)).font(.minSans(12, .semibold)).foregroundStyle(Theme.navyAccent)
+                Text(name).font(.minSans(17)).foregroundStyle(Theme.textPrimary)
+                    .multilineTextAlignment(.center).padding(.top, 6)
+                Text(locale.t(ask.mode == "reveal" ? .telescopeAskReveal : .telescopeAskHint))
+                    .font(.minSans(13)).foregroundStyle(Theme.textSecondary).lineSpacing(3)
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10).padding(.bottom, 12)
+                ForEach(scopes) { item in
+                    Button { use(item) } label: {
+                        HStack(spacing: 10) {
+                            ItemArt(item: item).frame(width: 34, height: 34)
+                            Text(String(format: locale.t(.telescopeUseItem), item.name(in: locale.effectiveLanguage), store.owned[item.id] ?? 0))
+                                .font(.minSans(14)).foregroundStyle(Theme.textPrimary)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 10)
+                        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(StarlightArt.rarityColor(item.rarity).opacity(0.45), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(busy)
+                    .padding(.vertical, 4)
+                }
+                Button { onDismiss() } label: {
+                    Text(locale.t(.telescopeCancel)).font(.minSans(13)).foregroundStyle(Theme.textSecondary)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .disabled(busy)
+                .padding(.top, 8)
+            }
+            .padding(20)
+            .frame(maxWidth: 360)
+            .background(Color(hex: 0x121821), in: RoundedRectangle(cornerRadius: 22))
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.navyAccent.opacity(0.5), lineWidth: 1))
+            .padding(.horizontal, 24)
+        }
+    }
+
+    private func use(_ item: StarlightStore.Item) {
+        busy = true
+        Task {
+            let r = await store.useTelescope(item.id, target: ask.achId)
+            busy = false
+            switch r {
+            case .done:
+                Haptics.medium()
+                StaryAnalytics.log("telescope_use", ["mode": ask.mode, "item": item.id])
+                GlobalToast.shared.show(locale.t(ask.mode == "reveal" ? .telescopeRevealedToast : .telescopeHintToast))
+                onDismiss()
+            case .failed(let code):
+                let key: L10n = code == "already" ? .telescopeAlready : code == "timeout" ? .starlightErrTimeout : .starlightErrGeneric
+                GlobalToast.shared.show(locale.t(key))
             }
         }
     }

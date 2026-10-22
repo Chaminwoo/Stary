@@ -25,12 +25,11 @@ struct QuestDef: Equatable {
     }
 }
 
-/// 일일 퀘스트 정의(2026-10-19) — 하루 3개, 앱 기능을 하나씩 써 보게 하는 튜토리얼 성격. 보상 = 열쇠.
+/// 일일 퀘스트 정의(2026-10-19) — 하루 3개, 앱 기능을 하나씩 써 보게 하는 튜토리얼 성격. 보상 = 별가루(2026-10-22, 서버 지급).
+/// ⚠️ 하루 개수·목표치는 서버 functions/starlight.js QUESTS_PER_DAY / QUEST_TARGETS 와 같아야 한다(서버가 진행도를 확인한다).
 /// ⚠️ Android `DailyQuests` 와 **id·이벤트·목표·시간대·풀·뽑는 식(FNV-1a + SplitMix64 + Fisher–Yates)이 같아야 한다** —
 ///    같은 계정을 두 기기에서 쓰면 서버의 그날 목록을 같이 쓴다.
 enum DailyQuests {
-    static let rewardKeys = 1
-    static let bonusKeys = 1
     static let perDay = 3
     private static let gUpload = "upload"
 
@@ -318,37 +317,46 @@ final class QuestStore: ObservableObject {
         }
     }
 
-    /// 완료한 퀘스트의 보상(열쇠)을 받는다. 반환 = 받은 열쇠 수(0 = 못 받음). 보너스는 따로 [claimBonus].
-    @discardableResult
-    func claim(_ id: String) -> Int {
-        guard let uid, var d = daily, let q = d.quests.first(where: { $0.id == id }),
+    /// 완료한 퀘스트의 보상(별가루)을 받는다. 보너스는 따로 [claimBonus].
+    /// 지급은 서버가 한다(`StarlightStore.request("claimQuest")` — 진행도 확인 · 하루 1번 · `quest.claimed` 기록까지).
+    /// 버튼이 바로 "받음"으로 바뀌게 먼저 화면에 반영하고, 서버가 거절하면 되돌린다.
+    /// 반환 = 받은 별가루(성공), 0(이미 받음/받을 수 없음), nil(실패 — 안내 토스트는 호출부). Android `claim` 패리티.
+    func claim(_ id: String) async -> Int? {
+        guard var d = daily, let q = d.quests.first(where: { $0.id == id }),
               d.isComplete(q), !d.claimed.contains(id) else { return 0 }
+        let day = d.day
         d.claimed.insert(id)
         daily = d
-        let gained = DailyQuests.rewardKeys
-        keys += gained
-        FirestoreService.users.document(uid).setData([
-            questFieldKeys: FieldValue.increment(Int64(gained)),
-            questFieldQuest: ["claimed": FieldValue.arrayUnion([id])],
-        ], merge: true)
-        return gained
+        let r = await StarlightStore.shared.request("claimQuest", ["day": day, "questId": id])
+        return settle(r) {
+            if var cur = daily, cur.day == day { cur.claimed.remove(id); daily = cur }
+        }
     }
 
-    /// 보너스 퀘스트(4번째 행, 2026-10-19 — 예전엔 3번째 보상과 함께 자동 지급) — 3개 보상을 모두 받았으면 열쇠 `bonusKeys`.
-    /// 이 날짜를 `questClearDays` 에도 남긴다(퀘스트 보상 칭호 — 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다). Android `claimBonus` 패리티.
-    @discardableResult
-    func claimBonus() -> Int {
-        guard let uid, var d = daily, d.bonusReady, !d.bonus else { return 0 }
+    /// 보너스 퀘스트(4번째 행) — 3개 보상을 모두 받았으면 별가루 보너스. 서버가 `questClearDays` 에도 그날을 남긴다
+    /// (퀘스트 보상 칭호 — 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다). Android `claimBonus` 패리티.
+    func claimBonus() async -> Int? {
+        guard var d = daily, d.bonusReady, !d.bonus else { return 0 }
+        let day = d.day
         d.bonus = true
         daily = d
-        let gained = DailyQuests.bonusKeys
-        keys += gained
-        FirestoreService.users.document(uid).setData([
-            questFieldKeys: FieldValue.increment(Int64(gained)),
-            questFieldQuest: ["bonus": true],
-            MeteorStats.fieldQuestClears: FieldValue.arrayUnion([d.day]),
-        ], merge: true)
-        return gained
+        let r = await StarlightStore.shared.request("claimBonus", ["day": day])
+        return settle(r) {
+            if var cur = daily, cur.day == day { cur.bonus = false; daily = cur }
+        }
+    }
+
+    /// 서버 응답 → 받은 별가루. 응답이 늦으면(timeout) 요청이 남아 있어 나중에 처리되므로 화면은 그대로 둔다.
+    private func settle(_ r: StarlightStore.OpResult, revert: () -> Void) -> Int? {
+        switch r {
+        case .done(let result): return (result["gained"] as? NSNumber)?.intValue ?? 0
+        case .failed(let code):
+            switch code {
+            case "already": return 0
+            case "timeout": return nil
+            default: revert(); return nil
+            }
+        }
     }
 
     /// 광고 보상 — 열쇠 1개(퀘스트 창 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?").
