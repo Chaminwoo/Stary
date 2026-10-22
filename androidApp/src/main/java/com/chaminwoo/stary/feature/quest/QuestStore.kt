@@ -45,6 +45,7 @@ object QuestStore {
     private const val FIELD_KEYS = "questKeys"
     private const val FIELD_QUEST = "quest"
     private const val RETURNING_WAIT_MS = 8_000L
+    private const val RESUBSCRIBE_MS = 3_000L
 
     data class Daily(
         val day: String,
@@ -96,7 +97,20 @@ object QuestStore {
         // MetadataChanges.INCLUDE — 캐시 값이 서버와 같으면 "서버 확인됨"은 메타데이터만 바뀐 이벤트로 온다.
         // 이걸 안 받으면 serverSeen 이 영영 false 라 오늘 목록을 못 만들어 퀘스트 창이 무한 로딩이었다(2026-10-19).
         registration = doc(uid).addSnapshotListener(MetadataChanges.INCLUDE) { snap, error ->
-            if (error != null || snap == null || this.uid != uid) return@addSnapshotListener
+            if (error != null) {
+                // 거부된 구독은 다시 살아나지 않는다(예: 인증이 막 붙는 순간 PERMISSION_DENIED) — 잠시 뒤 다시 붙인다.
+                Log.w(TAG, "퀘스트 구독 실패 — 다시 시도", error)
+                scope.launch {
+                    delay(RESUBSCRIBE_MS)
+                    if (this@QuestStore.uid == uid) {
+                        registration?.remove()
+                        registration = null
+                        start(context, uid)
+                    }
+                }
+                return@addSnapshotListener
+            }
+            if (snap == null || this.uid != uid) return@addSnapshotListener
             if (!snap.metadata.isFromCache && !serverSeen) {
                 serverSeen = true
                 fallbackJob = scope.launch {

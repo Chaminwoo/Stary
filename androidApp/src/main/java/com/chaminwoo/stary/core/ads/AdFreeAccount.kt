@@ -8,6 +8,7 @@ import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.launch
 
 /**
  * 광고제거 계정(2026-10-02) — `adFree/{appUserId}` 문서가 **있으면** 100m 밖 게시물을 광고 없이 탭 한 번에 연다
@@ -35,6 +36,10 @@ object AdFreeAccount {
         started = true
         // 등록 즉시 1회 + 인증 상태가 바뀔 때마다 호출된다.
         FirebaseAuth.getInstance().addAuthStateListener { watch(GoogleAuthHelper.currentUserId) }
+        // 로그인 때 currentUserId 는 Firebase Auth 가 끝난 뒤에 채워진다 — 값이 바뀔 때도 따라간다.
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            androidx.compose.runtime.snapshotFlow { GoogleAuthHelper.currentUserId }.collect { watch(it) }
+        }
     }
 
     private fun watch(uid: String?) {

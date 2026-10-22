@@ -2,6 +2,8 @@ package com.chaminwoo.stary.feature.auth
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.chaminwoo.stary.BuildConfig
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
@@ -43,7 +45,11 @@ object GoogleAuthHelper {
     // 하드코딩 금지: secrets.properties -> BuildConfig 로 주입.
     // TODO: secrets.properties 에 GOOGLE_WEB_CLIENT_ID 실제 값 설정 (커밋 금지)
     private val WEB_CLIENT_ID = BuildConfig.GOOGLE_WEB_CLIENT_ID
-    var currentUserId: String? = null
+    /**
+     * 앱 사용자 id(Google sub). Compose 상태라 화면이 읽으면 바뀔 때 다시 그려진다 — 로그인 때 Firebase Auth 가 끝난 **뒤에**
+     * 채워지므로(signInWithGoogle), 인증 상태 리스너만 보던 곳은 이 값을 따로 관찰해야 한다(MainListScreen · AdFreeAccount).
+     */
+    var currentUserId: String? by androidx.compose.runtime.mutableStateOf(null)
     /**
      * 화면 표시용 내 이름 — 서버를 읽기 전엔 **임시값**(기기에 남은 닉네임 또는 구글 이름)일 수 있다.
      * 다른 사람에게 나가는 문서(별·댓글·좋아요·친구 요청·채팅·선점)에 이름을 박을 땐 쓰지 말고 [requireConfirmedName] 을 쓴다
@@ -112,7 +118,10 @@ object GoogleAuthHelper {
             if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
                 val idToken = googleIdTokenCredential.idToken
-                currentUserId = getUserIdFromToken(idToken)
+                // ⚠️ currentUserId 는 아래 Firebase Auth 로그인이 **끝난 뒤에** 넣는다(2026-10-22). 먼저 넣으면 그 사이
+                //    화면이 다시 그려지며 users/{uid}·diaries 등 구독이 인증 없이 시작돼 PERMISSION_DENIED 로 죽고 다시 붙지 않았다
+                //    (새 계정 첫 로그인: 퀘스트 무한 로딩 · 지도 별 목록 빔 · 첫 사용 안내 멈춤).
+                val signedInUid = getUserIdFromToken(idToken)
                 googleName = googleIdTokenCredential.displayName
                 currentUserName = googleName
                 _confirmedName.value = null
@@ -134,6 +143,7 @@ object GoogleAuthHelper {
                         "firebase_auth_fail", "reason" to e::class.java.simpleName,
                     )
                 }
+                currentUserId = signedInUid
                 com.chaminwoo.stary.core.util.StaryAnalytics.log("login_success", "method" to "google")
                 // 친구 검색이 가능하도록 공개 프로필(users/{uid}) 확정·기록 — startProfileSync 주석 참고.
                 // fire-and-forget: Firestore 쓰기가 지연/실패해도 로그인 흐름을 막지 않는다.

@@ -175,6 +175,9 @@ fun MainListScreen(
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
     }
+    // 로그인 때 currentUserId 는 Firebase Auth 가 끝난 뒤에 채워져 위 리스너보다 늦을 수 있다 — 값 자체도 따라간다.
+    val observedUserId = GoogleAuthHelper.currentUserId
+    LaunchedEffect(observedUserId) { userId = observedUserId }
     // 필터는 앱을 껐다 켜도 유지된다(계정별 저장 — MapFilterStore). 계정이 바뀌면 그 계정의 마지막 필터로 다시 읽는다.
     val savedFilters = remember(userId) { MapFilterStore.load(context, userId) }
     // 미해금만 — 눌렀을 때 잠금 화면이 뜨는 별만(내 글도 아니고, 해금한 적도 없고, 지금 100m 밖). 해금만의 정확한 반대.
