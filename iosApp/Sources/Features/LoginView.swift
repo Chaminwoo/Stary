@@ -75,8 +75,6 @@ struct LoginView: View {
             EmailLoginSheet()
                 .environmentObject(auth)
         }
-        // 스크린샷 자동 촬영 — CI 시뮬레이터는 인트로 영상이 끝나지 않아 버튼이 안 나온다 → 바로 등장(Core/ScreenshotMode.swift).
-        .onAppear { if ScreenshotMode.isActive { revealUI() } }
     }
 
     private func termsLayer<C: View>(@ViewBuilder _ card: () -> C) -> some View {

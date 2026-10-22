@@ -43,8 +43,7 @@ final class MapChromeState: ObservableObject {
     var chromeHidden: Bool { hidden || mapOnly }
 
     func enterMapOnly() {
-        // 스크린샷 자동 촬영 중엔 버튼이 사라지지 않게(Core/ScreenshotMode.swift).
-        guard !mapOnly, !ScreenshotMode.isActive else { return }
+        guard !mapOnly else { return }
         withAnimation(.easeInOut(duration: Self.hideSeconds)) { mapOnly = true }
     }
 

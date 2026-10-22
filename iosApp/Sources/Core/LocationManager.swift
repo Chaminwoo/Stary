@@ -31,10 +31,8 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     func start() {
         #if targetEnvironment(simulator)
         // 컴퓨터(시뮬레이터)에서는 실제 GPS 가 없거나 엉뚱한 기본 위치라, 내 위치를 건국대로 시작한다(#2).
-        // (스크린샷 자동 촬영은 실행 인자로 받은 위치 — Core/ScreenshotMode.swift)
         if coordinate == nil {
-            coordinate = ScreenshotMode.coordinate
-                ?? CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
+            coordinate = CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
         }
         #endif
         manager.startUpdatingLocation()
