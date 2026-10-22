@@ -698,3 +698,6 @@ function storagePathFromUrl(url) {
     return null;
   }
 }
+
+// ── 별빛 공방(별가루 지갑 · 성운 상자) — starlight.js ──
+exports.onStarlightOp = require("./starlight").onStarlightOp;

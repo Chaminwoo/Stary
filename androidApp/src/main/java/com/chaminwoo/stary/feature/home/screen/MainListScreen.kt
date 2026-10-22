@@ -129,6 +129,8 @@ fun MainListScreen(
     guideEnabled: Boolean = true,
     /** 첫 사용 안내의 "프로필 바꾸기" — 프로필 화면으로. */
     onOpenProfile: () -> Unit = {},
+    /** 별빛 공방(퀘스트 창 별가루 칩 · 안내의 "열쇠 만들기"). */
+    onOpenWorkshop: () -> Unit = {},
     diaryViewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())
 ) {
     val context = LocalContext.current
@@ -564,6 +566,10 @@ fun MainListScreen(
                     com.chaminwoo.stary.core.util.StaryAnalytics.log("guide_action", "step" to "quest_go_${def.id}")
                     if (def.event == com.chaminwoo.stary.feature.quest.QuestEvent.PROFILE_EDIT) onOpenProfile()
                 },
+                onOpenWorkshop = {
+                    showQuests = false
+                    onOpenWorkshop()
+                },
             )
         }
 
@@ -578,6 +584,7 @@ fun MainListScreen(
             onWrite = onCreateClick,
             onOpenQuests = { showQuests = true },
             onOpenProfile = onOpenProfile,
+            onOpenWorkshop = onOpenWorkshop,
             onOpenStar = onItemClick,
             modifier = Modifier
                 .align(Alignment.TopCenter)

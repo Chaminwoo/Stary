@@ -5,7 +5,8 @@ import com.chaminwoo.stary.R
 
 /**
  * 일일 퀘스트 정의(2026-10-19) — 하루 3개, 앱 기능을 하나씩 써 보게 하는 튜토리얼 성격.
- * 보상 = 열쇠([QuestStore.keys]) — 멀리 있는(100m 밖) 남의 별을 여는 데 쓴다(DiaryLock.kt).
+ * 보상 = 별가루(2026-10-22, 양은 DB `starlightConfig` — [com.chaminwoo.stary.feature.starlight.StarlightStore.config]).
+ * 별빛 공방에서 열쇠(멀리 있는 남의 별 열기, DiaryLock.kt)나 성운 상자로 바꾼다.
  *
  * ⚠️ iOS `DailyQuests.swift` 와 **id·이벤트·목표 수·시간대·풀(pool)·뽑는 식이 같아야 한다** —
  *    같은 계정을 두 기기에서 쓰면 서버의 그날 목록을 같이 쓰는데, 먼저 만든 쪽 식이 다르면 목록이 달라진다.
@@ -56,10 +57,7 @@ data class QuestDef(
 }
 
 object DailyQuests {
-    /** 퀘스트 1개 보상(열쇠). */
-    const val REWARD_KEYS = 1
-    /** 하루 3개를 모두 받으면 주는 보너스 열쇠. */
-    const val BONUS_KEYS = 1
+    /** ⚠️ 서버 functions/starlight.js 의 QUESTS_PER_DAY · QUEST_TARGETS(목표 2 이상) 와 같아야 한다. */
     const val PER_DAY = 3
 
     private const val G_UPLOAD = "upload"

@@ -141,6 +141,8 @@ fun UserProfileScreen(
     val display = com.chaminwoo.stary.core.util.rememberUserDisplay(userId, fetchedName, fetchedPhoto)
     val photoUrl = display.photoUrl
     val resolvedName = display.name
+    // 그 사람의 별빛 공방 장착(프레임·배지).
+    val equips = com.chaminwoo.stary.feature.starlight.rememberEquips(userId)
     // 칭호는 언어 전환에 맞춰 표시(로케일 해석)
     val equippedTitleName = LocalizedNames.equippedTitle(
         androidx.compose.ui.platform.LocalContext.current, equippedTitleId.ifBlank { null }
@@ -317,6 +319,8 @@ fun UserProfileScreen(
                                 )
                             }
                         }
+                        // 그 사람이 단 별빛 공방 프레임.
+                        com.chaminwoo.stary.feature.starlight.EquippedFrame(equips, photo = 124.dp)
                     }
 
                     Spacer(Modifier.height(16.dp))
@@ -330,6 +334,7 @@ fun UserProfileScreen(
                             modifier = Modifier.padding(start = 8.dp),
                             size = 20.dp,
                         )
+                        com.chaminwoo.stary.feature.starlight.EquippedBadge(equips, size = 22.dp, modifier = Modifier.padding(start = 8.dp))
                     }
 
                     // 장착 칭호 — 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.
@@ -340,7 +345,10 @@ fun UserProfileScreen(
                         isHiddenTitle -> Color(0xFFFFD86F)
                         else -> Accent
                     }
-                    Text(
+                    val slTitle = com.chaminwoo.stary.feature.starlight.StarlightStore.titleItem(equippedTitleId)
+                    if (slTitle != null && equippedTitleName != null) {
+                        com.chaminwoo.stary.feature.starlight.TitleText("『$equippedTitleName』", slTitle.payload, fontSize = 15f)
+                    } else Text(
                         text = when {
                             equippedTitleName == null -> stringResource(R.string.user_no_title)
                             else -> "『$equippedTitleName』"

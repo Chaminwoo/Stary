@@ -94,6 +94,15 @@ sealed class NavRoute {
         override val showFab = false
     }
 
+    /** 별빛 공방(2026-10-22) — 별가루를 열쇠·성운 상자로 바꾸고 상자를 연다(드로어: 업적 아래, 퀘스트 창 별가루 칩). */
+    @Serializable
+    data object Workshop : NavRoute() {
+        override val title = "별빛 공방"
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
     @Serializable
     data object Music : NavRoute() {
         override val title = "배경음악"

@@ -12,6 +12,7 @@ import com.chaminwoo.stary.core.util.Haptics
 import com.chaminwoo.stary.core.util.LocaleManager
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
+import com.chaminwoo.stary.feature.starlight.StarlightStore
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
@@ -21,7 +22,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import com.chaminwoo.stary.data.repository.MeteorStatsRepository
 import com.google.firebase.firestore.MetadataChanges
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -29,7 +29,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * 일일 퀘스트 진행 + 열쇠 지갑(2026-10-19).
+ * 일일 퀘스트 진행 + 열쇠 지갑(2026-10-19). 퀘스트 보상은 2026-10-22부터 별가루(서버 지갑 `wallets/{uid}`, [StarlightStore]).
  *
  * 저장 위치 = `users/{uid}` 의 두 필드(유성 기록 `MeteorStatsRepository` 와 같은 방식 — 규칙 변경 없이 소유자 쓰기, 항상 merge):
  *  - `questKeys` : 가진 열쇠 수(`FieldValue.increment` 로만 바꾼다 — 두 기기가 동시에 써도 합이 맞다)
@@ -244,44 +244,42 @@ object QuestStore {
     }
 
     /**
-     * 완료한 퀘스트의 보상(열쇠)을 받는다. 3개를 모두 받으면 보너스까지.
-     * @return 이번에 받은 열쇠 수(0 = 받을 수 없음).
+     * 완료한 퀘스트의 보상을 받는다 — 2026-10-22부터 **별가루**(열쇠 고정 → 별빛 공방에서 열쇠·성운 상자로 교환).
+     * 지급은 서버가 한다([StarlightStore.request] "claimQuest" — 진행도 확인 · 하루 1번 · `quest.claimed` 기록까지).
+     * 버튼이 바로 "받음"으로 바뀌게 먼저 화면에 반영하고, 서버가 거절하면 되돌린다.
+     * @return 받은 별가루(성공), 0(이미 받음/받을 수 없음), null(실패 — 안내 토스트는 호출부).
      */
-    fun claim(id: String): Int {
-        val uid = uid ?: return 0
+    suspend fun claim(id: String): Int? {
         val d = daily ?: return 0
         val def = d.quests.firstOrNull { it.id == id } ?: return 0
         if (!d.isComplete(def) || id in d.claimed) return 0
-        val gained = DailyQuests.REWARD_KEYS
         daily = d.copy(claimed = d.claimed + id)
-        keys += gained
-        doc(uid).set(
-            mapOf(FIELD_KEYS to FieldValue.increment(gained.toLong()), FIELD_QUEST to mapOf("claimed" to FieldValue.arrayUnion(id))),
-            SetOptions.merge(),
-        ).addOnFailureListener { Log.w(TAG, "열쇠 보상 기록 실패", it) }
-        return gained
+        return settle(StarlightStore.request("claimQuest", mapOf("day" to d.day, "questId" to id))) {
+            daily?.let { cur -> if (cur.day == d.day) daily = cur.copy(claimed = cur.claimed - id) }
+        }
     }
 
     /**
-     * 보너스 퀘스트(4번째 행, 2026-10-19 — 예전엔 3번째 보상과 함께 자동 지급) — 3개 보상을 모두 받았으면 열쇠 [DailyQuests.BONUS_KEYS].
-     * 이 날짜를 `questClearDays` 에도 남긴다(퀘스트 보상 칭호 — 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다).
+     * 보너스 퀘스트(4번째 행) — 3개 보상을 모두 받았으면 별가루 보너스. 서버가 `questClearDays` 에도 그날을 남긴다
+     * (퀘스트 보상 칭호 — 날짜 집합이라 두 기기가 같은 날 받아도 한 번만 센다).
      */
-    fun claimBonus(): Int {
-        val uid = uid ?: return 0
+    suspend fun claimBonus(): Int? {
         val d = daily ?: return 0
         if (!d.bonusReady || d.bonus) return 0
-        val gained = DailyQuests.BONUS_KEYS
         daily = d.copy(bonus = true)
-        keys += gained
-        doc(uid).set(
-            mapOf(
-                FIELD_KEYS to FieldValue.increment(gained.toLong()),
-                FIELD_QUEST to mapOf("bonus" to true),
-                MeteorStatsRepository.FIELD_QUEST_CLEARS to FieldValue.arrayUnion(d.day),
-            ),
-            SetOptions.merge(),
-        ).addOnFailureListener { Log.w(TAG, "보너스 열쇠 기록 실패", it) }
-        return gained
+        return settle(StarlightStore.request("claimBonus", mapOf("day" to d.day))) {
+            daily?.let { cur -> if (cur.day == d.day) daily = cur.copy(bonus = false) }
+        }
+    }
+
+    /** 서버 응답 → 받은 별가루. 응답이 늦으면(timeout) 요청이 남아 있어 나중에 처리되므로 화면은 그대로 둔다. */
+    private inline fun settle(r: StarlightStore.OpResult, revert: () -> Unit): Int? = when (r) {
+        is StarlightStore.OpResult.Done -> (r.result["gained"] as? Number)?.toInt() ?: 0
+        is StarlightStore.OpResult.Failed -> when (r.code) {
+            "already" -> 0
+            "timeout" -> null
+            else -> { revert(); null }
+        }
     }
 
     /** 광고 보상 — 열쇠 1개(퀘스트 창 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?"). */

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -148,6 +149,7 @@ fun MainScreen(
         currentDestination?.hasRoute<NavRoute.StarLog>() == true -> NavRoute.StarLog
         currentDestination?.hasRoute<NavRoute.Profile>() == true -> NavRoute.Profile
         currentDestination?.hasRoute<NavRoute.Achievements>() == true -> NavRoute.Achievements
+        currentDestination?.hasRoute<NavRoute.Workshop>() == true -> NavRoute.Workshop
         currentDestination?.hasRoute<NavRoute.Music>() == true -> NavRoute.Music
         currentDestination?.hasRoute<NavRoute.Settings>() == true -> NavRoute.Settings
         currentDestination?.hasRoute<NavRoute.Friends>() == true -> NavRoute.Friends
@@ -339,9 +341,11 @@ fun MainScreen(
     androidx.compose.runtime.LaunchedEffect(userId) {
         if (userId == null) {
             com.chaminwoo.stary.feature.quest.QuestStore.stop()
+            com.chaminwoo.stary.feature.starlight.StarlightStore.stop()
             return@LaunchedEffect
         }
         com.chaminwoo.stary.feature.quest.QuestStore.start(context, userId)
+        com.chaminwoo.stary.feature.starlight.StarlightStore.start(userId)
         while (true) {
             kotlinx.coroutines.delay(60_000)
             com.chaminwoo.stary.feature.quest.QuestStore.ensureToday()
@@ -500,23 +504,32 @@ fun MainScreen(
                             currentRoute is NavRoute.Achievements,
                             reveal = drawerItemReveal(rv, 3),
                         ) { onNavigate(NavRoute.Achievements) }
+                        // 별빛 공방 — 로그인 계정만(지갑이 계정에 붙는다).
+                        if (GoogleAuthHelper.currentUserId != null) {
+                            DrawerItem(
+                                stringResource(R.string.nav_workshop),
+                                Icons.Filled.AutoAwesome,
+                                currentRoute is NavRoute.Workshop,
+                                reveal = drawerItemReveal(rv, 4),
+                            ) { onNavigate(NavRoute.Workshop) }
+                        }
                         DrawerItem(
                             stringResource(R.string.nav_music),
                             Icons.Filled.MusicNote,
                             currentRoute is NavRoute.Music,
-                            reveal = drawerItemReveal(rv, 4),
+                            reveal = drawerItemReveal(rv, 5),
                         ) { onNavigate(NavRoute.Music) }
                         DrawerItem(
                             stringResource(R.string.nav_friends),
                             Icons.Filled.People,
                             currentRoute is NavRoute.Friends,
-                            reveal = drawerItemReveal(rv, 5),
+                            reveal = drawerItemReveal(rv, 6),
                         ) { onNavigate(NavRoute.Friends) }
                         DrawerItem(
                             stringResource(R.string.nav_settings),
                             Icons.Filled.Settings,
                             currentRoute is NavRoute.Settings,
-                            reveal = drawerItemReveal(rv, 6),
+                            reveal = drawerItemReveal(rv, 7),
                         ) { onNavigate(NavRoute.Settings) }
                         // 로그인 상태면 로그아웃, 아니면 로그인 항목 노출
                         if (GoogleAuthHelper.currentUserId == null) {
@@ -525,7 +538,7 @@ fun MainScreen(
                                 Icons.AutoMirrored.Filled.Login,
                                 selected = false,
                                 alwaysAccent = true,
-                                reveal = drawerItemReveal(rv, 7),
+                                reveal = drawerItemReveal(rv, 8),
                             ) {
                                 coroutineScope.launch { drawerState.close() }
                                 showLogin = true
@@ -536,7 +549,7 @@ fun MainScreen(
                                 Icons.AutoMirrored.Filled.Logout,
                                 selected = false,
                                 danger = true,
-                                reveal = drawerItemReveal(rv, 7),
+                                reveal = drawerItemReveal(rv, 8),
                             ) {
                                 onLogout()
                             }
@@ -844,6 +857,9 @@ fun MainScreen(
                             onOpenProfile = {
                                 navController.navigate(NavRoute.Profile) { launchSingleTop = true }
                             },
+                            onOpenWorkshop = {
+                                navController.navigate(NavRoute.Workshop) { launchSingleTop = true }
+                            },
                         )
                         // 탑바가 반투명이라 화면은 **탑바 뒤까지** 전체를 차지한다(배경이 탑바에 비치도록).
                         // 대신 각 화면의 콘텐츠 레이어가 LocalTopBarInset 만큼 내려간다.
@@ -1039,6 +1055,7 @@ private fun localizedTitle(route: NavRoute): String = when (route) {
     is NavRoute.Friends -> stringResource(R.string.nav_friends)
     is NavRoute.Profile -> stringResource(R.string.nav_profile)
     is NavRoute.Achievements -> stringResource(R.string.nav_achievements)
+    is NavRoute.Workshop -> stringResource(R.string.nav_workshop)
     is NavRoute.Music -> stringResource(R.string.nav_music)
     is NavRoute.MyDiary -> stringResource(R.string.nav_my_diary)
     is NavRoute.StarLog -> stringResource(R.string.nav_star_log)
@@ -1099,7 +1116,7 @@ private fun DrawerItem(
 /** 드로어 항목 하나가 스르륵 들어오는 시간 / 항목 간 간격(ms). 전체 = 간격×(항목수−1) + 한 항목. */
 private const val DRAWER_ITEM_REVEAL_MS = 300
 private const val DRAWER_ITEM_STAGGER_MS = 45
-private const val DRAWER_REVEAL_TOTAL_MS = DRAWER_ITEM_STAGGER_MS * 7 + DRAWER_ITEM_REVEAL_MS
+private const val DRAWER_REVEAL_TOTAL_MS = DRAWER_ITEM_STAGGER_MS * 8 + DRAWER_ITEM_REVEAL_MS
 
 /** 드로어 전체 진행도 [total](0..1) → [index] 번째 항목의 진행도(0..1, 감속 곡선). */
 private fun drawerItemReveal(total: Float, index: Int): Float {

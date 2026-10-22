@@ -431,6 +431,43 @@ internal fun auraRadiusExpression(): Expression {
     )
 }
 
+/**
+ * 별빛 공방 오라 — 오라를 단 사람의 별 둘레(위상 그룹별, 별과 같이 float).
+ *  - glow : 은은한 빛(모든 패턴의 바탕, 숨 쉬듯 밝기만 변함)
+ *  - pulse: 별에서 퍼져 나가며 사라지는 고리
+ *  - ring : 별을 두른 가는 고리가 숨 쉬듯 커졌다 작아짐(토성 고리 — 지도에선 기울인 타원 대신 고리)
+ * 모르는 패턴은 halo(glow 만)로 그린다 — 새 패턴을 DB 에 넣어도 이전 버전은 빛으로만 보인다.
+ */
+internal fun slAuraGlowLayerId(group: Int) = "sl-aura-glow-$group"
+internal fun slAuraPulseLayerId(group: Int) = "sl-aura-pulse-$group"
+internal fun slAuraRingLayerId(group: Int) = "sl-aura-ring-$group"
+private val SL_AURA_PATTERNS = setOf("halo", "pulse", "ring")
+
+/** 공방 오라 반경 — 인기 오오라와 같은 줌 곡선 × [scale] × sizeMult. */
+internal fun slAuraRadiusExpression(scale: Float): Expression {
+    fun r(base: Float): Expression =
+        Expression.product(Expression.literal(base * scale), Expression.get("sizeMult"))
+    return Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        Expression.stop(6f, r(2.5f)),
+        Expression.stop(10f, r(7f)),
+        Expression.stop(13f, r(15f)),
+        Expression.stop(15f, r(24f)),
+    )
+}
+
+/** 그 사람이 단 오라 → (패턴, 색1, 색2) "#RRGGBB". 안 달았거나 아이템을 모르면 null. */
+internal fun slAuraOf(userId: String): Triple<String, String, String>? {
+    val id = com.chaminwoo.stary.feature.starlight.StarlightStore.auraByUser[userId] ?: return null
+    val item = com.chaminwoo.stary.feature.starlight.StarlightStore.item(id) ?: return null
+    val pattern = (item.payload["pattern"] as? String)?.takeIf { it in SL_AURA_PATTERNS } ?: "halo"
+    val hexes = (item.payload["colors"] as? List<*>).orEmpty().mapNotNull { v ->
+        (v as? String)?.trim()?.removePrefix("#")?.takeIf { it.length == 6 && it.toLongOrNull(16) != null }?.let { "#" + it.uppercase() }
+    }
+    val c1 = hexes.firstOrNull() ?: "#BFD8FF"
+    return Triple(pattern, c1, hexes.getOrNull(1) ?: c1)
+}
+
 /** 바닥 빛 웅덩이 반경: 오오라보다 작고 은은하게, 모든 별 공통(줌 보간 × sizeMult). */
 internal fun groundLightRadiusExpression(): Expression {
     fun r(base: Float): Expression =
@@ -571,6 +608,10 @@ internal fun diaryFeature(d: Diary, lng: Double, lat: Double, near: Boolean, alp
         addNumberProperty("alpha", alpha)
         addStringProperty("icon", starIconId(StarStyle.safeType(d.starType), colorIdx))
         addStringProperty("sparkleIcon", sparkleStarIconId(StarStyle.safeType(d.starType), colorIdx))
+        val sl = slAuraOf(d.userId)
+        addStringProperty("slAura", sl?.first ?: "")
+        addStringProperty("slAuraColor", sl?.second ?: "#000000")
+        addStringProperty("slAuraColor2", sl?.third ?: "#000000")
     }
 }
 

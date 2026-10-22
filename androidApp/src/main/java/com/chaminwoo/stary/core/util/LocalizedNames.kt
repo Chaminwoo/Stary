@@ -239,6 +239,11 @@ object LocalizedNames {
      */
     fun equippedTitle(context: Context, id: String?): String? {
         if (id.isNullOrBlank()) return null
+        // 별빛 공방 칭호(sl:{아이템 id}) — 이름은 DB 의 아이템 정의(언어별)에서.
+        if (id.startsWith(com.chaminwoo.stary.feature.starlight.StarlightStore.TITLE_PREFIX)) {
+            val item = com.chaminwoo.stary.feature.starlight.StarlightStore.titleItem(id) ?: return null
+            return item.nameIn(context.getString(R.string.starlight_lang))
+        }
         // 개척 칭호(pioneer_{code}) — 국가명은 로케일 API 로 동적 표시(체크리스트 32).
         pioneerTitle(context, id)?.let { return it }
         val fallback = Achievements.byId(id)?.titleName ?: HiddenAchievements.byId(id)?.title

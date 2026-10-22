@@ -68,6 +68,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,6 +92,9 @@ import com.chaminwoo.stary.core.ui.clickBounce
 import com.chaminwoo.stary.core.ui.raisedCosmicBorder
 import com.chaminwoo.stary.core.util.Haptics
 import com.chaminwoo.stary.core.util.MapUiState
+import com.chaminwoo.stary.feature.starlight.StardustIcon
+import com.chaminwoo.stary.feature.starlight.StarlightStore
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.LocalDate
@@ -200,6 +204,34 @@ internal fun KeyChip(keys: Int, bump: Int = 0, modifier: Modifier = Modifier) {
     }
 }
 
+/** 보유 별가루 칩 — 퀘스트 창 머리(탭 → 별빛 공방). 별가루를 받으면 [bump] 가 바뀌어 통통 튄다. */
+@Composable
+internal fun StardustChip(stardust: Int, bump: Int = 0, modifier: Modifier = Modifier) {
+    val scale = remember { Animatable(1f) }
+    LaunchedEffect(bump) {
+        if (bump == 0) return@LaunchedEffect
+        scale.snapTo(1.35f)
+        scale.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMediumLow))
+    }
+    val dust = Color(0xFFFFE6A8)
+    Row(
+        modifier = modifier
+            .graphicsLayer { scaleX = scale.value; scaleY = scale.value }
+            .clip(RoundedCornerShape(50))
+            .background(dust.copy(alpha = 0.12f))
+            .border(0.75.dp, dust.copy(alpha = 0.45f), RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StardustIcon(Modifier.size(15.dp), dust)
+        Spacer(Modifier.width(5.dp))
+        Text(
+            stardust.toString(),
+            style = TextStyle(color = dust, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"),
+        )
+    }
+}
+
 /**
  * 오늘의 퀘스트 창 — 3개 퀘스트(아이콘·제목·하는 법·진행도·보상) + 보너스 + 새 퀘스트까지 남은 시간.
  * 생김새는 화면 첫 진입 안내([com.chaminwoo.stary.core.ui.FirstVisitInfo])와 같은 카드.
@@ -211,11 +243,28 @@ fun QuestSheet(
     highlightId: String? = null,
     /** 강조한 행의 "하러 가기" — 그 기능 화면으로 보낸다(창은 호출부가 닫는다). */
     onGo: ((QuestDef) -> Unit)? = null,
+    /** 별가루 칩 → 별빛 공방(창은 호출부가 닫는다). null 이면 칩만 보인다. */
+    onOpenWorkshop: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val daily = QuestStore.daily
     val keys = QuestStore.keys
+    val reward = StarlightStore.config.questStardust
+    val bonusReward = StarlightStore.config.bonusStardust
     var bump by remember { mutableStateOf(0) }
+    var dustBump by remember { mutableStateOf(0) }
+    fun claimed(gained: Int?, questId: String) {
+        when {
+            gained == null -> StaryToast.show(context.getString(R.string.starlight_err_generic))
+            gained > 0 -> {
+                com.chaminwoo.stary.core.util.StaryAnalytics.log("quest_claim", "quest" to questId)
+                Haptics.celebrate()
+                dustBump++
+                StaryToast.show(context.getString(R.string.starlight_stardust_gained, gained))
+            }
+        }
+    }
     var showAdKey by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { com.chaminwoo.stary.core.util.StaryAnalytics.log("quest_open", "claimable" to (daily?.claimable ?: 0), "keys" to keys) }
     if (showAdKey) {
@@ -262,7 +311,12 @@ fun QuestSheet(
                     color = Color(0xFFF0F0F0), fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                // 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?"
+                // 별가루 칩 → 별빛 공방 / 열쇠 칩 → "광고를 보고 열쇠를 얻으시겠어요?"
+                StardustChip(
+                    stardust = StarlightStore.stardust, bump = dustBump,
+                    modifier = Modifier.clickable(enabled = onOpenWorkshop != null) { onOpenWorkshop?.invoke() },
+                )
+                Spacer(Modifier.width(6.dp))
                 KeyChip(keys = keys, bump = bump, modifier = Modifier.clickable { showAdKey = true })
                 Spacer(Modifier.width(6.dp))
                 Box(
@@ -301,20 +355,12 @@ fun QuestSheet(
                             title = stringResource(def.title),
                             hint = stringResource(def.hint),
                             target = def.target,
-                            reward = DailyQuests.REWARD_KEYS,
+                            reward = reward,
                             progress = daily.progressOf(def.id).coerceAtMost(def.target),
                             claimed = def.id in daily.claimed,
                             highlight = def.id == highlightId,
                             onGo = onGo?.let { go -> { go(def) } },
-                            onClaim = {
-                                val gained = QuestStore.claim(def.id)
-                                if (gained > 0) {
-                                    com.chaminwoo.stary.core.util.StaryAnalytics.log("quest_claim", "quest" to def.id)
-                                    Haptics.celebrate()
-                                    bump++
-                                    StaryToast.show(context.getString(R.string.quest_key_gained, gained))
-                                }
-                            },
+                            onClaim = { scope.launch { claimed(QuestStore.claim(def.id), def.id) } },
                         )
                     }
                     // 보너스 퀘스트(4번째 행) — 위 3개 보상을 모두 받으면 받을 수 있다(진행도 = 받은 보상 수).
@@ -324,18 +370,10 @@ fun QuestSheet(
                         title = stringResource(R.string.quest_bonus_title),
                         hint = stringResource(R.string.quest_bonus_hint),
                         target = daily.ids.size.coerceAtLeast(1),
-                        reward = DailyQuests.BONUS_KEYS,
+                        reward = bonusReward,
                         progress = daily.ids.count { it in daily.claimed },
                         claimed = daily.bonus,
-                        onClaim = {
-                            val gained = QuestStore.claimBonus()
-                            if (gained > 0) {
-                                com.chaminwoo.stary.core.util.StaryAnalytics.log("quest_claim", "quest" to "bonus")
-                                Haptics.celebrate()
-                                bump++
-                                StaryToast.show(context.getString(R.string.quest_key_gained, gained))
-                            }
-                        },
+                        onClaim = { scope.launch { claimed(QuestStore.claimBonus(), "bonus") } },
                     )
                 }
             }
@@ -498,13 +536,14 @@ private fun QuestRow(
                     contentAlignment = Alignment.Center,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Key, null, tint = Color(0xFF2A1A00), modifier = Modifier.size(14.dp))
+                        StardustIcon(Modifier.size(14.dp), Color(0xFF2A1A00))
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.quest_claim), color = Color(0xFF2A1A00), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 else -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Key, null, tint = QuestGold.copy(alpha = 0.75f), modifier = Modifier.size(14.dp))
+                    StardustIcon(Modifier.size(14.dp), QuestGold.copy(alpha = 0.75f))
+                    Spacer(Modifier.width(2.dp))
                     Text(
                         "×$reward",
                         color = QuestGold.copy(alpha = 0.75f), fontSize = 12.sp, fontWeight = FontWeight.Medium,

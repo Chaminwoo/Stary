@@ -160,6 +160,8 @@ fun ProfileScreen(
     var equippedStigmaId by remember(userId, stigmaIdInPrefs) { mutableStateOf(stigmaIdInPrefs) }
     // 칭호는 언어 전환에 맞춰 표시(정의는 한국어 데이터, 표시만 로케일 해석)
     val equippedStigma = LocalizedNames.equippedTitle(context, equippedStigmaId)
+    // 별빛 공방 장착(프레임·배지) — 서버가 쓴 starlightEquips/{uid}.
+    val myEquips = com.chaminwoo.stary.feature.starlight.rememberEquips(userId)
 
     // 내가 달성한 히든 업적 — 프로필에 전용 아이콘 + 파티클로 표시.
     val hiddenRepo = remember { HiddenAchievementRepository() }
@@ -298,6 +300,8 @@ fun ProfileScreen(
                         else -> Icon(Icons.Filled.AccountCircle, stringResource(R.string.cd_default_profile), tint = Color(0xFF555555), modifier = Modifier.fillMaxSize())
                     }
                 }
+                // 별빛 공방 프로필 프레임(장착 시) — 사진 둘레 띠에 겹쳐 그린다(터치는 통과).
+                com.chaminwoo.stary.feature.starlight.EquippedFrame(myEquips, photo = 154.dp)
             }
 
             Spacer(Modifier.height(16.dp))
@@ -318,6 +322,7 @@ fun ProfileScreen(
                     modifier = Modifier.padding(start = 8.dp),
                     size = 20.dp,
                 )
+                com.chaminwoo.stary.feature.starlight.EquippedBadge(myEquips, size = 22.dp, modifier = Modifier.padding(start = 8.dp))
             }
 
             // 장착 칭호 — 글씨만 + 후광. 히든 칭호는 금색 + 『 』 로 감싸 일반 칭호와 구분.
@@ -328,7 +333,14 @@ fun ProfileScreen(
                 isHiddenTitle -> Gold
                 else -> Accent
             }
-            Text(
+            // 별빛 공방 칭호(sl:)는 아이템이 정한 색·반짝임으로.
+            val slTitle = com.chaminwoo.stary.feature.starlight.StarlightStore.titleItem(equippedStigmaId)
+            if (slTitle != null && equippedStigma != null) {
+                com.chaminwoo.stary.feature.starlight.TitleText(
+                    "『$equippedStigma』", slTitle.payload, fontSize = 15f,
+                    modifier = Modifier.clickable { onOpenAchievements() }.padding(6.dp),
+                )
+            } else Text(
                 text = when {
                     equippedStigma == null -> stringResource(R.string.profile_no_title)
                     else ->  "『$equippedStigma』"

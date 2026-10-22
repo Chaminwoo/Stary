@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
@@ -87,6 +88,7 @@ import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapFocusState
 import com.chaminwoo.stary.core.util.StaryAnalytics
 import com.chaminwoo.stary.core.util.TutorialStarState
+import com.chaminwoo.stary.feature.starlight.StarlightStore
 import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -100,7 +102,8 @@ import kotlin.math.roundToInt
  *  - [GuideStep.QUEST]   : 지도 "!"(오늘의 퀘스트) 버튼만 밝히는 스포트라이트([QuestSpotlight], MainScreen 이 띄움) — 탭하면 퀘스트 창.
  *  - [GuideStep.PROFILE] : 첫 퀘스트 "이름이나 프로필 사진 바꾸기" — 퀘스트 창에서 그 행을 강조, 지도에선 카드 → 프로필 화면.
  *  - [GuideStep.WRITE]   : 내 별이 아직 없다 → 업로드 화면.
- *  - [GuideStep.CLAIM]   : 받을 보상이 있다(또는 열쇠 0개) → 퀘스트 창 / 받을 게 없으면 안내용 열쇠 1개를 바로 준다.
+ *  - [GuideStep.CLAIM]   : 받을 보상(별가루)이 있다 → 퀘스트 창 / 받을 것도 바꿀 별가루도 없으면 안내용 열쇠 1개를 바로 준다.
+ *  - [GuideStep.EXCHANGE]: 열쇠는 없고 별가루가 열쇠 값 이상 → 별빛 공방(2026-10-22 퀘스트 보상이 별가루가 되며 추가).
  *  - [GuideStep.OPEN]    : 열쇠가 있다 → 가장 가까운 "잠긴" 남의 별로 카메라를 옮긴 뒤 상세(잠금 카드에서 열쇠 사용).
  *  - 끝: 열쇠를 처음 쓰면([QuestStore.spendKey]) 또는 열어 볼 별이 없으면 `users/{uid}.guideDone` — 다시 뜨지 않는다.
  *
@@ -108,7 +111,7 @@ import kotlin.math.roundToInt
  * 별·열쇠는 서버 상태에서 계산한다. ⚠️ **새 계정으로 확인된 계정만**([GuideProgress.started] — 로그인 때 returningAccount=false)
  * 안내한다(이미 쓰던 사용자에게 갑자기 뜨지 않게). 닫기(X)·"나중에"는 이번 실행에서만 숨긴다.
  */
-enum class GuideStep(val id: String) { QUEST("quest"), PROFILE("profile"), WRITE("write"), CLAIM("claim"), OPEN("open") }
+enum class GuideStep(val id: String) { QUEST("quest"), PROFILE("profile"), WRITE("write"), CLAIM("claim"), EXCHANGE("exchange"), OPEN("open") }
 
 /** 계정별 안내 진행(이 기기) — Compose 상태 + `stary_first_guide` prefs. */
 object GuideProgress {
@@ -179,8 +182,11 @@ fun guideStep(context: Context, userId: String?, diaries: List<Diary>, here: Lat
         if (!GuideProgress.profileDone) return GuideStep.PROFILE
         return GuideStep.WRITE
     }
-    val claimable = QuestStore.daily?.claimable ?: 0
-    return if (claimable > 0 || QuestStore.keys <= 0) GuideStep.CLAIM else GuideStep.OPEN
+    if ((QuestStore.daily?.claimable ?: 0) > 0) return GuideStep.CLAIM
+    if (QuestStore.keys > 0) return GuideStep.OPEN
+    // 열쇠가 없다 — 별가루로 만들 수 있으면 공방으로(지갑을 아직 모르면 기다린다: 안내 열쇠를 괜히 주지 않게).
+    if (!StarlightStore.walletLoaded) return null
+    return if (StarlightStore.stardust >= StarlightStore.config.keyCost) GuideStep.EXCHANGE else GuideStep.CLAIM
 }
 
 /**
@@ -221,6 +227,7 @@ fun FirstStarGuide(
     onWrite: () -> Unit,
     onOpenQuests: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenWorkshop: () -> Unit,
     onOpenStar: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -273,6 +280,7 @@ fun FirstStarGuide(
                                 onOpenQuests()
                             }
                         }
+                        GuideStep.EXCHANGE -> onOpenWorkshop()
                         GuideStep.OPEN -> {
                             val target = pickTarget(diaries, uid, here, unlockedIds, blockedIds)
                             if (target == null) {
@@ -307,6 +315,7 @@ private fun GuideCard(step: GuideStep, onAction: () -> Unit, onClose: () -> Unit
             GuideText(Icons.Filled.Edit, R.string.guide_profile_title, R.string.guide_profile_msg, R.string.quest_go)
         GuideStep.WRITE -> GuideText(Icons.Filled.Add, R.string.guide_write_title, R.string.guide_write_msg, R.string.guide_write_btn)
         GuideStep.CLAIM -> GuideText(Icons.Filled.Key, R.string.guide_claim_title, R.string.guide_claim_msg, R.string.guide_claim_btn)
+        GuideStep.EXCHANGE -> GuideText(Icons.Filled.AutoAwesome, R.string.guide_exchange_title, R.string.guide_exchange_msg, R.string.starlight_go)
         GuideStep.OPEN -> GuideText(Icons.Filled.LockOpen, R.string.guide_open_title, R.string.guide_open_msg, R.string.guide_open_btn)
     }
     val shape = RoundedCornerShape(18.dp)
@@ -331,7 +340,10 @@ private fun GuideCard(step: GuideStep, onAction: () -> Unit, onClose: () -> Unit
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(stringResource(title), color = Color(0xFFF0F0F0), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text(stringResource(msg), color = Color(0xFFB8BCCB), fontSize = 12.sp, lineHeight = 16.sp)
+                Text(
+                    if (step == GuideStep.EXCHANGE) stringResource(msg, StarlightStore.config.keyCost) else stringResource(msg),
+                    color = Color(0xFFB8BCCB), fontSize = 12.sp, lineHeight = 16.sp,
+                )
             }
             Spacer(Modifier.width(8.dp))
             Text(

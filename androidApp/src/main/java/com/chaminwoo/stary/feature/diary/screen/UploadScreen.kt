@@ -366,21 +366,26 @@ fun UploadScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(10.dp))
 
+            // 휠 칸 → 별 모양 번호: 내장 0~20 뒤에 별빛 공방(성운 상자)에서 얻은 모양을 붙인다.
+            val shapeIds = remember(com.chaminwoo.stary.feature.starlight.StarlightStore.ownedShapeTypes) {
+                (0 until StarStyle.TYPE_COUNT) + com.chaminwoo.stary.feature.starlight.StarlightStore.ownedShapeTypes.filter { it >= StarStyle.TYPE_COUNT }
+            }
             StarWheelPicker(
-                count = StarStyle.TYPE_COUNT,
-                selection = starType,
-                onSelect = { starType = it },
+                count = shapeIds.size,
+                selection = shapeIds.indexOf(starType).coerceAtLeast(0),
+                onSelect = { starType = shapeIds[it] },
                 itemSize = 40.dp,
                 // 업로드 진행 중에는 별 모양도 공개 범위와 마찬가지로 바꿀 수 없게 잠근다.
                 enabled = !isUploading,
-                onLanded = { t ->
-                    StarUnlocks.lockedShapeAch(t, unlockedIds)?.let {
+                onLanded = { pos ->
+                    StarUnlocks.lockedShapeAch(shapeIds[pos], unlockedIds)?.let {
                         com.chaminwoo.stary.core.ui.StaryToast.show(
                             context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))
                         )
                     }
                 }
-            ) { type ->
+            ) { pos ->
+                val type = shapeIds[pos]
                 val locked = StarUnlocks.lockedShapeAch(type, unlockedIds) != null
                 Box(contentAlignment = Alignment.Center) {
                     StarShapeIcon(
@@ -401,21 +406,26 @@ fun UploadScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(10.dp))
 
+            // 휠 칸 → 별 색 번호: 내장 0~20 뒤에 별빛 공방에서 얻은 색.
+            val colorIds = remember(com.chaminwoo.stary.feature.starlight.StarlightStore.ownedColorIndices) {
+                (0 until StarStyle.COLOR_COUNT) + com.chaminwoo.stary.feature.starlight.StarlightStore.ownedColorIndices.filter { it >= StarStyle.COLOR_COUNT }
+            }
             StarWheelPicker(
-                count = StarStyle.COLOR_COUNT,
-                selection = starColor,
-                onSelect = { starColor = it },
+                count = colorIds.size,
+                selection = colorIds.indexOf(starColor).coerceAtLeast(0),
+                onSelect = { starColor = colorIds[it] },
                 itemSize = 32.dp,
                 // 업로드 진행 중에는 별 색도 바꿀 수 없게 잠근다.
                 enabled = !isUploading,
-                onLanded = { c ->
-                    StarUnlocks.lockedColorAch(c, unlockedIds)?.let {
+                onLanded = { pos ->
+                    StarUnlocks.lockedColorAch(colorIds[pos], unlockedIds)?.let {
                         com.chaminwoo.stary.core.ui.StaryToast.show(
                             context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))
                         )
                     }
                 }
-            ) { colorIdx ->
+            ) { pos ->
+                val colorIdx = colorIds[pos]
                 val locked = StarUnlocks.lockedColorAch(colorIdx, unlockedIds) != null
                 val colorList = StarStyle.colorsOf(colorIdx)
                 val colorBrush = if (colorList.size > 1) androidx.compose.ui.graphics.Brush.linearGradient(colorList)

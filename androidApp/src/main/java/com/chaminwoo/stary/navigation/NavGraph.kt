@@ -162,6 +162,10 @@ fun NavGraph(
             AchievementsScreen()
         }
 
+        composable<NavRoute.Workshop> {
+            com.chaminwoo.stary.feature.starlight.WorkshopScreen()
+        }
+
         composable<NavRoute.Music> {
             MusicScreen()
         }

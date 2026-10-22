@@ -75,6 +75,9 @@ import com.chaminwoo.stary.feature.profile.HiddenIconWithEffect
 import com.chaminwoo.stary.feature.profile.Reward
 import com.chaminwoo.stary.feature.profile.StigmaStore
 import com.chaminwoo.stary.feature.profile.rememberUserStats
+import com.chaminwoo.stary.feature.starlight.ItemArt
+import com.chaminwoo.stary.feature.starlight.StarlightStore
+import com.chaminwoo.stary.feature.starlight.starlightLang
 import kotlinx.coroutines.launch
 import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
@@ -176,6 +179,8 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
             }
         }
     }
+
+    telescopeAsk?.let { ask -> TelescopeDialog(ask, onDismiss = { telescopeAsk = null }) }
 }
 
 @Composable
@@ -483,12 +488,12 @@ private fun RewardTile(ach: Achievement, unlocked: Boolean, modifier: Modifier =
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            if (ach.hidden && !unlocked) "???"
-            else com.chaminwoo.stary.core.util.LocalizedNames.condition(context, ach.id, ach.condition),
+            conditionText(ach, unlocked),
             color = TextMuted.copy(alpha = if (unlocked) 0.9f else 0.7f),
             fontSize = 10.sp, lineHeight = 13.sp, textAlign = TextAlign.Center,
             maxLines = 3, overflow = TextOverflow.Ellipsis,
         )
+        if (needsReveal(ach, unlocked)) TelescopeChip(ach.id, "reveal", Modifier.padding(top = 6.dp))
     }
 }
 
@@ -711,6 +716,25 @@ private fun HiddenAchievementRow(
                 color = if (claimed) TextMuted else Purple.copy(alpha = 0.8f),
                 fontSize = 12.sp
             )
+            // 아직 아무도 못 얻은 업적 — 반사·전파 망원경으로 찾은 단서(서버가 지갑에 넣어 준 문구).
+            if (!claimed) {
+                val hint = StarlightStore.hints[ach.id]
+                if (hint != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(if (hint.level >= 2) R.string.hint_clear else R.string.hint_faint),
+                        color = Accent, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        hint.textIn(starlightLang()),
+                        color = Accent.copy(alpha = 0.85f), fontSize = 12.sp, lineHeight = 17.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    )
+                }
+                if (ach.id in StarlightStore.config.hintTargets) {
+                    TelescopeChip(ach.id, "hint", Modifier.padding(top = 6.dp), aboveLevel = hint?.level ?: 0)
+                }
+            }
             if (claimed) {
                 Spacer(Modifier.height(3.dp))
                 // 달성자 이름은 선점 시점 스냅샷(achieverName)이 아니라 users/{uid} 의 **현재 닉네임**으로 표시.
@@ -769,9 +793,9 @@ private fun TitleAchievementRow(
             }
         },
         title = com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.name)!!,
-        // 숨김 업적은 달성 전까지 조건을 ??? 로 가린다(이름은 힌트로 보여 준다).
-        subtitle = if (ach.hidden && !unlocked) "???"
-            else com.chaminwoo.stary.core.util.LocalizedNames.condition(LocalContext.current, ach.id, ach.condition),
+        // 숨김 업적은 달성 전까지 조건을 ??? 로 가린다(이름은 힌트로 보여 준다). 굴절 망원경으로 열 수 있다.
+        subtitle = conditionText(ach, unlocked),
+        below = if (needsReveal(ach, unlocked)) ({ TelescopeChip(ach.id, "reveal", Modifier.padding(top = 6.dp)) }) else null,
         unlocked = unlocked,
         trailing = {
             when {
@@ -792,9 +816,9 @@ private fun RewardAchievementRow(ach: Achievement, unlocked: Boolean, accent: Co
         onClick = {},
         leading = { RewardPreview(ach.reward, unlocked) },
         title = com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.name)!!,
-        // 숨김 업적은 달성 전까지 조건을 ??? 로 가린다(이름은 힌트로 보여 준다).
-        subtitle = if (ach.hidden && !unlocked) "???"
-            else com.chaminwoo.stary.core.util.LocalizedNames.condition(LocalContext.current, ach.id, ach.condition),
+        // 숨김 업적은 달성 전까지 조건을 ??? 로 가린다(이름은 힌트로 보여 준다). 굴절 망원경으로 열 수 있다.
+        subtitle = conditionText(ach, unlocked),
+        below = if (needsReveal(ach, unlocked)) ({ TelescopeChip(ach.id, "reveal", Modifier.padding(top = 6.dp)) }) else null,
         unlocked = unlocked,
         trailing = {
             if (unlocked) Text(stringResource(R.string.ach_obtained), color = accent, fontSize = 12.sp, fontWeight = FontWeight.Light)
@@ -863,6 +887,7 @@ private fun AchievementRowFrame(
     title: String,
     subtitle: String,
     unlocked: Boolean,
+    below: (@Composable () -> Unit)? = null,
     trailing: @Composable () -> Unit,
 ) {
     Row(
@@ -885,8 +910,134 @@ private fun AchievementRowFrame(
             Text(title, color = if (unlocked) TextMain else TextMuted, fontSize = 16.sp, fontWeight = FontWeight.Light)
             Spacer(Modifier.height(2.dp))
             Text(subtitle, color = TextMuted, fontSize = 12.sp)
+            below?.invoke()
         }
         Spacer(Modifier.width(10.dp))
         trailing()
+    }
+}
+
+// ────────────────────────── 천체 망원경(별빛 공방) ──────────────────────────
+
+/** 망원경을 쓸 업적 — [mode] reveal(??? 조건 공개) / hint(히든 업적 단서). 화면 맨 위 [TelescopeDialog] 가 띄운다. */
+private data class TelescopeAsk(val achId: String, val mode: String)
+
+private var telescopeAsk by mutableStateOf<TelescopeAsk?>(null)
+
+/** 아직 가려진 조건인가 — 숨김 업적 · 미달성 · 굴절 망원경으로 안 열어 봄. */
+private fun needsReveal(ach: Achievement, unlocked: Boolean): Boolean =
+    ach.hidden && !unlocked && ach.id !in StarlightStore.revealed
+
+@Composable
+private fun conditionText(ach: Achievement, unlocked: Boolean): String =
+    if (needsReveal(ach, unlocked)) "???"
+    else com.chaminwoo.stary.core.util.LocalizedNames.condition(LocalContext.current, ach.id, ach.condition)
+
+private fun StarlightStore.Item.telescopeLevel(): Int = (payload["level"] as? Number)?.toInt() ?: 0
+
+/** 그 업적에 쓸 수 있는 망원경 — 단서는 지금 가진 단서보다 또렷한 것만. */
+private fun usableTelescopes(mode: String, aboveLevel: Int): List<StarlightStore.Item> =
+    StarlightStore.telescopes(mode).filter { mode == "reveal" || it.telescopeLevel() > aboveLevel }
+
+/** "망원경으로 보기" 칩 — 쓸 수 있는 망원경이 없으면 아무것도 안 그린다(가진 사람에게만 보이는 길). */
+@Composable
+private fun TelescopeChip(achId: String, mode: String, modifier: Modifier = Modifier, aboveLevel: Int = 0) {
+    val item = usableTelescopes(mode, aboveLevel).firstOrNull() ?: return
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(Accent.copy(alpha = 0.12f))
+            .border(1.dp, Accent.copy(alpha = 0.35f), RoundedCornerShape(50))
+            .clickable { telescopeAsk = TelescopeAsk(achId, mode) }
+            .padding(start = 6.dp, end = 9.dp, top = 3.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ItemArt(item, Modifier.size(16.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(stringResource(R.string.telescope_look), color = Accent, fontSize = 10.5.sp)
+    }
+}
+
+/** 망원경 고르기 → 사용(서버가 소유·중복을 확인하고 지갑에 공개/단서를 넣는다). */
+@Composable
+private fun TelescopeDialog(ask: TelescopeAsk, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val lang = starlightLang()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val have = StarlightStore.hints[ask.achId]?.level ?: 0
+    val scopes = usableTelescopes(ask.mode, have)
+    var busy by remember { mutableStateOf(false) }
+    val achName = com.chaminwoo.stary.core.util.LocalizedNames.title(
+        context, ask.achId, Achievements.byId(ask.achId)?.name ?: HiddenAchievements.byId(ask.achId)?.title
+    ) ?: ask.achId
+    androidx.compose.ui.window.Dialog(onDismissRequest = { if (!busy) onDismiss() }) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xFF121821))
+                .border(1.dp, Accent.copy(alpha = 0.5f), RoundedCornerShape(22.dp))
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(stringResource(R.string.telescope_title), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(6.dp))
+            Text(achName, color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.Light, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                stringResource(if (ask.mode == "reveal") R.string.telescope_ask_reveal else R.string.telescope_ask_hint),
+                color = TextMuted, fontSize = 13.sp, lineHeight = 19.sp, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(16.dp))
+            scopes.forEach { item ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White.copy(alpha = 0.05f))
+                        .border(1.dp, com.chaminwoo.stary.feature.starlight.rarityColor(item.rarity).copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                        .clickable(enabled = !busy) {
+                            busy = true
+                            scope.launch {
+                                val r = StarlightStore.useTelescope(item.id, ask.achId)
+                                busy = false
+                                when (r) {
+                                    is StarlightStore.OpResult.Done -> {
+                                        com.chaminwoo.stary.core.util.Haptics.medium()
+                                        com.chaminwoo.stary.core.util.StaryAnalytics.log("telescope_use", "mode" to ask.mode, "item" to item.id)
+                                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(
+                                            if (ask.mode == "reveal") R.string.telescope_revealed_toast else R.string.telescope_hint_toast
+                                        ))
+                                        onDismiss()
+                                    }
+                                    is StarlightStore.OpResult.Failed -> com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(
+                                        when (r.code) {
+                                            "already" -> R.string.telescope_already
+                                            "timeout" -> R.string.starlight_err_timeout
+                                            else -> R.string.starlight_err_generic
+                                        }
+                                    ))
+                                }
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ItemArt(item, Modifier.size(34.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        stringResource(R.string.telescope_use_item, item.nameIn(lang), StarlightStore.owned[item.id] ?: 0),
+                        color = TextMain, fontSize = 14.sp, modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                stringResource(R.string.telescope_cancel),
+                color = TextMuted, fontSize = 13.sp,
+                modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(enabled = !busy, onClick = onDismiss).padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
     }
 }
