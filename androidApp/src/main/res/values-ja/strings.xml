@@ -651,6 +651,8 @@
     <string name="quest_hm">%1$d時間%2$d分</string>
     <string name="quest_m">%1$d分</string>
     <string name="quest_loading">クエストを読み込み中…</string>
+    <string name="quest_unavailable">クエストを読み込めませんでした。\nしばらくしてからもう一度お試しください。</string>
+    <string name="quest_retry">再試行</string>
     <string name="quest_done_toast">クエスト達成！「%1$s」— 今日のクエストで星くずを受け取ろう</string>
     <string name="quest_key_gained">鍵を%1$d個受け取りました</string>
     <string name="quest_keys_owned">所持している鍵 %1$d個</string>

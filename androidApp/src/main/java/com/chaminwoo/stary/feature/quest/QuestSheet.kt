@@ -351,7 +351,27 @@ fun QuestSheet(
             )
             Spacer(Modifier.height(16.dp))
 
-            if (daily == null || daily.day != QuestStore.today()) {
+            if ((daily == null || daily.day != QuestStore.today()) && DailyQuests.unavailable) {
+                // 정의(DB)를 못 읽음 — 무한 로딩 대신 안내 + 다시 시도
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        stringResource(R.string.quest_unavailable), color = Color(0xFFB8C0CC), fontSize = 13.sp,
+                        lineHeight = 19.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.quest_retry), color = QuestGold, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .border(1.dp, QuestGold.copy(alpha = 0.6f), RoundedCornerShape(50))
+                            .clickable { DailyQuests.retry() }
+                            .padding(horizontal = 18.dp, vertical = 8.dp),
+                    )
+                }
+            } else if (daily == null || daily.day != QuestStore.today()) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
                     horizontalArrangement = Arrangement.Center,

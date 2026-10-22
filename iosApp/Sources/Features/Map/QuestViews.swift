@@ -184,6 +184,25 @@ struct QuestSheetView: View {
                             Task { claimed(await quests.claimBonus(), "bonus") }
                         }
                     }
+                } else if catalog.unavailable {
+                    // 정의(DB)를 못 읽음 — 무한 로딩 대신 안내 + 다시 시도
+                    VStack(spacing: 12) {
+                        Text(locale.t(.questUnavailable))
+                            .font(.minSans(13))
+                            .foregroundStyle(Color(hex: 0xB8C0CC))
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(3)
+                        Button { catalog.retry() } label: {
+                            Text(locale.t(.questRetry))
+                                .font(.minSans(13, .semibold))
+                                .foregroundStyle(QuestTheme.gold)
+                                .padding(.horizontal, 18).padding(.vertical, 8)
+                                .overlay(Capsule().strokeBorder(QuestTheme.gold.opacity(0.6), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 22)
                 } else {
                     HStack(spacing: 10) {
                         ProgressView().tint(QuestTheme.gold)

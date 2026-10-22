@@ -28,6 +28,12 @@ let order = 0;
 function add(id, kind, rarity, name, desc, payload) {
   items.push({ id, kind, rarity, order: order++, active: true, weight: 1, name, desc, payload });
 }
+/** 뽑기에서 뺀다(active:false) — 지우지 않는다(이미 가진 사람이 있다). 번호(type·index)도 다시 쓰지 말 것. */
+function retire(id) {
+  const it = items.find((x) => x.id === id);
+  if (!it) throw new Error("retire: 없는 아이템 " + id);
+  it.active = false;
+}
 
 // ── 별 모양 ────────────────────────────────────────────────────────────────
 add("shape_droplet", "shape", "common",
@@ -46,6 +52,7 @@ add("shape_butterfly", "shape", "rare",
   t3("나비 별", "Butterfly Star", "蝶の星"),
   t3("밤에도 날아다니는 나비. 날갯짓마다 빛가루가 떨어져요.", "A butterfly that flies even at night, shedding light with every flap.", "夜にも舞う蝶。羽ばたくたびに光の粉がこぼれます。"),
   { type: 24, path: S.butterfly() });
+retire("shape_butterfly"); // 2026-10-23 "너무 실사" → 구름 위 달(30)로 교체. 가진 사람은 계속 쓴다.
 add("shape_notes", "shape", "rare",
   t3("음표 별", "Melody Star", "音符の星"),
   t3("이 자리에 노래 한 소절을 남겨 두고 가요.", "Leave a bar of a song right here.", "この場所に、歌のひと節を置いていこう。"),
@@ -58,6 +65,7 @@ add("shape_fox", "shape", "epic",
   t3("여우 별", "Fox Star", "きつねの星"),
   t3("반짝이는 눈으로 밤길을 지켜보는 여우. 각진 면마다 빛이 꺾여요.", "A bright-eyed fox watching the night road; light bends at every facet.", "きらめく目で夜道を見守るきつね。面ごとに光が折れます。"),
   { type: 27, path: S.fox() });
+retire("shape_fox"); // 2026-10-23 "너무 실사" → 별 담은 병(31)으로 교체.
 add("shape_moon_rabbit", "shape", "epic",
   t3("달토끼 별", "Moon Rabbit Star", "月うさぎの星"),
   t3("보름달 속에서 방아를 쉬고 있는 토끼. 오늘 밤 소원을 들어 줄지도.", "The rabbit resting inside the full moon. It might grant tonight's wish.", "満月の中でひと休みするうさぎ。今夜の願いを叶えてくれるかも。"),
@@ -66,6 +74,14 @@ add("shape_compass", "shape", "legendary",
   t3("북극성 나침반", "Polaris Compass", "北極星の羅針盤"),
   t3("길 잃은 여행자들이 마지막으로 의지하던 별. 이 별이 있는 곳에서 길이 다시 시작돼요.", "The star lost travelers trusted last. Wherever it shines, the road begins again.", "道に迷った旅人が最後に頼った星。この星がある場所から、道はまた始まります。"),
   { type: 29, path: S.compass() });
+add("shape_cloud_moon", "shape", "rare",
+  t3("구름달 별", "Cloud Moon Star", "雲月の星"),
+  t3("몽실한 구름에 걸터앉아 쉬어 가는 초승달.", "A crescent moon taking a rest on a fluffy cloud.", "ふんわり雲に腰かけてひと休みする三日月。"),
+  { type: 30, path: S.cloudMoon() });
+add("shape_star_jar", "shape", "epic",
+  t3("별 담은 병", "Star in a Jar", "星の小瓶"),
+  t3("오늘 밤 주운 별 하나를 코르크 마개로 꼭 닫아 두었어요.", "One star picked up tonight, sealed tight with a cork.", "今夜ひろった星をひとつ、コルクでしっかり閉じこめました。"),
+  { type: 31, path: S.starJar() });
 
 // ── 별 색 ─────────────────────────────────────────────────────────────────
 add("color_peach", "color", "common",

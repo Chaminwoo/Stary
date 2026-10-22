@@ -654,6 +654,8 @@
     <string name="quest_hm">%1$d시간 %2$d분</string>
     <string name="quest_m">%1$d분</string>
     <string name="quest_loading">퀘스트를 불러오는 중이에요…</string>
+    <string name="quest_unavailable">퀘스트를 불러오지 못했어요.\n잠시 후 다시 시도해 주세요.</string>
+    <string name="quest_retry">다시 시도</string>
     <string name="quest_done_toast">퀘스트 완료! \"%1$s\" — 오늘의 퀘스트에서 별가루를 받아요</string>
     <string name="quest_key_gained">열쇠 %1$d개를 받았어요</string>
     <string name="quest_keys_owned">보유 열쇠 %1$d개</string>

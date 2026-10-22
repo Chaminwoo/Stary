@@ -233,7 +233,7 @@ enum L10n: String {
 
     /// 일일 퀘스트 · 열쇠(2026-10-19 — Android quest_* / detail_*key* / coach_step_quest 와 같은 문구).
     case questToday, questSubtitle, questClaim, questClaimed, questBonus, questBonusDone
-    case questResetIn, questHm, questM, questLoading, questDoneToast, questKeyGained
+    case questResetIn, questHm, questM, questLoading, questUnavailable, questRetry, questDoneToast, questKeyGained
     case questKeysOwned, questClose
     /// 퀘스트 제목·설명은 DB(starlightConfig/quests)로 옮겼다(2026-10-22) — 남은 건 난이도 표시.
     case questTierEasy, questTierNormal, questTierHard
@@ -774,6 +774,8 @@ enum L10n: String {
         case .questHm: return ("%1$d시간 %2$d분", "%1$dh %2$dm", "%1$d時間%2$d分")
         case .questM: return ("%1$d분", "%1$dm", "%1$d分")
         case .questLoading: return ("퀘스트를 불러오는 중이에요…", "Loading quests…", "クエストを読み込み中…")
+        case .questUnavailable: return ("퀘스트를 불러오지 못했어요.\n잠시 후 다시 시도해 주세요.", "Couldn't load quests.\nPlease try again in a moment.", "クエストを読み込めませんでした。\nしばらくしてからもう一度お試しください。")
+        case .questRetry: return ("다시 시도", "Try again", "再試行")
         case .questDoneToast: return ("퀘스트 완료! \"%@\" — 오늘의 퀘스트에서 별가루를 받아요", "Quest done! \"%@\" — claim your stardust in Today's quests", "クエスト達成！「%@」— 今日のクエストで星くずを受け取ろう")
         case .questKeyGained: return ("열쇠 %1$d개를 받았어요", "You got %1$d key(s)", "鍵を%1$d個受け取りました")
         case .questKeysOwned: return ("보유 열쇠 %1$d개", "Keys: %1$d", "所持している鍵 %1$d個")

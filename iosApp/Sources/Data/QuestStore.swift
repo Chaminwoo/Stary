@@ -82,26 +82,55 @@ final class DailyQuests: ObservableObject {
 
     /// 읽어 온 정의. nil = 아직 못 읽음 — 목록을 만들지 않고 기다린다.
     @Published private(set) var catalog: Catalog?
+    /// 정의를 못 읽는 상태 — 서버에 문서가 없거나(seed 업로드 전) 구독이 실패했다. 퀘스트 창이 무한 로딩 대신 안내 + 다시 시도를 보인다
+    /// (2026-10-23, Android 패리티). 문서가 생기면 구독이 그대로 받아 풀린다.
+    @Published private(set) var unavailable = false
     private var listener: ListenerRegistration?
+    private var onLoaded: (@MainActor () -> Void)?
 
     /// 정의 문서 구독(QuestStore.start 가 부른다). 공개 문서라 계정과 무관 — 한 번 붙이면 유지.
     func watch(onLoaded: @escaping @MainActor () -> Void) {
+        self.onLoaded = onLoaded
         guard listener == nil else { return }
         listener = FirestoreService.db.collection("starlightConfig").document("quests").addSnapshotListener { snap, error in
             if error != nil {
+                // 거부된 구독은 다시 살아나지 않는다 — 잠시 뒤 다시 붙인다.
                 Task { @MainActor in
-                    DailyQuests.shared.listener?.remove()
-                    DailyQuests.shared.listener = nil
+                    let q = DailyQuests.shared
+                    q.listener?.remove()
+                    q.listener = nil
+                    if q.catalog == nil { q.unavailable = true }
+                    try? await Task.sleep(nanoseconds: 10_000_000_000)
+                    if q.listener == nil, let cb = q.onLoaded { q.watch(onLoaded: cb) }
                 }
                 return
             }
-            guard let snap, snap.exists, let data = snap.data() else { return }
+            guard let snap else { return }
+            guard snap.exists, let data = snap.data() else {
+                // 캐시의 "없음"은 아직 모른다 — 서버가 없다고 확인했을 때만 안내로 바꾼다.
+                let fromCache = snap.metadata.isFromCache
+                Task { @MainActor in
+                    if !fromCache && DailyQuests.shared.catalog == nil { DailyQuests.shared.unavailable = true }
+                }
+                return
+            }
             let cat = Self.parse(data)
             Task { @MainActor in
-                DailyQuests.shared.catalog = cat
-                onLoaded()
+                let q = DailyQuests.shared
+                q.catalog = cat
+                q.unavailable = false
+                q.onLoaded?()
             }
         }
+    }
+
+    /// "다시 시도" — 구독을 새로 붙여 서버에서 다시 읽는다.
+    func retry() {
+        guard let cb = onLoaded else { return }
+        listener?.remove()
+        listener = nil
+        unavailable = false
+        watch(onLoaded: cb)
     }
 
     static func byId(_ id: String) -> QuestDef? { shared.catalog?.byId(id) }

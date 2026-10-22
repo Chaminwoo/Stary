@@ -78,6 +78,7 @@ data class QuestDef(
 
 object DailyQuests {
     private const val TAG = "QuestCatalog"
+    private const val RETRY_MS = 10_000L
     /** ⚠️ 서버 functions/starlight.js QUESTS_PER_DAY 와 같아야 한다. */
     const val PER_DAY = 3
 
@@ -100,21 +101,48 @@ object DailyQuests {
     var catalog by mutableStateOf<Catalog?>(null)
         private set
 
+    /**
+     * 정의를 못 읽는 상태 — 서버에 문서가 없거나(seed 업로드 전) 구독이 실패했다. 퀘스트 창이 무한 로딩 대신 안내 + 다시 시도를 보인다
+     * (2026-10-23 — 문서가 없으면 조용히 기다리기만 해서 "퀘스트 무한 로딩"이 났다). 문서가 생기면 구독이 그대로 받아 풀린다.
+     */
+    var unavailable by mutableStateOf(false)
+        private set
+
     private var reg: ListenerRegistration? = null
+    private var onLoaded: (() -> Unit)? = null
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
     /** 정의 문서 구독(QuestStore.start 가 부른다). 공개 문서라 계정과 무관 — 한 번 붙이면 유지. */
     fun watch(onLoaded: () -> Unit) {
+        this.onLoaded = onLoaded
         if (reg != null) return
         reg = staryFirestore.collection("starlightConfig").document("quests").addSnapshotListener { snap, e ->
             if (e != null) {
-                Log.w(TAG, "퀘스트 정의 구독 실패", e)
+                // 거부된 구독은 다시 살아나지 않는다(예: 인증이 막 붙는 순간) — 잠시 뒤 다시 붙인다.
+                Log.w(TAG, "퀘스트 정의 구독 실패 — 다시 시도", e)
                 reg?.remove(); reg = null
+                if (catalog == null) unavailable = true
+                main.postDelayed({ if (reg == null) this.onLoaded?.let { watch(it) } }, RETRY_MS)
                 return@addSnapshotListener
             }
-            if (snap == null || !snap.exists()) return@addSnapshotListener
+            if (snap == null) return@addSnapshotListener
+            if (!snap.exists()) {
+                // 캐시의 "없음"은 아직 모른다 — 서버가 없다고 확인했을 때만 안내로 바꾼다.
+                if (!snap.metadata.isFromCache && catalog == null) unavailable = true
+                return@addSnapshotListener
+            }
             catalog = parse(snap)
-            onLoaded()
+            unavailable = false
+            this.onLoaded?.invoke()
         }
+    }
+
+    /** "다시 시도" — 구독을 새로 붙여 서버에서 다시 읽는다. */
+    fun retry() {
+        val cb = onLoaded ?: return
+        reg?.remove(); reg = null
+        unavailable = false
+        watch(cb)
     }
 
     fun unwatch() {

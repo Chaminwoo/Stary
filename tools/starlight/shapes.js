@@ -166,4 +166,64 @@ function compass() {
   return path(rose, ringOut, ringIn, hole, polaris);
 }
 
-module.exports = { droplet, softStar, leaf, butterfly, notes, whale, fox, moonRabbit, compass };
+/** 화면(y 아래) 기준 시계 방향으로 맞춘다 — 채움은 시계 방향, 구멍은 그 반대(hole). */
+function signedArea(s) {
+  const pts = [s.start, ...s.segs.map((g) => g.to)];
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length];
+    a += p[0] * q[1] - q[0] * p[1];
+  }
+  return a;
+}
+const cw = (s) => (signedArea(s) > 0 ? s : s.reversed());
+const hole = (s) => cw(s).reversed();
+
+/** 두 원의 차(바깥 원 O·ro 에서 안쪽 원 I·ri 를 뺀 초승달) — 바깥 호는 시계, 안쪽 호는 반시계로 한 붓. */
+function crescentSub(O, ro, I, ri) {
+  const d = len(sub(I, O));
+  const a = (ro * ro - ri * ri + d * d) / (2 * d);
+  const h = Math.sqrt(ro * ro - a * a);
+  const base = add(O, mul(sub(I, O), a / d));
+  const perp = mul([-(I[1] - O[1]) / d, (I[0] - O[0]) / d], h);
+  const P1 = add(base, perp), P2 = sub(base, perp);
+  const ang = (c, p) => (Math.atan2(p[1] - c[1], p[0] - c[0]) * 180) / Math.PI;
+  const s = new Sub(P1);
+  let a1 = ang(O, P1), a2 = ang(O, P2);
+  while (a2 <= a1) a2 += 360;
+  s.arc(O, ro, a1, a2);
+  let b1 = ang(I, P2), b2 = ang(I, P1);
+  while (b2 >= b1) b2 -= 360;
+  s.arc(I, ri, b1, b2);
+  return s;
+}
+
+/**
+ * 구름 위 달(2026-10-23 — 나비가 "너무 실사"라 교체) — 몽실한 구름(원 셋 + 둥근 바닥)에 초승달이 걸터앉고, 오른쪽 위에 반짝이.
+ * 여러 부품(희귀). 앱 내장 아이콘처럼 단순한 덩어리라 작게 봐도 읽힌다.
+ */
+function cloudMoon() {
+  const moon = cw(crescentSub([0.45, 0.4], 0.27, [0.6, 0.31], 0.23));
+  const c1 = cw(circle([0.3, 0.7], 0.14));
+  const c2 = cw(circle([0.5, 0.62], 0.18));
+  const c3 = cw(circle([0.7, 0.7], 0.14));
+  const base = cw(capsule([0.3, 0.77], [0.7, 0.77], 0.14));
+  const tw = cw(sparkle([0.82, 0.2], 0.08));
+  return path(...fit([moon, c1, c2, c3, base, tw], 0.88));
+}
+
+/**
+ * 별 담은 병(2026-10-23 — 여우가 "너무 실사"라 교체) — 코르크 마개 · 목 · 둥근 어깨의 병, 속에 별(구멍)과 작은 반짝이·빛 점(구멍).
+ * 마개와 목 사이를 살짝 띄워 마개가 따로 보이게. 구멍 세부(영웅).
+ */
+function starJar() {
+  const body = cw(roundedPoly([[0.3, 0.32], [0.7, 0.32], [0.8, 0.45], [0.8, 0.88], [0.2, 0.88], [0.2, 0.45]], 0.28));
+  const neck = cw(poly([[0.37, 0.24], [0.63, 0.24], [0.63, 0.34], [0.37, 0.34]]));
+  const cork = cw(roundedPoly([[0.33, 0.09], [0.67, 0.09], [0.67, 0.205], [0.33, 0.205]], 0.3));
+  const star = hole(roundedPoly(starPts([0.5, 0.61], 5, 0.18, 0.08), 0.16));
+  const tw = hole(sparkle([0.7, 0.8], 0.05));
+  const dot = hole(circle([0.3, 0.5], 0.028));
+  return path(...fit([body, neck, cork, star, tw, dot], 0.86));
+}
+
+module.exports = { droplet, softStar, leaf, butterfly, notes, whale, fox, moonRabbit, compass, cloudMoon, starJar };

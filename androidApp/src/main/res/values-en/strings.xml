@@ -651,6 +651,8 @@
     <string name="quest_hm">%1$dh %2$dm</string>
     <string name="quest_m">%1$dm</string>
     <string name="quest_loading">Loading quests…</string>
+    <string name="quest_unavailable">Couldn\'t load quests.\nPlease try again in a moment.</string>
+    <string name="quest_retry">Try again</string>
     <string name="quest_done_toast">Quest done! \"%1$s\" — claim your stardust in Today\'s quests</string>
     <string name="quest_key_gained">You got %1$d key(s)</string>
     <string name="quest_keys_owned">Keys: %1$d</string>
