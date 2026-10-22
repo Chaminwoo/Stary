@@ -328,10 +328,12 @@ struct FrameArt: View {
             let g = rotated(angle)
             let n = count > 0 ? count : 9
             // 별마다 반지름을 조금씩 흔들어(결정적) 별자리처럼 보이게.
-            let pts: [CGPoint] = (0..<n).map { i in
-                let a = (Double(i) * 360 / Double(n) + (i % 2 == 0 ? 6 : -4)) * .pi / 180
-                let rr = r + w * (i % 3 == 0 ? 0.7 : i % 3 == 1 ? -0.5 : 0.15)
-                return CGPoint(x: c.x + cos(a) * rr, y: c.y + sin(a) * rr)
+            var pts: [CGPoint] = []
+            for i in 0..<n {
+                let jitter: Double = i % 2 == 0 ? 6 : -4
+                let deg: Double = Double(i) * 360 / Double(n) + jitter
+                let k: CGFloat = i % 3 == 0 ? 0.7 : (i % 3 == 1 ? -0.5 : 0.15)
+                pts.append(pt(deg, r + w * k))
             }
             for i in pts.indices {
                 var l = Path()
