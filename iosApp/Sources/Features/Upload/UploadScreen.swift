@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreLocation
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -439,6 +440,10 @@ struct UploadScreen: View {
             catch { uploadFail("media_upload"); showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
         }
 
+        // 겹쳐 올리기 퀘스트 — 저장 전에 판정(저장 뒤엔 방금 올린 별이 목록에 섞인다). Android UploadScreen 패리티.
+        let stacked = store.diaries.contains { d in
+            Geo.distanceMeters(coord, CLLocationCoordinate2D(latitude: d.latitude, longitude: d.longitude)) <= AppConfig.starMergeRadiusM
+        }
         let diary = Diary(
             userId: uid,
             userName: authorName,
@@ -468,6 +473,7 @@ struct UploadScreen: View {
             // 일일 퀘스트 — 올리기(시간대 퀘스트도 이 이벤트, 올린 시각으로 판정) + 사진/영상(Android 와 같은 규칙).
             QuestStore.report(.upload)
             if !diary.imageUrl.isEmpty || !diary.videoUrl.isEmpty { QuestStore.report(.uploadMedia) }
+            if stacked { QuestStore.report(.uploadStack) }
             TabRouter.shared.go(TabRouter.map)
             // 개척 퀘스트 선점 시도(체크리스트 32) — 화면 이탈과 무관하게 진행, 실패는 무시.
             Task.detached {

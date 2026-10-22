@@ -146,6 +146,23 @@ struct ProfileScreen: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    // 별빛 공방 수집품 — 상자에서 얻은 것이 있을 때만(Android ProfileScreen 패리티).
+                    if !starlight.owned.isEmpty {
+                        Button {
+                            Haptics.tick()
+                            TabRouter.shared.go(TabRouter.collection)
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "square.grid.2x2.fill").font(.system(size: 11, weight: .semibold))
+                                Text(locale.t(.navCollection)).font(.minSans(12.5, .medium))
+                            }
+                            .foregroundStyle(StarlightArt.violet)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(StarlightArt.violet.opacity(0.14), in: Capsule())
+                            .overlay(Capsule().strokeBorder(StarlightArt.violet.opacity(0.45), lineWidth: 0.75))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 // ZStack 가운데 정렬 기준을 44pt 위로 — `.offset` 은 GeometryReader 좌표에 잡히지 않아
                 // 아바타 '벽' 위치가 어긋나므로 같은 결과의 아래 여백으로 올린다.

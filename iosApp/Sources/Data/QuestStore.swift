@@ -2,21 +2,53 @@ import FirebaseFirestore
 import Foundation
 
 /// 일일 퀘스트 이벤트 — Android `feature/quest/DailyQuests.kt` `QuestEvent` 와 같은 목록.
-enum QuestEvent: String {
-    case tutorialStar, upload, uploadMedia, viewOther, like, comment, equipTitle, profileEdit, pinStar
-    case constellation, filter, globe, meteor, visitAchievements, visitStarlog, visitProfile
-    case friendRequest, share, music, focus, unlockKey
+/// rawValue = DB(`starlightConfig/quests` pool[].event) 철자(Android enum 이름).
+enum QuestEvent: String, CaseIterable {
+    case tutorialStar = "TUTORIAL_STAR"
+    case upload = "UPLOAD"
+    case uploadMedia = "UPLOAD_MEDIA"
+    case uploadStack = "UPLOAD_STACK"
+    case viewOther = "VIEW_OTHER"
+    case unlockVisit = "UNLOCK_VISIT"
+    case like = "LIKE"
+    case comment = "COMMENT"
+    case commentOther = "COMMENT_OTHER"
+    case equipTitle = "EQUIP_TITLE"
+    case profileEdit = "PROFILE_EDIT"
+    case pinStar = "PIN_STAR"
+    case constellation = "CONSTELLATION"
+    case filter = "FILTER"
+    case globe = "GLOBE"
+    case meteor = "METEOR"
+    case visitAchievements = "VISIT_ACHIEVEMENTS"
+    case visitStarlog = "VISIT_STARLOG"
+    case visitProfile = "VISIT_PROFILE"
+    case friendRequest = "FRIEND_REQUEST"
+    case friendAdd = "FRIEND_ADD"
+    case invite = "INVITE"
+    case share = "SHARE"
+    case music = "MUSIC"
+    case focus = "FOCUS"
+    case unlockKey = "UNLOCK_KEY"
+    case openBox = "OPEN_BOX"
+    case achievement = "ACHIEVEMENT"
 }
 
-/// 퀘스트 하나. `hours` = 로컬 "시"(양끝 포함, 24 이상이면 자정을 넘김 — 21...25 = 오후 9:00~새벽 1:59).
+/// DB 퀘스트 하나. `event` 가 nil 이면 이 앱이 모르는 이벤트(새 버전용) — 목록에 있으면 보이지만 진행되지 않는다.
+/// `hours` = 로컬 "시"(양끝 포함, 24 이상이면 자정을 넘김 — 21...25 = 오후 9:00~새벽 1:59). 같은 `group` 은 하루 하나.
 struct QuestDef: Equatable {
     let id: String
-    let event: QuestEvent
+    let event: QuestEvent?
+    let tier: String
     var target: Int = 1
-    let title: L10n
-    let hint: L10n
-    var hours: ClosedRange<Int>? = nil
     var group: String? = nil
+    var hours: ClosedRange<Int>? = nil
+    var daily: Bool = true
+    var title: [String: String] = [:]
+    var hint: [String: String] = [:]
+
+    func titleIn(_ lang: String) -> String { title[lang] ?? title["ko"] ?? id }
+    func hintIn(_ lang: String) -> String { hint[lang] ?? hint["ko"] ?? "" }
 
     func matchesHour(_ hour: Int) -> Bool {
         guard let h = hours else { return true }
@@ -25,88 +57,136 @@ struct QuestDef: Equatable {
     }
 }
 
-/// 일일 퀘스트 정의(2026-10-19) — 하루 3개, 앱 기능을 하나씩 써 보게 하는 튜토리얼 성격. 보상 = 별가루(2026-10-22, 서버 지급).
-/// ⚠️ 하루 개수·목표치는 서버 functions/starlight.js QUESTS_PER_DAY / QUEST_TARGETS 와 같아야 한다(서버가 진행도를 확인한다).
-/// ⚠️ Android `DailyQuests` 와 **id·이벤트·목표·시간대·풀·뽑는 식(FNV-1a + SplitMix64 + Fisher–Yates)이 같아야 한다** —
-///    같은 계정을 두 기기에서 쓰면 서버의 그날 목록을 같이 쓴다.
-enum DailyQuests {
-    static let perDay = 3
-    private static let gUpload = "upload"
+/// 일일 퀘스트(2026-10-19) — 하루 3개. 보상 = 별가루(난이도별, 서버 지급).
+/// **정의는 DB `starlightConfig/quests`**(2026-10-22, 원본 tools/starlight/quests.js) — 목록·목표·난이도·보상·문구(ko/en/ja)를
+/// 앱에 박지 않고 읽는다. 서버(functions/starlight.js claimQuest)도 같은 문서로 목표·보상을 확인한다.
+/// ⚠️ Android `DailyQuests` 와 **이벤트 철자·뽑는 식(난수 호출 순서까지)이 같아야 한다** — 같은 계정을 두 기기에서 쓰면 먼저 만든 목록을 같이 쓴다.
+@MainActor
+final class DailyQuests: ObservableObject {
+    static let shared = DailyQuests()
+    private init() {}
 
-    static let tutorial = QuestDef(id: "tutorial_star", event: .tutorialStar, title: .questTutorialStar, hint: .questTutorialStarHint)
-    static let upload = QuestDef(id: "upload", event: .upload, title: .questUpload, hint: .questUploadHint, group: gUpload)
-    static let viewOther = QuestDef(id: "view_other", event: .viewOther, title: .questViewOther, hint: .questViewOtherHint)
-    static let like = QuestDef(id: "like", event: .like, title: .questLike, hint: .questLikeHint)
-    static let profileEdit = QuestDef(id: "profile_edit", event: .profileEdit, title: .questProfileEdit, hint: .questProfileEditHint)
+    nonisolated static let perDay = 3
+    /// 첫 사용 안내(FirstStarGuide)가 가리키는 퀘스트 id — DB firstDay 의 첫 칸.
+    nonisolated static let profileEditId = "profile_edit"
 
-    /// 2~4일째 — 기본 기능(Android BASIC 과 같은 순서).
-    static let basic: [QuestDef] = [
-        upload,
-        like,
-        QuestDef(id: "view_other3", event: .viewOther, target: 3, title: .questViewOther3, hint: .questViewOtherHint),
-        QuestDef(id: "comment", event: .comment, title: .questComment, hint: .questCommentHint),
-        QuestDef(id: "equip_title", event: .equipTitle, title: .questEquipTitle, hint: .questEquipTitleHint),
-        profileEdit,
-        QuestDef(id: "pin_star", event: .pinStar, title: .questPinStar, hint: .questPinStarHint),
-        QuestDef(id: "constellation", event: .constellation, title: .questConstellation, hint: .questConstellationHint),
-        QuestDef(id: "filter", event: .filter, title: .questFilter, hint: .questFilterHint),
-        QuestDef(id: "globe", event: .globe, title: .questGlobe, hint: .questGlobeHint),
-        QuestDef(id: "achievements", event: .visitAchievements, title: .questAchievements, hint: .questAchievementsHint),
-        QuestDef(id: "user_profile", event: .visitProfile, title: .questUserProfile, hint: .questUserProfileHint),
-    ]
+    struct Catalog: Equatable {
+        let pool: [QuestDef]
+        let firstDay: [String]
+        let hardChance: Double
+        let hardFromDay: Int
+        let rewards: [String: Int]
+        func byId(_ id: String) -> QuestDef? { pool.first { $0.id == id } }
+        func reward(_ def: QuestDef, fallback: Int) -> Int { rewards[def.tier] ?? fallback }
+    }
 
-    /// 5일째부터 기본 풀에 더해진다(Android ADVANCED 와 같은 순서).
-    static let advanced: [QuestDef] = [
-        QuestDef(id: "like3", event: .like, target: 3, title: .questLike3, hint: .questLikeHint),
-        QuestDef(id: "upload_morning", event: .upload, title: .questUploadMorning, hint: .questUploadMorningHint, hours: 5...10, group: gUpload),
-        QuestDef(id: "upload_night", event: .upload, title: .questUploadNight, hint: .questUploadNightHint, hours: 21...25, group: gUpload),
-        QuestDef(id: "upload_media", event: .uploadMedia, title: .questUploadMedia, hint: .questUploadMediaHint, group: gUpload),
-        QuestDef(id: "meteor", event: .meteor, title: .questMeteor, hint: .questMeteorHint),
-        QuestDef(id: "friend_request", event: .friendRequest, title: .questFriendRequest, hint: .questFriendRequestHint),
-        QuestDef(id: "share", event: .share, title: .questShare, hint: .questShareHint),
-        QuestDef(id: "music", event: .music, title: .questMusic, hint: .questMusicHint),
-        QuestDef(id: "star_log", event: .visitStarlog, title: .questStarLog, hint: .questStarLogHint),
-        QuestDef(id: "focus", event: .focus, title: .questFocus, hint: .questFocusHint),
-        QuestDef(id: "use_key", event: .unlockKey, title: .questUseKey, hint: .questUseKeyHint),
-    ]
+    /// 읽어 온 정의. nil = 아직 못 읽음 — 목록을 만들지 않고 기다린다.
+    @Published private(set) var catalog: Catalog?
+    private var listener: ListenerRegistration?
 
-    private static let all: [String: QuestDef] = {
-        var m: [String: QuestDef] = [:]
-        for q in [tutorial, viewOther] + basic + advanced where m[q.id] == nil { m[q.id] = q }
-        return m
-    }()
+    /// 정의 문서 구독(QuestStore.start 가 부른다). 공개 문서라 계정과 무관 — 한 번 붙이면 유지.
+    func watch(onLoaded: @escaping @MainActor () -> Void) {
+        guard listener == nil else { return }
+        listener = FirestoreService.db.collection("starlightConfig").document("quests").addSnapshotListener { snap, error in
+            if error != nil {
+                Task { @MainActor in
+                    DailyQuests.shared.listener?.remove()
+                    DailyQuests.shared.listener = nil
+                }
+                return
+            }
+            guard let snap, snap.exists, let data = snap.data() else { return }
+            let cat = Self.parse(data)
+            Task { @MainActor in
+                DailyQuests.shared.catalog = cat
+                onLoaded()
+            }
+        }
+    }
 
-    static func byId(_ id: String) -> QuestDef? { all[id] }
+    static func byId(_ id: String) -> QuestDef? { shared.catalog?.byId(id) }
+
+    private nonisolated static func parse(_ d: [String: Any]) -> Catalog {
+        func strMap(_ v: Any?) -> [String: String] {
+            var m: [String: String] = [:]
+            for (k, x) in (v as? [String: Any]) ?? [:] { if let s = x as? String { m[k] = s } }
+            return m
+        }
+        let pool: [QuestDef] = ((d["pool"] as? [Any]) ?? []).compactMap { raw in
+            guard let m = raw as? [String: Any], let id = m["id"] as? String else { return nil }
+            let hours = ((m["hours"] as? [Any]) ?? []).compactMap { ($0 as? NSNumber)?.intValue }
+            return QuestDef(
+                id: id,
+                event: (m["event"] as? String).flatMap { QuestEvent(rawValue: $0) },
+                tier: (m["tier"] as? String) ?? "easy",
+                target: max(1, (m["target"] as? NSNumber)?.intValue ?? 1),
+                group: m["group"] as? String,
+                hours: hours.count == 2 ? hours[0]...hours[1] : nil,
+                daily: (m["daily"] as? Bool) ?? true,
+                title: strMap(m["title"]),
+                hint: strMap(m["hint"])
+            )
+        }
+        var rewards: [String: Int] = [:]
+        for (k, v) in (d["rewards"] as? [String: Any]) ?? [:] { if let n = (v as? NSNumber)?.intValue { rewards[k] = n } }
+        return Catalog(
+            pool: pool,
+            firstDay: (d["firstDay"] as? [String]) ?? [profileEditId, "upload", "view_other"],
+            hardChance: (d["hardChance"] as? NSNumber)?.doubleValue ?? 0.35,
+            hardFromDay: (d["hardFromDay"] as? NSNumber)?.intValue ?? 4,
+            rewards: rewards
+        )
+    }
 
     /// 그날의 퀘스트 3개 — Android `DailyQuests.pick` 과 같은 규칙·같은 결과.
-    /// 1일째는 이름·프로필 사진 바꾸기 · 별 올리기 · 남의 별 열어 보기(첫 사용 안내 순서 — 2026-10-22, 예전 첫 칸은 웰컴 별).
-    static func pick(uid: String, day: String, dayNo: Int, previous: [String]) -> [String] {
-        if dayNo <= 1 {
-            return [profileEdit.id, upload.id, viewOther.id]
-        }
-        var pool = dayNo <= 4 ? basic : basic + advanced
+    /// - 1일째: firstDay(첫 사용 안내 순서 — 프로필 바꾸기 · 별 올리기 · 남의 별 열어 보기).
+    /// - 2일째부터: 쉬움 1개 + 그 이상 2개 — 칸마다 hardChance 로 어려움(그 전엔 보통), hardFromDay 일째부터.
+    /// ⚠️ 난수 호출 순서(쉬움·보통·어려움 순으로 섞기 → 칸 2개 굴리기)는 Android 와 같아야 한다.
+    nonisolated static func pick(_ cat: Catalog, uid: String, day: String, dayNo: Int, previous: [String]) -> [String] {
+        if dayNo <= 1 { return Array(cat.firstDay.prefix(perDay)) }
         var rng = SplitMix64(state: UInt64(fnv1a("\(uid)|\(day)|\(dayNo)")))
-        var i = pool.count - 1
-        while i >= 1 {
-            let j = rng.nextInt(i + 1)
-            pool.swapAt(i, j)
-            i -= 1
-        }
-        var picked: [QuestDef] = []
-        for allowPrevious in [false, true] {
-            for q in pool {
-                if picked.count >= perDay { break }
-                if picked.contains(q) { continue }
-                if !allowPrevious && previous.contains(q.id) { continue }
-                if let g = q.group, picked.contains(where: { $0.group == g }) { continue }
-                picked.append(q)
+        func shuffled(_ tier: String) -> [QuestDef] {
+            var list = cat.pool.filter { $0.tier == tier && $0.daily && $0.event != nil }
+            // Fisher–Yates — Android 와 같은 순서로 섞는다.
+            var i = list.count - 1
+            while i >= 1 {
+                let j = rng.nextInt(i + 1)
+                list.swapAt(i, j)
+                i -= 1
             }
+            return list
+        }
+        let easy = shuffled("easy")
+        let normal = shuffled("normal")
+        let hard = shuffled("hard")
+        var picked: [QuestDef] = []
+        func takeFrom(_ list: [QuestDef]) -> Bool {
+            // 어제 나온 건 되도록 빼고, 모자라면 다시 넣는다.
+            for allowPrevious in [false, true] {
+                if let q = list.first(where: { q in
+                    !picked.contains(q) && (allowPrevious || !previous.contains(q.id)) &&
+                        (q.group == nil || !picked.contains(where: { $0.group == q.group }))
+                }) {
+                    picked.append(q)
+                    return true
+                }
+            }
+            return false
+        }
+        _ = takeFrom(easy)
+        for _ in 0..<(perDay - 1) {
+            // 굴림은 항상 한 번씩(일차와 무관) — 두 앱의 난수 흐름이 같게.
+            let roll = rng.nextInt(1000)
+            let useHard = dayNo >= cat.hardFromDay && roll < Int(cat.hardChance * 1000)
+            let first = useHard ? hard : normal
+            let second = useHard ? normal : hard
+            if !takeFrom(first) && !(dayNo >= cat.hardFromDay && takeFrom(second)) { _ = takeFrom(easy) }
         }
         return picked.map(\.id)
     }
 
     /// FNV-1a 32bit(UTF-8) — Android `DailyQuests.fnv1a` 와 같은 값.
-    static func fnv1a(_ s: String) -> UInt32 {
+    nonisolated static func fnv1a(_ s: String) -> UInt32 {
         var h: UInt32 = 0x811C9DC5
         for b in s.utf8 {
             h ^= UInt32(b)
@@ -155,9 +235,9 @@ final class QuestStore: ObservableObject {
 
         func progressOf(_ id: String) -> Int { progress[id] ?? 0 }
         func isComplete(_ q: QuestDef) -> Bool { progressOf(q.id) >= q.target }
-        var quests: [QuestDef] { ids.compactMap { DailyQuests.byId($0) } }
+        @MainActor var quests: [QuestDef] { ids.compactMap { DailyQuests.byId($0) } }
         /// 완료했지만 아직 보상을 안 받은 수 — 지도 "!" 버튼 배지.
-        var claimable: Int { quests.filter { isComplete($0) && !claimed.contains($0.id) }.count + (bonusReady && !bonus ? 1 : 0) }
+        @MainActor var claimable: Int { quests.filter { isComplete($0) && !claimed.contains($0.id) }.count + (bonusReady && !bonus ? 1 : 0) }
         /// 보너스 퀘스트(4번째 행)를 받을 수 있는가 — 3개 보상을 모두 받았다.
         var bonusReady: Bool { !ids.isEmpty && ids.allSatisfy { claimed.contains($0) } }
         /// 오늘 것을 보너스까지 전부 받았다.
@@ -209,6 +289,7 @@ final class QuestStore: ObservableObject {
         guideLoaded = false
         guideOpenShown = false
         guard let uid, !uid.isEmpty else { self.uid = nil; return }
+        DailyQuests.shared.watch { QuestStore.shared.ensureToday() }
         // includeMetadataChanges — 캐시 값이 서버와 같으면 "서버 확인됨"은 메타데이터만 바뀐 이벤트로 온다.
         // 이걸 안 받으면 serverSeen 이 영영 false 라 오늘 목록을 못 만들어 퀘스트 창이 무한 로딩이었다(2026-10-19).
         listener = FirestoreService.users.document(uid).addSnapshotListener(includeMetadataChanges: true) { snap, error in
@@ -270,10 +351,12 @@ final class QuestStore: ObservableObject {
     /// 날짜가 바뀌었으면 새 목록을 만든다(서버 확인 후). 자정을 넘겨 켜 둔 경우를 위해 RootView 가 1분마다도 부른다.
     func ensureToday() {
         guard let uid, serverSeen, returning != nil || returningFallback else { return }
+        // 퀘스트 정의(DB)를 아직 못 읽었으면 기다린다(읽히면 watch 콜백이 다시 부른다).
+        guard let cat = DailyQuests.shared.catalog else { return }
         let today = Self.today()
         if let cur = daily, cur.day == today { return }
         let dayNo = (daily?.dayNo ?? 0) + 1
-        let ids = DailyQuests.pick(uid: uid, day: today, dayNo: dayNo, previous: daily?.ids ?? [])
+        let ids = DailyQuests.pick(cat, uid: uid, day: today, dayNo: dayNo, previous: daily?.ids ?? [])
         daily = Daily(day: today, dayNo: dayNo, ids: ids, progress: [:], claimed: [], bonus: false)
         // mergeFields = quest 필드만 통째로 교체(어제 progress/claimed 가 섞이지 않게).
         FirestoreService.users.document(uid).setData([
@@ -313,7 +396,7 @@ final class QuestStore: ObservableObject {
         if let q = finished {
             Haptics.medium()
             let l = LocaleManager.shared
-            GlobalToast.shared.show(String(format: l.t(.questDoneToast), l.t(q.title)))
+            GlobalToast.shared.show(String(format: l.t(.questDoneToast), q.titleIn(l.effectiveLanguage)))
         }
     }
 

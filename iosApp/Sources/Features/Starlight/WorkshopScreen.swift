@@ -5,8 +5,9 @@ private let sub = Color(hex: 0xB8C0CC)
 private let dim = Color(hex: 0x7D8696)
 private let card = Color.white.opacity(0.08)
 private let line = Color.white.opacity(0.10)
+private let gold = Color(hex: 0xFFD27A)
 
-/// 별빛 공방(2026-10-22) — 별가루를 열쇠·성운 상자로 바꾸고, 상자를 열고, 모은 것을 본다.
+/// 별빛 공방(2026-10-22) — 별가루를 열쇠·성운 상자로 바꾸고, 상자를 연다. 모은 것은 수집품 화면에서 본다.
 /// 서버가 모든 계산을 한다(`StarlightStore.request`) — 이 화면은 요청을 보내고 결과를 연출만 한다. Android `WorkshopScreen.kt` 패리티.
 struct WorkshopScreen: View {
     @ObservedObject private var store = StarlightStore.shared
@@ -14,9 +15,9 @@ struct WorkshopScreen: View {
     @ObservedObject private var locale = LocaleManager.shared
     @State private var bgScroll = BackgroundScroll()
     @State private var busy = false
-    @State private var reveal: RevealState?
+    @State private var opening: OpeningState?
     @State private var keyCount = 1
-    @State private var detail: StarlightStore.Item?
+    @State private var oddsOpen = false
 
     var body: some View {
         let cfg = store.config
@@ -24,52 +25,50 @@ struct WorkshopScreen: View {
             ScreenBackground(name: "mydiary_bg", darken: 0.82, scroll: bgScroll)
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text(locale.t(.starlightSubtitle))
-                        .font(.minSans(13)).foregroundStyle(sub).lineSpacing(3)
-                        .fixedSize(horizontal: false, vertical: true)
                     balanceCard
 
+                    // ── 상자 열기(대표 전설 + 안내) ──
+                    openCard
+
+                    // ── 바꾸기 ──
                     sectionTitle(locale.t(.starlightExchangeTitle))
                     ExchangeRow(
                         title: locale.t(.starlightToKey), desc: locale.t(.starlightToKeyDesc),
                         cost: cfg.keyCost * keyCount,
                         enabled: !busy && store.stardust >= cfg.keyCost * keyCount,
-                        art: AnyView(Image(systemName: "key.fill").font(.system(size: 20)).foregroundStyle(QuestTheme.gold)),
+                        art: AnyView(CrystalKeyIcon().frame(width: 28, height: 28)),
                         stepper: AnyView(CountStepper(value: $keyCount,
-                                                 max: min(99, max(1, store.stardust / max(1, cfg.keyCost)))))
+                                                      max: min(99, max(1, store.stardust / max(1, cfg.keyCost)))))
                     ) { exchange("key", keyCount) }
                     ExchangeRow(
                         title: locale.t(.starlightToBox), desc: locale.t(.starlightToBoxDesc),
                         cost: cfg.boxCost,
                         enabled: !busy && store.stardust >= cfg.boxCost,
-                        art: AnyView(NebulaBoxArt(spin: false).frame(width: 34, height: 34)),
+                        art: AnyView(NebulaBoxArt(animated: false).frame(width: 40, height: 40)),
                         stepper: nil
                     ) { exchange("box", 1) }
 
-                    sectionTitle(locale.t(.starlightOpenTitle))
-                    openCard
+                    // ── 도감 요약(목록은 수집품 화면에서) ──
+                    collectionSummary
 
-                    collection
+                    // ── 확률 안내 ──
                     oddsCard
                     Spacer(minLength: 24)
                 }
-                .padding(.horizontal, 18).padding(.vertical, 14)
+                .padding(.horizontal, 18).padding(.vertical, 12)
             }
             .backgroundScrollSource(bgScroll)
 
-            if let st = reveal {
-                RevealOverlay(state: st) { if st.draws != nil { reveal = nil } }
+            if let st = opening {
+                NebulaOpening(state: st) { if st.draws != nil { withAnimation(.easeOut(duration: 0.2)) { opening = nil } } }
                     .transition(.opacity)
                     .zIndex(10)
-            }
-            if let item = detail {
-                ItemDetailOverlay(item: item) { detail = nil }
-                    .transition(.opacity)
-                    .zIndex(11)
             }
         }
         .navigationTitle(locale.t(.navWorkshop))
         .navigationBarTitleDisplayMode(.inline)
+        // 여는 연출은 화면 전체 — 상단바를 잠시 숨긴다.
+        .toolbar(opening != nil ? .hidden : .visible, for: .navigationBar)
         .onAppear { StaryAnalytics.log("workshop_open", ["stardust": store.stardust, "boxes": store.boxes]) }
     }
 
@@ -110,7 +109,7 @@ struct WorkshopScreen: View {
     private func open(_ count: Int) {
         guard !busy, count > 0 else { return }
         busy = true
-        withAnimation(.easeOut(duration: 0.2)) { reveal = RevealState(count: count) }
+        withAnimation(.easeOut(duration: 0.2)) { opening = OpeningState(count: count) }
         Task {
             let r = await store.request("openBox", ["count": count])
             busy = false
@@ -119,9 +118,10 @@ struct WorkshopScreen: View {
                 let draws = StarlightStore.draws(result)
                 let best = draws.max { rank($0.rarity) < rank($1.rarity) }?.rarity ?? ""
                 StaryAnalytics.log("workshop_open_box", ["count": count, "best": best])
-                reveal?.draws = draws
+                QuestStore.report(.openBox)
+                opening?.draws = draws
             case .failed(let code):
-                withAnimation { reveal = nil }
+                withAnimation { opening = nil }
                 fail(code)
             }
         }
@@ -138,12 +138,11 @@ struct WorkshopScreen: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 6) {
-                miniBalance(AnyView(NebulaBoxArt(spin: false).frame(width: 18, height: 18)), store.boxes, locale.t(.starlightBox))
-                miniBalance(AnyView(Image(systemName: "key.fill").font(.system(size: 12)).foregroundStyle(QuestTheme.gold)),
-                            quests.keys, locale.t(.starlightKeys))
+                miniBalance(AnyView(NebulaBoxArt(animated: false).frame(width: 20, height: 20)), store.boxes, locale.t(.starlightBox))
+                miniBalance(AnyView(CrystalKeyIcon().frame(width: 17, height: 17)), quests.keys, locale.t(.starlightKeys))
             }
         }
-        .padding(.horizontal, 18).padding(.vertical, 16)
+        .padding(.horizontal, 18).padding(.vertical, 14)
         .background(LinearGradient(colors: [Color(hex: 0x221B3D), Color(hex: 0x14192A)], startPoint: .topLeading, endPoint: .bottomTrailing),
                     in: RoundedRectangle(cornerRadius: 20))
         .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(
@@ -159,65 +158,103 @@ struct WorkshopScreen: View {
         }
     }
 
+    /// 상자 열기 카드 — 위에 **상자 속 전설 3개를 부채꼴로 살짝 겹쳐** 보여 주고(DB `showcase`), 그 앞에 성운 상자,
+    /// 아래에 안내 문구와 열기 버튼.
     private var openCard: some View {
         let boxes = store.boxes
         let many = min(boxes, store.config.maxOpen)
+        let showcase = store.showcaseItems
+        // 양옆 → 가운데 순으로 겹친다: showcase[0] 왼쪽, [1] 가운데, [2] 오른쪽.
+        let slots = [FanSlot(idx: 0, dx: -84, dy: 18, rot: -13), FanSlot(idx: 2, dx: 84, dy: 18, rot: 13), FanSlot(idx: 1, dx: 0, dy: 0, rot: 0)]
         return VStack(spacing: 0) {
-            NebulaBoxArt(glow: boxes > 0 ? 0.25 : 0).frame(width: 132, height: 132)
+            Text(locale.t(.starlightLineup))
+                .font(.minSans(11.5, .semibold)).tracking(1.5).foregroundStyle(gold)
+            ZStack(alignment: .top) {
+                ForEach(slots, id: \.idx) { s in
+                    if s.idx < showcase.count {
+                        ShowcaseCard(item: showcase[s.idx])
+                            .rotationEffect(.degrees(s.rot))
+                            .offset(x: s.dx, y: s.dy)
+                    }
+                }
+                NebulaBoxArt(glow: boxes > 0 ? 0.3 : 0)
+                    .frame(width: 150, height: 150)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 250)
+            .padding(.top, 10)
+            Text(locale.t(.starlightShowcase))
+                .font(.minSans(15, .semibold)).foregroundStyle(ink).lineSpacing(4)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
             Text(boxes > 0 ? String(format: locale.t(.starlightBoxesReady), boxes)
                            : String(format: locale.t(.starlightNoBox), store.config.boxCost))
                 .font(.minSans(12.5)).foregroundStyle(sub).multilineTextAlignment(.center)
-                .padding(.top, 4)
+                .padding(.top, 6)
             HStack(spacing: 10) {
-                OpenButton(text: locale.t(.starlightOpenOne), enabled: !busy && boxes >= 1, primary: true) { open(1) }
+                StarlightOpenButton(text: locale.t(.starlightOpenOne), enabled: !busy && boxes >= 1, primary: true) { open(1) }
                 if many >= 2 {
-                    OpenButton(text: String(format: locale.t(.starlightOpenMany), many), enabled: !busy, primary: false) { open(many) }
+                    StarlightOpenButton(text: String(format: locale.t(.starlightOpenMany), many), enabled: !busy, primary: false) { open(many) }
                 }
             }
-            .padding(.top, 12)
+            .padding(.top, 14)
         }
         .frame(maxWidth: .infinity)
-        .padding(16)
-        .background(LinearGradient(colors: [Color(hex: 0x1B1533), Color(hex: 0x111622)], startPoint: .top, endPoint: .bottom),
-                    in: RoundedRectangle(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(StarlightArt.violet.opacity(0.35), lineWidth: 0.75))
+        .padding(.horizontal, 16).padding(.vertical, 18)
+        .background(LinearGradient(colors: [Color(hex: 0x241A45), Color(hex: 0x151230), Color(hex: 0x0F1322)], startPoint: .top, endPoint: .bottom),
+                    in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(
+            LinearGradient(colors: [gold.opacity(0.45), StarlightArt.violet.opacity(0.3)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
     }
 
-    // MARK: 도감
-
-    @ViewBuilder
-    private var collection: some View {
+    /// 도감 요약 — 모은 수와 진행 막대, 누르면 수집품 화면.
+    private var collectionSummary: some View {
         let items = store.shownItems
-        if !items.isEmpty {
-            let ownedCount = items.filter { (store.owned[$0.id] ?? 0) > 0 }.count
-            HStack(alignment: .bottom) {
-                sectionTitle(locale.t(.starlightCollection))
-                Spacer()
-                Text(String(format: locale.t(.starlightCollected), ownedCount, items.count))
-                    .font(.minSans(12)).foregroundStyle(dim)
-            }
-            ForEach(StarlightStore.rarities.reversed(), id: \.self) { rarity in
-                let group = items.filter { $0.rarity == rarity }
-                if !group.isEmpty {
-                    let each = store.config.percent(rarity) / Double(group.count)
-                    Text("\(rarityName(rarity)) · \(pct(store.config.percent(rarity)))")
-                        .font(.minSans(12, .semibold)).foregroundStyle(StarlightArt.rarityColor(rarity))
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                        ForEach(group) { item in
-                            ItemCell(item: item, owned: (store.owned[item.id] ?? 0) > 0, percent: each,
-                                     equipped: workshopIsEquipped(item))
-                                .onTapGesture { withAnimation(.easeOut(duration: 0.18)) { detail = item } }
+        let ownedCount = items.filter { (store.owned[$0.id] ?? 0) > 0 }.count
+        let frac = items.isEmpty ? 0 : CGFloat(ownedCount) / CGFloat(items.count)
+        return Button {
+            Haptics.tick()
+            TabRouter.shared.go(TabRouter.collection)
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(locale.t(.starlightCollection)).font(.minSans(15, .semibold)).foregroundStyle(ink)
+                        Text(locale.t(.starlightCollectionDesc)).font(.minSans(11.5)).foregroundStyle(dim)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Text(locale.t(.starlightCollectionOpen)).font(.minSans(12.5, .semibold)).foregroundStyle(StarlightArt.violet)
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(StarlightArt.violet)
+                }
+                HStack(spacing: 10) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.white.opacity(0.12))
+                            Capsule().fill(LinearGradient(colors: [StarlightArt.violet, gold], startPoint: .leading, endPoint: .trailing))
+                                .frame(width: geo.size.width * frac)
                         }
                     }
+                    .frame(height: 6)
+                    Text(String(format: locale.t(.starlightCollected), ownedCount, items.count))
+                        .font(.system(size: 12).monospacedDigit()).foregroundStyle(sub)
                 }
             }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(card, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(line, lineWidth: 0.75))
+            .contentShape(RoundedRectangle(cornerRadius: 16))
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: 확률 안내
 
     private var oddsCard: some View {
         let cfg = store.config
+        let lang = locale.effectiveLanguage
         return VStack(alignment: .leading, spacing: 6) {
             Text(locale.t(.starlightOddsTitle)).font(.minSans(14, .semibold)).foregroundStyle(ink)
             ForEach(StarlightStore.rarities.reversed(), id: \.self) { r in
@@ -238,6 +275,42 @@ struct WorkshopScreen: View {
             }
             .font(.minSans(11.5)).foregroundStyle(dim).lineSpacing(2)
             .fixedSize(horizontal: false, vertical: true)
+            // 아이템별 확률(접어 둔다) — 같은 등급 안에서는 모두 같은 확률.
+            Button {
+                withAnimation(.easeInOut(duration: 0.22)) { oddsOpen.toggle() }
+            } label: {
+                HStack {
+                    Text(locale.t(oddsOpen ? .starlightOddsHide : .starlightOddsItems))
+                        .font(.minSans(12.5, .medium)).foregroundStyle(StarlightArt.violet)
+                    Spacer()
+                    Image(systemName: oddsOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(StarlightArt.violet)
+                }
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if oddsOpen {
+                let pool = store.items.filter(\.active)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(StarlightStore.rarities.reversed(), id: \.self) { r in
+                        let group = pool.filter { $0.rarity == r }
+                        if !group.isEmpty {
+                            let each = cfg.percent(r) / Double(group.count)
+                            Text(rarityName(r)).font(.minSans(11.5, .semibold)).foregroundStyle(StarlightArt.rarityColor(r)).padding(.top, 4)
+                            ForEach(group) { item in
+                                HStack {
+                                    Text("\(item.name(in: lang)) · \(starlightKindName(item.kind))")
+                                        .font(.minSans(11.5)).foregroundStyle(sub).lineLimit(1)
+                                    Spacer()
+                                    Text(pct(each)).font(.system(size: 11.5).monospacedDigit()).foregroundStyle(dim)
+                                }
+                            }
+                        }
+                    }
+                }
+                .transition(.opacity)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -294,15 +367,36 @@ func workshopIsEquipped(_ item: StarlightStore.Item) -> Bool {
     return UserDefaults.standard.string(forKey: "equipped_title_\(uid)") == StarlightStore.titlePrefix + item.id
 }
 
-/// 서버가 users.equippedTitle 을 바꿨으니 기기 사본도 맞춘다 — 업적 화면·프로필이 이걸 읽는다.
-@MainActor
-private func syncTitle(_ itemId: String?) {
-    guard let uid = StarlightStore.shared.currentUid else { return }
-    let key = "equipped_title_\(uid)"
-    if let itemId {
-        UserDefaults.standard.set(StarlightStore.titlePrefix + itemId, forKey: key)
-    } else if UserDefaults.standard.string(forKey: key)?.hasPrefix(StarlightStore.titlePrefix) == true {
-        UserDefaults.standard.removeObject(forKey: key)
+/// 부채꼴 자리 하나(showcase 순번 · 위치 · 기울기).
+private struct FanSlot {
+    let idx: Int
+    let dx: CGFloat
+    let dy: CGFloat
+    let rot: Double
+}
+
+/// 상자 속 전설 한 장 — 금테 크리스탈 카드.
+private struct ShowcaseCard: View {
+    let item: StarlightStore.Item
+    @ObservedObject private var locale = LocaleManager.shared
+    @State private var glow = false
+
+    var body: some View {
+        let c = StarlightArt.rarityColor(item.rarity)
+        VStack(spacing: 0) {
+            ItemArt(item: item).frame(width: 70, height: 70)
+            Spacer(minLength: 0)
+            Text(item.name(in: locale.effectiveLanguage))
+                .font(.minSans(10.5, .medium)).foregroundStyle(ink)
+                .multilineTextAlignment(.center).lineLimit(2)
+        }
+        .padding(.horizontal, 6).padding(.vertical, 8)
+        .frame(width: 98, height: 128)
+        .background(LinearGradient(colors: [Color(hex: 0x3A2A1A), Color(hex: 0x1C1830), Color(hex: 0x121626)], startPoint: .top, endPoint: .bottom),
+                    in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(
+            LinearGradient(colors: [c.opacity(glow ? 0.8 : 0.45), c.opacity(0.25)], startPoint: .top, endPoint: .bottom), lineWidth: 1.2))
+        .onAppear { withAnimation(.easeInOut(duration: 4.2).repeatForever(autoreverses: true)) { glow = true } }
     }
 }
 
@@ -323,7 +417,7 @@ private struct ExchangeRow: View {
                     Circle().fill(LinearGradient(colors: [Color(hex: 0x26304A), Color(hex: 0x161C2C)], startPoint: .topLeading, endPoint: .bottomTrailing))
                     art
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 46, height: 46)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.minSans(14, .medium)).foregroundStyle(ink)
                     Text(desc).font(.minSans(11.5)).foregroundStyle(dim).fixedSize(horizontal: false, vertical: true)
@@ -378,7 +472,8 @@ private struct CountStepper: View {
     }
 }
 
-private struct OpenButton: View {
+/// 공방·수집품 공용 버튼(보라 = 주 동작, 테두리 = 보조).
+struct StarlightOpenButton: View {
     let text: String
     let enabled: Bool
     let primary: Bool
@@ -400,287 +495,5 @@ private struct OpenButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-    }
-}
-
-private struct ItemCell: View {
-    let item: StarlightStore.Item
-    let owned: Bool
-    let percent: Double
-    let equipped: Bool
-    @ObservedObject private var locale = LocaleManager.shared
-
-    var body: some View {
-        let c = StarlightArt.rarityColor(item.rarity)
-        VStack(spacing: 2) {
-            ItemArt(item: item)
-                .aspectRatio(1, contentMode: .fit)
-                .padding(4)
-                .opacity(owned ? 1 : 0.45)
-                .overlay(alignment: .topTrailing) {
-                    if owned {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color(hex: 0x111120))
-                            .frame(width: 14, height: 14)
-                            .background(c, in: Circle())
-                    }
-                }
-            Text(item.name(in: locale.effectiveLanguage))
-                .font(.minSans(10.5)).foregroundStyle(owned ? ink : sub)
-                .multilineTextAlignment(.center).lineLimit(2)
-            if equipped {
-                Text(locale.t(.starlightEquipped)).font(.minSans(9.5, .semibold)).foregroundStyle(c)
-            } else {
-                Text(pct(percent)).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(dim)
-            }
-        }
-        .padding(.vertical, 8).padding(.horizontal, 4)
-        .frame(maxWidth: .infinity)
-        .background(owned ? c.opacity(0.10) : card, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(owned ? c.opacity(0.55) : line, lineWidth: 0.75))
-        .contentShape(RoundedRectangle(cornerRadius: 14))
-    }
-}
-
-/// 아이템 상세 — 설명 · 가진 수 · 쓰는 곳 · 장착/해제.
-private struct ItemDetailOverlay: View {
-    let item: StarlightStore.Item
-    let onDismiss: () -> Void
-    @ObservedObject private var store = StarlightStore.shared
-    @ObservedObject private var locale = LocaleManager.shared
-    @State private var busy = false
-    @State private var tick = 0
-
-    var body: some View {
-        let c = StarlightArt.rarityColor(item.rarity)
-        let lang = locale.effectiveLanguage
-        let count = store.owned[item.id] ?? 0
-        let slot = StarlightStore.Slot.of(kind: item.kind)
-        let equipped = tick >= 0 && workshopIsEquipped(item)
-        ZStack {
-            Color.black.opacity(0.6).ignoresSafeArea().onTapGesture { onDismiss() }
-            VStack(spacing: 0) {
-                ItemArt(item: item).frame(width: 110, height: 110)
-                Text("\(rarityName(item.rarity)) · \(starlightKindName(item.kind))")
-                    .font(.minSans(12, .semibold)).foregroundStyle(c).padding(.top, 10)
-                Text(item.name(in: lang)).font(.minSans(18, .semibold)).foregroundStyle(ink)
-                    .multilineTextAlignment(.center).padding(.top, 4)
-                Text(item.desc(in: lang)).font(.minSans(13)).foregroundStyle(sub).lineSpacing(3)
-                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true).padding(.top, 8)
-                if count > 0 {
-                    Text(String(format: locale.t(.starlightOwnedN), count)).font(.minSans(12)).foregroundStyle(c).padding(.top, 10)
-                    if let note = usageNote {
-                        Text(locale.t(note)).font(.minSans(11.5)).foregroundStyle(dim)
-                            .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true).padding(.top, 4)
-                    }
-                    if let slot {
-                        OpenButton(text: locale.t(equipped ? .starlightUnequip : .starlightEquip), enabled: !busy, primary: !equipped) {
-                            toggle(slot, equipped)
-                        }
-                        .padding(.top, 14)
-                    }
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: 340)
-            .background(Color(hex: 0x121821), in: RoundedRectangle(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(c.opacity(0.6), lineWidth: 1))
-            .padding(.horizontal, 24)
-            .onTapGesture { onDismiss() }
-        }
-    }
-
-    /// 가진 아이템을 어디서 쓰는지(장착형은 버튼으로 충분해 nil).
-    private var usageNote: L10n? {
-        switch item.kind {
-        case "shape": return .starlightUseShape
-        case "color": return .starlightUseColor
-        case "telescope": return item.str("mode") == "reveal" ? .starlightUseReveal : .starlightUseHint
-        default: return nil
-        }
-    }
-
-    private func toggle(_ slot: StarlightStore.Slot, _ equipped: Bool) {
-        busy = true
-        Task {
-            let r = await store.equip(slot, equipped ? nil : item.id)
-            busy = false
-            switch r {
-            case .done:
-                if slot == .title { syncTitle(equipped ? nil : item.id) }
-                tick += 1
-                Haptics.medium()
-                StaryAnalytics.log("workshop_equip", ["slot": slot.rawValue, "item": equipped ? "" : item.id])
-                GlobalToast.shared.show(locale.t(equipped ? .starlightUnequipDone : .starlightEquipDone))
-            case .failed(let code):
-                GlobalToast.shared.show(locale.t(code == "timeout" ? .starlightErrTimeout : .starlightErrGeneric))
-            }
-        }
-    }
-}
-
-// MARK: - 상자 열기 연출
-
-/// draws = nil 이면 서버 응답을 기다리는 중(상자가 떨며 빛을 모은다).
-private struct RevealState: Equatable {
-    let count: Int
-    var draws: [StarlightStore.Draw]?
-
-    static func == (a: RevealState, b: RevealState) -> Bool { a.count == b.count && (a.draws == nil) == (b.draws == nil) }
-}
-
-private struct RevealOverlay: View {
-    let state: RevealState
-    let onDone: () -> Void
-    @ObservedObject private var locale = LocaleManager.shared
-    @State private var charge: CGFloat = 0
-    @State private var chargedAt: Date?
-    @State private var burst: CGFloat = 0
-    @State private var showCards = false
-
-    private var best: String? { state.draws?.max { rank($0.rarity) < rank($1.rarity) }?.rarity }
-
-    var body: some View {
-        let bestColor = best.map(StarlightArt.rarityColor) ?? StarlightArt.violet
-        ZStack {
-            Color(hex: 0x0A0C16).opacity(0.94).ignoresSafeArea()
-                .onTapGesture { if showCards { onDone() } }
-            // 터지는 빛
-            Canvas { ctx, size in
-                let c = CGPoint(x: size.width / 2, y: size.height / 2)
-                let b = burst
-                guard b > 0 else { return }
-                let rr = min(size.width, size.height) * (0.2 + b * 0.9)
-                ctx.fill(StarlightArt.circle(c, rr), with: .radialGradient(
-                    Gradient(colors: [bestColor.opacity(0.55 * (1 - b * 0.6)), .clear]), center: c, startRadius: 0, endRadius: rr))
-                let rays = best == "legendary" ? 16 : 10
-                for i in 0..<rays {
-                    let a = Double(i) * 2 * .pi / Double(rays)
-                    let len = min(size.width, size.height) * (0.15 + b * 0.55)
-                    var l = Path()
-                    l.move(to: c)
-                    l.addLine(to: CGPoint(x: c.x + cos(a) * len, y: c.y + sin(a) * len))
-                    ctx.stroke(l, with: .color(bestColor.opacity(0.5 * (1 - b))), lineWidth: 3)
-                }
-            }
-            .allowsHitTesting(false)
-            .ignoresSafeArea()
-
-            if !showCards {
-                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { tl in
-                    let shake = sin(tl.date.timeIntervalSinceReferenceDate * 2 * .pi / 0.18)
-                    NebulaBoxArt(glow: Double(charge))
-                        .frame(width: 180, height: 180)
-                        .rotationEffect(.degrees(shake * 3 * charge))
-                        .offset(x: shake * 6 * charge)
-                        .scaleEffect(1 + 0.12 * charge - 0.5 * burst)
-                        .opacity(1 - burst)
-                }
-                .allowsHitTesting(false)
-            }
-            if showCards, let draws = state.draws {
-                ScrollView {
-                    VStack(spacing: 10) {
-                        if draws.count == 1 {
-                            DrawCard(draw: draws[0], index: 0, big: true)
-                        } else {
-                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                                ForEach(Array(draws.enumerated()), id: \.offset) { i, d in
-                                    DrawCard(draw: d, index: i, big: false)
-                                }
-                            }
-                        }
-                        Text(locale.t(.starlightTapClose)).font(.minSans(12)).foregroundStyle(dim).padding(.top, 18)
-                    }
-                    .padding(.horizontal, 20).padding(.vertical, 40)
-                    .frame(maxWidth: 520)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                    .onTapGesture { onDone() }
-                }
-            }
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.4)) { charge = 1 }
-            chargedAt = Date().addingTimeInterval(1.4)
-            if state.draws != nil { explode() }
-        }
-        .onChange(of: state) { s in if s.draws != nil { explode() } }
-    }
-
-    /// 빛을 다 모은 뒤에 터뜨린다(응답이 빨라도 최소 연출 시간은 지킨다).
-    private func explode() {
-        guard burst == 0, !showCards else { return }
-        let wait = max(0, (chargedAt ?? Date()).timeIntervalSinceNow)
-        DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-            switch best {
-            case "legendary":
-                Haptics.celebrate()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { Haptics.celebrate() }
-            case "epic": Haptics.celebrate()
-            default: Haptics.medium()
-            }
-            withAnimation(.easeOut(duration: 0.52)) { burst = 1 }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.52) { showCards = true }
-        }
-    }
-}
-
-private struct DrawCard: View {
-    let draw: StarlightStore.Draw
-    let index: Int
-    let big: Bool
-    @ObservedObject private var store = StarlightStore.shared
-    @ObservedObject private var locale = LocaleManager.shared
-    @State private var visible = false
-    @State private var pulse = false
-
-    var body: some View {
-        let item = store.item(draw.itemId)
-        let c = StarlightArt.rarityColor(draw.rarity)
-        let lang = locale.effectiveLanguage
-        let shiny = draw.rarity == "legendary" || draw.rarity == "epic"
-        VStack(spacing: 6) {
-            Text(rarityName(draw.rarity)).font(.minSans(big ? 13 : 11, .semibold)).foregroundStyle(c)
-            Group {
-                if let item { ItemArt(item: item) } else { StardustIcon(tint: c).padding(big ? 35 : 18) }
-            }
-            .frame(width: big ? 140 : 72, height: big ? 140 : 72)
-            Text(item?.name(in: lang) ?? draw.itemId)
-                .font(.minSans(big ? 17 : 13, .semibold)).foregroundStyle(ink)
-                .multilineTextAlignment(.center).lineLimit(2)
-            if big, let item {
-                Text(item.desc(in: lang)).font(.minSans(12.5)).foregroundStyle(sub)
-                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-            }
-            Text(note(item))
-                .font(.minSans(big ? 12 : 10.5, .medium))
-                .foregroundStyle(draw.dup ? dim : StarlightArt.dust)
-                .multilineTextAlignment(.center)
-        }
-        .padding(big ? 20 : 12)
-        .frame(width: big ? 260 : nil)
-        .frame(maxWidth: big ? nil : .infinity)
-        .background(LinearGradient(colors: [c.opacity(0.16), Color(hex: 0x121821)], startPoint: .top, endPoint: .bottom),
-                    in: RoundedRectangle(cornerRadius: big ? 24 : 18))
-        .overlay(RoundedRectangle(cornerRadius: big ? 24 : 18)
-            .strokeBorder(c.opacity(shiny ? (pulse ? 0.9 : 0.35) : 0.55), lineWidth: shiny ? 1.5 : 1))
-        .scaleEffect(visible ? 1 : 0.6)
-        .opacity(visible ? 1 : 0)
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.11 * Double(index)) {
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) { visible = true }
-                if shiny { Haptics.medium() } else { Haptics.tick() }
-            }
-            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
-        }
-    }
-
-    private func note(_ item: StarlightStore.Item?) -> String {
-        if draw.keys > 0 { return String(format: locale.t(.starlightKeysPlus), draw.keys) }
-        if draw.dup { return String(format: locale.t(.starlightDupRefund), draw.refund) }
-        if item?.kind == "telescope" { return locale.t(.starlightStacked) }
-        return locale.t(.starlightNew)
     }
 }

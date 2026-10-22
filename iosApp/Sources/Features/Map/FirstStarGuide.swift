@@ -126,44 +126,61 @@ struct FirstStarGuideCard: View {
 
     var body: some View {
         let t = texts
-        HStack(spacing: 12) {
-            Image(systemName: t.symbol)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(QuestTheme.gold)
-                .frame(width: 38, height: 38)
-                .background(QuestTheme.gold.opacity(0.16), in: Circle())
-                .overlay(Circle().strokeBorder(QuestTheme.gold.opacity(0.5), lineWidth: 0.75))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(locale.t(t.title))
-                    .font(.minSans(14, .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                Text(step == .exchange ? String(format: locale.t(t.msg), StarlightStore.shared.config.keyCost) : locale.t(t.msg))
-                    .font(.minSans(12))
-                    .foregroundStyle(Color(hex: 0xB8BCCB))
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: 0) {
+            ZStack {
+                Circle().fill(RadialGradient(colors: [QuestTheme.gold.opacity(0.28), QuestTheme.gold.opacity(0.08)],
+                                             center: .center, startRadius: 0, endRadius: 26))
+                Circle().strokeBorder(QuestTheme.gold.opacity(0.55), lineWidth: 0.75)
+                if step == .claim {
+                    CrystalKeyIcon().frame(width: 28, height: 28)
+                } else {
+                    Image(systemName: t.symbol)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(QuestTheme.gold)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: 52, height: 52)
+            Text(locale.t(t.title))
+                .font(.minSans(16, .semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .multilineTextAlignment(.center)
+                .padding(.top, 12)
+            Text(step == .exchange ? String(format: locale.t(t.msg), StarlightStore.shared.config.keyCost) : locale.t(t.msg))
+                .font(.minSans(13))
+                .foregroundStyle(Color(hex: 0xB8BCCB))
+                .lineSpacing(4)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
             Button(action: onAction) {
                 Text(locale.t(t.btn))
-                    .font(.minSans(12, .semibold))
+                    .font(.minSans(14, .semibold))
                     .foregroundStyle(Color(hex: 0x111120))
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(QuestTheme.gold, in: Capsule())
+                    .padding(.horizontal, 26).padding(.vertical, 11)
+                    .background(LinearGradient(colors: [Color(hex: 0xFFE6A8), QuestTheme.gold], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                in: Capsule())
             }
             .buttonStyle(.plain)
+            .padding(.top, 16)
+        }
+        .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 18)
+        .frame(maxWidth: 340)
+        .background(LinearGradient(colors: [Color(hex: 0x1A1830).opacity(0.96), Color(hex: 0x111120).opacity(0.96)], startPoint: .top, endPoint: .bottom),
+                    in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(
+            LinearGradient(colors: [QuestTheme.gold.opacity(0.6), QuestTheme.gold.opacity(0.2)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+        .overlay(alignment: .topTrailing) {
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.45))
-                    .frame(width: 26, height: 26)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.5))
+                    .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .padding(6)
             .accessibilityLabel(locale.t(.questClose))
         }
-        .padding(.leading, 14).padding(.trailing, 8).padding(.vertical, 12)
-        .background(Color(hex: 0x111120).opacity(0.94), in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(QuestTheme.gold.opacity(0.45), lineWidth: 0.75))
     }
 }
 

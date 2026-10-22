@@ -44,15 +44,15 @@ private enum StyleFx {
     static let freshWindowMs: Int64 = 86_400_000
     static let freshAuraOpacity = 0.16
 
-    /// 별빛 공방 오라(장착한 사람의 별) — Android sl-aura-glow/pulse/ring 패리티(위상 그룹 없이 1벌).
-    ///  · glow : 은은한 빛(모든 패턴의 바탕, 숨 쉬듯 밝기만 변함)
-    ///  · pulse: 별에서 퍼져 나가며 사라지는 고리
-    ///  · ring : 별을 두른 가는 고리가 숨 쉬듯 커졌다 작아짐
+    /// 별빛 공방 오라(장착한 사람의 별) — Android sl-aura-glow/pulse/sprite 패리티(위상 그룹 없이 1벌).
+    ///  · glow  : 은은한 빛(모든 패턴의 바탕, 숨 쉬듯 밝기만 변함)
+    ///  · pulse : 별에서 천천히 퍼져 나가며 사라지는 고리(약 4.2초)
+    ///  · sprite: 별 둘레 그림(`StarlightAura` — 달·반딧불·나선·토성 고리·혜성)이 돌거나 흔들린다. 별 어노테이션 뷰 아래에 깔린다.
     /// 모르는 패턴은 halo(glow 만)로 그린다 — 새 패턴을 DB 에 넣어도 이전 버전은 빛으로만 보인다.
     static let slGlowLayerID = "sl-aura-glow"
     static let slPulseLayerID = "sl-aura-pulse"
-    static let slRingLayerID = "sl-aura-ring"
-    static let slPatterns: Set<String> = ["halo", "pulse", "ring"]
+    static let slSpriteLayerID = "sl-aura-sprite"
+    static let slPatterns: Set<String> = ["halo", "pulse"]
 
     /// 내 위치 점(초록 원) — Android `current-location` 소스 / `current-location-layer` 패리티.
     static let myLocationSourceID = "current-location-src"
@@ -93,6 +93,8 @@ extension MapLibreView.Coordinator {
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         styleRef = style
         mapRef = mapView
+        // 새 스타일엔 공방 오라 스프라이트 이미지가 없다 — 다음 갱신에서 다시 등록하게 키를 비운다.
+        lastSlAuraKey = "|"
         ensureBaseTilt(mapView) // 기본 기울기(25°) — 프레임이 잡힌 뒤라 여기서부터 pitch 가 먹는다
         guard style.source(withIdentifier: StyleFx.particleSourceID) == nil else { return }
 
@@ -208,16 +210,22 @@ extension MapLibreView.Coordinator {
         slGlow.circleBlur = NSExpression(forConstantValue: 1.0)
         slGlow.predicate = NSPredicate(format: "slAura != ''")
         style.addLayer(slGlow)
-        for (id, pattern) in [(StyleFx.slPulseLayerID, "pulse"), (StyleFx.slRingLayerID, "ring")] {
-            let l = MLNCircleStyleLayer(identifier: id, source: auraSource)
-            l.circleOpacity = NSExpression(forConstantValue: 0)
-            l.circleRadius = Self.slAuraRadius(0.8)
-            l.circleStrokeColor = NSExpression(mglJSONObject: ["to-color", ["get", "slAuraColor2"]] as [Any])
-            l.circleStrokeWidth = NSExpression(forConstantValue: 1.6)
-            l.circleStrokeOpacity = NSExpression(forConstantValue: 0.7)
-            l.predicate = NSPredicate(format: "slAura == %@", pattern)
-            style.addLayer(l)
-        }
+        let slPulse = MLNCircleStyleLayer(identifier: StyleFx.slPulseLayerID, source: auraSource)
+        slPulse.circleOpacity = NSExpression(forConstantValue: 0)
+        slPulse.circleRadius = Self.slAuraRadius(0.8)
+        slPulse.circleStrokeColor = NSExpression(mglJSONObject: ["to-color", ["get", "slAuraColor2"]] as [Any])
+        slPulse.circleStrokeWidth = NSExpression(forConstantValue: 1.6)
+        slPulse.circleStrokeOpacity = NSExpression(forConstantValue: 0.7)
+        slPulse.predicate = NSPredicate(format: "slAura == %@", "pulse")
+        style.addLayer(slPulse)
+        // 스프라이트 — 별 마커(40pt × sizeMult × 줌 배율)의 2.4배 = 96pt 로 둘레를 감싼다(Android 별 160px : 스프라이트 384px).
+        let slSprite = MLNSymbolStyleLayer(identifier: StyleFx.slSpriteLayerID, source: auraSource)
+        slSprite.iconImageName = NSExpression(mglJSONObject: ["get", "slSprite"] as [Any])
+        slSprite.iconScale = Self.slSpriteScale()
+        slSprite.iconAllowsOverlap = NSExpression(forConstantValue: true)
+        slSprite.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+        slSprite.predicate = NSPredicate(format: "slSprite != ''")
+        style.addLayer(slSprite)
 
         // ── 내 위치 점(초록 원) — Android 는 이걸 맨 위 레이어로 그린다. 줌을 풀수록 작아진다(StyleFx.myLocationStops).
         //    MapLibre 기본 퍽(파란 점)은 끄고(`showsUserLocation = false`) 이 레이어로 대체했다.
@@ -380,15 +388,35 @@ extension MapLibreView.Coordinator {
         return NSExpression(mglJSONObject: json)
     }
 
-    /// 그 사람이 단 오라 → (패턴, 색1, 색2) "#RRGGBB". 안 달았거나 아이템을 모르면 nil. (Android slAuraOf 패리티)
+    /// 공방 오라 스프라이트 배율 — 별 마커와 같은 줌 곡선(starScale) × sizeMult. 스프라이트 그림은 96pt(384px @4x).
+    static func slSpriteScale() -> NSExpression {
+        var json: [Any] = ["interpolate", ["linear"], ["zoom"]]
+        for (zoom, s) in [(6.0, 0.06), (10.0, 0.2), (13.0, 0.5), (15.0, 1.0)] {
+            json.append(zoom)
+            json.append(["*", s, ["get", "sizeMult"] as [Any]] as [Any])
+        }
+        return NSExpression(mglJSONObject: json)
+    }
+
+    /// 스프라이트 이미지 이름 — 아이템과 그림(payload)이 같으면 같은 이름(Android slAuraSpriteImageId 패리티).
+    static func slSpriteName(_ item: StarlightStore.Item) -> String {
+        "sl-aura-img-\(item.id)-\(StarlightArt.javaHash(StarlightAura.key(item.payload)))"
+    }
+
+    /// 그 사람이 단 오라. 안 달았거나 아이템을 모르면 nil. (Android slAuraOf 패리티)
     @MainActor
-    static func slAuraOf(_ userId: String) -> (String, String, String)? {
+    static func slAuraOf(_ userId: String) -> SlAura? {
         let store = StarlightStore.shared
         guard let id = store.auraByUser[userId], let item = store.item(id) else { return nil }
-        let pattern = item.str("pattern").flatMap { StyleFx.slPatterns.contains($0) ? $0 : nil } ?? "halo"
+        let raw = item.str("pattern") ?? "halo"
+        let hasSprite = StarlightAura.spritePatterns.contains(raw)
+        let pattern = StyleFx.slPatterns.contains(raw) ? raw : "halo"
         let hexes = item.hexColors
         let c1 = hexes.first ?? "#BFD8FF"
-        return (pattern, c1, hexes.count > 1 ? hexes[1] : c1)
+        let m = StarlightAura.motion(item.payload)
+        return SlAura(pattern: pattern, color: c1, color2: hexes.count > 1 ? hexes[1] : c1,
+                      sprite: hasSprite ? slSpriteName(item) : "",
+                      spin: m.spinDegPerSec, wobble: m.wobbleDeg, flicker: m.flicker ? 1 : 0)
     }
 
     /// 공방 오라 구성이 바뀌었으면(누가 달았나 · 아이템 목록) 후광 소스를 다시 만든다 — updateUIView 에서 매번 부른다.
@@ -400,9 +428,19 @@ extension MapLibreView.Coordinator {
         guard key != lastSlAuraKey else { return }
         lastSlAuraKey = key
         // 후광 소스 갱신(비격리)에서 쓰도록 사람별 오라를 미리 풀어 둔다.
-        var byUser: [String: (String, String, String)] = [:]
+        var byUser: [String: SlAura] = [:]
         for uid in store.auraByUser.keys { if let sl = Self.slAuraOf(uid) { byUser[uid] = sl } }
         slAuraByUser = byUser
+        // 지금 누군가 달고 있는 오라의 스프라이트만 등록(한 번 등록하면 스타일이 바뀔 때까지 유지).
+        if let style = styleRef {
+            for id in Set(store.auraByUser.values) {
+                guard let item = store.item(id) else { continue }
+                let name = Self.slSpriteName(item)
+                guard style.image(forName: name) == nil,
+                      let cg = StarlightAura.sprite(item.payload)?.cgImage else { continue }
+                style.setImage(UIImage(cgImage: cg, scale: 4, orientation: .up), forName: name)
+            }
+        }
         refreshAuraFeatures(mapView)
     }
 
@@ -425,9 +463,13 @@ extension MapLibreView.Coordinator {
                     "sizeMult": max(a.sizeMult, 1.0),
                     "auraColor": Self.starColorHex(a.diary.starColor),
                     "fresh": fresh ? 1.0 : 0.0,
-                    "slAura": sl?.0 ?? "",
-                    "slAuraColor": sl?.1 ?? "#000000",
-                    "slAuraColor2": sl?.2 ?? "#000000",
+                    "slAura": sl?.pattern ?? "",
+                    "slAuraColor": sl?.color ?? "#000000",
+                    "slAuraColor2": sl?.color2 ?? "#000000",
+                    "slSprite": sl?.sprite ?? "",
+                    "slSpin": sl?.spin ?? 0,
+                    "slWobble": sl?.wobble ?? 0,
+                    "slFlicker": sl?.flicker ?? 0,
                 ]
                 return f
             }
@@ -471,8 +513,8 @@ extension MapLibreView.Coordinator {
     /// 공방 오라 한 틱(Android 애니메이션 루프의 sl-aura 부분 패리티). 반경 표현식은 1/32 단위로 캐시한다.
     private func animateStarlightAura(_ style: MLNStyle) {
         let t = twinkleT
-        let breathe = (sin(t * 1.8) + 1) / 2              // 0..1
-        let spread = (t * 0.45).truncatingRemainder(dividingBy: 1) // 0..1 퍼짐
+        let breathe = (sin(t * 1.2) + 1) / 2              // 0..1
+        let spread = (t * 0.24).truncatingRemainder(dividingBy: 1) // 0..1 퍼짐(약 4.2초 — 예전 2.2초는 "두근거림"이 정신없었다)
         func radius(_ scale: Double) -> NSExpression {
             let q = Int(scale * 32)
             if let e = slRadiusCache[q] { return e }
@@ -487,9 +529,16 @@ extension MapLibreView.Coordinator {
             pulse.circleRadius = radius(0.45 + 0.85 * spread)
             pulse.circleStrokeOpacity = NSExpression(forConstantValue: 0.85 * (1 - spread))
         }
-        if let ring = style.layer(withIdentifier: StyleFx.slRingLayerID) as? MLNCircleStyleLayer {
-            ring.circleRadius = radius(0.78 + 0.12 * breathe)
-            ring.circleStrokeOpacity = NSExpression(forConstantValue: 0.55 + 0.3 * breathe)
+        // 스프라이트 — 회전 = 피처별 slSpin(°/초) × 시간 + slWobble(°) × 흔들림, 반딧불은 밝기가 일렁인다.
+        // 시간은 한 시간마다 되감아 값이 커지지 않게(Android 동일).
+        if let sprite = style.layer(withIdentifier: StyleFx.slSpriteLayerID) as? MLNSymbolStyleLayer {
+            let tt = t.truncatingRemainder(dividingBy: 3600)
+            let wob = sin(tt * (2 * .pi / 14))
+            let flick = 0.3 * (0.5 + 0.5 * sin(tt * 2.3))
+            sprite.iconRotation = NSExpression(mglJSONObject:
+                ["+", ["*", ["get", "slSpin"] as [Any], tt] as [Any], ["*", ["get", "slWobble"] as [Any], wob] as [Any]] as [Any])
+            sprite.iconOpacity = NSExpression(mglJSONObject:
+                ["-", 1, ["*", ["get", "slFlicker"] as [Any], flick] as [Any]] as [Any])
         }
     }
 
@@ -603,4 +652,17 @@ extension MapLibreView.Coordinator {
         lastConstellationKey = key
         startConstellationDraw(edges: edges, mapView: mapView)
     }
+}
+
+/// 별빛 공방 오라 한 사람분(Android `SlAura` 패리티) — 지도 피처 속성으로 풀어 넣는다.
+struct SlAura {
+    /// 원 레이어 패턴(halo · pulse) — 스프라이트 패턴은 halo(빛) + 스프라이트.
+    let pattern: String
+    let color: String
+    let color2: String
+    /// 스프라이트 이미지 이름(없으면 "").
+    let sprite: String
+    let spin: Double
+    let wobble: Double
+    let flicker: Double
 }

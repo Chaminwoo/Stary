@@ -38,6 +38,8 @@ final class TabRouter: ObservableObject {
     static let profile = 4
     /// 별빛 공방(2026-10-22) — 퀘스트 창 별가루 칩 · 첫 별 안내 "공방 가기".
     static let workshop = 5
+    /// 수집품(2026-10-22) — 공방 "수집품 보기" · 프로필 "수집품".
+    static let collection = 6
 
     @Published private(set) var request: (tab: Int, nonce: Int) = (TabRouter.map, 0)
 

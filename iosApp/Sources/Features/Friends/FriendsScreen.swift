@@ -180,6 +180,8 @@ struct FriendsScreen: View {
                     .padding(12)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                 }
+                // 퀘스트 "친구 초대하기" — 공유 시트를 열 때 센다(Android InviteCard 클릭 패리티).
+                .simultaneousGesture(TapGesture().onEnded { QuestStore.report(.invite) })
             }
         }
     }

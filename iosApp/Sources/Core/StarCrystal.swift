@@ -63,6 +63,22 @@ enum StarCrystal {
         drawMesh(in: cg, salt: max(seed, 0), silhouette: nil, colors: colors, square: square, alpha: alpha)
     }
 
+    /// 임의 실루엣(이미 rect 좌표로 옮긴 경로)을 파편으로 채운다 — 별빛 공방 배지·열쇠·별가루 결정
+    /// (Android `StarStyle.drawCrystalFacets(silhouette = path)` 패리티).
+    static func drawFacets(
+        in cg: CGContext,
+        silhouette: CGPath,
+        seed: Int,
+        colors: [UIColor],
+        rect: CGRect,
+        alpha: CGFloat = 1
+    ) {
+        let size = min(rect.width, rect.height)
+        guard size > 0, !colors.isEmpty, alpha > 0 else { return }
+        let square = CGRect(x: rect.midX - size / 2, y: rect.midY - size / 2, width: size, height: size)
+        drawMesh(in: cg, salt: max(seed, 0), silhouette: silhouette, colors: colors, square: square, alpha: alpha)
+    }
+
     /// 파편 메시 본체 — [salt] 는 해시 솔트(별 = 모양 타입, 아이콘 = 인덱스. Android 와 동일 계약).
     private static func drawMesh(
         in cg: CGContext,
@@ -189,9 +205,11 @@ enum StarCrystal {
     ) -> UIColor {
         let base: UIColor
         if colors.count >= 2 {
-            // 그라데이션은 좌상→우하 방향 투영으로 두 색을 섞는다(Android 와 동일).
+            // 그라데이션은 좌상→우하 방향 투영으로 섞는다 — 2색·3색 모두 다단(Android 와 동일, 2026-10-22).
             let f = (((point.x - origin.x) + (point.y - origin.y)) / (2 * size)).clamped(0, 1)
-            base = colors[0].blended(with: colors[1], fraction: f)
+            let seg = min(f * CGFloat(colors.count - 1), CGFloat(colors.count) - 1.0001)
+            let i = Int(seg)
+            base = colors[i].blended(with: colors[i + 1], fraction: seg - CGFloat(i))
         } else {
             base = colors[0]
         }

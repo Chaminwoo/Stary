@@ -1,5 +1,6 @@
 import FirebaseFirestore
 import SwiftUI
+import UIKit
 
 /// 별빛 공방 아이템 그림(2026-10-22) — 공방·뽑기 연출·업적·프로필이 같이 쓴다. Android `feature/starlight/StarlightArt.kt` 와 같은 해석.
 ///
@@ -61,85 +62,159 @@ enum StarlightArt {
     }
 }
 
-/// 별가루 아이콘 — 크기가 다른 네 꼭지 반짝이 셋.
+// MARK: - 크리스탈 글리프(배지·망원경·열쇠·별가루)
+
+extension StarlightArt {
+    /// 구운 크리스탈 그림 캐시(키 = 경로|색|px) — 목록에서 칸마다 파편을 다시 계산하지 않게.
+    private static let crystalCache: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
+        c.totalCostLimit = 8 * 1024 * 1024
+        return c
+    }()
+
+    /// Java `String.hashCode` — 글리프 파편 무늬 시드를 Android 와 같게.
+    static func javaHash(_ s: String) -> Int32 {
+        var h: Int32 = 0
+        for u in s.utf16 { h = h &* 31 &+ Int32(u) }
+        return h
+    }
+
+    private static func hex(_ c: UIColor) -> String {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        c.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+    }
+
+    /// [unit] 실루엣(0~1)을 별과 같은 크리스탈 파편으로 채운 그림(px 변, 배율 1).
+    /// 가장자리에 옅은 흰 테(빛을 받는 모서리)를 둘러 결정처럼 보이게 한다. Android `bakeCrystal` 패리티.
+    static func bakeCrystal(key: String, px: CGFloat, seed: Int, colors: [UIColor], unit: () -> CGPath?) -> UIImage? {
+        let side = px.rounded()
+        guard side > 0 else { return nil }
+        let k = "\(key)|\(colors.map(hex).joined(separator: ","))|\(Int(side))" as NSString
+        if let hit = crystalCache.object(forKey: k) { return hit }
+        guard let u = unit() else { return nil }
+        var tr = CGAffineTransform(scaleX: side, y: side)
+        guard let path = u.copy(using: &tr) else { return nil }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let rect = CGRect(x: 0, y: 0, width: side, height: side)
+        let img = UIGraphicsImageRenderer(size: rect.size, format: format).image { ctx in
+            let cg = ctx.cgContext
+            StarCrystal.drawFacets(in: cg, silhouette: path, seed: seed, colors: colors.isEmpty ? [.white] : colors, rect: rect)
+            cg.saveGState()
+            cg.addPath(path)
+            cg.setLineWidth(max(side * 0.022, 0.8))
+            cg.replacePathWithStrokedPath()
+            cg.clip()
+            let rim = [UIColor.white.withAlphaComponent(0.6), UIColor.white.withAlphaComponent(0.2), UIColor.white.withAlphaComponent(0.33)]
+            if let g = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: rim.map(\.cgColor) as CFArray, locations: [0, 0.5, 1]) {
+                cg.drawLinearGradient(g, start: .zero, end: CGPoint(x: side, y: side), options: [])
+            }
+            cg.restoreGState()
+        }
+        crystalCache.setObject(img, forKey: k, cost: Int(side * side * 4))
+        return img
+    }
+
+    /// 별가루 실루엣(크기가 다른 네 꼭지 반짝이 셋), 0~1.
+    static let stardustPath: CGPath = {
+        let p = CGMutablePath()
+        func sparkle(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat) {
+            let k: CGFloat = 0.16
+            p.move(to: CGPoint(x: cx, y: cy - r))
+            p.addQuadCurve(to: CGPoint(x: cx + r, y: cy), control: CGPoint(x: cx + r * k, y: cy - r * k))
+            p.addQuadCurve(to: CGPoint(x: cx, y: cy + r), control: CGPoint(x: cx + r * k, y: cy + r * k))
+            p.addQuadCurve(to: CGPoint(x: cx - r, y: cy), control: CGPoint(x: cx - r * k, y: cy + r * k))
+            p.addQuadCurve(to: CGPoint(x: cx, y: cy - r), control: CGPoint(x: cx - r * k, y: cy - r * k))
+            p.closeSubpath()
+        }
+        sparkle(0.40, 0.44, 0.38)
+        sparkle(0.80, 0.20, 0.18)
+        sparkle(0.80, 0.80, 0.15)
+        return p
+    }()
+
+    /// 열쇠 실루엣 — 별 모양 15번(열쇠), 0~1.
+    static let keyPath: CGPath = StarShape(type: 15).path(in: CGRect(x: 0, y: 0, width: 1, height: 1)).cgPath
+}
+
+/// 크리스탈 그림을 정사각 가운데에 그린다(+ 선택적 뒤 빛). Android `CrystalCanvas` 패리티.
+struct CrystalGlyph: View {
+    let key: String
+    let seed: Int
+    let colors: [Color]
+    var glow = false
+    let unit: () -> CGPath?
+    @Environment(\.displayScale) private var scale
+
+    var body: some View {
+        GeometryReader { geo in
+            let s = min(geo.size.width, geo.size.height)
+            let ui = colors.isEmpty ? [UIColor.white] : colors.map { UIColor($0) }
+            ZStack {
+                if glow {
+                    Circle()
+                        .fill(RadialGradient(colors: [Color(ui[ui.count - 1]).opacity(0.32), .clear], center: .center, startRadius: 0, endRadius: s * 0.55))
+                        .frame(width: s * 1.1, height: s * 1.1)
+                }
+                if let img = StarlightArt.bakeCrystal(key: key, px: s * scale, seed: seed, colors: ui, unit: unit) {
+                    Image(uiImage: img).resizable().interpolation(.high).frame(width: s, height: s)
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
+    }
+}
+
+/// 크리스탈 열쇠 — 별 모양 15번(열쇠) 실루엣을 금빛 결정으로. Android `CrystalKeyIcon` 패리티.
+struct CrystalKeyIcon: View {
+    var glow = false
+    var body: some View {
+        CrystalGlyph(key: "key", seed: 15, colors: [Color(hex: 0xFFF0B8), Color(hex: 0xFFC75A), Color(hex: 0xE5892E)], glow: glow) {
+            StarlightArt.keyPath
+        }
+    }
+}
+
+/// 별가루 아이콘 — 밝은 색이면 크리스탈 결정, 어두운 색(금빛 버튼 위 글자색 등)·반투명이면 단색.
 struct StardustIcon: View {
     var tint: Color = StarlightArt.dust
 
     var body: some View {
-        Canvas { ctx, size in
-            let s = min(size.width, size.height)
-            ctx.fill(StarlightArt.sparkle(CGPoint(x: s * 0.40, y: s * 0.42), s * 0.36), with: .color(tint))
-            ctx.fill(StarlightArt.sparkle(CGPoint(x: s * 0.80, y: s * 0.22), s * 0.17), with: .color(tint.opacity(0.85)))
-            ctx.fill(StarlightArt.sparkle(CGPoint(x: s * 0.78, y: s * 0.80), s * 0.13), with: .color(tint.opacity(0.7)))
-        }
-    }
-}
-
-/// 성운 상자 — 보랏빛 성운이 소용돌이치는 둥근 상자. glow 0~1(열기 직전 밝아짐).
-struct NebulaBoxArt: View {
-    var glow: Double = 0
-    var spin = true
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
-            let deg = (t / (spin ? 9 : 60) * 360).truncatingRemainder(dividingBy: 360)
+        let ui = UIColor(tint)
+        if Self.isFlat(ui) {
             Canvas { ctx, size in
                 let s = min(size.width, size.height)
-                let c = CGPoint(x: size.width / 2, y: size.height / 2)
-                let g = CGFloat(glow)
-                ctx.fill(StarlightArt.circle(c, s * 0.62), with: .radialGradient(
-                    Gradient(colors: [StarlightArt.violet.opacity(0.35 + 0.4 * g), .clear]),
-                    center: c, startRadius: 0, endRadius: s * 0.62))
-                let body = s * 0.36
-                ctx.fill(StarlightArt.circle(c, body), with: .conicGradient(
-                    Gradient(colors: [Color(hex: 0x3A1C71), Color(hex: 0x7B2FF7), Color(hex: 0xD76D77), Color(hex: 0x3A8DFF), Color(hex: 0x3A1C71)]),
-                    center: c, angle: .degrees(deg)))
-                ctx.fill(StarlightArt.circle(c, body * 0.75), with: .radialGradient(
-                    Gradient(colors: [Color.white.opacity(0.55 + 0.45 * g), Color.white.opacity(0)]),
-                    center: c, startRadius: 0, endRadius: body * 0.75))
-                // 성운 소용돌이 팔 두 개
-                let armRot = -deg * 1.6 * .pi / 180
-                for k in 0..<2 {
-                    var arm = Path()
-                    for i in 0...24 {
-                        let f = Double(i) / 24
-                        let a = Double(k) * .pi + f * 2.6 + armRot
-                        let r = body * (0.15 + 0.8 * f)
-                        let p = CGPoint(x: c.x + cos(a) * r, y: c.y + sin(a) * r)
-                        if i == 0 { arm.move(to: p) } else { arm.addLine(to: p) }
-                    }
-                    ctx.stroke(arm, with: .color(.white.opacity(0.35)), style: StrokeStyle(lineWidth: s * 0.025, lineCap: .round))
-                }
-                ctx.stroke(StarlightArt.circle(c, body), with: .color(Color(hex: 0xE9D8FF).opacity(0.7)), lineWidth: s * 0.018)
+                ctx.fill(Path(StarlightArt.stardustPath).applying(CGAffineTransform(scaleX: s, y: s)), with: .color(tint))
+            }
+        } else {
+            CrystalGlyph(key: "dust", seed: 33,
+                         colors: [Color(ui.blended(with: .white, fraction: 0.55)), tint,
+                                  Color(ui.blended(with: UIColor(red: 0xB8 / 255.0, green: 0x6A / 255.0, blue: 0x1E / 255.0, alpha: 1), fraction: 0.45))]) {
+                StarlightArt.stardustPath
             }
         }
     }
+
+    private static func isFlat(_ c: UIColor) -> Bool {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        c.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.3 || a < 0.95
+    }
 }
 
-/// 0~1 SVG 글리프를 색(1개=단색, 2~3개=대각 그라데이션)으로 채운다 — 배지·망원경 아이콘.
+/// 0~1 SVG 글리프를 크리스탈로 채운다 — 배지·망원경 아이콘. 색 1개 = 단색 결정, 2~3개 = 대각 그라데이션 결정.
 struct SvgGlyph: View {
     let svg: String?
     let colors: [Color]
     var glow = false
 
     var body: some View {
-        Canvas { ctx, size in
-            guard let unit = StarlightArt.unitPath(svg) else { return }
-            let s = min(size.width, size.height)
-            let ox = (size.width - s) / 2, oy = (size.height - s) / 2
-            let cs = colors.isEmpty ? [Color.white] : colors
-            let path = Path(unit).applying(CGAffineTransform(scaleX: s, y: s).concatenating(CGAffineTransform(translationX: ox, y: oy)))
-            if glow {
-                let k: CGFloat = 1.12
-                let g = Path(unit).applying(CGAffineTransform(scaleX: s * k, y: s * k)
-                    .concatenating(CGAffineTransform(translationX: ox - s * (k - 1) / 2, y: oy - s * (k - 1) / 2)))
-                ctx.fill(g, with: .color(cs[cs.count - 1].opacity(0.28)))
+        if let svg, !svg.isEmpty {
+            let h = Int(StarlightArt.javaHash(svg))
+            CrystalGlyph(key: "svg:\(h)", seed: (h & 0x7FFF) % 97 + 3, colors: colors, glow: glow) {
+                StarlightArt.unitPath(svg)
             }
-            let shading: GraphicsContext.Shading = cs.count >= 2
-                ? .linearGradient(Gradient(colors: cs), startPoint: CGPoint(x: ox, y: oy), endPoint: CGPoint(x: ox + s, y: oy + s))
-                : .color(cs[0])
-            ctx.fill(path, with: shading)
         }
     }
 }
@@ -153,7 +228,8 @@ struct FrameArt: View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { tl in
             let t = tl.date.timeIntervalSinceReferenceDate
             let angle = speed > 0 ? (t / speed * 360).truncatingRemainder(dividingBy: 360) : 0
-            let wave = (t / 2.4).truncatingRemainder(dividingBy: 1)
+            // 반짝임 숨 — 차분하게(예전 2.4초는 영웅 프레임이 "두근거려" 보였다).
+            let wave = (t / 4.8).truncatingRemainder(dividingBy: 1)
             Canvas { ctx, size in draw(&ctx, size, angle: angle, wave: wave) }
         }
     }
@@ -178,7 +254,7 @@ struct FrameArt: View {
             g.translateBy(x: -c.x, y: -c.y)
             return g
         }
-        if item.bool("glow") {
+        if item.bool("glow") && pattern != "aurora" {
             ctx.stroke(StarlightArt.circle(c, r), with: .color(colors[colors.count - 1].opacity(0.22)), lineWidth: w * 2.6)
         }
         switch pattern {
@@ -232,23 +308,79 @@ struct FrameArt: View {
                 g.stroke(l, with: .color(colors[0].opacity(0.55)), lineWidth: w * 0.28)
             }
             for (i, p) in pts.enumerated() {
-                let tw = 0.55 + 0.45 * sin(wave * 2 * .pi + Double(i) * 1.7)
-                g.fill(StarlightArt.circle(p, w * 1.5), with: .color(colors[i % colors.count].opacity(0.25 * tw)))
-                g.fill(StarlightArt.sparkle(p, w * (i % 3 == 0 ? 1.5 : 1.0)), with: .color(colors[i % colors.count].opacity(0.6 + 0.4 * tw)))
+                let tw = 0.7 + 0.3 * sin(wave * 2 * .pi + Double(i) * 1.7)
+                g.fill(StarlightArt.circle(p, w * 1.5), with: .color(colors[i % colors.count].opacity(0.22 * tw)))
+                g.fill(StarlightArt.sparkle(p, w * (i % 3 == 0 ? 1.5 : 1.0)), with: .color(colors[i % colors.count].opacity(0.7 + 0.3 * tw)))
             }
         case "aurora":
-            ctx.stroke(StarlightArt.circle(c, r), with: ring, lineWidth: w * 1.25)
-            ctx.stroke(StarlightArt.circle(c, r), with: .conicGradient(
-                Gradient(colors: [.clear, .white.opacity(0.55), .clear, .clear]), center: c, angle: .degrees(-angle * 1.5)), lineWidth: w * 0.7)
-            ctx.stroke(StarlightArt.circle(c, r + w * 1.2),
-                       with: .color(colors[0].opacity(0.18 + 0.12 * sin(wave * 2 * .pi))), lineWidth: w * 0.5)
+            drawAurora(&ctx, c: c, r: r, w: w, colors: colors, angle: angle, wave: wave)
         default: // ring + 모르는 패턴
             ctx.stroke(StarlightArt.circle(c, r), with: ring, lineWidth: w)
         }
     }
+
+    /// 오로라 베일(2026-10-22 리디자인) — 고리 바깥으로 드리운 **빛의 커튼**. Android `drawAurora` 패리티.
+    /// 각도마다 높이가 다른 세로 빛줄기(커튼 주름)를 세 겹 겹치고, 그 위를 얇은 빛 고리가 감싼다.
+    /// 겹마다 다른 속도로 물결쳐 커튼이 일렁이고, 바깥엔 작은 별이 천천히 반짝인다.
+    private func drawAurora(_ ctx: inout GraphicsContext, c: CGPoint, r: CGFloat, w: CGFloat, colors: [Color], angle: Double, wave: Double) {
+        let cs = (colors.count >= 2 ? colors : [colors[0], colors[0]]).map { UIColor($0) }
+        func colorAt(_ f: Double) -> Color {
+            let x = (f.truncatingRemainder(dividingBy: 1) + 1).truncatingRemainder(dividingBy: 1) * Double(cs.count)
+            let i = Int(x) % cs.count
+            return Color(cs[i].blended(with: cs[(i + 1) % cs.count], fraction: CGFloat(x - Double(Int(x)))))
+        }
+        let ph = wave * 2 * .pi
+        let rot = angle * .pi / 180
+        // 바탕 안개 — 고리 둘레의 옅은 빛
+        let outer = r + w * 3.2
+        ctx.fill(StarlightArt.circle(c, outer), with: .radialGradient(
+            Gradient(stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .clear, location: (r - w) / outer),
+                .init(color: Color(cs[0]).opacity(0.22), location: r / outer),
+                .init(color: .clear, location: 1),
+            ]), center: c, startRadius: 0, endRadius: outer))
+        // 커튼 주름 — 세 겹(뒤 → 앞), 겹마다 줄기 수·위상·속도가 다르다.
+        for layer in 0..<3 {
+            let n = 54 + layer * 12
+            let lw = w * (0.42 - CGFloat(layer) * 0.08)
+            for i in 0..<n {
+                let f = Double(i) / Double(n)
+                let a = f * 2 * .pi + rot * (1 + Double(layer) * 0.35)
+                // 주름 높이: 느린 큰 물결 × 빠른 잔물결 — 커튼이 접힌 듯 들쭉날쭉
+                let big = 0.5 + 0.5 * sin(a * 3 + ph * Double(1 + layer) + Double(layer) * 2.1)
+                let small = 0.6 + 0.4 * sin(a * 11 - ph * 2 + Double(layer))
+                let h = w * CGFloat(0.8 + 2.1 * big * small)
+                let inner = r - w * 0.35
+                let start = CGPoint(x: c.x + CGFloat(cos(a)) * inner, y: c.y + CGFloat(sin(a)) * inner)
+                let end = CGPoint(x: c.x + CGFloat(cos(a)) * (inner + h), y: c.y + CGFloat(sin(a)) * (inner + h))
+                let col = colorAt(f + Double(layer) * 0.17 + angle / 360)
+                let alpha = (0.32 + 0.38 * big) * (1 - Double(layer) * 0.18)
+                var line = Path()
+                line.move(to: start)
+                line.addLine(to: end)
+                ctx.stroke(line, with: .linearGradient(
+                    Gradient(colors: [col.opacity(alpha), col.opacity(alpha * 0.45), .clear]), startPoint: start, endPoint: end),
+                    style: StrokeStyle(lineWidth: lw, lineCap: .round))
+            }
+        }
+        // 빛 고리 — 가는 두 줄(밝은 안쪽 + 색 바깥)
+        let ringColors = cs.map { Color($0) }
+        ctx.stroke(StarlightArt.circle(c, r), with: .conicGradient(Gradient(colors: ringColors + [ringColors[0]]), center: c), lineWidth: w * 0.55)
+        ctx.stroke(StarlightArt.circle(c, r - w * 0.1), with: .color(.white.opacity(0.55)), lineWidth: w * 0.16)
+        // 바깥 작은 별 — 천천히 반짝
+        for i in 0..<7 {
+            let a = (Double(i) * 51.4 + 12) * .pi / 180 + rot * 0.5
+            let rr = r + w * (2.6 + CGFloat(i % 3) * 0.55)
+            let tw = 0.5 + 0.5 * sin(ph + Double(i) * 1.9)
+            let p = CGPoint(x: c.x + CGFloat(cos(a)) * rr, y: c.y + CGFloat(sin(a)) * rr)
+            ctx.fill(StarlightArt.sparkle(p, w * (0.5 + 0.25 * CGFloat(i % 2))), with: .color(.white.opacity(0.35 + 0.55 * tw)))
+        }
+    }
 }
 
-/// 지도 별 오라 미리보기 — 별 하나와 그 둘레 빛.
+/// 지도 별 오라 미리보기 — 별 하나와 그 둘레 빛. 지도(`StarlightAura` 스프라이트 + 원 레이어)와 같은 그림·움직임.
+/// 스프라이트 변 = 미리보기 변(별은 그 0.42 — 지도 별 160px : 스프라이트 384px 와 같은 비율). Android `AuraArt` 패리티.
 struct AuraArt: View {
     let item: StarlightStore.Item
     var starType = 1
@@ -258,46 +390,51 @@ struct AuraArt: View {
         let pattern = item.str("pattern") ?? "halo"
         let raw = StarlightArt.colors(item)
         let colors = raw.isEmpty ? [Color(hex: 0xBFD8FF)] : raw
-        let speed = min(max(item.num("speed") ?? 2.4, 0.6), 10)
-        return GeometryReader { geo in
+        let speed = min(max(item.num("speed") ?? 4, 2), 120)
+        let sprite = StarlightAura.sprite(item.payload)
+        let motion = StarlightAura.motion(item.payload)
+        GeometryReader { geo in
             let side = min(geo.size.width, geo.size.height)
-            ZStack {
-                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { tl in
-                    let t = tl.date.timeIntervalSinceReferenceDate
-                    let ph = (t / speed).truncatingRemainder(dividingBy: 1)
-                    let breathe = 0.75 + 0.25 * (0.5 + 0.5 * sin(t / speed * 2 * .pi))
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { tl in
+                let t = tl.date.timeIntervalSinceReferenceDate
+                // 한 주기 = speed 초. 회전·흔들림·반짝임 모두 이 위상에서 나온다.
+                let ph = (t / speed).truncatingRemainder(dividingBy: 1)
+                let breathe = 0.8 + 0.2 * (0.5 + 0.5 * sin(t / 2.6 * .pi))
+                let deg = motion.spinDegPerSec * speed * ph + motion.wobbleDeg * sin(ph * 2 * .pi)
+                let alpha = motion.flicker ? 0.75 + 0.25 * sin(ph * 6 * .pi) : 1
+                ZStack {
                     Canvas { ctx, size in
                         let s = min(size.width, size.height)
                         let c = CGPoint(x: size.width / 2, y: size.height / 2)
                         let base = s * 0.30
-                        switch pattern {
-                        case "pulse":
+                        if pattern == "pulse" {
                             ctx.fill(StarlightArt.circle(c, base * 1.25), with: .radialGradient(
-                                Gradient(colors: [colors[0].opacity(0.55), .clear]), center: c, startRadius: 0, endRadius: base * 1.25))
-                            for k in 0..<2 {
-                                let f = (ph + Double(k) * 0.5).truncatingRemainder(dividingBy: 1)
-                                ctx.stroke(StarlightArt.circle(c, base * (0.6 + f)), with: .color(colors[k % colors.count].opacity((1 - f) * 0.7)), lineWidth: s * 0.018)
-                            }
-                        case "ring":
-                            ctx.fill(StarlightArt.circle(c, base * 1.3), with: .radialGradient(
-                                Gradient(colors: [colors[0].opacity(0.45 * breathe), .clear]), center: c, startRadius: 0, endRadius: base * 1.3))
-                            var g = ctx
-                            g.translateBy(x: c.x, y: c.y)
-                            g.rotate(by: .degrees(ph * 360))
-                            g.translateBy(x: -c.x, y: -c.y)
-                            g.stroke(Path(ellipseIn: CGRect(x: c.x - base * 1.35, y: c.y - base * 0.42, width: base * 2.7, height: base * 0.84)),
-                                     with: .conicGradient(Gradient(colors: colors + [colors[0]]), center: c), lineWidth: s * 0.02)
-                        default: // halo
+                                Gradient(colors: [colors[0].opacity(0.5 * breathe), .clear]), center: c, startRadius: 0, endRadius: base * 1.25))
+                            // 퍼지는 고리 하나(예전 둘 → 하나, 주기도 느리게 — "두근거림"이 정신없지 않게)
+                            ctx.stroke(StarlightArt.circle(c, base * (0.6 + CGFloat(ph))),
+                                       with: .color(colors[colors.count - 1].opacity((1 - ph) * 0.6)), lineWidth: s * 0.016)
+                        } else if sprite != nil {
+                            ctx.fill(StarlightArt.circle(c, base * 1.2), with: .radialGradient(
+                                Gradient(colors: [colors[0].opacity(0.28 * breathe), .clear]), center: c, startRadius: 0, endRadius: base * 1.2))
+                        } else { // halo + 모르는 패턴
                             ctx.fill(StarlightArt.circle(c, base * 1.45), with: .radialGradient(
                                 Gradient(colors: colors.map { $0.opacity(0.55 * breathe) } + [.clear]), center: c, startRadius: 0, endRadius: base * 1.45))
                         }
                     }
+                    if let sprite, pattern != "pulse" {
+                        Image(uiImage: sprite)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: side, height: side)
+                            .rotationEffect(.degrees(deg))
+                            .opacity(alpha)
+                    }
+                    Image(uiImage: StarCrystal.image(type: starType, colorIndex: starColor, size: side * 0.42))
+                        .resizable()
+                        .frame(width: side * 0.42, height: side * 0.42)
                 }
-                StarShape(type: starType)
-                    .fill(StarStyle.fill(starColor), style: FillStyle(eoFill: false))
-                    .frame(width: side * 0.42, height: side * 0.42)
+                .frame(width: geo.size.width, height: geo.size.height)
             }
-            .frame(width: geo.size.width, height: geo.size.height)
         }
     }
 }
@@ -315,7 +452,7 @@ struct TitleText: View {
         if item.bool("shimmer") {
             let c1 = colors[0], c2 = colors.count > 1 ? colors[1] : colors[0], c3 = colors[colors.count - 1]
             return AnyView(TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { tl in
-                let x = (tl.date.timeIntervalSinceReferenceDate / 2.6).truncatingRemainder(dividingBy: 1) * 3 - 1 // -1..2
+                let x = (tl.date.timeIntervalSinceReferenceDate / 3.4).truncatingRemainder(dividingBy: 1) * 3 - 1 // -1..2
                 label.foregroundStyle(LinearGradient(
                     colors: [c1, c2, .white, c2, c3],
                     startPoint: UnitPoint(x: x - 0.7, y: 0), endPoint: UnitPoint(x: x + 0.3, y: 1)))
@@ -343,9 +480,11 @@ struct ItemArt: View {
     private func content(_ s: CGFloat) -> some View {
         switch item.kind {
         case "shape":
-            StarShape(type: item.int("type") ?? 1).fill(StarStyle.fill(9)).frame(width: s * 0.78, height: s * 0.78)
+            Image(uiImage: StarCrystal.image(type: item.int("type") ?? 1, colorIndex: 9, size: s * 0.78))
+                .resizable().frame(width: s * 0.78, height: s * 0.78)
         case "color":
-            StarShape(type: 1).fill(StarStyle.fill(item.int("index") ?? 0)).frame(width: s * 0.78, height: s * 0.78)
+            Image(uiImage: StarCrystal.image(type: 1, colorIndex: item.int("index") ?? 0, size: s * 0.78))
+                .resizable().frame(width: s * 0.78, height: s * 0.78)
         case "frame":
             ZStack {
                 ZStack {
@@ -361,7 +500,7 @@ struct ItemArt: View {
             AuraArt(item: item).frame(width: s, height: s)
         case "badge":
             SvgGlyph(svg: item.str("path"), colors: StarlightArt.colors(item), glow: item.rarity != "common")
-                .frame(width: s * 0.62, height: s * 0.62)
+                .frame(width: s * 0.66, height: s * 0.66)
         case "title":
             TitleText(text: item.name(in: locale.effectiveLanguage), item: item, fontSize: 10.5)
                 .lineLimit(1).minimumScaleFactor(0.6)
@@ -375,10 +514,10 @@ struct ItemArt: View {
                 .frame(width: s * 0.7, height: s * 0.7)
         case "keyBundle":
             HStack(spacing: 2) {
-                Image(systemName: "key.fill").font(.system(size: max(10, s * 0.26)))
+                CrystalKeyIcon().frame(width: max(14, s * 0.3), height: max(14, s * 0.3))
                 Text("×\(item.int("keys") ?? 3)").font(.system(size: max(9, s * 0.15), weight: .bold))
+                    .foregroundStyle(Color(hex: 0xFFD27A))
             }
-            .foregroundStyle(QuestTheme.gold)
         default:
             StardustIcon(tint: StarlightArt.rarityColor(item.rarity)).frame(width: s * 0.5, height: s * 0.5)
         }

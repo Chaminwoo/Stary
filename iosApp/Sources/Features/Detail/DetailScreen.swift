@@ -123,6 +123,8 @@ struct DetailScreen: View {
     /// 100m 이내에 들어온 순간 그 글을 영구 해금한다(내 글은 기록 불필요).
     private func recordProximityUnlock() {
         guard isNear, !isOwner, let id = diary.id else { return }
+        // 직접 가서 처음 연 별 — 퀘스트 "직접 가서 열기"(Android DetailScreen 패리티, 이미 열린 별은 세지 않는다).
+        if !unlockStore.isUnlocked(id) { QuestStore.report(.unlockVisit, key: id) }
         unlockStore.unlock(id)
     }
     /// DEBUG 전용 — 이 글이 왜 열려(또는 잠겨) 있는지 Xcode 콘솔에 한 줄 남긴다("100m 밖인데 다 열려 있다" 검증용).

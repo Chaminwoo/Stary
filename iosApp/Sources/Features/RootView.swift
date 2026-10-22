@@ -67,7 +67,7 @@ private struct ChatTarget: Identifiable {
 
 /// 드로어(좌측 메뉴)/FAB 에서 여는 하위 화면 — Android `NavRoute` 대응.
 enum DrawerDest: Hashable {
-    case myDiary, starLog, profile, achievements, workshop, music, friends, settings, notifications, upload
+    case myDiary, starLog, profile, achievements, workshop, collection, music, friends, settings, notifications, upload
 }
 
 /// 메인 홈 — Android `MainScreen` 대응.
@@ -181,7 +181,7 @@ struct MainTabView: View {
                 if chrome.questsOpen {
                     // 첫 사용 안내 중이면 첫 퀘스트(프로필 바꾸기) 행을 강조하고 "하러 가기"로 프로필 화면에 보낸다.
                     QuestSheetView(
-                        highlightId: chrome.guideStep == .quest || chrome.guideStep == .profile ? DailyQuests.profileEdit.id : nil,
+                        highlightId: chrome.guideStep == .quest || chrome.guideStep == .profile ? DailyQuests.profileEditId : nil,
                         onGo: { q in
                             withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = false }
                             StaryAnalytics.log("guide_action", ["step": "quest_go_" + q.id])
@@ -355,6 +355,7 @@ struct MainTabView: View {
             case TabRouter.upload: path.append(DrawerDest.upload)
             case TabRouter.profile: path.append(DrawerDest.profile)
             case TabRouter.workshop: path.append(DrawerDest.workshop)
+            case TabRouter.collection: path.append(DrawerDest.collection)
             default: path.append(DrawerDest.myDiary)
             }
         }
@@ -757,6 +758,7 @@ struct MainTabView: View {
             case .profile: ProfileScreen()
             case .achievements: AchievementsEntry()
             case .workshop: WorkshopScreen()
+            case .collection: CollectionScreen()
             case .music: MusicScreen()
             case .friends: FriendsScreen()
             case .settings: SettingsScreen()
@@ -856,6 +858,8 @@ struct MainTabView: View {
         }
         let newIds = unlocked.subtracting(Set(stored))
         guard !newIds.isEmpty else { return }
+        // 퀘스트 "새 업적 달성"(Android AchievementUnlockWatcher 패리티).
+        for id in newIds { QuestStore.report(.achievement, key: id) }
         let queuedIds = Set(achievementQueue.flatMap { $0 }.map { $0.id } + pendingAchievements.map { $0.id })
         let newAch = Achievements.all.filter { newIds.contains($0.id) && !queuedIds.contains($0.id) }
         defaults.set(Array(Set(stored).union(unlocked)), forKey: key)

@@ -338,6 +338,9 @@ struct MapScreen: View {
             guard let uid = auth.uid else { myFriends = []; return }
             let snap = try? await FirestoreService.friends(of: uid).getDocuments()
             myFriends = snap?.documents.compactMap { try? $0.data(as: Friend.self) } ?? []
+            // 퀘스트 "친구 만들기" — 오늘 생긴 친구(내 요청이 수락된 경우 포함). 같은 친구는 하루 한 번(Android MainListScreen 패리티).
+            let startOfDay = Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
+            for f in myFriends where f.createdAt >= startOfDay { QuestStore.report(.friendAdd, key: f.userId) }
         }
     }
 
@@ -584,7 +587,7 @@ struct MapScreen: View {
             .padding(.top, 16)
             .padding(.leading, 16)
 
-            // ── 첫 사용 안내 카드(프로필 → 첫 별 → 퀘스트 열쇠 → 남의 별 열기) — 상단, 좌상단 줌 버튼을 피해 띄운다(Android 동일 자리).
+            // ── 첫 사용 안내 카드(프로필 → 첫 별 → 퀘스트 열쇠 → 남의 별 열기) — 화면 가운데(2026-10-22 — 필터 버튼 옆은 어색하다는 요청, Android 동일).
             //    `.quest` 는 카드 대신 RootView 의 "!" 스포트라이트.
             if let step = guideStep, step != .quest, !chrome.guideHidden.contains(step),
                !chrome.questsOpen, !chrome.coachMarkShowing, globeCenter == nil {
@@ -596,13 +599,10 @@ struct MapScreen: View {
                         withAnimation(.easeOut(duration: 0.2)) { _ = chrome.guideHidden.insert(step) }
                     }
                 )
-                .frame(maxWidth: 520)
-                .padding(.top, 16)
-                .padding(.leading, 72)
-                .padding(.trailing, 16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, 32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .id(step)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity.combined(with: .scale(scale: 0.85)))
                 .onAppear { guideShown(step) }
             }
 

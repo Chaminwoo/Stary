@@ -411,7 +411,7 @@ struct MapLibreView: UIViewRepresentable {
         /// "|" 로 시작 = 오라를 단 사람이 없음(트윙클 루프가 오라 애니메이션을 건너뛴다).
         var lastSlAuraKey = "|"
         /// 사람별 공방 오라(패턴, 색1, 색2) — refreshStarlightAuraIfNeeded 가 채운다.
-        var slAuraByUser: [String: (String, String, String)] = [:]
+        var slAuraByUser: [String: SlAura] = [:]
         /// 공방 오라 반경 표현식 캐시(1/32 단위).
         var slRadiusCache: [Int: NSExpression] = [:]
 

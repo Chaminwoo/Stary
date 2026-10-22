@@ -189,6 +189,7 @@ final class FriendsViewModel: ObservableObject {
                       forDocument: FirestoreService.friends(of: r.fromId).document(myUid))
         batch.deleteDocument(FirestoreService.friendRequests.document(reqId))
         try? await batch.commit()
+        QuestStore.report(.friendAdd, key: r.fromId)
     }
 
     func decline(_ r: FriendRequest) async {

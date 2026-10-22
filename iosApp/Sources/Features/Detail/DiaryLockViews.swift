@@ -412,10 +412,8 @@ struct KeyAdDialogCard: View {
                     .fill(RadialGradient(colors: [QuestTheme.gold.opacity(0.30), .clear],
                                          center: .center, startRadius: 0, endRadius: 38))
                     .frame(width: 76, height: 76)
-                // SF key.fill 은 원래 고리가 왼쪽 위인 대각선 — Android(가로 Key 아이콘을 45° 돌림)와 같은 방향.
-                Image(systemName: "key.fill")
-                    .font(.system(size: 36, weight: .semibold))
-                    .foregroundStyle(QuestTheme.gold)
+                // 크리스탈 열쇠(2026-10-22 — Android CrystalKeyIcon 패리티).
+                CrystalKeyIcon().frame(width: 50, height: 50)
             }
             .frame(width: 76, height: 76)
             Text(message)

@@ -84,6 +84,7 @@ final class DetailViewModel: ObservableObject {
         }
         try? await batch.commit()
         QuestStore.report(.comment)
+        if diary.userId != uid { QuestStore.report(.commentOther, key: diaryId) }
     }
 
     func deleteComment(_ c: Comment) async {

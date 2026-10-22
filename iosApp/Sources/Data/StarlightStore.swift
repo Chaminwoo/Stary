@@ -38,6 +38,8 @@ final class StarlightStore: ObservableObject {
         var maxOpen = 10
         /// 단서가 준비된 히든 업적 id — 반사·전파 망원경 버튼은 여기 있는 업적에만.
         var hintTargets: Set<String> = []
+        /// 공방 상자 카드에 겹쳐 보여 줄 대표 아이템 id(DB `showcase`) — 비면 전설 아이템 앞 3개.
+        var showcase: [String] = []
 
         static let `default` = Config()
 
@@ -160,6 +162,12 @@ final class StarlightStore: ObservableObject {
     }
 
     /// 도감에 보일 것 — 지금 뽑히는 것 + 내렸어도 내가 가진 것.
+    /// 공방 상자 카드의 대표 아이템 — DB showcase 순서, 없으면 지금 뽑히는 전설 앞 3개(Android `showcaseItems` 패리티).
+    var showcaseItems: [Item] {
+        let picked = config.showcase.compactMap { item($0) }
+        return picked.isEmpty ? Array(items.filter { $0.active && $0.rarity == "legendary" }.prefix(3)) : picked
+    }
+
     var shownItems: [Item] { items.filter { $0.active || (owned[$0.id] ?? 0) > 0 } }
 
     /// 가진 별 모양 번호(성운 상자) — 업로드 휠에서 내장 0~20 뒤에 붙인다.
@@ -329,6 +337,7 @@ final class StarlightStore: ObservableObject {
             if let n = (v as? NSNumber)?.intValue { c.dupRefund[k] = n }
         }
         c.maxOpen = int("maxOpen") ?? c.maxOpen
+        c.showcase = (snap.get("showcase") as? [Any])?.compactMap { $0 as? String } ?? []
         c.hintTargets = Set((snap.get("hintTargets") as? [Any])?.compactMap { $0 as? String } ?? [])
         return c
     }

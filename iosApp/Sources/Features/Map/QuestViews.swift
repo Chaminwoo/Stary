@@ -52,8 +52,7 @@ struct KeyChip: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: "key.fill")
-                .font(.system(size: 12, weight: .semibold))
+            CrystalKeyIcon().frame(width: 15, height: 15)
             Text("\(keys)")
                 .font(.system(size: 13, weight: .semibold).monospacedDigit())
         }
@@ -101,6 +100,7 @@ struct QuestSheetView: View {
     @ObservedObject private var quests = QuestStore.shared
     @ObservedObject private var starlight = StarlightStore.shared
     @ObservedObject private var locale = LocaleManager.shared
+    @ObservedObject private var catalog = DailyQuests.shared
     /// 첫 사용 안내 중 강조할 퀘스트 id(그 행에 금빛 맥박 테두리 + "하러 가기").
     let highlightId: String?
     /// 강조한 행의 "하러 가기" — 그 기능 화면으로 보낸다(창은 호출부가 닫는다).
@@ -161,8 +161,10 @@ struct QuestSheetView: View {
                         ForEach(Array(d.quests.enumerated()), id: \.element.id) { i, q in
                             QuestRowView(
                                 index: i, symbol: questSymbol(q.event),
-                                title: locale.t(q.title), hint: locale.t(q.hint),
-                                target: q.target, reward: starlight.config.questStardust,
+                                title: q.titleIn(locale.effectiveLanguage), hint: q.hintIn(locale.effectiveLanguage),
+                                target: q.target,
+                                reward: catalog.catalog?.reward(q, fallback: starlight.config.questStardust) ?? starlight.config.questStardust,
+                                tier: q.tier,
                                 progress: min(d.progressOf(q.id), q.target),
                                 claimed: d.claimed.contains(q.id),
                                 highlight: q.id == highlightId,
@@ -294,15 +296,19 @@ struct QuestSheetView: View {
     }
 }
 
-/// 이벤트 → 행 아이콘(Android `iconOf` 와 같은 의미).
-private func questSymbol(_ e: QuestEvent) -> String {
+/// 이벤트 → 행 아이콘(Android `iconOf` 와 같은 의미). 모르는 이벤트(nil)는 별.
+private func questSymbol(_ e: QuestEvent?) -> String {
+    guard let e else { return "star.fill" }
     switch e {
     case .tutorialStar: return "star.fill"
     case .upload: return "plus"
     case .uploadMedia: return "photo.fill"
+    case .uploadStack: return "square.stack.3d.up.fill"
     case .viewOther: return "eye.fill"
+    case .unlockVisit: return "figure.walk"
     case .like: return "heart.fill"
     case .comment: return "bubble.left.fill"
+    case .commentOther: return "bubble.left.and.bubble.right.fill"
     case .equipTitle: return "rosette"
     case .profileEdit: return "pencil"
     case .pinStar: return "pin.fill"
@@ -314,10 +320,35 @@ private func questSymbol(_ e: QuestEvent) -> String {
     case .visitStarlog: return "book.fill"
     case .visitProfile: return "person.fill"
     case .friendRequest: return "person.badge.plus"
+    case .friendAdd: return "person.2.fill"
+    case .invite: return "paperplane.fill"
     case .share: return "square.and.arrow.up"
     case .music: return "music.note"
     case .focus: return "leaf.fill"
     case .unlockKey: return "lock.open.fill"
+    case .openBox: return "shippingbox.fill"
+    case .achievement: return "medal.fill"
+    }
+}
+
+/// 난이도 꼬리표 — 쉬움(민트) · 보통(푸른빛) · 어려움(보랏빛). Android `TierTag` 패리티.
+private struct TierTag: View {
+    let tier: String
+    @ObservedObject private var locale = LocaleManager.shared
+    var body: some View {
+        let (key, color): (L10n, Color) = {
+            switch tier {
+            case "hard": return (.questTierHard, Color(hex: 0xD59CFF))
+            case "normal": return (.questTierNormal, Color(hex: 0x7CB8FF))
+            default: return (.questTierEasy, Theme.mint)
+            }
+        }()
+        Text(locale.t(key))
+            .font(.minSans(10, .semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(color.opacity(0.14), in: Capsule())
+            .overlay(Capsule().strokeBorder(color.opacity(0.45), lineWidth: 0.6))
     }
 }
 
@@ -328,6 +359,7 @@ private struct QuestRowView: View {
     let hint: String
     let target: Int
     let reward: Int
+    var tier: String? = nil
     let progress: Int
     let claimed: Bool
     var highlight: Bool = false
@@ -358,10 +390,13 @@ private struct QuestRowView: View {
                         .font(.minSans(11, .semibold))
                         .foregroundStyle(QuestTheme.gold)
                 }
-                Text(title)
-                    .font(.minSans(14, .medium))
-                    .foregroundStyle(claimed ? Color(hex: 0x8A93A3) : Theme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(title)
+                        .font(.minSans(14, .medium))
+                        .foregroundStyle(claimed ? Color(hex: 0x8A93A3) : Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let tier, !claimed { TierTag(tier: tier) }
+                }
                 Text(hint)
                     .font(.minSans(11.5))
                     .foregroundStyle(Color(hex: 0x8A93A3))
