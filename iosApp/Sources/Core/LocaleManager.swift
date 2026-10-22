@@ -176,6 +176,8 @@ enum L10n: String {
     case uploadStarShape, uploadStarColor, uploadVisibility, uploadAnonymous
     case uploadVisPublic, uploadVisFriends, uploadVisPrivate
     case uploadDailyLimit, toastUnlockAchievement, toastImageUploadFailed, uploadDone, uploadPreview, uploadNoLocation, profileNotReady
+    case uploadLocPermTitle, uploadLocPermMsg, uploadLocPermBtn, uploadLocOffTitle, uploadLocOffMsg, uploadLocOffBtn
+    case uploadLocNoneTitle, uploadLocNoneMsg, uploadLocRetry, uploadLocMockTitle, uploadLocMockMsg
     // 친구/채팅/로그인/알림 화면.
     case friendSearchPlaceholder, friendAdd, friendAccept, friendDecline
     case friendRequests, friendMyFriends, friendEmpty, friendNoName, commonSearch
@@ -564,6 +566,25 @@ enum L10n: String {
         case .uploadNoLocation:     return ("현재 위치를 확인할 수 없어요. 위치 권한과 GPS를 켜고 다시 시도해 주세요",
                                             "Couldn't find your current location. Turn on location permission and GPS, then try again",
                                             "現在地を確認できません。位置情報の許可とGPSをオンにしてもう一度お試しください")
+        case .uploadLocPermTitle:   return ("위치 권한이 필요해요", "Location permission needed", "位置情報の許可が必要です")
+        case .uploadLocPermMsg:     return ("별은 지금 있는 자리에 남겨져요. 위치 권한을 허용해 주세요. (대략적인 위치도 괜찮아요)",
+                                            "Your star is placed where you are now. Please allow location access — approximate is fine too.",
+                                            "星は今いる場所に残ります。位置情報へのアクセスを許可してください（おおよその位置でも大丈夫です）。")
+        case .uploadLocPermBtn:     return ("허용하기", "Allow", "許可する")
+        case .uploadLocOffTitle:    return ("위치가 꺼져 있어요", "Location is turned off", "位置情報がオフになっています")
+        case .uploadLocOffMsg:      return ("기기의 위치(GPS)를 켜야 지금 자리에 별을 남길 수 있어요.",
+                                            "Turn on your device's location to leave a star where you are.",
+                                            "端末の位置情報をオンにすると、今いる場所に星を残せます。")
+        case .uploadLocOffBtn:      return ("위치 켜기", "Turn on", "オンにする")
+        case .uploadLocNoneTitle:   return ("지금 위치를 찾지 못했어요", "Couldn't find your location", "現在地が見つかりませんでした")
+        case .uploadLocNoneMsg:     return ("창가나 밖으로 나가거나 와이파이를 켜면 더 빨리 잡혀요. 쓴 글은 그대로 있어요.",
+                                            "It's quicker near a window, outdoors, or with Wi-Fi on. Your post is still here.",
+                                            "窓の近くや屋外、Wi-Fiをオンにすると見つかりやすくなります。書いた内容はそのまま残っています。")
+        case .uploadLocRetry:       return ("다시 시도", "Try again", "再試行")
+        case .uploadLocMockTitle:   return ("위치 조작 앱이 켜져 있어요", "A location-spoofing app is on", "位置偽装アプリがオンになっています")
+        case .uploadLocMockMsg:     return ("실제 위치에서만 별을 남길 수 있어요. 위치 조작 앱을 끄고 다시 시도해 주세요.",
+                                            "Stars can only be left at your real location. Turn off the spoofing app and try again.",
+                                            "星は実際の位置にだけ残せます。位置偽装アプリをオフにしてもう一度お試しください。")
         case .profileNotReady:      return ("프로필 정보를 불러오는 중이에요. 네트워크를 확인하고 잠시 후 다시 시도해 주세요",
                                             "Still loading your profile. Check your connection and try again in a moment",
                                             "プロフィールを読み込み中です。通信状況を確認して、しばらくしてからもう一度お試しください")

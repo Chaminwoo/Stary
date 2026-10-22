@@ -36,9 +36,8 @@ class MainActivity : ComponentActivity() {
         // 앱 시작 즉시 필요한 권한 요청 — 위치(지도 초기 위치)·푸시 알림(API 33+).
         // 위치를 늦게 받으면 초기 지도가 기본 좌표로 떠서 주변 다이어리가 안 보이므로 켜자마자 요청한다.
         val needed = buildList {
-            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
+            // 대략적인 위치만 허용한 사용자에게는 매 실행마다 다시 묻지 않는다(그 위치로도 별을 남길 수 있다).
+            if (!com.chaminwoo.stary.core.util.LocationHelper.hasPermission(this@MainActivity)) {
                 add(Manifest.permission.ACCESS_FINE_LOCATION)
                 add(Manifest.permission.ACCESS_COARSE_LOCATION)
             }

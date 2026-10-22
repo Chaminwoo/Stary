@@ -177,6 +177,17 @@
     <string name="toast_image_upload_failed">이미지 업로드 실패: %1$s</string>
     <string name="upload_daily_limit">오늘 올릴 수 있는 별 %1$d개를 모두 사용했어요</string>
     <string name="upload_no_location">현재 위치를 확인할 수 없어요. 위치 권한과 GPS를 켜고 다시 시도해 주세요</string>
+    <string name="upload_loc_perm_title">위치 권한이 필요해요</string>
+    <string name="upload_loc_perm_msg">별은 지금 있는 자리에 남겨져요. 위치 권한을 허용해 주세요. (대략적인 위치도 괜찮아요)</string>
+    <string name="upload_loc_perm_btn">허용하기</string>
+    <string name="upload_loc_off_title">위치가 꺼져 있어요</string>
+    <string name="upload_loc_off_msg">기기의 위치(GPS)를 켜야 지금 자리에 별을 남길 수 있어요.</string>
+    <string name="upload_loc_off_btn">위치 켜기</string>
+    <string name="upload_loc_none_title">지금 위치를 찾지 못했어요</string>
+    <string name="upload_loc_none_msg">창가나 밖으로 나가거나 와이파이를 켜면 더 빨리 잡혀요. 쓴 글은 그대로 있어요.</string>
+    <string name="upload_loc_retry">다시 시도</string>
+    <string name="upload_loc_mock_title">위치 조작 앱이 켜져 있어요</string>
+    <string name="upload_loc_mock_msg">실제 위치에서만 별을 남길 수 있어요. 위치 조작 앱을 끄고 다시 시도해 주세요.</string>
     <string name="profile_not_ready">프로필 정보를 불러오는 중이에요. 네트워크를 확인하고 잠시 후 다시 시도해 주세요</string>
 
     <!-- 친구 화면 -->

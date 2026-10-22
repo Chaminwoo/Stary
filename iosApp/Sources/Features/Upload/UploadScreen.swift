@@ -35,6 +35,11 @@ struct UploadScreen: View {
     /// 전체 화면 촬영(사진/움짤) — nil 이면 닫힘.
     @State private var captureSheet: CaptureSheet?
     @State private var friendsCount = 0
+    /// 업로드 위치 실패 이유 — 안내 팝업 내용(팝업이 닫히는 동안 문구가 바뀌지 않게 표시 여부와 따로 둔다).
+    @State private var locationProblem: LocationManager.UploadFix = .notFound
+    @State private var showLocationProblem = false
+    /// 권한 팝업에서 "허용하기" → 시스템 창에서 허용되면 바로 다시 올린다(Android 권한 요청 후 submit() 패리티).
+    @State private var retryAfterAuth = false
     /// 키보드 내리기용 포커스 — 제목/내용 입력 후 키보드가 안 내려가던 문제(#3) 대응.
     @FocusState private var focusedField: Field?
 
@@ -113,6 +118,18 @@ struct UploadScreen: View {
         //  닫기는 바깥 영역 탭(KeyboardDismissOnTap) 또는 스크롤 드래그로 한다.)
         .overlay(alignment: .bottom) {
             if let toast { ToastView(text: toast) }
+        }
+        // 업로드 위치 실패 안내 — 이유별 행동(권한 요청·설정 / 위치 설정 / 다시 시도).
+        .staryConfirmDialog(locationProblemText.title,
+                            isPresented: $showLocationProblem,
+                            message: locationProblemText.message,
+                            confirmTitle: locationProblemText.action) {
+            handleLocationProblem()
+        }
+        .onChange(of: location.authorized) { ok in
+            guard ok, retryAfterAuth else { return }
+            retryAfterAuth = false
+            Task { await save() }
         }
         .onChange(of: photoItem) { item in
             guard item != nil else { return }
@@ -402,13 +419,23 @@ struct UploadScreen: View {
             showToast(String(format: LocaleManager.shared.t(.uploadDailyLimit), AppConfig.dailyUploadLimit))
             return
         }
-        // 실제 위치(fix)가 없으면 올리지 않는다 — 예전엔 기본좌표(서울)로 저장돼 엉뚱한 곳에 별이 생겼다.
-        // 첨부 업로드 전에 막아 Storage 에 주인 없는 파일이 남지 않게. (Android UploadScreen 패리티)
-        guard let coord = location.coordinate else {
-            uploadFail("no_location"); showToast(LocaleManager.shared.t(.uploadNoLocation)); return
-        }
         saving = true
         defer { saving = false }
+        // 실제 위치(fix)가 없으면 올리지 않는다 — 예전엔 기본좌표(서울)로 저장돼 엉뚱한 곳에 별이 생겼다.
+        // 첨부 업로드 전에 막아 Storage 에 주인 없는 파일이 남지 않게. 2026-10-23 완화: 최근 위치도 쓰고 잠시 기다리며,
+        // 실패하면 토스트 대신 이유별 안내(권한 허용 / 위치 켜기 / 다시 시도)를 띄운다. (Android UploadScreen 패리티)
+        let fix = await location.locateForUpload()
+        guard case let .ok(coord) = fix else {
+            switch fix {
+            case .noPermission: uploadFail("no_location_permission")
+            case .locationOff: uploadFail("no_location_off")
+            case .mock: uploadFail("no_location_mock")
+            default: uploadFail("no_location")
+            }
+            locationProblem = fix
+            showLocationProblem = true
+            return
+        }
         // 올리기 성공 순간의 축하 진동(StarBirthStore.trigger → Haptics.celebrate)이 확실히 울리도록
         // 지금 탭틱 엔진을 깨워 둔다 — 예열 없이 부르면 첫 진동이 씹힌다(사용자 요청 #5).
         Haptics.prepare()
@@ -484,6 +511,29 @@ struct UploadScreen: View {
         } catch {
             uploadFail("save")
             showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription))
+        }
+    }
+
+    private var locationProblemText: (title: String, message: String, action: String) {
+        let l = LocaleManager.shared
+        switch locationProblem {
+        case .noPermission: return (l.t(.uploadLocPermTitle), l.t(.uploadLocPermMsg), l.t(.uploadLocPermBtn))
+        case .locationOff: return (l.t(.uploadLocOffTitle), l.t(.uploadLocOffMsg), l.t(.uploadLocOffBtn))
+        case .mock: return (l.t(.uploadLocMockTitle), l.t(.uploadLocMockMsg), l.t(.uploadLocRetry))
+        default: return (l.t(.uploadLocNoneTitle), l.t(.uploadLocNoneMsg), l.t(.uploadLocRetry))
+        }
+    }
+
+    private func handleLocationProblem() {
+        switch locationProblem {
+        case .noPermission where location.permissionNotDetermined:
+            retryAfterAuth = true
+            location.requestPermission()
+        case .noPermission, .locationOff:
+            // 이미 거부했으면 시스템 창이 다시 안 뜬다 → 설정 앱(이 앱 화면)에서 위치를 허용하게.
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+        default:
+            Task { await save() }
         }
     }
 

@@ -175,6 +175,17 @@
     <string name="toast_image_upload_failed">画像のアップロードに失敗: %1$s</string>
     <string name="upload_daily_limit">本日投稿できる星 %1$d個をすべて使いました</string>
     <string name="upload_no_location">現在地を確認できません。位置情報の許可とGPSをオンにしてもう一度お試しください</string>
+    <string name="upload_loc_perm_title">位置情報の許可が必要です</string>
+    <string name="upload_loc_perm_msg">星は今いる場所に残ります。位置情報へのアクセスを許可してください（おおよその位置でも大丈夫です）。</string>
+    <string name="upload_loc_perm_btn">許可する</string>
+    <string name="upload_loc_off_title">位置情報がオフになっています</string>
+    <string name="upload_loc_off_msg">端末の位置情報をオンにすると、今いる場所に星を残せます。</string>
+    <string name="upload_loc_off_btn">オンにする</string>
+    <string name="upload_loc_none_title">現在地が見つかりませんでした</string>
+    <string name="upload_loc_none_msg">窓の近くや屋外、Wi-Fiをオンにすると見つかりやすくなります。書いた内容はそのまま残っています。</string>
+    <string name="upload_loc_retry">再試行</string>
+    <string name="upload_loc_mock_title">位置偽装アプリがオンになっています</string>
+    <string name="upload_loc_mock_msg">星は実際の位置にだけ残せます。位置偽装アプリをオフにしてもう一度お試しください。</string>
     <string name="profile_not_ready">プロフィールを読み込み中です。通信状況を確認して、しばらくしてからもう一度お試しください</string>
 
     <!-- 友達画面 -->

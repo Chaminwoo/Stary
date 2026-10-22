@@ -175,6 +175,17 @@
     <string name="toast_image_upload_failed">Image upload failed: %1$s</string>
     <string name="upload_daily_limit">You\'ve used all %1$d stars you can post today</string>
     <string name="upload_no_location">Couldn\'t find your current location. Turn on location permission and GPS, then try again</string>
+    <string name="upload_loc_perm_title">Location permission needed</string>
+    <string name="upload_loc_perm_msg">Your star is placed where you are now. Please allow location access — approximate is fine too.</string>
+    <string name="upload_loc_perm_btn">Allow</string>
+    <string name="upload_loc_off_title">Location is turned off</string>
+    <string name="upload_loc_off_msg">Turn on your device\'s location to leave a star where you are.</string>
+    <string name="upload_loc_off_btn">Turn on</string>
+    <string name="upload_loc_none_title">Couldn\'t find your location</string>
+    <string name="upload_loc_none_msg">It\'s quicker near a window, outdoors, or with Wi-Fi on. Your post is still here.</string>
+    <string name="upload_loc_retry">Try again</string>
+    <string name="upload_loc_mock_title">A location-spoofing app is on</string>
+    <string name="upload_loc_mock_msg">Stars can only be left at your real location. Turn off the spoofing app and try again.</string>
     <string name="profile_not_ready">Still loading your profile. Check your connection and try again in a moment</string>
 
     <!-- Friends screen -->

@@ -190,8 +190,7 @@ fun LoginScreen(
     }
 
     LaunchedEffect(Unit) {
-        val permission = Manifest.permission.ACCESS_FINE_LOCATION
-        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+        if (LocationHelper.hasPermission(context)) {
             LocationHelper.startContinuousUpdates(context)
         }
         if (!immediate) {

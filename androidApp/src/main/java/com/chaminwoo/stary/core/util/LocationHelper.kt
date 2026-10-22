@@ -12,12 +12,15 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.chaminwoo.stary.core.geo.GeoUtils
 import com.chaminwoo.stary.core.geo.LatLng
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 object LocationHelper {
@@ -122,15 +125,35 @@ object LocationHelper {
         return true
     }
 
+    private fun hasFine(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * 위치 권한 — 정확한 위치(FINE) **또는 대략적인 위치(COARSE)**. Android 12+ 는 사용자가 "대략적인 위치"만 줄 수 있는데,
+     * 예전엔 FINE 만 확인해 그런 사용자는 위치 추적이 아예 시작되지 않았다(2026-10-23 — 해외 신규 사용자 업로드 실패 조사).
+     */
+    fun hasPermission(context: Context): Boolean =
+        hasFine(context) ||
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /** 기기 위치(GPS·네트워크 위치)가 켜져 있는지. */
+    fun isLocationOn(context: Context): Boolean {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false
+        return androidx.core.location.LocationManagerCompat.isLocationEnabled(lm)
+    }
+
+    /** 대략적인 위치만 있으면 GPS 대신 와이파이·기지국 위치(BALANCED)로 — HIGH 를 요청해도 정확도가 오르지 않는다. */
+    private fun priorityFor(context: Context): Int =
+        if (hasFine(context)) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
+
     @SuppressLint("MissingPermission")
     fun startContinuousUpdates(context: Context) {
         if (continuousCallback != null) return
-        val permission = android.Manifest.permission.ACCESS_FINE_LOCATION
-        if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) return
+        if (!hasPermission(context)) return
 
         val appContext = context.applicationContext
         val fusedClient = LocationServices.getFusedLocationProviderClient(appContext)
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000)
+        val request = LocationRequest.Builder(priorityFor(appContext), 2000)
             .setMinUpdateIntervalMillis(1000)
             .build()
 
@@ -155,7 +178,7 @@ object LocationHelper {
             val appContext = context.applicationContext
             val fusedClient = LocationServices.getFusedLocationProviderClient(appContext)
             suspendCancellableCoroutine { cont ->
-                val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
+                val request = LocationRequest.Builder(priorityFor(appContext), 1000)
                     .setMaxUpdates(1)
                     .build()
                 val callback = object : LocationCallback() {
@@ -182,6 +205,70 @@ object LocationHelper {
             ?: manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
         // 폴백 경로도 모의 위치는 거부
         return loc?.takeUnless { isMock(it) }
+    }
+
+    /** 업로드 위치 결과 — 실패면 이유별로 다른 안내(권한 요청 / 위치 켜기 / 다시 시도 / 위치 조작)를 띄운다. */
+    sealed interface UploadFix {
+        data class Ok(val latitude: Double, val longitude: Double) : UploadFix
+        data object NoPermission : UploadFix
+        data object LocationOff : UploadFix
+        data object Mock : UploadFix
+        data object NotFound : UploadFix
+    }
+
+    private const val FRESH_MS = 30 * 60_000L    // 실시간 fix 가 없을 때 믿는 최근 위치(30분)
+    private const val FALLBACK_MS = 2 * 3600_000L // 새 fix 를 끝내 못 잡았을 때 마지막 수단(2시간)
+    private const val FIX_TIMEOUT_MS = 15_000L
+
+    private fun ageMs(location: Location): Long =
+        (android.os.SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000
+
+    @SuppressLint("MissingPermission")
+    private fun lastKnownWithin(context: Context, maxAgeMs: Long): Location? {
+        val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+        return listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+            .mapNotNull { runCatching { manager.getLastKnownLocation(it) }.getOrNull() }
+            .filter { !isMock(it) && ageMs(it) <= maxAgeMs }
+            .maxByOrNull { it.elapsedRealtimeNanos }
+    }
+
+    /**
+     * 업로드용 위치(2026-10-23 완화) — 예전엔 실시간 fix 가 없으면 고정밀 1회 fix 를 10초 기다리고 실패 = 업로드 실패였다
+     * (실내·와이파이 없는 환경·대략적인 위치 사용자는 자주 실패). 이제 순서대로:
+     * 실시간 위치 → 30분 내 최근 위치 → 새 fix(대략 정확도, 15초) → 2시간 내 마지막 위치. 모의 위치는 모든 단계에서 거부.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun locateForUpload(context: Context): UploadFix {
+        val appContext = context.applicationContext
+        if (!hasPermission(appContext)) return UploadFix.NoPermission
+        _location.value?.let { return UploadFix.Ok(it.latitude, it.longitude) }
+
+        val fused = LocationServices.getFusedLocationProviderClient(appContext)
+        fun ok(loc: Location): UploadFix =
+            if (acceptLocation(appContext, loc)) UploadFix.Ok(loc.latitude, loc.longitude) else UploadFix.Mock
+
+        val last = runCatching { fused.lastLocation.await() }.getOrNull()
+        if (last != null && !isMock(last) && ageMs(last) <= FRESH_MS) return ok(last)
+
+        if (!isLocationOn(appContext)) {
+            return lastKnownWithin(appContext, FALLBACK_MS)?.let { ok(it) } ?: UploadFix.LocationOff
+        }
+
+        val cts = CancellationTokenSource()
+        val fresh = try {
+            withTimeoutOrNull(FIX_TIMEOUT_MS) {
+                runCatching {
+                    fused.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token).await()
+                }.getOrNull()
+            }
+        } finally {
+            cts.cancel()
+        }
+        if (fresh != null) return ok(fresh)
+
+        (last?.takeIf { !isMock(it) && ageMs(it) <= FALLBACK_MS } ?: lastKnownWithin(appContext, FALLBACK_MS))
+            ?.let { return ok(it) }
+        return if (_mockDetected.value || last?.let { isMock(it) } == true) UploadFix.Mock else UploadFix.NotFound
     }
 
     // 거리 계산은 플랫폼 공용 GeoUtils(Haversine)로 위임 — iOS 공유 가능

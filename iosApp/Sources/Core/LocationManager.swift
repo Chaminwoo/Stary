@@ -91,6 +91,50 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         #endif
     }
 
+    /// 업로드 위치 결과 — 실패면 이유별 안내(권한 허용 / 위치 켜기 / 다시 시도 / 위치 조작). (Android LocationHelper.UploadFix 패리티)
+    enum UploadFix {
+        case ok(CLLocationCoordinate2D)
+        case noPermission, locationOff, mock, notFound
+    }
+
+    /// 아직 권한을 묻지 않은 상태(시스템 창을 띄울 수 있다) — 아니면(거부) 설정 앱으로 보낸다.
+    var permissionNotDetermined: Bool { manager.authorizationStatus == .notDetermined }
+
+    private static let freshAge: TimeInterval = 30 * 60      // 실시간 좌표가 없을 때 믿는 최근 위치(30분)
+    private static let fallbackAge: TimeInterval = 2 * 3600  // 새 위치를 끝내 못 잡았을 때 마지막 수단(2시간)
+
+    /// 시스템이 들고 있는 마지막 위치 중 조작되지 않았고 `maxAge` 안의 것 — 쓰면 실시간 좌표에도 반영한다.
+    private func recentSystemLocation(maxAge: TimeInterval) -> CLLocationCoordinate2D? {
+        guard let loc = manager.location, !Self.isMock(loc), -loc.timestamp.timeIntervalSinceNow <= maxAge else { return nil }
+        coordinate = loc.coordinate
+        persistLastLocation(loc.coordinate)
+        return loc.coordinate
+    }
+
+    /// 업로드용 위치(2026-10-23 완화) — 예전엔 실시간 좌표가 없으면 즉시 실패였다. 이제 순서대로:
+    /// 실시간 좌표 → 30분 내 시스템 위치 → 최대 15초 기다림 → 2시간 내 시스템 위치. 대략적인 위치(정확한 위치 끔)도 그대로 쓴다.
+    func locateForUpload() async -> UploadFix {
+        // 위치 서비스가 기기 전체에서 꺼져 있으면 권한 상태도 '거부'로 보이므로 먼저 확인한다(메인 스레드에서 부르면 경고).
+        let servicesOn = await Task.detached { CLLocationManager.locationServicesEnabled() }.value
+        if !servicesOn {
+            if let c = recentSystemLocation(maxAge: Self.fallbackAge) { return .ok(c) }
+            return .locationOff
+        }
+        let status = manager.authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return .noPermission }
+        if let c = coordinate { return .ok(c) }
+        if let c = recentSystemLocation(maxAge: Self.freshAge) { return .ok(c) }
+
+        manager.startUpdatingLocation()
+        for _ in 0..<30 {
+            if let c = coordinate { return .ok(c) }
+            if mockDetected { break }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        if let c = recentSystemLocation(maxAge: Self.fallbackAge) { return .ok(c) }
+        return mockDetected ? .mock : .notFound
+    }
+
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         #if targetEnvironment(simulator)
         // 컴퓨터(시뮬레이터)의 기본 시뮬레이션 위치는 미국(쿠퍼티노)이라 서울 폴백을 덮어쓴다 →

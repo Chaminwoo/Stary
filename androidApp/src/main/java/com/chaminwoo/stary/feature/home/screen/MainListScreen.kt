@@ -398,9 +398,8 @@ fun MainListScreen(
     // 현재 위치로 카메라를 맞춘다. 권한 다이얼로그가 닫히며 액티비티가 ON_RESUME 될 때도 재시도해
     // 허용 직후 곧바로 위치가 반영되도록 한다(예전엔 허용해도 시작 코드가 없어 기본 좌표에 멈춰 있었음).
     val startLocationIfGranted: () -> Unit = start@{
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED
-        ) return@start
+        // 대략적인 위치(COARSE)만 허용한 사용자도 추적을 시작한다(예전 FINE 만 확인 → 위치가 영영 안 잡혔다).
+        if (!LocationHelper.hasPermission(context)) return@start
         LocationHelper.startContinuousUpdates(context)
         // 일회성 fix 를 한 번 당겨 진입 직후 빠르게 위치를 잡는다(결과는 LocationHelper.location flow 로 반영).
         if (LocationHelper.getCurrentLatLng() == null) {

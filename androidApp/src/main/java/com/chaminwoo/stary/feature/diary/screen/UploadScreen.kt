@@ -129,6 +129,8 @@ fun UploadScreen(
     var boomerangInit by remember { mutableStateOf<Triple<Float, Float, Float>?>(null) }
     var showBoomerangCapture by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
+    // 업로드 위치 실패 이유 — null 이 아니면 이유별 안내 창을 띄운다.
+    var locationProblem by remember { mutableStateOf<LocationHelper.UploadFix?>(null) }
     var showImageSourceDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val cameraUri = remember { mutableStateOf<Uri?>(null) }
@@ -481,124 +483,184 @@ fun UploadScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            Button(
-                onClick = {
-                    if (title.isBlank()) { uploadFail("no_title"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@Button }
-                    // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다.
-                    if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(title, content)) { uploadFail("filter"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)); return@Button }
-                    // 하루 업로드 제한(로그인 사용자 기준). 오늘 로컬 자정 이후 내가 올린 개수로 선차단.
-                    if (isLoggedIn) {
-                        val startOfDay = java.util.Calendar.getInstance().apply {
-                            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
-                            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
-                        }.timeInMillis
-                        val todayCount = myDiaries.count { it.createdAt >= startOfDay }
-                        if (todayCount >= StaryConfig.DAILY_UPLOAD_LIMIT) {
-                            uploadFail("daily_limit")
-                            com.chaminwoo.stary.core.ui.StaryToast.show(
-                                context.getString(R.string.upload_daily_limit, StaryConfig.DAILY_UPLOAD_LIMIT)
-                            )
-                            return@Button
-                        }
-                    }
-                    StarUnlocks.lockedShapeAch(starType, unlockedIds)?.let {
-                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@Button
-                    }
-                    StarUnlocks.lockedColorAch(starColor, unlockedIds)?.let {
-                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@Button
-                    }
-                    coroutineScope.launch {
-                        isUploading = true
-                        // 실제 위치를 못 잡으면(권한 없음·GPS 꺼짐·모의 위치) 올리지 않는다 — 예전엔 (0,0) 으로 저장돼
-                        // 지도에서 안 보이는 별이 생겼다(지도는 (0,0) 을 거른다). GPS 가 꺼져 있으면 응답이 없을 수 있어 10초 제한.
-                        val curLatLng = LocationHelper.getCurrentLatLng()
-                        val fix = if (curLatLng == null) {
-                            kotlinx.coroutines.withTimeoutOrNull(10_000) { LocationHelper.getCurrentLocation(context) }
-                        } else null
-                        val lat = curLatLng?.latitude ?: fix?.latitude
-                        val lng = curLatLng?.longitude ?: fix?.longitude
-                        if (lat == null || lng == null) {
-                            uploadFail("no_location")
-                            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.upload_no_location))
-                            isUploading = false; return@launch
-                        }
-                        // 작성자 이름은 서버에서 확인한 닉네임 — 기기 첫 실행 직후 구글 기본 이름이 박히지 않게(CLAUDE.md §2.6).
-                        // 첨부 업로드 전에 확인해 Storage 에 주인 없는 파일이 남지 않게 한다.
-                        val uName = if (!isLoggedIn) "익명" else GoogleAuthHelper.requireConfirmedName() ?: run {
-                            uploadFail("profile_not_ready")
-                            isUploading = false; return@launch
-                        }
-                        // 첨부는 영상/이미지 중 하나(배타). 영상이 있으면 영상 우선.
-                        var imageUrl = ""
-                        var videoUrl = ""
-                        when {
-                            boomerangFrames.isNotEmpty() -> {
-                                // 부메랑 움짤(GIF) — 지금 프레임에서 보이는 그대로 잘라 인코딩한 뒤
-                                // videoUrl 필드에 저장(스키마 유지, .gif 로 판별).
-                                val gif = withContext(Dispatchers.Default) {
-                                    runCatching {
-                                        val cropped = BoomerangHelper.cropFrames(
-                                            boomerangFrames,
-                                            cropController.frame.width.toFloat(),
-                                            cropController.frame.height.toFloat(),
-                                            cropController.scale, cropController.offset.x, cropController.offset.y,
-                                        )
-                                        BoomerangHelper.encodeToFile(context, cropped)
-                                    }.getOrNull()
-                                }
-                                if (gif == null) {
-                                    uploadFail("gif_encode")
-                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.boomer_failed))
-                                    isUploading = false; return@launch
-                                }
-                                val result = ImageUploadHelper.uploadGifResult(context, gif)
-                                if (!result.isSuccess) {
-                                    uploadFail("media_upload")
-                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
-                                    isUploading = false; return@launch
-                                }
-                                videoUrl = result.url!!
-                            }
-                            selectedImageUri != null -> {
-                                // 크롭 프레임 상태로 잘라낸 이미지를 업로드(실패 시 원본으로 폴백).
-                                val uploadUri = withContext(Dispatchers.IO) {
-                                    val bmp = cropController.first
-                                    if (bmp != null && cropController.frame.width > 0) {
-                                        ImageCropHelper.cropToFile(
-                                            context, bmp,
-                                            cropController.frame.width.toFloat(), cropController.frame.height.toFloat(),
-                                            cropController.scale, cropController.offset.x, cropController.offset.y
-                                        )
-                                    } else null
-                                } ?: selectedImageUri!!
-                                val result = ImageUploadHelper.uploadImageResult(context, uploadUri)
-                                if (!result.isSuccess) {
-                                    uploadFail("media_upload")
-                                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
-                                    isUploading = false; return@launch
-                                }
-                                imageUrl = result.url!!
-                            }
-                        }
-                        pioneerClaimTarget = lat to lng // 저장 성공 이벤트에서 개척 선점 시도(체크리스트 32)
-                        savedWithMedia = imageUrl.isNotEmpty() || videoUrl.isNotEmpty()
-                        savedStacked = allDiaries.any {
-                            com.chaminwoo.stary.core.util.LocationHelper.distanceBetween(lat, lng, it.latitude, it.longitude) <=
-                                com.chaminwoo.stary.shared.config.StaryConfig.STAR_MERGE_RADIUS_M
-                        }
-                        diaryViewModel.saveDiary(
-                            Diary(
-                                title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
-                                userId = GoogleAuthHelper.currentUserId ?: "",
-                                userName = uName,
-                                latitude = lat, longitude = lng,
-                                starType = starType, starColor = starColor,
-                                visibilityType = visibilityType
-                            )
+            val submit: () -> Unit = submit@{
+                if (title.isBlank()) { uploadFail("no_title"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@submit }
+                // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다.
+                if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(title, content)) { uploadFail("filter"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)); return@submit }
+                // 하루 업로드 제한(로그인 사용자 기준). 오늘 로컬 자정 이후 내가 올린 개수로 선차단.
+                if (isLoggedIn) {
+                    val startOfDay = java.util.Calendar.getInstance().apply {
+                        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    val todayCount = myDiaries.count { it.createdAt >= startOfDay }
+                    if (todayCount >= StaryConfig.DAILY_UPLOAD_LIMIT) {
+                        uploadFail("daily_limit")
+                        com.chaminwoo.stary.core.ui.StaryToast.show(
+                            context.getString(R.string.upload_daily_limit, StaryConfig.DAILY_UPLOAD_LIMIT)
                         )
-                        isUploading = false
+                        return@submit
                     }
-                },
+                }
+                StarUnlocks.lockedShapeAch(starType, unlockedIds)?.let {
+                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@submit
+                }
+                StarUnlocks.lockedColorAch(starColor, unlockedIds)?.let {
+                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@submit
+                }
+                coroutineScope.launch {
+                    isUploading = true
+                    // 실제 위치를 못 잡으면(권한 없음·위치 꺼짐·모의 위치) 올리지 않는다 — 예전엔 (0,0) 으로 저장돼
+                    // 지도에서 안 보이는 별이 생겼다(지도는 (0,0) 을 거른다). 2026-10-23 완화: 대략적인 위치·최근 위치도 쓰고,
+                    // 실패하면 토스트 대신 이유별 안내(권한 허용 / 위치 켜기 / 다시 시도)를 띄운다 — 쓴 글은 그대로 남는다.
+                    val fix = LocationHelper.locateForUpload(context)
+                    if (fix !is LocationHelper.UploadFix.Ok) {
+                        uploadFail(
+                            when (fix) {
+                                LocationHelper.UploadFix.NoPermission -> "no_location_permission"
+                                LocationHelper.UploadFix.LocationOff -> "no_location_off"
+                                LocationHelper.UploadFix.Mock -> "no_location_mock"
+                                else -> "no_location"
+                            }
+                        )
+                        locationProblem = fix
+                        isUploading = false; return@launch
+                    }
+                    val lat = fix.latitude
+                    val lng = fix.longitude
+                    // 작성자 이름은 서버에서 확인한 닉네임 — 기기 첫 실행 직후 구글 기본 이름이 박히지 않게(CLAUDE.md §2.6).
+                    // 첨부 업로드 전에 확인해 Storage 에 주인 없는 파일이 남지 않게 한다.
+                    val uName = if (!isLoggedIn) "익명" else GoogleAuthHelper.requireConfirmedName() ?: run {
+                        uploadFail("profile_not_ready")
+                        isUploading = false; return@launch
+                    }
+                    // 첨부는 영상/이미지 중 하나(배타). 영상이 있으면 영상 우선.
+                    var imageUrl = ""
+                    var videoUrl = ""
+                    when {
+                        boomerangFrames.isNotEmpty() -> {
+                            // 부메랑 움짤(GIF) — 지금 프레임에서 보이는 그대로 잘라 인코딩한 뒤
+                            // videoUrl 필드에 저장(스키마 유지, .gif 로 판별).
+                            val gif = withContext(Dispatchers.Default) {
+                                runCatching {
+                                    val cropped = BoomerangHelper.cropFrames(
+                                        boomerangFrames,
+                                        cropController.frame.width.toFloat(),
+                                        cropController.frame.height.toFloat(),
+                                        cropController.scale, cropController.offset.x, cropController.offset.y,
+                                    )
+                                    BoomerangHelper.encodeToFile(context, cropped)
+                                }.getOrNull()
+                            }
+                            if (gif == null) {
+                                uploadFail("gif_encode")
+                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.boomer_failed))
+                                isUploading = false; return@launch
+                            }
+                            val result = ImageUploadHelper.uploadGifResult(context, gif)
+                            if (!result.isSuccess) {
+                                uploadFail("media_upload")
+                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
+                                isUploading = false; return@launch
+                            }
+                            videoUrl = result.url!!
+                        }
+                        selectedImageUri != null -> {
+                            // 크롭 프레임 상태로 잘라낸 이미지를 업로드(실패 시 원본으로 폴백).
+                            val uploadUri = withContext(Dispatchers.IO) {
+                                val bmp = cropController.first
+                                if (bmp != null && cropController.frame.width > 0) {
+                                    ImageCropHelper.cropToFile(
+                                        context, bmp,
+                                        cropController.frame.width.toFloat(), cropController.frame.height.toFloat(),
+                                        cropController.scale, cropController.offset.x, cropController.offset.y
+                                    )
+                                } else null
+                            } ?: selectedImageUri!!
+                            val result = ImageUploadHelper.uploadImageResult(context, uploadUri)
+                            if (!result.isSuccess) {
+                                uploadFail("media_upload")
+                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
+                                isUploading = false; return@launch
+                            }
+                            imageUrl = result.url!!
+                        }
+                    }
+                    pioneerClaimTarget = lat to lng // 저장 성공 이벤트에서 개척 선점 시도(체크리스트 32)
+                    savedWithMedia = imageUrl.isNotEmpty() || videoUrl.isNotEmpty()
+                    savedStacked = allDiaries.any {
+                        com.chaminwoo.stary.core.util.LocationHelper.distanceBetween(lat, lng, it.latitude, it.longitude) <=
+                            com.chaminwoo.stary.shared.config.StaryConfig.STAR_MERGE_RADIUS_M
+                    }
+                    diaryViewModel.saveDiary(
+                        Diary(
+                            title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
+                            userId = GoogleAuthHelper.currentUserId ?: "",
+                            userName = uName,
+                            latitude = lat, longitude = lng,
+                            starType = starType, starColor = starColor,
+                            visibilityType = visibilityType
+                        )
+                    )
+                    isUploading = false
+                }
+            }
+
+            // 업로드 위치 실패 안내 — 이유별 행동(권한 요청 / 위치 설정 / 다시 시도).
+            val locPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+                if (res.values.any { it }) {
+                    // 대략적인 위치로 시작했던 추적이면 새 권한(정확한 위치)에 맞춰 다시 시작
+                    LocationHelper.stopContinuousUpdates(context)
+                    LocationHelper.startContinuousUpdates(context)
+                    submit()
+                } else {
+                    // "다시 묻지 않음"이면 시스템 창이 안 뜬다 → 앱 설정 화면에서 직접 허용하게
+                    val act = context.findActivity()
+                    if (act != null && !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(act, android.Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                            )
+                        }
+                    }
+                }
+            }
+            locationProblem?.let { problem ->
+                val (titleRes, msgRes, actionRes) = when (problem) {
+                    LocationHelper.UploadFix.NoPermission -> Triple(R.string.upload_loc_perm_title, R.string.upload_loc_perm_msg, R.string.upload_loc_perm_btn)
+                    LocationHelper.UploadFix.LocationOff -> Triple(R.string.upload_loc_off_title, R.string.upload_loc_off_msg, R.string.upload_loc_off_btn)
+                    LocationHelper.UploadFix.Mock -> Triple(R.string.upload_loc_mock_title, R.string.upload_loc_mock_msg, R.string.upload_loc_retry)
+                    else -> Triple(R.string.upload_loc_none_title, R.string.upload_loc_none_msg, R.string.upload_loc_retry)
+                }
+                AlertDialog(
+                    onDismissRequest = { locationProblem = null },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    title = { Text(stringResource(titleRes), color = MaterialTheme.colorScheme.onBackground) },
+                    text = { Text(stringResource(msgRes), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            locationProblem = null
+                            when (problem) {
+                                LocationHelper.UploadFix.NoPermission -> locPermLauncher.launch(
+                                    arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                                )
+                                LocationHelper.UploadFix.LocationOff -> runCatching {
+                                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                                }
+                                else -> submit()
+                            }
+                        }) { Text(stringResource(actionRes), color = MaterialTheme.colorScheme.onBackground) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { locationProblem = null }) {
+                            Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary)
+                        }
+                    },
+                )
+            }
+
+            Button(
+                onClick = submit,
                 enabled = !isUploading,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp),
@@ -871,3 +933,9 @@ private fun StarWheelPicker(
 /** 올리기 실패 이벤트(이유별) — 첫 별을 못 올리고 나가는 지점을 찾으려고(StaryAnalytics). */
 private fun uploadFail(reason: String) =
     com.chaminwoo.stary.core.util.StaryAnalytics.log("upload_fail", "reason" to reason)
+
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
