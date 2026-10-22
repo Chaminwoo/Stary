@@ -182,7 +182,41 @@ function starPts(c, n, ro, ri, a0 = -90) {
 
 const path = (...subs) => subs.map(String).join("");
 
+/** 하위 경로들의 실제 윤곽 범위(곡선을 잘게 나눠 잰다 — 제어점은 넣지 않는다). */
+function bounds(subs) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const see = (p) => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); };
+  for (const s of subs) {
+    let cur = s.start;
+    see(cur);
+    for (const g of s.segs) {
+      for (let k = 1; k <= 16; k++) {
+        const t = k / 16, u = 1 - t;
+        if (g.t === "L") see(lerp(cur, g.to, t));
+        else if (g.t === "Q") see([u * u * cur[0] + 2 * u * t * g.c[0] + t * t * g.to[0], u * u * cur[1] + 2 * u * t * g.c[1] + t * t * g.to[1]]);
+        else see([
+          u * u * u * cur[0] + 3 * u * u * t * g.c1[0] + 3 * u * t * t * g.c2[0] + t * t * t * g.to[0],
+          u * u * u * cur[1] + 3 * u * u * t * g.c1[1] + 3 * u * t * t * g.c2[1] + t * t * t * g.to[1],
+        ]);
+      }
+      cur = g.to;
+    }
+  }
+  return { x0, y0, x1, y1 };
+}
+
+/**
+ * 내장 별(StarStyle 0~20)과 크기를 맞춘다 — 윤곽 범위의 가운데를 (0.5, 0.5) 로 옮기고 [k] 배.
+ * 기준(2026-10-22 실측): 내장 별은 칸 면적의 약 19~30%(평균 25%), 가장 긴 변 0.62~0.91. 새 모양은 면적 ≈ 27%, 긴 변 ≤ 0.86 을 목표로
+ * k 를 정한다(꽉 찬 덩어리일수록 작게). 확인: node builtins.js / items.js --json → preview.py 로 나란히.
+ */
+function fit(subs, k) {
+  const b = bounds(subs);
+  const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+  return subs.map((s) => s.map((p) => [0.5 + (p[0] - cx) * k, 0.5 + (p[1] - cy) * k]));
+}
+
 module.exports = {
-  Sub, circle, ellipse, roundedPoly, poly, capsule, taper, sparkle, starPts, path,
+  Sub, circle, ellipse, roundedPoly, poly, capsule, taper, sparkle, starPts, path, bounds, fit,
   polar, rotate, lerp, add, sub, mul, norm, len, rad,
 };

@@ -432,16 +432,31 @@ internal fun auraRadiusExpression(): Expression {
 }
 
 /**
- * 별빛 공방 오라 — 오라를 단 사람의 별 둘레(위상 그룹별, 별과 같이 float).
- *  - glow : 은은한 빛(모든 패턴의 바탕, 숨 쉬듯 밝기만 변함)
- *  - pulse: 별에서 퍼져 나가며 사라지는 고리
- *  - ring : 별을 두른 가는 고리가 숨 쉬듯 커졌다 작아짐(토성 고리 — 지도에선 기울인 타원 대신 고리)
+ * 별빛 공방 오라 — 오라를 단 사람의 별 둘레(위상 그룹별, 별과 같이 float). 2026-10-22 리디자인.
+ *  - glow   : 은은한 빛(모든 패턴의 바탕, 숨 쉬듯 밝기만 변함)
+ *  - pulse  : 별에서 천천히 퍼져 나가며 사라지는 고리 하나
+ *  - sprite : [StarlightAura] 스프라이트(달 · 반딧불 · 쌍둥이 · 나선 · 토성 고리 · 혜성) — 심볼 레이어가 별 아래에서
+ *             icon-rotate(돌기 `slSpin` °/초 · 흔들림 `slWobble` °) · 깜빡임(`slFlicker`)으로 움직인다.
  * 모르는 패턴은 halo(glow 만)로 그린다 — 새 패턴을 DB 에 넣어도 이전 버전은 빛으로만 보인다.
  */
 internal fun slAuraGlowLayerId(group: Int) = "sl-aura-glow-$group"
 internal fun slAuraPulseLayerId(group: Int) = "sl-aura-pulse-$group"
-internal fun slAuraRingLayerId(group: Int) = "sl-aura-ring-$group"
-private val SL_AURA_PATTERNS = setOf("halo", "pulse", "ring")
+internal fun slAuraSpriteLayerId(group: Int) = "sl-aura-sprite-$group"
+
+/** 오라 스프라이트 이미지 id — payload 가 바뀌면(DB 수정) 다른 id 가 되어 새로 등록된다. */
+internal fun slAuraSpriteImageId(item: com.chaminwoo.stary.feature.starlight.StarlightStore.Item) =
+    "sl-aura-img-${item.id}-${item.payload.hashCode()}"
+
+/** 그 사람이 단 오라의 지도 표현. */
+internal data class SlAura(
+    val pattern: String, // halo · pulse · sprite
+    val color: String,
+    val color2: String,
+    val sprite: String,  // 스프라이트 이미지 id(없으면 "")
+    val spin: Float,
+    val wobble: Float,
+    val flicker: Boolean,
+)
 
 /** 공방 오라 반경 — 인기 오오라와 같은 줌 곡선 × [scale] × sizeMult. */
 internal fun slAuraRadiusExpression(scale: Float): Expression {
@@ -456,16 +471,21 @@ internal fun slAuraRadiusExpression(scale: Float): Expression {
     )
 }
 
-/** 그 사람이 단 오라 → (패턴, 색1, 색2) "#RRGGBB". 안 달았거나 아이템을 모르면 null. */
-internal fun slAuraOf(userId: String): Triple<String, String, String>? {
+/** 그 사람이 단 오라 → 지도 표현. 안 달았거나 아이템을 모르면 null. */
+internal fun slAuraOf(userId: String): SlAura? {
     val id = com.chaminwoo.stary.feature.starlight.StarlightStore.auraByUser[userId] ?: return null
     val item = com.chaminwoo.stary.feature.starlight.StarlightStore.item(id) ?: return null
-    val pattern = (item.payload["pattern"] as? String)?.takeIf { it in SL_AURA_PATTERNS } ?: "halo"
+    val raw = item.payload["pattern"] as? String
     val hexes = (item.payload["colors"] as? List<*>).orEmpty().mapNotNull { v ->
         (v as? String)?.trim()?.removePrefix("#")?.takeIf { it.length == 6 && it.toLongOrNull(16) != null }?.let { "#" + it.uppercase() }
     }
     val c1 = hexes.firstOrNull() ?: "#BFD8FF"
-    return Triple(pattern, c1, hexes.getOrNull(1) ?: c1)
+    val c2 = hexes.getOrNull(1) ?: c1
+    if (raw in com.chaminwoo.stary.feature.starlight.StarlightAura.SPRITE_PATTERNS) {
+        val m = com.chaminwoo.stary.feature.starlight.StarlightAura.motion(item.payload)
+        return SlAura("sprite", c1, c2, slAuraSpriteImageId(item), m.spinDegPerSec, m.wobbleDeg, m.flicker)
+    }
+    return SlAura(if (raw == "pulse") "pulse" else "halo", c1, c2, "", 0f, 0f, false)
 }
 
 /** 바닥 빛 웅덩이 반경: 오오라보다 작고 은은하게, 모든 별 공통(줌 보간 × sizeMult). */
@@ -609,9 +629,13 @@ internal fun diaryFeature(d: Diary, lng: Double, lat: Double, near: Boolean, alp
         addStringProperty("icon", starIconId(StarStyle.safeType(d.starType), colorIdx))
         addStringProperty("sparkleIcon", sparkleStarIconId(StarStyle.safeType(d.starType), colorIdx))
         val sl = slAuraOf(d.userId)
-        addStringProperty("slAura", sl?.first ?: "")
-        addStringProperty("slAuraColor", sl?.second ?: "#000000")
-        addStringProperty("slAuraColor2", sl?.third ?: "#000000")
+        addStringProperty("slAura", sl?.pattern ?: "")
+        addStringProperty("slAuraColor", sl?.color ?: "#000000")
+        addStringProperty("slAuraColor2", sl?.color2 ?: "#000000")
+        addStringProperty("slSprite", sl?.sprite ?: "")
+        addNumberProperty("slSpin", sl?.spin ?: 0f)
+        addNumberProperty("slWobble", sl?.wobble ?: 0f)
+        addNumberProperty("slFlicker", if (sl?.flicker == true) 1 else 0)
     }
 }
 

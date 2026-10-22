@@ -290,8 +290,11 @@ object StarStyle {
         // 파편 색 — 명도 = 돔 구배(ringBias) + 해시 변주, 색상 ±24°, 채도 0.8~1.2, 6% 글린트(백색 혼합)
         fun shardColor(seed: Int, px: Float, py: Float, ringBias: Float): Int {
             val base = if (colors.size >= 2) {
+                // 대각 방향 다단 그라데이션(2색·3색 모두) — DB 정의 3색(오팔·극광 등)이 가운데 색까지 보이게(2026-10-22).
                 val f = (((px - left) + (py - top)) / (2f * sizePx)).coerceIn(0f, 1f)
-                ColorUtils.blendARGB(colors[0], colors[1], f)
+                val seg = (f * (colors.size - 1)).coerceAtMost(colors.size - 1.0001f)
+                val i = seg.toInt()
+                ColorUtils.blendARGB(colors[i], colors[i + 1], seg - i)
             } else colors[0]
             val h1 = facetHash(seed * 7 + t * 131 + 1)
             val h2 = facetHash(seed * 13 + t * 29 + 7)

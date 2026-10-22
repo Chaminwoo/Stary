@@ -236,6 +236,13 @@ fun MainListScreen(
     }.collectAsState(initial = emptyList())
 
     val friendIds = remember(friends) { friends.map { it.userId }.toSet() }
+    // 퀘스트 "친구 사귀기" — 오늘 맺어진 친구(내가 수락했든, 내 요청이 수락됐든). 같은 사람은 하루 한 번(QuestStore key).
+    LaunchedEffect(friends) {
+        val todayStart = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        friends.filter { it.createdAt >= todayStart }.forEach {
+            com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FRIEND_ADD, key = it.userId)
+        }
+    }
 
     // "해금만"/"미해금만" 필터용 — 영구 해금 기록(상태 맵이라 해금되는 순간 이 화면도 갱신된다).
     val unlockedIds = DiaryUnlockStore.unlockedIds(context)
@@ -560,7 +567,7 @@ fun MainListScreen(
                 guideNow == com.chaminwoo.stary.feature.quest.GuideStep.PROFILE
             com.chaminwoo.stary.feature.quest.QuestSheet(
                 onDismiss = { showQuests = false },
-                highlightId = if (guidingProfile) com.chaminwoo.stary.feature.quest.DailyQuests.PROFILE_EDIT.id else null,
+                highlightId = if (guidingProfile) com.chaminwoo.stary.feature.quest.DailyQuests.PROFILE_EDIT_ID else null,
                 onGo = { def ->
                     showQuests = false
                     com.chaminwoo.stary.core.util.StaryAnalytics.log("guide_action", "step" to "quest_go_${def.id}")
@@ -573,7 +580,7 @@ fun MainListScreen(
             )
         }
 
-        // 첫 별 안내(첫 별 → 퀘스트 열쇠 → 남의 별 열기) — 탑바 아래, 좌상단 줌 버튼을 피해 띄운다.
+        // 첫 별 안내(첫 별 → 퀘스트 열쇠 → 남의 별 열기) — 화면 가운데 카드(2026-10-22: 필터 버튼 옆은 어색해서 옮김).
         com.chaminwoo.stary.feature.quest.FirstStarGuide(
             userId = userId,
             diaries = diaries,
@@ -587,9 +594,8 @@ fun MainListScreen(
             onOpenWorkshop = onOpenWorkshop,
             onOpenStar = onItemClick,
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .padding(top = 64.dp + 10.dp, start = 72.dp, end = 16.dp),
+                .align(Alignment.Center)
+                .padding(horizontal = 32.dp),
         )
 
         // 필터 스피드 다이얼 (로그인한 경우) — 집중(지도만 보기) 모드에선 다른 버튼과 같이 페이드로 숨는다.

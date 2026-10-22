@@ -148,6 +148,7 @@ fun NavGraph(
                 onLogout = onLogout,
                 onOpenMyDiary = { navController.navigate(NavRoute.MyDiary) },
                 onOpenFriends = { navController.navigate(NavRoute.Friends) },
+                onOpenCollection = { navController.navigate(NavRoute.Collection) { launchSingleTop = true } },
                 onOpenDiary = { diaryId ->
                     // 프로필 핀 별 탭 → 지도로 가서 카메라 이동 + 파장 연출(친구 별 탭과 동일).
                     com.chaminwoo.stary.core.util.MapFocusState.request(diaryId)
@@ -163,7 +164,13 @@ fun NavGraph(
         }
 
         composable<NavRoute.Workshop> {
-            com.chaminwoo.stary.feature.starlight.WorkshopScreen()
+            com.chaminwoo.stary.feature.starlight.WorkshopScreen(
+                onOpenCollection = { navController.navigate(NavRoute.Collection) { launchSingleTop = true } },
+            )
+        }
+
+        composable<NavRoute.Collection> {
+            com.chaminwoo.stary.feature.starlight.CollectionScreen()
         }
 
         composable<NavRoute.Music> {

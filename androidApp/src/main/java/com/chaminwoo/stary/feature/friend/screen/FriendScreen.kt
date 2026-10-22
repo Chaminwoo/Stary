@@ -354,6 +354,7 @@ fun FriendScreen(
 
         InviteCard(
             onClick = {
+                com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.INVITE)
                 val text = context.getString(
                     R.string.invite_share_text,
                     StaryConfig.inviteLink(userId)

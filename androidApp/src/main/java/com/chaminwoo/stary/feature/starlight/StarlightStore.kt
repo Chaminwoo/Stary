@@ -57,6 +57,8 @@ object StarlightStore {
         val maxOpen: Int,
         /** 단서가 준비된 히든 업적 id — 반사·전파 망원경 버튼은 여기 있는 업적에만. */
         val hintTargets: Set<String> = emptySet(),
+        /** 공방 상자 카드에 겹쳐 보여 줄 대표 아이템 id(DB `showcase`) — 비면 전설 아이템 앞 3개. */
+        val showcase: List<String> = emptyList(),
     ) {
         /** 등급별 확률(%) — 확률 공개용. */
         fun percent(rarity: String): Double {
@@ -170,6 +172,10 @@ object StarlightStore {
     val ownedColorIndices: List<Int>
         get() = items.filter { it.kind == "color" && (owned[it.id] ?: 0) > 0 }
             .mapNotNull { (it.payload["index"] as? Number)?.toInt() }.distinct().sorted()
+
+    /** 공방 상자 카드의 대표 아이템 — DB showcase 순서, 없으면 지금 뽑히는 전설 앞 3개. */
+    val showcaseItems: List<Item>
+        get() = config.showcase.mapNotNull(::item).ifEmpty { items.filter { it.active && it.rarity == "legendary" }.take(3) }
 
     /** 가진 아이템 중 [kind] 인 것. */
     fun ownedOf(kind: String): List<Item> = items.filter { it.kind == kind && (owned[it.id] ?: 0) > 0 }
@@ -293,6 +299,7 @@ object StarlightStore {
             dupRefund = d.dupRefund + (numMap("dupRefund")?.mapValues { it.value.toInt() } ?: emptyMap()),
             maxOpen = int("maxOpen", d.maxOpen),
             hintTargets = (snap.get("hintTargets") as? List<*>)?.mapNotNull { it as? String }?.toSet() ?: emptySet(),
+            showcase = (snap.get("showcase") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
         )
     }
 

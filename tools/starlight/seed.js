@@ -2,7 +2,7 @@
  * 별빛 공방 뽑기 풀·설정 올리기(2026-10-22) — items.js 가 원본.
  *
  *   node tools/starlight/seed.js plan      # 읽기만: DB 와 비교해 새로 생길/바뀔/DB 에만 있는 아이템 요약
- *   node tools/starlight/seed.js upload    # starlightItems/{id} 덮어쓰기 + starlightConfig/main + starlightHints/{업적 id}
+ *   node tools/starlight/seed.js upload    # starlightItems/{id} 덮어쓰기 + starlightConfig/main·quests + starlightHints/{업적 id}
  *
  * - firebase-admin 은 tools/seed/node_modules 의 것을 쓴다(cd tools/seed && npm install 1회).
  * - 인증: GOOGLE_APPLICATION_CREDENTIALS 가 있으면 그것, 없으면 이 PC 의 firebase CLI 로그인으로 임시 ADC(tools/seed/seed.js 와 같은 방식).
@@ -13,6 +13,7 @@ const os = require("os");
 const path = require("path");
 const { items, config } = require("./items");
 const hints = require("./hints");
+const quests = require("./quests");
 
 const PROJECT_ID = "momentdiary-f26c8"; // ⚠️ 포크 전용 프로젝트(원본 momentdiary-52b78 금지)
 const DATABASE_ID = "stary-db";
@@ -68,6 +69,16 @@ function validate() {
       if (!Array.isArray(p.colors) || p.colors.length < 1 || p.colors.length > 3) errors.push(`${it.id}: colors 1~3개`);
     }
   }
+  // 퀘스트 — id 중복, 문구 3개 언어, 난이도, 1일째 목록이 풀에 있는지.
+  const qids = new Set();
+  for (const q of quests.pool) {
+    if (qids.has(q.id)) errors.push(`퀘스트 id 중복: ${q.id}`);
+    qids.add(q.id);
+    if (!quests.rewards[q.tier]) errors.push(`퀘스트 ${q.id}: tier ${q.tier} 보상 없음`);
+    if (!(Number.isInteger(q.target) && q.target >= 1)) errors.push(`퀘스트 ${q.id}: target`);
+    for (const k of ["ko", "en", "ja"]) if (!q.title?.[k] || !q.hint?.[k]) errors.push(`퀘스트 ${q.id}: 문구 ${k} 없음`);
+  }
+  for (const id of quests.firstDay) if (!qids.has(id)) errors.push(`firstDay ${id} 가 pool 에 없음`);
   if (errors.length) {
     console.error(errors.join("\n"));
     process.exit(1);
@@ -89,7 +100,10 @@ async function main() {
 
   const existing = new Map((await db.collection("starlightItems").get()).docs.map((d) => [d.id, d.data()]));
   const fresh = items.filter((it) => !existing.has(it.id));
-  const canon = (o) => JSON.stringify(o, Object.keys(o).sort());
+  // 키 순서와 무관하게 비교(중첩 객체까지 — 예전엔 맨 위 키만 정렬해 payload 변경을 못 잡았다).
+  const sortDeep = (v) => Array.isArray(v) ? v.map(sortDeep)
+    : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortDeep(v[k])])) : v;
+  const canon = (o) => JSON.stringify(sortDeep(o));
   const changed = items.filter((it) => {
     if (!existing.has(it.id)) return false;
     const { id, ...data } = it;
@@ -111,9 +125,11 @@ async function main() {
   }
   // hintTargets: 단서가 있는 히든 업적 — 앱이 망원경 버튼을 이 업적에만 띄운다(단서 문구 자체는 서버만 읽는다).
   batch.set(db.collection("starlightConfig").doc("main"), { ...config, hintTargets: Object.keys(hints).sort() });
+  // 일일 퀘스트 정의(2026-10-22) — 앱·서버가 같이 읽는다(tools/starlight/quests.js).
+  batch.set(db.collection("starlightConfig").doc("quests"), quests);
   for (const [ach, levels] of Object.entries(hints)) batch.set(db.collection("starlightHints").doc(ach), levels);
   await batch.commit();
-  console.log(`올림: starlightItems ${items.length}개 + starlightConfig/main + starlightHints ${Object.keys(hints).length}개`);
+  console.log(`올림: starlightItems ${items.length}개 + starlightConfig/main·quests(퀘스트 ${quests.pool.length}개) + starlightHints ${Object.keys(hints).length}개`);
 }
 
 main().catch((e) => {

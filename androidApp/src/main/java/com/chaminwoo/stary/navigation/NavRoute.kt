@@ -103,6 +103,15 @@ sealed class NavRoute {
         override val showFab = false
     }
 
+    /** 수집품(2026-10-22) — 별빛 공방에서 얻은 것을 모아 보고 장착한다(공방 · 프로필에서 진입). */
+    @Serializable
+    data object Collection : NavRoute() {
+        override val title = "수집품"
+        override val isRoot = false
+        override val showTopBar = true
+        override val showFab = false
+    }
+
     @Serializable
     data object Music : NavRoute() {
         override val title = "배경음악"

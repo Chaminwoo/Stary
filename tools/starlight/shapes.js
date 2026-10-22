@@ -4,7 +4,7 @@
  * 미리보기: node items.js --json > o.json && python preview.py o.json shapes.png shape
  */
 const G = require("./geom");
-const { Sub, circle, ellipse, roundedPoly, poly, capsule, starPts, sparkle, path, polar, lerp, add, sub, mul, norm, len } = G;
+const { Sub, circle, ellipse, roundedPoly, poly, capsule, starPts, sparkle, path, fit, polar, lerp, add, sub, mul, norm, len } = G;
 
 /** 물방울 — 위가 뾰족하고 아래가 둥근 한 방울. 옆선을 살짝 부풀려 딱딱한 원뿔처럼 보이지 않게. */
 function droplet() {
@@ -23,13 +23,13 @@ function droplet() {
   s.Q(bulge(T, right, 0.035), right);
   s.arc(C, r, -90 + phi, 270 - phi);
   s.Q(bulge(left, T, 0.035), T);
-  return path(s);
+  return path(...fit([s], 0.89));
 }
 
 /** 몽글 별 — 통통한 5꼭지 별, 꼭지와 안쪽 골을 모두 둥글게(내장 별의 날카로운 스파이크와 다른 말랑한 인상). */
 function softStar() {
   const pts = starPts([0.5, 0.54], 5, 0.47, 0.235);
-  return path(roundedPoly(pts, pts.map((_, i) => (i % 2 === 0 ? 0.24 : 0.32))));
+  return path(...fit([roundedPoly(pts, pts.map((_, i) => (i % 2 === 0 ? 0.24 : 0.32)))], 0.91));
 }
 
 /** 나뭇잎 — 45° 기운 잎, 양쪽 볼륨이 살짝 다르고(자연스러움) 잎자루가 휘어 붙는다. */
@@ -45,7 +45,7 @@ function leaf() {
   body.C(at(0.6, -0.27), at(0.16, -0.32), B);
   const stemEnd = add(B, mul(add(mul(u, -1), mul(n, -0.35)), 0.15));
   const stem = G.taper(add(B, mul(u, 0.06)), stemEnd, 0.075, 0.025);
-  return path(body, stem);
+  return path(...fit([body, stem], 0.93));
 }
 
 /** 나비 — 큰 윗날개 + 작은 아랫날개(오른쪽을 그려 좌우 반전), 몸통, 끝이 동그란 더듬이. */
@@ -63,7 +63,7 @@ function butterfly() {
   const antR = G.taper([0.515, 0.29], [0.64, 0.1], 0.026, -0.03);
   const antL = antR.mirrorX();
   const knobR = circle([0.645, 0.095], 0.032);
-  return path(up, up.mirrorX(), low, low.mirrorX(), body, head, antR, antL, knobR, knobR.mirrorX());
+  return path(...fit([up, up.mirrorX(), low, low.mirrorX(), body, head, antR, antL, knobR, knobR.mirrorX()], 0.8));
 }
 
 /** 셋잇단… 아니, 두 개 묶인 16분음표(♬) — 기운 타원 머리 둘, 기둥 둘, 두 줄 빔. 배경음악 기능과 이어지는 모양. */
@@ -76,7 +76,7 @@ function notes() {
   const stem1 = poly([[x1 - w, 0.24], [x1, 0.235], [x1, 0.77], [x1 - w, 0.79]]);
   const stem2 = poly([[x2 - w, 0.155], [x2, 0.15], [x2, 0.685], [x2 - w, 0.705]]);
   const beam = (y1, y2, th) => poly([[x1 - w, y1], [x2, y2], [x2, y2 + th], [x1 - w, y1 + th]]);
-  return path(head1, head2, stem1, stem2, beam(0.215, 0.13, 0.085), beam(0.355, 0.27, 0.075));
+  return path(...fit([head1, head2, stem1, stem2, beam(0.215, 0.13, 0.085), beam(0.355, 0.27, 0.075)], 1.08));
 }
 
 /** 고래 — 왼쪽을 보는 옆모습, 꼬리지느러미가 위로 휘고, 머리 위로 물을 뿜는다(물기둥 + 물방울 셋). */
@@ -97,7 +97,7 @@ function whale() {
   const eye = circle([0.2, 0.55], 0.024).reversed();
   const spout = G.taper([0.27, 0.33], [0.27, 0.19], 0.03, 0);
   const drops = [circle([0.17, 0.17], 0.033), circle([0.27, 0.11], 0.038), circle([0.37, 0.17], 0.033)];
-  return path(s, fin, eye, spout, ...drops);
+  return path(...fit([s, fin, eye, spout, ...drops], 0.92));
 }
 
 /** 여우 — 정면 얼굴을 각진 면으로(로우폴리), 귀 안쪽·눈은 구멍. 오른쪽 절반을 그려 반전. */
@@ -122,44 +122,31 @@ function fox() {
     return e.reversed();
   })();
   const nose = ellipse([0.5, 0.86], 0.045, 0.03).reversed();
-  return path(head, earR, earR.mirrorX(), eyeR, eyeR.mirrorX(), nose);
+  return path(...fit([head, earR, earR.mirrorX(), eyeR, eyeR.mirrorX(), nose], 0.89));
 }
 
-/** 달토끼 — 초승달 품에 앉아 위를 올려다보는 토끼(달·토끼 모두 같은 방향으로 감아 겹치면 합쳐진다). */
+/**
+ * 달토끼 — 보름달 속 토끼(옛이야기의 "달에 사는 토끼"). 둥근 달에 앉아 있는 토끼 옆모습을 **구멍**으로 뚫어,
+ * 작게 보여도 달 + 토끼 실루엣이 한눈에 읽힌다(2026-10-22 리디자인 — 예전 초승달 + 토끼 덩어리는 작게 보면 뭉개졌다).
+ * 토끼 윤곽은 겹치는 부품 없이 한 붓 그리기(구멍끼리 겹치면 non-zero 채움에서 다시 채워지므로).
+ */
 function moonRabbit() {
-  // 초승달: 바깥 원 O(0.5,0.5,r .45)과 안쪽 원 I(0.68,0.38,r .37)의 차 — 두 교점 사이를 호 두 개로.
-  const O = [0.5, 0.5];
-  const ro = 0.45;
-  const I = [0.69, 0.37];
-  const ri = 0.37;
-  const d = len(sub(I, O));
-  const a = (ro * ro - ri * ri + d * d) / (2 * d);
-  const h = Math.sqrt(ro * ro - a * a);
-  const base = add(O, mul(sub(I, O), a / d));
-  const perp = mul([-(I[1] - O[1]) / d, (I[0] - O[0]) / d], h);
-  const P1 = add(base, perp);
-  const P2 = sub(base, perp);
-  const ang = (c, p) => (Math.atan2(p[1] - c[1], p[0] - c[0]) * 180) / Math.PI;
-  let a1 = ang(O, P1);
-  let a2 = ang(O, P2);
-  // 바깥 호는 안쪽 원이 없는 쪽(왼쪽 아래)으로 크게 돈다.
-  const moon = new Sub(P1);
-  let end = a2;
-  while (end <= a1) end += 360;
-  moon.arc(O, ro, a1, end);
-  let b1 = ang(I, P2);
-  let b2 = ang(I, P1);
-  while (b2 >= b1) b2 -= 360;
-  moon.arc(I, ri, b1, b2);
-  // 토끼: 초승달 아래 뿔 위에 앉아 오른쪽 위(달 안쪽 빈 하늘)를 본다.
-  const body = ellipse([0.6, 0.68], 0.165, 0.14, -12);
-  const haunch = ellipse([0.5, 0.74], 0.1, 0.09);
-  const head = ellipse([0.745, 0.5], 0.1, 0.088, -18);
-  const ear1 = ellipse([0.775, 0.33], 0.036, 0.125, 16);
-  const ear2 = ellipse([0.705, 0.345], 0.034, 0.118, -6);
-  const tail = circle([0.425, 0.66], 0.048);
-  const paw = ellipse([0.74, 0.77], 0.05, 0.03);
-  return path(moon, body, haunch, head, ear1, ear2, tail, paw);
+  const moon = circle([0.5, 0.5], 0.43);
+  const r = new Sub([0.31, 0.75]); // 엉덩이 아래
+  r.C([0.2, 0.72], [0.18, 0.56], [0.27, 0.5]); // 둥근 엉덩이 → 등
+  r.C([0.24, 0.47], [0.24, 0.42], [0.29, 0.43]); // 꼬리 몽실
+  r.C([0.36, 0.42], [0.45, 0.42], [0.51, 0.38]); // 등 → 뒤통수
+  r.C([0.47, 0.3], [0.44, 0.17], [0.48, 0.14]); // 뒷귀(뒤로 눕는다)
+  r.C([0.53, 0.12], [0.56, 0.24], [0.56, 0.33]);
+  r.C([0.59, 0.24], [0.64, 0.15], [0.68, 0.17]); // 앞귀(쫑긋)
+  r.C([0.72, 0.19], [0.68, 0.3], [0.62, 0.37]);
+  r.C([0.69, 0.38], [0.75, 0.43], [0.74, 0.48]); // 이마 → 코끝
+  r.C([0.73, 0.52], [0.67, 0.53], [0.62, 0.53]); // 턱
+  r.C([0.61, 0.6], [0.64, 0.66], [0.67, 0.71]); // 가슴 → 앞발
+  r.C([0.69, 0.75], [0.64, 0.77], [0.58, 0.76]);
+  r.C([0.49, 0.78], [0.39, 0.78], [0.31, 0.75]); // 배 → 엉덩이
+  const eye = circle([0.655, 0.44], 0.022); // 눈은 구멍 속의 달빛(구멍 안에서 다시 채움)
+  return path(...fit([moon, r.reversed(), eye], 0.86));
 }
 
 /** 북극성 나침반 — 동서남북 긴 꼭지 + 대각 짧은 꼭지, 둘레 고리(고리 안쪽은 구멍), 한가운데 작은 구멍, 오른쪽 위에 북극성. */

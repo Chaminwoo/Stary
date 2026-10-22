@@ -11,8 +11,10 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,6 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -247,8 +250,8 @@ fun FirstStarGuide(
 
     AnimatedVisibility(
         visible = shown,
-        enter = fadeIn(tween(320)) + slideInVertically(tween(320)) { -it / 3 },
-        exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it / 3 },
+        enter = fadeIn(tween(320)) + scaleIn(spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.88f),
+        exit = fadeOut(tween(200)) + scaleOut(tween(200), targetScale = 0.94f),
         modifier = modifier,
     ) {
         // 사라지는 동안에도 마지막 단계 내용을 그대로 그린다.
@@ -308,6 +311,7 @@ fun FirstStarGuide(
     }
 }
 
+/** 안내 카드 — 화면 가운데 세로 카드(아이콘 · 제목 · 설명 · 버튼), 오른쪽 위 닫기. */
 @Composable
 private fun GuideCard(step: GuideStep, onAction: () -> Unit, onClose: () -> Unit) {
     val (icon, title, msg, btn) = when (step) {
@@ -318,58 +322,66 @@ private fun GuideCard(step: GuideStep, onAction: () -> Unit, onClose: () -> Unit
         GuideStep.EXCHANGE -> GuideText(Icons.Filled.AutoAwesome, R.string.guide_exchange_title, R.string.guide_exchange_msg, R.string.starlight_go)
         GuideStep.OPEN -> GuideText(Icons.Filled.LockOpen, R.string.guide_open_title, R.string.guide_open_msg, R.string.guide_open_btn)
     }
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(22.dp)
     Box(
         modifier = Modifier
+            .widthIn(max = 340.dp)
             .fillMaxWidth()
             .clip(shape)
-            .background(Color(0xF0111120))
-            .border(0.75.dp, QuestGold.copy(alpha = 0.45f), shape)
-            .padding(start = 14.dp, top = 12.dp, end = 10.dp, bottom = 12.dp),
+            .background(Brush.verticalGradient(listOf(Color(0xF51A1830), Color(0xF5111120))))
+            .border(1.dp, Brush.verticalGradient(listOf(QuestGold.copy(alpha = 0.6f), QuestGold.copy(alpha = 0.2f))), shape),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
-                    .background(QuestGold.copy(alpha = 0.16f), CircleShape)
-                    .border(0.75.dp, QuestGold.copy(alpha = 0.5f), CircleShape),
+                    .size(52.dp)
+                    .background(Brush.radialGradient(listOf(QuestGold.copy(alpha = 0.28f), QuestGold.copy(alpha = 0.08f))), CircleShape)
+                    .border(0.75.dp, QuestGold.copy(alpha = 0.55f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, null, tint = QuestGold, modifier = Modifier.size(19.dp))
+                if (step == GuideStep.CLAIM) com.chaminwoo.stary.feature.starlight.CrystalKeyIcon(Modifier.size(28.dp))
+                else Icon(icon, null, tint = QuestGold, modifier = Modifier.size(24.dp))
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(title), color = Color(0xFFF0F0F0), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (step == GuideStep.EXCHANGE) stringResource(msg, StarlightStore.config.keyCost) else stringResource(msg),
-                    color = Color(0xFFB8BCCB), fontSize = 12.sp, lineHeight = 16.sp,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(title), color = Color(0xFFF0F0F0), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (step == GuideStep.EXCHANGE) stringResource(msg, StarlightStore.config.keyCost) else stringResource(msg),
+                color = Color(0xFFB8BCCB), fontSize = 13.sp, lineHeight = 19.sp, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(16.dp))
             Text(
                 stringResource(btn),
                 color = Color(0xFF111120),
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
                 modifier = Modifier
                     .clickBounce()
                     .clip(RoundedCornerShape(50))
-                    .background(QuestGold)
+                    .background(Brush.linearGradient(listOf(Color(0xFFFFE6A8), QuestGold)))
                     .clickable(onClick = onAction)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-            Icon(
-                Icons.Filled.Close,
-                stringResource(R.string.cd_close),
-                tint = Color.White.copy(alpha = 0.45f),
-                modifier = Modifier
-                    .padding(start = 4.dp)
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onClose)
-                    .padding(5.dp),
+                    .padding(horizontal = 26.dp, vertical = 11.dp),
             )
         }
+        Icon(
+            Icons.Filled.Close,
+            stringResource(R.string.cd_close),
+            tint = Color.White.copy(alpha = 0.5f),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(6.dp)
+                .size(32.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onClose)
+                .padding(7.dp),
+        )
     }
 }
 

@@ -407,10 +407,7 @@ internal fun KeyAdDialog(accent: Color, message: String, onWatchAd: () -> Unit, 
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawCircle(Brush.radialGradient(listOf(QuestGold.copy(alpha = 0.30f), Color.Transparent)))
                 }
-                Icon(
-                    Icons.Filled.Key, contentDescription = null, tint = QuestGold,
-                    modifier = Modifier.size(46.dp).graphicsLayer { rotationZ = 45f },
-                )
+                com.chaminwoo.stary.feature.starlight.CrystalKeyIcon(Modifier.size(50.dp))
             }
             Spacer(modifier = Modifier.height(14.dp))
             Text(

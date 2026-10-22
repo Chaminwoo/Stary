@@ -545,7 +545,8 @@ fun DiaryMap(
                         style.addLayer(aura)
                     }
 
-                    // 별빛 공방 오라(장착한 사람의 별) — 빛 · 퍼지는 고리 · 숨 쉬는 고리. 애니메이션 루프가 밝기/반경을 갱신.
+                    // 별빛 공방 오라(장착한 사람의 별) — 빛 · 퍼지는 고리 · 스프라이트(달·토성 고리·혜성 등).
+                    // 애니메이션 루프가 밝기/반경/회전을 갱신. 모두 별 레이어 아래.
                     for (g in 0 until PHASE_GROUPS) {
                         val inGroup = Expression.eq(Expression.get("phaseGroup"), Expression.literal(g))
                         style.addLayer(
@@ -556,17 +557,25 @@ fun DiaryMap(
                                 PropertyFactory.circleBlur(1f),
                             ).also { it.setFilter(Expression.all(inGroup, Expression.neq(Expression.get("slAura"), Expression.literal("")))) }
                         )
-                        for ((id, pattern) in listOf(slAuraPulseLayerId(g) to "pulse", slAuraRingLayerId(g) to "ring")) {
-                            style.addLayer(
-                                CircleLayer(id, DIARY_SOURCE).withProperties(
-                                    PropertyFactory.circleOpacity(0f),
-                                    PropertyFactory.circleRadius(slAuraRadiusExpression(0.8f)),
-                                    PropertyFactory.circleStrokeColor(Expression.toColor(Expression.get("slAuraColor2"))),
-                                    PropertyFactory.circleStrokeWidth(1.6f),
-                                    PropertyFactory.circleStrokeOpacity(Expression.product(Expression.literal(0.7f), Expression.get("alpha"))),
-                                ).also { it.setFilter(Expression.all(inGroup, Expression.eq(Expression.get("slAura"), Expression.literal(pattern)))) }
-                            )
-                        }
+                        style.addLayer(
+                            CircleLayer(slAuraPulseLayerId(g), DIARY_SOURCE).withProperties(
+                                PropertyFactory.circleOpacity(0f),
+                                PropertyFactory.circleRadius(slAuraRadiusExpression(0.8f)),
+                                PropertyFactory.circleStrokeColor(Expression.toColor(Expression.get("slAuraColor2"))),
+                                PropertyFactory.circleStrokeWidth(1.6f),
+                                PropertyFactory.circleStrokeOpacity(Expression.product(Expression.literal(0.7f), Expression.get("alpha"))),
+                            ).also { it.setFilter(Expression.all(inGroup, Expression.eq(Expression.get("slAura"), Expression.literal("pulse")))) }
+                        )
+                        // 스프라이트 — 별과 같은 크기 식(스프라이트 384px : 별 160px → 별의 2.4배로 둘레를 감싼다).
+                        style.addLayer(
+                            SymbolLayer(slAuraSpriteLayerId(g), DIARY_SOURCE).withProperties(
+                                PropertyFactory.iconImage(Expression.get("slSprite")),
+                                PropertyFactory.iconSize(starSizeExpression(1f)),
+                                PropertyFactory.iconOpacity(Expression.get("alpha")),
+                                PropertyFactory.iconAllowOverlap(true),
+                                PropertyFactory.iconIgnorePlacement(true),
+                            ).also { it.setFilter(Expression.all(inGroup, Expression.neq(Expression.get("slSprite"), Expression.literal("")))) }
+                        )
                     }
 
                     // 겹친 별 위성 — 대표 곁에 둥둥 떠 있는 머지 멤버 미니 크리스탈(별 아래에 깔린다).
@@ -948,7 +957,9 @@ fun DiaryMap(
     var needsSettle by remember { mutableStateOf(false) }
     // 별빛 공방 오라를 단 사람(바뀌면 별 feature 의 오라 속성을 다시 만든다).
     val slAuraByUser = com.chaminwoo.stary.feature.starlight.StarlightStore.auraByUser
-    LaunchedEffect(diaries, styleRef, currentLatLng, cameraIdleTick, revealKey, revealSettleTick, slAuraByUser) {
+    // 뽑기 풀(오라 정의)이 늦게 오면 그때 다시 — 정의를 알아야 스프라이트를 그린다.
+    val slItems = com.chaminwoo.stary.feature.starlight.StarlightStore.items
+    LaunchedEffect(diaries, styleRef, currentLatLng, cameraIdleTick, revealKey, revealSettleTick, slAuraByUser, slItems) {
         val style = styleRef ?: return@LaunchedEffect
         val source = diarySource ?: return@LaunchedEffect
         val map = mapRef ?: return@LaunchedEffect
@@ -982,7 +993,7 @@ fun DiaryMap(
         }
 
         val reveal = revealKey != lastRevealKey
-        val key = Triple(reps.map { it.id }, nearIds, slAuraByUser)
+        val key = Triple(reps.map { it.id }, nearIds, slAuraByUser to slItems.size)
         if (key == lastFeaturesKey && !reveal && !needsSettle) return@LaunchedEffect
         lastFeaturesKey = key
 
@@ -1006,6 +1017,18 @@ fun DiaryMap(
                     style.addImage(orbitIconId, orbitStarBitmap(type, color))
                 }
             }
+
+        // 공방 오라 스프라이트 — 지금 누군가 달고 있는 오라만 등록(한 번 등록하면 유지).
+        slAuraByUser.values.distinct().forEach { id ->
+            val item = com.chaminwoo.stary.feature.starlight.StarlightStore.item(id) ?: return@forEach
+            val imgId = slAuraSpriteImageId(item)
+            if (imgId !in addedIcons) {
+                com.chaminwoo.stary.feature.starlight.StarlightAura.sprite(item.payload)?.let {
+                    style.addImage(imgId, it)
+                    addedIcons.add(imgId)
+                }
+            }
+        }
 
         // source 갱신은 전부 여기로 — 무엇이 떠 있는지(lastShown) 함께 기억한다.
         fun emit(stars: List<ShownStar>) {
@@ -1379,7 +1402,7 @@ fun DiaryMap(
         val auraLayers = Array(PHASE_GROUPS) { style.getLayer(auraLayerId(it)) as? CircleLayer }
         val slGlowLayers = Array(PHASE_GROUPS) { style.getLayer(slAuraGlowLayerId(it)) as? CircleLayer }
         val slPulseLayers = Array(PHASE_GROUPS) { style.getLayer(slAuraPulseLayerId(it)) as? CircleLayer }
-        val slRingLayers = Array(PHASE_GROUPS) { style.getLayer(slAuraRingLayerId(it)) as? CircleLayer }
+        val slSpriteLayers = Array(PHASE_GROUPS) { style.getLayer(slAuraSpriteLayerId(it)) as? SymbolLayer }
         val slRadiusCache = HashMap<Int, Expression>()
         val slOpacityCache = HashMap<Int, Expression>()
         fun slRadius(scale: Float) = slRadiusCache.getOrPut((scale * 32f).toInt()) { slAuraRadiusExpression((scale * 32f).toInt() / 32f) }
@@ -1439,10 +1462,10 @@ fun DiaryMap(
                 auraLayers[g]?.setProperties(
                     PropertyFactory.circleTranslate(arrayOf(0f, floatDy))
                 )
-                // 별빛 공방 오라 — 빛은 숨 쉬고, pulse 고리는 퍼지며 사라지고, ring 고리는 천천히 커졌다 작아진다.
+                // 별빛 공방 오라 — 빛은 숨 쉬고, pulse 고리는 천천히 퍼지며 사라지고, 스프라이트는 돌거나 흔들린다.
                 if (com.chaminwoo.stary.feature.starlight.StarlightStore.auraByUser.isNotEmpty()) {
-                    val breathe = (sin(t * 1.8f + phase) + 1f) / 2f // 0..1
-                    val spread = ((t * 0.45f + g * 0.25f) % 1f)      // 0..1 퍼짐
+                    val breathe = (sin(t * 1.2f + phase) + 1f) / 2f // 0..1
+                    val spread = ((t * 0.24f + g * 0.25f) % 1f)      // 0..1 퍼짐(약 4.2초 — 예전 2.2초는 "두근거림"이 정신없었다)
                     slGlowLayers[g]?.setProperties(
                         PropertyFactory.circleTranslate(arrayOf(0f, floatDy)),
                         PropertyFactory.circleOpacity(slOpacity(0.32f + 0.26f * breathe)),
@@ -1452,10 +1475,24 @@ fun DiaryMap(
                         PropertyFactory.circleRadius(slRadius(0.45f + 0.85f * spread)),
                         PropertyFactory.circleStrokeOpacity(slOpacity(0.85f * (1f - spread))),
                     )
-                    slRingLayers[g]?.setProperties(
-                        PropertyFactory.circleTranslate(arrayOf(0f, floatDy)),
-                        PropertyFactory.circleRadius(slRadius(0.78f + 0.12f * breathe)),
-                        PropertyFactory.circleStrokeOpacity(slOpacity(0.55f + 0.3f * breathe)),
+                    // 회전 = 피처별 slSpin(°/초) × 시간 + slWobble(°) × 흔들림. 시간은 한 시간마다 되감아 값이 커지지 않게.
+                    val tt = t % 3600f
+                    val wob = sin(tt * (2f * Math.PI.toFloat() / 14f) + phase)
+                    val flick = 0.3f * (0.5f + 0.5f * sin(tt * 2.3f + phase))
+                    slSpriteLayers[g]?.setProperties(
+                        PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
+                        PropertyFactory.iconRotate(
+                            Expression.sum(
+                                Expression.product(Expression.get("slSpin"), Expression.literal(tt)),
+                                Expression.product(Expression.get("slWobble"), Expression.literal(wob)),
+                            )
+                        ),
+                        PropertyFactory.iconOpacity(
+                            Expression.product(
+                                Expression.get("alpha"),
+                                Expression.subtract(Expression.literal(1f), Expression.product(Expression.get("slFlicker"), Expression.literal(flick))),
+                            )
+                        ),
                     )
                 }
                 // 바닥 빛 웅덩이는 지점 고정(시차의 기준점). 별이 내려와 가까워질수록 살짝 밝게(paint).

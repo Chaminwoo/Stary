@@ -203,7 +203,13 @@ fun DetailScreen(
     val shownTitle = if (showOriginal) currentDiary.title else currentDiary.displayTitle()
     val shownContent = if (showOriginal) currentDiary.content else currentDiary.displayContent()
     LaunchedEffect(diaryId, isNear, isMyDiary) {
-        if (isNear && !isMyDiary) com.chaminwoo.stary.core.util.DiaryUnlockStore.unlock(context, diaryId)
+        if (isNear && !isMyDiary) {
+            // 직접 걸어가서 처음 연 별 — 퀘스트 "직접 가서 열기"(이미 열어 둔 별·열쇠로 연 별은 세지 않는다).
+            if (!com.chaminwoo.stary.core.util.DiaryUnlockStore.isUnlocked(context, diaryId)) {
+                com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.UNLOCK_VISIT, key = diaryId)
+            }
+            com.chaminwoo.stary.core.util.DiaryUnlockStore.unlock(context, diaryId)
+        }
     }
     LaunchedEffect(diaryId) {
         com.chaminwoo.stary.core.util.StaryAnalytics.log(

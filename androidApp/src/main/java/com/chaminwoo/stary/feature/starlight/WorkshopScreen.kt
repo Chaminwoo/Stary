@@ -1,31 +1,25 @@
 package com.chaminwoo.stary.feature.starlight
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,9 +29,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -51,9 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -64,45 +57,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.chaminwoo.stary.R
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 import com.chaminwoo.stary.core.ui.StaryToast
 import com.chaminwoo.stary.core.ui.clickBounce
 import com.chaminwoo.stary.core.util.Haptics
 import com.chaminwoo.stary.core.util.StaryAnalytics
-import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
-import com.chaminwoo.stary.feature.profile.StigmaStore
+import com.chaminwoo.stary.feature.quest.QuestEvent
 import com.chaminwoo.stary.feature.quest.QuestStore
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
-private val Ink = Color(0xFFF0F0F0)
-private val Sub = Color(0xFFB8C0CC)
-private val Dim = Color(0xFF7D8696)
-private val Card = Color(0x14FFFFFF)
-private val Line = Color(0x1AFFFFFF)
-private val Dust = Color(0xFFFFE6A8)
-private val Gold = Color(0xFFFFD27A)
-private val Violet = Color(0xFFB47CFF)
+internal val Ink = Color(0xFFF0F0F0)
+internal val Sub = Color(0xFFB8C0CC)
+internal val Dim = Color(0xFF7D8696)
+internal val Card = Color(0x14FFFFFF)
+internal val Line = Color(0x1AFFFFFF)
+internal val Dust = Color(0xFFFFE6A8)
+internal val Gold = Color(0xFFFFD27A)
+internal val Violet = Color(0xFFB47CFF)
 
 /**
- * 별빛 공방(2026-10-22) — 별가루를 열쇠·성운 상자로 바꾸고, 상자를 열고, 모은 것을 본다.
- * 서버가 모든 계산을 한다([StarlightStore.request]) — 이 화면은 요청을 보내고 결과를 연출만 한다. iOS `WorkshopView.swift` 패리티.
+ * 별빛 공방(2026-10-22) — 별가루를 열쇠·성운 상자로 바꾸고, 상자를 연다. 모은 것은 [CollectionScreen](수집품)에서.
+ * 서버가 모든 계산을 한다([StarlightStore.request]) — 이 화면은 요청을 보내고 결과를 연출만 한다([NebulaOpening]).
+ * iOS `WorkshopScreen.swift` 패리티.
  */
 @Composable
-fun WorkshopScreen() {
+fun WorkshopScreen(onOpenCollection: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val cfg = StarlightStore.config
     var busy by remember { mutableStateOf(false) }
-    var reveal by remember { mutableStateOf<RevealState?>(null) }
+    var opening by remember { mutableStateOf<OpeningState?>(null) }
     var keyCount by remember { mutableIntStateOf(1) }
-    var detail by remember { mutableStateOf<StarlightStore.Item?>(null) }
 
     LaunchedEffect(Unit) { StaryAnalytics.log("workshop_open", "stardust" to StarlightStore.stardust, "boxes" to StarlightStore.boxes) }
 
@@ -145,7 +132,7 @@ fun WorkshopScreen() {
     fun open(count: Int) {
         if (busy || count <= 0) return
         busy = true
-        reveal = RevealState(count = count)
+        opening = OpeningState(count = count)
         scope.launch {
             val r = StarlightStore.request("openBox", mapOf("count" to count))
             busy = false
@@ -156,10 +143,11 @@ fun WorkshopScreen() {
                         "workshop_open_box", "count" to count,
                         "best" to (draws.maxByOrNull { StarlightStore.RARITIES.indexOf(it.rarity) }?.rarity ?: ""),
                     )
-                    reveal = reveal?.copy(draws = draws)
+                    QuestStore.report(QuestEvent.OPEN_BOX)
+                    opening = opening?.copy(draws = draws)
                 }
                 is StarlightStore.OpResult.Failed -> {
-                    reveal = null
+                    opening = null
                     fail(r.code)
                 }
             }
@@ -170,16 +158,19 @@ fun WorkshopScreen() {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(top = LocalTopBarInset.current)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(stringResource(R.string.starlight_subtitle), color = Sub, fontSize = 13.sp, lineHeight = 19.sp)
         BalanceCard()
+
+        // ── 상자 열기(대표 전설 + 안내) ──
+        OpenCard(busy = busy, onOpen = ::open)
 
         // ── 바꾸기 ──
         SectionTitle(stringResource(R.string.starlight_exchange_title))
         ExchangeRow(
-            art = { Icon(Icons.Filled.Key, null, tint = Gold, modifier = Modifier.size(26.dp)) },
+            art = { CrystalKeyIcon(Modifier.size(28.dp)) },
             title = stringResource(R.string.starlight_to_key),
             desc = stringResource(R.string.starlight_to_key_desc),
             cost = cfg.keyCost * keyCount,
@@ -194,7 +185,7 @@ fun WorkshopScreen() {
             onMake = { exchange("key", keyCount) },
         )
         ExchangeRow(
-            art = { NebulaBoxArt(Modifier.size(34.dp), spin = false) },
+            art = { NebulaBoxArt(Modifier.size(40.dp), animated = false) },
             title = stringResource(R.string.starlight_to_box),
             desc = stringResource(R.string.starlight_to_box_desc),
             cost = cfg.boxCost,
@@ -202,22 +193,17 @@ fun WorkshopScreen() {
             onMake = { exchange("box", 1) },
         )
 
-        // ── 상자 열기 ──
-        SectionTitle(stringResource(R.string.starlight_open_title))
-        OpenCard(busy = busy, onOpen = ::open)
-
-        // ── 도감 ──
-        Collection(onItem = { detail = it })
+        // ── 도감 요약(목록은 수집품 화면에서) ──
+        CollectionSummary(onOpenCollection)
 
         // ── 확률 안내 ──
         OddsCard()
         Spacer(Modifier.height(24.dp))
     }
 
-    reveal?.let { st ->
-        RevealDialog(st, onDone = { if (st.draws != null) reveal = null })
+    opening?.let { st ->
+        NebulaOpening(st, onDone = { if (st.draws != null) opening = null })
     }
-    detail?.let { item -> ItemDetailDialog(item, onDismiss = { detail = null }) }
 }
 
 @Composable
@@ -234,7 +220,7 @@ private fun BalanceCard() {
             .clip(shape)
             .background(Brush.linearGradient(listOf(Color(0xFF221B3D), Color(0xFF14192A))))
             .border(1.dp, Brush.linearGradient(listOf(Dust.copy(alpha = 0.55f), Violet.copy(alpha = 0.35f))), shape)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StardustIcon(Modifier.size(34.dp), Dust)
@@ -247,8 +233,8 @@ private fun BalanceCard() {
             )
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            MiniBalance({ NebulaBoxArt(Modifier.size(18.dp), spin = false) }, StarlightStore.boxes, stringResource(R.string.starlight_box))
-            MiniBalance({ Icon(Icons.Filled.Key, null, tint = Gold, modifier = Modifier.size(15.dp)) }, QuestStore.keys, stringResource(R.string.starlight_keys))
+            MiniBalance({ NebulaBoxArt(Modifier.size(20.dp), animated = false) }, StarlightStore.boxes, stringResource(R.string.starlight_box))
+            MiniBalance({ CrystalKeyIcon(Modifier.size(17.dp)) }, QuestStore.keys, stringResource(R.string.starlight_keys))
         }
     }
 }
@@ -285,7 +271,7 @@ private fun ExchangeRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(44.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF26304A), Color(0xFF161C2C)))),
+                Modifier.size(46.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF26304A), Color(0xFF161C2C)))),
                 contentAlignment = Alignment.Center,
             ) { art() }
             Spacer(Modifier.width(12.dp))
@@ -344,28 +330,57 @@ private fun Stepper(value: Int, onChange: (Int) -> Unit, max: Int) {
     }
 }
 
+/**
+ * 상자 열기 카드 — 위에 **상자 속 전설 3개를 부채꼴로 살짝 겹쳐** 보여 주고(DB `showcase`), 그 앞에 성운 상자,
+ * 아래에 안내 문구와 열기 버튼.
+ */
 @Composable
 private fun OpenCard(busy: Boolean, onOpen: (Int) -> Unit) {
     val boxes = StarlightStore.boxes
     val many = boxes.coerceAtMost(StarlightStore.config.maxOpen)
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(24.dp)
+    val showcase = StarlightStore.showcaseItems
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xFF1B1533), Color(0xFF111622))))
-            .border(0.75.dp, Violet.copy(alpha = 0.35f), shape)
-            .padding(16.dp),
+            .background(Brush.verticalGradient(listOf(Color(0xFF241A45), Color(0xFF151230), Color(0xFF0F1322))))
+            .border(1.dp, Brush.verticalGradient(listOf(Gold.copy(alpha = 0.45f), Violet.copy(alpha = 0.3f))), shape)
+            .padding(horizontal = 16.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        NebulaBoxArt(Modifier.size(132.dp), glow = if (boxes > 0) 0.25f else 0f)
-        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.starlight_lineup),
+            color = Gold, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.TopCenter) {
+            // 부채꼴 전설 카드(양옆 → 가운데 순으로 겹친다)
+            val slots = listOf(Triple(-84, 18, -13f), Triple(84, 18, 13f), Triple(0, 0, 0f))
+            val order = listOf(0, 2, 1) // showcase[0] 왼쪽, [1] 가운데, [2] 오른쪽
+            slots.forEachIndexed { k, (dx, dy, rot) ->
+                val item = showcase.getOrNull(order[k]) ?: return@forEachIndexed
+                ShowcaseCard(
+                    item,
+                    Modifier
+                        .offset(x = dx.dp, y = dy.dp)
+                        .graphicsLayer { rotationZ = rot },
+                )
+            }
+            NebulaBoxArt(Modifier.align(Alignment.BottomCenter).size(150.dp), glow = if (boxes > 0) 0.3f else 0f)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            stringResource(R.string.starlight_showcase),
+            color = Ink, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(6.dp))
         Text(
             if (boxes > 0) stringResource(R.string.starlight_boxes_ready, boxes)
             else stringResource(R.string.starlight_no_box, StarlightStore.config.boxCost),
             color = Sub, fontSize = 12.5.sp, textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OpenButton(stringResource(R.string.starlight_open_one), enabled = !busy && boxes >= 1, primary = true) { onOpen(1) }
             if (many >= 2) {
@@ -375,8 +390,35 @@ private fun OpenCard(busy: Boolean, onOpen: (Int) -> Unit) {
     }
 }
 
+/** 상자 속 전설 한 장 — 금테 크리스탈 카드. */
 @Composable
-private fun OpenButton(text: String, enabled: Boolean, primary: Boolean, onClick: () -> Unit) {
+private fun ShowcaseCard(item: StarlightStore.Item, modifier: Modifier = Modifier) {
+    val c = rarityColor(item.rarity)
+    val shape = RoundedCornerShape(16.dp)
+    val glow by rememberInfiniteTransition(label = "showcase").animateFloat(
+        0.45f, 0.8f, infiniteRepeatable(tween(4_200), RepeatMode.Reverse), label = "showcase_rim",
+    )
+    Column(
+        modifier
+            .width(98.dp)
+            .height(128.dp)
+            .clip(shape)
+            .background(Brush.verticalGradient(listOf(Color(0xFF3A2A1A), Color(0xFF1C1830), Color(0xFF121626))))
+            .border(1.2.dp, Brush.verticalGradient(listOf(c.copy(alpha = glow), c.copy(alpha = 0.25f))), shape)
+            .padding(horizontal = 6.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        ItemArt(item, Modifier.size(70.dp))
+        Spacer(Modifier.weight(1f))
+        Text(
+            item.nameIn(starlightLang()), color = Ink, fontSize = 10.5.sp, lineHeight = 13.sp,
+            fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2,
+        )
+    }
+}
+
+@Composable
+internal fun OpenButton(text: String, enabled: Boolean, primary: Boolean, onClick: () -> Unit) {
     Text(
         text,
         color = when {
@@ -401,168 +443,48 @@ private fun OpenButton(text: String, enabled: Boolean, primary: Boolean, onClick
     )
 }
 
-// ── 도감 ──────────────────────────────────────────────────────────────────
-
+/** 도감 요약 — 모은 수와 진행 막대, 누르면 수집품 화면. */
 @Composable
-private fun Collection(onItem: (StarlightStore.Item) -> Unit) {
+private fun CollectionSummary(onOpen: () -> Unit) {
     val items = StarlightStore.shownItems
-    if (items.isEmpty()) return
     val owned = StarlightStore.owned
     val ownedCount = items.count { (owned[it.id] ?: 0) > 0 }
-    Row(verticalAlignment = Alignment.Bottom) {
-        SectionTitle(stringResource(R.string.starlight_collection))
-        Spacer(Modifier.weight(1f))
-        Text(stringResource(R.string.starlight_collected, ownedCount, items.size), color = Dim, fontSize = 12.sp)
-    }
-    val cfg = StarlightStore.config
-    StarlightStore.RARITIES.reversed().forEach { rarity ->
-        val group = items.filter { it.rarity == rarity }
-        if (group.isEmpty()) return@forEach
-        val each = cfg.percent(rarity) / group.size
-        Text(
-            "${rarityName(rarity)} · ${pct(cfg.percent(rarity))}",
-            color = rarityColor(rarity), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-        )
-        group.chunked(4).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { item ->
-                    ItemCell(item, owned = (owned[item.id] ?: 0) > 0, percent = each, onClick = { onItem(item) }, modifier = Modifier.weight(1f))
-                }
-                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ItemCell(item: StarlightStore.Item, owned: Boolean, percent: Double, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val c = rarityColor(item.rarity)
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(16.dp)
     Column(
-        modifier = modifier
+        modifier = Modifier
+            .fillMaxWidth()
             .clip(shape)
-            .background(if (owned) c.copy(alpha = 0.10f) else Card)
-            .border(0.75.dp, if (owned) c.copy(alpha = 0.55f) else Line, shape)
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp, horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .background(Card)
+            .border(0.75.dp, Line, shape)
+            .clickable(onClick = onOpen)
+            .padding(14.dp),
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1f).alpha(if (owned) 1f else 0.45f), contentAlignment = Alignment.Center) {
-            ItemArt(item, Modifier.fillMaxSize(0.82f))
-            if (owned) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.starlight_collection), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(2.dp))
+                Text(stringResource(R.string.starlight_collection_desc), color = Dim, fontSize = 11.5.sp, lineHeight = 16.sp)
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.starlight_collection_open), color = Violet, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Violet, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val frac = if (items.isEmpty()) 0f else ownedCount / items.size.toFloat()
+            Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(50)).background(Color(0x1FFFFFFF))) {
                 Box(
-                    Modifier.align(Alignment.TopEnd).size(14.dp).clip(CircleShape).background(c),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Filled.Check, null, tint = Color(0xFF111120), modifier = Modifier.size(10.dp)) }
+                    Modifier.fillMaxWidth(frac).height(6.dp).clip(RoundedCornerShape(50))
+                        .background(Brush.horizontalGradient(listOf(Violet, Gold))),
+                )
             }
-        }
-        Text(
-            item.nameIn(starlightLang()), color = if (owned) Ink else Sub, fontSize = 10.5.sp, lineHeight = 13.sp,
-            textAlign = TextAlign.Center, maxLines = 2,
-        )
-        val slot = slotOf(item.kind)
-        if (slot != null && isEquipped(LocalContext.current, slot, item.id)) {
-            Text(stringResource(R.string.starlight_equipped), color = c, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold)
-        } else {
-            Text(pct(percent), style = TextStyle(color = Dim, fontSize = 9.5.sp, fontFeatureSettings = "tnum"))
+            Spacer(Modifier.width(10.dp))
+            Text(
+                stringResource(R.string.starlight_collected, ownedCount, items.size),
+                style = TextStyle(color = Sub, fontSize = 12.sp, fontFeatureSettings = "tnum"),
+            )
         }
     }
-}
-
-/** 장착 칸 — 프레임·배지·오라·칭호만(나머지는 null). */
-private fun slotOf(kind: String): StarlightStore.Slot? = StarlightStore.Slot.entries.firstOrNull { it.kind == kind }
-
-@Composable
-private fun ItemDetailDialog(item: StarlightStore.Item, onDismiss: () -> Unit) {
-    val lang = starlightLang()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val c = rarityColor(item.rarity)
-    val count = StarlightStore.owned[item.id] ?: 0
-    val slot = slotOf(item.kind)
-    var busy by remember { mutableStateOf(false) }
-    val equipped = slot != null && isEquipped(context, slot, item.id)
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF121821))
-                .border(1.dp, c.copy(alpha = 0.6f), RoundedCornerShape(22.dp))
-                .clickable(onClick = onDismiss)
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            ItemArt(item, Modifier.size(110.dp))
-            Spacer(Modifier.height(10.dp))
-            Text("${rarityName(item.rarity)} · ${kindName(item.kind)}", color = c, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
-            Text(item.nameIn(lang), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(8.dp))
-            Text(item.descIn(lang), color = Sub, fontSize = 13.sp, lineHeight = 19.sp, textAlign = TextAlign.Center)
-            if (count > 0) {
-                Spacer(Modifier.height(10.dp))
-                Text(stringResource(R.string.starlight_owned_n, count), color = c, fontSize = 12.sp)
-                usageNote(item)?.let {
-                    Spacer(Modifier.height(4.dp))
-                    Text(stringResource(it), color = Dim, fontSize = 11.5.sp, lineHeight = 16.sp, textAlign = TextAlign.Center)
-                }
-                if (slot != null) {
-                    Spacer(Modifier.height(14.dp))
-                    OpenButton(
-                        stringResource(if (equipped) R.string.starlight_unequip else R.string.starlight_equip),
-                        enabled = !busy, primary = !equipped,
-                    ) {
-                        busy = true
-                        scope.launch {
-                            val r = StarlightStore.equip(slot, if (equipped) null else item.id)
-                            busy = false
-                            when (r) {
-                                is StarlightStore.OpResult.Done -> {
-                                    if (slot == StarlightStore.Slot.TITLE) syncTitle(context, if (equipped) null else item.id)
-                                    Haptics.medium()
-                                    StaryAnalytics.log("workshop_equip", "slot" to slot.id, "item" to (if (equipped) "" else item.id))
-                                    StaryToast.show(context.getString(if (equipped) R.string.starlight_unequip_done else R.string.starlight_equip_done))
-                                }
-                                is StarlightStore.OpResult.Failed -> StaryToast.show(
-                                    context.getString(if (r.code == "timeout") R.string.starlight_err_timeout else R.string.starlight_err_generic)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 장착 중인가. 칭호는 업적 칭호와 한 자리를 나눠 쓰므로 실제로 달려 있는 값(StigmaStore = users.equippedTitle 의 기기 사본)이
- * "sl:{id}" 일 때만 — 공방 칭호를 단 뒤 업적 칭호로 바꾸면 starlightEquips.title 은 옛값으로 남는다.
- */
-private fun isEquipped(context: android.content.Context, slot: StarlightStore.Slot, id: String): Boolean {
-    val mine = StarlightStore.myEquips.of(slot) == id // 구독 상태를 읽어 장착이 바뀌면 다시 그린다
-    if (slot != StarlightStore.Slot.TITLE) return mine
-    val uid = GoogleAuthHelper.currentUserId ?: return false
-    return StigmaStore.equipped(context, uid) == StarlightStore.TITLE_PREFIX + id
-}
-
-/** 서버가 users.equippedTitle 을 바꿨으니 기기 사본(StigmaStore)도 맞춘다 — 업적 화면·프로필이 이걸 읽는다. */
-private fun syncTitle(context: android.content.Context, id: String?) {
-    val uid = GoogleAuthHelper.currentUserId ?: return
-    val cur = StigmaStore.equipped(context, uid)
-    when {
-        id != null -> StigmaStore.equip(context, uid, StarlightStore.TITLE_PREFIX + id)
-        cur?.startsWith(StarlightStore.TITLE_PREFIX) == true -> StigmaStore.equip(context, uid, null)
-    }
-}
-
-/** 가진 아이템을 어디서 쓰는지(장착형은 버튼으로 충분해 null). */
-private fun usageNote(item: StarlightStore.Item): Int? = when (item.kind) {
-    "shape" -> R.string.starlight_use_shape
-    "color" -> R.string.starlight_use_color
-    "telescope" -> if (item.payload["mode"] == "reveal") R.string.starlight_use_reveal else R.string.starlight_use_hint
-    else -> null
 }
 
 // ── 확률 안내 ─────────────────────────────────────────────────────────────
@@ -571,6 +493,8 @@ private fun usageNote(item: StarlightStore.Item): Int? = when (item.kind) {
 private fun OddsCard() {
     val cfg = StarlightStore.config
     val shape = RoundedCornerShape(16.dp)
+    var expanded by remember { mutableStateOf(false) }
+    val lang = starlightLang()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -604,6 +528,34 @@ private fun OddsCard() {
             ),
             color = Dim, fontSize = 11.5.sp, lineHeight = 16.sp,
         )
+        // 아이템별 확률(접어 둔다) — 같은 등급 안에서는 모두 같은 확률.
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { expanded = !expanded }.padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(if (expanded) R.string.starlight_odds_hide else R.string.starlight_odds_items),
+                color = Violet, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f),
+            )
+            Icon(if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, null, tint = Violet, modifier = Modifier.size(18.dp))
+        }
+        AnimatedVisibility(expanded, enter = expandVertically(), exit = shrinkVertically()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                val pool = StarlightStore.items.filter { it.active }
+                StarlightStore.RARITIES.reversed().forEach { r ->
+                    val group = pool.filter { it.rarity == r }
+                    if (group.isEmpty()) return@forEach
+                    val each = cfg.percent(r) / group.size
+                    Text(rarityName(r), color = rarityColor(r), fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+                    group.forEach { item ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("${item.nameIn(lang)} · ${kindName(item.kind)}", color = Sub, fontSize = 11.5.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                            Text(pct(each), style = TextStyle(color = Dim, fontSize = 11.5.sp, fontFeatureSettings = "tnum"))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -632,171 +584,7 @@ internal fun kindName(k: String): String = stringResource(
     }
 )
 
-private fun pct(v: Double): String =
+internal fun pct(v: Double): String =
     if (v >= 10) String.format(Locale.US, "%.0f%%", v)
     else if (v >= 1) String.format(Locale.US, "%.1f%%", v)
     else String.format(Locale.US, "%.2f%%", v)
-
-// ── 상자 열기 연출 ────────────────────────────────────────────────────────
-
-/** [draws] = null 이면 서버 응답을 기다리는 중(상자가 떨며 빛을 모은다). */
-private data class RevealState(val count: Int, val draws: List<StarlightStore.Draw>? = null)
-
-@Composable
-private fun RevealDialog(state: RevealState, onDone: () -> Unit) {
-    val draws = state.draws
-    val best = draws?.maxByOrNull { StarlightStore.RARITIES.indexOf(it.rarity) }?.rarity
-    val bestColor = best?.let { rarityColor(it) } ?: Violet
-    val shake by rememberInfiniteTransition(label = "box_shake").animateFloat(
-        -1f, 1f, infiniteRepeatable(tween(90), RepeatMode.Reverse), label = "box_shake_x",
-    )
-    val charge = remember { Animatable(0f) }
-    val burst = remember { Animatable(0f) }
-    var showCards by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { charge.animateTo(1f, tween(1_400, easing = FastOutSlowInEasing)) }
-    LaunchedEffect(draws) {
-        if (draws == null) return@LaunchedEffect
-        // 빛을 다 모은 뒤에 터뜨린다(응답이 빨라도 최소 연출 시간은 지킨다).
-        while (charge.isRunning) delay(30)
-        when (best) {
-            "legendary" -> { Haptics.celebrate(); delay(120); Haptics.celebrate() }
-            "epic" -> Haptics.celebrate()
-            else -> Haptics.medium()
-        }
-        burst.animateTo(1f, tween(520, easing = FastOutSlowInEasing))
-        showCards = true
-    }
-    Dialog(
-        onDismissRequest = onDone,
-        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false),
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color(0xF00A0C16))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() }, indication = null,
-                    enabled = showCards, onClick = onDone,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            // 터지는 빛
-            Canvas(Modifier.fillMaxSize()) {
-                val c = Offset(size.width / 2, size.height / 2)
-                val b = burst.value
-                if (b > 0f) {
-                    val rr = size.minDimension * (0.2f + b * 0.9f)
-                    drawCircle(Brush.radialGradient(listOf(bestColor.copy(alpha = 0.55f * (1 - b * 0.6f)), Color.Transparent), c, rr), rr, c)
-                    val rays = if (best == "legendary") 16 else 10
-                    for (i in 0 until rays) {
-                        val a = i * 2 * PI / rays
-                        val len = size.minDimension * (0.15f + b * 0.55f)
-                        drawLine(
-                            bestColor.copy(alpha = 0.5f * (1 - b)),
-                            c, Offset(c.x + (cos(a) * len).toFloat(), c.y + (sin(a) * len).toFloat()),
-                            strokeWidth = 3f,
-                        )
-                    }
-                }
-            }
-            if (!showCards) {
-                NebulaBoxArt(
-                    Modifier
-                        .size(180.dp)
-                        .graphicsLayer {
-                            val k = charge.value
-                            translationX = shake * 6f * k
-                            rotationZ = shake * 3f * k
-                            val sc = 1f + 0.12f * k - 0.5f * burst.value
-                            scaleX = sc; scaleY = sc
-                            alpha = 1f - burst.value
-                        },
-                    glow = charge.value,
-                )
-            }
-            if (showCards && draws != null) {
-                Column(
-                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 40.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    if (draws.size == 1) {
-                        DrawCard(draws[0], index = 0, big = true)
-                    } else {
-                        draws.chunked(2).forEachIndexed { rowIdx, row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 10.dp)) {
-                                row.forEachIndexed { i, d ->
-                                    DrawCard(d, index = rowIdx * 2 + i, big = false, modifier = Modifier.weight(1f))
-                                }
-                                if (row.size == 1) Spacer(Modifier.weight(1f))
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(18.dp))
-                    Text(stringResource(R.string.starlight_tap_close), color = Dim, fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DrawCard(d: StarlightStore.Draw, index: Int, big: Boolean, modifier: Modifier = Modifier) {
-    val item = StarlightStore.item(d.id)
-    val c = rarityColor(d.rarity)
-    val lang = starlightLang()
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(110L * index)
-        visible = true
-        if (d.rarity == "legendary" || d.rarity == "epic") Haptics.medium() else Haptics.tick()
-    }
-    val pulse by rememberInfiniteTransition(label = "card").animateFloat(
-        0.35f, 0.9f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "card_glow",
-    )
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(240)) + scaleIn(spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.6f),
-        modifier = modifier,
-    ) {
-        val shape = RoundedCornerShape(if (big) 24.dp else 18.dp)
-        Column(
-            modifier = Modifier
-                .then(if (big) Modifier.width(260.dp) else Modifier.fillMaxWidth())
-                .clip(shape)
-                .background(Brush.verticalGradient(listOf(c.copy(alpha = 0.16f), Color(0xFF121821))))
-                .border(
-                    if (d.rarity == "legendary" || d.rarity == "epic") 1.5.dp else 1.dp,
-                    c.copy(alpha = if (d.rarity == "legendary" || d.rarity == "epic") pulse else 0.55f), shape,
-                )
-                .padding(if (big) 20.dp else 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(rarityName(d.rarity), color = c, fontSize = if (big) 13.sp else 11.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(6.dp))
-            Box(Modifier.size(if (big) 140.dp else 72.dp), contentAlignment = Alignment.Center) {
-                if (item != null) ItemArt(item, Modifier.fillMaxSize()) else StardustIcon(Modifier.fillMaxSize(0.5f), c)
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                item?.nameIn(lang) ?: d.id, color = Ink, fontSize = if (big) 17.sp else 13.sp,
-                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2,
-            )
-            if (big && item != null) {
-                Spacer(Modifier.height(6.dp))
-                Text(item.descIn(lang), color = Sub, fontSize = 12.5.sp, lineHeight = 18.sp, textAlign = TextAlign.Center)
-            }
-            Spacer(Modifier.height(6.dp))
-            val note = when {
-                d.keys > 0 -> stringResource(R.string.starlight_keys_plus, d.keys)
-                d.dup -> stringResource(R.string.starlight_dup_refund, d.refund)
-                item != null && (item.kind == "telescope") -> stringResource(R.string.starlight_stacked)
-                else -> stringResource(R.string.starlight_new)
-            }
-            Text(
-                note,
-                color = if (d.dup) Dim else Dust, fontSize = if (big) 12.sp else 10.5.sp, fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
-}

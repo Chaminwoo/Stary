@@ -70,23 +70,38 @@ function shootingStar() {
   return path(t1, t2, t3, head);
 }
 
-/** 불사조 깃털 — 불꽃처럼 일렁이는 깃털: 굽이치는 큰 혀 셋이 깃대에서 솟는다. */
-function phoenixPlume() {
-  // 바깥 가장자리는 매끈하게 위로 솟고, 안쪽 가장자리에서 불꽃 혀 셋이 왼쪽 위로 날린다.
-  const s = new Sub([0.2, 0.96]);
-  s.C([0.44, 0.86], [0.72, 0.6], [0.82, 0.04]); // 바깥 가장자리 → 깃 끝
-  s.C([0.72, 0.13], [0.63, 0.2], [0.58, 0.29]);
-  s.C([0.53, 0.22], [0.47, 0.17], [0.37, 0.15]); // 첫째 혀
-  s.C([0.45, 0.25], [0.5, 0.33], [0.5, 0.42]);
-  s.C([0.42, 0.38], [0.33, 0.38], [0.22, 0.41]); // 둘째 혀
-  s.C([0.32, 0.47], [0.39, 0.54], [0.39, 0.61]);
-  s.C([0.31, 0.61], [0.22, 0.64], [0.12, 0.7]); // 셋째 혀
-  s.C([0.23, 0.74], [0.27, 0.82], [0.2, 0.96]);
-  const eye = ellipse([0.62, 0.42], 0.085, 0.055, -62).reversed(); // 공작 깃의 눈
-  const pupil = ellipse([0.62, 0.42], 0.038, 0.025, -62);
-  const shaft = taper([0.21, 0.94], [0.1, 0.995], 0.05, 0);
-  // 윤곽을 반대(바깥 가장자리부터 위로 = 반시계)로 그렸으므로 뒤집어 시계 방향으로 — 눈 구멍이 뚫리고 깃대가 합쳐지게.
-  return path(s.reversed(), eye, pupil, shaft);
+/**
+ * 불사조 — 날개를 활짝 치켜든 불새(2026-10-22 리디자인: 예전 "불꽃 깃털 한 장"은 전설 치고 밋밋했다).
+ * 좌우 대칭: 머리 위 불꽃 볏 셋, 깃 끝이 물결치는 날개, 아래로 흘러내리며 끝이 들리는 불꽃 꼬리 다섯 가닥.
+ * 오른쪽 절반을 그려 반전 — 같은 방향으로 감은 부품은 겹쳐도 합쳐진다.
+ */
+function phoenix() {
+  const parts = [];
+  // 몸통(물방울) + 머리
+  const body = new Sub([0.5, 0.27]);
+  body.C([0.58, 0.31], [0.6, 0.5], [0.5, 0.66]);
+  body.C([0.4, 0.5], [0.42, 0.31], [0.5, 0.27]);
+  parts.push(body, circle([0.5, 0.24], 0.058));
+  // 볏 — 가운데 하나 + 좌우로 휘는 둘
+  parts.push(taper([0.5, 0.21], [0.5, 0.04], 0.05, 0));
+  const crest = taper([0.515, 0.215], [0.62, 0.09], 0.045, -0.035);
+  parts.push(crest, crest.mirrorX());
+  // 날개 — 매끈한 앞전(위로 치솟는 호) + 둥근 깃 끝이 다섯 번 물결치는 뒷전
+  const wing = new Sub([0.535, 0.33]);
+  wing.C([0.6, 0.2], [0.76, 0.07], [0.975, 0.04]);
+  wing.Q([0.985, 0.15], [0.915, 0.2]);
+  wing.Q([0.95, 0.28], [0.855, 0.3]);
+  wing.Q([0.88, 0.38], [0.775, 0.385]);
+  wing.Q([0.785, 0.46], [0.69, 0.45]);
+  wing.Q([0.665, 0.52], [0.565, 0.48]);
+  wing.C([0.53, 0.45], [0.52, 0.4], [0.535, 0.33]);
+  parts.push(wing, wing.mirrorX());
+  // 꼬리 — 가운데 긴 불꽃 + 바깥으로 휘어 끝이 들리는 두 쌍(불꽃 혀처럼)
+  parts.push(taper([0.5, 0.58], [0.5, 0.985], 0.105, 0));
+  const tailA = taper([0.515, 0.6], [0.7, 0.96], 0.09, 0.075);
+  const tailB = taper([0.525, 0.58], [0.88, 0.76], 0.07, 0.085);
+  parts.push(tailA, tailA.mirrorX(), tailB, tailB.mirrorX());
+  return path(...G.fit(parts, 0.98));
 }
 
 // ── 천체 망원경 아이콘 ────────────────────────────────────────────────
@@ -131,4 +146,4 @@ function radioDish() {
   return path(dish.reversed(), feedArm, feed, signal1, pedestal);
 }
 
-module.exports = { crescent, twinkle, ringedPlanet, feather, shootingStar, phoenixPlume, refractor, reflector, radioDish };
+module.exports = { crescent, twinkle, ringedPlanet, feather, shootingStar, phoenix, refractor, reflector, radioDish };

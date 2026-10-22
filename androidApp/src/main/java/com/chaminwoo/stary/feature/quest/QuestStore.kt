@@ -94,6 +94,8 @@ object QuestStore {
         stop()
         this.uid = uid
         appContext = context.applicationContext
+        // 퀘스트 정의(DB) — 처음 읽히는 순간 오늘 목록을 만들 수 있게 된다.
+        DailyQuests.watch { ensureToday() }
         // MetadataChanges.INCLUDE — 캐시 값이 서버와 같으면 "서버 확인됨"은 메타데이터만 바뀐 이벤트로 온다.
         // 이걸 안 받으면 serverSeen 이 영영 false 라 오늘 목록을 못 만들어 퀘스트 창이 무한 로딩이었다(2026-10-19).
         registration = doc(uid).addSnapshotListener(MetadataChanges.INCLUDE) { snap, error ->
@@ -176,8 +178,10 @@ object QuestStore {
         val cur = daily
         if (cur != null && cur.day == today) return
         if (GoogleAuthHelper.returningAccount.value == null && !returningFallback) return
+        // 퀘스트 정의(DB)를 아직 못 읽었으면 기다린다(읽히면 watch 콜백이 다시 부른다).
+        val cat = DailyQuests.catalog ?: return
         val dayNo = (cur?.dayNo ?: 0) + 1
-        val ids = DailyQuests.pick(uid, today, dayNo, cur?.ids ?: emptyList())
+        val ids = DailyQuests.pick(cat, uid, today, dayNo, cur?.ids ?: emptyList())
         val next = Daily(today, dayNo, ids, emptyMap(), emptySet(), false)
         daily = next
         // mergeFields("quest") = quest 필드만 통째로 교체(어제 progress/claimed 가 섞이지 않게), 다른 필드는 그대로.
@@ -239,7 +243,7 @@ object QuestStore {
         finished.firstOrNull()?.let { def ->
             val ctx = appContext?.let { LocaleManager.wrap(it) } ?: return@let
             Haptics.medium()
-            StaryToast.show(ctx.getString(R.string.quest_done_toast, ctx.getString(def.title)))
+            StaryToast.show(ctx.getString(R.string.quest_done_toast, def.titleIn(ctx.getString(R.string.starlight_lang))))
         }
     }
 

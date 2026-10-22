@@ -1,23 +1,33 @@
 package com.chaminwoo.stary.feature.quest
 
-import androidx.annotation.StringRes
-import com.chaminwoo.stary.R
+import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.chaminwoo.stary.data.staryFirestore
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.ListenerRegistration
 
 /**
- * 일일 퀘스트 정의(2026-10-19) — 하루 3개, 앱 기능을 하나씩 써 보게 하는 튜토리얼 성격.
- * 보상 = 별가루(2026-10-22, 양은 DB `starlightConfig` — [com.chaminwoo.stary.feature.starlight.StarlightStore.config]).
- * 별빛 공방에서 열쇠(멀리 있는 남의 별 열기, DiaryLock.kt)나 성운 상자로 바꾼다.
+ * 일일 퀘스트(2026-10-19) — 하루 3개. 보상 = 별가루(난이도별, 서버 지급).
  *
- * ⚠️ iOS `DailyQuests.swift` 와 **id·이벤트·목표 수·시간대·풀(pool)·뽑는 식이 같아야 한다** —
- *    같은 계정을 두 기기에서 쓰면 서버의 그날 목록을 같이 쓰는데, 먼저 만든 쪽 식이 다르면 목록이 달라진다.
+ * **정의는 DB `starlightConfig/quests`**(2026-10-22, 원본 tools/starlight/quests.js) — 목록·목표 수·난이도·보상·문구(ko/en/ja)를
+ * 앱에 박지 않고 읽는다. 서버(functions/starlight.js claimQuest)도 같은 문서로 목표·보상을 확인한다.
+ * 앱에 남는 건 **이벤트 보고 지점**([QuestEvent])과 뽑는 식([DailyQuests.pick]) 뿐 — 모르는 이벤트의 퀘스트는 이 앱에서 뽑지 않는다.
+ *
+ * ⚠️ iOS `DailyQuests.swift` 와 **이벤트 철자·뽑는 식(난수 호출 순서까지)이 같아야 한다** —
+ *    같은 계정을 두 기기에서 쓰면 먼저 만든 쪽 목록을 같이 쓰는데, 식이 다르면 기기마다 목록이 달라진다.
  */
 enum class QuestEvent {
     TUTORIAL_STAR,      // 웰컴(튜토리얼) 별 게시물 열기
     UPLOAD,             // 별(다이어리) 올리기 — 시간대 퀘스트도 이 이벤트(올린 시각으로 판정)
     UPLOAD_MEDIA,       // 사진/영상이 있는 별 올리기
+    UPLOAD_STACK,       // 이미 별이 있는 자리(머지 반경 안)에 올리기
     VIEW_OTHER,         // 남의 별 상세 열기(잠겨 있어도 — "들여다보기")
+    UNLOCK_VISIT,       // 남의 별을 직접 가서(100m 안) 처음 열기
     LIKE,               // 좋아요 누르기(취소는 제외)
-    COMMENT,            // 댓글 달기
+    COMMENT,            // 댓글 달기(내 별 포함)
+    COMMENT_OTHER,      // 남의 별에 댓글 달기
     EQUIP_TITLE,        // 칭호 장착
     PROFILE_EDIT,       // 닉네임 또는 프로필 사진 변경
     PIN_STAR,           // 프로필에 별 걸기
@@ -29,25 +39,35 @@ enum class QuestEvent {
     VISIT_STARLOG,      // 별 도감 화면
     VISIT_PROFILE,      // 남의 프로필 화면
     FRIEND_REQUEST,     // 친구 요청 보내기
+    FRIEND_ADD,         // 친구가 한 명 늘었다(수락했거나 내 요청이 수락됨)
+    INVITE,             // 초대 링크 공유
     SHARE,              // 공유 영상 만들기
     MUSIC,              // 배경음악 바꾸기
     FOCUS,              // 지도를 가만히 두어 집중 모드 들어가기
     UNLOCK_KEY,         // 열쇠로 별 열기
+    OPEN_BOX,           // 성운 상자 열기(별빛 공방)
+    ACHIEVEMENT,        // 새 업적 달성
 }
 
 /**
+ * DB 퀘스트 하나. [event] 가 null 이면 이 앱이 모르는 이벤트(새 버전용) — 목록에 있으면 보이지만 진행되지 않는다.
  * @param hours 로컬 "시"(양끝 포함) — 24 를 넘으면 자정을 넘긴다(21..25 = 오후 9:00~새벽 1:59). null = 언제든.
- * @param group 같은 group 은 하루에 하나만(올리기 계열이 3개 다 나오지 않게).
+ * @param group 같은 group 은 하루에 하나만(올리기 계열이 여럿 나오지 않게).
  */
 data class QuestDef(
     val id: String,
-    val event: QuestEvent,
-    val target: Int = 1,
-    @StringRes val title: Int,
-    @StringRes val hint: Int,
-    val hours: IntRange? = null,
-    val group: String? = null,
+    val event: QuestEvent?,
+    val tier: String,
+    val target: Int,
+    val group: String?,
+    val hours: IntRange?,
+    val daily: Boolean,
+    val title: Map<String, String>,
+    val hint: Map<String, String>,
 ) {
+    fun titleIn(lang: String) = title[lang] ?: title["ko"] ?: id
+    fun hintIn(lang: String) = hint[lang] ?: hint["ko"].orEmpty()
+
     fun matchesHour(hour: Int): Boolean {
         val h = hours ?: return true
         // 21..25 처럼 자정을 넘기면 0~1시를 24~25 로 본다.
@@ -57,81 +77,124 @@ data class QuestDef(
 }
 
 object DailyQuests {
-    /** ⚠️ 서버 functions/starlight.js 의 QUESTS_PER_DAY · QUEST_TARGETS(목표 2 이상) 와 같아야 한다. */
+    private const val TAG = "QuestCatalog"
+    /** ⚠️ 서버 functions/starlight.js QUESTS_PER_DAY 와 같아야 한다. */
     const val PER_DAY = 3
 
-    private const val G_UPLOAD = "upload"
+    /** 첫 사용 안내(FirstStarGuide)가 가리키는 퀘스트 id — DB firstDay 의 첫 칸. */
+    const val PROFILE_EDIT_ID = "profile_edit"
 
-    val TUTORIAL = QuestDef("tutorial_star", QuestEvent.TUTORIAL_STAR, title = R.string.quest_tutorial_star, hint = R.string.quest_tutorial_star_hint)
-    val UPLOAD = QuestDef("upload", QuestEvent.UPLOAD, title = R.string.quest_upload, hint = R.string.quest_upload_hint, group = G_UPLOAD)
-    val VIEW_OTHER = QuestDef("view_other", QuestEvent.VIEW_OTHER, title = R.string.quest_view_other, hint = R.string.quest_view_other_hint)
-    val LIKE = QuestDef("like", QuestEvent.LIKE, title = R.string.quest_like, hint = R.string.quest_like_hint)
-    val PROFILE_EDIT = QuestDef("profile_edit", QuestEvent.PROFILE_EDIT, title = R.string.quest_profile_edit, hint = R.string.quest_profile_edit_hint)
+    data class Catalog(
+        val pool: List<QuestDef>,
+        val firstDay: List<String>,
+        val hardChance: Double,
+        val hardFromDay: Int,
+        val rewards: Map<String, Int>,
+    ) {
+        private val byId = pool.associateBy { it.id }
+        fun byId(id: String) = byId[id]
+        fun reward(def: QuestDef, fallback: Int) = rewards[def.tier] ?: fallback
+    }
 
-    /** 2~4일째 — 기본 기능. */
-    val BASIC = listOf(
-        UPLOAD,
-        LIKE,
-        QuestDef("view_other3", QuestEvent.VIEW_OTHER, 3, R.string.quest_view_other3, R.string.quest_view_other_hint),
-        QuestDef("comment", QuestEvent.COMMENT, title = R.string.quest_comment, hint = R.string.quest_comment_hint),
-        QuestDef("equip_title", QuestEvent.EQUIP_TITLE, title = R.string.quest_equip_title, hint = R.string.quest_equip_title_hint),
-        PROFILE_EDIT,
-        QuestDef("pin_star", QuestEvent.PIN_STAR, title = R.string.quest_pin_star, hint = R.string.quest_pin_star_hint),
-        QuestDef("constellation", QuestEvent.CONSTELLATION, title = R.string.quest_constellation, hint = R.string.quest_constellation_hint),
-        QuestDef("filter", QuestEvent.FILTER, title = R.string.quest_filter, hint = R.string.quest_filter_hint),
-        QuestDef("globe", QuestEvent.GLOBE, title = R.string.quest_globe, hint = R.string.quest_globe_hint),
-        QuestDef("achievements", QuestEvent.VISIT_ACHIEVEMENTS, title = R.string.quest_achievements, hint = R.string.quest_achievements_hint),
-        QuestDef("user_profile", QuestEvent.VISIT_PROFILE, title = R.string.quest_user_profile, hint = R.string.quest_user_profile_hint),
-    )
+    /** 읽어 온 정의(Compose 상태). null = 아직 못 읽음 — 목록을 만들지 않고 기다린다. */
+    var catalog by mutableStateOf<Catalog?>(null)
+        private set
 
-    /** 5일째부터 기본 풀에 더해진다. */
-    val ADVANCED = listOf(
-        QuestDef("like3", QuestEvent.LIKE, 3, R.string.quest_like3, R.string.quest_like_hint),
-        QuestDef("upload_morning", QuestEvent.UPLOAD, title = R.string.quest_upload_morning, hint = R.string.quest_upload_morning_hint, hours = 5..10, group = G_UPLOAD),
-        QuestDef("upload_night", QuestEvent.UPLOAD, title = R.string.quest_upload_night, hint = R.string.quest_upload_night_hint, hours = 21..25, group = G_UPLOAD),
-        QuestDef("upload_media", QuestEvent.UPLOAD_MEDIA, title = R.string.quest_upload_media, hint = R.string.quest_upload_media_hint, group = G_UPLOAD),
-        QuestDef("meteor", QuestEvent.METEOR, title = R.string.quest_meteor, hint = R.string.quest_meteor_hint),
-        QuestDef("friend_request", QuestEvent.FRIEND_REQUEST, title = R.string.quest_friend_request, hint = R.string.quest_friend_request_hint),
-        QuestDef("share", QuestEvent.SHARE, title = R.string.quest_share, hint = R.string.quest_share_hint),
-        QuestDef("music", QuestEvent.MUSIC, title = R.string.quest_music, hint = R.string.quest_music_hint),
-        QuestDef("star_log", QuestEvent.VISIT_STARLOG, title = R.string.quest_star_log, hint = R.string.quest_star_log_hint),
-        QuestDef("focus", QuestEvent.FOCUS, title = R.string.quest_focus, hint = R.string.quest_focus_hint),
-        QuestDef("use_key", QuestEvent.UNLOCK_KEY, title = R.string.quest_use_key, hint = R.string.quest_use_key_hint),
-    )
+    private var reg: ListenerRegistration? = null
 
-    private val ALL: Map<String, QuestDef> =
-        (listOf(TUTORIAL, VIEW_OTHER) + BASIC + ADVANCED).associateBy { it.id }
+    /** 정의 문서 구독(QuestStore.start 가 부른다). 공개 문서라 계정과 무관 — 한 번 붙이면 유지. */
+    fun watch(onLoaded: () -> Unit) {
+        if (reg != null) return
+        reg = staryFirestore.collection("starlightConfig").document("quests").addSnapshotListener { snap, e ->
+            if (e != null) {
+                Log.w(TAG, "퀘스트 정의 구독 실패", e)
+                reg?.remove(); reg = null
+                return@addSnapshotListener
+            }
+            if (snap == null || !snap.exists()) return@addSnapshotListener
+            catalog = parse(snap)
+            onLoaded()
+        }
+    }
 
-    fun byId(id: String): QuestDef? = ALL[id]
+    fun unwatch() {
+        reg?.remove(); reg = null
+    }
+
+    fun byId(id: String): QuestDef? = catalog?.byId(id)
+
+    private fun parse(snap: DocumentSnapshot): Catalog {
+        fun strMap(v: Any?) = (v as? Map<*, *>)
+            ?.mapNotNull { (k, x) -> (k as? String)?.let { key -> (x as? String)?.let { key to it } } }?.toMap() ?: emptyMap()
+        val pool = (snap.get("pool") as? List<*>).orEmpty().mapNotNull { raw ->
+            val m = raw as? Map<*, *> ?: return@mapNotNull null
+            val id = m["id"] as? String ?: return@mapNotNull null
+            val hours = (m["hours"] as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }?.takeIf { it.size == 2 }
+            QuestDef(
+                id = id,
+                event = (m["event"] as? String)?.let { name -> QuestEvent.entries.firstOrNull { it.name == name } },
+                tier = m["tier"] as? String ?: "easy",
+                target = ((m["target"] as? Number)?.toInt() ?: 1).coerceAtLeast(1),
+                group = m["group"] as? String,
+                hours = hours?.let { it[0]..it[1] },
+                daily = m["daily"] as? Boolean ?: true,
+                title = strMap(m["title"]),
+                hint = strMap(m["hint"]),
+            )
+        }
+        return Catalog(
+            pool = pool,
+            firstDay = (snap.get("firstDay") as? List<*>)?.mapNotNull { it as? String } ?: listOf(PROFILE_EDIT_ID, "upload", "view_other"),
+            hardChance = (snap.get("hardChance") as? Number)?.toDouble() ?: 0.35,
+            hardFromDay = (snap.get("hardFromDay") as? Number)?.toInt() ?: 4,
+            rewards = (snap.get("rewards") as? Map<*, *>)
+                ?.mapNotNull { (k, v) -> (k as? String)?.let { key -> (v as? Number)?.let { key to it.toInt() } } }?.toMap() ?: emptyMap(),
+        )
+    }
 
     /**
      * 그날의 퀘스트 3개.
-     * - 1일째: 이름·프로필 사진 바꾸기 · 별 올리기 · 남의 별 열어 보기(첫 사용 안내 [FirstStarGuide] 순서와 같다 —
-     *   예전엔 첫 칸이 웰컴 별 열기였으나 안내가 웰컴 별 → 퀘스트 → 프로필 순이라 2026-10-22 바꿈. [TUTORIAL] 은 예전 목록 표시용).
-     * - 2~4일째: [BASIC] 에서, 5일째부터: [BASIC] + [ADVANCED] 에서 무작위 3개(어제 것과 같은 group 은 하루 1개).
+     * - 1일째: [Catalog.firstDay](첫 사용 안내 순서와 같다 — 프로필 바꾸기 · 별 올리기 · 남의 별 열어 보기).
+     * - 2일째부터: 쉬움 1개 + 그 이상 2개 — 칸마다 [Catalog.hardChance] 로 어려움(그 전엔 보통), [Catalog.hardFromDay] 일째부터.
+     *   어제 것은 되도록 빼고, 같은 group 은 하루 하나.
      * 무작위는 `uid|날짜|일차` 시드 — 두 기기가 동시에 만들어도 같은 목록이 나온다.
+     * ⚠️ 난수 호출 순서(쉬움·보통·어려움 순으로 섞기 → 칸 2개 굴리기)는 iOS 와 같아야 한다.
      */
-    fun pick(uid: String, day: String, dayNo: Int, previous: List<String>): List<String> {
-        if (dayNo <= 1) {
-            return listOf(PROFILE_EDIT.id, UPLOAD.id, VIEW_OTHER.id)
-        }
-        val pool = (if (dayNo <= 4) BASIC else BASIC + ADVANCED).toMutableList()
+    fun pick(cat: Catalog, uid: String, day: String, dayNo: Int, previous: List<String>): List<String> {
+        if (dayNo <= 1) return cat.firstDay.take(PER_DAY)
         val rng = SplitMix64(fnv1a("$uid|$day|$dayNo"))
-        // Fisher–Yates — iOS 와 같은 순서로 섞는다.
-        for (i in pool.lastIndex downTo 1) {
-            val j = rng.nextInt(i + 1)
-            val t = pool[i]; pool[i] = pool[j]; pool[j] = t
-        }
-        val picked = mutableListOf<QuestDef>()
-        // 어제 나온 건 되도록 빼고, 모자라면 다시 넣는다.
-        for (allowPrevious in listOf(false, true)) {
-            for (q in pool) {
-                if (picked.size >= PER_DAY) break
-                if (q in picked) continue
-                if (!allowPrevious && q.id in previous) continue
-                if (q.group != null && picked.any { it.group == q.group }) continue
-                picked += q
+        fun shuffled(tier: String): List<QuestDef> {
+            val list = cat.pool.filter { it.tier == tier && it.daily && it.event != null }.toMutableList()
+            // Fisher–Yates — iOS 와 같은 순서로 섞는다.
+            for (i in list.lastIndex downTo 1) {
+                val j = rng.nextInt(i + 1)
+                val t = list[i]; list[i] = list[j]; list[j] = t
             }
+            return list
+        }
+        val easy = shuffled("easy")
+        val normal = shuffled("normal")
+        val hard = shuffled("hard")
+        val picked = mutableListOf<QuestDef>()
+        fun takeFrom(list: List<QuestDef>): Boolean {
+            // 어제 나온 건 되도록 빼고, 모자라면 다시 넣는다.
+            for (allowPrevious in listOf(false, true)) {
+                val q = list.firstOrNull { q ->
+                    q !in picked && (allowPrevious || q.id !in previous) &&
+                        (q.group == null || picked.none { it.group == q.group })
+                }
+                if (q != null) { picked += q; return true }
+            }
+            return false
+        }
+        takeFrom(easy)
+        repeat(PER_DAY - 1) {
+            // 굴림은 항상 한 번씩(일차와 무관) — 두 앱의 난수 흐름이 같게.
+            val roll = rng.nextInt(1000)
+            val useHard = dayNo >= cat.hardFromDay && roll < (cat.hardChance * 1000).toInt()
+            val first = if (useHard) hard else normal
+            val second = if (useHard) normal else hard
+            if (!takeFrom(first) && !(dayNo >= cat.hardFromDay && takeFrom(second))) takeFrom(easy)
         }
         return picked.map { it.id }
     }

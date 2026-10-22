@@ -54,6 +54,12 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.MilitaryTech
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material3.CircularProgressIndicator
@@ -152,8 +158,9 @@ fun QuestButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** 퀘스트 이벤트 → 행 아이콘. */
-private fun iconOf(event: QuestEvent): ImageVector = when (event) {
+/** 퀘스트 이벤트 → 행 아이콘(이 앱이 모르는 이벤트 = 별). */
+private fun iconOf(event: QuestEvent?): ImageVector = when (event) {
+    null -> Icons.Filled.Star
     QuestEvent.TUTORIAL_STAR -> Icons.Filled.Star
     QuestEvent.UPLOAD -> Icons.Filled.Add
     QuestEvent.UPLOAD_MEDIA -> Icons.Filled.Photo
@@ -175,6 +182,13 @@ private fun iconOf(event: QuestEvent): ImageVector = when (event) {
     QuestEvent.MUSIC -> Icons.Filled.MusicNote
     QuestEvent.FOCUS -> Icons.Filled.SelfImprovement
     QuestEvent.UNLOCK_KEY -> Icons.Filled.LockOpen
+    QuestEvent.UPLOAD_STACK -> Icons.Filled.Layers
+    QuestEvent.UNLOCK_VISIT -> Icons.AutoMirrored.Filled.DirectionsWalk
+    QuestEvent.COMMENT_OTHER -> Icons.AutoMirrored.Filled.Chat
+    QuestEvent.FRIEND_ADD -> Icons.Filled.Group
+    QuestEvent.INVITE -> Icons.AutoMirrored.Filled.Send
+    QuestEvent.OPEN_BOX -> Icons.Filled.Inventory2
+    QuestEvent.ACHIEVEMENT -> Icons.Filled.MilitaryTech
 }
 
 /** 보유 열쇠 칩 — 퀘스트 창 머리. 열쇠를 받으면 [bump] 가 바뀌어 통통 튄다. */
@@ -195,7 +209,7 @@ internal fun KeyChip(keys: Int, bump: Int = 0, modifier: Modifier = Modifier) {
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.Key, stringResource(R.string.quest_keys_owned, keys), tint = QuestGold, modifier = Modifier.size(15.dp))
+        com.chaminwoo.stary.feature.starlight.CrystalKeyIcon(Modifier.size(16.dp))
         Spacer(Modifier.width(5.dp))
         Text(
             keys.toString(),
@@ -250,7 +264,8 @@ fun QuestSheet(
     val scope = rememberCoroutineScope()
     val daily = QuestStore.daily
     val keys = QuestStore.keys
-    val reward = StarlightStore.config.questStardust
+    val catalog = DailyQuests.catalog
+    val lang = com.chaminwoo.stary.feature.starlight.starlightLang()
     val bonusReward = StarlightStore.config.bonusStardust
     var bump by remember { mutableStateOf(0) }
     var dustBump by remember { mutableStateOf(0) }
@@ -352,10 +367,11 @@ fun QuestSheet(
                         QuestRow(
                             index = i,
                             icon = iconOf(def.event),
-                            title = stringResource(def.title),
-                            hint = stringResource(def.hint),
+                            title = def.titleIn(lang),
+                            hint = def.hintIn(lang),
+                            tier = def.tier,
                             target = def.target,
-                            reward = reward,
+                            reward = catalog?.reward(def, StarlightStore.config.questStardust) ?: StarlightStore.config.questStardust,
                             progress = daily.progressOf(def.id).coerceAtMost(def.target),
                             claimed = def.id in daily.claimed,
                             highlight = def.id == highlightId,
@@ -381,6 +397,25 @@ fun QuestSheet(
             ResetCountdown()
         }
     }
+}
+
+/** 난이도 표시 — 쉬움(민트) · 보통(하늘) · 어려움(보라). 모르는 값은 쉬움. */
+@Composable
+private fun TierTag(tier: String) {
+    val (label, color) = when (tier) {
+        "hard" -> R.string.quest_tier_hard to Color(0xFFD59CFF)
+        "normal" -> R.string.quest_tier_normal to Color(0xFF7CB8FF)
+        else -> R.string.quest_tier_easy to Mint
+    }
+    Text(
+        stringResource(label),
+        color = color, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.13f))
+            .border(0.5.dp, color.copy(alpha = 0.45f), RoundedCornerShape(50))
+            .padding(horizontal = 7.dp, vertical = 1.dp),
+    )
 }
 
 /** "새 퀘스트까지 N시간 M분" — 기기 현지 자정 기준, 30초마다 갱신. */
@@ -418,6 +453,8 @@ private fun QuestRow(
     progress: Int,
     claimed: Boolean,
     onClaim: () -> Unit,
+    /** 난이도(easy · normal · hard) — 제목 위 작은 표시. null = 보너스 행. */
+    tier: String? = null,
     highlight: Boolean = false,
     onGo: (() -> Unit)? = null,
 ) {
@@ -479,6 +516,9 @@ private fun QuestRow(
                         color = QuestGold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.height(2.dp))
+                } else if (tier != null && !claimed) {
+                    TierTag(tier)
+                    Spacer(Modifier.height(3.dp))
                 }
                 Text(
                     title,

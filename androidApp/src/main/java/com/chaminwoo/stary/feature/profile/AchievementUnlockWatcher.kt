@@ -104,6 +104,10 @@ fun AchievementUnlockWatcher(userId: String, suppressed: Boolean = false) {
                     .filter { a -> a.id in newIds && pending.none { it.id == a.id } && queue.none { g -> g.any { it.id == a.id } } }
                     .forEach { pending.add(it) }
                 prefs.edit().putStringSet(key, HashSet(stored + unlocked)).apply()
+                // 퀘스트 "새 업적 달성" — 업적마다 한 번(기준선 이후 새로 넘긴 것만 여기 온다).
+                newIds.forEach {
+                    com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.ACHIEVEMENT, key = it)
+                }
             }
         }
     }

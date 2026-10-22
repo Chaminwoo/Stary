@@ -7,7 +7,8 @@
  *  - 칭호: 단색(일반) → 2색(희귀) → 3색(영웅) → 3색 + 빛 흐름(전설)
  *  - 프로필 프레임: 정지 고리(일반) → 그라데이션·점선 회전(희귀) → 궤도 별·꽃잎(영웅) → 별자리·오로라(전설)
  *  - 이름 배지: 단순 실루엣(일반) → 부품·구멍(희귀) → 꼬리 여럿(영웅) → 눈·혀가 있는 깃털(전설)
- *  - 지도 별 오라: 은은한 빛(희귀) → 맥동(영웅) → 도는 고리(전설)
+ *  - 지도 별 오라: 빛·위성 하나·반딧불(희귀) → 맥동·쌍둥이 궤도·나선(영웅) → 토성 고리·혜성(전설)
+ *    (2026-10-22 추가 5종. 영웅 맥동은 "너무 자주 두근거린다" 피드백으로 느리게 — 오라 speed 는 한 주기 초)
  *  - 천체 망원경: 굴절(일반, 업적 ??? 조건 1개) → 반사(희귀, 히든 업적 흐릿한 힌트) → 전파(영웅, 히든 업적 선명한 힌트)
  *  - 열쇠 묶음: 3개(일반) → 6개(희귀) — 뽑는 즉시 열쇠가 된다.
  *
@@ -59,7 +60,7 @@ add("shape_fox", "shape", "epic",
   { type: 27, path: S.fox() });
 add("shape_moon_rabbit", "shape", "epic",
   t3("달토끼 별", "Moon Rabbit Star", "月うさぎの星"),
-  t3("초승달 품에 앉아 하늘을 올려다보는 토끼. 오늘 밤 소원을 들어 줄지도.", "A rabbit sitting in the crescent's arms, gazing up. It might grant tonight's wish.", "三日月の腕に座って空を見上げるうさぎ。今夜の願いを叶えてくれるかも。"),
+  t3("보름달 속에서 방아를 쉬고 있는 토끼. 오늘 밤 소원을 들어 줄지도.", "The rabbit resting inside the full moon. It might grant tonight's wish.", "満月の中でひと休みするうさぎ。今夜の願いを叶えてくれるかも。"),
   { type: 28, path: S.moonRabbit() });
 add("shape_compass", "shape", "legendary",
   t3("북극성 나침반", "Polaris Compass", "北極星の羅針盤"),
@@ -162,15 +163,15 @@ add("frame_three_stars", "frame", "epic",
 add("frame_blossom", "frame", "epic",
   t3("벚꽃 화관", "Blossom Wreath", "桜の花冠"),
   t3("꽃잎 열두 장을 엮어 만든 화관.", "A wreath woven from twelve petals.", "十二枚の花びらで編んだ花冠。"),
-  { pattern: "petals", colors: ["#FFD1E3", "#FF9CC2"], width: 0.05, count: 12, speed: 70 });
+  { pattern: "petals", colors: ["#FFD1E3", "#FF9CC2"], width: 0.05, count: 12, speed: 140 });
 add("frame_constellation", "frame", "legendary",
   t3("별자리 화관", "Constellation Crown", "星座の冠"),
   t3("아홉 개의 별이 선으로 이어져 나를 감싸고, 하나씩 깜빡여요.", "Nine stars joined by lines encircle you, each twinkling in turn.", "九つの星が線でつながってあなたを囲み、ひとつずつまたたきます。"),
   { pattern: "constellation", colors: ["#FFFFFF", "#FFE6A8", "#9FD3FF"], width: 0.05, count: 9, speed: 50, glow: true });
 add("frame_aurora", "frame", "legendary",
   t3("오로라 베일", "Aurora Veil", "オーロラのヴェール"),
-  t3("극광이 사진 둘레를 흐르며 빛의 물결이 한 바퀴씩 지나가요.", "Aurora flows around your photo while waves of light sweep past.", "オーロラが写真のまわりを流れ、光の波がひと巡りしていきます。"),
-  { pattern: "aurora", colors: ["#00F5A0", "#00D9F5", "#9B5CFF"], width: 0.06, speed: 10, glow: true });
+  t3("초록·하늘·보랏빛 극광 커튼이 사진 둘레에서 일렁이고, 빛줄기가 밤하늘로 번져요.", "Curtains of green, sky-blue and violet aurora ripple around your photo, their rays bleeding into the night.", "緑・空色・紫のオーロラのカーテンが写真のまわりで揺らめき、光の筋が夜空へにじみます。"),
+  { pattern: "aurora", colors: ["#3DFFB0", "#36D6FF", "#A16BFF"], width: 0.06, speed: 18, glow: true });
 
 // ── 이름 배지 ─────────────────────────────────────────────────────────────
 add("badge_crescent", "badge", "common",
@@ -194,23 +195,45 @@ add("badge_shooting_star", "badge", "epic",
   t3("꼬리 셋을 끌며 떨어지는 유성. 소원을 빌 시간이에요.", "A meteor trailing three tails — time to make a wish.", "三本の尾を引いて落ちる流れ星。願いごとをする時間です。"),
   { path: B.shootingStar(), colors: ["#FFF6C2", "#FFC27A", "#FF7AB6"] });
 add("badge_phoenix", "badge", "legendary",
-  t3("불사조 깃털", "Phoenix Plume", "不死鳥の羽根"),
-  t3("타오르며 다시 태어나는 새의 깃털. 꺼지지 않는 불꽃이 이름 옆에서 일렁여요.", "A feather from the bird reborn in flame; an undying fire flickers by your name.", "燃えて生まれ変わる鳥の羽根。消えない炎が名前のそばで揺らめきます。"),
-  { path: B.phoenixPlume(), colors: ["#FFF6C2", "#FF7A59", "#C2185B"] });
+  t3("불사조", "Phoenix", "不死鳥"),
+  t3("불꽃 속에서 다시 날아오르는 새. 이름 옆에서 금빛 날개를 활짝 펼쳐요.", "The bird that rises again from the flames, spreading golden wings beside your name.", "炎の中から再び舞い上がる鳥。名前のそばで金色の翼を大きく広げます。"),
+  { path: B.phoenix(), colors: ["#FFF6C2", "#FF7A59", "#C2185B"] });
 
 // ── 지도 별 오라 ──────────────────────────────────────────────────────────
+// pattern: halo(빛) · pulse(퍼지는 고리) · orbit(count 개 위성) · fireflies(count 개 반딧불) · spiral(나선 별가루) · saturn(기운 고리) · comet(혜성)
+// speed = 한 주기(초) — 회전형은 한 바퀴, 맥동형은 한 번 퍼지는 시간. 앱은 모르는 pattern 을 halo 로 그린다.
 add("aura_halo", "aura", "rare",
   t3("은은한 후광", "Gentle Halo", "やわらかな後光"),
   t3("내 별 둘레에 숨 쉬듯 번지는 빛.", "Light that breathes softly around your stars.", "あなたの星のまわりに、息づくように広がる光。"),
-  { pattern: "halo", colors: ["#CFE3FF", "#9FB3FF"], speed: 3.2 });
+  { pattern: "halo", colors: ["#CFE3FF", "#9FB3FF"], speed: 4.5 });
 add("aura_pulse", "aura", "epic",
   t3("별의 맥박", "Star Pulse", "星の鼓動"),
-  t3("심장이 뛰듯 금빛 물결이 퍼져 나가요.", "Golden ripples spread out like a heartbeat.", "鼓動のように金色の波紋が広がります。"),
-  { pattern: "pulse", colors: ["#FFE6A8", "#FFB59A"], speed: 2.4 });
+  t3("잔잔한 숨결처럼 금빛 물결이 천천히 퍼져 나가요.", "Golden ripples spread out slowly, like a calm breath.", "穏やかな息のように、金色の波紋がゆっくり広がります。"),
+  { pattern: "pulse", colors: ["#FFE6A8", "#FFB59A"], speed: 4.2 });
 add("aura_saturn", "aura", "legendary",
   t3("토성의 고리", "Rings of Saturn", "土星の環"),
-  t3("내 별마다 무지갯빛 고리가 천천히 돌아요.", "A rainbow ring slowly turns around each of your stars.", "あなたの星ごとに、虹色の環がゆっくり回ります。"),
-  { pattern: "ring", colors: ["#FFE6A8", "#9FD3FF", "#F5A3FF"], speed: 6 });
+  t3("겹겹의 금빛 고리가 비스듬히 내 별을 감싸고, 작은 위성 하나가 고리를 따라 돌아요.", "Layered golden rings wrap your star at a tilt, and a tiny moon rides along them.", "幾重もの金色の環が斜めに星を包み、小さな衛星が環にそって回ります。"),
+  { pattern: "saturn", colors: ["#FFF1C9", "#F2B66D", "#9FD3FF"], tilt: -20, speed: 14 });
+add("aura_moon", "aura", "rare",
+  t3("달빛 위성", "Moonlit Satellite", "月明かりの衛星"),
+  t3("작은 달 하나가 내 별 곁을 천천히 맴돌아요.", "A tiny moon slowly circles your stars.", "小さな月がひとつ、あなたの星のそばをゆっくり巡ります。"),
+  { pattern: "orbit", count: 1, colors: ["#F4F1E0", "#9FB3FF"], speed: 10 });
+add("aura_fireflies", "aura", "rare",
+  t3("반딧불 산책", "Firefly Stroll", "ホタルの散歩"),
+  t3("연둣빛 반딧불 다섯 마리가 별 둘레를 느긋하게 날아다녀요.", "Five yellow-green fireflies drift lazily around your stars.", "黄緑のホタル五匹が、星のまわりをのんびり飛びまわります。"),
+  { pattern: "fireflies", count: 5, colors: ["#E4FF8A", "#7CF5A8"], speed: 16 });
+add("aura_twins", "aura", "epic",
+  t3("쌍둥이 별", "Twin Stars", "ふたご星"),
+  t3("하늘빛과 분홍빛 두 별이 서로를 마주 보며 궤도를 돌아요.", "A sky-blue star and a pink star orbit, always facing each other.", "空色と桃色のふたつの星が、向かい合ったまま軌道を回ります。"),
+  { pattern: "orbit", count: 2, colors: ["#9FD3FF", "#FFB3E6"], speed: 9 });
+add("aura_spiral", "aura", "epic",
+  t3("은하 소용돌이", "Galactic Swirl", "銀河のうず"),
+  t3("별가루가 나선 팔을 그리며 내 별을 중심으로 천천히 돌아요.", "Stardust traces spiral arms, slowly turning around your star.", "星くずが渦巻く腕を描き、あなたの星を中心にゆっくり回ります。"),
+  { pattern: "spiral", colors: ["#F0DCFF", "#8C7CFF"], speed: 20 });
+add("aura_comet", "aura", "legendary",
+  t3("혜성의 궤적", "Comet's Trail", "彗星の軌跡"),
+  t3("푸른 꼬리를 길게 끄는 혜성이 내 별 둘레를 쉼 없이 돌아요.", "A comet with a long blue tail circles your stars without rest.", "青い尾を長く引く彗星が、星のまわりを休まず巡ります。"),
+  { pattern: "comet", colors: ["#FFFFFF", "#8FE6FF", "#7C5CFF"], speed: 7 });
 
 // ── 천체 망원경 ───────────────────────────────────────────────────────────
 add("telescope_refractor", "telescope", "common",
@@ -248,6 +271,8 @@ const config = {
   dupRefund: { common: 10, rare: 25, epic: 50, legendary: 100 },
   maxOpen: 10,
   maxExchange: 99,
+  /** 공방 "성운 상자 열기" 영역에 겹쳐 보여 줄 대표 아이템(전설) — 바꾸려면 여기만. */
+  showcase: ["shape_compass", "frame_constellation", "aura_saturn"],
 };
 
 module.exports = { items, config };

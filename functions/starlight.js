@@ -11,12 +11,12 @@
  *  - wallets/{uid}            : { stardust, boxes, items{itemId: n}, pity{sinceEpic, sinceLegendary},
  *                                 questClaims{day: [questId | "__bonus"]}, opened, updatedAt }
  *  - starlightConfig/main     : 비용·확률·천장·중복 환급(없으면 DEFAULT_CONFIG). 앱이 확률 공개에 그대로 쓴다.
+ *  - starlightConfig/quests   : 일일 퀘스트 정의(tools/starlight/quests.js) — 목표 수(target)·난이도별 보상(rewards[tier]).
+ *                               앱도 같은 문서로 목록을 뽑고 문구를 그린다(예전엔 세 곳에 따로 박혀 있었다).
  *  - starlightItems/{itemId}  : 뽑기 풀(tools/starlight/seed.js 로 올린다). active=false 면 뽑히지 않는다.
  *  - starlightEquips/{uid}    : 장착한 프레임·배지·오라·칭호(서버만 씀 — 가진 것만 장착되게, 모두 읽음). 칭호는 users.equippedTitle 에도 "sl:{id}".
  *  - starlightHints/{achId}   : 히든 업적 단서 { "1": {ko,en,ja}, "2": {...} } — **아무도 못 읽는다**. 망원경을 쓰면 그 문구를
  *                               지갑 hints 에 복사해 준다(망원경 없이 단서를 다 읽어 갈 수 없게).
- *
- * ⚠️ 퀘스트 목표 수(QUEST_TARGETS)는 Android `DailyQuests.kt` / iOS `DailyQuests` 와 같아야 한다(목표가 2 이상인 것만 적는다).
  */
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -42,10 +42,8 @@ const DEFAULT_CONFIG = {
   maxExchange: 99,
 };
 
-/** 하루 퀘스트 수(DailyQuests.PER_DAY) — users 문서는 본인이 쓸 수 있어 ids 를 늘려 보상을 더 받지 못하게 막는다. */
+/** 하루 퀘스트 수(QuestCatalog.PER_DAY) — users 문서는 본인이 쓸 수 있어 ids 를 늘려 보상을 더 받지 못하게 막는다. */
 const QUESTS_PER_DAY = 3;
-/** 목표가 1이 아닌 퀘스트만(나머지는 1). */
-const QUEST_TARGETS = { view_other3: 3, like3: 3 };
 const BONUS_MARK = "__bonus";
 /** 지갑에 남겨 두는 퀘스트 수령 기록 일수(시간대 차이로 하루 앞뒤가 겹칠 수 있어 넉넉히). */
 const CLAIM_KEEP_DAYS = 4;
@@ -77,6 +75,14 @@ function isNearToday(day) {
   if (Number.isNaN(t)) return false;
   const today = Date.parse(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
   return Math.abs(t - today) <= 24 * 60 * 60 * 1000;
+}
+
+/** 퀘스트 정의 문서 → { byId: Map<id, def>, rewards }. 문서가 없거나 그 id 를 모르면 목표 1 · 보상 questStardust. */
+async function loadQuests() {
+  const snap = await db().collection("starlightConfig").doc("quests").get();
+  const d = snap.exists ? snap.data() : {};
+  const byId = new Map((Array.isArray(d.pool) ? d.pool : []).filter((q) => q && typeof q.id === "string").map((q) => [q.id, q]));
+  return { byId, rewards: d.rewards || {} };
 }
 
 function pruneClaims(claims) {
@@ -132,21 +138,24 @@ function isStackable(item) {
 // ── op 처리기 — (tx, ctx) → result. ctx = { uid, op, walletRef, userRef, wallet, user, cfg, items } ──
 
 function claimQuest(tx, ctx) {
-  const { op, wallet, user, cfg } = ctx;
+  const { op, wallet, user, cfg, quests } = ctx;
   const day = op.day;
   const id = op.questId;
   if (!isNearToday(day) || typeof id !== "string") throw new OpError("invalid");
   const quest = user.quest || {};
   if (quest.day !== day || !Array.isArray(quest.ids) || !quest.ids.includes(id)) throw new OpError("not_ready");
   if (quest.ids.length > QUESTS_PER_DAY) throw new OpError("invalid");
+  const def = quests?.byId.get(id);
   const progress = Number((quest.progress || {})[id]) || 0;
-  if (progress < (QUEST_TARGETS[id] || 1)) throw new OpError("not_ready");
+  if (progress < Math.max(1, Number(def?.target) || 1)) throw new OpError("not_ready");
   const claims = { ...(wallet.questClaims || {}) };
   const todays = claims[day] || [];
   // 예전 앱이 열쇠로 이미 받은 퀘스트(quest.claimed)도 다시 받지 못한다.
   if (todays.includes(id) || (quest.claimed || []).includes(id)) throw new OpError("already");
   claims[day] = [...todays, id];
-  const gained = cfg.questStardust;
+  // 난이도별 보상(쉬움·보통·어려움) — 정의를 모르면 기본값.
+  const tierReward = Number(quests?.rewards?.[def?.tier]);
+  const gained = Number.isFinite(tierReward) && tierReward > 0 ? tierReward : cfg.questStardust;
   wallet.stardust = (wallet.stardust || 0) + gained;
   wallet.questClaims = pruneClaims(claims);
   tx.update(ctx.userRef, { "quest.claimed": FieldValue.arrayUnion(id) });
@@ -316,6 +325,7 @@ exports.onStarlightOp = onDocumentCreated(
       return;
     }
     const cfg = await loadConfig();
+    const quests = first.op === "claimQuest" ? await loadQuests() : null;
     let items = [];
     if (first.op === "openBox") {
       const q = await db().collection("starlightItems").where("active", "==", true).get();
@@ -343,7 +353,7 @@ exports.onStarlightOp = onDocumentCreated(
         if (op.status !== "pending") return; // 이미 처리됨(트리거 재실행)
         if (!userSnap.exists) throw new OpError("not_ready");
         const wallet = walletSnap.exists ? { ...walletSnap.data() } : {};
-        const ctx = { uid, op, walletRef, userRef, equipRef, wallet, user: userSnap.data(), cfg, items, item, hint };
+        const ctx = { uid, op, walletRef, userRef, equipRef, wallet, user: userSnap.data(), cfg, items, item, hint, quests };
         let result;
         try {
           result = handler(tx, ctx);

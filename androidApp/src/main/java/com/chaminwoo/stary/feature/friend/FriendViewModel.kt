@@ -68,6 +68,8 @@ class FriendViewModel(
     fun accept(request: FriendRequest) {
         viewModelScope.launch {
             val ok = repository.acceptRequest(request)
+            // 친구가 늘었다 — 퀘스트 "친구 사귀기"(같은 사람은 하루 한 번). 내 요청이 수락된 경우는 친구 목록 구독에서 센다.
+            if (ok) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FRIEND_ADD, key = request.fromId)
             _event.emit(
                 if (ok) FriendMessage(com.chaminwoo.stary.R.string.friend_toast_accepted, request.fromName)
                 else FriendMessage(com.chaminwoo.stary.R.string.friend_toast_accept_failed)

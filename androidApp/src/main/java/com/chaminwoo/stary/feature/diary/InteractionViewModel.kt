@@ -48,6 +48,8 @@ class InteractionViewModel(
             val userName = GoogleAuthHelper.requireConfirmedName() ?: return@launch
             commentRepo.addComment(diaryId, diaryTitle, diaryOwnerId, userId, userName, content)
             com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.COMMENT)
+            // 남의 별 댓글은 별마다 하루 한 번(같은 별에 여러 번 달아 채우지 않게).
+            if (diaryOwnerId != userId) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.COMMENT_OTHER, key = diaryId)
         }
     }
 

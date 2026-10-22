@@ -239,6 +239,9 @@ fun UploadScreen(
     var pioneerClaimTarget by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     // 일일 퀘스트 "사진·영상을 담아 별 남기기" 판정용 — 저장 직전에 정한다.
     var savedWithMedia by remember { mutableStateOf(false) }
+    // 일일 퀘스트 "다른 별과 겹치게 남기기" — 저장 직전 위치가 이미 있는 별(머지 반경 안)과 겹치는지.
+    var savedStacked by remember { mutableStateOf(false) }
+    val allDiaries by diaryViewModel.diaries.collectAsState()
     // LaunchedEffect(Unit) 의 람다는 첫 컴포지션 값을 캡처하므로, 저장 직전에 고른 별을 쓰려면
     // 최신값 참조가 필요하다(선택을 바꾼 뒤 저장해도 그 별로 연출되게).
     val starTypeRef = androidx.compose.runtime.rememberUpdatedState(starType)
@@ -259,6 +262,7 @@ fun UploadScreen(
                 // 일일 퀘스트 — 올리기(시간대 퀘스트도 이 이벤트, 올린 시각으로 판정) + 사진/영상.
                 com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.UPLOAD)
                 if (savedWithMedia) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.UPLOAD_MEDIA)
+                if (savedStacked) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.UPLOAD_STACK)
                 onSaveClick()
             }
         }
@@ -578,6 +582,10 @@ fun UploadScreen(
                         }
                         pioneerClaimTarget = lat to lng // 저장 성공 이벤트에서 개척 선점 시도(체크리스트 32)
                         savedWithMedia = imageUrl.isNotEmpty() || videoUrl.isNotEmpty()
+                        savedStacked = allDiaries.any {
+                            com.chaminwoo.stary.core.util.LocationHelper.distanceBetween(lat, lng, it.latitude, it.longitude) <=
+                                com.chaminwoo.stary.shared.config.StaryConfig.STAR_MERGE_RADIUS_M
+                        }
                         diaryViewModel.saveDiary(
                             Diary(
                                 title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
