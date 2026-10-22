@@ -357,8 +357,11 @@ exports.onStarlightOp = onDocumentCreated(
         tx.update(opRef, { status: "done", result, doneAt: Date.now() });
       });
     } catch (e) {
-      logger.error(`starlight op ${first.op} 실패 uid=${uid}`, e);
-      await opRef.set({ status: "error", error: "server", doneAt: Date.now() }, { merge: true }).catch(() => {});
+      // 트랜잭션 앞단에서 던진 OpError(예: users 문서 없음 → not_ready)는 그 코드 그대로 돌려준다 — 클라이언트 안내가 맞게.
+      const code = e instanceof OpError ? e.code : "server";
+      if (code === "server") logger.error(`starlight op ${first.op} 실패 uid=${uid}`, e);
+      else logger.warn(`starlight op ${first.op} 거절 uid=${uid} ${code}`);
+      await opRef.set({ status: "error", error: code, doneAt: Date.now() }, { merge: true }).catch(() => {});
     }
   },
 );
