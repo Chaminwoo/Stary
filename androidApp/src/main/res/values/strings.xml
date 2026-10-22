@@ -778,6 +778,9 @@
     <string name="starlight_new">새로 얻었어요!</string>
     <string name="starlight_stacked">보관함에 쌓였어요</string>
     <string name="starlight_dup_refund">이미 있어요 · 별가루 +%1$d</string>
+    <string name="starlight_dup_owned">이미 있어요</string>
+    <string name="starlight_dup_explain">이미 가진 아이템이라 별가루로 바꿨어요.</string>
+    <string name="starlight_dust_plus">별가루 +%1$d</string>
     <string name="starlight_keys_plus">열쇠 +%1$d</string>
     <string name="starlight_tap_close">화면을 탭하면 닫혀요</string>
     <string name="starlight_made_keys">열쇠 %1$d개를 만들었어요</string>

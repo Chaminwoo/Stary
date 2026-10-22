@@ -244,9 +244,6 @@ struct FrameArt: View {
         let c = CGPoint(x: size.width / 2, y: size.height / 2)
         let w = s * width
         let r = s / 2 - s * StarlightArt.frameInset / 2 - w * 0.2
-        let ring: GraphicsContext.Shading = colors.count >= 2
-            ? .conicGradient(Gradient(colors: colors + [colors[0]]), center: c, angle: .degrees(angle))
-            : .color(colors[0])
         func rotated(_ deg: Double) -> GraphicsContext {
             var g = ctx
             g.translateBy(x: c.x, y: c.y)
@@ -254,68 +251,115 @@ struct FrameArt: View {
             g.translateBy(x: -c.x, y: -c.y)
             return g
         }
-        if item.bool("glow") && pattern != "aurora" {
-            ctx.stroke(StarlightArt.circle(c, r), with: .color(colors[colors.count - 1].opacity(0.22)), lineWidth: w * 2.6)
+        func pt(_ deg: Double, _ rr: CGFloat) -> CGPoint {
+            let a = deg * .pi / 180
+            return CGPoint(x: c.x + CGFloat(cos(a)) * rr, y: c.y + CGFloat(sin(a)) * rr)
         }
+        let A = StarlightArt.self
+        let last = colors[colors.count - 1]
+        // 은은한 빛 — 고리 둘레로 번지는 안개(예전 굵은 반투명 고리는 납작해 보였다).
+        if item.bool("glow") && pattern != "aurora" { A.ringHaze(&ctx, c, r, w, last, 0.3) }
         switch pattern {
         case "dash":
-            let n = CGFloat(count > 0 ? count : 18)
-            let circ = 2 * .pi * r
-            rotated(angle).stroke(StarlightArt.circle(c, r), with: ring,
-                                  style: StrokeStyle(lineWidth: w, lineCap: .round, dash: [circ / n * 0.55, circ / n * 0.45]))
+            // 점선 궤도 → 가는 금속 궤도 위를 도는 진주알(큰 알·작은 알 번갈아)
+            A.metalBand(&ctx, c, r, w * 0.4, colors, wave)
+            let n = count > 0 ? count : 18
+            for i in 0..<n {
+                A.pearl(&ctx, pt(angle + Double(i) * 360 / Double(n), r), w * (i % 3 == 0 ? 0.62 : 0.4), colors[i % colors.count])
+            }
         case "orbit":
-            var g = ctx
-            g.opacity = 0.75
-            g.stroke(StarlightArt.circle(c, r), with: ring, lineWidth: w * 0.45)
+            // 세 별 → 금속 고리 + 꼬리를 끄는 별(빛 번짐 · 8꼭지 반짝이 · 흰 심)
+            A.metalBand(&ctx, c, r, w * 0.55, colors, wave)
             let n = count > 0 ? count : 3
             for i in 0..<n {
-                let a = (angle + Double(i) * 360 / Double(n)) * .pi / 180
-                let p = CGPoint(x: c.x + cos(a) * r, y: c.y + sin(a) * r)
-                ctx.fill(StarlightArt.sparkle(p, w * 1.9), with: .color(colors[i % colors.count]))
+                let col = colors[i % colors.count]
+                let a0 = angle + Double(i) * 360 / Double(n)
+                for k in 1...14 {
+                    ctx.fill(A.circle(pt(a0 - Double(k) * 3.2, r), w * 0.5 * (1 - CGFloat(k) / 16)),
+                             with: .color(col.opacity((1 - Double(k) / 15) * 0.5)))
+                }
+                let p = pt(a0, r)
+                ctx.fill(A.circle(p, w * 2.2), with: .radialGradient(Gradient(colors: [col.opacity(0.55), .clear]),
+                                                                    center: p, startRadius: 0, endRadius: w * 2.2))
+                ctx.fill(A.sparkle(p, w * 2.0), with: .color(col))
+                var g = ctx
+                g.translateBy(x: p.x, y: p.y)
+                g.rotate(by: .degrees(45))
+                g.fill(A.sparkle(.zero, w * 1.1), with: .color(col.blended(with: .white, fraction: 0.5)))
+                ctx.fill(A.circle(p, w * 0.32), with: .color(.white))
             }
         case "petals":
-            let g = rotated(angle)
-            var g2 = g
-            g2.opacity = 0.6
-            g2.stroke(StarlightArt.circle(c, r), with: ring, lineWidth: w * 0.4)
+            // 화관 → 금빛 덩굴 + 두 겹 꽃잎(뒤 겹은 짙게, 앞 겹은 끝으로 갈수록 밝게·잎맥) + 꽃잎 사이 금구슬
+            A.metalBand(&ctx, c, r, w * 0.35, A.gold, wave)
             let n = count > 0 ? count : 12
+            let back = last.blended(with: .black, fraction: 0.18).opacity(0.9)
             for i in 0..<n {
-                var pg = g
-                pg.translateBy(x: c.x, y: c.y)
-                pg.rotate(by: .degrees(Double(i) * 360 / Double(n)))
-                pg.translateBy(x: -c.x, y: -c.y)
-                let tip = CGPoint(x: c.x, y: c.y - r - w * 1.3)
-                let base = CGPoint(x: c.x, y: c.y - r + w * 1.1)
-                var petal = Path()
-                petal.move(to: base)
-                petal.addCurve(to: tip, control1: CGPoint(x: base.x + w * 1.3, y: base.y - w * 0.6), control2: CGPoint(x: tip.x + w * 0.9, y: tip.y + w * 0.4))
-                petal.addCurve(to: base, control1: CGPoint(x: tip.x - w * 0.9, y: tip.y + w * 0.4), control2: CGPoint(x: base.x - w * 1.3, y: base.y - w * 0.6))
-                petal.closeSubpath()
-                pg.fill(petal, with: .color(colors[i % colors.count]))
+                rotated(angle + (Double(i) + 0.5) * 360 / Double(n)).fill(A.petalPath(c, r, w, 0.85), with: .color(back))
+            }
+            let base = CGPoint(x: c.x, y: c.y - r + w * 1.1)
+            let tip = CGPoint(x: c.x, y: c.y - r - w * 1.3)
+            for i in 0..<n {
+                let g = rotated(angle + Double(i) * 360 / Double(n))
+                let col = colors[i % colors.count]
+                g.fill(A.petalPath(c, r, w, 1), with: .linearGradient(
+                    Gradient(colors: [last.blended(with: .black, fraction: 0.08), col, col.blended(with: .white, fraction: 0.45)]),
+                    startPoint: base, endPoint: tip))
+                var vein = Path()
+                vein.move(to: base)
+                vein.addLine(to: CGPoint(x: c.x, y: c.y - r - w * 0.6))
+                g.stroke(vein, with: .color(.white.opacity(0.45)), style: StrokeStyle(lineWidth: w * 0.12, lineCap: .round))
+            }
+            for i in 0..<n {
+                A.pearl(&ctx, pt(angle + (Double(i) + 0.5) * 360 / Double(n) - 90, r + w * 0.9), w * 0.26, A.gold[0])
             }
         case "constellation":
+            // 별자리 → 금테 두른 밤하늘 메달(별가루 점) 위에 이어진 별들, 맨 위엔 왕관 보석
+            let band = w * 2.4
+            ctx.stroke(A.circle(c, r), with: .color(.black.opacity(0.35)), lineWidth: band + w * 0.8)
+            ctx.stroke(A.circle(c, r), with: .conicGradient(Gradient(colors: A.night), center: c, angle: .zero), lineWidth: band)
+            for i in 0..<36 {
+                let deg = Double(i) * 10 + Double((i * 37) % 10) + angle * 0.3
+                let rr = r + band * (CGFloat((i * 53) % 100) / 100 - 0.5) * 0.8
+                let tw = 0.5 + 0.5 * sin(wave * 2 * .pi + Double(i) * 2.3)
+                ctx.fill(A.circle(pt(deg, rr), w * (i % 4 == 0 ? 0.14 : 0.08)), with: .color(.white.opacity(0.2 + 0.4 * tw)))
+            }
+            A.metalBand(&ctx, c, r - band / 2, w * 0.3, A.gold, wave)
+            A.metalBand(&ctx, c, r + band / 2, w * 0.3, A.gold, wave)
             let g = rotated(angle)
             let n = count > 0 ? count : 9
             // 별마다 반지름을 조금씩 흔들어(결정적) 별자리처럼 보이게.
             let pts: [CGPoint] = (0..<n).map { i in
                 let a = (Double(i) * 360 / Double(n) + (i % 2 == 0 ? 6 : -4)) * .pi / 180
-                let rr = r + w * (i % 3 == 0 ? 0.9 : i % 3 == 1 ? -0.6 : 0.2)
+                let rr = r + w * (i % 3 == 0 ? 0.7 : i % 3 == 1 ? -0.5 : 0.15)
                 return CGPoint(x: c.x + cos(a) * rr, y: c.y + sin(a) * rr)
             }
             for i in pts.indices {
                 var l = Path()
                 l.move(to: pts[i]); l.addLine(to: pts[(i + 1) % n])
-                g.stroke(l, with: .color(colors[0].opacity(0.55)), lineWidth: w * 0.28)
+                g.stroke(l, with: .color(colors[0].opacity(0.5)), lineWidth: w * 0.18)
             }
             for (i, p) in pts.enumerated() {
                 let tw = 0.7 + 0.3 * sin(wave * 2 * .pi + Double(i) * 1.7)
-                g.fill(StarlightArt.circle(p, w * 1.5), with: .color(colors[i % colors.count].opacity(0.22 * tw)))
-                g.fill(StarlightArt.sparkle(p, w * (i % 3 == 0 ? 1.5 : 1.0)), with: .color(colors[i % colors.count].opacity(0.7 + 0.3 * tw)))
+                let col = colors[i % colors.count]
+                g.fill(A.circle(p, w * 1.6), with: .radialGradient(Gradient(colors: [col.opacity(0.5 * tw), .clear]),
+                                                                  center: p, startRadius: 0, endRadius: w * 1.6))
+                g.fill(A.sparkle(p, w * (i % 3 == 0 ? 1.3 : 0.9)), with: .color(col.opacity(0.75 + 0.25 * tw)))
             }
+            A.gem(&ctx, CGPoint(x: c.x, y: c.y - r), w * 1.2, last, A.gold[0])
         case "aurora":
             drawAurora(&ctx, c: c, r: r, w: w, colors: colors, angle: angle, wave: wave)
-        default: // ring + 모르는 패턴
-            ctx.stroke(StarlightArt.circle(c, r), with: ring, lineWidth: w)
+        default:
+            // 고리 + 모르는 패턴 → 금속 고리. 빛(glow)이 있는 고리는 맨 위에 보석과 진주 장식.
+            A.metalBand(&ctx, c, r, w, colors, wave)
+            if item.bool("glow") {
+                for sg in [-1.0, 1.0] {
+                    for k in 1...2 {
+                        A.pearl(&ctx, pt(-90 + sg * Double(k) * 14, r), w * (0.42 - CGFloat(k) * 0.08),
+                                colors[0].blended(with: .white, fraction: 0.3))
+                    }
+                }
+                A.gem(&ctx, CGPoint(x: c.x, y: c.y - r), w * 1.15, last, colors[0])
+            }
         }
     }
 
@@ -580,5 +624,100 @@ final class EquipsWatcher: ObservableObject {
         reg?.remove()
         reg = nil
         uid = nil
+    }
+}
+
+// MARK: - 프레임 장식(2026-10-23 리디자인) — Android `StarlightArt.kt` 의 drawMetalBand / drawPearl / drawGem / petalPath 와 같은 식.
+
+extension StarlightArt {
+    static let gold: [Color] = [Color(hex: 0xFFE6A8), Color(hex: 0xC9973F)]
+    static let night: [Color] = [Color(hex: 0x151C3D), Color(hex: 0x261A4A), Color(hex: 0x10243F), Color(hex: 0x151C3D)]
+
+    /// 색을 고리 한 바퀴에 돌려 놓은 값 — f 0..1(넘어가면 감는다).
+    static func cycleColor(_ cs: [Color], _ f: Double) -> Color {
+        let x = (f.truncatingRemainder(dividingBy: 1) + 1).truncatingRemainder(dividingBy: 1) * Double(cs.count)
+        let i = Int(x) % cs.count
+        return cs[i].blended(with: cs[(i + 1) % cs.count], fraction: x - Double(Int(x)))
+    }
+
+    /// 고리 둘레 안개 빛.
+    static func ringHaze(_ ctx: inout GraphicsContext, _ c: CGPoint, _ r: CGFloat, _ w: CGFloat, _ color: Color, _ alpha: Double) {
+        let outer = r + w * 2.8
+        ctx.fill(circle(c, outer), with: .radialGradient(Gradient(stops: [
+            .init(color: .clear, location: 0),
+            .init(color: .clear, location: max(0, (r - w * 1.5) / outer)),
+            .init(color: color.opacity(alpha), location: r / outer),
+            .init(color: .clear, location: 1),
+        ]), center: c, startRadius: 0, endRadius: outer))
+    }
+
+    /// 금속 띠 — 빛이 왼쪽 위·오른쪽 아래에서 비치는 금속 고리. 그림자 테 · 안쪽 흰 모서리 · 바깥 어두운 모서리 · 한 바퀴 도는 광택(glint 0..1).
+    static func metalBand(_ ctx: inout GraphicsContext, _ c: CGPoint, _ r: CGFloat, _ w: CGFloat, _ colors: [Color], _ glint: Double) {
+        ctx.stroke(circle(c, r), with: .color(.black.opacity(0.45)), lineWidth: w * 1.4)
+        let cs = colors.count >= 2 ? colors : [colors[0], colors[0]]
+        let stops: [Color] = (0...16).map { k in
+            let th = Double(k) / 16 * 2 * .pi
+            let sh = 0.55 * cos(2 * (th - 1.25 * .pi)) + 0.15 * cos(6 * th)
+            let col = cycleColor(cs, Double(k) / 16)
+            return sh > 0 ? col.blended(with: .white, fraction: sh * 0.55) : col.blended(with: .black, fraction: -sh * 0.6)
+        }
+        ctx.stroke(circle(c, r), with: .conicGradient(Gradient(colors: stops), center: c, angle: .zero), lineWidth: w)
+        ctx.stroke(circle(c, r - w * 0.38), with: .color(.white.opacity(0.5)), lineWidth: w * 0.14)
+        ctx.stroke(circle(c, r + w * 0.44), with: .color(cs[cs.count - 1].blended(with: .black, fraction: 0.55).opacity(0.9)), lineWidth: w * 0.12)
+        let deg = glint * 360 - 90
+        for (sweep, a) in [(40.0, 0.14), (22.0, 0.26), (9.0, 0.55)] {
+            var p = Path()
+            p.addArc(center: c, radius: r, startAngle: .degrees(deg - sweep / 2), endAngle: .degrees(deg + sweep / 2), clockwise: false)
+            ctx.stroke(p, with: .color(.white.opacity(a)), style: StrokeStyle(lineWidth: w * 0.55, lineCap: .round))
+        }
+    }
+
+    /// 진주알 — 왼쪽 위 하이라이트, 오른쪽 아래 그림자.
+    static func pearl(_ ctx: inout GraphicsContext, _ p: CGPoint, _ rad: CGFloat, _ color: Color) {
+        ctx.fill(circle(CGPoint(x: p.x + rad * 0.12, y: p.y + rad * 0.18), rad * 1.05), with: .color(.black.opacity(0.35)))
+        ctx.fill(circle(p, rad), with: .radialGradient(
+            Gradient(colors: [.white, color, color.blended(with: .black, fraction: 0.45)]),
+            center: CGPoint(x: p.x - rad * 0.35, y: p.y - rad * 0.4), startRadius: 0, endRadius: rad * 1.5))
+    }
+
+    /// 브릴리언트 컷 보석(위에서 본 팔각) — 금속 받침 + 면마다 빛 방향 음영 + 가운데 테이블 + 반짝이.
+    static func gem(_ ctx: inout GraphicsContext, _ p: CGPoint, _ rad: CGFloat, _ color: Color, _ metal: Color) {
+        ctx.fill(circle(p, rad * 2.2), with: .radialGradient(Gradient(colors: [color.opacity(0.45), .clear]),
+                                                             center: p, startRadius: 0, endRadius: rad * 2.2))
+        ctx.fill(circle(p, rad * 1.18), with: .color(metal.blended(with: .black, fraction: 0.35)))
+        ctx.stroke(circle(p, rad * 1.18), with: .color(metal.blended(with: .white, fraction: 0.3)), lineWidth: rad * 0.12)
+        func v(_ i: Int, _ k: CGFloat) -> CGPoint {
+            let a = (Double(i) * 45 + 22.5) * .pi / 180
+            return CGPoint(x: p.x + CGFloat(cos(a)) * rad * k, y: p.y + CGFloat(sin(a)) * rad * k)
+        }
+        for i in 0..<8 {
+            let mid = (Double(i) * 45 + 45) * .pi / 180
+            let light = 0.5 + 0.5 * cos(mid - 225 * .pi / 180)
+            let col = light > 0.5 ? color.blended(with: .white, fraction: light - 0.5)
+                                  : color.blended(with: .black, fraction: (0.5 - light) * 0.9)
+            var q = Path()
+            q.move(to: v(i, 1)); q.addLine(to: v(i + 1, 1)); q.addLine(to: v(i + 1, 0.52)); q.addLine(to: v(i, 0.52))
+            q.closeSubpath()
+            ctx.fill(q, with: .color(col))
+        }
+        var table = Path()
+        table.move(to: v(0, 0.52))
+        for i in 1..<8 { table.addLine(to: v(i, 0.52)) }
+        table.closeSubpath()
+        ctx.fill(table, with: .color(color.blended(with: .white, fraction: 0.3)))
+        ctx.stroke(table, with: .color(.white.opacity(0.5)), lineWidth: rad * 0.05)
+        ctx.fill(sparkle(CGPoint(x: p.x - rad * 0.22, y: p.y - rad * 0.22), rad * 0.42), with: .color(.white.opacity(0.92)))
+    }
+
+    /// 꽃잎 한 장(12시 방향) — len 1 = 앞 겹, 작을수록 짧다.
+    static func petalPath(_ c: CGPoint, _ r: CGFloat, _ w: CGFloat, _ len: CGFloat) -> Path {
+        let tip = CGPoint(x: c.x, y: c.y - r - w * 1.3 * len)
+        let base = CGPoint(x: c.x, y: c.y - r + w * 1.1)
+        var p = Path()
+        p.move(to: base)
+        p.addCurve(to: tip, control1: CGPoint(x: base.x + w * 1.3, y: base.y - w * 0.6), control2: CGPoint(x: tip.x + w * 0.9, y: tip.y + w * 0.4))
+        p.addCurve(to: base, control1: CGPoint(x: tip.x - w * 0.9, y: tip.y + w * 0.4), control2: CGPoint(x: base.x - w * 1.3, y: base.y - w * 0.6))
+        p.closeSubpath()
+        return p
     }
 }

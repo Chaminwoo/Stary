@@ -296,63 +296,212 @@ fun FrameArt(payload: Map<String, Any?>, modifier: Modifier = Modifier) {
         val c = Offset(size.width / 2, size.height / 2)
         val w = s * width
         val r = s / 2 - s * FRAME_INSET / 2 - w * 0.2f
-        val ringBrush = Brush.sweepGradient(if (colors.size >= 2) colors + colors.first() else listOf(colors[0], colors[0]), c)
-        if (glow && pattern != "aurora") drawCircle(colors.last().copy(alpha = 0.22f), r, c, style = Stroke(w * 2.6f))
+        // 은은한 빛 — 고리 둘레로 번지는 안개(예전 굵은 반투명 고리는 납작해 보였다).
+        if (glow && pattern != "aurora") drawRingHaze(c, r, w, colors.last(), 0.3f)
         when (pattern) {
-            "dash" -> rotate(angle, c) {
-                val circ = (2 * PI * r).toFloat()
+            // 점선 궤도 → 가는 금속 궤도 위를 도는 진주알(큰 알·작은 알 번갈아)
+            "dash" -> {
+                drawMetalBand(c, r, w * 0.4f, colors, wave)
                 val n = count.takeIf { it > 0 } ?: 18
-                drawCircle(
-                    ringBrush, r, c,
-                    style = Stroke(w, cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(circ / n * 0.55f, circ / n * 0.45f))),
-                )
-            }
-            "orbit" -> {
-                drawCircle(ringBrush, r, c, style = Stroke(w * 0.45f), alpha = 0.75f)
-                val n = count.takeIf { it > 0 } ?: 3
                 for (i in 0 until n) {
                     val a = Math.toRadians((angle + i * 360f / n).toDouble())
                     val p = Offset(c.x + (cos(a) * r).toFloat(), c.y + (sin(a) * r).toFloat())
-                    drawSparkle(p, w * 1.9f, colors[i % colors.size])
+                    drawPearl(p, w * (if (i % 3 == 0) 0.62f else 0.4f), colors[i % colors.size])
                 }
             }
-            "petals" -> rotate(angle, c) {
-                drawCircle(ringBrush, r, c, style = Stroke(w * 0.4f), alpha = 0.6f)
-                val n = count.takeIf { it > 0 } ?: 12
+            // 세 별 → 금속 고리 + 꼬리를 끄는 별(빛 번짐 · 8꼭지 반짝이 · 흰 심)
+            "orbit" -> {
+                drawMetalBand(c, r, w * 0.55f, colors, wave)
+                val n = count.takeIf { it > 0 } ?: 3
                 for (i in 0 until n) {
-                    rotate(i * 360f / n, c) {
-                        val tip = Offset(c.x, c.y - r - w * 1.3f)
+                    val col = colors[i % colors.size]
+                    val a0 = angle + i * 360f / n
+                    for (k in 1..14) {
+                        val a = Math.toRadians((a0 - k * 3.2f).toDouble())
+                        val p = Offset(c.x + (cos(a) * r).toFloat(), c.y + (sin(a) * r).toFloat())
+                        drawCircle(col.copy(alpha = (1f - k / 15f) * 0.5f), w * 0.5f * (1f - k / 16f), p)
+                    }
+                    val a = Math.toRadians(a0.toDouble())
+                    val p = Offset(c.x + (cos(a) * r).toFloat(), c.y + (sin(a) * r).toFloat())
+                    drawCircle(Brush.radialGradient(listOf(col.copy(alpha = 0.55f), Color.Transparent), p, w * 2.2f), w * 2.2f, p)
+                    drawSparkle(p, w * 2.0f, col)
+                    rotate(45f, p) { drawSparkle(p, w * 1.1f, col.mix(Color.White, 0.5f)) }
+                    drawCircle(Color.White, w * 0.32f, p)
+                }
+            }
+            // 화관 → 금빛 덩굴 + 두 겹 꽃잎(뒤 겹은 짙게, 앞 겹은 끝으로 갈수록 밝게·잎맥) + 꽃잎 사이 금구슬
+            "petals" -> {
+                drawMetalBand(c, r, w * 0.35f, GOLD, wave)
+                val n = count.takeIf { it > 0 } ?: 12
+                rotate(angle, c) {
+                    for (i in 0 until n) rotate((i + 0.5f) * 360f / n, c) {
+                        drawPath(petalPath(c, r, w, 0.85f), colors.last().mix(Color.Black, 0.18f).copy(alpha = 0.9f))
+                    }
+                    for (i in 0 until n) rotate(i * 360f / n, c) {
                         val base = Offset(c.x, c.y - r + w * 1.1f)
-                        val petal = Path().apply {
-                            moveTo(base.x, base.y)
-                            cubicTo(base.x + w * 1.3f, base.y - w * 0.6f, tip.x + w * 0.9f, tip.y + w * 0.4f, tip.x, tip.y)
-                            cubicTo(tip.x - w * 0.9f, tip.y + w * 0.4f, base.x - w * 1.3f, base.y - w * 0.6f, base.x, base.y)
-                            close()
-                        }
-                        drawPath(petal, colors[i % colors.size])
+                        val tip = Offset(c.x, c.y - r - w * 1.3f)
+                        val col = colors[i % colors.size]
+                        drawPath(
+                            petalPath(c, r, w, 1f),
+                            Brush.linearGradient(listOf(colors.last().mix(Color.Black, 0.08f), col, col.mix(Color.White, 0.45f)), base, tip),
+                        )
+                        drawLine(Color.White.copy(alpha = 0.45f), base, Offset(c.x, c.y - r - w * 0.6f), strokeWidth = w * 0.12f, cap = StrokeCap.Round)
+                    }
+                    for (i in 0 until n) {
+                        val a = Math.toRadians(((i + 0.5f) * 360f / n - 90f).toDouble())
+                        drawPearl(Offset(c.x + (cos(a) * (r + w * 0.9f)).toFloat(), c.y + (sin(a) * (r + w * 0.9f)).toFloat()), w * 0.26f, GOLD[0])
                     }
                 }
             }
-            "constellation" -> rotate(angle, c) {
-                val n = count.takeIf { it > 0 } ?: 9
-                // 별마다 반지름을 조금씩 흔들어(결정적) 별자리처럼 보이게.
-                val pts = (0 until n).map { i ->
-                    val a = Math.toRadians((i * 360.0 / n) + (if (i % 2 == 0) 6 else -4))
-                    val rr = r + w * (if (i % 3 == 0) 0.9f else if (i % 3 == 1) -0.6f else 0.2f)
-                    Offset(c.x + (cos(a) * rr).toFloat(), c.y + (sin(a) * rr).toFloat())
+            // 별자리 → 금테 두른 밤하늘 메달(별가루 점) 위에 이어진 별들, 맨 위엔 왕관 보석
+            "constellation" -> {
+                val band = w * 2.4f
+                drawCircle(Color.Black.copy(alpha = 0.35f), r, c, style = Stroke(band + w * 0.8f))
+                drawCircle(Brush.sweepGradient(NIGHT, c), r, c, style = Stroke(band))
+                for (i in 0 until 36) {
+                    val a = Math.toRadians((i * 10.0 + (i * 37) % 10 + angle * 0.3))
+                    val rr = r + band * (((i * 53) % 100) / 100f - 0.5f) * 0.8f
+                    val tw = 0.5f + 0.5f * sin((wave * 2 * PI + i * 2.3).toFloat())
+                    drawCircle(Color.White.copy(alpha = 0.2f + 0.4f * tw), w * (if (i % 4 == 0) 0.14f else 0.08f),
+                        Offset(c.x + (cos(a) * rr).toFloat(), c.y + (sin(a) * rr).toFloat()))
                 }
-                for (i in pts.indices) {
-                    drawLine(colors[0].copy(alpha = 0.55f), pts[i], pts[(i + 1) % n], strokeWidth = w * 0.28f)
+                drawMetalBand(c, r - band / 2, w * 0.3f, GOLD, wave)
+                drawMetalBand(c, r + band / 2, w * 0.3f, GOLD, wave)
+                rotate(angle, c) {
+                    val n = count.takeIf { it > 0 } ?: 9
+                    // 별마다 반지름을 조금씩 흔들어(결정적) 별자리처럼 보이게.
+                    val pts = (0 until n).map { i ->
+                        val a = Math.toRadians((i * 360.0 / n) + (if (i % 2 == 0) 6 else -4))
+                        val rr = r + w * (if (i % 3 == 0) 0.7f else if (i % 3 == 1) -0.5f else 0.15f)
+                        Offset(c.x + (cos(a) * rr).toFloat(), c.y + (sin(a) * rr).toFloat())
+                    }
+                    for (i in pts.indices) {
+                        drawLine(colors[0].copy(alpha = 0.5f), pts[i], pts[(i + 1) % n], strokeWidth = w * 0.18f)
+                    }
+                    pts.forEachIndexed { i, p ->
+                        val tw = 0.7f + 0.3f * sin((wave * 2 * PI + i * 1.7).toFloat())
+                        val col = colors[i % colors.size]
+                        drawCircle(Brush.radialGradient(listOf(col.copy(alpha = 0.5f * tw), Color.Transparent), p, w * 1.6f), w * 1.6f, p)
+                        drawSparkle(p, w * (if (i % 3 == 0) 1.3f else 0.9f), col.copy(alpha = 0.75f + 0.25f * tw))
+                    }
                 }
-                pts.forEachIndexed { i, p ->
-                    val tw = 0.7f + 0.3f * sin((wave * 2 * PI + i * 1.7).toFloat())
-                    drawCircle(colors[i % colors.size].copy(alpha = 0.22f * tw), w * 1.5f, p)
-                    drawSparkle(p, w * (if (i % 3 == 0) 1.5f else 1.0f), colors[i % colors.size].copy(alpha = 0.7f + 0.3f * tw))
-                }
+                drawGem(Offset(c.x, c.y - r), w * 1.2f, colors.last(), GOLD[0])
             }
             "aurora" -> drawAurora(c, r, w, colors, angle, wave)
-            else -> rotate(angle, c) { drawCircle(ringBrush, r, c, style = Stroke(w)) } // ring + 모르는 패턴
+            // 고리 + 모르는 패턴 → 금속 고리. 빛(glow)이 있는 고리는 맨 위에 보석과 진주 장식.
+            else -> {
+                drawMetalBand(c, r, w, colors, wave)
+                if (glow) {
+                    for (sg in listOf(-1, 1)) for (k in 1..2) {
+                        val a = Math.toRadians((-90.0 + sg * k * 14.0))
+                        drawPearl(
+                            Offset(c.x + (cos(a) * r).toFloat(), c.y + (sin(a) * r).toFloat()),
+                            w * (0.42f - k * 0.08f), colors.first().mix(Color.White, 0.3f),
+                        )
+                    }
+                    drawGem(Offset(c.x, c.y - r), w * 1.15f, colors.last(), colors.first())
+                }
+            }
         }
+    }
+}
+
+private val GOLD = listOf(Color(0xFFFFE6A8), Color(0xFFC9973F))
+private val NIGHT = listOf(Color(0xFF151C3D), Color(0xFF261A4A), Color(0xFF10243F), Color(0xFF151C3D))
+
+private fun Color.mix(o: Color, f: Float): Color = androidx.compose.ui.graphics.lerp(this, o, f)
+
+/** 색을 고리 한 바퀴에 돌려 놓은 값 — f 0..1(넘어가면 감는다). */
+private fun cycleColor(cs: List<Color>, f: Float): Color {
+    val x = ((f % 1f) + 1f) % 1f * cs.size
+    val i = x.toInt() % cs.size
+    return cs[i].mix(cs[(i + 1) % cs.size], x - x.toInt())
+}
+
+/** 고리 둘레 안개 빛. */
+private fun DrawScope.drawRingHaze(c: Offset, r: Float, w: Float, color: Color, alpha: Float) {
+    val outer = r + w * 2.8f
+    drawCircle(
+        Brush.radialGradient(
+            0f to Color.Transparent, ((r - w * 1.5f) / outer).coerceAtLeast(0f) to Color.Transparent,
+            (r / outer) to color.copy(alpha = alpha), 1f to Color.Transparent,
+            center = c, radius = outer,
+        ),
+        outer, c,
+    )
+}
+
+/**
+ * 금속 띠(2026-10-23) — 빛이 왼쪽 위·오른쪽 아래에서 비치는 금속 고리. 색은 한 바퀴에 나눠 돌리고, 밝고 어두운 결을 입힌다.
+ * 아래 그림자 테로 사진과 떼고, 안쪽 흰 모서리(베벨) · 바깥 어두운 모서리 · 한 바퀴 도는 광택([glint] 0..1)을 얹는다.
+ * iOS `StarlightArt.metalBand` 와 같은 식.
+ */
+private fun DrawScope.drawMetalBand(c: Offset, r: Float, w: Float, colors: List<Color>, glint: Float) {
+    drawCircle(Color.Black.copy(alpha = 0.45f), r, c, style = Stroke(w * 1.4f))
+    val cs = if (colors.size >= 2) colors else listOf(colors[0], colors[0])
+    val stops = (0..16).map { k ->
+        val th = (k / 16f) * 2 * PI.toFloat()
+        val sh = 0.55f * cos(2 * (th - 1.25f * PI.toFloat())) + 0.15f * cos(6 * th)
+        val col = cycleColor(cs, k / 16f)
+        if (sh > 0) col.mix(Color.White, sh * 0.55f) else col.mix(Color.Black, -sh * 0.6f)
+    }
+    drawCircle(Brush.sweepGradient(stops, c), r, c, style = Stroke(w))
+    drawCircle(Color.White.copy(alpha = 0.5f), r - w * 0.38f, c, style = Stroke(w * 0.14f))
+    drawCircle(cs.last().mix(Color.Black, 0.55f).copy(alpha = 0.9f), r + w * 0.44f, c, style = Stroke(w * 0.12f))
+    val deg = glint * 360f - 90f
+    for ((sweep, a) in listOf(40f to 0.14f, 22f to 0.26f, 9f to 0.55f)) {
+        drawArc(
+            Color.White.copy(alpha = a), deg - sweep / 2, sweep, false,
+            topLeft = Offset(c.x - r, c.y - r), size = androidx.compose.ui.geometry.Size(r * 2, r * 2),
+            style = Stroke(w * 0.55f, cap = StrokeCap.Round),
+        )
+    }
+}
+
+/** 진주알 — 왼쪽 위 하이라이트, 오른쪽 아래 그림자. 회전해도 빛 방향은 그대로. */
+private fun DrawScope.drawPearl(p: Offset, rad: Float, color: Color) {
+    drawCircle(Color.Black.copy(alpha = 0.35f), rad * 1.05f, Offset(p.x + rad * 0.12f, p.y + rad * 0.18f))
+    drawCircle(
+        Brush.radialGradient(listOf(Color.White, color, color.mix(Color.Black, 0.45f)), Offset(p.x - rad * 0.35f, p.y - rad * 0.4f), rad * 1.5f),
+        rad, p,
+    )
+}
+
+/** 브릴리언트 컷 보석(위에서 본 팔각) — 금속 받침 + 면마다 빛 방향 음영 + 가운데 테이블 + 반짝이. */
+private fun DrawScope.drawGem(p: Offset, rad: Float, color: Color, metal: Color) {
+    drawCircle(Brush.radialGradient(listOf(color.copy(alpha = 0.45f), Color.Transparent), p, rad * 2.2f), rad * 2.2f, p)
+    drawCircle(metal.mix(Color.Black, 0.35f), rad * 1.18f, p)
+    drawCircle(metal.mix(Color.White, 0.3f), rad * 1.18f, p, style = Stroke(rad * 0.12f))
+    fun v(i: Int, k: Float): Offset {
+        val a = Math.toRadians(i * 45.0 + 22.5)
+        return Offset(p.x + (cos(a) * rad * k).toFloat(), p.y + (sin(a) * rad * k).toFloat())
+    }
+    for (i in 0 until 8) {
+        val mid = Math.toRadians(i * 45.0 + 45.0)
+        val light = (0.5 + 0.5 * cos(mid - Math.toRadians(225.0))).toFloat()
+        val col = if (light > 0.5f) color.mix(Color.White, (light - 0.5f)) else color.mix(Color.Black, (0.5f - light) * 0.9f)
+        val a = v(i, 1f); val b = v(i + 1, 1f); val d = v(i + 1, 0.52f); val e = v(i, 0.52f)
+        drawPath(Path().apply { moveTo(a.x, a.y); lineTo(b.x, b.y); lineTo(d.x, d.y); lineTo(e.x, e.y); close() }, col)
+    }
+    val table = Path().apply {
+        val s0 = v(0, 0.52f); moveTo(s0.x, s0.y)
+        for (i in 1 until 8) { val q = v(i, 0.52f); lineTo(q.x, q.y) }
+        close()
+    }
+    drawPath(table, color.mix(Color.White, 0.3f))
+    drawPath(table, Color.White.copy(alpha = 0.5f), style = Stroke(rad * 0.05f))
+    drawSparkle(Offset(p.x - rad * 0.22f, p.y - rad * 0.22f), rad * 0.42f, Color.White.copy(alpha = 0.92f))
+}
+
+/** 꽃잎 한 장(12시 방향) — [len] 1 = 앞 겹, 작을수록 짧다. */
+private fun petalPath(c: Offset, r: Float, w: Float, len: Float): Path {
+    val tip = Offset(c.x, c.y - r - w * 1.3f * len)
+    val base = Offset(c.x, c.y - r + w * 1.1f)
+    return Path().apply {
+        moveTo(base.x, base.y)
+        cubicTo(base.x + w * 1.3f, base.y - w * 0.6f, tip.x + w * 0.9f, tip.y + w * 0.4f, tip.x, tip.y)
+        cubicTo(tip.x - w * 0.9f, tip.y + w * 0.4f, base.x - w * 1.3f, base.y - w * 0.6f, base.x, base.y)
+        close()
     }
 }
 

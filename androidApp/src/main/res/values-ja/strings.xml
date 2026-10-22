@@ -775,6 +775,9 @@
     <string name="starlight_new">新しく手に入れました！</string>
     <string name="starlight_stacked">保管庫に追加されました</string>
     <string name="starlight_dup_refund">所持済み・星くず +%1$d</string>
+    <string name="starlight_dup_owned">所持済み</string>
+    <string name="starlight_dup_explain">すでに持っているので、星くずに替えました。</string>
+    <string name="starlight_dust_plus">星くず +%1$d</string>
     <string name="starlight_keys_plus">鍵 +%1$d</string>
     <string name="starlight_tap_close">画面をタップすると閉じます</string>
     <string name="starlight_made_keys">鍵を%1$d個作りました</string>

@@ -136,35 +136,20 @@ struct NebulaOpening: View {
             // 은은한 성운
             ctx.fill(StarlightArt.circle(bc, minD * 0.75), with: .radialGradient(
                 Gradient(colors: [Color(hex: 0x5B2BB5).opacity(0.28), .clear]), center: bc, startRadius: 0, endRadius: minD * 0.75))
-            // 카드 뒤 빛살(천천히 돈다)
-            let rayA = phase == .cards ? 1 : pillar(t)
+            // 빛살 — 열리는 순간 확 터졌다가(섬광·렌즈 플레어) 카드 뒤에선 은은하게 돈다(2026-10-23 — "광선이 너무 심플" 요청, Android 패리티).
+            let bt = burstAt.map { t - $0 } ?? -1
+            let rayA: Double = best == nil || bt < 0 ? 0 : bt < 0.22 ? bt / 0.22 * 1.6 : 0.5 + 1.1 * exp(-(bt - 0.22) * 1.5)
             if rayA > 0, let best {
-                let center = phase == .cards ? CGPoint(x: size.width / 2, y: size.height * 0.45) : bc
-                let n = best == "legendary" ? 18 : 12
-                let spin = (t / 40).truncatingRemainder(dividingBy: 1) * 2 * .pi
-                let len = maxD * 0.75
-                let half = 2 * Double.pi / Double(n) * 0.12
-                for i in 0..<n {
-                    let a = Double(i) * 2 * .pi / Double(n) + spin
-                    var p = Path()
-                    p.move(to: center)
-                    p.addLine(to: CGPoint(x: center.x + CGFloat(cos(a - half)) * len, y: center.y + CGFloat(sin(a - half)) * len))
-                    p.addLine(to: CGPoint(x: center.x + CGFloat(cos(a + half)) * len, y: center.y + CGFloat(sin(a + half)) * len))
-                    p.closeSubpath()
-                    ctx.fill(p, with: .radialGradient(
-                        Gradient(colors: [bestColor.opacity(0.10 * rayA), bestColor.opacity(0.03 * rayA), .clear]),
-                        center: center, startRadius: 0, endRadius: len))
-                }
+                let cardC = CGPoint(x: size.width / 2, y: size.height * 0.45)
+                let bo = CGFloat(boxOut(t))
+                let center = CGPoint(x: bc.x + (cardC.x - bc.x) * bo, y: bc.y + (cardC.y - bc.y) * bo)
+                let spin = (t / 40).truncatingRemainder(dividingBy: 1) * 360
+                godRays(&ctx, center, maxD * 0.8, rayA, spin, t, rayPalette(best, bestColor))
+                if bt <= 1.3 { lensFlare(&ctx, center, size, 1 - bt / 1.3, spin, bestColor) }
             }
-            // 빛기둥
+            // 빛기둥 — 위로 넓어지는 기둥 + 솟구치는 빛줄기·반짝이
             let pv = pillar(t) * (1 - boxOut(t))
-            if pv > 0 {
-                let w = size.width * 0.32 * pv
-                ctx.fill(Path(CGRect(x: bc.x - w / 2, y: 0, width: w, height: bc.y)), with: .linearGradient(
-                    Gradient(colors: [.clear, bestColor.opacity(0.55), .white.opacity(0.85)]), startPoint: .zero, endPoint: CGPoint(x: 0, y: bc.y)))
-                ctx.fill(Path(CGRect(x: bc.x - w * 0.12, y: 0, width: w * 0.24, height: bc.y)), with: .linearGradient(
-                    Gradient(colors: [.clear, .white.opacity(0.9)]), startPoint: .zero, endPoint: CGPoint(x: 0, y: bc.y)))
-            }
+            if pv > 0 { pillarBeam(&ctx, bc, size, pv, t, bestColor) }
             // 충격파(영웅·전설)
             let sv = shock(t)
             if sv > 0, sv < 1 {
@@ -349,6 +334,105 @@ struct NebulaOpening: View {
     }
 }
 
+// MARK: - 빛살 · 렌즈 플레어 · 빛기둥(Android drawGodRays / drawFlare / drawPillar 패리티)
+
+/// 빛살 색 — 전설은 금·분홍·하늘이 번갈아(무지갯빛), 나머지는 등급 빛과 그 밝은 빛.
+private func rayPalette(_ best: String, _ c: Color) -> [Color] {
+    best == "legendary"
+        ? [Color(hex: 0xFFD27A), Color(hex: 0xFF9ED8), Color(hex: 0x9FD3FF), Color(hex: 0xFFF0C2)]
+        : [c, c.blended(with: .white, fraction: 0.45)]
+}
+
+private func wedge(_ c: CGPoint, _ ang: Double, _ half: Double, _ l: CGFloat) -> Path {
+    var p = Path()
+    p.move(to: c)
+    p.addLine(to: CGPoint(x: c.x + CGFloat(cos(ang - half)) * l, y: c.y + CGFloat(sin(ang - half)) * l))
+    p.addLine(to: CGPoint(x: c.x + CGFloat(cos(ang + half)) * l, y: c.y + CGFloat(sin(ang + half)) * l))
+    p.closeSubpath()
+    return p
+}
+
+/// 빛살 두 겹 — 넓고 부드러운 빛살(시계 방향, 길이가 일렁임) + 가늘고 날카로운 빛살(반대로 더 빨리) + 가운데 흰 심.
+/// a 0..1.6(열리는 순간 1 넘게 → 은은하게 0.5).
+private func godRays(_ ctx: inout GraphicsContext, _ center: CGPoint, _ len: CGFloat, _ a: Double, _ spinDeg: Double, _ t: Double, _ palette: [Color]) {
+    let rot = spinDeg * .pi / 180
+    let n = 14
+    let step = 2 * Double.pi / Double(n)
+    for i in 0..<n {
+        let half = step * (i % 2 == 0 ? 0.2 : 0.11)
+        let l = len * (i % 2 == 0 ? 1 : 0.7) * CGFloat(0.85 + 0.15 * sin(t * 1.3 + Double(i) * 1.7))
+        ctx.fill(wedge(center, Double(i) * step + rot, half, l), with: .radialGradient(
+            Gradient(colors: [.white.opacity(min(0.22 * a, 1)), palette[i % palette.count].opacity(min(0.14 * a, 1)), .clear]),
+            center: center, startRadius: 0, endRadius: l))
+    }
+    let m = 28
+    let st = 2 * Double.pi / Double(m)
+    for i in 0..<m {
+        let l = len * CGFloat(0.45 + 0.4 * Double((i * 37) % 11) / 10) * CGFloat(0.8 + 0.2 * sin(t * 2.1 + Double(i)))
+        ctx.fill(wedge(center, Double(i) * st + st / 2 - rot * 1.7, st * 0.05, l), with: .radialGradient(
+            Gradient(colors: [.white.opacity(min(0.4 * a, 1)), palette[(i + 1) % palette.count].opacity(min(0.12 * a, 1)), .clear]),
+            center: center, startRadius: 0, endRadius: l))
+    }
+    let core = len * 0.28
+    ctx.fill(StarlightArt.circle(center, core), with: .radialGradient(
+        Gradient(colors: [palette[0].opacity(min(0.4 * a, 0.8)), .clear]), center: center, startRadius: 0, endRadius: core))
+    ctx.fill(StarlightArt.circle(center, core * 0.3), with: .radialGradient(
+        Gradient(colors: [.white.opacity(min(0.5 * a, 0.9)), .clear]), center: center, startRadius: 0, endRadius: core * 0.3))
+}
+
+/// 렌즈 플레어 — 열리는 순간 가로 빛줄 + 큰 네 꼭지 반짝이 + 퍼지는 고리 둘, f 1 → 0 으로 사라진다.
+private func lensFlare(_ ctx: inout GraphicsContext, _ center: CGPoint, _ size: CGSize, _ f: Double, _ spinDeg: Double, _ c: Color) {
+    let e = f * f
+    let hw = size.width * CGFloat(0.4 + 0.6 * f)
+    let hh = 3 * CGFloat(0.5 + f)
+    ctx.fill(Path(CGRect(x: center.x - hw, y: center.y - hh, width: hw * 2, height: hh * 2)), with: .linearGradient(
+        Gradient(colors: [.clear, c.opacity(0.6 * e), .white.opacity(0.95 * e), c.opacity(0.6 * e), .clear]),
+        startPoint: CGPoint(x: center.x - hw, y: center.y), endPoint: CGPoint(x: center.x + hw, y: center.y)))
+    let minD = min(size.width, size.height)
+    let r = minD * 0.22 * CGFloat(0.6 + 0.4 * f)
+    var g = ctx
+    g.translateBy(x: center.x, y: center.y)
+    g.rotate(by: .degrees(spinDeg * 2))
+    g.fill(StarlightArt.sparkle(.zero, r), with: .color(.white.opacity(0.9 * e)))
+    g.rotate(by: .degrees(45))
+    g.fill(StarlightArt.sparkle(.zero, r * 0.55), with: .color(c.opacity(0.8 * e)))
+    let rr = minD * CGFloat(0.18 + 0.35 * (1 - f))
+    ctx.stroke(StarlightArt.circle(center, rr), with: .color(c.opacity(0.35 * e)), lineWidth: 2)
+    ctx.stroke(StarlightArt.circle(center, rr * 1.35), with: .color(.white.opacity(0.18 * e)), lineWidth: 1)
+}
+
+/// 빛기둥 — 위로 갈수록 넓어지는 기둥, 안에서 빛줄기와 반짝이가 솟구친다. pv 0..1.
+private func pillarBeam(_ ctx: inout GraphicsContext, _ bc: CGPoint, _ size: CGSize, _ pv: Double, _ t: Double, _ c: Color) {
+    let bw = size.width * 0.16 * CGFloat(pv)
+    let tw = size.width * 0.5 * CGFloat(pv)
+    func trap(_ b: CGFloat, _ top: CGFloat) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: bc.x - b / 2, y: bc.y)); p.addLine(to: CGPoint(x: bc.x + b / 2, y: bc.y))
+        p.addLine(to: CGPoint(x: bc.x + top / 2, y: 0)); p.addLine(to: CGPoint(x: bc.x - top / 2, y: 0))
+        p.closeSubpath()
+        return p
+    }
+    ctx.fill(trap(bw, tw), with: .linearGradient(Gradient(colors: [.clear, c.opacity(0.45), .white.opacity(0.8)]),
+                                                 startPoint: .zero, endPoint: CGPoint(x: 0, y: bc.y)))
+    ctx.fill(trap(bw * 0.24, tw * 0.16), with: .linearGradient(Gradient(colors: [.clear, .white.opacity(0.95)]),
+                                                              startPoint: .zero, endPoint: CGPoint(x: 0, y: bc.y)))
+    // 솟구치는 빛줄기
+    for i in 0..<9 {
+        let ph = (t * (1.4 + Double(i % 3) * 0.35) + Double(i) * 0.37).truncatingRemainder(dividingBy: 1)
+        let y = bc.y * CGFloat(1 - ph)
+        let wAt = bw + (tw - bw) * CGFloat(ph)
+        let x = bc.x + (CGFloat((i * 53) % 100) / 100 - 0.5) * wAt * 0.8
+        let l = CGFloat(40 + (i % 4) * 22)
+        var line = Path()
+        line.move(to: CGPoint(x: x, y: y))
+        line.addLine(to: CGPoint(x: x, y: y + l))
+        ctx.stroke(line, with: .linearGradient(Gradient(colors: [.white.opacity(0.85 * pv), .clear]),
+                                               startPoint: CGPoint(x: x, y: y), endPoint: CGPoint(x: x, y: y + l)),
+                   style: StrokeStyle(lineWidth: 1.5 + CGFloat(i % 2), lineCap: .round))
+        if i % 3 == 0 { ctx.fill(StarlightArt.sparkle(CGPoint(x: x, y: y), 5), with: .color(.white.opacity(0.9 * pv))) }
+    }
+}
+
 private struct PillButton: View {
     let text: String
     let primary: Bool
@@ -472,105 +556,258 @@ private struct FlipCard: View {
 private struct CardBack: View {
     let rarity: String
     let radius: CGFloat
-    @Environment(\.displayScale) private var scale
-    private static let cache = NSCache<NSString, UIImage>()
-
-    private func base(_ size: CGSize, _ c: Color) -> UIImage {
-        let side = max(size.width, size.height) * scale
-        let key = "\(rarity)|\(Int(size.width * scale))x\(Int(size.height * scale))" as NSString
-        if let hit = Self.cache.object(forKey: key) { return hit }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        let pw = size.width * scale, ph = size.height * scale
-        let img = UIGraphicsImageRenderer(size: CGSize(width: pw, height: ph), format: format).image { ctx in
-            let mid = UIColor(red: 0x10 / 255.0, green: 0x0C / 255.0, blue: 0x2A / 255.0, alpha: 1).blended(with: UIColor(c), fraction: 0.28)
-            StarCrystal.drawFacets(in: ctx.cgContext, seed: 77,
-                                   colors: [UIColor(red: 0x0B / 255.0, green: 0x0E / 255.0, blue: 0x22 / 255.0, alpha: 1), mid,
-                                            UIColor(red: 0x07 / 255.0, green: 0x09 / 255.0, blue: 0x16 / 255.0, alpha: 1)],
-                                   rect: CGRect(x: (pw - side) / 2, y: (ph - side) / 2, width: side, height: side))
-        }
-        Self.cache.setObject(img, forKey: key)
-        return img
-    }
 
     var body: some View {
         let c = StarlightArt.rarityColor(rarity)
-        GeometryReader { geo in
-            let size = geo.size
-            ZStack {
-                Image(uiImage: base(size, c)).resizable().frame(width: size.width, height: size.height)
-                Canvas { ctx, size in
-                    let ce = CGPoint(x: size.width / 2, y: size.height / 2)
-                    let m = min(size.width, size.height)
-                    let r = m * 0.42
-                    ctx.fill(StarlightArt.circle(ce, r), with: .radialGradient(
-                        Gradient(colors: [c.opacity(0.42), c.opacity(0.12), .clear]), center: ce, startRadius: 0, endRadius: r))
-                    ctx.fill(StarlightArt.sparkle(ce, m * 0.17), with: .color(.white.opacity(0.92)))
-                    ctx.fill(StarlightArt.sparkle(ce, m * 0.09), with: .color(c))
-                    let inset = m * 0.06
-                    ctx.stroke(Path(roundedRect: CGRect(x: inset, y: inset, width: size.width - inset * 2, height: size.height - inset * 2),
-                                    cornerRadius: inset * 1.4), with: .color(c.opacity(0.35)), lineWidth: 1)
+        ZStack {
+            Canvas { ctx, size in
+                for (p, col) in Self.roseFacets(size, c) {
+                    ctx.fill(p, with: .color(col))
+                    ctx.stroke(p, with: .color(.white.opacity(0.09)), lineWidth: 1)
                 }
-                // 비스듬히 지나가는 광택
-                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { tl in
-                    let period = rarity == "legendary" ? 2.4 : 3.8
-                    let x = -0.6 + 2.2 * (tl.date.timeIntervalSinceReferenceDate / period).truncatingRemainder(dividingBy: 1)
-                    LinearGradient(colors: [.clear, .white.opacity(rarity == "legendary" ? 0.28 : 0.14), .clear],
-                                   startPoint: UnitPoint(x: x - 0.3, y: 0), endPoint: UnitPoint(x: x + 0.3, y: 1))
-                }
+                let ce = CGPoint(x: size.width / 2, y: size.height / 2)
+                let m = min(size.width, size.height)
+                let r = m * 0.42
+                ctx.fill(StarlightArt.circle(ce, r), with: .radialGradient(
+                    Gradient(colors: [c.opacity(0.42), c.opacity(0.12), .clear]), center: ce, startRadius: 0, endRadius: r))
+                ctx.fill(StarlightArt.sparkle(ce, m * 0.17), with: .color(.white.opacity(0.92)))
+                ctx.fill(StarlightArt.sparkle(ce, m * 0.09), with: .color(c))
+                let inset = m * 0.06
+                ctx.stroke(Path(roundedRect: CGRect(x: inset, y: inset, width: size.width - inset * 2, height: size.height - inset * 2),
+                                cornerRadius: inset * 1.4), with: .color(c.opacity(0.35)), lineWidth: 1)
+            }
+            // 비스듬히 지나가는 광택
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { tl in
+                let period = rarity == "legendary" ? 2.4 : 3.8
+                let x = -0.6 + 2.2 * (tl.date.timeIntervalSinceReferenceDate / period).truncatingRemainder(dividingBy: 1)
+                LinearGradient(colors: [.clear, .white.opacity(rarity == "legendary" ? 0.28 : 0.14), .clear],
+                               startPoint: UnitPoint(x: x - 0.3, y: 0), endPoint: UnitPoint(x: x + 0.3, y: 1))
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: radius))
         .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(c.opacity(0.6), lineWidth: 1))
     }
+
+    /// 카드 뒷면 무늬 — 가운데에서 퍼지는 **대칭** 크리스탈 면(장미창). 예전 무작위 파편은 밝은 심이 왼쪽 위로 쏠려
+    /// "카드가 한쪽으로 치우치고 가운데가 빈" 느낌이었다(2026-10-23). 빛은 왼쪽 위에서. Android `drawRoseFacets` 와 같은 식.
+    private static func roseFacets(_ size: CGSize, _ tint: Color) -> [(Path, Color)] {
+        let c = CGPoint(x: size.width / 2, y: size.height / 2)
+        let m = min(size.width, size.height)
+        let n = 8
+        let radii: [CGFloat] = [0, m * 0.2, m * 0.43, m * 0.72, size.width + size.height]
+        func pt(_ k: Int, _ i: Int) -> CGPoint {
+            let a = (Double(i) + Double(k % 2) * 0.5) / Double(n) * 2 * .pi - .pi / 2
+            return CGPoint(x: c.x + CGFloat(cos(a)) * radii[k], y: c.y + CGFloat(sin(a)) * radii[k])
+        }
+        let deep = Color(hex: 0x070916)
+        let mid = Color(hex: 0x100C2A).blended(with: tint, fraction: 0.32)
+        func tri(_ a: CGPoint, _ b: CGPoint, _ d: CGPoint, _ k: Int, _ parity: Int) -> (Path, Color) {
+            let cx = Double((a.x + b.x + d.x) / 3 - c.x), cy = Double((a.y + b.y + d.y) / 3 - c.y)
+            let light = 0.5 + 0.5 * cos(atan2(cy, cx) + 3 * .pi / 4) // 왼쪽 위가 밝다
+            let v = min(max((0.25 + 0.6 * light + (parity == 0 ? 0.1 : -0.06)) * (1 - Double(k) * 0.2), 0), 1)
+            var p = Path()
+            p.move(to: a); p.addLine(to: b); p.addLine(to: d); p.closeSubpath()
+            return (p, deep.blended(with: mid, fraction: v))
+        }
+        var out: [(Path, Color)] = []
+        for k in 0..<(radii.count - 1) {
+            for i in 0..<n {
+                if k % 2 == 0 {
+                    out.append(tri(pt(k, i), pt(k + 1, i), pt(k, i + 1), k, 0))
+                    if k > 0 { out.append(tri(pt(k + 1, i), pt(k, i + 1), pt(k + 1, i + 1), k, 1)) }
+                } else {
+                    out.append(tri(pt(k + 1, i), pt(k, i), pt(k + 1, i + 1), k, 0))
+                    out.append(tri(pt(k, i), pt(k + 1, i + 1), pt(k, i + 1), k, 1))
+                }
+            }
+        }
+        return out
+    }
 }
 
+/// 카드 앞면. 중복(이미 가진 것)이면 뒤집힌 뒤 **바뀌는 과정**을 보여 준다(2026-10-23 — 회색 글씨 한 줄로는 몰랐다는 요청):
+/// 그림은 가운데 그대로 두고 빛이 빠지며(채도·밝기↓) "이미 있어요" 도장이 찍히고, 그림에서 별가루 알갱이가 흘러나와
+/// 아래 금빛 "별가루 +N" 칩으로 빨려 든다(칩이 튀어 오르며 숫자가 올라간다). Android `CardFront` 와 같은 시간표.
 private struct CardFront: View {
     let draw: StarlightStore.Draw
     let radius: CGFloat
     let big: Bool
     @ObservedObject private var store = StarlightStore.shared
     @ObservedObject private var locale = LocaleManager.shared
+    @State private var startAt: Double?
+    @State private var running = false
+    @State private var artFrame: CGRect = .zero
+    @State private var chipFrame: CGRect = .zero
+
+    private static let space = "starlightCardFront"
 
     var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !running)) { tl in
+            content(progress(tl.date.timeIntervalSinceReferenceDate))
+        }
+        .onAppear {
+            guard draw.dup, startAt == nil else { return }
+            // 뒤집힌 뒤 0.35초 쉬고 1.5초 동안 바뀐다.
+            startAt = now() + 0.35
+            running = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { running = false }
+        }
+    }
+
+    private func progress(_ t: Double) -> Double {
+        guard draw.dup else { return 1 }
+        guard let startAt else { return 0 }
+        if !running { return 1 }
+        return clamp01((t - startAt) / 1.5)
+    }
+
+    private func content(_ t: Double) -> some View {
         let item = store.item(draw.itemId)
         let c = StarlightArt.rarityColor(draw.rarity)
         let lang = locale.effectiveLanguage
-        VStack(spacing: 3) {
-            Text(rarityName(draw.rarity)).font(.minSans(big ? 13 : 10, .semibold)).foregroundStyle(c)
-            ZStack {
-                RadialGradient(colors: [c.opacity(0.35), .clear], center: .center, startRadius: 0, endRadius: big ? 90 : 45)
-                if let item {
-                    ItemArt(item: item).frame(width: big ? 130 : nil, height: big ? 130 : nil).padding(big ? 0 : 6)
+        let fade = draw.dup ? clamp01((t - 0.05) / 0.4) : 0
+        return ZStack {
+            VStack(spacing: 3) {
+                Text(rarityName(draw.rarity)).font(.minSans(big ? 13 : 10, .semibold)).foregroundStyle(c)
+                ZStack {
+                    RadialGradient(colors: [c.opacity(0.35 * (1 - fade * 0.7)), .clear], center: .center, startRadius: 0, endRadius: big ? 90 : 45)
+                    Group {
+                        if let item {
+                            ItemArt(item: item).frame(width: big ? 130 : nil, height: big ? 130 : nil).padding(big ? 0 : 6)
+                        } else {
+                            StardustIcon(tint: c).padding(big ? 40 : 20)
+                        }
+                    }
+                    .saturation(1 - 0.85 * fade)
+                    .opacity(1 - 0.45 * fade)
+                    .scaleEffect(1 - 0.12 * fade)
+                    if draw.dup {
+                        OwnedStamp(big: big, appear: clamp01((t - 0.12) / 0.18))
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(GeometryReader { g in
+                    Color.clear
+                        .onAppear { artFrame = g.frame(in: .named(Self.space)) }
+                        .onChange(of: g.frame(in: .named(Self.space))) { artFrame = $0 }
+                })
+                Text(item?.name(in: lang) ?? draw.itemId)
+                    .font(.minSans(big ? 17 : 11.5, .semibold)).foregroundStyle(openInk.opacity(1 - 0.25 * fade))
+                    .multilineTextAlignment(.center).lineLimit(2)
+                    .frame(maxWidth: .infinity)
+                if big, let item {
+                    Text(draw.dup ? locale.t(.starlightDupExplain) : item.desc(in: lang)).font(.minSans(12)).foregroundStyle(openSub)
+                        .multilineTextAlignment(.center).lineLimit(3).padding(.top, 2)
+                        .frame(maxWidth: .infinity)
+                }
+                if draw.dup {
+                    DustChip(shown: Int(Double(draw.refund) * clamp01((t - 0.55) / 0.4)), pop: clamp01((t - 0.5) / 0.5), big: big)
+                        .background(GeometryReader { g in
+                            Color.clear
+                                .onAppear { chipFrame = g.frame(in: .named(Self.space)) }
+                                .onChange(of: g.frame(in: .named(Self.space))) { chipFrame = $0 }
+                        })
+                        .padding(.top, big ? 6 : 2)
                 } else {
-                    StardustIcon(tint: c).padding(big ? 40 : 20)
+                    Text(note(item))
+                        .font(.minSans(big ? 12 : 9.5, .medium))
+                        .foregroundStyle(StarlightArt.dust)
+                        .multilineTextAlignment(.center).lineLimit(2)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 2)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Text(item?.name(in: lang) ?? draw.itemId)
-                .font(.minSans(big ? 17 : 11.5, .semibold)).foregroundStyle(openInk)
-                .multilineTextAlignment(.center).lineLimit(2)
-            if big, let item {
-                Text(item.desc(in: lang)).font(.minSans(12)).foregroundStyle(openSub)
-                    .multilineTextAlignment(.center).lineLimit(3).padding(.top, 2)
+            .padding(big ? 18 : 8)
+            // 별가루 알갱이 — 그림에서 흩어졌다가 칩으로 빨려 든다.
+            if draw.dup, t > 0.08, t < 0.99, artFrame != .zero, chipFrame != .zero {
+                Canvas { ctx, _ in
+                    dustFlow(&ctx, t, from: CGPoint(x: artFrame.midX, y: artFrame.midY), radius: min(artFrame.width, artFrame.height) / 2,
+                             to: CGPoint(x: chipFrame.minX + chipFrame.width * 0.28, y: chipFrame.midY), big: big)
+                }
+                .allowsHitTesting(false)
             }
-            Text(note(item))
-                .font(.minSans(big ? 12 : 9.5, .medium))
-                .foregroundStyle(draw.dup ? openDim : StarlightArt.dust)
-                .multilineTextAlignment(.center).lineLimit(2)
-                .padding(.top, 2)
         }
-        .padding(big ? 18 : 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(LinearGradient(colors: [c.opacity(0.22), Color(hex: 0x121821), Color(hex: 0x0E131B)], startPoint: .top, endPoint: .bottom))
+        .coordinateSpace(name: Self.space)
+        .background(LinearGradient(colors: [c.opacity(0.22 * (1 - fade * 0.6)), Color(hex: 0x121821), Color(hex: 0x0E131B)],
+                                   startPoint: .top, endPoint: .bottom))
         .clipShape(RoundedRectangle(cornerRadius: radius))
         .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(c.opacity(0.55), lineWidth: 1))
     }
 
     private func note(_ item: StarlightStore.Item?) -> String {
         if draw.keys > 0 { return String(format: locale.t(.starlightKeysPlus), draw.keys) }
-        if draw.dup { return String(format: locale.t(.starlightDupRefund), draw.refund) }
         if item?.kind == "telescope" { return locale.t(.starlightStacked) }
         return locale.t(.starlightNew)
+    }
+}
+
+/// "이미 있어요" 도장 — 그림 아래쪽 가운데, 찍히듯 커졌다 제자리.
+private struct OwnedStamp: View {
+    let big: Bool
+    let appear: Double
+    @ObservedObject private var locale = LocaleManager.shared
+
+    var body: some View {
+        let sc = appear < 1 ? 1.6 - 0.6 * appear : 1
+        Text(locale.t(.starlightDupOwned))
+            .font(.minSans(big ? 12 : 9, .semibold))
+            .foregroundStyle(Color(hex: 0xE6E9F0))
+            .lineLimit(1)
+            .padding(.horizontal, big ? 12 : 7).padding(.vertical, big ? 4 : 2)
+            .background(Color(hex: 0x1A1F2B).opacity(0.8), in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.75))
+            .scaleEffect(sc)
+            .opacity(appear)
+    }
+}
+
+/// 금빛 별가루 칩 — 튀어 오르며 나타나고 숫자가 shown 까지 올라간다.
+private struct DustChip: View {
+    let shown: Int
+    let pop: Double
+    let big: Bool
+    @ObservedObject private var locale = LocaleManager.shared
+
+    var body: some View {
+        // 0.6 → 1.15 → 1 로 통 튀는 크기
+        let sc = pop <= 0 ? 0.6 : pop < 0.5 ? 0.6 + 0.55 * (pop / 0.5) : 1.15 - 0.15 * ((pop - 0.5) / 0.5)
+        HStack(spacing: big ? 5 : 3) {
+            StardustIcon().frame(width: big ? 18 : 13, height: big ? 18 : 13)
+            Text(String(format: locale.t(.starlightDustPlus), shown))
+                .font(.minSans(big ? 14 : 10.5, .bold))
+                .foregroundStyle(StarlightArt.dust)
+                .lineLimit(1)
+        }
+        .padding(.leading, big ? 8 : 5).padding(.trailing, big ? 12 : 8).padding(.vertical, 3)
+        .background(LinearGradient(colors: [Color(hex: 0xFFC75A).opacity(0.25), Color(hex: 0xFFE6A8).opacity(0.15)],
+                                   startPoint: .leading, endPoint: .trailing), in: Capsule())
+        .overlay(Capsule().strokeBorder(StarlightArt.dust.opacity(0.35 + 0.45 * pop), lineWidth: 1))
+        .scaleEffect(sc)
+        .opacity(0.35 + 0.65 * min(pop, 1))
+    }
+}
+
+/// 별가루 흐름 — 알갱이마다 그림 둘레 한 점에서 태어나 바깥으로 살짝 튀었다가 곡선으로 칩에 들어간다(도착하며 작아짐).
+/// 위치는 t(0..1) 만의 함수. Android `drawDustFlow` 와 같은 식.
+private func dustFlow(_ ctx: inout GraphicsContext, _ t: Double, from: CGPoint, radius: CGFloat, to: CGPoint, big: Bool) {
+    let n = big ? 22 : 14
+    for j in 0..<n {
+        let start = 0.08 + 0.3 * Double((j * 7) % n) / Double(n)
+        let p = clamp01((t - start) / 0.5)
+        if p <= 0 || p >= 1 { continue }
+        let a = Double(j) * 2.399963 // 황금각으로 고르게
+        let r0 = radius * CGFloat(0.25 + 0.35 * Double((j * 5) % 7) / 7)
+        let s = CGPoint(x: from.x + CGFloat(cos(a)) * r0, y: from.y + CGFloat(sin(a)) * r0)
+        let ctrl = CGPoint(x: from.x + CGFloat(cos(a)) * radius * 1.05, y: from.y + CGFloat(sin(a)) * radius * 0.9)
+        let e = CGFloat(1 - (1 - p) * (1 - p))
+        let u = 1 - e
+        let pos = CGPoint(x: u * u * s.x + 2 * u * e * ctrl.x + e * e * to.x,
+                          y: u * u * s.y + 2 * u * e * ctrl.y + e * e * to.y)
+        let size = radius * (big ? 0.032 : 0.05) * CGFloat(1 - 0.5 * p) * (j % 3 == 0 ? 1.5 : 1)
+        let alpha = (p < 0.15 ? p / 0.15 : 1) * (1 - p * 0.4)
+        ctx.fill(StarlightArt.circle(pos, size * 1.8), with: .color(StarlightArt.dust.opacity(0.18 * alpha)))
+        ctx.fill(StarlightArt.sparkle(pos, size * 1.7), with: .color(Color(hex: 0xFFF3D0).opacity(alpha)))
     }
 }

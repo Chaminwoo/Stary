@@ -264,7 +264,7 @@ enum L10n: String {
     case starlightOpenMany, starlightCollection, starlightCollected, starlightOwnedN, starlightOddsTitle, starlightRarityCommon
     case starlightRarityRare, starlightRarityEpic, starlightRarityLegendary, starlightPity, starlightPityNow, starlightDupRule
     case starlightKindShape, starlightKindColor, starlightKindTitle, starlightKindFrame, starlightKindBadge, starlightKindAura
-    case starlightKindTelescope, starlightKindKeyBundle, starlightKindOther, starlightNew, starlightStacked, starlightDupRefund
+    case starlightKindTelescope, starlightKindKeyBundle, starlightKindOther, starlightNew, starlightStacked, starlightDupRefund, starlightDupOwned, starlightDupExplain, starlightDustPlus
     case starlightKeysPlus, starlightTapClose, starlightMadeKeys, starlightMadeBox, starlightStardustGained, starlightErrInsufficient
     /// 성운 상자 연출 · 수집품(2026-10-22 — Android starlight_showcase … nav_collection 패리티).
     case navCollection, starlightShowcase, starlightCollectionOpen, starlightCollectionDesc, starlightCollectionEmpty
@@ -849,6 +849,9 @@ enum L10n: String {
         case .starlightNew: return ("새로 얻었어요!", "New!", "新しく手に入れました！")
         case .starlightStacked: return ("보관함에 쌓였어요", "Added to your stash", "保管庫に追加されました")
         case .starlightDupRefund: return ("이미 있어요 · 별가루 +%1$d", "Duplicate · +%1$d stardust", "所持済み・星くず +%1$d")
+        case .starlightDupOwned: return ("이미 있어요", "Owned", "所持済み")
+        case .starlightDupExplain: return ("이미 가진 아이템이라 별가루로 바꿨어요.", "You already have this, so it became stardust.", "すでに持っているので、星くずに替えました。")
+        case .starlightDustPlus: return ("별가루 +%1$d", "Stardust +%1$d", "星くず +%1$d")
         case .starlightKeysPlus: return ("열쇠 +%1$d", "+%1$d keys", "鍵 +%1$d")
         case .starlightTapClose: return ("화면을 탭하면 닫혀요", "Tap anywhere to close", "画面をタップすると閉じます")
         case .starlightMadeKeys: return ("열쇠 %1$d개를 만들었어요", "Crafted %1$d key(s)", "鍵を%1$d個作りました")

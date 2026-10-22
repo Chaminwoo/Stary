@@ -775,6 +775,9 @@
     <string name="starlight_new">New!</string>
     <string name="starlight_stacked">Added to your stash</string>
     <string name="starlight_dup_refund">Duplicate · +%1$d stardust</string>
+    <string name="starlight_dup_owned">Owned</string>
+    <string name="starlight_dup_explain">You already have this, so it became stardust.</string>
+    <string name="starlight_dust_plus">Stardust +%1$d</string>
     <string name="starlight_keys_plus">+%1$d keys</string>
     <string name="starlight_tap_close">Tap anywhere to close</string>
     <string name="starlight_made_keys">Crafted %1$d key(s)</string>
