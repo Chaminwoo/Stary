@@ -28,6 +28,13 @@ data class Diary(
     val starType: Int = 0,
     /** 별 색상 팔레트 인덱스 (0..11). 팔레트는 androidApp designsystem StarStyle 참고. */
     val starColor: Int = 0,
+    /**
+     * 앱에 내장되지 않은 모양(starType ≥ 내장 개수, DB 정의 — 2026-10-22)일 때만 싣는 SVG 경로(0~1 단위 박스).
+     * 이전 버전 앱도 이걸로 그린다(androidApp `StarCatalog` / iOS `StarCatalog`). 내장 모양이면 빈 값.
+     */
+    val starPath: String = "",
+    /** 앱에 내장되지 않은 색(starColor ≥ 내장 개수)일 때만 싣는 "#RRGGBB" 정지점 1~3개. 내장 색이면 빈 목록. */
+    val starColors: List<String> = emptyList(),
     /** 공개 범위: "public"(전체), "friends"(친구만), "private"(나만보기). */
     val visibilityType: String = "public",
     /**

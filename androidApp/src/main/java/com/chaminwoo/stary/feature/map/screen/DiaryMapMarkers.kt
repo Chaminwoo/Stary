@@ -560,7 +560,7 @@ internal fun mergeSizeMult(members: List<Diary>): Float =
 
 /** 다이어리 → 별 마커 Feature. [lng]/[lat]/[alpha] 는 합쳐짐 보간, [sizeMult] 는 최종 크기 배율. */
 internal fun diaryFeature(d: Diary, lng: Double, lat: Double, near: Boolean, alpha: Float, sizeMult: Float): Feature {
-    val colorIdx = d.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1)
+    val colorIdx = StarStyle.safeColor(d.starColor)
     return Feature.fromGeometry(Point.fromLngLat(lng, lat)).apply {
         addStringProperty("id", d.id)
         addBooleanProperty("near", near)
@@ -569,8 +569,8 @@ internal fun diaryFeature(d: Diary, lng: Double, lat: Double, near: Boolean, alp
         addStringProperty("auraColor", starColorHex(colorIdx))
         addBooleanProperty("fresh", System.currentTimeMillis() - d.createdAt <= FRESH_WINDOW_MS)
         addNumberProperty("alpha", alpha)
-        addStringProperty("icon", starIconId(d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1), colorIdx))
-        addStringProperty("sparkleIcon", sparkleStarIconId(d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1), colorIdx))
+        addStringProperty("icon", starIconId(StarStyle.safeType(d.starType), colorIdx))
+        addStringProperty("sparkleIcon", sparkleStarIconId(StarStyle.safeType(d.starType), colorIdx))
     }
 }
 
@@ -838,8 +838,8 @@ internal fun orbitFeatures(
                     addStringProperty(
                         "icon",
                         orbitStarIconId(
-                            m.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1),
-                            m.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1),
+                            StarStyle.safeType(m.starType),
+                            StarStyle.safeColor(m.starColor),
                         )
                     )
                 }

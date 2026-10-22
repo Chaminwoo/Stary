@@ -143,7 +143,7 @@ fun DiaryStarBox(
                     r = r,
                     color = StarStyle.colorOf(d.starColor),
                     colorIndex = d.starColor,
-                    type = d.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1),
+                    type = StarStyle.safeType(d.starType),
                     phase = rnd.nextFloat() * 6.2832f,
                     floatAmp = with(density) { (3f + rnd.nextFloat() * 4f).dp.toPx() },
                     floatSpeed = 0.5f + rnd.nextFloat() * 0.6f,

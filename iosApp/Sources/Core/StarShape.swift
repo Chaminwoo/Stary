@@ -21,8 +21,13 @@ struct StarShape: Shape {
     func path(in rect: CGRect) -> Path {
         let s = min(rect.width, rect.height)
         let origin = CGPoint(x: rect.midX - s / 2, y: rect.midY - s / 2)
+        // 앱에 없는 모양(DB 정의) — 별 문서에 실려 온 단위(0~1) 경로로 그린다(StarCatalog).
+        if type >= StarStyle.typeCount, let unit = StarCatalog.shared.unitPath(type) {
+            return Path(unit).applying(CGAffineTransform(scaleX: s, y: s).concatenating(
+                CGAffineTransform(translationX: origin.x, y: origin.y)))
+        }
         let k = s / Self.cacheBase
-        return Self.cache[type.clamped(0, StarStyle.typeCount - 1)]
+        return Self.cache[StarStyle.safeType(type).clamped(0, StarStyle.typeCount - 1)]
             .applying(CGAffineTransform(scaleX: k, y: k).concatenating(
                 CGAffineTransform(translationX: origin.x, y: origin.y)))
     }

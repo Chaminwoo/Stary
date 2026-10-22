@@ -35,6 +35,10 @@ struct Diary: Identifiable, Codable, Hashable {
 
     var starType: Int = 0
     var starColor: Int = 0
+    /// 앱에 내장되지 않은 모양·색(starType ≥ typeCount / starColor ≥ colorCount)을 다른 버전 앱도 그릴 수 있게
+    /// 문서에 함께 싣는 정의 — SVG 경로(0~1 단위) · "#RRGGBB" 1~3개. 내장 번호면 비어 있다. `StarCatalog` 참고.
+    var starPath: String = ""
+    var starColors: [String] = []
 
     var visibilityType: String = "public"
 
@@ -61,6 +65,8 @@ struct Diary: Identifiable, Codable, Hashable {
         viewCount: Int = 0,
         starType: Int = 0,
         starColor: Int = 0,
+        starPath: String = "",
+        starColors: [String] = [],
         visibilityType: String = "public",
         translations: DiaryTranslations? = nil
     ) {
@@ -80,6 +86,8 @@ struct Diary: Identifiable, Codable, Hashable {
         self.viewCount = viewCount
         self.starType = starType
         self.starColor = starColor
+        self.starPath = starPath
+        self.starColors = starColors
         self.visibilityType = visibilityType
         self.translations = translations
     }
@@ -110,6 +118,8 @@ struct Diary: Identifiable, Codable, Hashable {
 
         case starType
         case starColor
+        case starPath
+        case starColors
 
         case visibilityType
 
@@ -193,6 +203,10 @@ struct Diary: Identifiable, Codable, Hashable {
 
         starType = int(.starType) ?? 0
         starColor = int(.starColor) ?? 0
+        starPath = str(.starPath) ?? ""
+        starColors = ((try? c.decodeIfPresent([String].self, forKey: .starColors)) ?? nil) ?? []
+        // 처음 보는 모양·색 번호면 문서에 실린 정의를 배워 둔다(이후 같은 번호의 별은 정의가 없어도 그려진다).
+        StarCatalog.shared.learn(type: starType, path: starPath, color: starColor, colors: starColors)
 
         visibilityType = str(.visibilityType) ?? "public"
 
@@ -290,6 +304,12 @@ struct Diary: Identifiable, Codable, Hashable {
             starColor,
             forKey: .starColor
         )
+
+        // 앱에 내장되지 않은 번호면 그릴 정의를 함께 싣는다 — 이 번호를 모르는 다른 버전 앱도 같은 모양·색으로 그린다.
+        let path = starPath.isEmpty ? (StarCatalog.shared.shapeSvg(starType) ?? "") : starPath
+        if !path.isEmpty { try container.encode(path, forKey: .starPath) }
+        let colors = starColors.isEmpty ? (StarCatalog.shared.colorHexes(starColor) ?? []) : starColors
+        if !colors.isEmpty { try container.encode(colors, forKey: .starColors) }
 
         try container.encode(
             visibilityType,

@@ -62,27 +62,49 @@ object StarStyle {
 
     private const val GRAD_START = 16 // 이 인덱스부터 그라데이션
 
-    fun isGradient(index: Int): Boolean = index in GRAD_START until COLOR_COUNT
+    /**
+     * 그릴 수 있는 모양 번호 — 내장(0..20)이거나 [StarCatalog] 가 배운 번호면 그대로, 모르는 번호는 기본 별(1, 5꼭지).
+     * (예전엔 범위로 잘라 모르는 번호가 엉뚱한 내장 모양이 됐다 — 2026-10-22 DB 정의 모양 도입과 함께 바꿈.)
+     */
+    fun safeType(type: Int): Int = when {
+        type in 0 until TYPE_COUNT || StarCatalog.hasShape(type) -> type
+        type < 0 -> 0
+        else -> 1
+    }
 
-    /** 그라데이션 2색(없으면 null). */
-    fun gradientOf(index: Int): Pair<Color, Color>? = gradients.getOrNull(index - GRAD_START)
+    /** 그릴 수 있는 색 번호 — 내장(0..20)이거나 [StarCatalog] 가 배운 번호면 그대로, 모르는 번호는 화이트(0). */
+    fun safeColor(index: Int): Int =
+        if (index in 0 until COLOR_COUNT || StarCatalog.hasColor(index)) index else 0
+
+    fun isGradient(index: Int): Boolean =
+        index in GRAD_START until COLOR_COUNT || (StarCatalog.colors(index)?.size ?: 0) >= 2
+
+    /** 그라데이션 양 끝 2색(없으면 null). DB 정의 3색이면 처음·끝 — 3색 전부는 [colorsOf]. */
+    fun gradientOf(index: Int): Pair<Color, Color>? {
+        StarCatalog.colors(index)?.let { return if (it.size >= 2) it.first() to it.last() else null }
+        return gradients.getOrNull(index - GRAD_START)
+    }
 
     /** 대표(단색) 색 — 그라데이션이면 시작색. 후광/미리보기 등 단색 자리에서 사용. */
     fun colorOf(index: Int): Color {
-        val i = index.coerceIn(0, COLOR_COUNT - 1)
+        StarCatalog.colors(index)?.let { return it.first() }
+        val i = safeColor(index).coerceIn(0, COLOR_COUNT - 1)
         return if (i >= GRAD_START) gradients[i - GRAD_START].first else palette[i]
     }
 
-    /** 색 구성(단색=1개, 그라데이션=2개). 미리보기 Brush 만들 때 사용. */
+    /** 색 구성(단색=1개, 그라데이션=2~3개). 미리보기 Brush 만들 때 사용. */
     fun colorsOf(index: Int): List<Color> =
-        gradientOf(index)?.let { listOf(it.first, it.second) } ?: listOf(colorOf(index))
+        StarCatalog.colors(index)
+            ?: gradientOf(index)?.let { listOf(it.first, it.second) }
+            ?: listOf(colorOf(index))
 
     /** 별 채우기용 Shader — 그라데이션 색일 때만 생성(아니면 null → 단색 Paint.color 사용). */
     fun fillShader(index: Int, left: Float, top: Float, sizePx: Float): Shader? {
-        val g = gradientOf(index) ?: return null
+        val cs = colorsOf(index)
+        if (cs.size < 2) return null
         return LinearGradient(
             left, top, left + sizePx, top + sizePx,
-            g.first.toArgb(), g.second.toArgb(), Shader.TileMode.CLAMP
+            cs.map { it.toArgb() }.toIntArray(), null, Shader.TileMode.CLAMP
         )
     }
 
@@ -102,7 +124,9 @@ object StarStyle {
      * 만들어 캐시하고 매 호출엔 복사 + 배율만 준다(반환값은 항상 새 Path — 호출자가 offset 해도 안전).
      */
     fun starPath(type: Int, sizePx: Float): Path {
-        val t = type.coerceIn(0, TYPE_COUNT - 1)
+        // 앱에 없는 모양(DB 정의) — 별 문서에 실려 온 경로로 그린다(StarCatalog).
+        if (type >= TYPE_COUNT) StarCatalog.path(type, sizePx)?.let { return it }
+        val t = safeType(type).coerceIn(0, TYPE_COUNT - 1)
         val base = pathCache[t] ?: synchronized(pathCache) {
             pathCache[t] ?: buildStarPath(t, PATH_BASE).also { pathCache[t] = it }
         }
@@ -201,7 +225,7 @@ object StarStyle {
         alpha: Int = 255,
     ) {
         if (sizePx <= 0f || colors.isEmpty() || alpha <= 0) return
-        val t = type.coerceIn(0, TYPE_COUNT - 1)
+        val t = safeType(type)
         val silhouette = Path(starPath(t, sizePx)).apply { offset(left, top) }
         drawCrystalFacets(canvas, silhouette, t, colors, left, top, sizePx, alpha)
     }

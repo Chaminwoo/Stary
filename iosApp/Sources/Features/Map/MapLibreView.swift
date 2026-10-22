@@ -288,8 +288,8 @@ struct MapLibreView: UIViewRepresentable {
             hasher.combine(d.id)
             hasher.combine(d.latitude)
             hasher.combine(d.longitude)
-            hasher.combine(d.starType)
-            hasher.combine(d.starColor)
+            hasher.combine(StarStyle.safeType(d.starType))
+            hasher.combine(StarStyle.safeColor(d.starColor))
             hasher.combine(d.likeCount)
         }
 
@@ -1072,6 +1072,7 @@ final class DiaryAnnotation:
     /// 같은 (모양, 색, 크기) 마커는 이미지를 공유.
     var imageKey: String {
 
-        "star-\(diary.starType)-\(diary.starColor)-\(Int(markerSize))"
+        // "그릴 번호"로 키를 잡는다 — 모르는 번호(기본 별로 그려짐)가 나중에 정의를 배우면 새 이미지로 다시 굽힌다.
+        "star-\(StarStyle.safeType(diary.starType))-\(StarStyle.safeColor(diary.starColor))-\(Int(markerSize))"
     }
 }

@@ -962,8 +962,8 @@ fun DiaryMap(
 
         // 전이 중 흡수되는 별도 잠깐 보이므로 valid 전체의 아이콘을 등록
         valid.map {
-            it.starType.coerceIn(0, StarStyle.TYPE_COUNT - 1) to
-                it.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1)
+            StarStyle.safeType(it.starType) to
+                StarStyle.safeColor(it.starColor)
         }
             .distinct()
             .forEach { (type, color) ->
@@ -1180,7 +1180,7 @@ fun DiaryMap(
                                 flashes.add(
                                     WaveFlash(
                                         x = p.x, y = p.y, radiusPx = rr, intensity = glow,
-                                        color = StarStyle.colorOf(d.starColor.coerceIn(0, StarStyle.COLOR_COUNT - 1)),
+                                        color = StarStyle.colorOf(StarStyle.safeColor(d.starColor)),
                                     )
                                 )
                             }

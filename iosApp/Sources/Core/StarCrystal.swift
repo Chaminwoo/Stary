@@ -37,7 +37,7 @@ enum StarCrystal {
         let size = min(rect.width, rect.height)
         guard size > 0, !colors.isEmpty, alpha > 0 else { return }
 
-        let t = min(max(type, 0), StarStyle.typeCount - 1)
+        let t = StarStyle.safeType(type)
         let left = rect.midX - size / 2
         let top = rect.midY - size / 2
         let square = CGRect(x: left, y: top, width: size, height: size)
@@ -210,14 +210,14 @@ enum StarCrystal {
 
     /// 팔레트 색 인덱스 → 채움 색(단색 1개 / 그라데이션 2개).
     static func colorsOf(_ index: Int) -> [UIColor] {
-        if let g = StarStyle.gradient(index) { return [UIColor(g.0), UIColor(g.1)] }
-        return [UIColor(StarStyle.color(index))]
+        StarStyle.colors(index).map { UIColor($0) }
     }
 
     /// 크리스탈 별을 비트맵으로 구워 캐시한다 — Canvas 안에 Canvas 를 중첩할 수 없는 자리
     /// (예: `Canvas(symbols:)` 심볼)에서 `Image(uiImage:)` 로 쓰기 위한 경로.
     static func image(type: Int, colorIndex: Int, size: CGFloat) -> UIImage {
-        let key = "\(type)-\(colorIndex)-\(Int(size.rounded()))" as NSString
+        // 모르는 번호는 기본 별·흰색으로 구워지므로 "그릴 번호"로 키를 잡는다 — 나중에 정의를 배우면 새 키로 다시 굽는다.
+        let key = "\(StarStyle.safeType(type))-\(StarStyle.safeColor(colorIndex))-\(Int(size.rounded()))" as NSString
         if let hit = imageCache.object(forKey: key) { return hit }
         let rect = CGRect(x: 0, y: 0, width: size, height: size)
         let img = UIGraphicsImageRenderer(size: rect.size).image { ctx in

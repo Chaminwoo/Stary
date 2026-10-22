@@ -1,6 +1,7 @@
 package com.chaminwoo.stary.data.repository
 
 import com.chaminwoo.stary.data.staryFirestore
+import com.chaminwoo.stary.core.designsystem.StarCatalog
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.data.local.DiaryCache
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -64,7 +65,7 @@ class FirebaseDiaryRepository : DiaryRepository {
                     if (error != null) return@addSnapshotListener
                     val currentUid = GoogleAuthHelper.currentUserId
                     val list = snapshot?.documents?.mapNotNull { doc ->
-                        doc.toObject(Diary::class.java)?.copy(id = doc.id)
+                        doc.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = doc.id)
                     }?.filter { diary ->
                         // private 다이어리는 본인만 볼 수 있음
                         diary.visibilityType != "private" || diary.userId == currentUid
@@ -92,7 +93,10 @@ class FirebaseDiaryRepository : DiaryRepository {
             val docRef = diaries.document()
             val withMeta = diary.copy(
                 id = docRef.id,
-                createdAt = if (diary.createdAt == 0L) System.currentTimeMillis() else diary.createdAt
+                createdAt = if (diary.createdAt == 0L) System.currentTimeMillis() else diary.createdAt,
+                // 앱에 없는 모양·색(DB 정의)이면 그릴 정보를 함께 싣는다 — 다른 버전 앱도 그대로 그리게(StarCatalog).
+                starPath = diary.starPath.ifBlank { StarCatalog.shapeSvg(diary.starType).orEmpty() },
+                starColors = diary.starColors.ifEmpty { StarCatalog.colorHexes(diary.starColor).orEmpty() },
             )
             docRef.set(withMeta).await()
             // fire-and-forget: 친구 알림 생성이 저장 완료 이벤트(토스트/화면전환)를 막지 않게 분리
@@ -141,7 +145,7 @@ class FirebaseDiaryRepository : DiaryRepository {
     override suspend fun getDiaryById(diaryId: String): Diary? {
         return try {
             val doc = diaries.document(diaryId).get().await()
-            doc.toObject(Diary::class.java)?.copy(id = doc.id)
+            doc.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = doc.id)
         } catch (e: Exception) {
             null
         }
@@ -155,7 +159,7 @@ class FirebaseDiaryRepository : DiaryRepository {
             .addSnapshotListener(listenerExecutor) { snapshot, error ->
                 if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
                 val list = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Diary::class.java)?.copy(id = doc.id)
+                    doc.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = doc.id)
                 }?.sortedByDescending { it.createdAt } ?: emptyList()
                 trySend(list)
             }
@@ -196,7 +200,7 @@ class FirebaseDiaryRepository : DiaryRepository {
                             .addSnapshotListener { snap2, err2 ->
                                 if (err2 != null) return@addSnapshotListener
                                 val latest = snap2?.documents
-                                    ?.mapNotNull { d -> d.toObject(Diary::class.java)?.copy(id = d.id) }
+                                    ?.mapNotNull { d -> d.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = d.id) }
                                     ?.filter(::visible)
                                     ?.maxByOrNull { it.createdAt }
                                 trySend(latest)
@@ -205,7 +209,7 @@ class FirebaseDiaryRepository : DiaryRepository {
                     return@addSnapshotListener
                 }
                 val latest = snapshot?.documents
-                    ?.mapNotNull { d -> d.toObject(Diary::class.java)?.copy(id = d.id) }
+                    ?.mapNotNull { d -> d.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = d.id) }
                     ?.filter(::visible)
                     ?.maxByOrNull { it.createdAt }
                 trySend(latest)
@@ -227,7 +231,7 @@ class FirebaseDiaryRepository : DiaryRepository {
             if (DiaryCache.get(id) != null) return@forEach
             try {
                 val doc = diaries.document(id).get().await()
-                doc.toObject(Diary::class.java)?.copy(id = doc.id)?.let { DiaryCache.put(it) }
+                doc.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = doc.id)?.let { DiaryCache.put(it) }
             } catch (_: Exception) {}
         }
     }
