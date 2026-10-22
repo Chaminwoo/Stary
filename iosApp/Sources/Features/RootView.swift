@@ -179,9 +179,38 @@ struct MainTabView: View {
 
                 // 오늘의 퀘스트 창(지도 "!" 버튼) — 상단바·글쓰기 버튼까지 덮는다.
                 if chrome.questsOpen {
-                    QuestSheetView { withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = false } }
+                    // 첫 사용 안내 중이면 첫 퀘스트(프로필 바꾸기) 행을 강조하고 "하러 가기"로 프로필 화면에 보낸다.
+                    QuestSheetView(
+                        highlightId: chrome.guideStep == .quest || chrome.guideStep == .profile ? DailyQuests.profileEdit.id : nil,
+                        onGo: { q in
+                            withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = false }
+                            StaryAnalytics.log("guide_action", ["step": "quest_go_" + q.id])
+                            if q.event == .profileEdit { TabRouter.shared.go(TabRouter.profile) }
+                        }
+                    ) { withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = false } }
                         .transition(.opacity)
                         .zIndex(60)
+                }
+
+                // 첫 사용 안내 — 웰컴 별을 본 뒤 지도 "!"(오늘의 퀘스트) 버튼만 밝힌다(Android MainScreen QuestSpotlight 패리티).
+                if chrome.guideStep == .quest, !chrome.guideHidden.contains(.quest), !showCoachMark,
+                   !chrome.questsOpen, !chrome.mapOnly, path.isEmpty, coachEyeCenter != .zero {
+                    QuestSpotlight(
+                        center: coachEyeCenter,
+                        onOpen: {
+                            StaryAnalytics.log("guide_action", ["step": "quest"])
+                            Haptics.tick()
+                            withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = true }
+                        },
+                        onLater: {
+                            StaryAnalytics.log("guide_dismiss", ["step": "quest"])
+                            withAnimation(.easeOut(duration: 0.2)) { _ = chrome.guideHidden.insert(.quest) }
+                        }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .zIndex(70)
                 }
 
                 InAppBannerHost()
@@ -262,6 +291,10 @@ struct MainTabView: View {
             }
         }
         .onChange(of: showCoachMark) { chrome.coachMarkShowing = $0 }
+        // 안내 중에 퀘스트 창을 열면 "!" 스포트라이트 단계가 끝난다.
+        .onChange(of: chrome.questsOpen) { open in
+            if open, chrome.guideStep == .quest, let uid = auth.uid { FirstStarGuideProgress.shared.markQuestSeen(uid) }
+        }
         // 설정 > 도움말 다시 보기 → 지도로 돌아가 코치마크 재생.
         .onChange(of: onboardingReplay.requested) { requested in
             if requested {
@@ -347,6 +380,7 @@ struct MainTabView: View {
             // 일일 퀘스트·열쇠(users/{uid}) — 이전 가입 계정 여부가 정해져야 1일째 목록을 만든다.
             QuestStore.shared.start(uid: auth.uid)
             QuestStore.shared.setReturning(auth.returningAccount)
+            if auth.returningAccount == false, let uid = auth.uid { FirstStarGuideProgress.shared.markStarted(uid) }
             // 집중 모드 해제용 창 전체 터치 감시(가로채지 않음).
             TouchActivityRecognizer.installIfNeeded()
             maybeStartCoachMark()
@@ -354,6 +388,8 @@ struct MainTabView: View {
         // 이전 가입 계정 여부가 정해지면 — 퀘스트 1일째 목록 + 코치마크(새 계정일 때만).
         .onChange(of: auth.returningAccount) { r in
             QuestStore.shared.setReturning(r)
+            // 첫 사용 안내는 새 계정으로 확인된 계정만 — 이 기기에 계정별로 기록해 다음 실행에도 이어진다.
+            if r == false, let uid = auth.uid { FirstStarGuideProgress.shared.markStarted(uid) }
             maybeStartCoachMark()
         }
         // 집중(지도만 보기) — 지도에서 10초 동안 아무것도 안 건드리면 들어간다(2026-10-19, Android MainScreen 패리티).
@@ -382,6 +418,7 @@ struct MainTabView: View {
             MeteorStats.shared.start(uid: newUid)
             QuestStore.shared.start(uid: newUid)
             QuestStore.shared.setReturning(auth.returningAccount)
+            if auth.returningAccount == false, let uid = auth.uid { FirstStarGuideProgress.shared.markStarted(uid) }
             if let uid = newUid {
                 viewed.start(uid: uid); blocks.start(uid: uid)
                 notifications.start(ownerId: uid)

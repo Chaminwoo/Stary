@@ -32,6 +32,10 @@ final class MapChromeState: ObservableObject {
 
     /// 첫 실행 코치마크가 떠 있음(RootView 가 맞춘다) — 그동안 첫 별 안내 카드를 숨긴다.
     @Published var coachMarkShowing = false
+    /// 첫 사용 안내 단계(지도가 띄울 수 있을 때만) — MapScreen 이 정하고 RootView 가 "!" 스포트라이트·퀘스트 창 강조에 쓴다.
+    @Published var guideStep: GuideStep?
+    /// 이번 실행에서 닫은(X/나중에) 안내 단계.
+    @Published var guideHidden: Set<GuideStep> = []
 
     /// 지도(루트)가 화면에 보이는지 — MapScreen onAppear/onDisappear(상세·겹친 별 push 로 가려지면 false).
     @Published var mapVisible = true

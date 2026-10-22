@@ -10,7 +10,6 @@ import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.ui.StaryToast
 import com.chaminwoo.stary.core.util.Haptics
 import com.chaminwoo.stary.core.util.LocaleManager
-import com.chaminwoo.stary.core.util.TutorialStarState
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.shared.config.StaryConfig
@@ -38,8 +37,7 @@ import java.time.LocalTime
  * ⚠️ `userName`/`profileImageUrl` 은 건드리지 않는다(CLAUDE.md §2.6).
  *
  * 새 날 목록은 **서버 스냅샷을 본 뒤에만** 만든다 — 재설치 직후 빈 캐시를 보고 만들면 다른 기기에서 진행 중인 오늘 목록을 덮는다.
- * 1일째 웰컴 별 퀘스트는 "새 계정 + 이 기기에 웰컴 별이 떠 있음"일 때만(이전 가입 계정은 웰컴 별을 건너뛰므로 —
- * [com.chaminwoo.stary.core.util.ReturningAccountOnboarding]) → 그래서 [GoogleAuthHelper.returningAccount] 가 정해진 뒤에 만든다.
+ * 목록은 [GoogleAuthHelper.returningAccount] 가 정해진 뒤에 만든다(예전 1일째 웰컴 별 분기의 흔적 — 2026-10-22부터 1일째는 모두 같은 목록).
  * iOS `QuestStore.swift` 와 같은 필드·규칙.
  */
 object QuestStore {
@@ -163,10 +161,9 @@ object QuestStore {
         val today = today()
         val cur = daily
         if (cur != null && cur.day == today) return
-        val returning = GoogleAuthHelper.returningAccount.value ?: if (returningFallback) true else return
+        if (GoogleAuthHelper.returningAccount.value == null && !returningFallback) return
         val dayNo = (cur?.dayNo ?: 0) + 1
-        val tutorial = !returning && !TutorialStarState.done
-        val ids = DailyQuests.pick(uid, today, dayNo, cur?.ids ?: emptyList(), tutorial)
+        val ids = DailyQuests.pick(uid, today, dayNo, cur?.ids ?: emptyList())
         val next = Daily(today, dayNo, ids, emptyMap(), emptySet(), false)
         daily = next
         // mergeFields("quest") = quest 필드만 통째로 교체(어제 progress/claimed 가 섞이지 않게), 다른 필드는 그대로.
@@ -186,6 +183,12 @@ object QuestStore {
      * [key] 를 주면 같은 날 같은 key 는 한 번만 센다(예: 다이어리 id). 어느 스레드에서 불러도 된다(메인에서 처리).
      */
     fun report(event: QuestEvent, key: String? = null) {
+        // 첫 사용 안내의 "프로필 바꾸기" 단계는 오늘 목록과 상관없이 끝난다.
+        if (event == QuestEvent.PROFILE_EDIT) {
+            val ctx = appContext
+            val id = uid
+            if (ctx != null && id != null) scope.launch { GuideProgress.markProfileDone(ctx, id) }
+        }
         scope.launch { reportNow(event, key) }
     }
 

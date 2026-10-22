@@ -752,4 +752,10 @@
     <string name="guide_open_hint">Tap the lock to use your key</string>
     <string name="guide_no_target">There are no other stars to open yet.</string>
     <string name="guide_done">Nice! Collect keys from quests to open more stars.</string>
+    <string name="guide_quest_tip">Your first quest is here!\nTap to check it out</string>
+    <string name="guide_later">Later</string>
+    <string name="guide_profile_title">Change your name or profile photo!</string>
+    <string name="guide_profile_msg">It\'s your first quest. You\'ll get a key.</string>
+    <string name="quest_go">Go</string>
+    <string name="quest_start_here">Start here</string>
 </resources>

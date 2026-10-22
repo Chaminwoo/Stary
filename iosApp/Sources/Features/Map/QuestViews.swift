@@ -75,7 +75,17 @@ struct KeyChip: View {
 struct QuestSheetView: View {
     @ObservedObject private var quests = QuestStore.shared
     @ObservedObject private var locale = LocaleManager.shared
+    /// 첫 사용 안내 중 강조할 퀘스트 id(그 행에 금빛 맥박 테두리 + "하러 가기").
+    let highlightId: String?
+    /// 강조한 행의 "하러 가기" — 그 기능 화면으로 보낸다(창은 호출부가 닫는다).
+    let onGo: ((QuestDef) -> Void)?
     let onDismiss: () -> Void
+
+    init(highlightId: String? = nil, onGo: ((QuestDef) -> Void)? = nil, onDismiss: @escaping () -> Void) {
+        self.highlightId = highlightId
+        self.onGo = onGo
+        self.onDismiss = onDismiss
+    }
     @State private var bump = 0
     @State private var now = Date()
     @State private var showAdKey = false
@@ -120,7 +130,9 @@ struct QuestSheetView: View {
                                 title: locale.t(q.title), hint: locale.t(q.hint),
                                 target: q.target, reward: DailyQuests.rewardKeys,
                                 progress: min(d.progressOf(q.id), q.target),
-                                claimed: d.claimed.contains(q.id)
+                                claimed: d.claimed.contains(q.id),
+                                highlight: q.id == highlightId,
+                                onGo: onGo.map { go in { go(q) } }
                             ) {
                                 let gained = quests.claim(q.id)
                                 if gained > 0 { StaryAnalytics.log("quest_claim", ["quest": q.id]) }
@@ -275,13 +287,17 @@ private struct QuestRowView: View {
     let reward: Int
     let progress: Int
     let claimed: Bool
+    var highlight: Bool = false
+    var onGo: (() -> Void)? = nil
     let onClaim: () -> Void
     @ObservedObject private var locale = LocaleManager.shared
     @State private var shown = false
+    @State private var guidePulse = false
 
     var body: some View {
         let complete = progress >= target
         let glow = complete && !claimed
+        let guiding = highlight && !complete && !claimed
         HStack(spacing: 12) {
             ZStack {
                 Circle().fill(claimed
@@ -294,6 +310,11 @@ private struct QuestRowView: View {
             .frame(width: 38, height: 38)
 
             VStack(alignment: .leading, spacing: 2) {
+                if guiding {
+                    Text(locale.t(.questStartHere))
+                        .font(.minSans(11, .semibold))
+                        .foregroundStyle(QuestTheme.gold)
+                }
                 Text(title)
                     .font(.minSans(14, .medium))
                     .foregroundStyle(claimed ? Color(hex: 0x8A93A3) : Theme.textPrimary)
@@ -326,6 +347,16 @@ private struct QuestRowView: View {
                 Text(locale.t(.questClaimed))
                     .font(.minSans(12))
                     .foregroundStyle(Color(hex: 0x6B7484))
+            } else if guiding, let onGo {
+                Button(action: onGo) {
+                    Text(locale.t(.questGo))
+                        .font(.minSans(13, .medium))
+                        .foregroundStyle(QuestTheme.ink)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(LinearGradient(colors: [QuestTheme.gold, QuestTheme.goldDeep], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                    in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
             } else if complete {
                 Button(action: onClaim) {
                     HStack(spacing: 4) {
@@ -347,13 +378,18 @@ private struct QuestRowView: View {
             }
         }
         .padding(12)
-        .background(glow ? QuestTheme.gold.opacity(0.08) : Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+        .background(glow || guiding ? QuestTheme.gold.opacity(0.08) : Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16)
-            .strokeBorder(glow ? QuestTheme.gold.opacity(0.45) : Color.white.opacity(0.10), lineWidth: 0.75))
+            .strokeBorder(guiding ? QuestTheme.gold.opacity(guidePulse ? 0.95 : 0.35)
+                          : glow ? QuestTheme.gold.opacity(0.45) : Color.white.opacity(0.10),
+                          lineWidth: guiding ? 1.5 : 0.75))
+        .contentShape(RoundedRectangle(cornerRadius: 16))
+        .onTapGesture { if guiding { onGo?() } }
         .opacity(shown ? 1 : 0)
         .offset(y: shown ? 0 : 10)
         .onAppear {
             withAnimation(.easeOut(duration: 0.26).delay(0.06 * Double(index))) { shown = true }
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { guidePulse = true }
         }
     }
 }

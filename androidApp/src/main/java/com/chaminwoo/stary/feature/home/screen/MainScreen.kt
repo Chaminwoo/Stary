@@ -302,6 +302,13 @@ fun MainScreen(
     // 이전에 가입했던 계정이면(재설치 첫 실행이라도) 코치마크·웰컴 별·화면 안내를 건너뛴다(2026-10-19, ReturningAccountOnboarding).
     // 새 계정인지 아직 모르는 동안엔 코치마크를 띄우지 않는다(서버 확인 후 결정 — 이전 계정에 잠깐 떴다 사라지지 않게).
     val returningAccount by GoogleAuthHelper.returningAccount.collectAsState()
+    // 첫 사용 안내(FirstStarGuide)는 새 계정으로 확인된 계정만 — 이 기기에 계정별로 기록해 다음 실행에도 이어진다.
+    androidx.compose.runtime.LaunchedEffect(returningAccount) {
+        val uid = GoogleAuthHelper.currentUserId
+        if (returningAccount == false && uid != null) {
+            com.chaminwoo.stary.feature.quest.GuideProgress.markStarted(context, uid)
+        }
+    }
     androidx.compose.runtime.LaunchedEffect(returningAccount) {
         if (returningAccount == true) {
             com.chaminwoo.stary.core.util.ReturningAccountOnboarding.apply(context)
@@ -834,6 +841,9 @@ fun MainScreen(
                             },
                             guideEnabled = !showLogin && !showOnboarding && userId != null &&
                                 com.chaminwoo.stary.core.util.TermsConsent.isAccepted(context),
+                            onOpenProfile = {
+                                navController.navigate(NavRoute.Profile) { launchSingleTop = true }
+                            },
                         )
                         // 탑바가 반투명이라 화면은 **탑바 뒤까지** 전체를 차지한다(배경이 탑바에 비치도록).
                         // 대신 각 화면의 콘텐츠 레이어가 LocalTopBarInset 만큼 내려간다.
@@ -916,6 +926,29 @@ fun MainScreen(
                     onboardingReplay = false
                 },
                 tutorialNeeded = !com.chaminwoo.stary.core.util.TutorialStarState.done,
+            )
+        }
+
+        // 첫 사용 안내 — 웰컴 별을 본 뒤 지도 "!"(오늘의 퀘스트) 버튼만 밝힌다. 코치마크와 같은 층이라 탑바까지 덮는다.
+        if (com.chaminwoo.stary.feature.quest.GuideUi.step == com.chaminwoo.stary.feature.quest.GuideStep.QUEST &&
+            com.chaminwoo.stary.feature.quest.GuideStep.QUEST !in com.chaminwoo.stary.feature.quest.GuideUi.hidden &&
+            currentRoute is NavRoute.Main && !showOnboarding && !MapUiState.mapOnly
+        ) {
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                MapUiState.holdIdle()
+                onDispose { MapUiState.releaseIdle() }
+            }
+            com.chaminwoo.stary.feature.quest.QuestSpotlight(
+                onOpen = {
+                    com.chaminwoo.stary.core.util.StaryAnalytics.log("guide_action", "step" to "quest")
+                    com.chaminwoo.stary.core.util.Haptics.light()
+                    com.chaminwoo.stary.feature.quest.GuideUi.questRequest++
+                },
+                onLater = {
+                    com.chaminwoo.stary.core.util.StaryAnalytics.log("guide_dismiss", "step" to "quest")
+                    com.chaminwoo.stary.feature.quest.GuideUi.hidden =
+                        com.chaminwoo.stary.feature.quest.GuideUi.hidden + com.chaminwoo.stary.feature.quest.GuideStep.QUEST
+                },
             )
         }
 

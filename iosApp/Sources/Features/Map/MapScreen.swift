@@ -90,8 +90,8 @@ struct MapScreen: View {
     @ObservedObject private var chrome = MapChromeState.shared
     /// 첫 별 안내(FirstStarGuide) — 열쇠 수·안내 완료 여부가 바뀌면 카드도 바뀐다.
     @ObservedObject private var quests = QuestStore.shared
-    /// 닫기(X)로 이번 실행에서 숨긴 단계.
-    @State private var guideHidden: GuideStep?
+    /// 첫 사용 안내 진행(퀘스트 창을 봤는지·프로필을 바꿨는지) — 바뀌면 카드도 바뀐다.
+    @ObservedObject private var guideProgress = FirstStarGuideProgress.shared
 
     // 포커스(카메라 이동) 대상 + 요청 번호(같은 별을 다시 요청해도 카메라가 움직이게 — MapLibreView.focusNonce).
     @State private var focusTarget: CLLocationCoordinate2D?
@@ -409,12 +409,16 @@ struct MapScreen: View {
     // MARK: 첫 별 안내(FirstStarGuide) — Android FirstStarGuide.kt 패리티
 
     private var guideStep: GuideStep? {
-        FirstStarGuideLogic.step(uid: auth.uid, diaries: store.diaries, loading: store.loading)
+        FirstStarGuideLogic.step(uid: auth.uid, diaries: store.diaries, loading: store.loading, here: location.coordinate)
+    }
+
+    /// 지도에서 안내를 띄울 수 있을 때의 단계 — RootView 가 `.quest` 스포트라이트·퀘스트 창 강조에 쓴다.
+    private var publishedGuideStep: GuideStep? {
+        guard !chrome.coachMarkShowing, globeCenter == nil else { return nil }
+        return guideStep
     }
 
     private func guideShown(_ step: GuideStep) {
-        guard let uid = auth.uid else { return }
-        if step == .write { UserDefaults.standard.set(true, forKey: FirstStarGuideLogic.startedKey(uid)) }
         if step == .open { quests.guideOpenShown = true }
         StaryAnalytics.logOnce("guide_" + step.rawValue, "guide_step", ["step": step.rawValue])
     }
@@ -424,6 +428,10 @@ struct MapScreen: View {
         StaryAnalytics.log("guide_action", ["step": step.rawValue])
         Haptics.tick()
         switch step {
+        case .quest:
+            withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = true }
+        case .profile:
+            TabRouter.shared.go(TabRouter.profile)
         case .write:
             TabRouter.shared.go(TabRouter.upload)
         case .claim:
@@ -572,15 +580,16 @@ struct MapScreen: View {
             .padding(.top, 16)
             .padding(.leading, 16)
 
-            // ── 첫 별 안내(첫 별 → 퀘스트 열쇠 → 남의 별 열기) — 상단, 좌상단 줌 버튼을 피해 띄운다(Android 동일 자리) ──
-            if let step = guideStep, step != guideHidden,
+            // ── 첫 사용 안내 카드(프로필 → 첫 별 → 퀘스트 열쇠 → 남의 별 열기) — 상단, 좌상단 줌 버튼을 피해 띄운다(Android 동일 자리).
+            //    `.quest` 는 카드 대신 RootView 의 "!" 스포트라이트.
+            if let step = guideStep, step != .quest, !chrome.guideHidden.contains(step),
                !chrome.questsOpen, !chrome.coachMarkShowing, globeCenter == nil {
                 FirstStarGuideCard(
                     step: step,
                     onAction: { guideAction(step) },
                     onClose: {
                         StaryAnalytics.log("guide_dismiss", ["step": step.rawValue])
-                        withAnimation(.easeOut(duration: 0.2)) { guideHidden = step }
+                        withAnimation(.easeOut(duration: 0.2)) { _ = chrome.guideHidden.insert(step) }
                     }
                 )
                 .frame(maxWidth: 520)
@@ -762,6 +771,12 @@ struct MapScreen: View {
         .onReceive(location.$coordinate) { c in
             if let c, auth.uid == nil || auth.returningAccount == false { tutorial.ensurePlaced(near: c) }
         }
+        .onAppear {
+            guideProgress.bind(auth.uid)
+            chrome.guideStep = publishedGuideStep
+        }
+        .onChange(of: auth.uid) { guideProgress.bind($0) }
+        .onChange(of: publishedGuideStep) { chrome.guideStep = $0 }
         .onChange(of: auth.returningAccount) { r in
             if r == false, let c = location.coordinate { tutorial.ensurePlaced(near: c) }
         }

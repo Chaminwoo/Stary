@@ -68,6 +68,7 @@ object DailyQuests {
     val UPLOAD = QuestDef("upload", QuestEvent.UPLOAD, title = R.string.quest_upload, hint = R.string.quest_upload_hint, group = G_UPLOAD)
     val VIEW_OTHER = QuestDef("view_other", QuestEvent.VIEW_OTHER, title = R.string.quest_view_other, hint = R.string.quest_view_other_hint)
     val LIKE = QuestDef("like", QuestEvent.LIKE, title = R.string.quest_like, hint = R.string.quest_like_hint)
+    val PROFILE_EDIT = QuestDef("profile_edit", QuestEvent.PROFILE_EDIT, title = R.string.quest_profile_edit, hint = R.string.quest_profile_edit_hint)
 
     /** 2~4일째 — 기본 기능. */
     val BASIC = listOf(
@@ -76,7 +77,7 @@ object DailyQuests {
         QuestDef("view_other3", QuestEvent.VIEW_OTHER, 3, R.string.quest_view_other3, R.string.quest_view_other_hint),
         QuestDef("comment", QuestEvent.COMMENT, title = R.string.quest_comment, hint = R.string.quest_comment_hint),
         QuestDef("equip_title", QuestEvent.EQUIP_TITLE, title = R.string.quest_equip_title, hint = R.string.quest_equip_title_hint),
-        QuestDef("profile_edit", QuestEvent.PROFILE_EDIT, title = R.string.quest_profile_edit, hint = R.string.quest_profile_edit_hint),
+        PROFILE_EDIT,
         QuestDef("pin_star", QuestEvent.PIN_STAR, title = R.string.quest_pin_star, hint = R.string.quest_pin_star_hint),
         QuestDef("constellation", QuestEvent.CONSTELLATION, title = R.string.quest_constellation, hint = R.string.quest_constellation_hint),
         QuestDef("filter", QuestEvent.FILTER, title = R.string.quest_filter, hint = R.string.quest_filter_hint),
@@ -107,13 +108,14 @@ object DailyQuests {
 
     /**
      * 그날의 퀘스트 3개.
-     * - 1일째: 웰컴 별(아직 이 기기에 떠 있을 때만, 아니면 좋아요) · 별 올리기 · 남의 별 열어 보기.
+     * - 1일째: 이름·프로필 사진 바꾸기 · 별 올리기 · 남의 별 열어 보기(첫 사용 안내 [FirstStarGuide] 순서와 같다 —
+     *   예전엔 첫 칸이 웰컴 별 열기였으나 안내가 웰컴 별 → 퀘스트 → 프로필 순이라 2026-10-22 바꿈. [TUTORIAL] 은 예전 목록 표시용).
      * - 2~4일째: [BASIC] 에서, 5일째부터: [BASIC] + [ADVANCED] 에서 무작위 3개(어제 것과 같은 group 은 하루 1개).
      * 무작위는 `uid|날짜|일차` 시드 — 두 기기가 동시에 만들어도 같은 목록이 나온다.
      */
-    fun pick(uid: String, day: String, dayNo: Int, previous: List<String>, tutorialAvailable: Boolean): List<String> {
+    fun pick(uid: String, day: String, dayNo: Int, previous: List<String>): List<String> {
         if (dayNo <= 1) {
-            return listOf(if (tutorialAvailable) TUTORIAL.id else LIKE.id, UPLOAD.id, VIEW_OTHER.id)
+            return listOf(PROFILE_EDIT.id, UPLOAD.id, VIEW_OTHER.id)
         }
         val pool = (if (dayNo <= 4) BASIC else BASIC + ADVANCED).toMutableList()
         val rng = SplitMix64(fnv1a("$uid|$day|$dayNo"))

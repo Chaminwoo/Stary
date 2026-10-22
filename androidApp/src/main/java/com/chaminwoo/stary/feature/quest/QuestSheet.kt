@@ -205,7 +205,13 @@ internal fun KeyChip(keys: Int, bump: Int = 0, modifier: Modifier = Modifier) {
  * 생김새는 화면 첫 진입 안내([com.chaminwoo.stary.core.ui.FirstVisitInfo])와 같은 카드.
  */
 @Composable
-fun QuestSheet(onDismiss: () -> Unit) {
+fun QuestSheet(
+    onDismiss: () -> Unit,
+    /** 첫 사용 안내 중 강조할 퀘스트 id(그 행에 금빛 맥박 테두리 + "하러 가기"). */
+    highlightId: String? = null,
+    /** 강조한 행의 "하러 가기" — 그 기능 화면으로 보낸다(창은 호출부가 닫는다). */
+    onGo: ((QuestDef) -> Unit)? = null,
+) {
     val context = LocalContext.current
     val daily = QuestStore.daily
     val keys = QuestStore.keys
@@ -298,6 +304,8 @@ fun QuestSheet(onDismiss: () -> Unit) {
                             reward = DailyQuests.REWARD_KEYS,
                             progress = daily.progressOf(def.id).coerceAtMost(def.target),
                             claimed = def.id in daily.claimed,
+                            highlight = def.id == highlightId,
+                            onGo = onGo?.let { go -> { go(def) } },
                             onClaim = {
                                 val gained = QuestStore.claim(def.id)
                                 if (gained > 0) {
@@ -372,8 +380,15 @@ private fun QuestRow(
     progress: Int,
     claimed: Boolean,
     onClaim: () -> Unit,
+    highlight: Boolean = false,
+    onGo: (() -> Unit)? = null,
 ) {
     val complete = progress >= target
+    val guiding = highlight && !complete && !claimed
+    val glow by rememberInfiniteTransition(label = "quest_guide").animateFloat(
+        initialValue = 0.35f, targetValue = 0.95f,
+        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "quest_guide_glow",
+    )
     val shown = remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(60L * index); shown.value = true }
     val fill by animateFloatAsState(
@@ -389,12 +404,17 @@ private fun QuestRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(if (complete && !claimed) QuestGold.copy(alpha = 0.08f) else Color(0x14FFFFFF))
+                .background(if ((complete && !claimed) || guiding) QuestGold.copy(alpha = 0.08f) else Color(0x14FFFFFF))
                 .border(
-                    0.75.dp,
-                    if (complete && !claimed) QuestGold.copy(alpha = 0.45f) else Color(0x1AFFFFFF),
+                    if (guiding) 1.5.dp else 0.75.dp,
+                    when {
+                        guiding -> QuestGold.copy(alpha = glow)
+                        complete && !claimed -> QuestGold.copy(alpha = 0.45f)
+                        else -> Color(0x1AFFFFFF)
+                    },
                     RoundedCornerShape(16.dp),
                 )
+                .then(if (guiding && onGo != null) Modifier.clickable(onClick = onGo) else Modifier)
                 .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -415,6 +435,13 @@ private fun QuestRow(
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
+                if (guiding) {
+                    Text(
+                        stringResource(R.string.quest_start_here),
+                        color = QuestGold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
                 Text(
                     title,
                     color = if (claimed) Color(0xFF8A93A3) else Color(0xFFF0F0F0),
@@ -451,6 +478,16 @@ private fun QuestRow(
             Spacer(Modifier.width(10.dp))
             when {
                 claimed -> Text(stringResource(R.string.quest_claimed), color = Color(0xFF6B7484), fontSize = 12.sp)
+                guiding && onGo != null -> Text(
+                    stringResource(R.string.quest_go),
+                    color = Color(0xFF2A1A00), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clickBounce()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Brush.linearGradient(listOf(QuestGold, Color(0xFFFFB259))))
+                        .clickable(onClick = onGo)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
                 complete -> Box(
                     modifier = Modifier
                         .clickBounce()

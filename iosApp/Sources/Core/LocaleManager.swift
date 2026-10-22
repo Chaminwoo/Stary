@@ -256,6 +256,7 @@ enum L10n: String {
     case questBonusTitle, questBonusHint, questAdKeyAsk
     // 첫 별 안내(FirstStarGuide, 2026-10-22) — Android guide_* 문자열 패리티.
     case guideWriteTitle, guideWriteMsg, guideWriteBtn, guideClaimTitle, guideClaimMsg, guideClaimBtn
+    case guideQuestTip, guideLater, guideProfileTitle, guideProfileMsg, questGo, questStartHere
     case guideOpenTitle, guideOpenMsg, guideOpenBtn, guideOpenHint, guideNoTarget, guideDone
 
     /// (ko, en, ja).
@@ -719,6 +720,12 @@ enum L10n: String {
         case .guideOpenHint: return ("자물쇠를 눌러 열쇠로 열어 보세요", "Tap the lock to use your key", "錠前をタップして鍵を使おう")
         case .guideNoTarget: return ("아직 열어 볼 다른 사람의 별이 없어요.", "There are no other stars to open yet.", "開けられる誰かの星がまだありません。")
         case .guideDone: return ("잘했어요! 퀘스트로 열쇠를 모아 더 많은 별을 열어 보세요.", "Nice! Collect keys from quests to open more stars.", "やったね！クエストで鍵を集めて、もっと星を開けよう。")
+        case .guideQuestTip: return ("첫 퀘스트가 도착했어요!\n여기를 눌러 확인해 보세요", "Your first quest is here!\nTap to check it out", "最初のクエストが届きました！\nここをタップして確認しましょう")
+        case .guideLater: return ("나중에", "Later", "あとで")
+        case .guideProfileTitle: return ("이름이나 프로필 사진을 바꿔 보세요!", "Change your name or profile photo!", "名前かプロフィール写真を変えてみましょう！")
+        case .guideProfileMsg: return ("첫 번째 퀘스트예요. 바꾸면 열쇠를 받아요.", "It's your first quest. You'll get a key.", "最初のクエストです。変えると鍵がもらえます。")
+        case .questGo: return ("하러 가기", "Go", "やってみる")
+        case .questStartHere: return ("여기부터 시작해요", "Start here", "ここから始めよう")
         case .questAdKeyAsk: return ("광고를 보고 열쇠를 얻으시겠어요?\n광고를 끝까지 보면 열쇠 1개를 드려요.", "Watch an ad to get a key?\nWatch it to the end for 1 key.", "広告を見て鍵をもらいますか？\n最後まで見ると鍵を1つもらえます。")
         case .achIntro: return ("업적을 달성하면 칭호와 새로운 별 모양·색을 얻어요.", "Earn titles and new star shapes & colors by unlocking achievements.", "実績を達成すると称号や新しい星の形・色が手に入ります。")
         case .achTitlesHint: return ("완료한 업적을 눌러 장착하세요", "Tap a completed achievement to equip", "達成した実績をタップして装着")

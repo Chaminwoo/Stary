@@ -38,6 +38,7 @@ enum DailyQuests {
     static let upload = QuestDef(id: "upload", event: .upload, title: .questUpload, hint: .questUploadHint, group: gUpload)
     static let viewOther = QuestDef(id: "view_other", event: .viewOther, title: .questViewOther, hint: .questViewOtherHint)
     static let like = QuestDef(id: "like", event: .like, title: .questLike, hint: .questLikeHint)
+    static let profileEdit = QuestDef(id: "profile_edit", event: .profileEdit, title: .questProfileEdit, hint: .questProfileEditHint)
 
     /// 2~4일째 — 기본 기능(Android BASIC 과 같은 순서).
     static let basic: [QuestDef] = [
@@ -46,7 +47,7 @@ enum DailyQuests {
         QuestDef(id: "view_other3", event: .viewOther, target: 3, title: .questViewOther3, hint: .questViewOtherHint),
         QuestDef(id: "comment", event: .comment, title: .questComment, hint: .questCommentHint),
         QuestDef(id: "equip_title", event: .equipTitle, title: .questEquipTitle, hint: .questEquipTitleHint),
-        QuestDef(id: "profile_edit", event: .profileEdit, title: .questProfileEdit, hint: .questProfileEditHint),
+        profileEdit,
         QuestDef(id: "pin_star", event: .pinStar, title: .questPinStar, hint: .questPinStarHint),
         QuestDef(id: "constellation", event: .constellation, title: .questConstellation, hint: .questConstellationHint),
         QuestDef(id: "filter", event: .filter, title: .questFilter, hint: .questFilterHint),
@@ -79,9 +80,10 @@ enum DailyQuests {
     static func byId(_ id: String) -> QuestDef? { all[id] }
 
     /// 그날의 퀘스트 3개 — Android `DailyQuests.pick` 과 같은 규칙·같은 결과.
-    static func pick(uid: String, day: String, dayNo: Int, previous: [String], tutorialAvailable: Bool) -> [String] {
+    /// 1일째는 이름·프로필 사진 바꾸기 · 별 올리기 · 남의 별 열어 보기(첫 사용 안내 순서 — 2026-10-22, 예전 첫 칸은 웰컴 별).
+    static func pick(uid: String, day: String, dayNo: Int, previous: [String]) -> [String] {
         if dayNo <= 1 {
-            return [tutorialAvailable ? tutorial.id : like.id, upload.id, viewOther.id]
+            return [profileEdit.id, upload.id, viewOther.id]
         }
         var pool = dayNo <= 4 ? basic : basic + advanced
         var rng = SplitMix64(state: UInt64(fnv1a("\(uid)|\(day)|\(dayNo)")))
@@ -268,12 +270,11 @@ final class QuestStore: ObservableObject {
 
     /// 날짜가 바뀌었으면 새 목록을 만든다(서버 확인 후). 자정을 넘겨 켜 둔 경우를 위해 RootView 가 1분마다도 부른다.
     func ensureToday() {
-        guard let uid, serverSeen, let returning = returning ?? (returningFallback ? true : nil) else { return }
+        guard let uid, serverSeen, returning != nil || returningFallback else { return }
         let today = Self.today()
         if let cur = daily, cur.day == today { return }
         let dayNo = (daily?.dayNo ?? 0) + 1
-        let tutorial = !returning && !TutorialStarState.shared.done
-        let ids = DailyQuests.pick(uid: uid, day: today, dayNo: dayNo, previous: daily?.ids ?? [], tutorialAvailable: tutorial)
+        let ids = DailyQuests.pick(uid: uid, day: today, dayNo: dayNo, previous: daily?.ids ?? [])
         daily = Daily(day: today, dayNo: dayNo, ids: ids, progress: [:], claimed: [], bonus: false)
         // mergeFields = quest 필드만 통째로 교체(어제 progress/claimed 가 섞이지 않게).
         FirestoreService.users.document(uid).setData([
@@ -291,6 +292,8 @@ final class QuestStore: ObservableObject {
     }
 
     private func reportNow(_ event: QuestEvent, key: String?) {
+        // 첫 사용 안내의 "프로필 바꾸기" 단계는 오늘 목록과 상관없이 끝난다.
+        if event == .profileEdit, let uid { FirstStarGuideProgress.shared.markProfileDone(uid) }
         guard let uid, var d = daily else { return }
         if d.day != Self.today() { ensureToday(); return }
         if countedDay != d.day { countedDay = d.day; countedKeys.removeAll() }

@@ -752,4 +752,10 @@
     <string name="guide_open_hint">錠前をタップして鍵を使おう</string>
     <string name="guide_no_target">開けられる誰かの星がまだありません。</string>
     <string name="guide_done">やったね！クエストで鍵を集めて、もっと星を開けよう。</string>
+    <string name="guide_quest_tip">最初のクエストが届きました！\nここをタップして確認しましょう</string>
+    <string name="guide_later">あとで</string>
+    <string name="guide_profile_title">名前かプロフィール写真を変えてみましょう！</string>
+    <string name="guide_profile_msg">最初のクエストです。変えると鍵がもらえます。</string>
+    <string name="quest_go">やってみる</string>
+    <string name="quest_start_here">ここから始めよう</string>
 </resources>

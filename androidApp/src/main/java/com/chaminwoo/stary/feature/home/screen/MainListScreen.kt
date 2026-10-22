@@ -127,6 +127,8 @@ fun MainListScreen(
     onOpenCluster: (List<String>) -> Unit = {},
     /** 첫 별 안내 카드를 띄워도 되는지(로그인 화면·코치마크·약관 창이 없을 때) — MainScreen 이 정한다. */
     guideEnabled: Boolean = true,
+    /** 첫 사용 안내의 "프로필 바꾸기" — 프로필 화면으로. */
+    onOpenProfile: () -> Unit = {},
     diaryViewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())
 ) {
     val context = LocalContext.current
@@ -198,6 +200,15 @@ fun MainListScreen(
     LaunchedEffect(MapUiState.mapOnly) { if (MapUiState.mapOnly) speedDialExpanded = false }
     // 오늘의 퀘스트 창(지도 "!" 버튼).
     var showQuests by remember { mutableStateOf(false) }
+    // 첫 사용 안내 스포트라이트(MainScreen)에서 "!" 를 누르면 여기서 창을 연다 — 이 화면이 다시 그려질 때 예전 요청으로 열리지 않게 처리한 값을 기억.
+    var handledQuestRequest by remember { androidx.compose.runtime.mutableIntStateOf(com.chaminwoo.stary.feature.quest.GuideUi.questRequest) }
+    LaunchedEffect(com.chaminwoo.stary.feature.quest.GuideUi.questRequest) {
+        val req = com.chaminwoo.stary.feature.quest.GuideUi.questRequest
+        if (req != handledQuestRequest) {
+            handledQuestRequest = req
+            showQuests = true
+        }
+    }
 
     // 지금 색을 정하는 필터 = 가장 마지막에 켠 필터 — 빛의 고리(필터 전환 등장)와 지도에 도는 은은한 빛의 색.
     // 필터가 없으면 null(빛 꺼짐). 필터 조합(revealKey)과 같은 컴포지션에서 값이 정해져야 링 색이 한 박자 늦지 않는다.
@@ -531,8 +542,26 @@ fun MainListScreen(
             } else null,
             modifier = modifier,
         )
+        // 첫 사용 안내 — 퀘스트 창을 열면 "!" 스포트라이트 단계가 끝나고, 첫 퀘스트(프로필 바꾸기) 행을 강조한다.
+        val guideNow = com.chaminwoo.stary.feature.quest.guideStep(context, userId, diaries, liveLocation)
+        LaunchedEffect(showQuests, guideNow, userId) {
+            val uid = userId ?: return@LaunchedEffect
+            if (showQuests && guideNow == com.chaminwoo.stary.feature.quest.GuideStep.QUEST) {
+                com.chaminwoo.stary.feature.quest.GuideProgress.markQuestSeen(context, uid)
+            }
+        }
         if (showQuests) {
-            com.chaminwoo.stary.feature.quest.QuestSheet(onDismiss = { showQuests = false })
+            val guidingProfile = guideNow == com.chaminwoo.stary.feature.quest.GuideStep.QUEST ||
+                guideNow == com.chaminwoo.stary.feature.quest.GuideStep.PROFILE
+            com.chaminwoo.stary.feature.quest.QuestSheet(
+                onDismiss = { showQuests = false },
+                highlightId = if (guidingProfile) com.chaminwoo.stary.feature.quest.DailyQuests.PROFILE_EDIT.id else null,
+                onGo = { def ->
+                    showQuests = false
+                    com.chaminwoo.stary.core.util.StaryAnalytics.log("guide_action", "step" to "quest_go_${def.id}")
+                    if (def.event == com.chaminwoo.stary.feature.quest.QuestEvent.PROFILE_EDIT) onOpenProfile()
+                },
+            )
         }
 
         // 첫 별 안내(첫 별 → 퀘스트 열쇠 → 남의 별 열기) — 탑바 아래, 좌상단 줌 버튼을 피해 띄운다.
@@ -545,6 +574,7 @@ fun MainListScreen(
             enabled = guideEnabled && !showQuests && !MapUiState.mapOnly && MapUiState.mapVisible && globeCenter == null,
             onWrite = onCreateClick,
             onOpenQuests = { showQuests = true },
+            onOpenProfile = onOpenProfile,
             onOpenStar = onItemClick,
             modifier = Modifier
                 .align(Alignment.TopCenter)

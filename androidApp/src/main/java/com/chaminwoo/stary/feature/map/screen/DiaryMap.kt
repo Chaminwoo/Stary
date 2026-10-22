@@ -820,7 +820,13 @@ fun DiaryMap(
             // 오늘의 퀘스트("!") — 예전 몰입 버튼 자리. 집중 모드는 이제 가만히 두면 들어간다(MapUiState).
             // 비로그인이면 버튼 없음(코치마크는 로그인 상태에서만 뜬다).
             if (onQuestClick != null) {
-                com.chaminwoo.stary.feature.quest.QuestButton(onClick = onQuestClick)
+                com.chaminwoo.stary.feature.quest.QuestButton(
+                    onClick = onQuestClick,
+                    // 첫 사용 안내 스포트라이트가 이 버튼 자리를 뚫는다(루트 좌표).
+                    modifier = Modifier.onGloballyPositioned {
+                        com.chaminwoo.stary.feature.quest.GuideUi.questButtonBounds = it.boundsInRoot()
+                    },
+                )
             }
 
             // 다이어리 생성 (로그인 상태에서만 노출) — 탭하면 별 열람과 같은 파장 연출 후 작성 화면으로.

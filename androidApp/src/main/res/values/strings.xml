@@ -755,4 +755,10 @@
     <string name="guide_open_hint">자물쇠를 눌러 열쇠로 열어 보세요</string>
     <string name="guide_no_target">아직 열어 볼 다른 사람의 별이 없어요.</string>
     <string name="guide_done">잘했어요! 퀘스트로 열쇠를 모아 더 많은 별을 열어 보세요.</string>
+    <string name="guide_quest_tip">첫 퀘스트가 도착했어요!\n여기를 눌러 확인해 보세요</string>
+    <string name="guide_later">나중에</string>
+    <string name="guide_profile_title">이름이나 프로필 사진을 바꿔 보세요!</string>
+    <string name="guide_profile_msg">첫 번째 퀘스트예요. 바꾸면 열쇠를 받아요.</string>
+    <string name="quest_go">하러 가기</string>
+    <string name="quest_start_here">여기부터 시작해요</string>
 </resources>
