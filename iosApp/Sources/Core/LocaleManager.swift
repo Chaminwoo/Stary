@@ -254,6 +254,9 @@ enum L10n: String {
     case achIntro, achTitlesHint, achRewardsHint, achObtained
 
     case questBonusTitle, questBonusHint, questAdKeyAsk
+    // 첫 별 안내(FirstStarGuide, 2026-10-22) — Android guide_* 문자열 패리티.
+    case guideWriteTitle, guideWriteMsg, guideWriteBtn, guideClaimTitle, guideClaimMsg, guideClaimBtn
+    case guideOpenTitle, guideOpenMsg, guideOpenBtn, guideOpenHint, guideNoTarget, guideDone
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -704,6 +707,18 @@ enum L10n: String {
         case .bannerNewMessage:     return ("새 메시지", "New message", "新しいメッセージ")
         case .questBonusTitle: return ("오늘의 퀘스트 모두 끝내기", "Finish all of today's quests", "今日のクエストをすべて達成")
         case .questBonusHint: return ("위 퀘스트 3개의 열쇠를 모두 받으면 보너스 열쇠를 드려요", "Claim the keys from all 3 quests above for a bonus key", "上の3つのクエストの鍵をすべて受け取るとボーナスの鍵がもらえます")
+        case .guideWriteTitle: return ("첫 별을 남겨 보세요", "Leave your first star", "最初の星を残してみよう")
+        case .guideWriteMsg: return ("지금 있는 자리의 순간을 별로 남기면 열쇠를 받아요.", "Turn this moment, right where you are, into a star and earn a key.", "今いる場所の瞬間を星にすると、鍵がもらえます。")
+        case .guideWriteBtn: return ("별 남기기", "Leave a star", "星を残す")
+        case .guideClaimTitle: return ("첫 별이 떴어요!", "Your first star is shining!", "最初の星が輝きました！")
+        case .guideClaimMsg: return ("퀘스트 창에서 열쇠를 받으세요.", "Claim your key in today's quests.", "クエスト画面で鍵を受け取りましょう。")
+        case .guideClaimBtn: return ("열쇠 받기", "Get key", "鍵を受け取る")
+        case .guideOpenTitle: return ("열쇠가 생겼어요", "You got a key", "鍵を手に入れました")
+        case .guideOpenMsg: return ("멀리 있는 다른 사람의 별을 열쇠로 열어 보세요.", "Use it to open someone else's faraway star.", "遠くにある誰かの星を、鍵で開けてみよう。")
+        case .guideOpenBtn: return ("별 열어 보기", "Open a star", "星を開ける")
+        case .guideOpenHint: return ("자물쇠를 눌러 열쇠로 열어 보세요", "Tap the lock to use your key", "錠前をタップして鍵を使おう")
+        case .guideNoTarget: return ("아직 열어 볼 다른 사람의 별이 없어요.", "There are no other stars to open yet.", "開けられる誰かの星がまだありません。")
+        case .guideDone: return ("잘했어요! 퀘스트로 열쇠를 모아 더 많은 별을 열어 보세요.", "Nice! Collect keys from quests to open more stars.", "やったね！クエストで鍵を集めて、もっと星を開けよう。")
         case .questAdKeyAsk: return ("광고를 보고 열쇠를 얻으시겠어요?\n광고를 끝까지 보면 열쇠 1개를 드려요.", "Watch an ad to get a key?\nWatch it to the end for 1 key.", "広告を見て鍵をもらいますか？\n最後まで見ると鍵を1つもらえます。")
         case .achIntro: return ("업적을 달성하면 칭호와 새로운 별 모양·색을 얻어요.", "Earn titles and new star shapes & colors by unlocking achievements.", "実績を達成すると称号や新しい星の形・色が手に入ります。")
         case .achTitlesHint: return ("완료한 업적을 눌러 장착하세요", "Tap a completed achievement to equip", "達成した実績をタップして装着")

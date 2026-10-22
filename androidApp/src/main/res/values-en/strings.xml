@@ -739,4 +739,17 @@
     <string name="quest_bonus_title">Finish all of today\'s quests</string>
     <string name="quest_bonus_hint">Claim the keys from all 3 quests above for a bonus key</string>
     <string name="quest_ad_key_ask">Watch an ad to get a key?\nWatch it to the end for 1 key.</string>
+    <!-- 첫 별 안내(FirstStarGuide, 2026-10-22) -->
+    <string name="guide_write_title">Leave your first star</string>
+    <string name="guide_write_msg">Turn this moment, right where you are, into a star and earn a key.</string>
+    <string name="guide_write_btn">Leave a star</string>
+    <string name="guide_claim_title">Your first star is shining!</string>
+    <string name="guide_claim_msg">Claim your key in today\'s quests.</string>
+    <string name="guide_claim_btn">Get key</string>
+    <string name="guide_open_title">You got a key</string>
+    <string name="guide_open_msg">Use it to open someone else\'s faraway star.</string>
+    <string name="guide_open_btn">Open a star</string>
+    <string name="guide_open_hint">Tap the lock to use your key</string>
+    <string name="guide_no_target">There are no other stars to open yet.</string>
+    <string name="guide_done">Nice! Collect keys from quests to open more stars.</string>
 </resources>

@@ -159,6 +159,7 @@ struct UploadScreen: View {
                 }
             }
         }
+        .onAppear { StaryAnalytics.log("upload_open", ["logged_in": auth.uid != nil]) }
         .task {
             if let uid = auth.uid {
                 let snap = try? await FirestoreService.friends(of: uid).getDocuments()
@@ -359,7 +360,7 @@ struct UploadScreen: View {
         }
         // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다. Android 패리티.
         if ContentFilter.anyObjectionable(title, content) {
-            showToast(LocaleManager.shared.t(.contentBlocked)); return
+            uploadFail("filter"); showToast(LocaleManager.shared.t(.contentBlocked)); return
         }
         // 잠긴 별 모양/색이 다이얼 중앙에 온 채 저장되지 않도록 차단(#7).
         if let a = StarUnlocks.lockedShapeAch(starType, unlocked) {
@@ -372,13 +373,14 @@ struct UploadScreen: View {
         let startOfDay = Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
         let todayCount = store.mine(uid: uid).filter { $0.createdAt >= startOfDay }.count
         if todayCount >= AppConfig.dailyUploadLimit {
+            uploadFail("daily_limit")
             showToast(String(format: LocaleManager.shared.t(.uploadDailyLimit), AppConfig.dailyUploadLimit))
             return
         }
         // 실제 위치(fix)가 없으면 올리지 않는다 — 예전엔 기본좌표(서울)로 저장돼 엉뚱한 곳에 별이 생겼다.
         // 첨부 업로드 전에 막아 Storage 에 주인 없는 파일이 남지 않게. (Android UploadScreen 패리티)
         guard let coord = location.coordinate else {
-            showToast(LocaleManager.shared.t(.uploadNoLocation)); return
+            uploadFail("no_location"); showToast(LocaleManager.shared.t(.uploadNoLocation)); return
         }
         saving = true
         defer { saving = false }
@@ -388,7 +390,7 @@ struct UploadScreen: View {
         // 작성자 이름은 서버에서 확인한 닉네임 — 기기 첫 실행 직후 구글 기본 이름이 박히지 않게(CLAUDE.md §2.6).
         // 첨부 업로드 전에 확인해 Storage 에 주인 없는 파일이 남지 않게 한다. (Android requireConfirmedName 패리티)
         guard let authorName = await auth.confirmedNameOrWait() else {
-            showToast(LocaleManager.shared.t(.profileNotReady)); return
+            uploadFail("profile_not_ready"); showToast(LocaleManager.shared.t(.profileNotReady)); return
         }
 
         // 첨부는 움짤/사진 중 하나(배타). 둘 다 **지금 프레임에 보이는 그대로** 잘라서 올린다.
@@ -397,20 +399,20 @@ struct UploadScreen: View {
         var videoUrl = ""
         if crop.isAnimated {
             guard let data = await encodeBoomerangGif() else {
-                showToast(LocaleManager.shared.t(.boomerFailed)); return
+                uploadFail("gif_encode"); showToast(LocaleManager.shared.t(.boomerFailed)); return
             }
             do { videoUrl = try await ImageUploader.uploadGif(data) }
-            catch { showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
+            catch { uploadFail("media_upload"); showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
         } else if let image = crop.first {
             // 크롭 실패(디코딩 오류)면 원본을 그대로 올려 흐름이 끊기지 않게 한다.
             let data = ImageCrop.crop(image, frame: crop.frameSize, scale: crop.scale, offset: crop.offset,
                                       outWidth: ImageCrop.diaryOutPixels)
                 ?? image.jpegData(compressionQuality: 0.9)
             guard let data else {
-                showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), "")); return
+                uploadFail("media_upload"); showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), "")); return
             }
             do { imageUrl = try await ImageUploader.upload(data) }
-            catch { showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
+            catch { uploadFail("media_upload"); showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription)); return }
         }
 
         let diary = Diary(
@@ -429,6 +431,7 @@ struct UploadScreen: View {
         )
         do {
             let newId = try await store.save(diary)
+            StaryAnalytics.log("upload_success", ["media": !diary.imageUrl.isEmpty || !diary.videoUrl.isEmpty])
             // 전체/친구 공개 글이면 친구들에게 알림(나만보기는 제외).
             if visibility != .privateOnly {
                 await store.notifyFriends(uid: uid, name: authorName, diaryId: newId, title: title)
@@ -449,8 +452,14 @@ struct UploadScreen: View {
                 )
             }
         } catch {
+            uploadFail("save")
             showToast(String(format: LocaleManager.shared.t(.toastImageUploadFailed), error.localizedDescription))
         }
+    }
+
+    /// 올리기 실패 이벤트(이유별) — 첫 별을 못 올리고 나가는 지점을 찾으려고(Android `uploadFail` 패리티).
+    private func uploadFail(_ reason: String) {
+        StaryAnalytics.log("upload_fail", ["reason": reason])
     }
 
     /// 3초 움짤을 지금 크롭 상태 그대로 잘라 GIF 로 굽는다(백그라운드). 실패하면 nil.

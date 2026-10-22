@@ -742,4 +742,17 @@
     <string name="quest_bonus_title">오늘의 퀘스트 모두 끝내기</string>
     <string name="quest_bonus_hint">위 퀘스트 3개의 열쇠를 모두 받으면 보너스 열쇠를 드려요</string>
     <string name="quest_ad_key_ask">광고를 보고 열쇠를 얻으시겠어요?\n광고를 끝까지 보면 열쇠 1개를 드려요.</string>
+    <!-- 첫 별 안내(FirstStarGuide, 2026-10-22) -->
+    <string name="guide_write_title">첫 별을 남겨 보세요</string>
+    <string name="guide_write_msg">지금 있는 자리의 순간을 별로 남기면 열쇠를 받아요.</string>
+    <string name="guide_write_btn">별 남기기</string>
+    <string name="guide_claim_title">첫 별이 떴어요!</string>
+    <string name="guide_claim_msg">퀘스트 창에서 열쇠를 받으세요.</string>
+    <string name="guide_claim_btn">열쇠 받기</string>
+    <string name="guide_open_title">열쇠가 생겼어요</string>
+    <string name="guide_open_msg">멀리 있는 다른 사람의 별을 열쇠로 열어 보세요.</string>
+    <string name="guide_open_btn">별 열어 보기</string>
+    <string name="guide_open_hint">자물쇠를 눌러 열쇠로 열어 보세요</string>
+    <string name="guide_no_target">아직 열어 볼 다른 사람의 별이 없어요.</string>
+    <string name="guide_done">잘했어요! 퀘스트로 열쇠를 모아 더 많은 별을 열어 보세요.</string>
 </resources>

@@ -244,9 +244,12 @@ fun UploadScreen(
     val starTypeRef = androidx.compose.runtime.rememberUpdatedState(starType)
     val starColorRef = androidx.compose.runtime.rememberUpdatedState(starColor)
     LaunchedEffect(Unit) {
+        com.chaminwoo.stary.core.util.StaryAnalytics.log("upload_open", "logged_in" to isLoggedIn)
         diaryViewModel.event.collect { msg ->
             com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(msg.messageRes))
+            if (msg == com.chaminwoo.stary.feature.diary.DiaryEvent.SAVE_FAILED) uploadFail("save")
             if (msg == com.chaminwoo.stary.feature.diary.DiaryEvent.SAVED) {
+                com.chaminwoo.stary.core.util.StaryAnalytics.log("upload_success", "media" to savedWithMedia)
                 pioneerClaimTarget?.let { (la, ln) ->
                     com.chaminwoo.stary.feature.profile.PioneerClaimHelper.attemptClaim(context, la, ln)
                 }
@@ -466,9 +469,9 @@ fun UploadScreen(
 
             Button(
                 onClick = {
-                    if (title.isBlank()) { com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@Button }
+                    if (title.isBlank()) { uploadFail("no_title"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@Button }
                     // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다.
-                    if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(title, content)) { com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)); return@Button }
+                    if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(title, content)) { uploadFail("filter"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)); return@Button }
                     // 하루 업로드 제한(로그인 사용자 기준). 오늘 로컬 자정 이후 내가 올린 개수로 선차단.
                     if (isLoggedIn) {
                         val startOfDay = java.util.Calendar.getInstance().apply {
@@ -477,6 +480,7 @@ fun UploadScreen(
                         }.timeInMillis
                         val todayCount = myDiaries.count { it.createdAt >= startOfDay }
                         if (todayCount >= StaryConfig.DAILY_UPLOAD_LIMIT) {
+                            uploadFail("daily_limit")
                             com.chaminwoo.stary.core.ui.StaryToast.show(
                                 context.getString(R.string.upload_daily_limit, StaryConfig.DAILY_UPLOAD_LIMIT)
                             )
@@ -500,12 +504,14 @@ fun UploadScreen(
                         val lat = curLatLng?.latitude ?: fix?.latitude
                         val lng = curLatLng?.longitude ?: fix?.longitude
                         if (lat == null || lng == null) {
+                            uploadFail("no_location")
                             com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.upload_no_location))
                             isUploading = false; return@launch
                         }
                         // 작성자 이름은 서버에서 확인한 닉네임 — 기기 첫 실행 직후 구글 기본 이름이 박히지 않게(CLAUDE.md §2.6).
                         // 첨부 업로드 전에 확인해 Storage 에 주인 없는 파일이 남지 않게 한다.
                         val uName = if (!isLoggedIn) "익명" else GoogleAuthHelper.requireConfirmedName() ?: run {
+                            uploadFail("profile_not_ready")
                             isUploading = false; return@launch
                         }
                         // 첨부는 영상/이미지 중 하나(배타). 영상이 있으면 영상 우선.
@@ -527,11 +533,13 @@ fun UploadScreen(
                                     }.getOrNull()
                                 }
                                 if (gif == null) {
+                                    uploadFail("gif_encode")
                                     com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.boomer_failed))
                                     isUploading = false; return@launch
                                 }
                                 val result = ImageUploadHelper.uploadGifResult(context, gif)
                                 if (!result.isSuccess) {
+                                    uploadFail("media_upload")
                                     com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
                                     isUploading = false; return@launch
                                 }
@@ -551,6 +559,7 @@ fun UploadScreen(
                                 } ?: selectedImageUri!!
                                 val result = ImageUploadHelper.uploadImageResult(context, uploadUri)
                                 if (!result.isSuccess) {
+                                    uploadFail("media_upload")
                                     com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
                                     isUploading = false; return@launch
                                 }
@@ -840,3 +849,7 @@ private fun StarWheelPicker(
         }
     }
 }
+
+/** 올리기 실패 이벤트(이유별) — 첫 별을 못 올리고 나가는 지점을 찾으려고(StaryAnalytics). */
+private fun uploadFail(reason: String) =
+    com.chaminwoo.stary.core.util.StaryAnalytics.log("upload_fail", "reason" to reason)

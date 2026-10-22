@@ -84,6 +84,7 @@ import com.chaminwoo.stary.core.util.MapFilterStore
 import com.chaminwoo.stary.core.util.MapFilters
 import com.chaminwoo.stary.core.util.MapFocusState
 import com.chaminwoo.stary.core.util.MapUiState
+import androidx.compose.foundation.layout.statusBarsPadding
 import com.chaminwoo.stary.core.util.TutorialStarState
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -124,6 +125,8 @@ fun MainListScreen(
     modifier: Modifier = Modifier,
     /** 30m 안에서 합쳐진 별(2개 이상) 열람 — 우선순위 정렬된 다이어리 id 목록. */
     onOpenCluster: (List<String>) -> Unit = {},
+    /** 첫 별 안내 카드를 띄워도 되는지(로그인 화면·코치마크·약관 창이 없을 때) — MainScreen 이 정한다. */
+    guideEnabled: Boolean = true,
     diaryViewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())
 ) {
     val context = LocalContext.current
@@ -531,6 +534,23 @@ fun MainListScreen(
         if (showQuests) {
             com.chaminwoo.stary.feature.quest.QuestSheet(onDismiss = { showQuests = false })
         }
+
+        // 첫 별 안내(첫 별 → 퀘스트 열쇠 → 남의 별 열기) — 탑바 아래, 좌상단 줌 버튼을 피해 띄운다.
+        com.chaminwoo.stary.feature.quest.FirstStarGuide(
+            userId = userId,
+            diaries = diaries,
+            here = liveLocation,
+            unlockedIds = unlockedIds,
+            blockedIds = blockedIds,
+            enabled = guideEnabled && !showQuests && !MapUiState.mapOnly && MapUiState.mapVisible && globeCenter == null,
+            onWrite = onCreateClick,
+            onOpenQuests = { showQuests = true },
+            onOpenStar = onItemClick,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 64.dp + 10.dp, start = 72.dp, end = 16.dp),
+        )
 
         // 필터 스피드 다이얼 (로그인한 경우) — 집중(지도만 보기) 모드에선 다른 버튼과 같이 페이드로 숨는다.
         if (userId != null) {

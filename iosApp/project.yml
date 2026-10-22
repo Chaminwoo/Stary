@@ -246,6 +246,9 @@ targets:
         product: FirebaseStorage
       - package: Firebase
         product: FirebaseMessaging
+      # 사용 흐름 이벤트(StaryAnalytics) — 광고 유입 퍼널 측정(2026-10-22)
+      - package: Firebase
+        product: FirebaseAnalytics
       - package: GoogleSignIn
         product: GoogleSignIn
       - package: MapLibre

@@ -739,4 +739,17 @@
     <string name="quest_bonus_title">今日のクエストをすべて達成</string>
     <string name="quest_bonus_hint">上の3つのクエストの鍵をすべて受け取るとボーナスの鍵がもらえます</string>
     <string name="quest_ad_key_ask">広告を見て鍵をもらいますか？\n最後まで見ると鍵を1つもらえます。</string>
+    <!-- 첫 별 안내(FirstStarGuide, 2026-10-22) -->
+    <string name="guide_write_title">最初の星を残してみよう</string>
+    <string name="guide_write_msg">今いる場所の瞬間を星にすると、鍵がもらえます。</string>
+    <string name="guide_write_btn">星を残す</string>
+    <string name="guide_claim_title">最初の星が輝きました！</string>
+    <string name="guide_claim_msg">クエスト画面で鍵を受け取りましょう。</string>
+    <string name="guide_claim_btn">鍵を受け取る</string>
+    <string name="guide_open_title">鍵を手に入れました</string>
+    <string name="guide_open_msg">遠くにある誰かの星を、鍵で開けてみよう。</string>
+    <string name="guide_open_btn">星を開ける</string>
+    <string name="guide_open_hint">錠前をタップして鍵を使おう</string>
+    <string name="guide_no_target">開けられる誰かの星がまだありません。</string>
+    <string name="guide_done">やったね！クエストで鍵を集めて、もっと星を開けよう。</string>
 </resources>

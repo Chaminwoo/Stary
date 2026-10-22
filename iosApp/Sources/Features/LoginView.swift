@@ -60,10 +60,14 @@ struct LoginView: View {
                 termsLayer {
                     TermsDialogCard(requireAgreement: true, onAgree: {
                         TermsConsent.accept(uid: nil)
+                        StaryAnalytics.log("terms_accept")
                         termsAccepted = true
                         pendingAction = nil
                         action()
-                    }, onDismiss: { pendingAction = nil })
+                    }, onDismiss: {
+                        StaryAnalytics.log("terms_dismiss")
+                        pendingAction = nil
+                    })
                 }
             } else if showTermsView {
                 termsLayer {
@@ -71,6 +75,7 @@ struct LoginView: View {
                 }
             }
         }
+        .onAppear { StaryAnalytics.log("login_view") }
         .sheet(isPresented: $showEmailLogin) {
             EmailLoginSheet()
                 .environmentObject(auth)
@@ -115,7 +120,10 @@ struct LoginView: View {
             // 하단 버튼 영역.
             VStack(spacing: 8) {
                 CreamCapsuleButton(text: LocaleManager.shared.t(.loginGoogle)) {
-                    withConsent { Task { await auth.signInWithGoogle() } }
+                    withConsent {
+                        StaryAnalytics.log("login_google_tap")
+                        Task { await auth.signInWithGoogle() }
+                    }
                 }
 
                 // Sign in with Apple(App Store 심사 Guideline 4.8 대응) — Apple 공식 버튼 형태 그대로
@@ -133,7 +141,7 @@ struct LoginView: View {
                     if !termsAccepted {
                         Color.clear
                             .contentShape(Capsule())
-                            .onTapGesture { withConsent { auth.startAppleSignIn() } }
+                            .onTapGesture { withConsent { StaryAnalytics.log("login_apple_tap"); auth.startAppleSignIn() } }
                     }
                 }
 

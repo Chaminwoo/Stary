@@ -321,6 +321,13 @@ fun MainScreen(
 
     val userId = GoogleAuthHelper.currentUserId
 
+    // 지도 진입(실행당 1회) — 로그인/둘러보기 뒤 실제로 지도를 본 사람 수.
+    androidx.compose.runtime.LaunchedEffect(showLogin, isMapRoute) {
+        if (!showLogin && isMapRoute) {
+            com.chaminwoo.stary.core.util.StaryAnalytics.logOnce("map_view", "map_view", "logged_in" to (userId != null))
+        }
+    }
+
     // 일일 퀘스트·열쇠 — 로그인 계정의 users/{uid} 구독. 자정을 넘겨 켜 둔 경우를 위해 1분마다 날짜 확인.
     androidx.compose.runtime.LaunchedEffect(userId) {
         if (userId == null) {
@@ -824,7 +831,9 @@ fun MainScreen(
                             },
                             onCreateClick = {
                                 navController.navigate(NavRoute.Upload)
-                            }
+                            },
+                            guideEnabled = !showLogin && !showOnboarding && userId != null &&
+                                com.chaminwoo.stary.core.util.TermsConsent.isAccepted(context),
                         )
                         // 탑바가 반투명이라 화면은 **탑바 뒤까지** 전체를 차지한다(배경이 탑바에 비치도록).
                         // 대신 각 화면의 콘텐츠 레이어가 LocalTopBarInset 만큼 내려간다.

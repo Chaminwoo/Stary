@@ -50,6 +50,7 @@ class StaryApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        com.chaminwoo.stary.core.util.StaryAnalytics.init(this)
 
         // 앱 전역 **다크 고정** — 이 앱은 라이트 팔레트가 없다(Color.kt/StaryTheme 모두 다크 단일).
         // 기기가 라이트 모드면 리소스 한정자·AppCompat 다이얼로그·시스템 바가 라이트로 잡혀

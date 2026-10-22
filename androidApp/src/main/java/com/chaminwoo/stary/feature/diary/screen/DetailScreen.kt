@@ -205,6 +205,11 @@ fun DetailScreen(
     LaunchedEffect(diaryId, isNear, isMyDiary) {
         if (isNear && !isMyDiary) com.chaminwoo.stary.core.util.DiaryUnlockStore.unlock(context, diaryId)
     }
+    LaunchedEffect(diaryId) {
+        com.chaminwoo.stary.core.util.StaryAnalytics.log(
+            "detail_open", "own" to isMyDiary, "locked" to !unlocked, "logged_in" to (GoogleAuthHelper.currentUserId != null),
+        )
+    }
     val hasMedia = currentDiary.videoUrl.isNotEmpty() || currentDiary.imageUrl.isNotEmpty()
     val userId = GoogleAuthHelper.currentUserId ?: ""
     // 비로그인(둘러보기) 상태 — 댓글/좋아요/신고 등 상호작용은 잠그고 안내만 띄운다.

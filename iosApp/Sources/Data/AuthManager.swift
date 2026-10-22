@@ -81,6 +81,8 @@ final class AuthManager: ObservableObject {
         if Auth.auth().currentUser == nil {
             _ = try? await Auth.auth().signInAnonymously()
         }
+        // anon = 익명 세션이 생겼는지 — 콘솔에서 익명 인증이 꺼져 있으면 0(둘러보기 지도가 비어 보인다).
+        StaryAnalytics.log("guest_browse", ["anon": Auth.auth().currentUser != nil])
         isBusy = false
         isGuest = true
     }
@@ -103,16 +105,33 @@ final class AuthManager: ObservableObject {
         }
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
         await run {
-            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootVC)
-            guard let idToken = result.user.idToken?.tokenString else {
-                throw AuthError.missingToken
+            do {
+                let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootVC)
+                guard let idToken = result.user.idToken?.tokenString else {
+                    throw AuthError.missingToken
+                }
+                let credential = GoogleAuthProvider.credential(
+                    withIDToken: idToken,
+                    accessToken: result.user.accessToken.tokenString
+                )
+                try await Auth.auth().signIn(with: credential)
+                StaryAnalytics.log("login_success", ["method": "google"])
+            } catch {
+                let reason = Self.failReason(error)
+                StaryAnalytics.log("login_fail", ["method": "google", "reason": reason])
+                // 구글 창을 닫은 건 오류가 아니다 — 예전엔 "The user canceled the sign-in flow." 가 빨간 글씨로 떴다(Apple 은 이미 숨김).
+                if reason == "canceled" { return }
+                throw error
             }
-            let credential = GoogleAuthProvider.credential(
-                withIDToken: idToken,
-                accessToken: result.user.accessToken.tokenString
-            )
-            try await Auth.auth().signIn(with: credential)
         }
+    }
+
+    /// 로그인 실패 → 이벤트용 짧은 사유(취소는 "canceled", 그 밖엔 "도메인:코드").
+    nonisolated static func failReason(_ error: Error) -> String {
+        let e = error as NSError
+        if e.domain == "com.google.GIDSignIn" && e.code == -5 { return "canceled" }
+        if e.domain == ASAuthorizationError.errorDomain && e.code == ASAuthorizationError.canceled.rawValue { return "canceled" }
+        return "\(e.domain.split(separator: ".").last ?? ""):\(e.code)"
     }
 
     /// 이메일(비밀번호) 로그인 — **App Store 심사용 데모 계정 전용**(Guideline 2.1, 2026-09-26).
@@ -181,6 +200,7 @@ final class AuthManager: ObservableObject {
     func handleAppleSignInResult(_ result: Result<ASAuthorization, Error>) async {
         switch result {
         case .failure(let error):
+            StaryAnalytics.log("login_fail", ["method": "apple", "reason": Self.failReason(error)])
             // 사용자가 시트를 취소한 경우엔 에러 배너를 띄우지 않는다(Android 뒤로가기와 동일 취급).
             if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
                 errorMessage = error.localizedDescription
@@ -200,7 +220,14 @@ final class AuthManager: ObservableObject {
                     idToken: idToken,
                     rawNonce: rawNonce
                 )
-                let authResult = try await Auth.auth().signIn(with: oauthCredential)
+                let authResult: AuthDataResult
+                do {
+                    authResult = try await Auth.auth().signIn(with: oauthCredential)
+                    StaryAnalytics.log("login_success", ["method": "apple"])
+                } catch {
+                    StaryAnalytics.log("login_fail", ["method": "apple", "reason": Self.failReason(error)])
+                    throw error
+                }
                 // 최초 로그인이고 Apple 이 이름을 내려줬으면 Firebase 표시명에 먼저 반영한 뒤,
                 // 그 값을 들고 ensureProfile 을 다시 불러 users/{uid}.userName 에 확실히 남긴다
                 // (구글 로그인과 동일한 로직 재사용 — 이름 없이 저장되는 것을 방지).

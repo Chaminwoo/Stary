@@ -188,6 +188,7 @@ dependencies {
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.storage.ktx)
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.analytics)
     implementation(libs.jwt.decode)
 
     implementation("io.coil-kt:coil-compose:2.6.0")

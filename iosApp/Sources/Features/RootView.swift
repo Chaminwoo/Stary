@@ -261,6 +261,7 @@ struct MainTabView: View {
                 drawerOpen = false
             }
         }
+        .onChange(of: showCoachMark) { chrome.coachMarkShowing = $0 }
         // 설정 > 도움말 다시 보기 → 지도로 돌아가 코치마크 재생.
         .onChange(of: onboardingReplay.requested) { requested in
             if requested {
@@ -334,6 +335,8 @@ struct MainTabView: View {
                 notifications.start(ownerId: uid)
             }
             MusicManager.shared.resume() // 로그인 후 메인 진입 시 배경음악 시작
+            // 지도 진입(실행당 1회) — 로그인/둘러보기 뒤 실제로 지도를 본 사람 수(Android MainScreen map_view 패리티).
+            StaryAnalytics.logOnce("map_view", "map_view", ["logged_in": auth.uid != nil])
             startWatcher()
             loadFriendsCount()
             // 푸시 권한 요청 + fcmToken 기록(= 서버 발송 대상 등록). Android 로그인 직후 동작과 동일.

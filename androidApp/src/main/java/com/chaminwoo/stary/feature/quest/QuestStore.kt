@@ -128,10 +128,18 @@ object QuestStore {
         returningFallback = false
         keys = 0
         daily = null
+        guideDone = false
+        guideKeyGranted = false
+        guideLoaded = false
+        guideOpenShown = false
     }
 
     private fun apply(snap: DocumentSnapshot) {
         keys = (snap.get(FIELD_KEYS) as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
+        // 이 기기가 막 true 로 바꾼 값을 뒤늦은 캐시 스냅샷이 되돌리지 않게 — 한 번 true 면 유지.
+        guideDone = guideDone || snap.getBoolean(FIELD_GUIDE_DONE) == true
+        guideKeyGranted = guideKeyGranted || snap.getBoolean(FIELD_GUIDE_KEY) == true
+        if (!snap.metadata.isFromCache) guideLoaded = true
         val q = snap.get(FIELD_QUEST) as? Map<*, *>
         daily = q?.let { m ->
             val day = m["day"] as? String ?: return@let null
@@ -272,11 +280,62 @@ object QuestStore {
         val uid = uid ?: return false
         if (keys <= 0) return false
         keys -= 1
-        doc(uid).set(mapOf(FIELD_KEYS to FieldValue.increment(-1)), SetOptions.merge())
-            .addOnFailureListener { Log.w(TAG, "열쇠 사용 기록 실패", it) }
+        val firstUse = !guideDone
+        guideDone = true
+        doc(uid).set(
+            // 열쇠를 처음 쓰면 첫 별 안내(FirstStarGuide)도 끝난다.
+            if (firstUse) mapOf(FIELD_KEYS to FieldValue.increment(-1), FIELD_GUIDE_DONE to true)
+            else mapOf(FIELD_KEYS to FieldValue.increment(-1)),
+            SetOptions.merge(),
+        ).addOnFailureListener { Log.w(TAG, "열쇠 사용 기록 실패", it) }
+        com.chaminwoo.stary.core.util.StaryAnalytics.log("key_used", "first" to firstUse)
+        if (firstUse && guideOpenShown) {
+            com.chaminwoo.stary.core.util.StaryAnalytics.log("guide_done", "via" to "key")
+            appContext?.let { StaryToast.show(LocaleManager.wrap(it).getString(R.string.guide_done)) }
+        }
         return true
     }
 
     /** 로그인해서 열쇠를 쓸 수 있는 상태인지(비로그인은 광고로만 연다). */
     val available: Boolean get() = uid != null
+
+    // ── 첫 별 안내(FirstStarGuide) 상태 — users/{uid} 필드, 이 구독으로 함께 읽는다 ──
+
+    /** 안내를 끝냈는지(열쇠를 한 번이라도 썼거나 안내를 닫음). 기기를 바꿔도 다시 뜨지 않게 서버에 둔다. */
+    var guideDone by mutableStateOf(false)
+        private set
+    /** 안내용 열쇠를 이미 받았는지 — 퀘스트에 "별 올리기"가 없는 날 올린 경우의 대체 보상(1회). */
+    var guideKeyGranted by mutableStateOf(false)
+        private set
+    /** 서버 값을 한 번이라도 받았는지 — 받기 전엔 안내를 띄우지 않는다(이미 끝낸 계정에 잠깐 뜨지 않게). */
+    var guideLoaded by mutableStateOf(false)
+        private set
+    /** "열쇠로 별 열기" 단계 카드를 이번 실행에서 보여 줬는지 — 그때만 열쇠 사용을 "안내 완료"로 축하한다. */
+    var guideOpenShown = false
+
+    /** 안내를 끝낸다(닫기 등). */
+    fun markGuideDone(via: String) {
+        val uid = uid ?: return
+        if (guideDone) return
+        guideDone = true
+        com.chaminwoo.stary.core.util.StaryAnalytics.log("guide_done", "via" to via)
+        doc(uid).set(mapOf(FIELD_GUIDE_DONE to true), SetOptions.merge())
+            .addOnFailureListener { Log.w(TAG, "안내 완료 기록 실패", it) }
+    }
+
+    /** 첫 별을 올렸는데 오늘 퀘스트에 "올리기"가 없어 받을 열쇠가 없을 때 — 안내용 열쇠 1개(계정당 1회). */
+    fun grantGuideKey(): Boolean {
+        val uid = uid ?: return false
+        if (guideKeyGranted) return false
+        guideKeyGranted = true
+        keys += 1
+        doc(uid).set(
+            mapOf(FIELD_KEYS to FieldValue.increment(1), FIELD_GUIDE_KEY to true),
+            SetOptions.merge(),
+        ).addOnFailureListener { Log.w(TAG, "안내 열쇠 기록 실패", it) }
+        return true
+    }
+
+    private const val FIELD_GUIDE_DONE = "guideDone"
+    private const val FIELD_GUIDE_KEY = "guideKeyGranted"
 }

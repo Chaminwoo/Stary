@@ -88,6 +88,10 @@ struct MapScreen: View {
     // 별자리 라인 토글(Android constellationEnabled) + 몰입(지도만 보기) 크롬 상태.
     @State private var constellationOn = false
     @ObservedObject private var chrome = MapChromeState.shared
+    /// 첫 별 안내(FirstStarGuide) — 열쇠 수·안내 완료 여부가 바뀌면 카드도 바뀐다.
+    @ObservedObject private var quests = QuestStore.shared
+    /// 닫기(X)로 이번 실행에서 숨긴 단계.
+    @State private var guideHidden: GuideStep?
 
     // 포커스(카메라 이동) 대상 + 요청 번호(같은 별을 다시 요청해도 카메라가 움직이게 — MapLibreView.focusNonce).
     @State private var focusTarget: CLLocationCoordinate2D?
@@ -402,6 +406,56 @@ struct MapScreen: View {
         }
     }
 
+    // MARK: 첫 별 안내(FirstStarGuide) — Android FirstStarGuide.kt 패리티
+
+    private var guideStep: GuideStep? {
+        FirstStarGuideLogic.step(uid: auth.uid, diaries: store.diaries, loading: store.loading)
+    }
+
+    private func guideShown(_ step: GuideStep) {
+        guard let uid = auth.uid else { return }
+        if step == .write { UserDefaults.standard.set(true, forKey: FirstStarGuideLogic.startedKey(uid)) }
+        if step == .open { quests.guideOpenShown = true }
+        StaryAnalytics.logOnce("guide_" + step.rawValue, "guide_step", ["step": step.rawValue])
+    }
+
+    private func guideAction(_ step: GuideStep) {
+        guard let uid = auth.uid else { return }
+        StaryAnalytics.log("guide_action", ["step": step.rawValue])
+        Haptics.tick()
+        switch step {
+        case .write:
+            TabRouter.shared.go(TabRouter.upload)
+        case .claim:
+            if (quests.daily?.claimable ?? 0) > 0 {
+                withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = true }
+            } else if quests.grantGuideKey() {
+                // 오늘 퀘스트에 "올리기"가 없던 날 — 첫 별 보상 열쇠를 바로 준다.
+                Haptics.celebrate()
+                GlobalToast.shared.show(String(format: locale.t(.questKeyGained), 1))
+            } else {
+                withAnimation(.easeOut(duration: 0.2)) { chrome.questsOpen = true }
+            }
+        case .open:
+            guard let target = FirstStarGuideLogic.target(diaries: store.diaries, uid: uid,
+                                                          here: location.coordinate, blocked: blocks.blockedIds),
+                  let id = target.id else {
+                GlobalToast.shared.show(locale.t(.guideNoTarget))
+                quests.markGuideDone(via: "no_target")
+                return
+            }
+            // 그 별로 카메라를 옮기고(파동) 잠깐 보여 준 뒤 상세로 — 잠금 카드에서 열쇠를 쓴다.
+            MapFocusStore.shared.request(diaryId: id)
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_800_000_000)
+                leftForDiary = true
+                selected = target
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                GlobalToast.shared.show(locale.t(.guideOpenHint))
+            }
+        }
+    }
+
     private func showToast(_ text: String) {
         toast = text
         Task {
@@ -517,6 +571,27 @@ struct MapScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(.top, 16)
             .padding(.leading, 16)
+
+            // ── 첫 별 안내(첫 별 → 퀘스트 열쇠 → 남의 별 열기) — 상단, 좌상단 줌 버튼을 피해 띄운다(Android 동일 자리) ──
+            if let step = guideStep, step != guideHidden,
+               !chrome.questsOpen, !chrome.coachMarkShowing, globeCenter == nil {
+                FirstStarGuideCard(
+                    step: step,
+                    onAction: { guideAction(step) },
+                    onClose: {
+                        StaryAnalytics.log("guide_dismiss", ["step": step.rawValue])
+                        withAnimation(.easeOut(duration: 0.2)) { guideHidden = step }
+                    }
+                )
+                .frame(maxWidth: 520)
+                .padding(.top, 16)
+                .padding(.leading, 72)
+                .padding(.trailing, 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .id(step)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+                .onAppear { guideShown(step) }
+            }
 
             // ── 우하단 열: 내 위치 → 별자리 토글 → 몰입 — Android DiaryMap 우하단 열 순서 동일.
             // (생성 FAB(56pt)은 MainTabView 소유라 그 위(16+56+12)에 얹는다 — Android 세로 나열과 동일한 시각 배치.)

@@ -203,6 +203,10 @@ final class QuestStore: ObservableObject {
         fallbackTask = nil
         keys = 0
         daily = nil
+        guideDone = false
+        guideKeyGranted = false
+        guideLoaded = false
+        guideOpenShown = false
         guard let uid, !uid.isEmpty else { self.uid = nil; return }
         // includeMetadataChanges — 캐시 값이 서버와 같으면 "서버 확인됨"은 메타데이터만 바뀐 이벤트로 온다.
         // 이걸 안 받으면 serverSeen 이 영영 false 라 오늘 목록을 못 만들어 퀘스트 창이 무한 로딩이었다(2026-10-19).
@@ -225,6 +229,10 @@ final class QuestStore: ObservableObject {
                 }
                 store.keys = parsed.keys
                 store.daily = parsed.daily
+                // 이 기기가 막 true 로 바꾼 값을 뒤늦은 캐시 스냅샷이 되돌리지 않게 — 한 번 true 면 유지.
+                store.guideDone = store.guideDone || parsed.guideDone
+                store.guideKeyGranted = store.guideKeyGranted || parsed.guideKey
+                if fromServer { store.guideLoaded = true }
                 store.ensureToday()
             }
         }
@@ -236,10 +244,12 @@ final class QuestStore: ObservableObject {
         if value != nil { ensureToday() }
     }
 
-    private nonisolated static func parse(_ snap: DocumentSnapshot) -> (keys: Int, daily: Daily?) {
+    private nonisolated static func parse(_ snap: DocumentSnapshot) -> (keys: Int, daily: Daily?, guideDone: Bool, guideKey: Bool) {
         let keys = max(0, (snap.get(questFieldKeys) as? NSNumber)?.intValue ?? 0)
+        let guideDone = (snap.get(fieldGuideDone) as? Bool) ?? false
+        let guideKey = (snap.get(fieldGuideKey) as? Bool) ?? false
         guard let m = snap.get(questFieldQuest) as? [String: Any], let day = m["day"] as? String else {
-            return (keys, nil)
+            return (keys, nil, guideDone, guideKey)
         }
         var progress: [String: Int] = [:]
         for (k, v) in (m["progress"] as? [String: Any]) ?? [:] {
@@ -253,7 +263,7 @@ final class QuestStore: ObservableObject {
             claimed: Set((m["claimed"] as? [String]) ?? []),
             bonus: (m["bonus"] as? Bool) ?? false
         )
-        return (keys, daily)
+        return (keys, daily, guideDone, guideKey)
     }
 
     /// 날짜가 바뀌었으면 새 목록을 만든다(서버 확인 후). 자정을 넘겨 켜 둔 경우를 위해 RootView 가 1분마다도 부른다.
@@ -349,7 +359,51 @@ final class QuestStore: ObservableObject {
     func spendKey() -> Bool {
         guard let uid, keys > 0 else { return false }
         keys -= 1
-        FirestoreService.users.document(uid).setData([questFieldKeys: FieldValue.increment(Int64(-1))], merge: true)
+        let firstUse = !guideDone
+        guideDone = true
+        var data: [String: Any] = [questFieldKeys: FieldValue.increment(Int64(-1))]
+        // 열쇠를 처음 쓰면 첫 별 안내(FirstStarGuide)도 끝난다.
+        if firstUse { data[Self.fieldGuideDone] = true }
+        FirestoreService.users.document(uid).setData(data, merge: true)
+        StaryAnalytics.log("key_used", ["first": firstUse])
+        if firstUse && guideOpenShown {
+            StaryAnalytics.log("guide_done", ["via": "key"])
+            GlobalToast.shared.show(LocaleManager.shared.t(.guideDone))
+        }
+        return true
+    }
+
+    // MARK: - 첫 별 안내(FirstStarGuide) 상태 — users/{uid} 필드, 이 구독으로 함께 읽는다(Android QuestStore 패리티)
+
+    nonisolated static let fieldGuideDone = "guideDone"
+    nonisolated static let fieldGuideKey = "guideKeyGranted"
+
+    /// 안내를 끝냈는지(열쇠를 한 번이라도 썼거나 열어 볼 별이 없음). 기기를 바꿔도 다시 뜨지 않게 서버에 둔다.
+    @Published private(set) var guideDone = false
+    /// 안내용 열쇠를 이미 받았는지 — 퀘스트에 "별 올리기"가 없는 날 올린 경우의 대체 보상(1회).
+    @Published private(set) var guideKeyGranted = false
+    /// 서버 값을 한 번이라도 받았는지 — 받기 전엔 안내를 띄우지 않는다(이미 끝낸 계정에 잠깐 뜨지 않게).
+    @Published private(set) var guideLoaded = false
+    /// "열쇠로 별 열기" 단계 카드를 이번 실행에서 보여 줬는지 — 그때만 열쇠 사용을 "안내 완료"로 축하한다.
+    var guideOpenShown = false
+
+    /// 안내를 끝낸다.
+    func markGuideDone(via: String) {
+        guard let uid, !guideDone else { return }
+        guideDone = true
+        StaryAnalytics.log("guide_done", ["via": via])
+        FirestoreService.users.document(uid).setData([Self.fieldGuideDone: true], merge: true)
+    }
+
+    /// 첫 별을 올렸는데 오늘 퀘스트에 "올리기"가 없어 받을 열쇠가 없을 때 — 안내용 열쇠 1개(계정당 1회).
+    func grantGuideKey() -> Bool {
+        guard let uid, !guideKeyGranted else { return false }
+        guideKeyGranted = true
+        keys += 1
+        FirestoreService.users.document(uid).setData([
+            questFieldKeys: FieldValue.increment(Int64(1)),
+            Self.fieldGuideKey: true,
+        ], merge: true)
         return true
     }
 }

@@ -121,7 +121,11 @@ struct QuestSheetView: View {
                                 target: q.target, reward: DailyQuests.rewardKeys,
                                 progress: min(d.progressOf(q.id), q.target),
                                 claimed: d.claimed.contains(q.id)
-                            ) { rewarded(quests.claim(q.id)) }
+                            ) {
+                                let gained = quests.claim(q.id)
+                                if gained > 0 { StaryAnalytics.log("quest_claim", ["quest": q.id]) }
+                                rewarded(gained)
+                            }
                         }
                         // 보너스 퀘스트 — 위 3개 보상을 모두 받으면 받을 수 있다(Android QuestSheet 4번째 행 패리티).
                         QuestRowView(
@@ -130,7 +134,11 @@ struct QuestSheetView: View {
                             target: d.ids.count, reward: DailyQuests.bonusKeys,
                             progress: d.claimed.intersection(d.ids).count,
                             claimed: d.bonus
-                        ) { rewarded(quests.claimBonus()) }
+                        ) {
+                            let gained = quests.claimBonus()
+                            if gained > 0 { StaryAnalytics.log("quest_claim", ["quest": "bonus"]) }
+                            rewarded(gained)
+                        }
                     }
                 } else {
                     HStack(spacing: 10) {
@@ -178,6 +186,7 @@ struct QuestSheetView: View {
         .onAppear {
             quests.ensureToday()
             MapChromeState.shared.holdIdle()
+            StaryAnalytics.log("quest_open", ["claimable": quests.daily?.claimable ?? 0, "keys": quests.keys])
         }
         .onDisappear { MapChromeState.shared.releaseIdle() }
         // 30초마다 남은 시간 갱신 + 자정이 지나면 새 목록.

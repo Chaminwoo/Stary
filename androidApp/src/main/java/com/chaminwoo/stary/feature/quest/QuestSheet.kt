@@ -211,6 +211,7 @@ fun QuestSheet(onDismiss: () -> Unit) {
     val keys = QuestStore.keys
     var bump by remember { mutableStateOf(0) }
     var showAdKey by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { com.chaminwoo.stary.core.util.StaryAnalytics.log("quest_open", "claimable" to (daily?.claimable ?: 0), "keys" to keys) }
     if (showAdKey) {
         com.chaminwoo.stary.feature.diary.screen.KeyAdDialog(
             accent = QuestGold,
@@ -300,6 +301,7 @@ fun QuestSheet(onDismiss: () -> Unit) {
                             onClaim = {
                                 val gained = QuestStore.claim(def.id)
                                 if (gained > 0) {
+                                    com.chaminwoo.stary.core.util.StaryAnalytics.log("quest_claim", "quest" to def.id)
                                     Haptics.celebrate()
                                     bump++
                                     StaryToast.show(context.getString(R.string.quest_key_gained, gained))
@@ -320,6 +322,7 @@ fun QuestSheet(onDismiss: () -> Unit) {
                         onClaim = {
                             val gained = QuestStore.claimBonus()
                             if (gained > 0) {
+                                com.chaminwoo.stary.core.util.StaryAnalytics.log("quest_claim", "quest" to "bonus")
                                 Haptics.celebrate()
                                 bump++
                                 StaryToast.show(context.getString(R.string.quest_key_gained, gained))

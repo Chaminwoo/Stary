@@ -30,6 +30,9 @@ final class MapChromeState: ObservableObject {
     /// 오늘의 퀘스트 창 — 지도 "!" 버튼이 켜고, RootView 가 상단바·버튼까지 덮도록 맨 위에 띄운다.
     @Published var questsOpen = false
 
+    /// 첫 실행 코치마크가 떠 있음(RootView 가 맞춘다) — 그동안 첫 별 안내 카드를 숨긴다.
+    @Published var coachMarkShowing = false
+
     /// 지도(루트)가 화면에 보이는지 — MapScreen onAppear/onDisappear(상세·겹친 별 push 로 가려지면 false).
     @Published var mapVisible = true
 

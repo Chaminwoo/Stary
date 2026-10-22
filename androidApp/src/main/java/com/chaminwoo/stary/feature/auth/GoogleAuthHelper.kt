@@ -129,7 +129,12 @@ object GoogleAuthHelper {
                     currentUserEmail = FirebaseAuth.getInstance().currentUser?.email
                 } catch (e: Exception) {
                     Log.e(TAG, "Firebase Auth 로그인 실패: ${e.localizedMessage}")
+                    // 계정 선택은 됐는데 Firebase 로그인만 실패 — 이후 저장이 규칙에 막힌다. 얼마나 생기는지 본다.
+                    com.chaminwoo.stary.core.util.StaryAnalytics.log(
+                        "firebase_auth_fail", "reason" to e::class.java.simpleName,
+                    )
                 }
+                com.chaminwoo.stary.core.util.StaryAnalytics.log("login_success", "method" to "google")
                 // 친구 검색이 가능하도록 공개 프로필(users/{uid}) 확정·기록 — startProfileSync 주석 참고.
                 // fire-and-forget: Firestore 쓰기가 지연/실패해도 로그인 흐름을 막지 않는다.
                 val appCtx = context.applicationContext
@@ -150,11 +155,21 @@ object GoogleAuthHelper {
             } else {
                 lastSignInError = "예상과 다른 자격증명 타입(${credential.type})"
                 Log.e(TAG, "구글 로그인 실패: $lastSignInError")
+                com.chaminwoo.stary.core.util.StaryAnalytics.log("login_fail", "method" to "google", "reason" to "credential_type")
                 null
             }
         } catch (e: Exception) {
             lastSignInError = describeSignInFailure(context, e)
             Log.e(TAG, "구글 로그인 실패: $lastSignInError", e)
+            com.chaminwoo.stary.core.util.StaryAnalytics.log(
+                "login_fail", "method" to "google",
+                "reason" to when (e) {
+                    is GetCredentialCancellationException -> "canceled"
+                    is NoCredentialException -> "no_credential"
+                    is GetCredentialException -> e.type.substringAfterLast('.')
+                    else -> e::class.java.simpleName
+                },
+            )
             null
         }
     }

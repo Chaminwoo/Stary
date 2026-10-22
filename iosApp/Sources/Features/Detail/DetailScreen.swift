@@ -203,6 +203,7 @@ struct DetailScreen: View {
         // 100m 이내에 들어오면 영구 해금 기록(Android LaunchedEffect(isNear) 패리티).
         .onAppear {
             debugLogLockState() // ⚠️ recordProximityUnlock 보다 먼저 — 근접 해금이 먼저 기록되면 "왜 열렸나"가 가려진다
+            StaryAnalytics.log("detail_open", ["own": isOwner, "locked": !canOpen, "logged_in": auth.uid != nil])
             recordProximityUnlock()
         }
         .onChange(of: isNear) { _ in recordProximityUnlock() }

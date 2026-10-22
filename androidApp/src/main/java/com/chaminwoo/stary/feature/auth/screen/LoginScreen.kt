@@ -87,6 +87,7 @@ fun LoginScreen(
     var showUI by remember { mutableStateOf(immediate) }
     // 영상이 끝나 정지한 뒤(또는 영상 없이 진입) 하늘 오버레이(잔별·유성)를 살린다 — LoginDecor.kt.
     var skyVisible by remember { mutableStateOf(immediate) }
+    LaunchedEffect(Unit) { com.chaminwoo.stary.core.util.StaryAnalytics.log("login_view") }
 
     // ── 이용약관(EULA) 동의 게이트 — App Store Guideline 1.2(2026-09-26) ──
     // 로그인/둘러보기 버튼을 누르면, 아직 동의하지 않았을 때 약관을 먼저 띄우고 "동의하고 계속" 뒤에 원래 동작을 잇는다.
@@ -100,10 +101,14 @@ fun LoginScreen(
             requireAgreement = true,
             onAgree = {
                 com.chaminwoo.stary.core.util.TermsConsent.accept(context, null)
+                com.chaminwoo.stary.core.util.StaryAnalytics.log("terms_accept")
                 pendingAction = null
                 action()
             },
-            onDismiss = { pendingAction = null },
+            onDismiss = {
+                com.chaminwoo.stary.core.util.StaryAnalytics.log("terms_dismiss")
+                pendingAction = null
+            },
         )
     }
     if (showTermsView) {
@@ -315,6 +320,7 @@ fun LoginScreen(
                             text = stringResource(R.string.login_google),
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { withConsent {
+                                com.chaminwoo.stary.core.util.StaryAnalytics.log("login_google_tap")
                                 coroutineScope.launch {
                                     val idToken = GoogleAuthHelper.signInWithGoogle(context)
                                     if (idToken != null) onLoginClick()
@@ -330,7 +336,10 @@ fun LoginScreen(
                     }
 
                     TextButton(
-                        onClick = { withConsent(onLoginClick) },
+                        onClick = { withConsent {
+                            com.chaminwoo.stary.core.util.StaryAnalytics.log("guest_browse")
+                            onLoginClick()
+                        } },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
