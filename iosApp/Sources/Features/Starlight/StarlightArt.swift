@@ -448,7 +448,8 @@ struct TitleText: View {
     var body: some View {
         let raw = StarlightArt.colors(item)
         let colors = raw.isEmpty ? [Color(hex: 0xE9EEF5)] : raw
-        let label = Text(text).font(.minSans(fontSize, .semibold))
+        // 칭호는 한 줄 — 자리가 모자라면 줄을 바꾸지 않고 글자를 줄인다(Android TitleText 패리티).
+        let label = Text(text).font(.minSans(fontSize, .semibold)).lineLimit(1).minimumScaleFactor(0.5)
         if item.bool("shimmer") {
             let c1 = colors[0], c2 = colors.count > 1 ? colors[1] : colors[0], c3 = colors[colors.count - 1]
             return AnyView(TimelineView(.animation(minimumInterval: 1.0 / 30, paused: false)) { tl in

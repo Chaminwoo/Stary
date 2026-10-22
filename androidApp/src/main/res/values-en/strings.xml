@@ -802,7 +802,7 @@
     <string name="starlight_waiting">Gathering starlight…</string>
     <string name="starlight_odds_items">Show odds per item</string>
     <string name="starlight_odds_hide">Hide</string>
-    <string name="starlight_lineup">Legendary in the box</string>
+    <string name="starlight_lineup">Pull a legendary item!</string>
     <string name="guide_exchange_title">Craft a key from stardust</string>
     <string name="guide_exchange_msg">Trade the stardust from quests for a key at the Starlight Workshop (%1$d = 1 key).</string>
 </resources>

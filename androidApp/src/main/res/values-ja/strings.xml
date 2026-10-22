@@ -802,7 +802,7 @@
     <string name="starlight_waiting">星の光を集めています…</string>
     <string name="starlight_odds_items">アイテム別の確率を見る</string>
     <string name="starlight_odds_hide">閉じる</string>
-    <string name="starlight_lineup">箱の中の伝説</string>
+    <string name="starlight_lineup">伝説アイテムを引いてみよう！</string>
     <string name="guide_exchange_title">星くずで鍵を作る</string>
     <string name="guide_exchange_msg">クエストで集めた星くずは星明かりの工房で鍵に交換できます（%1$d個 = 鍵1個）。</string>
 </resources>

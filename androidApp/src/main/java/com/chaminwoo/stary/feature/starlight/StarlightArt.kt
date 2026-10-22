@@ -50,6 +50,9 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -495,7 +498,23 @@ fun TitleText(text: String, payload: Map<String, Any?>, fontSize: Float = 13f, m
             start = Offset(x * 300f - 200f, 0f), end = Offset(x * 300f + 100f, 40f),
         )
     } else base
-    Text(text, modifier = modifier, style = TextStyle(brush = brush, fontSize = fontSize.sp, fontWeight = FontWeight.SemiBold))
+    // 칭호는 한 줄 — 자리가 모자라면 줄을 바꾸지 않고 글자를 줄인다(최소 절반). iOS lineLimit(1)+minimumScaleFactor(0.5) 패리티.
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val measurer = rememberTextMeasurer()
+        val maxPx = constraints.maxWidth
+        val fitted = remember(text, fontSize, maxPx) {
+            if (maxPx == Constraints.Infinity) return@remember fontSize
+            val w = measurer.measure(
+                text, TextStyle(fontSize = fontSize.sp, fontWeight = FontWeight.SemiBold), softWrap = false, maxLines = 1,
+            ).size.width
+            if (w <= maxPx) fontSize else (fontSize * maxPx / w * 0.98f).coerceAtLeast(fontSize * 0.5f)
+        }
+        Text(
+            text,
+            style = TextStyle(brush = brush, fontSize = fitted.sp, fontWeight = FontWeight.SemiBold),
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
+        )
+    }
 }
 
 /** 아이템 대표 그림(정사각형 칸 안). */

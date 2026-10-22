@@ -876,7 +876,7 @@ enum L10n: String {
         case .starlightWaiting: return ("별빛을 모으는 중…", "Gathering starlight…", "星の光を集めています…")
         case .starlightOddsItems: return ("아이템별 확률 보기", "Show odds per item", "アイテム別の確率を見る")
         case .starlightOddsHide: return ("접기", "Hide", "閉じる")
-        case .starlightLineup: return ("상자 속 전설", "Legendary in the box", "箱の中の伝説")
+        case .starlightLineup: return ("전설 아이템을 뽑아보세요!", "Pull a legendary item!", "伝説アイテムを引いてみよう！")
         case .guideExchangeTitle: return ("별가루로 열쇠 만들기", "Craft a key from stardust", "星くずで鍵を作る")
         case .guideExchangeMsg: return ("퀘스트로 모은 별가루를 별빛 공방에서 열쇠로 바꿀 수 있어요(%1$d개 = 열쇠 1개).", "Trade the stardust from quests for a key at the Starlight Workshop (%1$d = 1 key).", "クエストで集めた星くずは星明かりの工房で鍵に交換できます（%1$d個 = 鍵1個）。")
         }

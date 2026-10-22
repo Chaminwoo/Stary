@@ -805,7 +805,7 @@
     <string name="starlight_waiting">별빛을 모으는 중…</string>
     <string name="starlight_odds_items">아이템별 확률 보기</string>
     <string name="starlight_odds_hide">접기</string>
-    <string name="starlight_lineup">상자 속 전설</string>
+    <string name="starlight_lineup">전설 아이템을 뽑아보세요!</string>
     <string name="guide_exchange_title">별가루로 열쇠 만들기</string>
     <string name="guide_exchange_msg">퀘스트로 모은 별가루를 별빛 공방에서 열쇠로 바꿀 수 있어요(%1$d개 = 열쇠 1개).</string>
 </resources>
