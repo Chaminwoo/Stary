@@ -81,6 +81,9 @@ import com.chaminwoo.stary.feature.starlight.StarlightStore
 import com.chaminwoo.stary.feature.starlight.starlightLang
 import kotlinx.coroutines.launch
 import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
+import com.chaminwoo.stary.core.ui.StaryPopupPanel
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
 
 private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val Gold = Color(0xFFFFD86F)
@@ -941,16 +944,11 @@ private fun TelescopeDialog(ask: TelescopeAsk, onDismiss: () -> Unit) {
     val achName = com.chaminwoo.stary.core.util.LocalizedNames.title(
         context, ask.achId, Achievements.byId(ask.achId)?.name ?: HiddenAchievements.byId(ask.achId)?.title
     ) ?: ask.achId
-    androidx.compose.ui.window.Dialog(onDismissRequest = { if (!busy) onDismiss() }) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF121821))
-                .border(1.dp, Accent.copy(alpha = 0.5f), RoundedCornerShape(22.dp))
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        StaryPopupPanel(maxWidth = 360.dp, horizontalAlignment = Alignment.CenterHorizontally) {
             Text(stringResource(R.string.telescope_title), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
             Text(achName, color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.Light, textAlign = TextAlign.Center)
@@ -1003,11 +1001,10 @@ private fun TelescopeDialog(ask: TelescopeAsk, onDismiss: () -> Unit) {
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.telescope_cancel),
-                color = TextMuted, fontSize = 13.sp,
-                modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(enabled = !busy, onClick = onDismiss).padding(horizontal = 14.dp, vertical = 8.dp),
+            Spacer(Modifier.height(12.dp))
+            StaryButton(
+                stringResource(R.string.telescope_cancel), onDismiss, Modifier.fillMaxWidth(),
+                kind = StaryButtonKind.Ghost, enabled = !busy, compact = true,
             )
         }
     }

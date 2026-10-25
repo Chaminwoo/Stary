@@ -695,7 +695,6 @@ struct DetailScreen: View {
     /// 열쇠 없이 자물쇠를 눌렀을 때의 팝업 — "열쇠가 없어요" + 광고 보고 열쇠 받기(금색) / 취소. (Android `NoKeyDialog` 패리티)
     private var noKeyDialog: some View {
         KeyAdDialogCard(
-            accent: accent,
             message: LocaleManager.shared.t(.detailLockedTitleNoKey),
             onWatchAd: {
                 showNoKey = false

@@ -46,7 +46,7 @@ struct TermsDialogCard: View {
             if requireAgreement {
                 Spacer().frame(height: 6)
                 Text(locale.t(.termsIntro))
-                    .font(.minSans(13)).foregroundStyle(Theme.mint)
+                    .font(.minSans(13)).foregroundStyle(Theme.navyAccent)
             }
             Spacer().frame(height: 12)
             ScrollView {
@@ -61,15 +61,8 @@ struct TermsDialogCard: View {
             .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
             Spacer().frame(height: 14)
             if requireAgreement {
-                Button(action: onAgree) {
-                    Text(locale.t(.termsAgree))
-                        .font(.minSans(15)).foregroundStyle(Color(hex: 0x0D0D0D))
-                        .frame(maxWidth: .infinity).padding(.vertical, 13)
-                        .background(LinearGradient(colors: [Theme.mint, Color(hex: 0x4DD0E1)],
-                                                   startPoint: .leading, endPoint: .trailing),
-                                    in: RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
+                // 동의가 주 동작 — 넓은 크림 캡슐, 거절은 그 아래 작은 글씨(Android 패리티).
+                StaryButton(locale.t(.termsAgree), fullWidth: true, action: onAgree)
                 Button(action: onDismiss) {
                     Text(declineTitle)
                         .font(.minSans(13)).foregroundStyle(Theme.textSecondary)
@@ -77,16 +70,13 @@ struct TermsDialogCard: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                HStack {
-                    Spacer()
-                    StaryDialogTextButton(locale.t(.commonOk), color: Theme.mint, weight: .semibold, action: onDismiss)
-                }
+                StaryButton(locale.t(.commonOk), compact: true, fullWidth: true, action: onDismiss)
             }
         }
         .padding(20)
-        .frame(maxWidth: StaryDialogStyle.maxWidth)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: StaryDialogStyle.corner))
-        .overlay(RoundedRectangle(cornerRadius: StaryDialogStyle.corner).stroke(Theme.outline, lineWidth: 1))
+        .frame(maxWidth: 360)
+        // 판은 다른 팝업과 같은 유리(2026-10-26, 불투명 면에서 바꿈).
+        .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
         .padding(.horizontal, StaryDialogStyle.screenPadding)
     }
 }

@@ -62,23 +62,9 @@ struct ProfilePhotoCropView: View {
                 .padding(.horizontal, 24)
 
                 HStack(spacing: 14) {
-                    Button(action: onCancel) {
-                        Text(locale.t(.commonCancel))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .foregroundStyle(Theme.textSecondary)
-                            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.white.opacity(0.25)))
-                    }
-                    Button { confirm() } label: {
-                        Text(locale.t(.commonSave))
-                            .fontWeight(.medium)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.navyAccent, in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(.black)
-                    }
+                    StaryButton(locale.t(.commonCancel), kind: .ghost, fullWidth: true, action: onCancel)
+                    StaryButton(locale.t(.commonSave), fullWidth: true) { confirm() }
                 }
-                .font(.minSans(15))
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
             }

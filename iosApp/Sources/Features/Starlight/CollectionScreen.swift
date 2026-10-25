@@ -247,7 +247,10 @@ struct StarlightItemDetail: View {
         ZStack {
             Color.black.opacity(0.6).ignoresSafeArea().onTapGesture { onDismiss() }
             VStack(spacing: 0) {
+                // 희귀도 색은 그림 뒤 은은한 빛으로만(판을 물들이던 그라데이션·테두리 대신, 2026-10-26). Android 패리티.
                 ItemArt(item: item).frame(width: 120, height: 120)
+                    .background(Circle().fill(RadialGradient(colors: [c.opacity(0.24), .clear], center: .center,
+                                                             startRadius: 0, endRadius: 60)))
                 Text("\(rarityName(item.rarity)) · \(starlightKindName(item.kind))")
                     .font(.minSans(12, .semibold)).foregroundStyle(c).padding(.top, 10)
                 Text(item.name(in: lang)).font(.minSans(17, .semibold)).foregroundStyle(ink)
@@ -261,7 +264,8 @@ struct StarlightItemDetail: View {
                             .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true).padding(.top, 4)
                     }
                     if let slot {
-                        StarlightOpenButton(text: locale.t(equipped ? .starlightUnequip : .starlightEquip), enabled: !busy, primary: !equipped) {
+                        StaryButton(locale.t(equipped ? .starlightUnequip : .starlightEquip),
+                                    kind: equipped ? .ghost : .primary, compact: true, loading: busy) {
                             toggle(slot, equipped)
                         }
                         .padding(.top, 14)
@@ -269,11 +273,9 @@ struct StarlightItemDetail: View {
                 }
             }
             .padding(20)
-            .frame(maxWidth: 340)
-            .background(LinearGradient(colors: [c.opacity(0.16), Color(hex: 0x121821), Color(hex: 0x121821)], startPoint: .top, endPoint: .bottom),
-                        in: RoundedRectangle(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(c.opacity(0.6), lineWidth: 1))
-            .padding(.horizontal, 24)
+            .frame(maxWidth: StaryDialogStyle.maxWidth)
+            .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
+            .padding(.horizontal, StaryDialogStyle.screenPadding)
             .onTapGesture { onDismiss() }
         }
     }

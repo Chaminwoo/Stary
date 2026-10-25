@@ -97,24 +97,16 @@ struct AppUpdatePromptOverlay: View {
     @ObservedObject private var checker = AppUpdateChecker.shared
     @ObservedObject private var locale = LocaleManager.shared
 
-    private var accent: LinearGradient {
-        LinearGradient(colors: [Theme.mint, Color(hex: 0x3B82F6)], startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-
     var body: some View {
         if checker.showPrompt {
             ZStack {
                 // 배경 탭으로 닫히지 않는다 — 아래 화면으로 터치도 새지 않게 먹는다.
-                Color.black.opacity(0.6).ignoresSafeArea()
+                Color.black.opacity(StaryDialogStyle.scrimOpacity).ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture {}
+                // 판·뱃지·버튼은 다른 팝업과 같은 유리 + 달빛(2026-10-26). Android `AppUpdatePrompt` 패리티.
                 VStack(spacing: 16) {
-                    ZStack {
-                        Circle().fill(accent).frame(width: 64, height: 64)
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 30, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
+                    StaryPopupBadge(systemImage: "arrow.down.circle")
                     Text(locale.t(.updateTitle))
                         .font(.minSans(20, .semibold))
                         .foregroundStyle(Theme.textPrimary)
@@ -126,24 +118,13 @@ struct AppUpdatePromptOverlay: View {
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
                     // 스토어로 보낼 뿐 팝업은 닫지 않는다 — 업데이트 없이 돌아와도 그대로 막혀 있어야 한다.
-                    Button { checker.openStore() } label: {
-                        Text(locale.t(.updateGo))
-                            .font(.minSans(15, .medium))
-                            .foregroundStyle(Color(hex: 0x06121E))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                            .background(accent, in: RoundedRectangle(cornerRadius: 14))
-                    }
-                    .padding(.top, 4)
+                    StaryButton(locale.t(.updateGo), fullWidth: true) { checker.openStore() }
+                        .padding(.top, 6)
                 }
-                .padding(24)
-                .background(Color(hex: 0x121821), in: RoundedRectangle(cornerRadius: 24))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24)
-                        .strokeBorder(LinearGradient(colors: [Theme.mint.opacity(0.6), Color(hex: 0x3B82F6).opacity(0.45)],
-                                                     startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
-                )
-                .padding(24)
+                .padding(.horizontal, 20).padding(.vertical, 24)
+                .frame(maxWidth: StaryDialogStyle.maxWidth)
+                .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
+                .padding(.horizontal, StaryDialogStyle.screenPadding)
             }
             .transition(.opacity)
         }

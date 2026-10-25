@@ -5,6 +5,8 @@ enum QuestTheme {
     static let gold = Color(hex: 0xFFD27A)
     static let goldDeep = Color(hex: 0xFFB259)
     static let ink = Color(hex: 0x2A1A00)
+    /// 퀘스트 줄의 "가기"·"받기" 캡슐 — 위가 옅은 금빛(Android `QuestPill`).
+    static let pill = LinearGradient(colors: [Color(hex: 0xFFE6B0), QuestTheme.gold], startPoint: .top, endPoint: .bottom)
 }
 
 /// 지도 우측 버튼 열의 "!"(오늘의 퀘스트) — 예전 몰입 버튼 자리(2026-10-19). Android `QuestButton` 패리티.
@@ -192,14 +194,7 @@ struct QuestSheetView: View {
                             .foregroundStyle(Color(hex: 0xB8C0CC))
                             .multilineTextAlignment(.center)
                             .lineSpacing(3)
-                        Button { catalog.retry() } label: {
-                            Text(locale.t(.questRetry))
-                                .font(.minSans(13, .semibold))
-                                .foregroundStyle(QuestTheme.gold)
-                                .padding(.horizontal, 18).padding(.vertical, 8)
-                                .overlay(Capsule().strokeBorder(QuestTheme.gold.opacity(0.6), lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
+                        StaryButton(locale.t(.questRetry), kind: .ghost, compact: true) { catalog.retry() }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 22)
@@ -221,12 +216,8 @@ struct QuestSheetView: View {
                     .padding(.top, 10)
             }
             .padding(.horizontal, 18).padding(.vertical, 20)
-            .background(Color(hex: 0x121821), in: RoundedRectangle(cornerRadius: 24))
-            .overlay(
-                RoundedRectangle(cornerRadius: 24)
-                    .strokeBorder(LinearGradient(colors: [QuestTheme.gold.opacity(0.55), Color(hex: 0x3B82F6).opacity(0.40)],
-                                                 startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
-            )
+            // 판은 다른 팝업과 같은 유리(2026-10-26, 금색→파랑 테두리의 불투명 판에서 바꿈). Android `QuestSheet` 패리티.
+            .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
             .padding(.horizontal, 18)
             .frame(maxWidth: 520)
 
@@ -235,7 +226,6 @@ struct QuestSheetView: View {
                 Color.black.opacity(0.45).ignoresSafeArea()
                     .onTapGesture { showAdKey = false }
                 KeyAdDialogCard(
-                    accent: QuestTheme.gold,
                     message: locale.t(.questAdKeyAsk),
                     onWatchAd: {
                         showAdKey = false
@@ -450,8 +440,7 @@ private struct QuestRowView: View {
                         .font(.minSans(13, .medium))
                         .foregroundStyle(QuestTheme.ink)
                         .padding(.horizontal, 12).padding(.vertical, 8)
-                        .background(LinearGradient(colors: [QuestTheme.gold, QuestTheme.goldDeep], startPoint: .topLeading, endPoint: .bottomTrailing),
-                                    in: RoundedRectangle(cornerRadius: 12))
+                        .background(QuestTheme.pill, in: Capsule())
                 }
                 .buttonStyle(.plain)
             } else if complete {
@@ -462,8 +451,7 @@ private struct QuestRowView: View {
                     }
                     .foregroundStyle(QuestTheme.ink)
                     .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(LinearGradient(colors: [QuestTheme.gold, QuestTheme.goldDeep], startPoint: .topLeading, endPoint: .bottomTrailing),
-                                in: RoundedRectangle(cornerRadius: 12))
+                    .background(QuestTheme.pill, in: Capsule())
                 }
                 .buttonStyle(.plain)
             } else {

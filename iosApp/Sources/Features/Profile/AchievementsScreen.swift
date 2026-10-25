@@ -675,19 +675,15 @@ private struct TelescopeDialog: View {
                     .disabled(busy)
                     .padding(.vertical, 4)
                 }
-                Button { onDismiss() } label: {
-                    Text(locale.t(.telescopeCancel)).font(.minSans(13)).foregroundStyle(Theme.textSecondary)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
+                StaryButton(locale.t(.telescopeCancel), kind: .ghost, compact: true, fullWidth: true, enabled: !busy) {
+                    onDismiss()
                 }
-                .buttonStyle(.plain)
-                .disabled(busy)
-                .padding(.top, 8)
+                .padding(.top, 12)
             }
             .padding(20)
             .frame(maxWidth: 360)
-            .background(Color(hex: 0x121821), in: RoundedRectangle(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.navyAccent.opacity(0.5), lineWidth: 1))
-            .padding(.horizontal, 24)
+            .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
+            .padding(.horizontal, StaryDialogStyle.screenPadding)
         }
     }
 

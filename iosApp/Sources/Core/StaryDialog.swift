@@ -10,7 +10,8 @@ import UIKit
 /// 규격(Android `StaryDialog` 패리티):
 ///  - 유리 패널(`glassPanel` — 흐린 재질 + 반투명 남색 + 위가 밝은 1pt 테두리) / 모서리 18 / 안쪽 여백 20
 ///  - 제목 MinSans 17 SemiBold `textPrimary`, 설명 MinSans 14 `textSecondary`
-///  - 버튼은 `StaryButton` compact — 취소 = ghost, 확인 = primary, 지우기·차단 = danger
+///  - 버튼은 `StaryButton` 캡슐 — 취소 = ghost(유리), 확인 = primary(달빛 크림), 지우기·차단 = danger(옅은 장미색).
+///    아래 줄을 반씩 나눠 꽉 채운다(2026-10-26 — 오른쪽에 작게 몰린 버튼이 딱딱해 보였다)
 ///  - 최대 폭 340, 화면 좌우 여백 32
 ///
 /// 구현 메모: 화면 전체(내비게이션 바 포함)를 덮어야 해서 `fullScreenCover` 로 띄우고
@@ -168,16 +169,34 @@ struct StaryDialogCard<Content: View, Actions: View>: View {
             }
             content()
                 .padding(.top, 14)
-            HStack(spacing: 8) {
-                Spacer(minLength: 0)
+            HStack(spacing: 10) {
                 actions()
             }
-            .padding(.top, 18)
+            .environment(\.staryButtonFill, true)
+            .padding(.top, 20)
         }
         .padding(20)
         .frame(maxWidth: StaryDialogStyle.maxWidth)
         .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
         .padding(.horizontal, StaryDialogStyle.screenPadding)
+    }
+}
+
+/// 팝업 머리 아이콘 — 은은한 달빛 원(예전 민트→블루 그라데이션 원 대신). 첫 방문 안내·업데이트 안내.
+/// Android `StaryPopupBadge` 패리티.
+struct StaryPopupBadge: View {
+    let systemImage: String
+
+    var body: some View {
+        ZStack {
+            Circle().fill(LinearGradient(colors: [Color(hex: 0xF7EDD8, alpha: 0.20), Color(hex: 0xF7EDD8, alpha: 0.07)],
+                                         startPoint: .top, endPoint: .bottom))
+            Circle().strokeBorder(Theme.glassEdge, lineWidth: 1)
+            Image(systemName: systemImage)
+                .font(.system(size: 26, weight: .medium))
+                .foregroundStyle(Color(hex: 0xF3E6C8))
+        }
+        .frame(width: 60, height: 60)
     }
 }
 

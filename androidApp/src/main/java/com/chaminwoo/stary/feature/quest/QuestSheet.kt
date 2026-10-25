@@ -105,11 +105,17 @@ import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import androidx.compose.foundation.layout.PaddingValues
+import com.chaminwoo.stary.core.ui.StaryPopupPanel
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
 
 private val Mint = Color(0xFF6EE7B7)
 private val Blue = Color(0xFF3B82F6)
 /** 열쇠·퀘스트 강조색 — 웰컴 별/개척 비콘과 같은 "시스템 안내" 금빛. */
 internal val QuestGold = Color(0xFFFFD27A)
+/** 퀘스트 줄의 "가기"·"받기" 캡슐 — 위가 옅은 금빛(iOS `QuestTheme.pill`). */
+private val QuestPill = Brush.verticalGradient(listOf(Color(0xFFFFE6B0), QuestGold))
 
 /**
  * 지도 우측 FAB 열의 "!" 버튼(예전 몰입 버튼 자리, 2026-10-19).
@@ -284,7 +290,6 @@ fun QuestSheet(
     LaunchedEffect(Unit) { com.chaminwoo.stary.core.util.StaryAnalytics.log("quest_open", "claimable" to (daily?.claimable ?: 0), "keys" to keys) }
     if (showAdKey) {
         com.chaminwoo.stary.feature.diary.screen.KeyAdDialog(
-            accent = QuestGold,
             message = stringResource(R.string.quest_ad_key_ask),
             onWatchAd = {
                 showAdKey = false
@@ -307,18 +312,10 @@ fun QuestSheet(
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF121821))
-                .border(
-                    1.dp,
-                    Brush.linearGradient(listOf(QuestGold.copy(alpha = 0.55f), Blue.copy(alpha = 0.40f))),
-                    RoundedCornerShape(24.dp),
-                )
-                .padding(horizontal = 18.dp, vertical = 20.dp),
+        // 판은 다른 팝업과 같은 유리(2026-10-26, 금색→파랑 테두리의 불투명 판에서 바꿈). 퀘스트 줄이 넓어야 해 화면 좌우 18.
+        StaryPopupPanel(
+            maxWidth = 520.dp, screenPadding = 18.dp,
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -362,13 +359,9 @@ fun QuestSheet(
                         lineHeight = 19.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
                     Spacer(Modifier.height(12.dp))
-                    Text(
-                        stringResource(R.string.quest_retry), color = QuestGold, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .border(1.dp, QuestGold.copy(alpha = 0.6f), RoundedCornerShape(50))
-                            .clickable { DailyQuests.retry() }
-                            .padding(horizontal = 18.dp, vertical = 8.dp),
+                    StaryButton(
+                        stringResource(R.string.quest_retry), { DailyQuests.retry() },
+                        kind = StaryButtonKind.Ghost, compact = true,
                     )
                 }
             } else if (daily == null || daily.day != QuestStore.today()) {
@@ -581,16 +574,16 @@ private fun QuestRow(
                     color = Color(0xFF2A1A00), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clickBounce()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Brush.linearGradient(listOf(QuestGold, Color(0xFFFFB259))))
+                        .clip(RoundedCornerShape(50))
+                        .background(QuestPill)
                         .clickable(onClick = onGo)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
                 complete -> Box(
                     modifier = Modifier
                         .clickBounce()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Brush.linearGradient(listOf(QuestGold, Color(0xFFFFB259))))
+                        .clip(RoundedCornerShape(50))
+                        .background(QuestPill)
                         .clickable(onClick = onClaim)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center,

@@ -13,15 +13,12 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import com.chaminwoo.stary.feature.quest.QuestEvent
 import com.chaminwoo.stary.feature.quest.QuestGold
 import com.chaminwoo.stary.feature.quest.QuestStore
@@ -94,6 +91,9 @@ import com.chaminwoo.stary.shared.config.StaryConfig
 import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.exp
+import androidx.compose.foundation.layout.PaddingValues
+import com.chaminwoo.stary.core.ui.StaryPopupPanel
+import com.chaminwoo.stary.core.ui.StaryButton
 
 // ── 100m 밖 게시물 잠금 UI (2026-09-22 개편) ─────────────────────────────────────
 // DetailScreen 에서 떼어 둔 이유: 본체에 인라인하면 dex 메서드 레지스터 한계(256)로 VerifyError 이력이 있다.
@@ -298,7 +298,6 @@ internal fun LockedContentCard(
 
     if (showNoKey) {
         NoKeyDialog(
-            accent = accent,
             onWatchAd = {
                 showNoKey = false
                 watchAdForKey(context) { unlocking = UnlockVia.AD }
@@ -383,23 +382,21 @@ internal fun LockedContentCard(
 
 /** 열쇠 없이 자물쇠를 눌렀을 때의 팝업 — "열쇠가 없어요" + 광고 보고 열쇠 받기. */
 @Composable
-private fun NoKeyDialog(accent: Color, onWatchAd: () -> Unit, onDismiss: () -> Unit) =
-    KeyAdDialog(accent, stringResource(R.string.detail_locked_title_no_key), onWatchAd, onDismiss)
+private fun NoKeyDialog(onWatchAd: () -> Unit, onDismiss: () -> Unit) =
+    KeyAdDialog(stringResource(R.string.detail_locked_title_no_key), onWatchAd, onDismiss)
 
 /**
- * 광고로 열쇠 받기 팝업 — 자물쇠+열쇠 그림 · [message] · 금색 "광고 보고 열쇠 받기" / 취소.
- * 잠긴 별(열쇠 없음)과 퀘스트 창 열쇠 칩이 같이 쓴다. iOS `KeyAdDialogCard` 와 같은 구성.
+ * 광고로 열쇠 받기 팝업 — 크리스탈 열쇠 · [message] · "광고 보고 열쇠 받기"(크림 캡슐) / 취소.
+ * 잠긴 별(열쇠 없음)과 퀘스트 창 열쇠 칩이 같이 쓴다. 판은 다른 팝업과 같은 유리. iOS `KeyAdDialogCard` 와 같은 구성.
  */
 @Composable
-internal fun KeyAdDialog(accent: Color, message: String, onWatchAd: () -> Unit, onDismiss: () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF12141C))
-                .border(1.dp, lerp(accent, Color.White, 0.2f).copy(alpha = 0.35f), RoundedCornerShape(22.dp))
-                .padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 14.dp),
+internal fun KeyAdDialog(message: String, onWatchAd: () -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        StaryPopupPanel(
+            contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // 큰 열쇠 하나만 대각선으로(자물쇠 + 작은 열쇠 겹침 → 한 아이콘으로 정리). iOS noKeyDialog 와 같은 구성.
@@ -416,23 +413,7 @@ internal fun KeyAdDialog(accent: Color, message: String, onWatchAd: () -> Unit, 
                 color = Color(0xFFF0F0F0), textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(18.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(50))
-                    .background(Brush.linearGradient(listOf(QuestGold, Color(0xFFFFB259))))
-                    .clickable(onClick = onWatchAd)
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(PlayLogo, contentDescription = null, tint = Color(0xFF2A1A00), modifier = Modifier.size(17.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    stringResource(R.string.detail_get_key_ad),
-                    color = Color(0xFF2A1A00), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                )
-            }
+            StaryButton(stringResource(R.string.detail_get_key_ad), onWatchAd, Modifier.fillMaxWidth(), icon = PlayLogo)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 stringResource(R.string.common_cancel),

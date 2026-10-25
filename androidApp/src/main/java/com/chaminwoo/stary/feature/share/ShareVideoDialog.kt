@@ -22,8 +22,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -59,6 +57,8 @@ import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarLoadingIndicator
 import kotlinx.coroutines.launch
 import java.io.File
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
 
 /**
  * 공유 화면 — 공유 버튼을 누르면 뜨는 전체 화면 다이얼로그.
@@ -152,33 +152,27 @@ fun ShareVideoDialog(diary: Diary, onDismiss: () -> Unit) {
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 val ready = video != null
-                Button(
-                    onClick = { video?.let { ShareVideoHelper.shareToSns(context, diary, it) } },
+                StaryButton(
+                    stringResource(R.string.share_to_story),
+                    { video?.let { ShareVideoHelper.shareToSns(context, diary, it) } },
+                    Modifier.weight(1f),
                     enabled = ready,
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(13.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = accent, contentColor = Color(0xFF0B0F18),
-                        disabledContainerColor = Color.White.copy(alpha = 0.06f), disabledContentColor = Color(0xFF6C7386),
-                    ),
-                ) { Text(stringResource(R.string.share_to_story), fontSize = 13.sp, fontWeight = FontWeight.Medium) }
-                Button(
+                )
+                StaryButton(
+                    stringResource(R.string.share_video_save),
                     onClick = {
-                        val file = video ?: return@Button
+                        val file = video ?: return@StaryButton
                         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
                             PackageManager.PERMISSION_GRANTED
                         if (ShareVideoHelper.needsStoragePermission && !granted) {
                             storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                         } else save(file)
                     },
-                    enabled = ready && !saving,
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(13.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White.copy(alpha = 0.10f), contentColor = Color(0xFFF0F0F0),
-                        disabledContainerColor = Color.White.copy(alpha = 0.06f), disabledContentColor = Color(0xFF6C7386),
-                    ),
-                ) { Text(stringResource(R.string.share_video_save), fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+                    modifier = Modifier.weight(1f),
+                    kind = StaryButtonKind.Ghost,
+                    enabled = ready,
+                    loading = saving,
+                )
             }
             Spacer(Modifier.height(18.dp))
         }

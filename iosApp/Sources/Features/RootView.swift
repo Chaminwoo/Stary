@@ -694,13 +694,16 @@ struct MainTabView: View {
         uploadWarp = DiaryOpenWarpData(snapshot: nil, origin: origin, members: [], colorOverride: 13)
     }
 
-    // MARK: - 드로어 (Android ModalNavigationDrawer: 남색→밤하늘 그라데이션 패널 + 우측 라운드 24 + 별빛 선 + 스크림 0.5)
+    // MARK: - 드로어 (Android ModalNavigationDrawer: 상단바 같은 유리 패널 + 우측 라운드 24 + 스크림 0.5)
 
     private var drawerLayer: some View {
         ZStack(alignment: .leading) {
             // 스크림 — 열려 있을 때만 탭을 받고, 탭하면 닫힌다.
+            // 패널 뒤는 비운다(패널 오른쪽 끝을 따라 같이 움직인다) — 유리 패널에 어두워진 지도가 아니라
+            // 지도 그대로가 흐려 비치게(Android 는 스크림이 흐림 원본에 들어가지 않는다).
             Color.black.opacity(drawerOpen ? 0.5 : 0)
                 .ignoresSafeArea()
+                .offset(x: drawerOpen ? 300 : -20)
                 .allowsHitTesting(drawerOpen)
                 .onTapGesture { withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false } }
 
@@ -776,10 +779,11 @@ struct MainTabView: View {
         .background {
             let shape = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0,
                                                bottomTrailingRadius: 24, topTrailingRadius: 24)
-            shape.fill(LinearGradient(stops: [.init(color: Color(hex: 0x151B31), location: 0),
-                                              .init(color: Color(hex: 0x0B0F1C), location: 0.7)],
-                                      startPoint: .top, endPoint: .bottom))
-                .overlay(shape.stroke(Theme.navyAccent.opacity(0.18), lineWidth: 1))
+            // 상단바와 같은 유리 — 뒤 지도가 흐리게 비친다(2026-10-26, 남색 그라데이션 판에서 바꿈).
+            // 지도 위에서도 글자가 읽히게 상단바보다 남색을 진하게(Android `StaryGlass.Drawer` 와 같은 값).
+            shape.fill(Color(hex: 0x181E34, alpha: 0.60))
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.stroke(Theme.glassEdge, lineWidth: 1))
         }
         .ignoresSafeArea()
     }
@@ -1005,11 +1009,6 @@ private struct AchievementUnlockOverlay: View {
         case .color: return locale.t(.achRewardColor)
         }
     }
-    private var grad: LinearGradient {
-        LinearGradient(colors: [Color(hex: 0x3B82F6), Color(hex: 0x1E3A8A)],
-                       startPoint: .leading, endPoint: .trailing)
-    }
-
     var body: some View {
         ZStack {
             Color.black.opacity(0.55).ignoresSafeArea().onTapGesture { onDismiss() }
@@ -1065,17 +1064,13 @@ private struct AchievementUnlockOverlay: View {
                         .overlay(Capsule().stroke(rewardColor.opacity(0.4), lineWidth: 1))
                 }
                 Spacer().frame(height: 22)
-                Button(action: onDismiss) {
-                    Text(locale.t(.commonOk)).font(.minSans(15)).foregroundStyle(Color(hex: 0x0D0D0D))
-                        .frame(maxWidth: .infinity).padding(.vertical, 13)
-                        .background(grad, in: RoundedRectangle(cornerRadius: 14))
-                }
+                StaryButton(locale.t(.commonOk), fullWidth: true, action: onDismiss)
             }
             .padding(.horizontal, 26).padding(.vertical, 30)
-            .frame(maxWidth: 330)
-            .background(Color(hex: 0x14181C), in: RoundedRectangle(cornerRadius: 24))
-            .overlay(RoundedRectangle(cornerRadius: 24).stroke(grad, lineWidth: 1.5))
-            .padding(.horizontal, 32)
+            .frame(maxWidth: StaryDialogStyle.maxWidth)
+            // 판은 다른 팝업과 같은 유리(2026-10-26, 파랑→남색 테두리의 불투명 판에서 바꿈). Android 패리티.
+            .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
+            .padding(.horizontal, StaryDialogStyle.screenPadding)
             .scaleEffect(pop)
             .opacity(min(Double(pop) / 0.6, 1))   // CGFloat↔Double 혼합 회피(02 문서 규칙)
         }

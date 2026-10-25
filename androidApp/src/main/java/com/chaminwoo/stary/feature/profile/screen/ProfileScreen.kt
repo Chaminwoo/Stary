@@ -82,7 +82,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -104,6 +103,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.window.DialogProperties
+import com.chaminwoo.stary.core.ui.StaryPopupPanel
+import com.chaminwoo.stary.core.ui.StaryPopupButtons
 
 private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val Blue = Color(0xFF3B82F6)
@@ -498,15 +501,8 @@ private fun NicknameEditDialog(
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf(initial) }
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF121821))
-                .border(1.dp, Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
-                .padding(20.dp)
-        ) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        StaryPopupPanel {
             Text(stringResource(R.string.profile_edit_nickname), color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(14.dp))
             Box(
@@ -533,11 +529,7 @@ private fun NicknameEditDialog(
                 )
             }
             Spacer(Modifier.height(14.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = TextMuted) }
-                Spacer(Modifier.width(4.dp))
-                TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.common_save), color = Accent) }
-            }
+            StaryPopupButtons(stringResource(R.string.common_save), onConfirm = { onConfirm(text) }, onDismiss = onDismiss)
         }
     }
 }
@@ -551,15 +543,8 @@ private fun PinDiaryPicker(
     onDismiss: () -> Unit,
 ) {
     var selected by remember { mutableStateOf(initial.toSet()) }
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF121821))
-                .border(1.dp, Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
-                .padding(16.dp)
-        ) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        StaryPopupPanel(contentPadding = PaddingValues(16.dp)) {
             Text(stringResource(R.string.profile_pin_picker_title), color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             if (diaries.isEmpty()) {
@@ -599,11 +584,7 @@ private fun PinDiaryPicker(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = TextMuted) }
-                Spacer(Modifier.width(4.dp))
-                TextButton(onClick = { onConfirm(selected.toList()) }) { Text(stringResource(R.string.common_save), color = Accent) }
-            }
+            StaryPopupButtons(stringResource(R.string.common_save), onConfirm = { onConfirm(selected.toList()) }, onDismiss = onDismiss)
         }
     }
 }

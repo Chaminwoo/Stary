@@ -14,7 +14,6 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,17 +33,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.FlipCameraAndroid
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -66,7 +60,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -86,6 +79,8 @@ import java.io.File
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 import kotlin.math.roundToInt
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
 
 /**
  * 부메랑 캡처 컨트롤러 — ImageAnalysis 분석 스레드에서 프레임을 간격에 맞춰 모은다.
@@ -254,7 +249,6 @@ fun BoomerangCaptureScreen(
             BoomerangAdjustUi(
                 frames = capturedFrames,
                 encoding = stage == BoomerStage.ENCODING,
-                mint = mint,
                 onRetake = {
                     capturedFrames = emptyList()
                     stage = BoomerStage.LIVE
@@ -361,7 +355,6 @@ fun BoomerangCaptureScreen(
 private fun BoomerangAdjustUi(
     frames: List<Bitmap>,
     encoding: Boolean,
-    mint: Color,
     onRetake: () -> Unit,
     onConfirm: (frameW: Float, frameH: Float, scale: Float, offset: Offset) -> Unit,
 ) {
@@ -468,34 +461,16 @@ private fun BoomerangAdjustUi(
                 .padding(horizontal = 28.dp, vertical = 26.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            OutlinedButton(
-                onClick = onRetake,
-                enabled = !encoding,
-                modifier = Modifier.weight(1f).height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
-            ) {
-                Text(stringResource(R.string.boomer_retake), color = Color.White)
-            }
-            Button(
-                onClick = {
-                    onConfirm(frameSize.width.toFloat(), frameSize.height.toFloat(), cropScale, cropOffset)
-                },
-                enabled = !encoding,
-                modifier = Modifier.weight(1f).height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = mint),
-            ) {
-                if (encoding) {
-                    com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 20.dp, color = Color(0xFF0D0D0D))
-                } else {
-                    Text(
-                        stringResource(R.string.boomer_use),
-                        color = Color(0xFF0D0D0D),
-                        fontWeight = FontWeight.Light,
-                    )
-                }
-            }
+            StaryButton(
+                stringResource(R.string.boomer_retake), onRetake, Modifier.weight(1f),
+                kind = StaryButtonKind.Ghost, enabled = !encoding,
+            )
+            StaryButton(
+                stringResource(R.string.boomer_use),
+                { onConfirm(frameSize.width.toFloat(), frameSize.height.toFloat(), cropScale, cropOffset) },
+                Modifier.weight(1f),
+                loading = encoding,
+            )
         }
     }
 }

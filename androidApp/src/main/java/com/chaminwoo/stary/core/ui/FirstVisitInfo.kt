@@ -1,19 +1,10 @@
 package com.chaminwoo.stary.core.ui
 
 import android.content.Context
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,8 +14,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -37,8 +26,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.chaminwoo.stary.R
 
-private val Mint = Color(0xFF6EE7B7)
-private val Blue = Color(0xFF3B82F6)
 private const val ONBOARDING_PREFS = "stary_onboarding"
 
 /**
@@ -64,30 +51,13 @@ fun FirstVisitInfo(
     }
     // 폭을 직접 제어(usePlatformDefaultWidth=false) — 한 줄 20글자가 한 줄에 들어가도록 넉넉히.
     Dialog(onDismissRequest = dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 22.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF121821))
-                .border(
-                    1.dp,
-                    Brush.linearGradient(listOf(Mint.copy(alpha = 0.6f), Blue.copy(alpha = 0.45f))),
-                    RoundedCornerShape(24.dp)
-                )
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        // 판·뱃지·버튼은 다른 팝업과 같은 유리 + 달빛(2026-10-26, 민트→블루 그라데이션에서 바꿈).
+        StaryPopupPanel(
+            maxWidth = 360.dp,
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // 아이콘 뱃지 (민트→블루 그라데이션 원)
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(Mint, Blue))),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
-            }
+            StaryPopupBadge(icon)
             Spacer(Modifier.height(16.dp))
             Text(title, color = Color(0xFFF0F0F0), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
@@ -99,22 +69,7 @@ fun FirstVisitInfo(
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(22.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Brush.linearGradient(listOf(Mint, Blue)))
-                    .clickable(onClick = dismiss)
-                    .padding(vertical = 13.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    stringResource(R.string.onb_button),
-                    color = Color(0xFF06121E),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            StaryButton(stringResource(R.string.onb_button), dismiss, Modifier.fillMaxWidth())
         }
     }
 }

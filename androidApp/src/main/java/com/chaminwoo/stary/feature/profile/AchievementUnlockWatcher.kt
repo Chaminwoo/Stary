@@ -15,7 +15,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +28,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,10 +62,12 @@ import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.window.DialogProperties
+import com.chaminwoo.stary.core.ui.StaryPopupPanel
+import com.chaminwoo.stary.core.ui.StaryButton
 
 private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
-private val Blue = Color(0xFF3B82F6)
-private val Navy = Color(0xFF1E3A8A) // 그라데이션 짝(파랑→남색)
 
 /**
  * 새로 달성한 업적을 모으는 시간(ms) — 통계(내 글·전체 글·친구·해금 기록)가 여러 번에 나눠 도착하므로,
@@ -204,14 +204,10 @@ private fun AchievementUnlockDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .graphicsLayer { scaleX = pop; scaleY = pop; alpha = pop }
-                .widthIn(max = 330.dp)
-                .background(Color(0xFF14181C), RoundedCornerShape(24.dp))
-                .border(1.5.dp, Brush.linearGradient(listOf(Blue, Navy)), RoundedCornerShape(24.dp))
-                .padding(horizontal = 26.dp, vertical = 30.dp)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        StaryPopupPanel(
+            modifier = Modifier.graphicsLayer { scaleX = pop; scaleY = pop; alpha = pop },
+            contentPadding = PaddingValues(horizontal = 26.dp, vertical = 30.dp),
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -371,20 +367,7 @@ private fun AchievementUnlockDialog(
                     }
                 }
                 Spacer(Modifier.height(22.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Brush.linearGradient(listOf(Blue, Navy)))
-                        .clickable { onDismiss() }
-                        .padding(vertical = 13.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        stringResource(R.string.common_confirm),
-                        color = Color(0xFF0D0D0D), fontSize = 15.sp, fontWeight = FontWeight.SemiBold
-                    )
-                }
+                StaryButton(stringResource(R.string.common_confirm), onDismiss, Modifier.fillMaxWidth())
             }
         }
     }

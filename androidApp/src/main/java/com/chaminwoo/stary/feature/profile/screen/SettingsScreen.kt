@@ -95,6 +95,9 @@ import com.chaminwoo.stary.data.repository.FirebaseModerationRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import kotlinx.coroutines.flow.flowOf
 import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.window.DialogProperties
+import com.chaminwoo.stary.core.ui.StaryPopupPanel
 
 private val Accent = Color(0xFF9FB3E8) // 남색 계열 라이트 강조(구 민트)
 private val SoftRed = Color(0xFFFF6B6B)
@@ -104,7 +107,6 @@ private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 // 카드/트랙 배경 — 검정에 가까운 어두운 남색(기존 0x121821 계열이 탁해 보여 하향, 2026-07-18).
 private val CardBg = Color(0xE6080D1A)
-private val DialogBg = Color(0xFF0A0F1D)
 private val TrackBg = Color(0xFF111726)
 private val TrackBgDisabled = Color(0xFF0D1220)
 private val AccentBrush = Brush.linearGradient(listOf(Blue, Navy))
@@ -382,15 +384,8 @@ private fun languageLabel(tag: String): String = when (tag) {
 
 @Composable
 private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(DialogBg)
-                .border(1.dp, Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
-                .padding(vertical = 18.dp, horizontal = 8.dp)
-        ) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        StaryPopupPanel(contentPadding = PaddingValues(vertical = 18.dp, horizontal = 8.dp)) {
             Text(
                 stringResource(R.string.language_dialog_title),
                 color = TextMain, fontFamily = MinSans, fontSize = 17.sp,

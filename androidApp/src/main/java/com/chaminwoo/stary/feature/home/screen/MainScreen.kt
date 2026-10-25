@@ -1,7 +1,6 @@
 package com.chaminwoo.stary.feature.home.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -72,7 +71,9 @@ import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 import com.chaminwoo.stary.core.designsystem.StaryColors
 import com.chaminwoo.stary.core.designsystem.StaryResponsive
 import com.chaminwoo.stary.core.designsystem.TopBarScrim
+import com.chaminwoo.stary.core.ui.StaryGlass
 import com.chaminwoo.stary.core.ui.glassBar
+import com.chaminwoo.stary.core.ui.glassSheet
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import androidx.compose.ui.Modifier
@@ -298,6 +299,13 @@ fun MainScreen(
             ),
         )
     }
+    // 드로어 유리(상단바와 같은 유리) — 지도는 유리가 직접 흐릴 수 없어, 드로어가 보이는 동안 지도를 한 장 찍어
+    // 지도 뒤에 깔아 둔다(MapUiState.frozenMap). 흐림은 Android 12+ 만 되니 그 아래에선 찍지 않는다.
+    val drawerShown = drawerState.isOpen || drawerState.targetValue == DrawerValue.Open || drawerState.isAnimationRunning
+    androidx.compose.runtime.LaunchedEffect(drawerShown) {
+        if (!drawerShown) MapUiState.unfreezeMap()
+        else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) MapUiState.freezeMap()
+    }
 
     // 첫 실행 코치마크(주요 컨트롤 안내) — SharedPreferences 로 1회만 노출.
     val onboardPrefs =
@@ -457,12 +465,11 @@ fun MainScreen(
             gesturesEnabled = drawerState.isOpen,
             scrimColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f),
             drawerContent = {
-                // 배경: 위는 남색, 아래로 갈수록 밤하늘색 + 오른쪽 가장자리 별빛 선(iOS RootView 드로어 패리티).
+                // 배경: 상단바와 같은 유리 — 뒤 화면이 흐리게 비친다(지도 위에선 열리는 동안 찍은 한 장을 비춘다).
+                // iOS RootView 드로어(.ultraThinMaterial) 패리티. 내용은 그대로.
                 val drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
                 ModalDrawerSheet(
-                    modifier = Modifier
-                        .background(Brush.verticalGradient(0f to Color(0xFF151B31), 0.7f to Color(0xFF0B0F1C)), drawerShape)
-                        .border(1.dp, StaryColors.Accent.copy(alpha = 0.18f), drawerShape),
+                    modifier = Modifier.glassSheet(glassState, drawerShape, StaryGlass.Drawer),
                     drawerContainerColor = Color.Transparent,
                     drawerShape = drawerShape,
                 ) {
@@ -862,6 +869,8 @@ fun MainScreen(
                     Box(
                         modifier = modifier.fillMaxSize()
                     ) {
+                        // 드로어 유리가 비출 지도 한 장 — 지도 **뒤**에 깔려 화면엔 안 보인다(지도가 그 자리를 뚫고 그려진다).
+                        MapUiState.frozenMap?.let { FrozenMapLayer(it, glassState) }
 
                         // 지도는 Scaffold padding을 먹지 않음
                         MainListScreen(
@@ -1162,4 +1171,23 @@ private fun drawerItemReveal(total: Float, index: Int): Float {
 @Composable
 private fun PreviewMainScreen() {
     MainScreen()
+}
+
+/**
+ * 드로어 유리용 지도 한 장(MapUiState.frozenMap) — 유리가 비추는 원본(hazeSource, 지도 화면보다 아래 층)이다.
+ * 화면에선 그 위의 지도가 자기 자리를 뚫고 그려져 보이지 않고, 드로어 유리 안에서만 흐리게 비친다. 살짝 페이드로 들어온다.
+ */
+@Composable
+private fun FrozenMapLayer(frozen: androidx.compose.ui.graphics.ImageBitmap, glassState: dev.chrisbanes.haze.HazeState) {
+    val fade = remember(frozen) { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(frozen) { fade.animateTo(1f, androidx.compose.animation.core.tween(180)) }
+    androidx.compose.foundation.Image(
+        frozen,
+        contentDescription = null,
+        contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+        modifier = Modifier
+            .fillMaxSize()
+            .hazeSource(glassState, zIndex = -1f)
+            .graphicsLayer { alpha = fade.value },
+    )
 }

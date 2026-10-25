@@ -397,10 +397,9 @@ struct ReadingSurface: View {
     private static let surface = Color(hex: 0x15191F).opacity(0.70)
 }
 
-/// 열쇠 광고 팝업 카드 — 큰 열쇠 하나(대각선) + 안내 문구 + "광고 보고 열쇠 받기"(금색) / 취소.
-/// 잠긴 별(열쇠 없음)과 퀘스트 창 열쇠 칩이 같이 쓴다. Android `KeyAdDialog` 패리티.
+/// 열쇠 광고 팝업 카드 — 큰 열쇠 하나(대각선) + 안내 문구 + "광고 보고 열쇠 받기"(크림 캡슐) / 취소.
+/// 잠긴 별(열쇠 없음)과 퀘스트 창 열쇠 칩이 같이 쓴다. 판은 다른 팝업과 같은 유리. Android `KeyAdDialog` 패리티.
 struct KeyAdDialogCard: View {
-    let accent: Color
     let message: String
     let onWatchAd: () -> Void
     let onCancel: () -> Void
@@ -423,23 +422,10 @@ struct KeyAdDialogCard: View {
                 .foregroundStyle(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 14)
-            Button(action: onWatchAd) {
-                HStack(spacing: 6) {
-                    Image(uiImage: DiaryLock.playLogoImage(color: QuestTheme.ink, seed: 0, size: 17))
-                        .renderingMode(.template)
-                        .resizable()
-                        .frame(width: 17, height: 17)
-                    Text(LocaleManager.shared.t(.detailGetKeyAd))
-                        .font(.minSans(14, .semibold))
-                }
-                .foregroundStyle(QuestTheme.ink)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(LinearGradient(colors: [QuestTheme.gold, QuestTheme.goldDeep],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 18)
+            StaryButton(LocaleManager.shared.t(.detailGetKeyAd), fullWidth: true,
+                        image: Image(uiImage: DiaryLock.playLogoImage(color: QuestTheme.ink, seed: 0, size: 17)),
+                        action: onWatchAd)
+                .padding(.top, 18)
             Button(action: onCancel) {
                 Text(LocaleManager.shared.t(.commonCancel))
                     .font(.minSans(13))
@@ -451,9 +437,7 @@ struct KeyAdDialogCard: View {
         }
         .padding(.horizontal, 22).padding(.top, 24).padding(.bottom, 14)
         .frame(maxWidth: StaryDialogStyle.maxWidth)
-        .background(Color(hex: 0x12141C), in: RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22)
-            .stroke(accent.blended(with: .white, fraction: 0.2).opacity(0.35), lineWidth: 1))
+        .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
         .padding(.horizontal, StaryDialogStyle.screenPadding)
     }
 }

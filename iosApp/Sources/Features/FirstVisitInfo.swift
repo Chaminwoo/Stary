@@ -40,21 +40,13 @@ private struct FirstVisitInfoCard: View {
     let message: String
     let onDismiss: () -> Void
 
-    private var accent: LinearGradient {
-        LinearGradient(colors: [Theme.mint, Color(hex: 0x3B82F6)], startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-
     var body: some View {
         ZStack {
-            Color.black.opacity(0.6).ignoresSafeArea()
+            Color.black.opacity(StaryDialogStyle.scrimOpacity).ignoresSafeArea()
                 .onTapGesture { onDismiss() }
+            // 판·뱃지·버튼은 다른 팝업과 같은 유리 + 달빛(2026-10-26, 민트→블루 그라데이션에서 바꿈). Android 패리티.
             VStack(spacing: 16) {
-                ZStack {
-                    Circle().fill(accent).frame(width: 64, height: 64)
-                    Image(systemName: systemImage)
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
+                StaryPopupBadge(systemImage: systemImage)
                 Text(title)
                     .font(.minSans(20, .medium))
                     .foregroundStyle(Theme.textPrimary)
@@ -64,24 +56,13 @@ private struct FirstVisitInfoCard: View {
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
-                Button(action: onDismiss) {
-                    Text(LocaleManager.shared.t(.onbButton))
-                        .font(.minSans(15, .medium))
-                        .foregroundStyle(Color(hex: 0x06121E))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(accent, in: RoundedRectangle(cornerRadius: 14))
-                }
-                .padding(.top, 4)
+                StaryButton(LocaleManager.shared.t(.onbButton), fullWidth: true, action: onDismiss)
+                    .padding(.top, 6)
             }
-            .padding(24)
-            .background(Color(hex: 0x121821), in: RoundedRectangle(cornerRadius: 24))
-            .overlay(
-                RoundedRectangle(cornerRadius: 24)
-                    .strokeBorder(LinearGradient(colors: [Theme.mint.opacity(0.6), Color(hex: 0x3B82F6).opacity(0.45)],
-                                                 startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
-            )
-            .padding(24)
+            .padding(.horizontal, 20).padding(.vertical, 24)
+            .frame(maxWidth: 360)
+            .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
+            .padding(.horizontal, StaryDialogStyle.screenPadding)
         }
     }
 }

@@ -5,18 +5,13 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +37,10 @@ import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.data.repository.HiddenAchievementRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.window.DialogProperties
+import com.chaminwoo.stary.core.ui.StaryPopupPanel
+import com.chaminwoo.stary.core.ui.StaryButton
 
 private val HiddenGold = Color(0xFFFFD86F)
 private val HiddenPurple = Color(0xFFB388FF)
@@ -114,14 +113,10 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
         label = "hidden-pop"
     )
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .graphicsLayer { scaleX = pop; scaleY = pop; alpha = pop }
-                .widthIn(max = 340.dp)
-                .background(Color(0xFF120E1C), RoundedCornerShape(24.dp))
-                .border(1.5.dp, Brush.linearGradient(listOf(HiddenGold, HiddenPurple)), RoundedCornerShape(24.dp))
-                .padding(horizontal = 26.dp, vertical = 30.dp)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        StaryPopupPanel(
+            modifier = Modifier.graphicsLayer { scaleX = pop; scaleY = pop; alpha = pop },
+            contentPadding = PaddingValues(horizontal = 26.dp, vertical = 30.dp),
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -169,20 +164,10 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                     textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(20.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Brush.linearGradient(listOf(HiddenGold, HiddenPurple)))
-                        .clickable { onDismiss() }
-                        .padding(vertical = 13.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        androidx.compose.ui.res.stringResource(com.chaminwoo.stary.R.string.common_confirm),
-                        color = Color(0xFF0D0D0D), fontSize = 15.sp, fontWeight = FontWeight.SemiBold
-                    )
-                }
+                StaryButton(
+                    androidx.compose.ui.res.stringResource(com.chaminwoo.stary.R.string.common_confirm), onDismiss,
+                    Modifier.fillMaxWidth(),
+                )
             }
         }
     }

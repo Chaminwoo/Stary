@@ -167,34 +167,15 @@ struct BoomerangCaptureView: View {
             Spacer()
 
             HStack(spacing: 14) {
-                Button {
+                StaryButton(LocaleManager.shared.t(.boomerRetake), kind: .ghost, fullWidth: true,
+                            enabled: stage != .encoding) {
                     capturedFrames = []
                     fitApplied = false
                     stage = .live
-                } label: {
-                    Text(LocaleManager.shared.t(.boomerRetake))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .foregroundStyle(.white)
-                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.white.opacity(0.35)))
                 }
-                .disabled(stage == .encoding)
-                Button {
+                StaryButton(LocaleManager.shared.t(.boomerUse), fullWidth: true, loading: stage == .encoding) {
                     confirmCrop()
-                } label: {
-                    Group {
-                        if stage == .encoding {
-                            StarLoadingView(size: 20, color: .black)
-                        } else {
-                            Text(LocaleManager.shared.t(.boomerUse)).fontWeight(.medium)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Theme.navyAccent, in: RoundedRectangle(cornerRadius: 14))
-                    .foregroundStyle(.black)
                 }
-                .disabled(stage == .encoding)
             }
             .padding(.horizontal, 28)
             .padding(.vertical, 26)

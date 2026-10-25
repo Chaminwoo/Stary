@@ -1,9 +1,12 @@
 package com.chaminwoo.stary.core.util
 
+import android.graphics.Bitmap
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 
 /**
  * "지도만 보기"(집중) 모드 전역 상태.
@@ -67,6 +70,28 @@ object MapUiState {
         private set
 
     fun requestRecenter() { recenterNonce++ }
+
+    /**
+     * 드로어 유리가 비출 지도 한 장(2026-10-26). 지도는 따로 그려지는 화면(GLSurfaceView)이라 유리(Haze)가 비추지 못해,
+     * 드로어가 열리는 동안만 지도를 찍어 지도 **뒤**에 깔아 둔다(화면엔 지도에 가려 안 보이고 유리만 이걸 흐리게 비춘다).
+     * 다 닫히면 버린다. 찍기는 지도가 준비되면 DiaryMap 이 [snapshotter] 로 넣는다.
+     */
+    var frozenMap by mutableStateOf<ImageBitmap?>(null)
+        private set
+    internal var snapshotter: ((onReady: (Bitmap) -> Unit) -> Unit)? = null
+    /** 찍는 사이 드로어가 닫혔으면 늦게 온 사진을 버린다. */
+    private var freezeToken = 0
+
+    fun freezeMap() {
+        if (frozenMap != null) return
+        val token = ++freezeToken
+        snapshotter?.invoke { bitmap -> if (token == freezeToken) frozenMap = bitmap.asImageBitmap() }
+    }
+
+    fun unfreezeMap() {
+        freezeToken++
+        frozenMap = null
+    }
 }
 
 /**

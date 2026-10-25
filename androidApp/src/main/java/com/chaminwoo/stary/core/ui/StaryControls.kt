@@ -2,10 +2,15 @@ package com.chaminwoo.stary.core.ui
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,27 +29,34 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.core.designsystem.MinSans
 import com.chaminwoo.stary.core.designsystem.StaryColors
 
-/** 버튼 종류 — 주(남색 그라데이션 + 별빛 테두리) / 보조(테두리만) / 위험(지우기·차단). iOS `StaryButtonKind` 패리티. */
+/** 버튼 종류 — 주(달빛 크림) / 보조(유리) / 위험(장미색, 지우기·차단). iOS `StaryButtonKind` 패리티. */
 enum class StaryButtonKind { Primary, Ghost, Danger }
 
 /**
- * 앱 공용 버튼. 기본은 화면 아래 큰 버튼(높이 50), [compact] 는 확인 창·목록 행 안의 작은 버튼(높이 40).
- * 주 버튼 테두리는 지도 원형 버튼과 같은 [raisedCosmicBorder].
+ * 앱 공용 버튼 — 둥근 캡슐(2026-10-26 "딱딱해 보인다" → 감성 다이어리에 맞게 부드럽게).
+ * 주 버튼은 로그인 화면 크림 캡슐(`CreamCapsuleButton`)과 같은 달빛 크림, 보조는 뒤가 비치는 유리, 위험은 옅은 장미색.
+ * 누르면 살짝 작아지며 밝아진다(물결 효과 없음).
+ * 기본은 화면 아래 큰 버튼(높이 50), [compact] 는 확인 창·목록 행 안의 작은 버튼(높이 40).
  * [loading] 이면 글자 대신 도는 별을 보여 주고 눌리지 않는다(흐려지지는 않는다 — 진행 중이지 막힌 게 아니라서).
+ * 글자가 칸보다 길면 한 줄 안에서 조금 줄어든다(확인 창은 두 버튼이 폭을 반씩 나눠 쓴다).
  */
 @Composable
 fun StaryButton(
@@ -57,44 +69,76 @@ fun StaryButton(
     icon: ImageVector? = null,
     loading: Boolean = false,
 ) {
-    val shape = RoundedCornerShape(if (compact) 10.dp else 14.dp)
-    val content = if (kind == StaryButtonKind.Ghost) SoftInk else Color.White
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val press by animateFloatAsState(if (pressed) 1f else 0f, tween(120), label = "buttonPress")
+    val ink = kind.ink
+    val fontSize = if (compact) 14.sp else 15.sp
     Row(
         modifier
+            .graphicsLayer {
+                val s = 1f - 0.02f * press
+                scaleX = s; scaleY = s
+                alpha = if (enabled || loading) 1f else 0.4f
+            }
             .defaultMinSize(minHeight = if (compact) 40.dp else 50.dp)
-            .alpha(if (enabled || loading) 1f else 0.4f)
-            .clip(shape)
-            .then(kind.surface(shape))
-            .clickable(enabled = enabled && !loading, onClick = onClick)
-            .padding(horizontal = if (compact) 16.dp else 20.dp),
+            .clip(Capsule)
+            .background(kind.fill(press))
+            .border(1.dp, kind.edge, Capsule)
+            .clickable(interactionSource = interaction, indication = null, enabled = enabled && !loading, onClick = onClick)
+            .padding(horizontal = if (compact) 18.dp else 24.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (loading) {
-            StarLoadingIndicator(size = if (compact) 16.dp else 20.dp, color = content)
+            StarLoadingIndicator(size = if (compact) 16.dp else 20.dp, color = ink)
             return@Row
         }
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(if (compact) 15.dp else 18.dp))
+            Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(if (compact) 15.dp else 18.dp))
             Spacer(Modifier.width(6.dp))
         }
-        Text(
-            text, color = content, fontFamily = MinSans, maxLines = 1,
-            fontSize = if (compact) 13.sp else 15.sp,
-            fontWeight = if (kind == StaryButtonKind.Ghost) FontWeight.Medium else FontWeight.SemiBold,
+        BasicText(
+            text,
+            style = TextStyle(
+                color = ink, fontFamily = MinSans, fontSize = fontSize,
+                fontWeight = if (kind == StaryButtonKind.Ghost) FontWeight.Medium else FontWeight.SemiBold,
+            ),
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = fontSize, stepSize = 0.5.sp),
         )
     }
 }
 
-private fun StaryButtonKind.surface(shape: Shape): Modifier = when (this) {
-    StaryButtonKind.Primary -> Modifier
-        .background(Brush.verticalGradient(listOf(Color(0xFF3A4676), Color(0xFF111936))))
-        .raisedCosmicBorder(width = 1.dp, shape = shape)
-    StaryButtonKind.Ghost -> Modifier.border(1.dp, StaryColors.Accent.copy(alpha = 0.32f), shape)
-    StaryButtonKind.Danger -> Modifier
-        .background(Brush.verticalGradient(listOf(Color(0xFFB04A5C), Color(0xFF6B2033))))
-        .border(1.dp, Color(0x66FF96A0), shape)
+private val Capsule = RoundedCornerShape(50)
+
+private val StaryButtonKind.ink: Color
+    get() = when (this) {
+        StaryButtonKind.Primary -> Color(0xFF2C2723) // 크림 위 숯색(로그인 버튼과 같은 값)
+        StaryButtonKind.Ghost -> Color(0xFFE3E7F1)
+        StaryButtonKind.Danger -> Color(0xFF3E1A22)
+    }
+
+/** 면 — 누를수록([press] 0..1) 위쪽부터 밝아진다. 보조는 흰빛이 조금 짙어진다. */
+private fun StaryButtonKind.fill(press: Float): Brush = when (this) {
+    StaryButtonKind.Primary -> softPill(Color(0xFFF7EDD8), Color(0xFFE9D6AE), press)
+    StaryButtonKind.Danger -> softPill(Color(0xFFF5C9CF), Color(0xFFE5A3AE), press)
+    StaryButtonKind.Ghost -> SolidColor(Color.White.copy(alpha = 0.08f + 0.06f * press))
 }
+
+private fun softPill(top: Color, bottom: Color, press: Float): Brush = Brush.verticalGradient(
+    listOf(
+        lerp(top, Color.White, 0.35f * press).copy(alpha = 0.94f),
+        lerp(bottom, Color.White, 0.25f * press).copy(alpha = 0.94f),
+    )
+)
+
+/** 테두리 — 위가 밝고 아래로 옅어지는 1dp(빛을 받은 가장자리). */
+private val StaryButtonKind.edge: Brush
+    get() = when (this) {
+        StaryButtonKind.Ghost -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.20f), Color.White.copy(alpha = 0.05f)))
+        else -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.70f), Color.White.copy(alpha = 0.08f)))
+    }
 
 /**
  * 앱 공용 칩 — 선택 / 선택 안 됨 / 잠김 세 상태가 어디서나 같은 모양.

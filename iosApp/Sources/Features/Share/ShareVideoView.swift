@@ -82,17 +82,12 @@ struct ShareVideoView: View {
 
     private var buttons: some View {
         HStack(spacing: 10) {
-            Button {
+            StaryButton(LocaleManager.shared.t(.shareToStory), fullWidth: true, enabled: videoURL != nil) {
                 guard let url = videoURL, let id = diary.id, !id.isEmpty else { return }
                 ShareVideo.shareToSns(url, diaryId: id)
-            } label: {
-                Text(LocaleManager.shared.t(.shareToStory))
-                    .font(.minSans(13))
-                    .foregroundStyle(videoURL == nil ? Theme.textSecondary : Color(hex: 0x0B0F18))
-                    .frame(maxWidth: .infinity).frame(height: 48)
-                    .background(videoURL == nil ? Color.white.opacity(0.06) : accent, in: RoundedRectangle(cornerRadius: 13))
             }
-            Button {
+            StaryButton(LocaleManager.shared.t(.shareVideoSave), kind: .ghost, fullWidth: true,
+                        enabled: videoURL != nil, loading: saving) {
                 guard let url = videoURL, !saving else { return }
                 saving = true
                 Task {
@@ -100,16 +95,8 @@ struct ShareVideoView: View {
                     saving = false
                     show(LocaleManager.shared.t(ok ? .shareVideoSaved : .shareVideoSaveFailed))
                 }
-            } label: {
-                Text(LocaleManager.shared.t(.shareVideoSave))
-                    .font(.minSans(13))
-                    .foregroundStyle(videoURL == nil ? Theme.textSecondary : Theme.textPrimary)
-                    .frame(maxWidth: .infinity).frame(height: 48)
-                    .background(Color.white.opacity(videoURL == nil ? 0.06 : 0.10), in: RoundedRectangle(cornerRadius: 13))
             }
         }
-        .buttonStyle(.plain)
-        .disabled(videoURL == nil || saving)
     }
 
     @ViewBuilder

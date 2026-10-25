@@ -54,6 +54,12 @@ import com.chaminwoo.stary.core.util.StaryAnalytics
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.feature.profile.StigmaStore
 import kotlinx.coroutines.launch
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.draw.drawBehind
+import com.chaminwoo.stary.core.ui.StaryPopupPanel
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
 
 /** 수집품 화면의 종류 순서(장착형 먼저). */
 private val KIND_ORDER = listOf("frame", "badge", "title", "aura", "shape", "color", "telescope")
@@ -242,18 +248,16 @@ internal fun ItemDetailDialog(item: StarlightStore.Item, onDismiss: () -> Unit) 
     val slot = slotOf(item.kind)
     var busy by remember { mutableStateOf(false) }
     val equipped = slot != null && isEquipped(context, slot, item.id)
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Brush.verticalGradient(listOf(c.copy(alpha = 0.16f), Color(0xFF121821), Color(0xFF121821))))
-                .border(1.dp, c.copy(alpha = 0.6f), RoundedCornerShape(22.dp))
-                .clickable(onClick = onDismiss)
-                .padding(20.dp),
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // 판은 다른 팝업과 같은 유리 — 희귀도 색은 그림 뒤 은은한 빛으로만(판을 물들이던 그라데이션·테두리 대신, 2026-10-26).
+        StaryPopupPanel(
+            modifier = Modifier.clickable(remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            ItemArt(item, Modifier.size(120.dp))
+            ItemArt(
+                item,
+                Modifier.size(120.dp).drawBehind { drawCircle(Brush.radialGradient(listOf(c.copy(alpha = 0.24f), Color.Transparent))) },
+            )
             Spacer(Modifier.height(10.dp))
             Text("${rarityName(item.rarity)} · ${kindName(item.kind)}", color = c, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
@@ -269,27 +273,30 @@ internal fun ItemDetailDialog(item: StarlightStore.Item, onDismiss: () -> Unit) 
                 }
                 if (slot != null) {
                     Spacer(Modifier.height(14.dp))
-                    OpenButton(
+                    StaryButton(
                         stringResource(if (equipped) R.string.starlight_unequip else R.string.starlight_equip),
-                        enabled = !busy, primary = !equipped,
-                    ) {
-                        busy = true
-                        scope.launch {
-                            val r = StarlightStore.equip(slot, if (equipped) null else item.id)
-                            busy = false
-                            when (r) {
-                                is StarlightStore.OpResult.Done -> {
-                                    if (slot == StarlightStore.Slot.TITLE) syncTitle(context, if (equipped) null else item.id)
-                                    Haptics.medium()
-                                    StaryAnalytics.log("workshop_equip", "slot" to slot.id, "item" to (if (equipped) "" else item.id))
-                                    StaryToast.show(context.getString(if (equipped) R.string.starlight_unequip_done else R.string.starlight_equip_done))
+                        onClick = {
+                            busy = true
+                            scope.launch {
+                                val r = StarlightStore.equip(slot, if (equipped) null else item.id)
+                                busy = false
+                                when (r) {
+                                    is StarlightStore.OpResult.Done -> {
+                                        if (slot == StarlightStore.Slot.TITLE) syncTitle(context, if (equipped) null else item.id)
+                                        Haptics.medium()
+                                        StaryAnalytics.log("workshop_equip", "slot" to slot.id, "item" to (if (equipped) "" else item.id))
+                                        StaryToast.show(context.getString(if (equipped) R.string.starlight_unequip_done else R.string.starlight_equip_done))
+                                    }
+                                    is StarlightStore.OpResult.Failed -> StaryToast.show(
+                                        context.getString(if (r.code == "timeout") R.string.starlight_err_timeout else R.string.starlight_err_generic)
+                                    )
                                 }
-                                is StarlightStore.OpResult.Failed -> StaryToast.show(
-                                    context.getString(if (r.code == "timeout") R.string.starlight_err_timeout else R.string.starlight_err_generic)
-                                )
                             }
-                        }
-                    }
+                        },
+                        kind = if (equipped) StaryButtonKind.Ghost else StaryButtonKind.Primary,
+                        compact = true,
+                        loading = busy,
+                    )
                 }
             }
         }

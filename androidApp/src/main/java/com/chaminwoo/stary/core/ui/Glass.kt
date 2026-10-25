@@ -44,6 +44,18 @@ object StaryGlass {
         fallbackTint = HazeTint(Color(0xF71B2036)),
     )
 
+    /**
+     * 드로어 — 상단바와 같은 유리(뒤 화면이 흐리게 비친다). 판이 커서 조금 더 흐리게.
+     * 지도 위에선 지도를 직접 흐릴 수 없어, 열리는 동안 찍어 둔 한 장([com.chaminwoo.stary.core.util.MapUiState.frozenMap])을 비춘다.
+     */
+    val Drawer = HazeStyle(
+        backgroundColor = StaryColors.Bg,
+        tints = listOf(HazeTint(Color(0xFF181E34).copy(alpha = 0.60f))),
+        blurRadius = 28.dp,
+        noiseFactor = 0f,
+        fallbackTint = HazeTint(Color(0xF0101422)),
+    )
+
     /** 유리 판 테두리 — 위가 밝고 아래로 옅어지는 1dp(빛을 받은 유리 가장자리). */
     val Edge = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.06f)))
 }
@@ -57,8 +69,8 @@ fun Modifier.glassBar(state: HazeState): Modifier = this
         drawLine(StaryColors.Accent.copy(alpha = 0.13f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
     }
 
-/** 시트 유리 — [shape] 로 깎은 판 + 위가 밝은 테두리. */
-fun Modifier.glassSheet(state: HazeState, shape: Shape): Modifier = this
+/** 시트·드로어 유리 — [shape] 로 깎은 판 + 위가 밝은 테두리. */
+fun Modifier.glassSheet(state: HazeState, shape: Shape, style: HazeStyle = StaryGlass.Sheet): Modifier = this
     .clip(shape)
-    .hazeEffect(state, StaryGlass.Sheet)
+    .hazeEffect(state, style)
     .border(1.dp, StaryGlass.Edge, shape)

@@ -186,6 +186,15 @@ fun DiaryMap(
     }
 
     var mapRef by remember { mutableStateOf<MapLibreMap?>(null) }
+    // 드로어 유리가 비출 지도 찍기(MapUiState.frozenMap) — 지도가 준비되면 넣고, 지도가 사라지면 뺀다.
+    DisposableEffect(mapRef) {
+        val map = mapRef
+        if (map != null) MapUiState.snapshotter = { onReady -> map.snapshot { onReady(it) } }
+        onDispose {
+            MapUiState.snapshotter = null
+            MapUiState.unfreezeMap()
+        }
+    }
     var styleRef by remember { mutableStateOf<Style?>(null) }
     var locationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var diarySource by remember { mutableStateOf<GeoJsonSource?>(null) }
