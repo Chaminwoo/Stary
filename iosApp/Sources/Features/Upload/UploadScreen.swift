@@ -612,6 +612,10 @@ struct UploadScreen: View {
         guard let uid = auth.uid else {
             showToast(LocaleManager.shared.t(.commonLoginRequired)); return
         }
+        // 본문이 비면 올리지 않는다(최소 1자) — 공백·줄바꿈만 있는 것도 빈 것으로 본다. Android 패리티.
+        if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            uploadFail("no_content"); showToast(LocaleManager.shared.t(.toastContentRequired)); return
+        }
         // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다. Android 패리티.
         if ContentFilter.anyObjectionable(title, content) {
             uploadFail("filter"); showToast(LocaleManager.shared.t(.contentBlocked)); return

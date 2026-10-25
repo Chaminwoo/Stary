@@ -185,6 +185,7 @@
     <string name="cd_locked">Locked</string>
     <string name="toast_camera_permission">Camera permission is required</string>
     <string name="toast_title_required">Please enter a title</string>
+    <string name="toast_content_required">Please write at least 1 character in the body</string>
     <string name="toast_unlock_achievement">Unlock by earning the “%1$s” achievement!</string>
     <string name="toast_image_upload_failed">Image upload failed: %1$s</string>
     <string name="upload_daily_limit">You\'ve used all %1$d stars you can post today</string>

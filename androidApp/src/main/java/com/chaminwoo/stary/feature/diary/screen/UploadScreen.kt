@@ -356,6 +356,8 @@ fun UploadScreen(
 
     val submit: () -> Unit = submit@{
         if (title.isBlank()) { uploadFail("no_title"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@submit }
+        // 본문이 비면 올리지 않는다(최소 1자) — 공백·줄바꿈만 있는 것도 빈 것으로 본다. iOS 와 같은 규칙.
+        if (content.isBlank()) { uploadFail("no_content"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_content_required)); return@submit }
         // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다.
         if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(title, content)) { uploadFail("filter"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)); return@submit }
         // 하루 업로드 제한(로그인 사용자 기준). 오늘 로컬 자정 이후 내가 올린 개수로 선차단.

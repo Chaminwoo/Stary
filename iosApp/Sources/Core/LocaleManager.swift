@@ -176,6 +176,7 @@ enum L10n: String {
     case uploadStarShape, uploadStarColor, uploadVisibility, uploadAnonymous
     case uploadVisPublic, uploadVisFriends, uploadVisPrivate
     case uploadDailyLimit, toastUnlockAchievement, toastImageUploadFailed, uploadDone, uploadPreview, uploadNoLocation, profileNotReady
+    case toastContentRequired
     case actionFailedNetwork, savedWhenOnline
     case uploadLocPermTitle, uploadLocPermMsg, uploadLocPermBtn, uploadLocOffTitle, uploadLocOffMsg, uploadLocOffBtn
     case uploadLocNoneTitle, uploadLocNoneMsg, uploadLocRetry, uploadLocMockTitle, uploadLocMockMsg
@@ -572,6 +573,7 @@ enum L10n: String {
                                               "Unlock by earning the “%@” achievement!",
                                               "「%@」の実績を達成して解放しましょう！")
         case .toastImageUploadFailed: return ("이미지 업로드 실패: %@", "Image upload failed: %@", "画像のアップロードに失敗: %@")
+        case .toastContentRequired: return ("본문을 최소 1자 이상 입력해주세요", "Please write at least 1 character in the body", "本文を1文字以上入力してください")
         case .uploadNoLocation:     return ("현재 위치를 확인할 수 없어요. 위치 권한과 GPS를 켜고 다시 시도해 주세요",
                                             "Couldn't find your current location. Turn on location permission and GPS, then try again",
                                             "現在地を確認できません。位置情報の許可とGPSをオンにしてもう一度お試しください")

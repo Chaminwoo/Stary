@@ -187,6 +187,7 @@
     <string name="cd_locked">잠김</string>
     <string name="toast_camera_permission">카메라 권한이 필요해요</string>
     <string name="toast_title_required">제목을 입력해주세요</string>
+    <string name="toast_content_required">본문을 최소 1자 이상 입력해주세요</string>
     <string name="toast_unlock_achievement">‘%1$s’ 업적을 달성하여 해금하세요!</string>
     <string name="toast_image_upload_failed">이미지 업로드 실패: %1$s</string>
     <string name="upload_daily_limit">오늘 올릴 수 있는 별 %1$d개를 모두 사용했어요</string>
