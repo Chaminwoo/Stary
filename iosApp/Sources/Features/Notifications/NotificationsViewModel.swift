@@ -8,6 +8,8 @@ import Foundation
 final class NotificationsViewModel: ObservableObject {
     @Published var items: [AppNotification] = []
     @Published var unread = 0
+    /// 첫 응답을 받았는지 — 받기 전의 빈 목록은 "없음"이 아니라 "불러오는 중"(자리 표시).
+    @Published var loaded = false
     private var regs: [ListenerRegistration] = []
     private var feedSub: AnyCancellable?
 
@@ -28,6 +30,7 @@ final class NotificationsViewModel: ObservableObject {
                 .whereField("diaryOwnerId", isEqualTo: ownerId)
                 .addSnapshotListener { [weak self] snap, _ in
                     self?.mine = snap?.documents.compactMap { try? $0.data(as: AppNotification.self) } ?? []
+                    self?.loaded = true
                     self?.merge()
                 }
         )

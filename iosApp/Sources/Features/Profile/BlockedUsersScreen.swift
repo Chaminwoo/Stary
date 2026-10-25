@@ -39,7 +39,7 @@ struct BlockedUsersScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(locale.t(.blockedHint))
-                            .font(.minSans(12.5)).foregroundStyle(Theme.textSecondary)
+                            .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
                             .padding(.bottom, 4)
                         ForEach(blocks.blockedUsers) { user in
                             row(user)
@@ -118,7 +118,7 @@ struct BlockedUsersScreen: View {
             } else {
                 Theme.surfaceAlt.overlay(
                     Text(String(displayName(user).prefix(1)).uppercased())
-                        .font(.minSans(16))
+                        .font(.minSans(15))
                         .foregroundStyle(Theme.navyAccent)
                 )
             }

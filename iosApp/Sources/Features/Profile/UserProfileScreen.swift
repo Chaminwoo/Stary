@@ -81,7 +81,7 @@ struct UserProfileScreen: View {
                 avatar
                 HStack(spacing: 6) {
                     Text(shownName.isEmpty ? locale.t(.unknownUser) : shownName)
-                        .font(.minSans(26))
+                        .font(.minSans(24))
                         .foregroundStyle(Theme.textPrimary)
                     HiddenStarBadges(userId: userId, size: 13)
                     EquippedBadge(equips: equipsWatcher.equips, size: 22)
@@ -369,5 +369,6 @@ struct UserProfileScreen: View {
             "createdAt": FirestoreService.nowMillis,
         ])
         QuestStore.report(.friendRequest)
+        PermissionAsk.shared.requestNotificationAsk()
     }
 }

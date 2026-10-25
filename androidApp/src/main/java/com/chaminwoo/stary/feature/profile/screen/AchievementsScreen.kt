@@ -1,6 +1,7 @@
 package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import com.chaminwoo.stary.core.ui.StaryChip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import androidx.compose.animation.core.animateFloatAsState
@@ -103,7 +104,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
 
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 18.sp)
+            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 17.sp)
         }
         return
     }
@@ -191,39 +192,9 @@ private fun TabBar(tab: Int, onSelect: (Int) -> Unit) {
             .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        TabChip(stringResource(R.string.ach_tab_normal), selected = tab == 0, accent = Accent) { onSelect(0) }
-        TabChip(stringResource(R.string.ach_tab_special), selected = tab == 1, accent = Purple) { onSelect(1) }
-        TabChip(stringResource(R.string.ach_tab_hidden), selected = tab == 2, accent = Gold) { onSelect(2) }
-    }
-}
-
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.TabChip(
-    label: String,
-    selected: Boolean,
-    accent: Color,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) accent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.04f))
-            .border(
-                1.dp,
-                if (selected) accent.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.06f),
-                RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(vertical = 11.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            label,
-            color = if (selected) accent else TextMuted,
-            fontSize = 14.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-        )
+        StaryChip(stringResource(R.string.ach_tab_normal), tab == 0, Modifier.weight(1f), accent = Accent) { onSelect(0) }
+        StaryChip(stringResource(R.string.ach_tab_special), tab == 1, Modifier.weight(1f), accent = Purple) { onSelect(1) }
+        StaryChip(stringResource(R.string.ach_tab_hidden), tab == 2, Modifier.weight(1f), accent = Gold) { onSelect(2) }
     }
 }
 
@@ -701,7 +672,7 @@ private fun HiddenAchievementRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     com.chaminwoo.stary.core.util.LocalizedNames.title(LocalContext.current, ach.id, ach.title)!!,
-                    color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Light
+                    color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.Light
                 )
                 Spacer(Modifier.width(6.dp))
                 com.chaminwoo.stary.core.ui.HiddenStarBadge(
@@ -723,7 +694,7 @@ private fun HiddenAchievementRow(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         stringResource(if (hint.level >= 2) R.string.hint_clear else R.string.hint_faint),
-                        color = Accent, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold,
+                        color = Accent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         hint.textIn(starlightLang()),
@@ -907,7 +878,7 @@ private fun AchievementRowFrame(
         leading()
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = if (unlocked) TextMain else TextMuted, fontSize = 16.sp, fontWeight = FontWeight.Light)
+            Text(title, color = if (unlocked) TextMain else TextMuted, fontSize = 15.sp, fontWeight = FontWeight.Light)
             Spacer(Modifier.height(2.dp))
             Text(subtitle, color = TextMuted, fontSize = 12.sp)
             below?.invoke()
@@ -954,7 +925,7 @@ private fun TelescopeChip(achId: String, mode: String, modifier: Modifier = Modi
     ) {
         ItemArt(item, Modifier.size(16.dp))
         Spacer(Modifier.width(4.dp))
-        Text(stringResource(R.string.telescope_look), color = Accent, fontSize = 10.5.sp)
+        Text(stringResource(R.string.telescope_look), color = Accent, fontSize = 10.sp)
     }
 }
 

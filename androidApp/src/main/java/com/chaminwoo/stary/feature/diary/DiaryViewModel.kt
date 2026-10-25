@@ -9,9 +9,12 @@ import com.chaminwoo.stary.core.util.launchSafely
 import com.chaminwoo.stary.data.repository.FirebaseDiaryRepository
 import com.chaminwoo.stary.shared.data.repository.DiaryRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -20,7 +23,11 @@ class DiaryViewModel(
 ) : ViewModel() {
 
     // 전체 다이어리 목록 — StateFlow로 변환해서 UI에 연결
+    private val _diariesReady = MutableStateFlow(false)
+    /** [diaries] 가 첫 목록을 받았는지 — 받기 전의 빈 목록은 "없음"이 아니라 "불러오는 중"(자리 표시). */
+    val diariesReady = _diariesReady.asStateFlow()
     val diaries = repository.observeAllDiaries()
+        .onEach { _diariesReady.value = true }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -64,10 +71,17 @@ class DiaryViewModel(
     }
 
     private val myDiariesCache = mutableMapOf<String, StateFlow<List<Diary>>>()
+    private val myReadyFlags = mutableMapOf<String, MutableStateFlow<Boolean>>()
+
+    /** [getMyDiaries] 가 첫 목록을 받았는지([diariesReady] 와 같은 뜻). */
+    fun myDiariesReady(userId: String): StateFlow<Boolean> =
+        myReadyFlags.getOrPut(userId) { MutableStateFlow(false) }
 
     fun getMyDiaries(userId: String): StateFlow<List<Diary>> =
         myDiariesCache.getOrPut(userId) {
+            val ready = myReadyFlags.getOrPut(userId) { MutableStateFlow(false) }
             repository.observeMyDiaries(userId)
+                .onEach { ready.value = true }
                 .stateIn(
                     scope = viewModelScope,
                     started = SharingStarted.WhileSubscribed(5000),

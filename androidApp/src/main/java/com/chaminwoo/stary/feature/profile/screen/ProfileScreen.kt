@@ -129,7 +129,7 @@ fun ProfileScreen(
 
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 18.sp)
+            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 17.sp)
         }
         return
     }
@@ -507,7 +507,7 @@ private fun NicknameEditDialog(
                 .border(1.dp, Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
                 .padding(20.dp)
         ) {
-            Text(stringResource(R.string.profile_edit_nickname), color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.profile_edit_nickname), color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(14.dp))
             Box(
                 modifier = Modifier
@@ -560,7 +560,7 @@ private fun PinDiaryPicker(
                 .border(1.dp, Brush.linearGradient(listOf(Blue.copy(alpha = 0.5f), Navy.copy(alpha = 0.4f))), RoundedCornerShape(22.dp))
                 .padding(16.dp)
         ) {
-            Text(stringResource(R.string.profile_pin_picker_title), color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.profile_pin_picker_title), color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             if (diaries.isEmpty()) {
                 Text(stringResource(R.string.mydiary_empty), color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(vertical = 20.dp))

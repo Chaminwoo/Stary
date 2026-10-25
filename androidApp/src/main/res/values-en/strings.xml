@@ -33,6 +33,8 @@
     <string name="settings_sfx_volume">Sound effects volume</string>
     <string name="settings_notif_popup">Notification banners</string>
     <string name="settings_notif_popup_desc">Show chat and diary alerts as a top banner</string>
+    <string name="settings_push_off">Notifications are off on this device</string>
+    <string name="settings_push_off_desc">Turn on Stary notifications in the Settings app to get chat and friend alerts</string>
     <string name="settings_language_desc">Choose the language shown in the app</string>
     <string name="settings_help">Help</string>
     <string name="settings_help_replay">Replay help guide</string>
@@ -163,9 +165,18 @@
     <string name="upload_pick_video">Video (up to 3s)</string>
     <string name="upload_video_too_long">Only short videos up to 3 seconds can be uploaded</string>
     <string name="upload_reselect">Reselect</string>
+    <string name="upload_crop_hint">Drag to move, pinch to resize</string>
+    <string name="upload_clear_media">Remove attachment</string>
     <string name="upload_content_label">Leave a memory of this place</string>
     <string name="upload_star_shape">Star shape</string>
     <string name="upload_star_color">Star color</string>
+    <string name="upload_see_all">See all</string>
+    <string name="upload_owned_only">Owned only</string>
+    <string name="picker_tab_shape">Shape</string>
+    <string name="picker_tab_color">Color</string>
+    <string name="picker_group_basic">Basic</string>
+    <string name="picker_group_achievement">Achievement rewards</string>
+    <string name="picker_locked_hint">Unlocks with the ‘%1$s’ achievement</string>
     <string name="upload_visibility">Visibility</string>
     <string name="upload_vis_public">Public</string>
     <string name="upload_vis_friends">Friends only</string>
@@ -191,6 +202,13 @@
     <string name="upload_slow_msg">It hasn\'t reached the server yet. Your post is kept and will go up automatically once you\'re connected.</string>
     <string name="upload_loc_mock_title">A location-spoofing app is on</string>
     <string name="upload_loc_mock_msg">Stars can only be left at your real location. Turn off the spoofing app and try again.</string>
+    <string name="upload_leave_title">You have an unfinished star</string>
+    <string name="upload_leave_msg">Your writing stays on this device if you leave. You can pick it up next time.</string>
+    <string name="upload_leave_exit">Leave</string>
+    <string name="upload_leave_stay">Keep writing</string>
+    <string name="upload_draft_found">Your unfinished star is still here</string>
+    <string name="upload_draft_restore">Continue</string>
+    <string name="upload_draft_discard">Discard</string>
     <string name="profile_not_ready">Still loading your profile. Check your connection and try again in a moment</string>
 
     <!-- Friends screen -->
@@ -610,6 +628,8 @@
     <string name="starlog_empty_desc">Stars you open by coming within 100m\nor watching an ad gather here.\nEvery diary you open stays in your Star Log forever.</string>
     <string name="starlog_permanent_note">Every diary you open\nstays in your Star Log forever</string>
     <string name="starlog_filtered_empty">No stars match these filters</string>
+    <string name="starlog_view_ring">Stars</string>
+    <string name="starlog_view_list">List</string>
     <string name="onb_starlog_title">Star Log</string>
     <string name="onb_starlog_msg">Stars you have opened\ngather in a circle.\nOpened within 100m or with an ad,\nthey stay in your Star Log forever.\nPress and slide over a star\nto see its story in the center.</string>
 
@@ -828,4 +848,12 @@
     <string name="starlight_lineup">Pull a legendary item!</string>
     <string name="guide_exchange_title">Craft a key from stardust</string>
     <string name="guide_exchange_msg">Trade the stardust from quests for a key at the Starlight Workshop (%1$d = 1 key).</string>
+    <!-- 권한 안내 카드(S2 — core/ui/PermissionAsk.kt) -->
+    <string name="perm_loc_title">Location lets you see stars around you</string>
+    <string name="perm_loc_msg">It\'s used to leave a star where you are and to open stars nearby. Approximate location works too.</string>
+    <string name="perm_notif_title">Turn on notifications?</string>
+    <string name="perm_notif_msg">We\'ll let you know when your star gets a like or comment, a friend leaves a new star, or you get a friend request.</string>
+    <string name="perm_allow">Allow</string>
+    <string name="perm_notif_allow">Turn on</string>
+    <string name="perm_later">Later</string>
 </resources>

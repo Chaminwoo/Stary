@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
+import com.chaminwoo.stary.core.ui.StaryChip
 import com.chaminwoo.stary.core.ui.StaryToast
 import com.chaminwoo.stary.core.ui.ThumbAsyncImage
 import com.chaminwoo.stary.core.util.Haptics
@@ -85,7 +86,7 @@ fun CollectionScreen() {
         if (mine.isEmpty()) {
             Text(
                 stringResource(R.string.starlight_collection_empty),
-                color = Sub, fontSize = 13.5.sp, lineHeight = 20.sp, textAlign = TextAlign.Center,
+                color = Sub, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
             )
             return@Column
@@ -93,9 +94,9 @@ fun CollectionScreen() {
 
         // 종류 칩
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            KindChip(stringResource(R.string.starlight_all), mine.size, selected = kind == null) { kind = null }
+            StaryChip("${stringResource(R.string.starlight_all)} ${mine.size}", kind == null, accent = Violet) { Haptics.tick(); kind = null }
             kinds.forEach { k ->
-                KindChip(kindName(k), mine.count { it.kind == k }, selected = kind == k) { kind = k }
+                StaryChip("${kindName(k)} ${mine.count { it.kind == k }}", kind == k, accent = Violet) { Haptics.tick(); kind = k }
             }
         }
 
@@ -134,7 +135,7 @@ private fun LoadoutCard(onSlot: (String) -> Unit) {
             .border(1.dp, Brush.linearGradient(listOf(Gold.copy(alpha = 0.45f), Violet.copy(alpha = 0.3f))), shape)
             .padding(16.dp),
     ) {
-        Text(stringResource(R.string.starlight_loadout), color = Gold, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+        Text(stringResource(R.string.starlight_loadout), color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             FramedAvatar(frame?.payload, size = 84.dp, modifier = Modifier.clickable { onSlot("frame") }) {
@@ -144,11 +145,11 @@ private fun LoadoutCard(onSlot: (String) -> Unit) {
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(name.ifBlank { "···" }, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(name.ifBlank { "···" }, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     EquippedBadge(eq, size = 20.dp, modifier = Modifier.padding(start = 6.dp))
                 }
                 Spacer(Modifier.height(4.dp))
-                if (title != null) TitleText("『${title.nameIn(lang)}』", title.payload, fontSize = 13.5f, modifier = Modifier.clickable { onSlot("title") })
+                if (title != null) TitleText("『${title.nameIn(lang)}』", title.payload, fontSize = 13f, modifier = Modifier.clickable { onSlot("title") })
             }
             Box(
                 Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x14FFFFFF)).clickable { onSlot("aura") },
@@ -180,28 +181,13 @@ private fun SlotPill(label: String, value: String?, rarity: String?, modifier: M
             .padding(horizontal = 6.dp, vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(label, color = Dim, fontSize = 9.5.sp, maxLines = 1)
+        Text(label, color = Dim, fontSize = 10.sp, maxLines = 1)
         Text(
             value ?: stringResource(R.string.starlight_slot_empty),
-            color = if (value != null) Ink else Dim, fontSize = 10.5.sp, fontWeight = FontWeight.Medium,
+            color = if (value != null) Ink else Dim, fontSize = 10.sp, fontWeight = FontWeight.Medium,
             maxLines = 1, textAlign = TextAlign.Center,
         )
     }
-}
-
-@Composable
-private fun KindChip(text: String, count: Int, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        "$text $count",
-        color = if (selected) Color(0xFF1A0B33) else Sub,
-        fontSize = 12.5.sp, fontWeight = FontWeight.Medium,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (selected) Brush.linearGradient(listOf(Color(0xFFE2C8FF), Violet)) else Brush.linearGradient(listOf(Card, Card)))
-            .border(0.75.dp, if (selected) Color.Transparent else Line, RoundedCornerShape(50))
-            .clickable { Haptics.tick(); onClick() }
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-    )
 }
 
 @Composable
@@ -238,7 +224,7 @@ private fun OwnedCell(item: StarlightStore.Item, onClick: () -> Unit, modifier: 
         )
         Text(
             if (equipped) stringResource(R.string.starlight_equipped) else rarityName(item.rarity),
-            color = c, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold,
+            color = c, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -271,7 +257,7 @@ internal fun ItemDetailDialog(item: StarlightStore.Item, onDismiss: () -> Unit) 
             Spacer(Modifier.height(10.dp))
             Text("${rarityName(item.rarity)} · ${kindName(item.kind)}", color = c, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
-            Text(item.nameIn(lang), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            Text(item.nameIn(lang), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
             Spacer(Modifier.height(8.dp))
             Text(item.descIn(lang), color = Sub, fontSize = 13.sp, lineHeight = 19.sp, textAlign = TextAlign.Center)
             if (count > 0) {
@@ -279,7 +265,7 @@ internal fun ItemDetailDialog(item: StarlightStore.Item, onDismiss: () -> Unit) 
                 Text(stringResource(R.string.starlight_owned_n, count), color = c, fontSize = 12.sp)
                 usageNote(item)?.let {
                     Spacer(Modifier.height(4.dp))
-                    Text(stringResource(it), color = Dim, fontSize = 11.5.sp, lineHeight = 16.sp, textAlign = TextAlign.Center)
+                    Text(stringResource(it), color = Dim, fontSize = 11.sp, lineHeight = 16.sp, textAlign = TextAlign.Center)
                 }
                 if (slot != null) {
                     Spacer(Modifier.height(14.dp))

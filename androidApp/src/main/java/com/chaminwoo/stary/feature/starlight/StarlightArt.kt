@@ -689,7 +689,7 @@ fun ItemArt(item: StarlightStore.Item, modifier: Modifier = Modifier) {
                     .background(Color(0x22FFFFFF))
                     .border(0.75.dp, rarityColor(item.rarity).copy(alpha = 0.5f), RoundedCornerShape(50))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
-            ) { TitleText(item.nameIn(starlightLang()), p, fontSize = 10.5f) }
+            ) { TitleText(item.nameIn(starlightLang()), p, fontSize = 10f) }
             "telescope" -> SvgGlyph(p.str("icon"), p.colors().ifEmpty { listOf(rarityColor(item.rarity)) }, Modifier.fillMaxSize(0.7f), glow = true)
             "keyBundle" -> Row(verticalAlignment = Alignment.CenterVertically) {
                 CrystalKeyIcon(Modifier.size(26.dp))

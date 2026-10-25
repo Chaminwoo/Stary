@@ -361,7 +361,7 @@ internal fun NebulaOpening(state: OpeningState, onDone: () -> Unit) {
                     Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    if (!allFlipped) Text(stringResource(R.string.starlight_tap_card), color = Sub, fontSize = 12.5.sp)
+                    if (!allFlipped) Text(stringResource(R.string.starlight_tap_card), color = Sub, fontSize = 12.sp)
                     Spacer(Modifier.height(10.dp))
                     PillButton(
                         stringResource(if (allFlipped) R.string.starlight_confirm else R.string.starlight_flip_all),

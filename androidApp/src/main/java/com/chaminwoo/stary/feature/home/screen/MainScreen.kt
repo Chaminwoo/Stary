@@ -69,8 +69,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Alignment
 import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
+import com.chaminwoo.stary.core.designsystem.StaryColors
 import com.chaminwoo.stary.core.designsystem.StaryResponsive
 import com.chaminwoo.stary.core.designsystem.TopBarScrim
+import com.chaminwoo.stary.core.ui.glassBar
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -277,6 +281,8 @@ fun MainScreen(
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
+    // 유리 상단바가 비출 화면 목록(NavGraph). 지도 화면에선 흐림이 먹지 않아 스크림을 쓴다(core/ui/Glass.kt).
+    val glassState = rememberHazeState()
 
     // 드로어 열림 연출 — 열리기 시작하는 순간 "스윽" + 항목들이 위에서부터 하나씩 스르륵(광고 레퍼런스).
     // 진행도 1개(0..1)를 두고 각 항목이 자기 순번만큼 늦게 따라온다([drawerItemReveal]). 닫힐 때는 그대로 둔다.
@@ -330,6 +336,13 @@ fun MainScreen(
     }
 
     val userId = GoogleAuthHelper.currentUserId
+
+    // 권한 안내(S2) — 위치 이유 카드는 지도에서, 약관과 새 계정 코치마크가 끝난 뒤에 실행당 한 번.
+    // 떠 있는 동안 첫 사용 안내·"!" 스포트라이트·업적 팝업은 기다린다(안내는 한 번에 하나씩).
+    val locationAsk = !showLogin && contentReady && currentRoute is NavRoute.Main &&
+        (userId == null || com.chaminwoo.stary.core.util.TermsConsent.isAccepted(context)) &&
+        !(userId != null && showOnboarding && returningAccount != true) &&
+        com.chaminwoo.stary.core.ui.PermissionAsk.locationDue(context)
 
     // 지도 진입(실행당 1회) — 로그인/둘러보기 뒤 실제로 지도를 본 사람 수.
     androidx.compose.runtime.LaunchedEffect(showLogin, isMapRoute) {
@@ -444,12 +457,14 @@ fun MainScreen(
             gesturesEnabled = drawerState.isOpen,
             scrimColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f),
             drawerContent = {
+                // 배경: 위는 남색, 아래로 갈수록 밤하늘색 + 오른쪽 가장자리 별빛 선(iOS RootView 드로어 패리티).
+                val drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
                 ModalDrawerSheet(
-                    drawerContainerColor = Color(0xFF111111),
-                    drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(
-                        topEnd = 24.dp,
-                        bottomEnd = 24.dp
-                    )
+                    modifier = Modifier
+                        .background(Brush.verticalGradient(0f to Color(0xFF151B31), 0.7f to Color(0xFF0B0F1C)), drawerShape)
+                        .border(1.dp, StaryColors.Accent.copy(alpha = 0.18f), drawerShape),
+                    drawerContainerColor = Color.Transparent,
+                    drawerShape = drawerShape,
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 20.dp)) {
                         // 상단: "목록"(회색 작은 글씨) + 우측 닫기(왼쪽 화살표)
@@ -560,7 +575,7 @@ fun MainScreen(
             }
         ) {
             Scaffold(
-                containerColor = Color(0xFF0D0D0D),
+                containerColor = StaryColors.Bg,
                 topBar = {
                     // 집중 모드에선 지도 버튼들과 같은 페이드로 숨는다(들어갈 땐 천천히, 나올 땐 빠르게).
                     androidx.compose.animation.AnimatedVisibility(
@@ -569,9 +584,10 @@ fun MainScreen(
                         exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(MapUiState.CHROME_HIDE_MS)),
                     ) {
                         CenterAlignedTopAppBar(
-                            // 반투명 탑바 — 컨테이너는 투명으로 두고 스크림 그라데이션을 직접 깐다.
-                            // (화면 배경/지도가 탑바 뒤까지 올라와 비치고, 아래로 갈수록 옅어져 이어진다.)
-                            modifier = Modifier.background(TopBarScrim),
+                            // 반투명 탑바 — 컨테이너는 투명으로 두고 배경을 직접 깐다. 지도 위는 스크림 그라데이션
+                            // (지도는 흐릴 수 없다), 나머지 화면은 뒤가 흐리게 비치는 유리.
+                            modifier = if (currentRoute is NavRoute.Main) Modifier.background(TopBarScrim)
+                            else Modifier.glassBar(glassState),
                             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                                 containerColor = Color.Transparent,
                                 titleContentColor = Color(0xFFF0F0F0),
@@ -600,7 +616,7 @@ fun MainScreen(
                                     Text(
                                         text = barTitle,
                                         fontFamily = com.chaminwoo.stary.core.designsystem.MinSans,
-                                        fontSize = 18.sp,
+                                        fontSize = 17.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         style = MaterialTheme.typography.titleMedium,
                                         color = Color(0xFFF0F0F0)
@@ -625,8 +641,14 @@ fun MainScreen(
                                         )
                                     }
                                 } else {
+                                    // 시스템 뒤로와 같은 길로 보낸다 — 화면이 BackHandler 로 가로채는 경우(쓰던 글 확인·시트 닫기·
+                                    // 촬영 화면 닫기)가 상단바 뒤로에서도 똑같이 동작하게. 가로채는 곳이 없으면 NavHost 가 pop 한다.
+                                    val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
                                     IconButton(
-                                        onClick = { navController.navigateUp() },
+                                        onClick = {
+                                            if (backDispatcher?.hasEnabledCallbacks() == true) backDispatcher.onBackPressed()
+                                            else navController.navigateUp()
+                                        },
                                         modifier = Modifier.clickBounce()
                                     ) {
                                         Icon(
@@ -853,7 +875,7 @@ fun MainScreen(
                             onCreateClick = {
                                 navController.navigate(NavRoute.Upload)
                             },
-                            guideEnabled = !showLogin && !showOnboarding && userId != null &&
+                            guideEnabled = !showLogin && !showOnboarding && userId != null && !locationAsk &&
                                 com.chaminwoo.stary.core.util.TermsConsent.isAccepted(context),
                             onOpenProfile = {
                                 navController.navigate(NavRoute.Profile) { launchSingleTop = true }
@@ -871,8 +893,9 @@ fun MainScreen(
                                     if (currentRoute is NavRoute.Main)
                                         Color.Transparent
                                     else
-                                        Color(0xFF0D0D0D)
-                                ),
+                                        StaryColors.Bg
+                                )
+                                .hazeSource(glassState),
                             // 태블릿에서 콘텐츠가 화면 폭만큼 늘어나지 않도록 가운데 정렬
                             // (배경은 이 Box 가 전체를 덮고, 폭 상한은 안쪽 NavGraph 에만 건다).
                             contentAlignment = Alignment.TopCenter,
@@ -949,7 +972,7 @@ fun MainScreen(
         // 첫 사용 안내 — 웰컴 별을 본 뒤 지도 "!"(오늘의 퀘스트) 버튼만 밝힌다. 코치마크와 같은 층이라 탑바까지 덮는다.
         if (com.chaminwoo.stary.feature.quest.GuideUi.step == com.chaminwoo.stary.feature.quest.GuideStep.QUEST &&
             com.chaminwoo.stary.feature.quest.GuideStep.QUEST !in com.chaminwoo.stary.feature.quest.GuideUi.hidden &&
-            currentRoute is NavRoute.Main && !showOnboarding && !MapUiState.mapOnly
+            currentRoute is NavRoute.Main && !showOnboarding && !locationAsk && !MapUiState.mapOnly
         ) {
             androidx.compose.runtime.DisposableEffect(Unit) {
                 MapUiState.holdIdle()
@@ -974,13 +997,13 @@ fun MainScreen(
         if (userId != null && !showLogin) {
             com.chaminwoo.stary.feature.profile.AchievementUnlockWatcher(
                 userId = userId,
-                suppressed = showOnboarding,
+                suppressed = showOnboarding || locationAsk,
             )
 
             // 히든 업적 감시 — 자동 조건 충족 시 앱 전체 선착순 선점(트랜잭션) + 첫 달성 팝업.
             com.chaminwoo.stary.feature.profile.HiddenAchievementWatcher(
                 userId = userId,
-                suppressed = showOnboarding,
+                suppressed = showOnboarding || locationAsk,
             )
 
             // 인앱 알림 팝업 — 새 다이어리 알림(좋아요/댓글/친구 글) 도착 시 상단 배너.
@@ -1022,6 +1045,14 @@ fun MainScreen(
                 }
             )
         }
+
+        // 권한 안내 카드(S2) — 위치(지도 첫 진입) · 알림(별을 올렸거나 친구를 추가한 뒤, 축하 연출·팝업이 끝나고).
+        com.chaminwoo.stary.core.ui.PermissionAskHost(
+            showLocation = locationAsk,
+            notificationAllowed = !showLogin && userId != null && termsAccepted && !showOnboarding &&
+                com.chaminwoo.stary.core.ui.StarBirthState.pending == null &&
+                com.chaminwoo.stary.core.ui.PermissionAsk.celebrations == 0,
+        )
 
         // 별 탄생 연출(34-8) — 업로드 성공 직후 업로드 화면이 pop 되고 나서 지도 위에서 재생된다.
         com.chaminwoo.stary.core.ui.StarBirthHost()

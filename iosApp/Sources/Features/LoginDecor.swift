@@ -178,7 +178,7 @@ struct CreamCapsuleButton: View {
                 Image(systemName: "star.fill")
                     .font(.system(size: 20))
                 Text(text)
-                    .font(.minSans(16, .bold))
+                    .font(.minSans(15, .bold))
             }
             .foregroundStyle(charcoal)
             .frame(maxWidth: .infinity)

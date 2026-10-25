@@ -417,7 +417,7 @@ private struct QuestRowView: View {
                     if let tier, !claimed { TierTag(tier: tier) }
                 }
                 Text(hint)
-                    .font(.minSans(11.5))
+                    .font(.minSans(11))
                     .foregroundStyle(Color(hex: 0x8A93A3))
                     .fixedSize(horizontal: false, vertical: true)
                 if target > 1 && !claimed {

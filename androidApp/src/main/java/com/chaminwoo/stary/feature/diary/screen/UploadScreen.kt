@@ -1,58 +1,55 @@
-﻿package com.chaminwoo.stary.feature.diary.screen
+package com.chaminwoo.stary.feature.diary.screen
 
-import com.chaminwoo.stary.core.ui.ScreenBackground
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,35 +58,51 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaminwoo.stary.R
+import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
+import com.chaminwoo.stary.core.designsystem.MinSans
 import com.chaminwoo.stary.core.designsystem.StarStyle
+import com.chaminwoo.stary.core.designsystem.StaryColors
 import com.chaminwoo.stary.core.model.Diary
+import com.chaminwoo.stary.core.ui.ScreenBackground
 import com.chaminwoo.stary.core.ui.StarShapeIcon
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
+import com.chaminwoo.stary.core.ui.StaryDialog
+import com.chaminwoo.stary.core.ui.StarySegmented
+import com.chaminwoo.stary.core.ui.fadeEdges
+import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import com.chaminwoo.stary.core.util.BoomerangHelper
 import com.chaminwoo.stary.core.util.ImageCropHelper
 import com.chaminwoo.stary.core.util.ImageUploadHelper
@@ -99,23 +112,32 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.profile.Achievements
 import com.chaminwoo.stary.feature.profile.StarUnlocks
 import com.chaminwoo.stary.feature.profile.rememberUserStats
+import com.chaminwoo.stary.feature.starlight.StarlightStore
 import com.chaminwoo.stary.shared.config.StaryConfig
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.abs
-import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.roundToInt
-import com.chaminwoo.stary.core.designsystem.LocalTopBarInset
 
 // 공개 범위 선택지(VisibilityOptions)는 DiaryVisibility.kt 에 있다 — 상세 화면(아이콘·수정)과 공유.
+// 별 모양/색 휠·'모두 보기' 시트는 StarPicker.kt, 쓰다 나간 글 보관은 UploadDraft.kt.
 
+/*
+ * 화면 구성(2026-10 새 단장) — 테두리 상자 없이 일기장처럼:
+ * 첨부(없으면 얇은 한 줄, 고르면 4:3 크롭 프레임) → 별 도장 + 제목(밑줄 한 줄) → 본문(바탕 없이 글만)
+ * → 가는 선 → 별 모양/색 휠(이름 옆 '모두 보기', 아래 '가진 것만 보기') → 가는 선 → 공개 범위(면으로 나눈 선택 줄)
+ * → 화면 아래 고정 저장 버튼(키보드가 올라오면 그 위로). iOS UploadScreen.swift 와 같은 순서.
+ */
 
 @Composable
 fun UploadScreen(
     onSaveClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 저장하지 않고 나가기(뒤로 확인 창의 "나가기") — 기본은 저장 후와 같은 pop. */
+    onLeave: () -> Unit = onSaveClick,
     diaryViewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.factory())
 ) {
     var title by remember { mutableStateOf("") }
@@ -165,6 +187,13 @@ fun UploadScreen(
         cropController.offset = Offset(init.second * fw, init.third * fh)
         boomerangInit = null
     }
+    val hasMedia = selectedImageUri != null || boomerangFrames.isNotEmpty()
+    fun clearMedia() {
+        selectedImageUri = null
+        boomerangFrames = emptyList()
+        boomerangInit = null
+        cropController.setPhoto(null)
+    }
 
     // 별 모양/색 — iOS UploadScreen 의 무한 회전 휠(WheelPicker) 구조 패리티(선택 = 항상 정중앙).
     var starType by remember { mutableIntStateOf(0) }
@@ -175,19 +204,41 @@ fun UploadScreen(
         if (isLoggedIn) Achievements.unlockedIds(rememberUserStats(GoogleAuthHelper.currentUserId!!))
         else emptySet()
 
-    val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor   = MaterialTheme.colorScheme.onBackground,
-        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-        focusedLabelColor    = MaterialTheme.colorScheme.secondary,
-        unfocusedLabelColor  = MaterialTheme.colorScheme.secondary,
-        cursorColor          = MaterialTheme.colorScheme.onBackground,
-        // 업로드 중 잠금(enabled=false) 상태 — Material 기본 disabled 색은 다크 테마에서 너무 흐려
-        // 읽기 힘들어서, 쓰던 색을 그대로 두고 살짝만 죽인다(별 휠의 alpha 0.5 와 같은 톤).
-        disabledTextColor      = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-        disabledBorderColor    = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-        disabledLabelColor     = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
-        disabledSupportingTextColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
-    )
+    // 휠 칸 → 별 번호: 내장 0~20 뒤에 별빛 공방(성운 상자)에서 얻은 모양·색을 붙인다.
+    val allShapeIds = remember(StarlightStore.ownedShapeTypes) {
+        (0 until StarStyle.TYPE_COUNT) + StarlightStore.ownedShapeTypes.filter { it >= StarStyle.TYPE_COUNT }
+    }
+    val allColorIds = remember(StarlightStore.ownedColorIndices) {
+        (0 until StarStyle.COLOR_COUNT) + StarlightStore.ownedColorIndices.filter { it >= StarStyle.COLOR_COUNT }
+    }
+    // 가진 것만 보기(U4) — 잠긴 칸을 휠에서 뺀다. 지금 고른 칸은 잠겨 있어도 남긴다(통계가 늦게 와도 고른 별이 바뀌지 않게).
+    var ownedOnly by remember { mutableStateOf(StarPickerPrefs.ownedOnly(context)) }
+    val setOwnedOnly: (Boolean) -> Unit = { ownedOnly = it; StarPickerPrefs.setOwnedOnly(context, it) }
+    val shapeIds = if (!ownedOnly) allShapeIds
+        else allShapeIds.filter { it == starType || StarUnlocks.lockedShapeAch(it, unlockedIds) == null }
+    val colorIds = if (!ownedOnly) allColorIds
+        else allColorIds.filter { it == starColor || StarUnlocks.lockedColorAch(it, unlockedIds) == null }
+
+    // '모두 보기' 시트(U1) — 0 = 모양, 1 = 색. 시트 유리가 비출 본문은 아래 hazeSource.
+    var pickerOpen by remember { mutableStateOf(false) }
+    var pickerTab by remember { mutableIntStateOf(0) }
+    val sheetHaze = rememberHazeState()
+
+    // 쓰다 나간 글(S3) — 열 때 한 번 읽어 맨 위에 "이어 쓰기" 줄을 띄운다.
+    val draftUid = GoogleAuthHelper.currentUserId ?: "guest"
+    var pendingDraft by remember { mutableStateOf(UploadDraftStore.load(context, draftUid)) }
+    var showLeaveConfirm by remember { mutableStateOf(false) }
+    var saved by remember { mutableStateOf(false) } // 저장에 성공했으면 닫힐 때 임시 저장하지 않는다
+    val hasText = title.isNotBlank() || content.isNotBlank()
+    val draftNow by rememberUpdatedState(UploadDraftStore.Draft(title, content, starType, starColor, visibilityType))
+    // 뒤로·알림으로 이동·앱 전환 어느 쪽으로 나가도 쓴 글은 기기에 남긴다.
+    fun keepDraft() {
+        if (!saved && draftNow.hasText) UploadDraftStore.save(context, draftUid, draftNow)
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { keepDraft() }
+    DisposableEffect(Unit) { onDispose { keepDraft() } }
+    // 뒤로(시스템·상단바) — 쓴 글이 있으면 한 번 묻는다. 시트·촬영 화면이 떠 있으면 그쪽이 먼저 닫힌다.
+    BackHandler(enabled = hasText && !isUploading && !pickerOpen && !showBoomerangCapture) { showLeaveConfirm = true }
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) { selectedImageUri = cameraUri.value; boomerangFrames = emptyList() }
@@ -213,10 +264,9 @@ fun UploadScreen(
     }
 
     if (showImageSourceDialog) {
-        AlertDialog(
+        StaryDialog(
             onDismissRequest = { showImageSourceDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text(stringResource(R.string.upload_add_photo), color = MaterialTheme.colorScheme.onBackground) },
+            title = { Text(stringResource(R.string.upload_add_photo)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { showImageSourceDialog = false; launchCamera() }, modifier = Modifier.fillMaxWidth()) {
@@ -238,7 +288,25 @@ fun UploadScreen(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { showImageSourceDialog = false }) { Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary) } }
+            dismissButton = { StaryButton(stringResource(R.string.common_cancel), { showImageSourceDialog = false }, kind = StaryButtonKind.Ghost, compact = true) }
+        )
+    }
+
+    if (showLeaveConfirm) {
+        StaryDialog(
+            onDismissRequest = { showLeaveConfirm = false },
+            title = { Text(stringResource(R.string.upload_leave_title)) },
+            text = { Text(stringResource(R.string.upload_leave_msg)) },
+            confirmButton = {
+                StaryButton(stringResource(R.string.upload_leave_stay), { showLeaveConfirm = false }, compact = true)
+            },
+            dismissButton = {
+                StaryButton(
+                    stringResource(R.string.upload_leave_exit),
+                    { showLeaveConfirm = false; keepDraft(); onLeave() },
+                    kind = StaryButtonKind.Ghost, compact = true,
+                )
+            },
         )
     }
 
@@ -251,8 +319,8 @@ fun UploadScreen(
     val allDiaries by diaryViewModel.diaries.collectAsState()
     // LaunchedEffect(Unit) 의 람다는 첫 컴포지션 값을 캡처하므로, 저장 직전에 고른 별을 쓰려면
     // 최신값 참조가 필요하다(선택을 바꾼 뒤 저장해도 그 별로 연출되게).
-    val starTypeRef = androidx.compose.runtime.rememberUpdatedState(starType)
-    val starColorRef = androidx.compose.runtime.rememberUpdatedState(starColor)
+    val starTypeRef = rememberUpdatedState(starType)
+    val starColorRef = rememberUpdatedState(starColor)
     LaunchedEffect(Unit) {
         com.chaminwoo.stary.core.util.StaryAnalytics.log("upload_open", "logged_in" to isLoggedIn)
         diaryViewModel.event.collect { msg ->
@@ -266,12 +334,17 @@ fun UploadScreen(
             if (msg == com.chaminwoo.stary.feature.diary.DiaryEvent.SAVE_FAILED) uploadFail("save")
             if (msg == com.chaminwoo.stary.feature.diary.DiaryEvent.SAVED) {
                 com.chaminwoo.stary.core.util.StaryAnalytics.log("upload_success", "media" to savedWithMedia)
+                // 올렸으니 쓰다 둔 글은 지운다(이 화면이 닫힐 때 다시 남기지도 않는다).
+                saved = true
+                UploadDraftStore.clear(context, draftUid)
                 pioneerClaimTarget?.let { (la, ln) ->
                     com.chaminwoo.stary.feature.profile.PioneerClaimHelper.attemptClaim(context, la, ln)
                 }
                 // 별 탄생 연출(34-8) — 저장 성공에서만. 화면이 pop 된 뒤 지도 위에서 이어 재생된다
                 // (전역 오버레이 StarBirthHost — MainScreen).
                 com.chaminwoo.stary.core.ui.StarBirthState.trigger(starTypeRef.value, starColorRef.value)
+                // 내 별에 반응이 올 수 있으니 알림을 켤지 물을 차례(연출이 끝난 뒤 지도에서 — PermissionAsk).
+                com.chaminwoo.stary.core.ui.PermissionAsk.requestNotificationAsk()
                 // 일일 퀘스트 — 올리기(시간대 퀘스트도 이 이벤트, 올린 시각으로 판정) + 사진/영상.
                 com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.UPLOAD)
                 if (savedWithMedia) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.UPLOAD_MEDIA)
@@ -281,429 +354,413 @@ fun UploadScreen(
         }
     }
 
+    val submit: () -> Unit = submit@{
+        if (title.isBlank()) { uploadFail("no_title"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@submit }
+        // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다.
+        if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(title, content)) { uploadFail("filter"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)); return@submit }
+        // 하루 업로드 제한(로그인 사용자 기준). 오늘 로컬 자정 이후 내가 올린 개수로 선차단.
+        if (isLoggedIn) {
+            val startOfDay = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val todayCount = myDiaries.count { it.createdAt >= startOfDay }
+            if (todayCount >= StaryConfig.DAILY_UPLOAD_LIMIT) {
+                uploadFail("daily_limit")
+                com.chaminwoo.stary.core.ui.StaryToast.show(
+                    context.getString(R.string.upload_daily_limit, StaryConfig.DAILY_UPLOAD_LIMIT)
+                )
+                return@submit
+            }
+        }
+        StarUnlocks.lockedShapeAch(starType, unlockedIds)?.let {
+            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@submit
+        }
+        StarUnlocks.lockedColorAch(starColor, unlockedIds)?.let {
+            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@submit
+        }
+        coroutineScope.launch {
+            isUploading = true
+            // 실제 위치를 못 잡으면(권한 없음·위치 꺼짐·모의 위치) 올리지 않는다 — 예전엔 (0,0) 으로 저장돼
+            // 지도에서 안 보이는 별이 생겼다(지도는 (0,0) 을 거른다). 2026-10-23 완화: 대략적인 위치·최근 위치도 쓰고,
+            // 실패하면 토스트 대신 이유별 안내(권한 허용 / 위치 켜기 / 다시 시도)를 띄운다 — 쓴 글은 그대로 남는다.
+            val fix = LocationHelper.locateForUpload(context)
+            if (fix !is LocationHelper.UploadFix.Ok) {
+                uploadFail(
+                    when (fix) {
+                        LocationHelper.UploadFix.NoPermission -> "no_location_permission"
+                        LocationHelper.UploadFix.LocationOff -> "no_location_off"
+                        LocationHelper.UploadFix.Mock -> "no_location_mock"
+                        else -> "no_location"
+                    }
+                )
+                locationProblem = fix
+                isUploading = false; return@launch
+            }
+            val lat = fix.latitude
+            val lng = fix.longitude
+            // 작성자 이름은 서버에서 확인한 닉네임 — 기기 첫 실행 직후 구글 기본 이름이 박히지 않게(CLAUDE.md §2.6).
+            // 첨부 업로드 전에 확인해 Storage 에 주인 없는 파일이 남지 않게 한다.
+            val uName = if (!isLoggedIn) "익명" else GoogleAuthHelper.requireConfirmedName() ?: run {
+                uploadFail("profile_not_ready")
+                isUploading = false; return@launch
+            }
+            // 첨부는 영상/이미지 중 하나(배타). 영상이 있으면 영상 우선.
+            var imageUrl = ""
+            var videoUrl = ""
+            when {
+                boomerangFrames.isNotEmpty() -> {
+                    // 부메랑 움짤(GIF) — 지금 프레임에서 보이는 그대로 잘라 인코딩한 뒤
+                    // videoUrl 필드에 저장(스키마 유지, .gif 로 판별).
+                    val gif = withContext(Dispatchers.Default) {
+                        runCatching {
+                            val cropped = BoomerangHelper.cropFrames(
+                                boomerangFrames,
+                                cropController.frame.width.toFloat(),
+                                cropController.frame.height.toFloat(),
+                                cropController.scale, cropController.offset.x, cropController.offset.y,
+                            )
+                            BoomerangHelper.encodeToFile(context, cropped)
+                        }.getOrNull()
+                    }
+                    if (gif == null) {
+                        uploadFail("gif_encode")
+                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.boomer_failed))
+                        isUploading = false; return@launch
+                    }
+                    val result = ImageUploadHelper.uploadGifResult(context, gif)
+                    if (!result.isSuccess) {
+                        uploadFail("media_upload")
+                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
+                        isUploading = false; return@launch
+                    }
+                    videoUrl = result.url!!
+                }
+                selectedImageUri != null -> {
+                    // 크롭 프레임 상태로 잘라낸 이미지를 업로드(실패 시 원본으로 폴백).
+                    val uploadUri = withContext(Dispatchers.IO) {
+                        val bmp = cropController.first
+                        if (bmp != null && cropController.frame.width > 0) {
+                            ImageCropHelper.cropToFile(
+                                context, bmp,
+                                cropController.frame.width.toFloat(), cropController.frame.height.toFloat(),
+                                cropController.scale, cropController.offset.x, cropController.offset.y
+                            )
+                        } else null
+                    } ?: selectedImageUri!!
+                    val result = ImageUploadHelper.uploadImageResult(context, uploadUri)
+                    if (!result.isSuccess) {
+                        uploadFail("media_upload")
+                        com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
+                        isUploading = false; return@launch
+                    }
+                    imageUrl = result.url!!
+                }
+            }
+            pioneerClaimTarget = lat to lng // 저장 성공 이벤트에서 개척 선점 시도(체크리스트 32)
+            savedWithMedia = imageUrl.isNotEmpty() || videoUrl.isNotEmpty()
+            savedStacked = allDiaries.any {
+                com.chaminwoo.stary.core.util.LocationHelper.distanceBetween(lat, lng, it.latitude, it.longitude) <=
+                    com.chaminwoo.stary.shared.config.StaryConfig.STAR_MERGE_RADIUS_M
+            }
+            val toSave = Diary(
+                id = diaryId,
+                title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
+                userId = GoogleAuthHelper.currentUserId ?: "",
+                userName = uName,
+                latitude = lat, longitude = lng,
+                starType = starType, starColor = starColor,
+                visibilityType = visibilityType
+            )
+            lastAttempt = toSave
+            diaryViewModel.saveDiary(toSave) // isUploading 은 저장 결과 이벤트에서 푼다
+        }
+    }
+
+    // 서버 응답이 20초 넘게 없음 — 쓴 글·첨부는 그대로 두고, 같은 별(번호·첨부)로 다시 보낼 수 있게.
+    if (showSlowSave) {
+        StaryDialog(
+            onDismissRequest = { showSlowSave = false },
+            title = { Text(stringResource(R.string.upload_slow_title)) },
+            text = { Text(stringResource(R.string.upload_slow_msg)) },
+            confirmButton = {
+                StaryButton(stringResource(R.string.upload_loc_retry), compact = true, onClick = {
+                    showSlowSave = false
+                    lastAttempt?.let { isUploading = true; diaryViewModel.saveDiary(it) }
+                })
+            },
+            dismissButton = {
+                StaryButton(stringResource(R.string.common_confirm), { showSlowSave = false }, kind = StaryButtonKind.Ghost, compact = true)
+            },
+        )
+    }
+
+    // 업로드 위치 실패 안내 — 이유별 행동(권한 요청 / 위치 설정 / 다시 시도).
+    val locPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        if (res.values.any { it }) {
+            // 대략적인 위치로 시작했던 추적이면 새 권한(정확한 위치)에 맞춰 다시 시작
+            LocationHelper.stopContinuousUpdates(context)
+            LocationHelper.startContinuousUpdates(context)
+            submit()
+        } else {
+            // "다시 묻지 않음"이면 시스템 창이 안 뜬다 → 앱 설정 화면에서 직접 허용하게
+            val act = context.findActivity()
+            if (act != null && !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(act, android.Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                    )
+                }
+            }
+        }
+    }
+    locationProblem?.let { problem ->
+        val (titleRes, msgRes, actionRes) = when (problem) {
+            LocationHelper.UploadFix.NoPermission -> Triple(R.string.upload_loc_perm_title, R.string.upload_loc_perm_msg, R.string.upload_loc_perm_btn)
+            LocationHelper.UploadFix.LocationOff -> Triple(R.string.upload_loc_off_title, R.string.upload_loc_off_msg, R.string.upload_loc_off_btn)
+            LocationHelper.UploadFix.Mock -> Triple(R.string.upload_loc_mock_title, R.string.upload_loc_mock_msg, R.string.upload_loc_retry)
+            else -> Triple(R.string.upload_loc_none_title, R.string.upload_loc_none_msg, R.string.upload_loc_retry)
+        }
+        StaryDialog(
+            onDismissRequest = { locationProblem = null },
+            title = { Text(stringResource(titleRes)) },
+            text = { Text(stringResource(msgRes)) },
+            confirmButton = {
+                StaryButton(stringResource(actionRes), compact = true, onClick = {
+                    locationProblem = null
+                    when (problem) {
+                        LocationHelper.UploadFix.NoPermission -> locPermLauncher.launch(
+                            arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                        )
+                        LocationHelper.UploadFix.LocationOff -> runCatching {
+                            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        }
+                        else -> submit()
+                    }
+                })
+            },
+            dismissButton = {
+                StaryButton(stringResource(R.string.common_cancel), { locationProblem = null }, kind = StaryButtonKind.Ghost, compact = true)
+            },
+        )
+    }
+
     val bgScroll = rememberBackgroundScroll()
     Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize()) {
-        ScreenBackground(R.drawable.upload_bg, darken = 0.82f, scroll = bgScroll)
+        // 시트 유리가 비출 본문(배경 + 입력) — 시트는 이 Box 의 바깥(형제)에 둔다.
+        Box(Modifier.fillMaxSize().hazeSource(sheetHaze)) {
+            ScreenBackground(R.drawable.upload_bg, darken = 0.82f, scroll = bgScroll)
 
-        // 키보드 대응 — edge-to-edge 라 adjustResize 만으로는 창이 줄지 않는다. 스크롤 영역만 키보드 높이만큼
-        // 줄이면(imePadding) 포커스된 입력칸이 자동으로 보이는 곳까지 스크롤된다. 배경 이미지는 그대로(크롭 재계산 방지).
-        Column(
-            modifier = Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState())
-                .padding(top = LocalTopBarInset.current).padding(20.dp)
-        ) {
-            // 이미지 영역 — 디테일 화면과 동일한 고정 비율 프레임.
-            // 사진 선택 시 이 프레임이 곧 '크롭될 영역'이며, 드래그/핀치로 위치·확대 지정.
-            Box(
-                modifier = Modifier.fillMaxWidth().aspectRatio(ImageCropHelper.ASPECT)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                    // 업로드 중에는 첨부를 새로 고르지 못하게 막는다(저장 중 값 변경 방지).
-                    .then(
-                        if (selectedImageUri == null && boomerangFrames.isEmpty())
-                            Modifier.clickable(enabled = !isUploading) { showImageSourceDialog = true }
-                        else Modifier
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                when {
-                    // 사진도 3초 움짤도 같은 프레임 — 드래그로 위치, 두 손가락으로 확대/축소.
-                    selectedImageUri != null || boomerangFrames.isNotEmpty() ->
-                        ImageCropFrame(
-                            controller = cropController,
-                            modifier = Modifier.matchParentSize(),
-                            // 크롭 결과는 저장 시작 시점에 이미 확정되므로, 업로드 중 드래그를 허용하면
-                            // 화면만 움직이고 실제 올라가는 그림은 그대로라 어긋난다.
-                            enabled = !isUploading,
-                        )
-                    else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Filled.CameraAlt, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(36.dp))
-                        Spacer(Modifier.height(8.dp))
-                        Text(stringResource(R.string.upload_add_photo), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
-                    }
-                }
-            }
-
-            if (selectedImageUri != null || boomerangFrames.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    // 업로드 중에는 사진 재선택 잠금.
-                    TextButton(onClick = { showImageSourceDialog = true }, enabled = !isUploading) {
-                        Text(
-                            stringResource(R.string.upload_reselect),
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = if (isUploading) 0.5f else 1f),
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it.take(StaryConfig.DIARY_TITLE_MAX_LEN) },
-                label = { Text(stringResource(R.string.field_title)) },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                // 업로드 중 제목 수정 잠금 — 저장에 쓰인 값과 화면이 어긋나지 않게(포커스/키보드도 함께 내려간다).
-                enabled = !isUploading,
-                shape = RoundedCornerShape(12.dp), colors = fieldColors,
-                supportingText = {
-                    Text(
-                        "${title.length}/${StaryConfig.DIARY_TITLE_MAX_LEN}",
-                        color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp,
-                        modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.End
-                    )
-                },
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = content,
-                onValueChange = { content = it.take(StaryConfig.DIARY_CONTENT_MAX_LEN) },
-                label = { Text(stringResource(R.string.upload_content_label)) },
-                modifier = Modifier.fillMaxWidth().height(160.dp),
-                // 업로드 중 본문 수정 잠금(제목과 동일).
-                enabled = !isUploading,
-                shape = RoundedCornerShape(12.dp), colors = fieldColors,
-                supportingText = {
-                    Text(
-                        "${content.length}/${StaryConfig.DIARY_CONTENT_MAX_LEN}",
-                        color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp,
-                        modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.End
-                    )
-                },
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            // ── 별 모양 휠 — iOS WheelPicker 패리티(중앙 선택·민트 링·무한 순환) ──
-            Text(stringResource(R.string.upload_star_shape), color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
-                modifier = Modifier.align(Alignment.CenterHorizontally))
-            Spacer(Modifier.height(10.dp))
-
-            // 휠 칸 → 별 모양 번호: 내장 0~20 뒤에 별빛 공방(성운 상자)에서 얻은 모양을 붙인다.
-            val shapeIds = remember(com.chaminwoo.stary.feature.starlight.StarlightStore.ownedShapeTypes) {
-                (0 until StarStyle.TYPE_COUNT) + com.chaminwoo.stary.feature.starlight.StarlightStore.ownedShapeTypes.filter { it >= StarStyle.TYPE_COUNT }
-            }
-            StarWheelPicker(
-                count = shapeIds.size,
-                selection = shapeIds.indexOf(starType).coerceAtLeast(0),
-                onSelect = { starType = shapeIds[it] },
-                itemSize = 40.dp,
-                // 업로드 진행 중에는 별 모양도 공개 범위와 마찬가지로 바꿀 수 없게 잠근다.
-                enabled = !isUploading,
-                onLanded = { pos ->
-                    StarUnlocks.lockedShapeAch(shapeIds[pos], unlockedIds)?.let {
-                        com.chaminwoo.stary.core.ui.StaryToast.show(
-                            context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))
-                        )
-                    }
-                }
-            ) { pos ->
-                val type = shapeIds[pos]
-                val locked = StarUnlocks.lockedShapeAch(type, unlockedIds) != null
-                Box(contentAlignment = Alignment.Center) {
-                    StarShapeIcon(
-                        type = type, colorIndex = starColor,
-                        modifier = Modifier.size(40.dp).alpha(if (locked) 0.25f else 1f)
-                    )
-                    if (locked) {
-                        Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
-                            tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(14.dp))
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── 별 색상 휠 — iOS WheelPicker 패리티 ──
-            Text(stringResource(R.string.upload_star_color), color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
-                modifier = Modifier.align(Alignment.CenterHorizontally))
-            Spacer(Modifier.height(10.dp))
-
-            // 휠 칸 → 별 색 번호: 내장 0~20 뒤에 별빛 공방에서 얻은 색.
-            val colorIds = remember(com.chaminwoo.stary.feature.starlight.StarlightStore.ownedColorIndices) {
-                (0 until StarStyle.COLOR_COUNT) + com.chaminwoo.stary.feature.starlight.StarlightStore.ownedColorIndices.filter { it >= StarStyle.COLOR_COUNT }
-            }
-            StarWheelPicker(
-                count = colorIds.size,
-                selection = colorIds.indexOf(starColor).coerceAtLeast(0),
-                onSelect = { starColor = colorIds[it] },
-                itemSize = 32.dp,
-                // 업로드 진행 중에는 별 색도 바꿀 수 없게 잠근다.
-                enabled = !isUploading,
-                onLanded = { pos ->
-                    StarUnlocks.lockedColorAch(colorIds[pos], unlockedIds)?.let {
-                        com.chaminwoo.stary.core.ui.StaryToast.show(
-                            context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))
-                        )
-                    }
-                }
-            ) { pos ->
-                val colorIdx = colorIds[pos]
-                val locked = StarUnlocks.lockedColorAch(colorIdx, unlockedIds) != null
-                val colorList = StarStyle.colorsOf(colorIdx)
-                val colorBrush = if (colorList.size > 1) androidx.compose.ui.graphics.Brush.linearGradient(colorList)
-                                 else androidx.compose.ui.graphics.SolidColor(colorList[0])
-                Box(contentAlignment = Alignment.Center) {
-                    Box(
-                        Modifier
-                            .size(32.dp)
-                            .alpha(if (locked) 0.25f else 1f)
-                            .clip(CircleShape)
-                            .background(colorBrush)
-                    )
-                    if (locked) {
-                        Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
-                            tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(12.dp))
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ── 공개 범위 ─────────────────────────────────────────────────
-            Text(stringResource(R.string.upload_visibility), color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp,
-                modifier = Modifier.align(Alignment.CenterHorizontally))
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                VisibilityOptions.forEach { (key, labelRes, icon) ->
-                    val selected = visibilityType == key
-                    Box(
-                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                            .background(if (selected) Color.White.copy(alpha = 0.15f) else Color.Transparent)
-                            .border(
-                                if (selected) 2.dp else 1.dp,
-                                if (selected) Color(0xFF9FB3E8) else MaterialTheme.colorScheme.outline,
-                                RoundedCornerShape(10.dp)
-                            )
-                            // 업로드 진행 중에는 공개 범위를 바꿀 수 없게 잠근다(저장 중 값 변경 방지).
-                            .clickable(enabled = !isUploading) { visibilityType = key }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(icon, null, tint = if (selected) Color(0xFF9FB3E8) else MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
-                            Text(stringResource(labelRes), fontSize = 12.sp, color = if (selected) Color(0xFF9FB3E8) else MaterialTheme.colorScheme.secondary)
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            val submit: () -> Unit = submit@{
-                if (title.isBlank()) { uploadFail("no_title"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_title_required)); return@submit }
-                // 부적절한 표현 필터(App Store 1.2) — 제목·본문 중 하나라도 걸리면 올리지 않는다.
-                if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(title, content)) { uploadFail("filter"); com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)); return@submit }
-                // 하루 업로드 제한(로그인 사용자 기준). 오늘 로컬 자정 이후 내가 올린 개수로 선차단.
-                if (isLoggedIn) {
-                    val startOfDay = java.util.Calendar.getInstance().apply {
-                        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
-                        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
-                    }.timeInMillis
-                    val todayCount = myDiaries.count { it.createdAt >= startOfDay }
-                    if (todayCount >= StaryConfig.DAILY_UPLOAD_LIMIT) {
-                        uploadFail("daily_limit")
-                        com.chaminwoo.stary.core.ui.StaryToast.show(
-                            context.getString(R.string.upload_daily_limit, StaryConfig.DAILY_UPLOAD_LIMIT)
-                        )
-                        return@submit
-                    }
-                }
-                StarUnlocks.lockedShapeAch(starType, unlockedIds)?.let {
-                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@submit
-                }
-                StarUnlocks.lockedColorAch(starColor, unlockedIds)?.let {
-                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))); return@submit
-                }
-                coroutineScope.launch {
-                    isUploading = true
-                    // 실제 위치를 못 잡으면(권한 없음·위치 꺼짐·모의 위치) 올리지 않는다 — 예전엔 (0,0) 으로 저장돼
-                    // 지도에서 안 보이는 별이 생겼다(지도는 (0,0) 을 거른다). 2026-10-23 완화: 대략적인 위치·최근 위치도 쓰고,
-                    // 실패하면 토스트 대신 이유별 안내(권한 허용 / 위치 켜기 / 다시 시도)를 띄운다 — 쓴 글은 그대로 남는다.
-                    val fix = LocationHelper.locateForUpload(context)
-                    if (fix !is LocationHelper.UploadFix.Ok) {
-                        uploadFail(
-                            when (fix) {
-                                LocationHelper.UploadFix.NoPermission -> "no_location_permission"
-                                LocationHelper.UploadFix.LocationOff -> "no_location_off"
-                                LocationHelper.UploadFix.Mock -> "no_location_mock"
-                                else -> "no_location"
-                            }
-                        )
-                        locationProblem = fix
-                        isUploading = false; return@launch
-                    }
-                    val lat = fix.latitude
-                    val lng = fix.longitude
-                    // 작성자 이름은 서버에서 확인한 닉네임 — 기기 첫 실행 직후 구글 기본 이름이 박히지 않게(CLAUDE.md §2.6).
-                    // 첨부 업로드 전에 확인해 Storage 에 주인 없는 파일이 남지 않게 한다.
-                    val uName = if (!isLoggedIn) "익명" else GoogleAuthHelper.requireConfirmedName() ?: run {
-                        uploadFail("profile_not_ready")
-                        isUploading = false; return@launch
-                    }
-                    // 첨부는 영상/이미지 중 하나(배타). 영상이 있으면 영상 우선.
-                    var imageUrl = ""
-                    var videoUrl = ""
-                    when {
-                        boomerangFrames.isNotEmpty() -> {
-                            // 부메랑 움짤(GIF) — 지금 프레임에서 보이는 그대로 잘라 인코딩한 뒤
-                            // videoUrl 필드에 저장(스키마 유지, .gif 로 판별).
-                            val gif = withContext(Dispatchers.Default) {
-                                runCatching {
-                                    val cropped = BoomerangHelper.cropFrames(
-                                        boomerangFrames,
-                                        cropController.frame.width.toFloat(),
-                                        cropController.frame.height.toFloat(),
-                                        cropController.scale, cropController.offset.x, cropController.offset.y,
-                                    )
-                                    BoomerangHelper.encodeToFile(context, cropped)
-                                }.getOrNull()
-                            }
-                            if (gif == null) {
-                                uploadFail("gif_encode")
-                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.boomer_failed))
-                                isUploading = false; return@launch
-                            }
-                            val result = ImageUploadHelper.uploadGifResult(context, gif)
-                            if (!result.isSuccess) {
-                                uploadFail("media_upload")
-                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
-                                isUploading = false; return@launch
-                            }
-                            videoUrl = result.url!!
-                        }
-                        selectedImageUri != null -> {
-                            // 크롭 프레임 상태로 잘라낸 이미지를 업로드(실패 시 원본으로 폴백).
-                            val uploadUri = withContext(Dispatchers.IO) {
-                                val bmp = cropController.first
-                                if (bmp != null && cropController.frame.width > 0) {
-                                    ImageCropHelper.cropToFile(
-                                        context, bmp,
-                                        cropController.frame.width.toFloat(), cropController.frame.height.toFloat(),
-                                        cropController.scale, cropController.offset.x, cropController.offset.y
-                                    )
-                                } else null
-                            } ?: selectedImageUri!!
-                            val result = ImageUploadHelper.uploadImageResult(context, uploadUri)
-                            if (!result.isSuccess) {
-                                uploadFail("media_upload")
-                                com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_image_upload_failed, result.error ?: ""))
-                                isUploading = false; return@launch
-                            }
-                            imageUrl = result.url!!
-                        }
-                    }
-                    pioneerClaimTarget = lat to lng // 저장 성공 이벤트에서 개척 선점 시도(체크리스트 32)
-                    savedWithMedia = imageUrl.isNotEmpty() || videoUrl.isNotEmpty()
-                    savedStacked = allDiaries.any {
-                        com.chaminwoo.stary.core.util.LocationHelper.distanceBetween(lat, lng, it.latitude, it.longitude) <=
-                            com.chaminwoo.stary.shared.config.StaryConfig.STAR_MERGE_RADIUS_M
-                    }
-                    val toSave = Diary(
-                        id = diaryId,
-                        title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
-                        userId = GoogleAuthHelper.currentUserId ?: "",
-                        userName = uName,
-                        latitude = lat, longitude = lng,
-                        starType = starType, starColor = starColor,
-                        visibilityType = visibilityType
-                    )
-                    lastAttempt = toSave
-                    diaryViewModel.saveDiary(toSave) // isUploading 은 저장 결과 이벤트에서 푼다
-                }
-            }
-
-            // 서버 응답이 20초 넘게 없음 — 쓴 글·첨부는 그대로 두고, 같은 별(번호·첨부)로 다시 보낼 수 있게.
-            if (showSlowSave) {
-                AlertDialog(
-                    onDismissRequest = { showSlowSave = false },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    title = { Text(stringResource(R.string.upload_slow_title), color = MaterialTheme.colorScheme.onBackground) },
-                    text = { Text(stringResource(R.string.upload_slow_msg), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showSlowSave = false
-                            lastAttempt?.let { isUploading = true; diaryViewModel.saveDiary(it) }
-                        }) { Text(stringResource(R.string.upload_loc_retry), color = MaterialTheme.colorScheme.onBackground) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showSlowSave = false }) {
-                            Text(stringResource(R.string.common_confirm), color = MaterialTheme.colorScheme.secondary)
-                        }
-                    },
-                )
-            }
-
-            // 업로드 위치 실패 안내 — 이유별 행동(권한 요청 / 위치 설정 / 다시 시도).
-            val locPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
-                if (res.values.any { it }) {
-                    // 대략적인 위치로 시작했던 추적이면 새 권한(정확한 위치)에 맞춰 다시 시작
-                    LocationHelper.stopContinuousUpdates(context)
-                    LocationHelper.startContinuousUpdates(context)
-                    submit()
-                } else {
-                    // "다시 묻지 않음"이면 시스템 창이 안 뜬다 → 앱 설정 화면에서 직접 허용하게
-                    val act = context.findActivity()
-                    if (act != null && !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(act, android.Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-                            )
-                        }
-                    }
-                }
-            }
-            locationProblem?.let { problem ->
-                val (titleRes, msgRes, actionRes) = when (problem) {
-                    LocationHelper.UploadFix.NoPermission -> Triple(R.string.upload_loc_perm_title, R.string.upload_loc_perm_msg, R.string.upload_loc_perm_btn)
-                    LocationHelper.UploadFix.LocationOff -> Triple(R.string.upload_loc_off_title, R.string.upload_loc_off_msg, R.string.upload_loc_off_btn)
-                    LocationHelper.UploadFix.Mock -> Triple(R.string.upload_loc_mock_title, R.string.upload_loc_mock_msg, R.string.upload_loc_retry)
-                    else -> Triple(R.string.upload_loc_none_title, R.string.upload_loc_none_msg, R.string.upload_loc_retry)
-                }
-                AlertDialog(
-                    onDismissRequest = { locationProblem = null },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    title = { Text(stringResource(titleRes), color = MaterialTheme.colorScheme.onBackground) },
-                    text = { Text(stringResource(msgRes), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            locationProblem = null
-                            when (problem) {
-                                LocationHelper.UploadFix.NoPermission -> locPermLauncher.launch(
-                                    arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)
-                                )
-                                LocationHelper.UploadFix.LocationOff -> runCatching {
-                                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            // 아래 여백은 한 번만 — 키보드가 있으면 키보드 높이, 없으면 내비게이션 바(ChatScreen 입력 바와 같은 방식).
+            // 저장 버튼은 스크롤 영역 **밖** 아래 칸이라 키보드 위로 따라 올라오고, 입력 중인 줄을 가리지 않는다.
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .fadeEdges(bottom = 28.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(top = LocalTopBarInset.current)
+                        .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp)
+                ) {
+                    // 쓰다 나간 글 — 이어 쓰거나 지운다(고르기 전엔 아무것도 덮어쓰지 않는다).
+                    // 새로 쓰기 시작하면 숨긴다 — 그 상태에서 눌러 지금 쓴 글이 옛 글로 덮이지 않게.
+                    AnimatedVisibility(pendingDraft != null && !hasText) {
+                        DraftStrip(
+                            onRestore = {
+                                pendingDraft?.let { d ->
+                                    title = d.title; content = d.content
+                                    starType = d.starType; starColor = d.starColor
+                                    visibilityType = d.visibility
                                 }
-                                else -> submit()
+                                pendingDraft = null
+                            },
+                            onDiscard = {
+                                UploadDraftStore.clear(context, draftUid)
+                                pendingDraft = null
+                            },
+                        )
+                    }
+
+                    // ── 첨부 — 없으면 얇은 한 줄, 고르면 상세 화면과 같은 고정 비율 크롭 프레임 ──
+                    if (hasMedia) {
+                        // 이 프레임이 곧 '잘릴 영역' — 드래그로 위치, 두 손가락으로 확대/축소(사진·3초 움짤 공용).
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(ImageCropHelper.ASPECT)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(FieldFill)
+                        ) {
+                            ImageCropFrame(
+                                controller = cropController,
+                                modifier = Modifier.matchParentSize(),
+                                // 크롭 결과는 저장 시작 시점에 이미 확정되므로, 업로드 중 드래그를 허용하면
+                                // 화면만 움직이고 실제 올라가는 그림은 그대로라 어긋난다.
+                                enabled = !isUploading,
+                            )
+                            // 첨부 지우기 — iOS clearMediaButton 패리티.
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.45f))
+                                    .clickable(enabled = !isUploading) { clearMedia() },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.upload_clear_media), tint = Color.White, modifier = Modifier.size(16.dp))
                             }
-                        }) { Text(stringResource(actionRes), color = MaterialTheme.colorScheme.onBackground) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { locationProblem = null }) {
-                            Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary)
                         }
-                    },
+                        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.upload_crop_hint), color = StaryColors.Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            // 업로드 중에는 사진 재선택 잠금.
+                            TextButton(onClick = { showImageSourceDialog = true }, enabled = !isUploading) {
+                                Text(stringResource(R.string.upload_reselect), color = StaryColors.Accent.copy(alpha = if (isUploading) 0.5f else 1f), fontSize = 13.sp)
+                            }
+                        }
+                    } else {
+                        AddMediaRow(enabled = !isUploading) { showImageSourceDialog = true }
+                    }
+
+                    Spacer(Modifier.height(26.dp))
+
+                    // ── 제목 — 이 글이 될 별을 도장처럼 앞에 찍는다(휠을 돌리면 같이 바뀐다) ──
+                    // 업로드 중 수정 잠금 — 저장에 쓰인 값과 화면이 어긋나지 않게.
+                    TitleField(
+                        value = title,
+                        onValueChange = { title = it.take(StaryConfig.DIARY_TITLE_MAX_LEN) },
+                        starType = starType, starColor = starColor,
+                        enabled = !isUploading,
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    BodyField(
+                        value = content,
+                        onValueChange = { content = it.take(StaryConfig.DIARY_CONTENT_MAX_LEN) },
+                        enabled = !isUploading,
+                    )
+
+                    Hairline(Modifier.padding(top = 18.dp, bottom = 20.dp))
+
+                    // ── 별 모양 휠 — 이름 옆 '모두 보기'(격자 시트) ──
+                    SectionHeader(stringResource(R.string.upload_star_shape), enabled = !isUploading) { pickerTab = 0; pickerOpen = true }
+                    Spacer(Modifier.height(6.dp))
+                    StarWheelPicker(
+                        count = shapeIds.size,
+                        selection = shapeIds.indexOf(starType).coerceAtLeast(0),
+                        onSelect = { starType = shapeIds[it] },
+                        itemSize = 40.dp,
+                        // 업로드 진행 중에는 별 모양도 공개 범위와 마찬가지로 바꿀 수 없게 잠근다.
+                        enabled = !isUploading,
+                        onLanded = { pos ->
+                            StarUnlocks.lockedShapeAch(shapeIds[pos], unlockedIds)?.let {
+                                com.chaminwoo.stary.core.ui.StaryToast.show(
+                                    context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))
+                                )
+                            }
+                        }
+                    ) { pos ->
+                        val type = shapeIds[pos]
+                        val locked = StarUnlocks.lockedShapeAch(type, unlockedIds) != null
+                        Box(contentAlignment = Alignment.Center) {
+                            StarShapeIcon(
+                                type = type, colorIndex = starColor,
+                                modifier = Modifier.size(40.dp).alpha(if (locked) 0.25f else 1f)
+                            )
+                            if (locked) {
+                                Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
+                                    tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+
+                    // ── 별 색 휠 ──
+                    SectionHeader(stringResource(R.string.upload_star_color), enabled = !isUploading) { pickerTab = 1; pickerOpen = true }
+                    Spacer(Modifier.height(6.dp))
+                    StarWheelPicker(
+                        count = colorIds.size,
+                        selection = colorIds.indexOf(starColor).coerceAtLeast(0),
+                        onSelect = { starColor = colorIds[it] },
+                        itemSize = 32.dp,
+                        // 업로드 진행 중에는 별 색도 바꿀 수 없게 잠근다.
+                        enabled = !isUploading,
+                        onLanded = { pos ->
+                            StarUnlocks.lockedColorAch(colorIds[pos], unlockedIds)?.let {
+                                com.chaminwoo.stary.core.ui.StaryToast.show(
+                                    context.getString(R.string.toast_unlock_achievement, com.chaminwoo.stary.core.util.LocalizedNames.title(context, it.id, it.name))
+                                )
+                            }
+                        }
+                    ) { pos ->
+                        val colorIdx = colorIds[pos]
+                        val locked = StarUnlocks.lockedColorAch(colorIdx, unlockedIds) != null
+                        val colorList = StarStyle.colorsOf(colorIdx)
+                        val colorBrush = if (colorList.size > 1) Brush.linearGradient(colorList) else SolidColor(colorList[0])
+                        Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                Modifier
+                                    .size(32.dp)
+                                    .alpha(if (locked) 0.25f else 1f)
+                                    .clip(CircleShape)
+                                    .background(colorBrush)
+                            )
+                            if (locked) {
+                                Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.cd_locked),
+                                    tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(12.dp))
+                            }
+                        }
+                    }
+                    OwnedOnlyToggle(
+                        checked = ownedOnly, onChange = setOwnedOnly,
+                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp),
+                    )
+
+                    Hairline(Modifier.padding(top = 16.dp, bottom = 20.dp))
+
+                    // ── 공개 범위 — 면으로만 나눈 선택 줄. 업로드 진행 중에는 바꿀 수 없게 잠근다 ──
+                    SectionHeader(stringResource(R.string.upload_visibility))
+                    Spacer(Modifier.height(10.dp))
+                    StarySegmented(
+                        options = VisibilityOptions.map { (_, labelRes, icon) -> stringResource(labelRes) to icon },
+                        selected = VisibilityOptions.indexOfFirst { it.first == visibilityType }.coerceAtLeast(0),
+                        onSelect = { visibilityType = VisibilityOptions[it].first },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isUploading,
+                    )
+                }
+
+                // ── 저장 — 화면 아래 고정(스크롤해도 늘 보인다) ──
+                StaryButton(
+                    text = stringResource(R.string.common_save),
+                    onClick = submit,
+                    enabled = !isUploading,
+                    loading = isUploading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 12.dp),
                 )
             }
-
-            Button(
-                onClick = submit,
-                enabled = !isUploading,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onBackground, contentColor = MaterialTheme.colorScheme.background)
-            ) {
-                if (isUploading) com.chaminwoo.stary.core.ui.StarLoadingIndicator(size = 22.dp, color = MaterialTheme.colorScheme.background)
-                else Text(stringResource(R.string.common_save), fontWeight = FontWeight.Light, fontSize = 15.sp)
-            }
-
-            Spacer(Modifier.height(32.dp))
         }
+
+        StarPickerSheet(
+            visible = pickerOpen,
+            tab = pickerTab,
+            onTab = { pickerTab = it },
+            hazeState = sheetHaze,
+            starType = starType,
+            starColor = starColor,
+            shapeIds = allShapeIds,
+            colorIds = allColorIds,
+            unlockedIds = unlockedIds,
+            ownedOnly = ownedOnly,
+            onOwnedOnly = setOwnedOnly,
+            onPickShape = { starType = it },
+            onPickColor = { starColor = it },
+            onDismiss = { pickerOpen = false },
+        )
 
         // 부메랑(3초 움짤) 커스텀 촬영 — 전체 화면 오버레이
         if (showBoomerangCapture) {
@@ -717,6 +774,144 @@ fun UploadScreen(
                 },
                 onClose = { showBoomerangCapture = false },
             )
+        }
+    }
+}
+
+// 입력칸·첨부 줄의 바탕 — 테두리 없이 반투명 남색 면(별하늘 배경이 은은히 비친다).
+private val FieldFill = Color(0x99181E34)
+private val Placeholder = StaryColors.Muted.copy(alpha = 0.7f)
+
+/** 첨부가 없을 때의 얇은 한 줄 — 누르면 촬영/갤러리/3초 영상 고르기. 오른쪽 작은 아이콘이 세 가지를 알려 준다. */
+@Composable
+private fun AddMediaRow(enabled: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(FieldFill)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp)
+            .alpha(if (enabled) 1f else 0.5f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null, tint = StaryColors.Accent, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(stringResource(R.string.upload_add_photo), color = StaryColors.Text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        listOf(Icons.Filled.CameraAlt, Icons.Filled.Photo, Icons.Filled.Videocam).forEach {
+            Icon(it, contentDescription = null, tint = StaryColors.Muted.copy(alpha = 0.7f), modifier = Modifier.padding(start = 8.dp).size(15.dp))
+        }
+    }
+}
+
+/** 별 도장 + 제목 한 줄 + 밑줄(누르고 있으면 별빛색). */
+@Composable
+private fun TitleField(value: String, onValueChange: (String) -> Unit, starType: Int, starColor: Int, enabled: Boolean) {
+    var focused by remember { mutableStateOf(false) }
+    val line by animateColorAsState(if (focused) StaryColors.Accent.copy(alpha = 0.7f) else StaryColors.Line, label = "titleLine")
+    val style = TextStyle(color = StaryColors.Text, fontFamily = MinSans, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+    Column(Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.5f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StarShapeIcon(type = starType, colorIndex = starColor, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.width(12.dp))
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                enabled = enabled,
+                singleLine = true,
+                textStyle = style,
+                cursorBrush = SolidColor(StaryColors.Accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { focused = it.isFocused }
+                    .padding(vertical = 10.dp),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isEmpty()) Text(stringResource(R.string.field_title), style = style.copy(color = Placeholder))
+                        inner()
+                    }
+                },
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(line))
+        Counter(value.length, StaryConfig.DIARY_TITLE_MAX_LEN, Modifier.align(Alignment.End))
+    }
+}
+
+/** 본문 — 바탕 없이 글만(편지지처럼). 빈 곳을 눌러도 입력이 시작되게 최소 높이를 둔다. */
+@Composable
+private fun BodyField(value: String, onValueChange: (String) -> Unit, enabled: Boolean) {
+    val style = TextStyle(color = StaryColors.Text, fontFamily = MinSans, fontSize = 15.sp, lineHeight = 24.sp)
+    Column(Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.5f)) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
+            textStyle = style,
+            cursorBrush = SolidColor(StaryColors.Accent),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 132.dp),
+            decorationBox = { inner ->
+                Box {
+                    if (value.isEmpty()) Text(stringResource(R.string.upload_content_label), style = style.copy(color = Placeholder))
+                    inner()
+                }
+            },
+        )
+        Counter(value.length, StaryConfig.DIARY_CONTENT_MAX_LEN, Modifier.align(Alignment.End))
+    }
+}
+
+@Composable
+private fun Counter(length: Int, max: Int, modifier: Modifier = Modifier) {
+    Text("$length/$max", color = Placeholder, fontSize = 11.sp, modifier = modifier.padding(top = 4.dp))
+}
+
+/** 묶음 이름(왼쪽) + '모두 보기'(오른쪽, 있을 때만). */
+@Composable
+private fun SectionHeader(label: String, enabled: Boolean = true, onSeeAll: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = StaryColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        if (onSeeAll != null) {
+            Text(
+                stringResource(R.string.upload_see_all),
+                color = StaryColors.Accent.copy(alpha = if (enabled) 1f else 0.5f),
+                fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(enabled = enabled, onClick = onSeeAll)
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun Hairline(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().height(1.dp).background(StaryColors.Line.copy(alpha = 0.7f)))
+}
+
+/** 쓰다 나간 글이 있을 때 맨 위 한 줄 — 이어 쓰기 / 지우기. */
+@Composable
+private fun DraftStrip(onRestore: () -> Unit, onDiscard: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 14.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(StaryColors.Accent.copy(alpha = 0.10f))
+            .padding(start = 14.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.EditNote, contentDescription = null, tint = StaryColors.Accent, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(stringResource(R.string.upload_draft_found), color = StaryColors.Text, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        TextButton(onClick = onDiscard) {
+            Text(stringResource(R.string.upload_draft_discard), color = StaryColors.Muted, fontSize = 13.sp)
+        }
+        TextButton(onClick = onRestore) {
+            Text(stringResource(R.string.upload_draft_restore), color = StaryColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -837,127 +1032,6 @@ private fun ImageCropFrame(
             drawLine(guide, Offset(fw * 2f / 3f, 0f), Offset(fw * 2f / 3f, fh), sw)
             drawLine(guide, Offset(0f, fh / 3f), Offset(fw, fh / 3f), sw)
             drawLine(guide, Offset(0f, fh * 2f / 3f), Offset(fw, fh * 2f / 3f), sw)
-        }
-    }
-}
-
-/**
- * 별 모양/색 선택용 무한 회전 휠 — iOS `UploadScreen.WheelPicker` 구조 패리티.
- * 선택 항목이 항상 정중앙(민트 링), 좌우로 5개 정도 노출, 끝까지 돌리면 처음 항목이 다시 나온다(modulo 순환).
- * 놓은/탭한 지점의 항목을 놓은 자리에서 그대로 중앙으로 스냅하고, 스냅이 끝난 뒤 selection 을 한 번에 갱신
- * (좌표 불연속으로 되돌아가는 현상 방지). 잠긴 항목도 중앙 고정되며, 저장 차단은 호출부가 담당한다.
- */
-@Composable
-private fun StarWheelPicker(
-    count: Int,
-    selection: Int,
-    onSelect: (Int) -> Unit,
-    itemSize: androidx.compose.ui.unit.Dp,
-    onLanded: (Int) -> Unit,
-    /** false 면 드래그/탭 모두 막는다(업로드 진행 중 값 변경 방지) — 시각적으로도 살짝 어둡게. */
-    enabled: Boolean = true,
-    item: @Composable (Int) -> Unit,
-) {
-    val density = LocalContext.current.resources.displayMetrics.density
-    val slotPx = (itemSize.value + 28f) * density   // 슬롯 간격(중앙 ±2 노출)
-    val coroutineScope = rememberCoroutineScope()
-
-    val drag = remember { Animatable(0f) }
-    var settling by remember { mutableStateOf(false) }
-    // 드래그 중 슬롯을 지날 때마다 딸깍(햅틱) — 중복 방지용 마지막 눈금.
-    var tickedStep by remember { mutableStateOf(0) }
-
-    fun wrap(i: Int): Int = ((i % count) + count) % count
-
-    // 놓은(또는 탭한) 지점의 항목을 놓은 자리에서 중앙으로 스냅 → 끝난 뒤 selection 갱신(시각적 점프 없음).
-    fun commit(steps: Int) {
-        // 반 슬롯을 못 넘긴 드래그(steps=0)도 반드시 원위치로 되돌린다 —
-        // 그냥 return 하면 drag 가 남아 항목과 항목 **사이**에 멈춘 채 고정된다(iOS 와 동일 수정).
-        if (steps == 0) {
-            if (drag.value != 0f) {
-                coroutineScope.launch { drag.animateTo(0f, tween(180, easing = FastOutSlowInEasing)) }
-            }
-            return
-        }
-        settling = true
-        val target = wrap(selection + steps)
-        coroutineScope.launch {
-            drag.animateTo(-steps * slotPx, tween(240, easing = FastOutSlowInEasing))
-            onSelect(target)      // off=steps 였던 항목이 이제 off=0
-            drag.snapTo(0f)       // 좌표 동일 → 시각적 점프 없음
-            settling = false
-            onLanded(target)
-        }
-    }
-
-    // 화면에 그릴 슬롯 반경 — 기본 3(±3) + 현재 드래그 이동량만큼 여유(많이 돌려도 빈칸 없이 채움).
-    val visibleSpan = 3 + ceil(abs(drag.value) / slotPx).toInt()
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(itemSize * 1.7f)
-            .clipToBounds()
-            .alpha(if (enabled) 1f else 0.5f)
-            .then(
-                if (enabled) Modifier.pointerInput(count, selection) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { },
-                        onHorizontalDrag = { _, delta ->
-                            if (!settling) {
-                                coroutineScope.launch { drag.snapTo(drag.value + delta) }
-                                val step = (-drag.value / slotPx).roundToInt()
-                                if (step != tickedStep) {
-                                    tickedStep = step
-                                    com.chaminwoo.stary.core.util.Haptics.tick()
-                                }
-                            }
-                        },
-                        onDragEnd = {
-                            val steps = (-drag.value / slotPx).roundToInt()
-                            tickedStep = 0
-                            commit(steps)
-                        },
-                        onDragCancel = {
-                            val steps = (-drag.value / slotPx).roundToInt()
-                            tickedStep = 0
-                            commit(steps)
-                        }
-                    )
-                } else Modifier
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        // 중앙 강조 링(선택 자리).
-        Box(
-            Modifier
-                .size(itemSize + 18.dp)
-                .clip(CircleShape)
-                .border(2.dp, Color(0xFF9FB3E8).copy(alpha = 0.9f), CircleShape)
-        )
-
-        for (off in -visibleSpan..visibleSpan) {
-            val idx = wrap(selection + off)
-            val x = off * slotPx + drag.value
-            val dist = abs(x)
-            val scale = max(0.55f, 1.25f - dist / slotPx * 0.35f)
-            val itemAlpha = max(0.3f, 1f - dist / (slotPx * 2.2f))
-            Box(
-                modifier = Modifier
-                    .graphicsLayer {
-                        translationX = x
-                        scaleX = scale; scaleY = scale
-                        alpha = itemAlpha
-                    }
-                    .clickable(
-                        enabled = enabled,
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { commit(off) },
-                contentAlignment = Alignment.Center
-            ) {
-                item(idx)
-            }
         }
     }
 }

@@ -5,6 +5,8 @@ import Foundation
 @MainActor
 final class FriendsViewModel: ObservableObject {
     @Published var friends: [Friend] = []
+    /// 친구 목록 첫 응답을 받았는지 — 받기 전의 빈 목록은 "친구 없음"이 아니라 "불러오는 중"(자리 표시).
+    @Published var friendsLoaded = false
     @Published var requests: [FriendRequest] = []
     @Published var results: [UserProfile] = []
     @Published var searching = false
@@ -57,6 +59,7 @@ final class FriendsViewModel: ObservableObject {
             FirestoreService.friends(of: uid).addSnapshotListener { [weak self] snap, _ in
                 let base = snap?.documents.compactMap { try? $0.data(as: Friend.self) } ?? []
                 self?.friends = base
+                self?.friendsLoaded = true
                 // friends 문서는 요청/수락 시점의 스냅샷이라 이후 상대가 이름/사진을 바꾸면 낡은 값이 남는다.
                 // users/{friendUid} 의 현재 공개 프로필로 덮어써서 항상 최신 이름/사진이 보이게 한다. (Android observeFriends 패리티)
                 Task { [weak self] in
@@ -150,6 +153,8 @@ final class FriendsViewModel: ObservableObject {
             // (Android FirebaseFriendRepository.sendRequest 와 동일 — 중복 요청일 땐 위에서 return.)
             await Self.notifyFriendRequest(actorId: fromId, actorName: fromName, toId: to.userId)
             QuestStore.report(.friendRequest)
+            // 친구가 되면 그 친구의 새 별을 알려 줄 수 있게 — 알림을 켤지 물을 차례(PermissionAsk).
+            PermissionAsk.shared.requestNotificationAsk()
             return true
         } catch {
             return false
@@ -190,6 +195,7 @@ final class FriendsViewModel: ObservableObject {
         batch.deleteDocument(FirestoreService.friendRequests.document(reqId))
         try? await batch.commit()
         QuestStore.report(.friendAdd, key: r.fromId)
+        PermissionAsk.shared.requestNotificationAsk()
     }
 
     func decline(_ r: FriendRequest) async {

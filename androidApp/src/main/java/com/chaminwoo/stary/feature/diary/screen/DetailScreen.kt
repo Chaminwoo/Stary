@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,6 +87,9 @@ import com.chaminwoo.stary.core.util.rememberCurrentUserName
 import com.chaminwoo.stary.core.util.rememberCurrentUserPhoto
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.ui.StarShapeIcon
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
+import com.chaminwoo.stary.core.ui.StaryDialog
 import com.chaminwoo.stary.core.util.ImageCropHelper
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.displayContent
@@ -305,27 +307,27 @@ fun DetailScreen(
     )
 
     if (showDeleteDialog) {
-        AlertDialog(
+        StaryDialog(
             onDismissRequest = { showDeleteDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text(stringResource(R.string.detail_delete_title), color = MaterialTheme.colorScheme.onBackground) },
-            text = { Text(stringResource(R.string.detail_delete_confirm), color = MaterialTheme.colorScheme.secondary) },
+            title = { Text(stringResource(R.string.detail_delete_title)) },
+            text = { Text(stringResource(R.string.detail_delete_confirm)) },
             confirmButton = {
-                TextButton(onClick = { showDeleteDialog = false; diaryViewModel.deleteDiary(currentDiary.id) { onBack?.invoke() } }) {
-                    Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
-                }
+                StaryButton(
+                    stringResource(R.string.common_delete),
+                    { showDeleteDialog = false; diaryViewModel.deleteDiary(currentDiary.id) { onBack?.invoke() } },
+                    kind = StaryButtonKind.Danger, compact = true,
+                )
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary) }
+                StaryButton(stringResource(R.string.common_cancel), { showDeleteDialog = false }, kind = StaryButtonKind.Ghost, compact = true)
             }
         )
     }
 
     if (showEditDialog) {
-        AlertDialog(
+        StaryDialog(
             onDismissRequest = { showEditDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text(stringResource(R.string.detail_edit_title), color = MaterialTheme.colorScheme.onBackground) },
+            title = { Text(stringResource(R.string.detail_edit_title)) },
             text = {
                 Column {
                     OutlinedTextField(
@@ -351,15 +353,13 @@ fun DetailScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                StaryButton(stringResource(R.string.common_save), compact = true, onClick = {
                     if (com.chaminwoo.stary.core.util.ContentFilter.anyObjectionable(editTitle, editContent)) com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.content_blocked)) // 부적절한 표현 필터(App Store 1.2)
                     else { showEditDialog = false; diaryViewModel.updateDiary(currentDiary.copy(title = editTitle, content = editContent, visibilityType = editVisibility)) }
-                }) {
-                    Text(stringResource(R.string.common_save), color = MaterialTheme.colorScheme.onBackground)
-                }
+                })
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary) }
+                StaryButton(stringResource(R.string.common_cancel), { showEditDialog = false }, kind = StaryButtonKind.Ghost, compact = true)
             }
         )
     }
@@ -367,15 +367,12 @@ fun DetailScreen(
     blockTarget?.let { target ->
         val name = target.name.ifBlank { stringResource(R.string.common_user) }
         val blockedMsg = stringResource(R.string.toast_blocked)
-        AlertDialog(
+        StaryDialog(
             onDismissRequest = { blockTarget = null },
-            containerColor = Color(0xFF14181C),
-            titleContentColor = MaterialTheme.colorScheme.onBackground,
-            textContentColor = MaterialTheme.colorScheme.secondary,
             title = { Text(stringResource(R.string.block_confirm_title, name)) },
             text = { Text(stringResource(R.string.block_confirm_msg)) },
             confirmButton = {
-                TextButton(onClick = {
+                StaryButton(stringResource(R.string.block), kind = StaryButtonKind.Danger, compact = true, onClick = {
                     blockTarget = null
                     if (userId.isNotBlank()) reportScope.launch {
                         // 차단 = 즉시 숨김(observeBlockedIds) + 운영자 알림(reason=blocked 신고).
@@ -385,12 +382,10 @@ fun DetailScreen(
                         // 다이어리 작성자를 차단했으면 이 글도 더는 볼 수 없게 바로 나간다(지도에서도 이미 사라짐).
                         if (target.isDiaryAuthor) onBack?.invoke()
                     }
-                }) { Text(stringResource(R.string.block), color = Color(0xFFFF6B6B)) }
+                })
             },
             dismissButton = {
-                TextButton(onClick = { blockTarget = null }) {
-                    Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.secondary)
-                }
+                StaryButton(stringResource(R.string.common_cancel), { blockTarget = null }, kind = StaryButtonKind.Ghost, compact = true)
             }
         )
     }
@@ -660,7 +655,7 @@ fun DetailScreen(
                         Text(
                             shownContent,
                             style = TextStyle(
-                                fontSize = 16.sp,
+                                fontSize = 15.sp,
                                 // 26 -> 28: 카드가 없어진 만큼 행간으로 문단을 잡아 준다(긴 한글 본문 가독성).
                                 lineHeight = 28.sp,
                                 letterSpacing = 0.1.sp,

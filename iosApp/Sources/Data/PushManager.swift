@@ -50,7 +50,8 @@ final class PushRouter: ObservableObject {
  *
  * 흐름:
  *  1. 앱 시작 → [configure] 로 델리게이트 연결(AppDelegate).
- *  2. 로그인/세션 복원 → [setUser] → 권한 요청 + APNs 등록 + users/{uid}.fcmToken 기록.
+ *  2. 로그인/세션 복원 → [setUser] → (이미 허용됐으면) APNs 등록 + users/{uid}.fcmToken 기록.
+ *     알림 권한은 여기서 묻지 않는다 — 별을 올렸거나 친구를 추가한 뒤 PermissionAsk 카드가 [requestAuthorization] 을 부른다(S2).
  *     (서버 Cloud Functions 가 이 토큰으로 발송 — 토큰이 없으면 iOS 는 아무 푸시도 못 받는다.)
  *  3. 전면 수신 → 시스템 배너 억제(인앱 배너 InAppWatcher 가 담당 — Android 와 동일하게 이중 표시 방지).
  *  4. 알림 탭 → [PushRouter] 에 이동 요청.
@@ -70,7 +71,7 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
     /// 마지막으로 토큰을 서버에 확인 저장한 시각 — 포그라운드 복귀 때마다 쓰기가 나가지 않게 간격을 둔다.
     private var lastSavedAt: Date?
 
-    /// 앱 시작 직후(AppDelegate) 1회 — 델리게이트만 연결한다(권한 요청은 로그인 후 [setUser]).
+    /// 앱 시작 직후(AppDelegate) 1회 — 델리게이트만 연결한다(권한은 PermissionAsk 카드가 묻는다).
     func configure() {
         Messaging.messaging().delegate = self
         UNUserNotificationCenter.current().delegate = self
@@ -104,7 +105,8 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
     private func applyAuthorizationStatus(_ status: UNAuthorizationStatus) {
         switch status {
         case .notDetermined:
-            requestAuthorizationIfNeeded()
+            // 아직 안 물었다 — 여기서 묻지 않는다(앱을 열자마자 창이 뜨면 왜 필요한지 알 수 없다). PermissionAsk 가 때를 봐서 묻는다.
+            break
         case .authorized, .provisional, .ephemeral:
             // 이미 허용됨 — 매번 등록을 불러 둔다(토큰이 바뀌었거나 방금 설정에서 켠 경우를 모두 커버, 비용 없음).
             DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
@@ -125,6 +127,15 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
         }
     }
 
+    /// 알림 권한을 아직 묻지 않았는가 — PermissionAsk 가 알림 카드를 띄울지 정할 때.
+    static func isAuthorizationUndecided() async -> Bool {
+        await withCheckedContinuation { cont in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                cont.resume(returning: settings.authorizationStatus == .notDetermined)
+            }
+        }
+    }
+
     /// iOS 설정 앱의 이 앱 알림 화면 열기.
     @MainActor
     static func openSystemNotificationSettings() {
@@ -134,8 +145,8 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
         }
     }
 
-    /// 알림 권한 요청 + APNs 등록. (Android 의 POST_NOTIFICATIONS 요청 대응 — 로그인 후 최초 1회 팝업)
-    private func requestAuthorizationIfNeeded() {
+    /// 알림 권한 요청 + APNs 등록 — 알림 카드의 "알림 받기"(PermissionAsk). Android 의 POST_NOTIFICATIONS 요청 대응.
+    func requestAuthorization() {
         guard !didRequestAuthorization else { return }
         didRequestAuthorization = true
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in

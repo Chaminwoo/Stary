@@ -45,9 +45,9 @@ val Typography = Typography(
     titleLarge     = TextStyle(fontFamily = PoetsenOne, fontWeight = FontWeight.Normal, fontSize = 22.sp, lineHeight = 28.sp),
 
     // ── 한글 혼용 본문·UI 텍스트 ────────────────────────────────
-    titleMedium = TextStyle(fontFamily = MinSans, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.15.sp),
+    titleMedium = TextStyle(fontFamily = MinSans, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 24.sp, letterSpacing = 0.15.sp),
     titleSmall  = TextStyle(fontFamily = MinSans, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),
-    bodyLarge   = TextStyle(fontFamily = MinSans, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.5.sp),
+    bodyLarge   = TextStyle(fontFamily = MinSans, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 24.sp, letterSpacing = 0.5.sp),
     bodyMedium  = TextStyle(fontFamily = MinSans, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.25.sp),
     bodySmall   = TextStyle(fontFamily = MinSans, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.4.sp),
     labelLarge  = TextStyle(fontFamily = MinSans, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),

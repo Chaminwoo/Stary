@@ -46,7 +46,7 @@ struct RootView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active { Task { await AppUpdateChecker.shared.check() } }
         }
-        .font(.minSans(16))   // 앱 기본 폰트(Android bodyLarge = MinSans 16sp 대응)
+        .font(.minSans(15))   // 앱 기본 폰트(Android bodyLarge = MinSans 16sp 대응)
         // 시스템 글꼴 크기 상한 — 고정 높이 카드가 많아 그대로 두면 큰 글꼴에서 글자가 잘린다
         // (Android StaryResponsive.MAX_FONT_SCALE=1.15 대응).
         .dynamicTypeSize(...StaryResponsive.maxDynamicType)
@@ -131,6 +131,11 @@ struct MainTabView: View {
     @State private var showCoachMark = false
     /// 설정 > "도움말 다시 보기" 브리지(Android OnboardingReplayState 패리티).
     @ObservedObject private var onboardingReplay = OnboardingReplayState.shared
+    /// 권한 안내 카드(S2) — 위치는 지도 첫 진입, 알림은 별을 올렸거나 친구를 추가한 뒤.
+    @ObservedObject private var permissionAsk = PermissionAsk.shared
+    @ObservedObject private var birth = StarBirthStore.shared
+    /// 알림 카드는 차례가 온 뒤 잠깐 기다렸다 띄운다(별 탄생 연출·저장 토스트가 지나간 뒤에).
+    @State private var notificationAskReady = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -197,7 +202,7 @@ struct MainTabView: View {
                 }
 
                 // 첫 사용 안내 — 웰컴 별을 본 뒤 지도 "!"(오늘의 퀘스트) 버튼만 밝힌다(Android MainScreen QuestSpotlight 패리티).
-                if chrome.guideStep == .quest, !chrome.guideHidden.contains(.quest), !showCoachMark,
+                if chrome.guideStep == .quest, !chrome.guideHidden.contains(.quest), !showCoachMark, !locationAskVisible,
                    !chrome.questsOpen, !chrome.mapOnly, path.isEmpty, coachEyeCenter != .zero {
                     QuestSpotlight(
                         center: coachEyeCenter,
@@ -221,7 +226,7 @@ struct MainTabView: View {
                 // 별 탄생 연출(34-8) — 업로드 성공 직후 지도 위에서 재생된다(터치 통과).
                 StarBirthHost()
 
-                if !showCoachMark, let group = achievementQueue.first, !group.isEmpty {
+                if !showCoachMark, !locationAskVisible, let group = achievementQueue.first, !group.isEmpty {
                     AchievementUnlockOverlay(achievement: Self.bundleHero(group),
                                              bundle: group.count > 1 ? group : []) {
                         if !achievementQueue.isEmpty { achievementQueue.removeFirst() }
@@ -282,6 +287,17 @@ struct MainTabView: View {
                 if let d = diaryTarget { DetailScreen(diary: d) }
             }
         }
+        // 권한 안내 카드(S2) — NavigationStack 바깥이라 push 된 화면(친구 추가 직후) 위에도 뜬다. 토스트는 그 위.
+        .overlay {
+            permissionCards
+                .animation(.easeOut(duration: 0.2), value: locationAskVisible || notificationAskVisible)
+        }
+        .task(id: permissionAsk.notificationPending) {
+            notificationAskReady = false
+            guard permissionAsk.notificationPending else { return }
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            notificationAskReady = true
+        }
         // 전역 토스트(Android StaryToastHost) — NavigationStack 바깥이라 push 된 화면 위에도 보인다.
         .overlay { GlobalToastHost() }
 
@@ -294,7 +310,8 @@ struct MainTabView: View {
                 drawerOpen = false
             }
         }
-        .onChange(of: showCoachMark) { chrome.coachMarkShowing = $0 }
+        // 코치마크나 위치 카드가 떠 있는 동안엔 첫 사용 안내 카드를 숨긴다(안내는 한 번에 하나씩).
+        .onChange(of: showCoachMark || locationAskVisible) { chrome.coachMarkShowing = $0 }
         // 안내 중에 퀘스트 창을 열면 "!" 스포트라이트 단계가 끝난다.
         .onChange(of: chrome.questsOpen) { open in
             if open, chrome.guideStep == .quest, let uid = auth.uid { FirstStarGuideProgress.shared.markQuestSeen(uid) }
@@ -364,8 +381,10 @@ struct MainTabView: View {
         .environmentObject(viewed)
         .environmentObject(blocks)
         .onAppear {
-            location.requestPermission()
+            // 위치 권한은 여기서 묻지 않는다 — 지도의 이유 카드(PermissionAsk)가 "허용하기"를 눌렀을 때 묻는다(S2).
+            // 이미 허용돼 있으면 위치 관리자가 권한 콜백에서 바로 추적을 시작한다.
             location.start()
+            chrome.coachMarkShowing = showCoachMark || locationAskVisible
             store.startIfNeeded(uid: auth.uid)
             // 히든 업적 선점 현황 전역 구독 — 이름 옆 크리스탈 배지(34-4)가 어디서든 뜨도록.
             HiddenAchievementStore.shared.start()
@@ -378,7 +397,7 @@ struct MainTabView: View {
             StaryAnalytics.logOnce("map_view", "map_view", ["logged_in": auth.uid != nil])
             startWatcher()
             loadFriendsCount()
-            // 푸시 권한 요청 + fcmToken 기록(= 서버 발송 대상 등록). Android 로그인 직후 동작과 동일.
+            // fcmToken 기록(= 서버 발송 대상 등록). 알림 권한은 별을 올렸거나 친구를 추가한 뒤 PermissionAsk 카드가 묻는다.
             PushManager.shared.setUser(auth.uid)
             // 광고제거 계정(adFree/{uid}) 감시 — 해당 계정은 잠긴 게시물을 광고 없이 바로 연다.
             AdFreeAccount.shared.watch(uid: auth.uid)
@@ -466,6 +485,58 @@ struct MainTabView: View {
         }
     }
 
+    // MARK: - 권한 안내 카드 (S2 — Android core/ui/PermissionAsk.kt 패리티)
+
+    /// 위치 이유 카드 — 지도(루트)에서, 약관과 새 계정 코치마크가 끝난 뒤 실행당 한 번.
+    /// 떠 있는 동안 첫 사용 안내·"!" 스포트라이트·업적 팝업은 기다린다.
+    private var locationAskVisible: Bool {
+        let coachPending = auth.uid != nil && auth.returningAccount != true &&
+            !UserDefaults.standard.bool(forKey: "main_coach_seen")
+        return path.isEmpty && chatTarget == nil && diaryTarget == nil && !drawerOpen && !showCoachMark &&
+            !coachPending && (!auth.isSignedIn || TermsConsent.isAccepted) && permissionAsk.locationDue(location)
+    }
+
+    /// 알림 카드 — 차례가 왔고(별을 올렸거나 친구를 추가), 별 탄생 연출·업적 팝업·다른 안내가 끝났을 때.
+    private var notificationAskVisible: Bool {
+        permissionAsk.notificationPending && notificationAskReady && auth.uid != nil && !showCoachMark &&
+            !locationAskVisible && achievementQueue.isEmpty && birth.event == nil
+    }
+
+    @ViewBuilder private var permissionCards: some View {
+        if locationAskVisible {
+            permissionCard(locale.t(.permLocTitle), message: locale.t(.permLocMsg), allow: locale.t(.permAllow),
+                           onAllow: {
+                               permissionAsk.answerLocation(later: false)
+                               location.requestPermission()
+                           },
+                           onLater: { permissionAsk.answerLocation(later: true) })
+        } else if notificationAskVisible {
+            permissionCard(locale.t(.permNotifTitle), message: locale.t(.permNotifMsg), allow: locale.t(.permNotifAllow),
+                           onAllow: {
+                               permissionAsk.answerNotification(later: false)
+                               PushManager.shared.requestAuthorization()
+                           },
+                           onLater: { permissionAsk.answerNotification(later: true) })
+        }
+    }
+
+    /// 확인 창과 같은 유리 카드. 바깥을 누르면 "나중에".
+    private func permissionCard(_ title: String, message: String, allow: String,
+                                onAllow: @escaping () -> Void, onLater: @escaping () -> Void) -> some View {
+        ZStack {
+            Color.black.opacity(StaryDialogStyle.scrimOpacity)
+                .ignoresSafeArea()
+                .onTapGesture(perform: onLater)
+            StaryDialogCard(title: title, message: message) {
+                EmptyView()
+            } actions: {
+                StaryButton(locale.t(.permLater), kind: .ghost, compact: true, action: onLater)
+                StaryButton(allow, compact: true, action: onAllow)
+            }
+        }
+        .transition(.opacity)
+    }
+
     // MARK: - 상단 바 (Android CenterAlignedTopAppBar: 햄버거 / "지도" / 알림 하트)
 
     private var topBar: some View {
@@ -527,7 +598,7 @@ struct MainTabView: View {
         .overlay(
             // 좌우 버튼과 무관하게 정중앙 제목(Android CenterAligned 대응).
             Text(locale.t(.navMap))
-                .font(.minSans(18, .semibold))
+                .font(.minSans(17, .semibold))
                 .foregroundStyle(Theme.textPrimary)
         )
         .padding(.horizontal, 4)
@@ -623,7 +694,7 @@ struct MainTabView: View {
         uploadWarp = DiaryOpenWarpData(snapshot: nil, origin: origin, members: [], colorOverride: 13)
     }
 
-    // MARK: - 드로어 (Android ModalNavigationDrawer: 0x111111 패널 + 우측 라운드 24 + 스크림 0.5)
+    // MARK: - 드로어 (Android ModalNavigationDrawer: 남색→밤하늘 그라데이션 패널 + 우측 라운드 24 + 별빛 선 + 스크림 0.5)
 
     private var drawerLayer: some View {
         ZStack(alignment: .leading) {
@@ -702,11 +773,14 @@ struct MainTabView: View {
         .padding(.bottom, 24)
         .frame(width: 300, alignment: .leading)
         .frame(maxHeight: .infinity)
-        .background(
-            Color(hex: 0x111111)
-                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0,
-                                                  bottomTrailingRadius: 24, topTrailingRadius: 24))
-        )
+        .background {
+            let shape = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0,
+                                               bottomTrailingRadius: 24, topTrailingRadius: 24)
+            shape.fill(LinearGradient(stops: [.init(color: Color(hex: 0x151B31), location: 0),
+                                              .init(color: Color(hex: 0x0B0F1C), location: 0.7)],
+                                      startPoint: .top, endPoint: .bottom))
+                .overlay(shape.stroke(Theme.navyAccent.opacity(0.18), lineWidth: 1))
+        }
         .ignoresSafeArea()
     }
 
@@ -979,7 +1053,7 @@ private struct AchievementUnlockOverlay: View {
                 } else {
                     Text(locale.t(.achUnlocked)).font(.minSans(15)).foregroundStyle(Theme.navyAccent)
                     Spacer().frame(height: 8)
-                    Text(displayName).font(.minSans(22)).foregroundStyle(Theme.textPrimary)
+                    Text(displayName).font(.minSans(20)).foregroundStyle(Theme.textPrimary)
                         .multilineTextAlignment(.center)
                     Spacer().frame(height: 6)
                     Text(LocalizedNames.condition(achievement.id, fallback: achievement.condition)).font(.minSans(13))

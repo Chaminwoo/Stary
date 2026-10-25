@@ -2,8 +2,12 @@ package com.chaminwoo.stary.core.util
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.SoundPool
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -19,6 +23,7 @@ import com.chaminwoo.stary.R
  * - 멈췄다 재생하면 처음이 아니라 **마지막 위치**에서 이어 재생(위치 보존).
  * - 끝까지 가면 처음부터 반복(isLooping).
  * - on/off 상태와 선택한 트랙([selectedTrackId])은 SharedPreferences 에 저장.
+ * - 다른 앱이 소리를 내면 배경음악만 쉬고 효과음은 그대로 낸다(오디오 포커스 — 아래 "다른 앱 소리에 양보").
  *
  * 음악 탭(다이얼) 흐름:
  *  - 미리듣기는 [playTrack] (처음부터). 화면을 나갈 때 변경했으면 [commitSelectedTrack] 으로 확정,
@@ -40,6 +45,67 @@ object MusicManager {
     private var prepareGen = 0
     // 재생 의사 — resume()=true / pause()=false. 준비가 끝나기 전에 pause 되면 시작하지 않기 위함.
     private var wantPlaying = false
+
+    // 다른 앱 소리에 양보(2026-10, S1) — 배경음악만 쉬고 효과음은 그대로 낸다(SoundPool 은 포커스 없이 섞여 울린다).
+    //  - 앱을 열 때([resume]) 음악·영상 소리가 이미 나오고 있으면 배경음악을 시작하지 않는다(포커스도 뺏지 않는다).
+    //  - 트는 중 전화·알람(LOSS_TRANSIENT)이 오면 멈췄다가 포커스가 돌아오면(GAIN) 이어서.
+    //  - 다른 앱이 재생을 시작(LOSS)하면 멈추고, 그 소리가 그치면 이어서 — 이때는 시스템이 GAIN 을 다시 주지 않아서
+    //    앱이 전면에 있는 동안만 [QUIET_POLL_MS] 마다 확인한다([waitForQuiet]).
+    //  - 내비 안내처럼 잠깐 줄여도 되는 소리(덕킹)는 API 26+ 시스템이 알아서 줄였다 되돌린다.
+    //  - 음악 탭 미리듣기([playTrack])는 사용자가 직접 고른 소리라 포커스를 요청한다(다른 앱 음악이 멈춘다).
+    //  iOS 는 AVAudioSession.secondaryAudioShouldBeSilencedHint + 힌트/중단 알림으로 같은 동작.
+    private val mediaAttrs: AudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+        .build()
+    private var audioManager: AudioManager? = null
+    private var focusRequest: AudioFocusRequest? = null
+    private var hasFocus = false
+    private var pausedByFocus = false   // 잠깐 뺏겨 멈춤(또는 통화 중이라 미뤄짐) — GAIN 때 시작
+    private var waitingQuiet = false    // 다른 앱 소리가 그치길 기다리는 중
+    // 기다리는 동안 그 소리를 실제로 들었나 — 못 들었으면 다시 틀지 않는다(소리 없이 포커스만 가져간 녹음 앱 등과 다투지 않게).
+    private var heardOthers = false
+    private var quietPolls = 0
+    private const val QUIET_POLL_MS = 1500L
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        when (change) {
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                hasFocus = true
+                if (pausedByFocus) {
+                    pausedByFocus = false
+                    if (enabled && wantPlaying) startPlayer()
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                hasFocus = false
+                pausedByFocus = true
+                pausePlayer()
+            }
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                pausePlayer()
+                abandonFocus()
+                if (enabled && wantPlaying) waitForQuiet(heard = false)
+            }
+        }
+    }
+
+    /** 두 번 연달아 조용하면 다시 튼다 — 곡 넘김 같은 잠깐의 공백에 끼어들지 않게. */
+    private val quietPoll = object : Runnable {
+        override fun run() {
+            if (!waitingQuiet) return
+            if (audioManager?.isMusicActive == true) {
+                heardOthers = true
+                quietPolls = 0
+            } else if (heardOthers && ++quietPolls >= 2) {
+                stopWaiting()
+                if (enabled && wantPlaying && requestFocus()) startPlayer()
+                return
+            }
+            mainHandler.postDelayed(this, QUIET_POLL_MS)
+        }
+    }
 
     // 효과음(SFX) — 짧은 UI 효과음은 SoundPool 로 미리 로드해 즉시·중복 재생(지연/묵음 방지)
     private var soundPool: SoundPool? = null
@@ -130,16 +196,13 @@ object MusicManager {
         musicVolume = prefs.getFloat(KEY_MUSIC_VOL, 1f).coerceIn(0f, 1f)
         sfxVolume = prefs.getFloat(KEY_SFX_VOL, 1f).coerceIn(0f, 1f)
         playingId = selectedTrackId
+        audioManager = ctx.getSystemService(AudioManager::class.java)
 
         // 효과음을 SoundPool 에 미리 로드 (탭 시 지연 없이 재생)
         windResId = ctx.resources.getIdentifier("wind", "raw", ctx.packageName)
         openResId = ctx.resources.getIdentifier("open_diary", "raw", ctx.packageName)
-        val attrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-            .build()
         // 별 등장 차임/반짝임이 겹쳐 울리므로 동시 스트림을 넉넉히(초과 시 SoundPool 이 가장 오래된 것을 끊는다).
-        soundPool = SoundPool.Builder().setMaxStreams(12).setAudioAttributes(attrs).build().apply {
+        soundPool = SoundPool.Builder().setMaxStreams(12).setAudioAttributes(mediaAttrs).build().apply {
             setOnLoadCompleteListener { _, sampleId, status ->
                 if (status != 0) return@setOnLoadCompleteListener
                 when (sampleId) {
@@ -342,6 +405,7 @@ object MusicManager {
     private fun createAsync(ctx: Context, resId: Int, onReady: (MediaPlayer) -> Unit) {
         val mp = MediaPlayer()
         try {
+            mp.setAudioAttributes(mediaAttrs) // 포커스 요청과 같은 용도(준비 전에만 먹는다)
             ctx.resources.openRawResourceFd(resId).use { afd ->
                 mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
             }
@@ -354,17 +418,28 @@ object MusicManager {
         mp.prepareAsync()
     }
 
-    /** 앱 전면 복귀 or 켜짐 → 현재 트랙을 마지막 위치에서 재생. */
+    /** 앱 전면 복귀 or 켜짐 → 현재 트랙을 마지막 위치에서 재생. 다른 앱 소리가 나고 있으면 쉬었다가 그치면 이어서. */
     fun resume() {
         if (!enabled) return
-        val ctx = appContext ?: return
         wantPlaying = true
-        val id = playingId ?: selectedTrackId
+        if (player?.isPlaying == true || waitingQuiet) return
+        if (audioManager?.isMusicActive == true) {
+            waitForQuiet(heard = true)
+            return
+        }
+        if (requestFocus()) startPlayer()
+    }
+
+    /** 준비된 player 를 시작하거나, 없으면 비동기로 준비해 시작한다(포커스는 부르는 쪽이 받아 둔다). */
+    private fun startPlayer() {
+        stopWaiting()
+        val ctx = appContext ?: return
         val existing = player
         if (existing != null) {
             if (!existing.isPlaying) existing.start()
             return
         }
+        val id = playingId ?: selectedTrackId
         val res = resIdFor(id)
         if (res == 0) return
         val gen = prepareGen
@@ -376,19 +451,64 @@ object MusicManager {
             mp.seekTo(positionMs)
             player = mp
             playingId = id
-            if (enabled && wantPlaying) mp.start()
+            if (enabled && wantPlaying && hasFocus) mp.start()
         }
     }
 
-    /** 일시정지 — 현재 위치 보존. */
+    /** 일시정지 — 현재 위치 보존. 앱이 뒤로 갔거나 소리를 끈 것이라 포커스도 돌려준다. */
     fun pause() {
         wantPlaying = false
+        stopWaiting()
+        pausePlayer()
+        abandonFocus()
+    }
+
+    private fun pausePlayer() {
         player?.let {
             if (it.isPlaying) {
                 positionMs = it.currentPosition
                 it.pause()
             }
         }
+    }
+
+    /** 배경음악 포커스 요청 — 받으면 true. 통화 중이라 미뤄지면(DELAYED) 끝날 때 GAIN 으로 시작한다. */
+    private fun requestFocus(): Boolean {
+        if (hasFocus) return true
+        val am = audioManager ?: return false
+        val req = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(mediaAttrs)
+            .setAcceptsDelayedFocusGain(true)
+            .setOnAudioFocusChangeListener(focusListener, mainHandler)
+            .build()
+            .also { focusRequest = it }
+        return when (am.requestAudioFocus(req)) {
+            AudioManager.AUDIOFOCUS_REQUEST_GRANTED -> { hasFocus = true; true }
+            AudioManager.AUDIOFOCUS_REQUEST_DELAYED -> { pausedByFocus = true; false }
+            else -> false
+        }
+    }
+
+    private fun abandonFocus() {
+        hasFocus = false
+        pausedByFocus = false
+        focusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+    }
+
+    /** 다른 앱 소리가 그치면 다시 틀도록 기다린다 — [heard] = 그 소리를 이미 확인했는지(앱을 열 때). */
+    private fun waitForQuiet(heard: Boolean) {
+        if (!waitingQuiet) {
+            waitingQuiet = true
+            heardOthers = false
+            quietPolls = 0
+            mainHandler.postDelayed(quietPoll, QUIET_POLL_MS)
+        }
+        if (heard) heardOthers = true
+    }
+
+    private fun stopWaiting() {
+        waitingQuiet = false
+        mainHandler.removeCallbacks(quietPoll)
     }
 
     /**
@@ -404,6 +524,11 @@ object MusicManager {
         player = null
         playingId = id
         wantPlaying = true
+        // 직접 고른 미리듣기 — 다른 앱 소리가 나고 있어도 포커스를 요청한다.
+        if (enabled) {
+            stopWaiting()
+            requestFocus()
+        }
         createAsync(ctx, res) { mp ->
             if (gen != prepareGen) { mp.release(); return@createAsync }
             mp.isLooping = true
@@ -413,7 +538,7 @@ object MusicManager {
             val pos = if (dur > 0) positionMs0.coerceIn(0, (dur - 200).coerceAtLeast(0))
                       else positionMs0.coerceAtLeast(0)
             mp.seekTo(pos)
-            if (enabled && wantPlaying) mp.start()
+            if (enabled && wantPlaying && hasFocus) mp.start()
             positionMs = pos
             player = mp
         }
@@ -432,6 +557,8 @@ object MusicManager {
     fun release() {
         prepareGen++ // 진행 중인 비동기 준비 무효화
         wantPlaying = false
+        stopWaiting()
+        abandonFocus()
         player?.let {
             positionMs = it.currentPosition
             it.release()

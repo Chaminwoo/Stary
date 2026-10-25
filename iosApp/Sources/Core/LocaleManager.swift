@@ -210,6 +210,14 @@ enum L10n: String {
     case boomerRetake, boomerUse
     /// 움짤 만들기 실패(Android boomer_failed 대응) / 첨부 크롭 조작 안내.
     case boomerFailed, uploadCropHint
+    /// 업로드 새 단장(2026-10) — 모두 보기 시트·가진 것만 보기·쓰던 글 보관(Android upload_see_all 등 대응).
+    case uploadSeeAll, uploadOwnedOnly, pickerTabShape, pickerTabColor, pickerGroupBasic, pickerGroupAchievement, pickerLockedHint
+    case uploadClearMedia, uploadLeaveTitle, uploadLeaveMsg, uploadLeaveExit, uploadLeaveStay
+    case uploadDraftFound, uploadDraftRestore, uploadDraftDiscard, cdBack
+    /// 별 도감 보기 방식 전환(별 고리 / 목록) — Android starlog_view_ring / starlog_view_list.
+    case starlogViewRing, starlogViewList
+    /// 권한 안내 카드(S2 — PermissionAsk) — Android perm_* 문자열.
+    case permLocTitle, permLocMsg, permNotifTitle, permNotifMsg, permAllow, permNotifAllow, permLater
     // 별 목록 화면(iOS 전용 화면 — 빈 상태/가까운순 정렬).
     case listEmptyUnviewed, listEmpty, listSortNearby
     // 설정 > 도움말 다시 보기(Android settings_help* 패리티).
@@ -672,6 +680,37 @@ enum L10n: String {
         case .uploadCropHint:       return ("드래그로 위치, 두 손가락으로 크기를 맞춰요",
                                             "Drag to move, pinch to resize",
                                             "ドラッグで位置、ピンチで大きさを調整")
+        case .uploadSeeAll:         return ("모두 보기", "See all", "すべて見る")
+        case .uploadOwnedOnly:      return ("가진 것만 보기", "Owned only", "持っているものだけ")
+        case .pickerTabShape:       return ("모양", "Shape", "形")
+        case .pickerTabColor:       return ("색", "Color", "色")
+        case .pickerGroupBasic:     return ("기본", "Basic", "基本")
+        case .pickerGroupAchievement: return ("업적 보상", "Achievement rewards", "実績の報酬")
+        case .pickerLockedHint:     return ("‘%@’ 업적을 달성하면 열려요", "Unlocks with the ‘%@’ achievement", "実績「%@」を達成すると使えます")
+        case .uploadClearMedia:     return ("첨부 지우기", "Remove attachment", "添付を削除")
+        case .uploadLeaveTitle:     return ("쓰던 별이 있어요", "You have an unfinished star", "書きかけの星があります")
+        case .uploadLeaveMsg:       return ("나가도 글은 이 기기에 남겨 둘게요. 다음에 열면 이어서 쓸 수 있어요.",
+                                            "Your writing stays on this device if you leave. You can pick it up next time.",
+                                            "離れても文章はこの端末に残しておきます。次に開いたときに続きを書けます。")
+        case .uploadLeaveExit:      return ("나가기", "Leave", "離れる")
+        case .uploadLeaveStay:      return ("계속 쓰기", "Keep writing", "書き続ける")
+        case .uploadDraftFound:     return ("쓰던 별이 남아 있어요", "Your unfinished star is still here", "書きかけの星が残っています")
+        case .uploadDraftRestore:   return ("이어 쓰기", "Continue", "続きを書く")
+        case .uploadDraftDiscard:   return ("지우기", "Discard", "削除")
+        case .cdBack:               return ("뒤로가기", "Back", "戻る")
+        case .starlogViewRing:      return ("별", "Stars", "星")
+        case .starlogViewList:      return ("목록", "List", "リスト")
+        case .permLocTitle:         return ("내 주변 별을 보려면 위치가 필요해요", "Location lets you see stars around you", "近くの星を見るには位置情報が必要です")
+        case .permLocMsg:           return ("지금 있는 자리에 별을 남기고, 가까운 별을 열 때 써요. 대략적인 위치도 괜찮아요.",
+                                            "It's used to leave a star where you are and to open stars nearby. Approximate location works too.",
+                                            "今いる場所に星を残したり、近くの星を開いたりするときに使います。おおよその位置でも大丈夫です。")
+        case .permNotifTitle:       return ("새 소식을 알림으로 받을까요?", "Turn on notifications?", "新しいお知らせを通知で受け取りますか？")
+        case .permNotifMsg:         return ("내 별에 좋아요나 댓글이 달리거나, 친구가 새 별을 남기거나, 친구 요청이 오면 알려 드려요.",
+                                            "We'll let you know when your star gets a like or comment, a friend leaves a new star, or you get a friend request.",
+                                            "あなたの星にいいねやコメントがついたとき、友だちが新しい星を残したとき、友だち申請が届いたときにお知らせします。")
+        case .permAllow:            return ("허용하기", "Allow", "許可する")
+        case .permNotifAllow:       return ("알림 받기", "Turn on", "通知を受け取る")
+        case .permLater:            return ("나중에", "Later", "あとで")
         case .listEmptyUnviewed:    return ("안 본 별이 없어요. 모두 둘러봤네요!", "No unviewed stars — you've seen them all!", "未読の星はありません。全部見ましたね！")
         case .listEmpty:            return ("아직 별이 없어요. 첫 별을 남겨보세요.", "No stars yet. Leave your first one.", "まだ星がありません。最初の星を残しましょう。")
         case .listSortNearby:       return ("가까운순", "Nearest", "近い順")

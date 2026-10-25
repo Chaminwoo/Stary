@@ -116,7 +116,7 @@ struct FriendsScreen: View {
                     } else if vm.outgoingIds.contains(user.userId) {
                         statusChip(LocaleManager.shared.t(.friendStatusRequested))
                     } else {
-                        Button(LocaleManager.shared.t(.friendAdd)) {
+                        StaryButton(LocaleManager.shared.t(.friendAdd), compact: true, systemImage: "person.badge.plus") {
                             guard let uid = auth.uid else { return }
                             Task {
                                 // 요청에 박히는 내 이름은 서버 확인값(첫 실행 직후 구글 기본 이름 방지, CLAUDE.md §2.6).
@@ -129,7 +129,6 @@ struct FriendsScreen: View {
                                     : LocaleManager.shared.t(.friendRequestFail))
                             }
                         }
-                        .font(.minSans(12)).tint(Theme.navyAccent)
                     }
                 }
                 .padding(10)
@@ -138,14 +137,9 @@ struct FriendsScreen: View {
         }
     }
 
-    /// 상태 칩(친구/요청됨) — Android StatusChip(민트 알약) 대응.
+    /// 상태 칩(친구/요청됨) — 누를 수 없는 공용 칩(Android FriendScreen 패리티).
     private func statusChip(_ text: String) -> some View {
-        Text(text)
-            .font(.minSans(12))
-            .foregroundStyle(Theme.navyAccent)
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(Theme.navyAccent.opacity(0.10), in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.navyAccent.opacity(0.25), lineWidth: 1))
+        StaryChip(text, selected: false)
     }
 
     private func showToast(_ text: String) {
@@ -201,7 +195,7 @@ struct FriendsScreen: View {
                     Text(directory.name(req.fromId, fallback: req.fromName))
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
-                    Button(LocaleManager.shared.t(.friendAccept)) {
+                    StaryButton(LocaleManager.shared.t(.friendAccept), compact: true, systemImage: "checkmark") {
                         guard let uid = auth.uid else { return }
                         Task {
                             guard let name = await auth.confirmedNameOrWait() else {
@@ -210,9 +204,9 @@ struct FriendsScreen: View {
                             await vm.accept(req, myUid: uid, myName: name)
                         }
                     }
-                    .font(.minSans(12)).tint(Theme.navyAccent)
-                    Button(LocaleManager.shared.t(.friendDecline)) { Task { await vm.decline(req) } }
-                        .font(.minSans(12)).tint(.red)
+                    StaryButton(LocaleManager.shared.t(.friendDecline), kind: .ghost, compact: true, systemImage: "xmark") {
+                        Task { await vm.decline(req) }
+                    }
                 }
                 .padding(10)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
@@ -240,12 +234,16 @@ struct FriendsScreen: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("\(LocaleManager.shared.t(.friendMyFriends)) \(vm.friends.count)").font(.minSans(17)).foregroundStyle(Theme.textPrimary)
             if vm.friends.isEmpty {
-                // 검색창이 위에 있는 화면이라 액션 버튼 없이 안내만(StaryEmptyState 공용).
-                StaryEmptyState(title: LocaleManager.shared.t(.friendEmptyTitle),
-                                description: LocaleManager.shared.t(.friendEmptyDesc),
-                                starType: 6,        // 보석 — '함께'를 상징
-                                starColorIndex: 9)  // 민트
-                    .frame(height: 230)
+                // 검색창이 위에 있는 화면이라 액션 버튼 없이 안내만(StaryEmptyState 공용). 첫 응답 전엔 자리 표시.
+                LoadingGate(loading: !vm.friendsLoaded) {
+                    SkeletonRows(count: 4)
+                } empty: {
+                    StaryEmptyState(title: LocaleManager.shared.t(.friendEmptyTitle),
+                                    description: LocaleManager.shared.t(.friendEmptyDesc),
+                                    starType: 6,        // 보석 — '함께'를 상징
+                                    starColorIndex: 9)  // 민트
+                        .frame(height: 230)
+                }
             } else {
                 ForEach(sortedFriends) { friend in
                     ZStack(alignment: .trailing) {

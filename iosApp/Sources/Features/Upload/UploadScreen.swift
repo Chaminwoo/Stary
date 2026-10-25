@@ -5,10 +5,15 @@ import SwiftUI
 import UIKit
 
 /// 올리기 탭 — 현재 위치에 별(다이어리)을 남긴다(사진 첨부 포함).
+/// 화면 순서(Android UploadScreen 패리티): 쓰던 글 띠 → 첨부(없으면 얇은 한 줄) → 별 도장 + 제목 → 본문
+/// → 별 모양/색 휠(이름 옆 '모두 보기' 격자 시트) → 공개 범위 → 아래 고정 저장 버튼.
+/// 칸마다 테두리 상자를 두르지 않고 면·밑줄·여백으로만 나눈다.
 struct UploadScreen: View {
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var store: DiaryStore
     @EnvironmentObject var location: LocationManager
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     /// 배경 시차 스크롤(관찰하지 않는다 — 배경만 다시 그린다).
 
@@ -21,6 +26,15 @@ struct UploadScreen: View {
     @State private var starColor = 9
     /// 성운 상자에서 얻은 별 모양·색 — 휠 끝에 덧붙인다.
     @ObservedObject private var starlight = StarlightStore.shared
+    /// 가진 것만 보기 — 잠긴 칸을 휠에서 뺀다(한 번 켜 두면 기억). 지금 고른 칸은 잠겨 있어도 남긴다.
+    @AppStorage(StarPickerPrefs.ownedOnlyKey) private var ownedOnly = false
+    /// '모두 보기' 시트 — 0 = 모양, 1 = 색.
+    @State private var pickerOpen = false
+    @State private var pickerTab = 0
+    /// 쓰다 나간 글 — 열 때 한 번 읽어 맨 위에 "이어 쓰기" 띠를 띄운다(고르기 전엔 아무것도 덮어쓰지 않는다).
+    @State private var pendingDraft: UploadDraft?
+    @State private var draftChecked = false
+    @State private var showLeaveConfirm = false
     @State private var saving = false
     @State private var toast: String?
     @State private var photoItem: PhotosPickerItem?
@@ -51,7 +65,12 @@ struct UploadScreen: View {
         var id: String { rawValue }
     }
 
+    /// 입력칸·첨부 줄의 바탕 — 테두리 없이 반투명 남색 면(별하늘 배경이 은은히 비친다). Android FieldFill.
+    private let fieldFill = Color(hex: 0x181E34, alpha: 0.6)
+    private let placeholder = Theme.textSecondary.opacity(0.7)
+
     /// 현재 해금된 업적 id 집합(내 다이어리 + 친구 수 기반).
+    /// ⚠️ 전체 별을 훑는 계산이라 본문에서 **한 번만** 구해 넘긴다(예전엔 휠 칸마다 다시 계산했다).
     private var unlocked: Set<String> {
         Achievements.unlockedIds(
             Achievements.computeStats(diaries: store.mine(uid: auth.uid),
@@ -60,49 +79,22 @@ struct UploadScreen: View {
         )
     }
 
+    private var hasText: Bool { draftNow.hasText }
+    private var hasMedia: Bool { !crop.isEmpty || loadingMedia }
+    /// 쓴 글이 있거나 시트가 떠 있으면 뒤로가기를 직접 받는다(시스템 버튼·밀어서 뒤로는 묻지 않고 나가 버린다).
+    private var guardsBack: Bool { pickerOpen || (hasText && !saving) }
+
     // 루트(MainTabView)의 단일 NavigationStack 에 push 되므로 자체 스택은 두지 않는다(Android 단일 NavHost 대응).
     var body: some View {
+        let unlocked = self.unlocked
         // ⚠️ 배경은 ZStack 형제가 아니라 .background 로 — ScreenBackground 의 ignoresSafeArea 가
         //    ZStack(=스크롤 영역)을 키보드 영역까지 늘리면, 키보드가 올라와도 입력칸이 안 밀려 가려진다.
-        ScrollViewReader { proxy in
+        return ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    preview
-                    // 업로드(저장) 진행 중에는 제목·본문·첨부를 모두 잠근다 — 저장에 쓰인 값과
-                    // 화면에 보이는 값이 어긋나지 않게(공개 범위·별 모양/색과 동일한 정책).
-                    field(LocaleManager.shared.t(.fieldTitle)) {
-                        TextField("", text: $title).textFieldStyle(.plain)
-                            .focused($focusedField, equals: .title)
-                            .submitLabel(.done)                      // 한 줄 입력 → 리턴키로 바로 닫기
-                            .onSubmit { focusedField = nil }
-                            .onChange(of: title) { v in
-                                if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
-                            }
-                    }
-                    .disabled(saving)
-                    .opacity(saving ? 0.5 : 1)
-                    .id(Field.title)
-                    field(LocaleManager.shared.t(.uploadContentLabel)) {
-                        TextField("", text: $content, axis: .vertical)
-                            .lineLimit(4...8)
-                            .focused($focusedField, equals: .content)
-                            .onChange(of: content) { v in
-                                if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
-                            }
-                    }
-                    .disabled(saving)
-                    .opacity(saving ? 0.5 : 1)
-                    .id(Field.content)
-                    // 사진 추가/다시 선택/삭제 + 크롭 드래그까지 한 번에 막는다.
-                    // (크롭은 커스텀 DragGesture 라 .disabled() 로는 안 막혀 allowsHitTesting 을 쓴다 — WheelPicker 와 동일.)
-                    photoSection
-                        .allowsHitTesting(!saving)
-                    starPicker
-                    colorPicker
-                    visibilityPicker
-                    saveButton
-                }
-                .padding(16)
+                form(unlocked)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
             }
             .backgroundScrollSource(bgScroll)
             // 스크롤(드래그)로도 키보드가 내려가게 — 긴 본문 입력 후 탈출구(#3).
@@ -110,15 +102,30 @@ struct UploadScreen: View {
             // 제목/본문을 누르면 키보드가 다 올라온 뒤 그 칸을 보이는 영역 가운데로(키보드에 가려지던 문제).
             .scrollToFocused(focusedField, proxy: proxy)
         }
+        // 토스트는 저장 버튼 위에 뜨게 버튼 자리(safeAreaInset)보다 안쪽에 단다.
+        .overlay(alignment: .bottom) {
+            if let toast { ToastView(text: toast) }
+        }
+        // 저장 — 화면 아래 고정(스크롤해도 늘 보이고, 키보드가 올라오면 그 위로).
+        .safeAreaInset(edge: .bottom, spacing: 0) { saveBar }
         // 업로드 화면 배경 — Android upload_bg 이미지 + 검정 0.82 틴트 대응.
         .background { ScreenBackground(name: "upload_bg", darken: 0.82, scroll: bgScroll) }
+        .overlay {
+            StarPickerSheet(isPresented: $pickerOpen, tab: $pickerTab,
+                            starType: starType, starColor: starColor,
+                            shapeIds: allShapeIds, colorIds: allColorIds,
+                            unlocked: unlocked, ownedOnly: $ownedOnly,
+                            onPickShape: { starType = $0 }, onPickColor: { starColor = $0 })
+        }
         .navigationTitle(LocaleManager.shared.t(.navUpload))
         .navigationBarTitleDisplayMode(.inline)
         // (키보드 위 "완료" 버튼은 삭제 — 2026-10-02 사용자 결정. 본문은 리턴키가 줄바꿈이라
         //  닫기는 바깥 영역 탭(KeyboardDismissOnTap) 또는 스크롤 드래그로 한다.)
-        .overlay(alignment: .bottom) {
-            if let toast { ToastView(text: toast) }
+        .navigationBarBackButtonHidden(guardsBack)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) { backButton }
         }
+        .staryDialog(isPresented: $showLeaveConfirm) { leaveDialog }
         // 업로드 위치 실패 안내 — 이유별 행동(권한 요청·설정 / 위치 설정 / 다시 시도).
         .staryConfirmDialog(locationProblemText.title,
                             isPresented: $showLocationProblem,
@@ -179,7 +186,18 @@ struct UploadScreen: View {
                 }
             }
         }
-        .onAppear { StaryAnalytics.log("upload_open", ["logged_in": auth.uid != nil]) }
+        .onAppear {
+            StaryAnalytics.log("upload_open", ["logged_in": auth.uid != nil])
+            if !draftChecked {
+                draftChecked = true
+                pendingDraft = UploadDraftStore.load(uid: draftUid)
+            }
+        }
+        // 뒤로·알림으로 이동·앱 전환 어느 쪽으로 나가도 쓴 글은 기기에 남긴다(Android ON_STOP/onDispose 패리티).
+        .onDisappear { keepDraft() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .background { keepDraft() }
+        }
         .task {
             if let uid = auth.uid {
                 let snap = try? await FirestoreService.friends(of: uid).getDocuments()
@@ -188,50 +206,121 @@ struct UploadScreen: View {
         }
     }
 
-    private var preview: some View {
-        HStack {
-            Spacer()
-            VStack(spacing: 8) {
-                StarView(type: starType, colorIndex: starColor, size: 72)
-                Text(LocaleManager.shared.t(.uploadPreview)).font(.minSans(11)).foregroundStyle(Theme.textFaint)
+    private func form(_ unlocked: Set<String>) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 새로 쓰기 시작하면 숨긴다 — 그 상태에서 눌러 지금 쓴 글이 옛 글로 덮이지 않게.
+            if let draft = pendingDraft, !hasText {
+                draftStrip(draft)
+                    .transition(.opacity)
             }
-            Spacer()
+            // 사진 추가/다시 선택/삭제 + 크롭 드래그까지 한 번에 막는다.
+            // (크롭은 커스텀 DragGesture 라 .disabled() 로는 안 막혀 allowsHitTesting 을 쓴다 — WheelPicker 와 동일.)
+            mediaSection
+                .allowsHitTesting(!saving)
+            // 업로드(저장) 진행 중에는 제목·본문·첨부를 모두 잠근다 — 저장에 쓰인 값과
+            // 화면에 보이는 값이 어긋나지 않게(공개 범위·별 모양/색과 동일한 정책).
+            titleField
+                .padding(.top, 26)
+                .id(Field.title)
+            bodyField
+                .padding(.top, 14)
+                .id(Field.content)
+            hairline
+                .padding(.top, 18)
+                .padding(.bottom, 20)
+            sectionHeader(LocaleManager.shared.t(.uploadStarShape)) { openPicker(0) }
+            starPicker(unlocked)
+                .padding(.top, 6)
+            sectionHeader(LocaleManager.shared.t(.uploadStarColor)) { openPicker(1) }
+                .padding(.top, 14)
+            colorPicker(unlocked)
+                .padding(.top, 6)
+            OwnedOnlyToggle(isOn: $ownedOnly)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 6)
+            hairline
+                .padding(.top, 16)
+                .padding(.bottom, 20)
+            sectionHeader(LocaleManager.shared.t(.uploadVisibility))
+            // 업로드(저장) 진행 중에는 공개 범위 변경 불가 — Android UploadScreen 과 동일.
+            VisibilityChooser(selection: $visibility, enabled: !saving)
+                .padding(.top, 10)
         }
-        .padding(.vertical, 8)
+        .animation(.easeOut(duration: 0.2), value: pendingDraft != nil && !hasText)
     }
 
-    private var photoSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            label(LocaleManager.shared.t(.uploadPhotoSection))
-            if !crop.isEmpty || loadingMedia {
-                // 사진도 3초 움짤도 **같은 4:3 프레임**(Android 와 동일 크기/비율).
+    // MARK: - 첨부
+
+    /// 첨부 — 없으면 얇은 한 줄, 고르면 상세 화면과 같은 4:3 크롭 프레임(사진·3초 움짤 공용).
+    @ViewBuilder private var mediaSection: some View {
+        if hasMedia {
+            VStack(alignment: .leading, spacing: 4) {
                 // 이 프레임이 곧 잘릴 영역 — 드래그로 위치, 두 손가락으로 확대/축소.
                 ZStack(alignment: .topTrailing) {
                     MediaCropFrame(state: crop)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     clearMediaButton
                 }
-                Text(LocaleManager.shared.t(.uploadCropHint))
-                    .font(.minSans(11))
-                    .foregroundStyle(Theme.textFaint)
-                reselectButton
-            } else {
-                // 한 버튼 → 촬영/갤러리/3초 영상 선택 시트(Android 와 동일한 3지선다).
-                Button { openMediaSourceSheet() } label: {
-                    mediaAddLabel(icon: "camera.fill",
-                                  text: LocaleManager.shared.t(.uploadAddPhoto))
+                HStack(spacing: 8) {
+                    Text(LocaleManager.shared.t(.uploadCropHint))
+                        .font(.minSans(11))
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer(minLength: 0)
+                    // 첨부 다시 고르기 — Android upload_reselect 대응. 업로드 중에는 흐려진다(잠금은 mediaSection 에서).
+                    Button { openMediaSourceSheet() } label: {
+                        Text(LocaleManager.shared.t(.uploadReselect))
+                            .font(.minSans(13))
+                            .foregroundStyle(Theme.navyAccent.opacity(saving ? 0.5 : 1))
+                            .padding(.vertical, 8)
+                            .padding(.leading, 8)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
+        } else {
+            addMediaRow
         }
     }
 
-    /// 첨부 다시 고르기 — Android upload_reselect 대응. 업로드 중에는 흐려진다(잠금은 photoSection 에서).
-    private var reselectButton: some View {
+    /// 첨부가 없을 때의 얇은 한 줄 — 누르면 촬영/갤러리/3초 영상 고르기. 오른쪽 작은 아이콘이 세 가지를 알려 준다.
+    private var addMediaRow: some View {
         Button { openMediaSourceSheet() } label: {
-            Text(LocaleManager.shared.t(.uploadReselect))
-                .font(.minSans(13))
-                .foregroundStyle(Theme.textPrimary.opacity(saving ? 0.5 : 1))
+            HStack(spacing: 0) {
+                Image(systemName: "photo.badge.plus")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.navyAccent)
+                Text(LocaleManager.shared.t(.uploadAddPhoto))
+                    .font(.minSans(14))
+                    .foregroundStyle(Theme.textPrimary)
+                    .padding(.leading, 12)
+                Spacer(minLength: 8)
+                ForEach(["camera.fill", "photo.fill", "video.fill"], id: \.self) { name in
+                    Image(systemName: name)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.7))
+                        .padding(.leading, 8)
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 56)
+            .background(fieldFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
+        .buttonStyle(.plain)
+        .opacity(saving ? 0.5 : 1)
+    }
+
+    private var clearMediaButton: some View {
+        Button { clearMedia() } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(Color.black.opacity(0.45), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(8)
+        .accessibilityLabel(LocaleManager.shared.t(.uploadClearMedia))
     }
 
     /// 첨부 소스 시트 열기 — 열기 전에 키보드를 내려 시트가 키보드 위로 겹치지 않게 한다.
@@ -251,37 +340,81 @@ struct UploadScreen: View {
         }
     }
 
-    private func mediaAddLabel(icon: String, text: String) -> some View {
-        HStack {
-            Image(systemName: icon)
-            Text(text)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
-        .foregroundStyle(Theme.textSecondary)
-    }
-
-    private var clearMediaButton: some View {
-        Button { clearMedia() } label: {
-            Image(systemName: "xmark.circle.fill")
-                .foregroundStyle(.white, .black.opacity(0.5))
-                .padding(8)
-        }
-    }
-
     private func clearMedia() {
         photoItem = nil
         crop.clear()
     }
 
-    /// 휠에 놓을 별 모양 id — 기본 모양 + 성운 상자에서 얻은 새 모양(Android `shapeIds` 패리티).
-    private var shapeIds: [Int] {
+    // MARK: - 제목·본문
+
+    /// 별 도장 + 제목 한 줄 + 밑줄(누르고 있으면 별빛색). 도장은 휠을 돌리면 같이 바뀐다.
+    private var titleField: some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            HStack(spacing: 12) {
+                StarView(type: starType, colorIndex: starColor, size: 26, glow: false)
+                TextField("", text: $title,
+                          prompt: Text(LocaleManager.shared.t(.fieldTitle)).foregroundColor(placeholder))
+                    .textFieldStyle(.plain)
+                    .font(.minSans(20, .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .tint(Theme.navyAccent)
+                    .focused($focusedField, equals: .title)
+                    .submitLabel(.next)                       // 한 줄 입력 → 리턴키로 본문으로
+                    .onSubmit { focusedField = .content }
+                    .onChange(of: title) { v in
+                        if v.count > AppConfig.diaryTitleMaxLen { title = String(v.prefix(AppConfig.diaryTitleMaxLen)) }
+                    }
+                    .padding(.vertical, 10)
+            }
+            Rectangle()
+                .fill(focusedField == .title ? Theme.navyAccent.opacity(0.7) : Theme.outline)
+                .frame(height: 1)
+                .animation(.easeOut(duration: 0.2), value: focusedField == .title)
+            counter(title.count, AppConfig.diaryTitleMaxLen)
+        }
+        .disabled(saving)
+        .opacity(saving ? 0.5 : 1)
+    }
+
+    /// 본문 — 바탕 없이 글만(편지지처럼). 빈 곳을 눌러도 입력이 시작되게 최소 높이를 둔다.
+    private var bodyField: some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            TextField("", text: $content,
+                      prompt: Text(LocaleManager.shared.t(.uploadContentLabel)).foregroundColor(placeholder),
+                      axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.minSans(15))
+                .lineSpacing(6)
+                .foregroundStyle(Theme.textPrimary)
+                .tint(Theme.navyAccent)
+                .lineLimit(5...)
+                .focused($focusedField, equals: .content)
+                .onChange(of: content) { v in
+                    if v.count > AppConfig.diaryContentMaxLen { content = String(v.prefix(AppConfig.diaryContentMaxLen)) }
+                }
+                .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
+            counter(content.count, AppConfig.diaryContentMaxLen)
+        }
+        .disabled(saving)
+        .opacity(saving ? 0.5 : 1)
+    }
+
+    private func counter(_ length: Int, _ max: Int) -> some View {
+        Text("\(length)/\(max)")
+            .font(.minSans(11))
+            .foregroundStyle(placeholder)
+            .padding(.top, 4)
+    }
+
+    // MARK: - 별 모양/색
+
+    /// 휠에 놓을 별 모양 id — 기본 모양 + 성운 상자에서 얻은 새 모양(Android `allShapeIds` 패리티).
+    private var allShapeIds: [Int] {
         Array(0..<StarStyle.typeCount) + starlight.ownedShapeTypes.filter { $0 >= StarStyle.typeCount }
     }
 
     /// 휠에 놓을 별 색 id — 기본 색 + 성운 상자에서 얻은 새 색.
-    private var colorIds: [Int] {
+    private var allColorIds: [Int] {
         Array(0..<StarStyle.colorCount) + starlight.ownedColorIndices.filter { $0 >= StarStyle.colorCount }
     }
 
@@ -293,107 +426,186 @@ struct UploadScreen: View {
         )
     }
 
-    private var starPicker: some View {
-        let ids = shapeIds
-        return VStack(alignment: .leading, spacing: 8) {
-            label(LocaleManager.shared.t(.uploadStarShape))
-            WheelPicker(
-                count: ids.count,
-                selection: positionBinding(ids, $starType),
-                itemSize: 40,
-                isLocked: { StarUnlocks.lockedShapeAch(ids[$0], unlocked) != nil },
-                onLocked: { p in
-                    if let a = StarUnlocks.lockedShapeAch(ids[p], unlocked) {
-                        showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name))
-                    }
-                },
-                // 업로드(저장) 진행 중에는 별 모양도 공개 범위와 마찬가지로 바꿀 수 없게 잠근다.
-                enabled: !saving
-            ) { p in
-                let t = ids[p]
-                ZStack {
-                    StarView(type: t, colorIndex: starColor, size: 40, glow: false)
-                        .opacity(StarUnlocks.lockedShapeAch(t, unlocked) == nil ? 1 : 0.25)
-                    if StarUnlocks.lockedShapeAch(t, unlocked) != nil {
-                        Image(systemName: "lock.fill").font(.caption2).foregroundStyle(Theme.textSecondary)
-                    }
+    private func openPicker(_ tab: Int) {
+        focusedField = nil
+        pickerTab = tab
+        pickerOpen = true
+    }
+
+    private func toastLocked(_ a: Achievement) {
+        showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name))
+    }
+
+    private func starPicker(_ unlocked: Set<String>) -> some View {
+        let ids = ownedOnly
+            ? allShapeIds.filter { $0 == starType || StarUnlocks.lockedShapeAch($0, unlocked) == nil }
+            : allShapeIds
+        return WheelPicker(
+            count: ids.count,
+            selection: positionBinding(ids, $starType),
+            itemSize: 40,
+            isLocked: { StarUnlocks.lockedShapeAch(ids[$0], unlocked) != nil },
+            onLocked: { p in
+                if let a = StarUnlocks.lockedShapeAch(ids[p], unlocked) { toastLocked(a) }
+            },
+            // 업로드(저장) 진행 중에는 별 모양도 공개 범위와 마찬가지로 바꿀 수 없게 잠근다.
+            enabled: !saving
+        ) { p in
+            let t = ids[p]
+            let locked = StarUnlocks.lockedShapeAch(t, unlocked) != nil
+            ZStack {
+                StarView(type: t, colorIndex: starColor, size: 40, glow: false)
+                    .opacity(locked ? 0.25 : 1)
+                if locked {
+                    Image(systemName: "lock.fill").font(.caption2).foregroundStyle(Theme.textSecondary)
                 }
             }
         }
     }
 
-    private var colorPicker: some View {
-        let ids = colorIds
-        return VStack(alignment: .leading, spacing: 8) {
-            label(LocaleManager.shared.t(.uploadStarColor))
-            WheelPicker(
-                count: ids.count,
-                selection: positionBinding(ids, $starColor),
-                itemSize: 32,
-                isLocked: { StarUnlocks.lockedColorAch(ids[$0], unlocked) != nil },
-                onLocked: { p in
-                    if let a = StarUnlocks.lockedColorAch(ids[p], unlocked) {
-                        showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name))
-                    }
-                },
-                // 업로드(저장) 진행 중에는 별 색도 바꿀 수 없게 잠근다.
-                enabled: !saving
-            ) { p in
-                let c = ids[p]
-                ZStack {
-                    Circle()
-                        .fill(StarStyle.fill(c))
-                        .frame(width: 32, height: 32)
-                        .opacity(StarUnlocks.lockedColorAch(c, unlocked) == nil ? 1 : 0.25)
-                    if StarUnlocks.lockedColorAch(c, unlocked) != nil {
-                        Image(systemName: "lock.fill").font(.system(size: 11)).foregroundStyle(Theme.textPrimary)
-                    }
+    private func colorPicker(_ unlocked: Set<String>) -> some View {
+        let ids = ownedOnly
+            ? allColorIds.filter { $0 == starColor || StarUnlocks.lockedColorAch($0, unlocked) == nil }
+            : allColorIds
+        return WheelPicker(
+            count: ids.count,
+            selection: positionBinding(ids, $starColor),
+            itemSize: 32,
+            isLocked: { StarUnlocks.lockedColorAch(ids[$0], unlocked) != nil },
+            onLocked: { p in
+                if let a = StarUnlocks.lockedColorAch(ids[p], unlocked) { toastLocked(a) }
+            },
+            // 업로드(저장) 진행 중에는 별 색도 바꿀 수 없게 잠근다.
+            enabled: !saving
+        ) { p in
+            let c = ids[p]
+            let locked = StarUnlocks.lockedColorAch(c, unlocked) != nil
+            ZStack {
+                Circle()
+                    .fill(StarStyle.fill(c))
+                    .frame(width: 32, height: 32)
+                    .opacity(locked ? 0.25 : 1)
+                if locked {
+                    Image(systemName: "lock.fill").font(.system(size: 11)).foregroundStyle(Theme.textPrimary)
                 }
             }
         }
     }
 
-    private var visibilityPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            label(LocaleManager.shared.t(.uploadVisibility))
-            Picker("", selection: $visibility) {
-                ForEach(Visibility.allCases, id: \.self) { Text(visLabel($0)).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            // 업로드(저장) 진행 중에는 공개 범위 변경 불가 — Android UploadScreen 과 동일.
-            .disabled(saving)
-        }
-    }
+    // MARK: - 저장 버튼 · 뒤로가기 · 쓰던 글
 
-    /// 공개 범위 라벨(현재 언어) — Android upload_vis_* 대응.
-    private func visLabel(_ v: Visibility) -> String {
-        switch v {
-        case .publicAll: return LocaleManager.shared.t(.uploadVisPublic)
-        case .friends: return LocaleManager.shared.t(.uploadVisFriends)
-        case .privateOnly: return LocaleManager.shared.t(.uploadVisPrivate)
-        }
-    }
-
-    private var saveButton: some View {
-        Button {
+    /// 위쪽 여백은 글이 버튼 밑으로 녹아 사라지는 자리 — 칼같이 잘려 보이지 않게(Android fadeBottomEdge 대응).
+    private var saveBar: some View {
+        StaryButton(LocaleManager.shared.t(.commonSave), fullWidth: true, enabled: !title.isEmpty, loading: saving) {
             Task { await save() }
-        } label: {
-            Group {
-                if saving {
-                    StarLoadingView(size: 20, color: .black)
-                } else {
-                    Text(LocaleManager.shared.t(.commonSave))
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(Theme.navyAccent, in: RoundedRectangle(cornerRadius: 14))
-            .foregroundStyle(Color.black)
-            .font(.minSans(17))
         }
-        .disabled(saving || title.isEmpty)
-        .opacity(title.isEmpty ? 0.5 : 1)
+        .padding(.horizontal, 20)
+        .padding(.top, 24)
+        .padding(.bottom, 12)
+        .background {
+            LinearGradient(stops: [.init(color: .black.opacity(0), location: 0),
+                                   .init(color: .black.opacity(0.78), location: 0.4)],
+                           startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea(edges: .bottom)
+                .allowsHitTesting(false)
+        }
     }
+
+    /// 쓴 글이 있을 때만 대신 그리는 뒤로가기(시스템 버튼과 같은 모양·색) — 누르면 시트를 닫거나 한 번 묻는다.
+    @ViewBuilder private var backButton: some View {
+        if guardsBack {
+            Button { goBack() } label: {
+                Image(systemName: "chevron.backward")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color(hex: 0xF0F0F0))
+                    .padding(.vertical, 6)
+                    .padding(.trailing, 12)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(LocaleManager.shared.t(.cdBack))
+        }
+    }
+
+    private func goBack() {
+        if pickerOpen { pickerOpen = false; return }
+        focusedField = nil
+        showLeaveConfirm = true
+    }
+
+    private var leaveDialog: some View {
+        StaryDialogCard(title: LocaleManager.shared.t(.uploadLeaveTitle),
+                        message: LocaleManager.shared.t(.uploadLeaveMsg)) {
+            EmptyView()
+        } actions: {
+            StaryButton(LocaleManager.shared.t(.uploadLeaveExit), kind: .ghost, compact: true) {
+                showLeaveConfirm = false
+                keepDraft()
+                // 팝업(전체 화면 커버)이 다 닫힌 뒤에 화면을 닫는다 — 닫히는 중에 pop 하면 무시되는 경우가 있다.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { dismiss() }
+            }
+            StaryButton(LocaleManager.shared.t(.uploadLeaveStay), compact: true) {
+                showLeaveConfirm = false
+            }
+        }
+    }
+
+    /// 쓰다 나간 글이 있을 때 맨 위 한 줄 — 이어 쓰기 / 지우기.
+    private func draftStrip(_ draft: UploadDraft) -> some View {
+        HStack(spacing: 0) {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.navyAccent)
+            Text(LocaleManager.shared.t(.uploadDraftFound))
+                .font(.minSans(13))
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.leading, 10)
+            Spacer(minLength: 6)
+            Button {
+                UploadDraftStore.clear(uid: draftUid)
+                pendingDraft = nil
+            } label: {
+                Text(LocaleManager.shared.t(.uploadDraftDiscard))
+                    .font(.minSans(13))
+                    .foregroundStyle(Theme.textSecondary)
+                    .padding(10)
+            }
+            Button { restore(draft) } label: {
+                Text(LocaleManager.shared.t(.uploadDraftRestore))
+                    .font(.minSans(13, .semibold))
+                    .foregroundStyle(Theme.navyAccent)
+                    .padding(10)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 14)
+        .padding(.trailing, 4)
+        .background(Theme.navyAccent.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.bottom, 14)
+    }
+
+    private var draftUid: String { auth.uid ?? "guest" }
+
+    private var draftNow: UploadDraft {
+        UploadDraft(title: title, content: content, starType: starType, starColor: starColor,
+                    visibility: visibility.rawValue)
+    }
+
+    /// 쓴 글이 있으면 기기에 남긴다. 저장에 성공하면 제목·본문을 비우므로 그 뒤엔 남기지 않는다.
+    private func keepDraft() {
+        let d = draftNow
+        if d.hasText { UploadDraftStore.save(d, uid: draftUid) }
+    }
+
+    private func restore(_ d: UploadDraft) {
+        title = d.title
+        content = d.content
+        starType = d.starType
+        starColor = d.starColor
+        visibility = Visibility(type: d.visibility)
+        pendingDraft = nil
+    }
+
+    // MARK: - 올리기
 
     private func save() async {
         // 둘러보기(게스트)는 작성 불가 — Android common_login_required 안내와 동일.
@@ -405,11 +617,12 @@ struct UploadScreen: View {
             uploadFail("filter"); showToast(LocaleManager.shared.t(.contentBlocked)); return
         }
         // 잠긴 별 모양/색이 다이얼 중앙에 온 채 저장되지 않도록 차단(#7).
+        let unlocked = self.unlocked
         if let a = StarUnlocks.lockedShapeAch(starType, unlocked) {
-            showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name)); return
+            toastLocked(a); return
         }
         if let a = StarUnlocks.lockedColorAch(starColor, unlocked) {
-            showToast(String(format: LocaleManager.shared.t(.toastUnlockAchievement), LocalizedNames.title(a.id, fallback: a.name) ?? a.name)); return
+            toastLocked(a); return
         }
         // 하루 업로드 제한 — 오늘(로컬 자정 이후) 내가 올린 개수로 선차단.
         let startOfDay = Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
@@ -488,6 +701,9 @@ struct UploadScreen: View {
         do {
             let newId = try await store.save(diary)
             StaryAnalytics.log("upload_success", ["media": !diary.imageUrl.isEmpty || !diary.videoUrl.isEmpty])
+            // 올렸으니 쓰다 둔 글은 지운다(제목·본문도 비워 화면이 닫힐 때 다시 남기지 않는다).
+            UploadDraftStore.clear(uid: uid)
+            pendingDraft = nil
             // 전체/친구 공개 글이면 친구들에게 알림(나만보기는 제외).
             if visibility != .privateOnly {
                 await store.notifyFriends(uid: uid, name: authorName, diaryId: newId, title: title)
@@ -497,6 +713,8 @@ struct UploadScreen: View {
             // 별 탄생 연출(34-8) — 지도 탭으로 돌아가 방금 심은 별이 태어나는 연출을 지도 위에서 재생.
             // (Android 는 업로드 화면이 pop 되며 지도 위에서 재생 — 같은 동선.) 실패 경로에선 호출하지 않는다.
             StarBirthStore.shared.trigger(starType: starType, starColor: starColor)
+            // 내 별에 반응이 올 수 있으니 알림을 켤지 물을 차례(연출이 끝난 뒤 지도에서 — PermissionAsk).
+            PermissionAsk.shared.requestNotificationAsk()
             // 일일 퀘스트 — 올리기(시간대 퀘스트도 이 이벤트, 올린 시각으로 판정) + 사진/영상(Android 와 같은 규칙).
             QuestStore.report(.upload)
             if !diary.imageUrl.isEmpty || !diary.videoUrl.isEmpty { QuestStore.report(.uploadMedia) }
@@ -563,112 +781,31 @@ struct UploadScreen: View {
 
     // MARK: - 작은 헬퍼
 
-    private func label(_ t: String) -> some View {
-        Text(t).font(.minSans(12)).foregroundStyle(Theme.textSecondary)
-    }
-
-    private func field<Content: View>(_ t: String, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            label(t)
-            content()
-                .padding(12)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
-                .foregroundStyle(Theme.textPrimary)
-        }
-    }
-}
-
-/// 별 모양/색 선택용 무한 회전 휠(#13) — 선택 항목이 항상 정중앙, 좌우로 5개 정도 노출,
-/// 끝까지 돌리면 멈추지 않고 처음 항목이 다시 나온다(modulo 순환). (Android 미참고, iOS 자체 설계)
-private struct WheelPicker<Content: View>: View {
-    let count: Int
-    @Binding var selection: Int
-    let itemSize: CGFloat
-    var isLocked: (Int) -> Bool = { _ in false }
-    var onLocked: (Int) -> Void = { _ in }
-    /// false 면 드래그/탭 모두 막는다(업로드 진행 중 값 변경 방지) — Android StarWheelPicker(enabled) 패리티.
-    /// `.disabled()` 만으로는 커스텀 DragGesture/onTapGesture 가 계속 반응하므로 allowsHitTesting 으로 막는다.
-    var enabled: Bool = true
-    @ViewBuilder let item: (Int) -> Content
-
-    /// 슬롯 간격 — 5개(중앙 ±2)가 보이도록 넉넉히.
-    private var slot: CGFloat { itemSize + 28 }
-    @State private var drag: CGFloat = 0
-    @State private var settling = false
-    /// 드래그 중 슬롯을 지날 때마다 딸깍(햅틱) — 중복 방지용 마지막 눈금.
-    @State private var tickedStep = 0
-
-    private func wrap(_ i: Int) -> Int { ((i % count) + count) % count }
-
-    /// 화면에 그릴 슬롯 반경 — 기본 3(±3=중앙+양옆) + 현재 드래그 이동량만큼 여유.
-    private var visibleSpan: Int { 3 + Int((abs(drag) / slot).rounded(.up)) }
-
-    var body: some View {
-        ZStack {
-            // 중앙 강조 링(선택 자리).
-            Circle()
-                .stroke(Theme.navyAccent.opacity(0.9), lineWidth: 2)
-                .frame(width: itemSize + 18, height: itemSize + 18)
-
-            // 많이 드래그해도 빈 공간이 안 생기도록, 현재 드래그 양만큼 슬롯 수를 늘려 그린다.
-            // (아이콘은 modulo 순환이라 계속 돌려도 항상 채워진다.)
-            ForEach(-visibleSpan...visibleSpan, id: \.self) { off in
-                let idx = wrap(selection + off)
-                let x = CGFloat(off) * slot + drag
-                let dist = abs(x)
-                let scale = max(0.55, 1.25 - dist / slot * 0.35)
-                item(idx)
-                    .scaleEffect(scale)
-                    .opacity(Double(max(0.3, 1 - dist / (slot * 2.2))))
-                    .offset(x: x)
-                    .onTapGesture { commit(steps: off) }
+    /// 묶음 이름(왼쪽) + '모두 보기'(오른쪽, 있을 때만).
+    private func sectionHeader(_ label: String, onSeeAll: (() -> Void)? = nil) -> some View {
+        HStack(spacing: 0) {
+            Text(label)
+                .font(.minSans(12, .medium))
+                .foregroundStyle(Theme.textSecondary)
+            Spacer(minLength: 8)
+            if let onSeeAll {
+                Button(action: onSeeAll) {
+                    Text(LocaleManager.shared.t(.uploadSeeAll))
+                        .font(.minSans(13, .medium))
+                        .foregroundStyle(Theme.navyAccent.opacity(saving ? 0.5 : 1))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+                .disabled(saving)
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: itemSize * 1.7)
-        .contentShape(Rectangle())
-        .clipped()
-        .gesture(
-            DragGesture()
-                .onChanged { g in
-                    guard !settling else { return }
-                    drag = g.translation.width
-                    let step = Int((-drag / slot).rounded())
-                    if step != tickedStep {
-                        tickedStep = step
-                        Haptics.tick()
-                    }
-                }
-                .onEnded { g in
-                    let steps = Int((-g.translation.width / slot).rounded())
-                    tickedStep = 0
-                    commit(steps: steps)
-                }
-        )
-        .opacity(enabled ? 1 : 0.5)
-        .allowsHitTesting(enabled)
     }
 
-    /// 놓은(또는 탭한) 지점의 항목을 **놓은 자리에서 그대로 중앙으로** 부드럽게 스냅한다.
-    /// selection 은 애니메이션이 끝난 뒤 한 번에 갱신 → 좌표계 불연속(되돌아가는 현상)이 없다.
-    /// 잠긴 항목도 중앙에 고정되며, 저장은 UploadScreen 에서 별도로 막는다.
-    private func commit(steps: Int) {
-        // 반 슬롯을 못 넘긴 드래그(steps=0)도 반드시 원위치로 되돌린다 —
-        // 그냥 return 하면 drag 가 남아 항목과 항목 **사이**에 멈춘 채 고정된다(#2).
-        guard steps != 0 else {
-            if drag != 0 { withAnimation(.easeOut(duration: 0.18)) { drag = 0 } }
-            return
-        }
-        settling = true
-        let target = wrap(selection + steps)
-        // 현재 위치에서 목표 슬롯이 중앙(x=0)에 오도록 drag 를 이동.
-        withAnimation(.easeOut(duration: 0.24)) { drag = -CGFloat(steps) * slot }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
-            selection = target      // off=steps 였던 항목이 이제 off=0
-            drag = 0                // 좌표 동일 → 시각적 점프 없음
-            settling = false
-            if isLocked(target) { onLocked(target) }
-        }
+    private var hairline: some View {
+        Rectangle()
+            .fill(Theme.outline.opacity(0.7))
+            .frame(height: 1)
     }
 }
 

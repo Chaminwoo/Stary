@@ -1,6 +1,9 @@
 package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
+import com.chaminwoo.stary.core.ui.StaryDialog
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import com.chaminwoo.stary.core.util.displayTitle
@@ -40,7 +43,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
@@ -417,25 +419,20 @@ fun UserProfileScreen(
 
         // 친구 취소 확인 다이얼로그 — 탑바의 "친구(사람✓)" 버튼을 누르면 뜬다.
         if (showCancelDialog) {
-            AlertDialog(
+            StaryDialog(
                 onDismissRequest = { showCancelDialog = false },
-                containerColor = Color(0xFF14181C),
-                titleContentColor = TextMain,
-                textContentColor = TextMuted,
                 title = { Text(stringResource(R.string.user_unfriend_title)) },
                 text = {
                     Text(stringResource(R.string.user_unfriend_confirm, resolvedName.ifBlank { stringResource(R.string.common_user) }))
                 },
                 confirmButton = {
-                    TextButton(onClick = {
+                    StaryButton(stringResource(R.string.user_unfriend_yes), kind = StaryButtonKind.Danger, compact = true, onClick = {
                         showCancelDialog = false
                         vm.remove(userId, resolvedName) // 토스트는 vm.event 가 처리
-                    }) { Text(stringResource(R.string.user_unfriend_yes), color = Color(0xFFFF6B6B)) }
+                    })
                 },
                 dismissButton = {
-                    TextButton(onClick = { showCancelDialog = false }) {
-                        Text(stringResource(R.string.user_unfriend_no), color = Accent)
-                    }
+                    StaryButton(stringResource(R.string.user_unfriend_no), { showCancelDialog = false }, kind = StaryButtonKind.Ghost, compact = true)
                 }
             )
         }
@@ -443,15 +440,12 @@ fun UserProfileScreen(
         // 차단 확인 다이얼로그 — 무엇이 숨겨지는지(별/댓글) + 친구 해제를 미리 알린다.
         if (showBlockDialog) {
             val name = resolvedName.ifBlank { stringResource(R.string.common_user) }
-            AlertDialog(
+            StaryDialog(
                 onDismissRequest = { showBlockDialog = false },
-                containerColor = Color(0xFF14181C),
-                titleContentColor = TextMain,
-                textContentColor = TextMuted,
                 title = { Text(stringResource(R.string.block_confirm_title, name)) },
                 text = { Text(stringResource(R.string.block_confirm_msg)) },
                 confirmButton = {
-                    TextButton(onClick = {
+                    StaryButton(stringResource(R.string.block), kind = StaryButtonKind.Danger, compact = true, onClick = {
                         showBlockDialog = false
                         val mine = myId
                         if (mine != null) scope.launch {
@@ -459,12 +453,10 @@ fun UserProfileScreen(
                             if (isFriend) vm.remove(userId, resolvedName) // 차단 시 친구도 해제
                             com.chaminwoo.stary.core.ui.StaryToast.show(blockedMsg)
                         }
-                    }) { Text(stringResource(R.string.block), color = Color(0xFFFF6B6B)) }
+                    })
                 },
                 dismissButton = {
-                    TextButton(onClick = { showBlockDialog = false }) {
-                        Text(stringResource(R.string.common_cancel), color = Accent)
-                    }
+                    StaryButton(stringResource(R.string.common_cancel), { showBlockDialog = false }, kind = StaryButtonKind.Ghost, compact = true)
                 }
             )
         }
@@ -555,24 +547,6 @@ private fun ActionButton(text: String, icon: ImageVector, onClick: () -> Unit) {
         Icon(icon, contentDescription = null, tint = Color(0xFF0D0D0D), modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(text, color = Color(0xFF0D0D0D), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun StatusChip(text: String, icon: ImageVector? = null) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Accent.copy(alpha = 0.12f))
-            .border(1.dp, Accent.copy(alpha = 0.4f), RoundedCornerShape(50))
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-        }
-        Text(text, color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Light)
     }
 }
 

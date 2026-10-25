@@ -44,7 +44,7 @@ struct CollectionScreen: View {
                     loadout
                     if mine.isEmpty {
                         Text(locale.t(.starlightCollectionEmpty))
-                            .font(.minSans(13.5)).foregroundStyle(sub).lineSpacing(4)
+                            .font(.minSans(13)).foregroundStyle(sub).lineSpacing(4)
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity).padding(.vertical, 40)
                     } else {
@@ -81,21 +81,10 @@ struct CollectionScreen: View {
     }
 
     private func chip(_ text: String, _ count: Int, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
-        Button {
+        StaryChip("\(text) \(count)", selected: selected, accent: StarlightArt.violet) {
             Haptics.tick()
             withAnimation(.easeOut(duration: 0.18)) { action() }
-        } label: {
-            Text("\(text) \(count)")
-                .font(.minSans(12.5, .medium))
-                .foregroundStyle(selected ? Color(hex: 0x1A0B33) : sub)
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(selected
-                            ? LinearGradient(colors: [Color(hex: 0xE2C8FF), StarlightArt.violet], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            : LinearGradient(colors: [card, card], startPoint: .top, endPoint: .bottom),
-                            in: Capsule())
-                .overlay(Capsule().strokeBorder(selected ? Color.clear : line, lineWidth: 0.75))
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: 지금 장착 중
@@ -111,7 +100,7 @@ struct CollectionScreen: View {
         let photo: CGFloat = 84 * (1 - 2 * StarlightArt.frameInset)
         return VStack(alignment: .leading, spacing: 12) {
             Text(locale.t(.starlightLoadout))
-                .font(.minSans(11.5, .semibold)).tracking(1.2).foregroundStyle(gold)
+                .font(.minSans(11, .semibold)).tracking(1.2).foregroundStyle(gold)
             HStack(spacing: 14) {
                 ZStack {
                     LoadoutPhoto(url: auth.photoUrl)
@@ -124,11 +113,11 @@ struct CollectionScreen: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Text(auth.confirmedName.map { $0.isEmpty ? "Stargazer" : $0 } ?? "···")
-                            .font(.minSans(18, .semibold)).foregroundStyle(ink).lineLimit(1)
+                            .font(.minSans(17, .semibold)).foregroundStyle(ink).lineLimit(1)
                         EquippedBadge(equips: eq, size: 20)
                     }
                     if let title {
-                        TitleText(text: "『\(title.name(in: lang))』", item: title, fontSize: 13.5)
+                        TitleText(text: "『\(title.name(in: lang))』", item: title, fontSize: 13)
                             .onTapGesture { kind = "title" }
                     }
                 }
@@ -164,9 +153,9 @@ struct CollectionScreen: View {
     private func slotPill(_ k: String, _ item: StarlightStore.Item?, _ lang: String) -> some View {
         let c = item.map { StarlightArt.rarityColor($0.rarity) } ?? dim
         return VStack(spacing: 1) {
-            Text(starlightKindName(k)).font(.minSans(9.5)).foregroundStyle(dim).lineLimit(1)
+            Text(starlightKindName(k)).font(.minSans(10)).foregroundStyle(dim).lineLimit(1)
             Text(item?.name(in: lang) ?? locale.t(.starlightSlotEmpty))
-                .font(.minSans(10.5, .medium)).foregroundStyle(item != nil ? ink : dim).lineLimit(1)
+                .font(.minSans(10, .medium)).foregroundStyle(item != nil ? ink : dim).lineLimit(1)
         }
         .padding(.horizontal, 6).padding(.vertical, 7)
         .frame(maxWidth: .infinity)
@@ -228,7 +217,7 @@ private struct OwnedCell: View {
                 .font(.minSans(11)).foregroundStyle(ink)
                 .multilineTextAlignment(.center).lineLimit(2)
             Text(equipped ? locale.t(.starlightEquipped) : rarityName(item.rarity))
-                .font(.minSans(9.5, .semibold)).foregroundStyle(c)
+                .font(.minSans(10, .semibold)).foregroundStyle(c)
         }
         .padding(.vertical, 10).padding(.horizontal, 6)
         .frame(maxWidth: .infinity)
@@ -261,14 +250,14 @@ struct StarlightItemDetail: View {
                 ItemArt(item: item).frame(width: 120, height: 120)
                 Text("\(rarityName(item.rarity)) · \(starlightKindName(item.kind))")
                     .font(.minSans(12, .semibold)).foregroundStyle(c).padding(.top, 10)
-                Text(item.name(in: lang)).font(.minSans(18, .semibold)).foregroundStyle(ink)
+                Text(item.name(in: lang)).font(.minSans(17, .semibold)).foregroundStyle(ink)
                     .multilineTextAlignment(.center).padding(.top, 4)
                 Text(item.desc(in: lang)).font(.minSans(13)).foregroundStyle(sub).lineSpacing(3)
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true).padding(.top, 8)
                 if count > 0 {
                     Text(String(format: locale.t(.starlightOwnedN), count)).font(.minSans(12)).foregroundStyle(c).padding(.top, 10)
                     if let note = usageNote {
-                        Text(locale.t(note)).font(.minSans(11.5)).foregroundStyle(dim)
+                        Text(locale.t(note)).font(.minSans(11)).foregroundStyle(dim)
                             .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true).padding(.top, 4)
                     }
                     if let slot {

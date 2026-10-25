@@ -43,36 +43,20 @@ struct VisibilityBadge: View {
     }
 }
 
-/// 수정 팝업의 공개 범위 선택 줄 — 업로드 화면 칩(Android `VisibilityChooser`)과 같은 모양:
-/// 선택 = 남색 테두리 + 옅은 면, 미선택 = 회색 테두리.
+/// 공개 범위 선택 줄 — 업로드 화면과 수정 팝업이 함께 쓴다. 테두리 없이 면으로만 나누고 고른 칸에 옅은 별빛 판
+/// (`StarySegmented`). Android `VisibilityChooser` 패리티.
 struct VisibilityChooser: View {
     @Binding var selection: Visibility
+    var enabled = true
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(Visibility.allCases, id: \.self) { v in
-                let on = selection == v
-                Button {
-                    selection = v
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: v.symbolName)
-                            .font(.system(size: 16))
-                        Text(v.localizedLabel)
-                            .font(.minSans(12))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .foregroundStyle(on ? Theme.navyAccent : Theme.textSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(on ? Color.white.opacity(0.15) : Color.clear,
-                                in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(on ? Theme.navyAccent : Theme.outline, lineWidth: on ? 2 : 1))
-                }
-                .buttonStyle(.plain)
-            }
-        }
+        StarySegmented(
+            options: Visibility.allCases.map { v -> (label: String, systemImage: String?) in (v.localizedLabel, v.symbolName) },
+            selection: Binding(
+                get: { Visibility.allCases.firstIndex(of: selection) ?? 0 },
+                set: { i in if Visibility.allCases.indices.contains(i) { selection = Visibility.allCases[i] } }
+            ),
+            enabled: enabled
+        )
     }
 }

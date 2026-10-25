@@ -549,7 +549,7 @@ struct ItemArt: View {
             SvgGlyph(svg: item.str("path"), colors: StarlightArt.colors(item), glow: item.rarity != "common")
                 .frame(width: s * 0.66, height: s * 0.66)
         case "title":
-            TitleText(text: item.name(in: locale.effectiveLanguage), item: item, fontSize: 10.5)
+            TitleText(text: item.name(in: locale.effectiveLanguage), item: item, fontSize: 10)
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .padding(.horizontal, 8).padding(.vertical, 4)
                 .background(Color.white.opacity(0.13), in: Capsule())

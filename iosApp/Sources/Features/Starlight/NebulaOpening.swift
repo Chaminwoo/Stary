@@ -252,7 +252,7 @@ struct NebulaOpening: View {
         VStack(spacing: 0) {
             CardsGrid(draws: draws, flipped: flipped) { i, center in flip(i, center) }
             VStack(spacing: 10) {
-                if !allFlipped { Text(locale.t(.starlightTapCard)).font(.minSans(12.5)).foregroundStyle(openSub) }
+                if !allFlipped { Text(locale.t(.starlightTapCard)).font(.minSans(12)).foregroundStyle(openSub) }
                 PillButton(text: locale.t(allFlipped ? .starlightConfirm : .starlightFlipAll), primary: allFlipped) {
                     if allFlipped { onDone() } else { flipAll() }
                 }

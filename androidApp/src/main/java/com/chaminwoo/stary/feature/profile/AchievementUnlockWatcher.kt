@@ -123,6 +123,7 @@ fun AchievementUnlockWatcher(userId: String, suppressed: Boolean = false) {
     // 코치마크(온보딩) 등 다른 오버레이가 떠 있는 동안엔 큐에 쌓아만 두고, 닫힌 뒤에 표시.
     if (!suppressed) {
         queue.firstOrNull()?.let { group ->
+            com.chaminwoo.stary.core.ui.PermissionAsk.HoldForCelebration()
             // 리빌에 띄울 대표 보상 — 새 별 모양이 있으면 그걸, 없으면 첫 업적.
             val hero = group.firstOrNull { it.reward is Reward.Shape } ?: group.first()
             AchievementUnlockDialog(hero, bundle = if (group.size > 1) group else emptyList()) { queue.removeAt(0) }
@@ -350,7 +351,7 @@ private fun AchievementUnlockDialog(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         LocalizedNames.title(context, achievement.id, achievement.name) ?: achievement.name,
-                        color = Color.White, fontSize = 22.sp,
+                        color = Color.White, fontSize = 20.sp,
                         fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(6.dp))

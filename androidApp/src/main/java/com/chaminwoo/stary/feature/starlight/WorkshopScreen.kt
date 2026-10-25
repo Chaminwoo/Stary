@@ -278,7 +278,7 @@ private fun ExchangeRow(
             Column(Modifier.weight(1f)) {
                 Text(title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(2.dp))
-                Text(desc, color = Dim, fontSize = 11.5.sp, lineHeight = 16.sp)
+                Text(desc, color = Dim, fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -351,7 +351,7 @@ private fun OpenCard(busy: Boolean, onOpen: (Int) -> Unit) {
     ) {
         Text(
             stringResource(R.string.starlight_lineup),
-            color = Gold, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+            color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
         )
         Spacer(Modifier.height(10.dp))
         Box(Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.TopCenter) {
@@ -378,7 +378,7 @@ private fun OpenCard(busy: Boolean, onOpen: (Int) -> Unit) {
         Text(
             if (boxes > 0) stringResource(R.string.starlight_boxes_ready, boxes)
             else stringResource(R.string.starlight_no_box, StarlightStore.config.boxCost),
-            color = Sub, fontSize = 12.5.sp, textAlign = TextAlign.Center,
+            color = Sub, fontSize = 12.sp, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -411,7 +411,7 @@ private fun ShowcaseCard(item: StarlightStore.Item, modifier: Modifier = Modifie
         ItemArt(item, Modifier.size(70.dp))
         Spacer(Modifier.weight(1f))
         Text(
-            item.nameIn(starlightLang()), color = Ink, fontSize = 10.5.sp, lineHeight = 13.sp,
+            item.nameIn(starlightLang()), color = Ink, fontSize = 10.sp, lineHeight = 13.sp,
             fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2,
         )
     }
@@ -463,10 +463,10 @@ private fun CollectionSummary(onOpen: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.starlight_collection), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(2.dp))
-                Text(stringResource(R.string.starlight_collection_desc), color = Dim, fontSize = 11.5.sp, lineHeight = 16.sp)
+                Text(stringResource(R.string.starlight_collection_desc), color = Dim, fontSize = 11.sp, lineHeight = 16.sp)
             }
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.starlight_collection_open), color = Violet, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.starlight_collection_open), color = Violet, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Violet, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(10.dp))
@@ -509,16 +509,16 @@ private fun OddsCard() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(8.dp).clip(CircleShape).background(rarityColor(r)))
                 Spacer(Modifier.width(8.dp))
-                Text(rarityName(r), color = Sub, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
-                Text(pct(cfg.percent(r)), style = TextStyle(color = Ink, fontSize = 12.5.sp, fontFeatureSettings = "tnum"))
+                Text(rarityName(r), color = Sub, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(pct(cfg.percent(r)), style = TextStyle(color = Ink, fontSize = 12.sp, fontFeatureSettings = "tnum"))
             }
         }
         Spacer(Modifier.height(2.dp))
-        Text(stringResource(R.string.starlight_pity, cfg.pityEpic, cfg.pityLegendary), color = Dim, fontSize = 11.5.sp, lineHeight = 16.sp)
+        Text(stringResource(R.string.starlight_pity, cfg.pityEpic, cfg.pityLegendary), color = Dim, fontSize = 11.sp, lineHeight = 16.sp)
         if (StarlightStore.walletLoaded) {
             Text(
                 stringResource(R.string.starlight_pity_now, StarlightStore.sinceEpic, StarlightStore.sinceLegendary),
-                color = Dim, fontSize = 11.5.sp, lineHeight = 16.sp,
+                color = Dim, fontSize = 11.sp, lineHeight = 16.sp,
             )
         }
         Text(
@@ -526,7 +526,7 @@ private fun OddsCard() {
                 R.string.starlight_dup_rule,
                 cfg.dupRefund["common"] ?: 0, cfg.dupRefund["rare"] ?: 0, cfg.dupRefund["epic"] ?: 0, cfg.dupRefund["legendary"] ?: 0,
             ),
-            color = Dim, fontSize = 11.5.sp, lineHeight = 16.sp,
+            color = Dim, fontSize = 11.sp, lineHeight = 16.sp,
         )
         // 아이템별 확률(접어 둔다) — 같은 등급 안에서는 모두 같은 확률.
         Row(
@@ -535,7 +535,7 @@ private fun OddsCard() {
         ) {
             Text(
                 stringResource(if (expanded) R.string.starlight_odds_hide else R.string.starlight_odds_items),
-                color = Violet, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f),
+                color = Violet, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f),
             )
             Icon(if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, null, tint = Violet, modifier = Modifier.size(18.dp))
         }
@@ -546,11 +546,11 @@ private fun OddsCard() {
                     val group = pool.filter { it.rarity == r }
                     if (group.isEmpty()) return@forEach
                     val each = cfg.percent(r) / group.size
-                    Text(rarityName(r), color = rarityColor(r), fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+                    Text(rarityName(r), color = rarityColor(r), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
                     group.forEach { item ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("${item.nameIn(lang)} · ${kindName(item.kind)}", color = Sub, fontSize = 11.5.sp, modifier = Modifier.weight(1f), maxLines = 1)
-                            Text(pct(each), style = TextStyle(color = Dim, fontSize = 11.5.sp, fontFeatureSettings = "tnum"))
+                            Text("${item.nameIn(lang)} · ${kindName(item.kind)}", color = Sub, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                            Text(pct(each), style = TextStyle(color = Dim, fontSize = 11.sp, fontFeatureSettings = "tnum"))
                         }
                     }
                 }

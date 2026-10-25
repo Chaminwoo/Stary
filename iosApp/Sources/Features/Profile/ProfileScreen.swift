@@ -121,7 +121,7 @@ struct ProfileScreen: View {
                     // 서버에서 확인한 값만 보여 준다(모르는 동안 "···") — 기기 첫 실행 직후 구글 이름이 보이던 문제(CLAUDE.md §2.6).
                     HStack(spacing: 6) {
                         Text(auth.confirmedName.map { $0.isEmpty ? "Stargazer" : $0 } ?? "···")
-                            .font(.minSans(26))
+                            .font(.minSans(24))
                             .foregroundStyle(Theme.textPrimary)
                             .onTapGesture {
                                 nicknameDraft = auth.confirmedName ?? ""
@@ -154,7 +154,7 @@ struct ProfileScreen: View {
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: "square.grid.2x2.fill").font(.system(size: 11, weight: .semibold))
-                                Text(locale.t(.navCollection)).font(.minSans(12.5, .medium))
+                                Text(locale.t(.navCollection)).font(.minSans(12, .medium))
                             }
                             .foregroundStyle(StarlightArt.violet)
                             .padding(.horizontal, 12).padding(.vertical, 6)
@@ -324,10 +324,10 @@ struct ProfileScreen: View {
                             }
                         }
                 } actions: {
-                    StaryDialogTextButton(locale.t(.commonCancel), color: Theme.textSecondary) {
+                    StaryButton(locale.t(.commonCancel), kind: .ghost, compact: true) {
                         showNicknameEditor = false
                     }
-                    StaryDialogTextButton(locale.t(.commonSave), weight: .semibold) {
+                    StaryButton(locale.t(.commonSave), compact: true) {
                         showNicknameEditor = false
                         let n = String(nicknameDraft.prefix(AppConfig.nicknameMaxLen))
                         // 부적절한 표현 필터(App Store 1.2)

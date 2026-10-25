@@ -141,7 +141,7 @@ struct FirstStarGuideCard: View {
             }
             .frame(width: 52, height: 52)
             Text(locale.t(t.title))
-                .font(.minSans(16, .semibold))
+                .font(.minSans(15, .semibold))
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 12)

@@ -101,6 +101,7 @@ fun HiddenAchievementWatcher(userId: String, suppressed: Boolean = false) {
 
     if (!suppressed) {
         queue.firstOrNull()?.let { ach ->
+            com.chaminwoo.stary.core.ui.PermissionAsk.HoldForCelebration()
             HiddenUnlockDialog(ach) { queue.removeAt(0) }
         }
     }
@@ -150,7 +151,7 @@ private fun HiddenUnlockDialog(achievement: HiddenAchievement, onDismiss: () -> 
                     com.chaminwoo.stary.core.util.LocalizedNames.title(
                         androidx.compose.ui.platform.LocalContext.current, achievement.id, achievement.title
                     )!!,
-                    color = Color.White, fontSize = 22.sp,
+                    color = Color.White, fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(6.dp))

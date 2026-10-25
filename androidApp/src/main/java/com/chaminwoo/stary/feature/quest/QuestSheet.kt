@@ -546,7 +546,7 @@ private fun QuestRow(
                     fontSize = 14.sp, fontWeight = FontWeight.Medium, lineHeight = 19.sp,
                 )
                 Spacer(Modifier.height(2.dp))
-                Text(hint, color = Color(0xFF8A93A3), fontSize = 11.5.sp, lineHeight = 16.sp)
+                Text(hint, color = Color(0xFF8A93A3), fontSize = 11.sp, lineHeight = 16.sp)
                 if (target > 1 && !claimed) {
                     Spacer(Modifier.height(7.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {

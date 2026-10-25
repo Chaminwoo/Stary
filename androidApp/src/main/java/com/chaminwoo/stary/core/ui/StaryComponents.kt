@@ -34,13 +34,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.core.designsystem.StarStyle
+import com.chaminwoo.stary.core.designsystem.StaryColors
 
-val PageBg = Color(0xFF0E1018)
-val CardBg = Color(0xFF181C2A)
-val CardBgTop = Color(0xFF1E2334)
+val PageBg = StaryColors.Bg
+val CardBg = StaryColors.Surface
+val CardBgTop = StaryColors.Raised
 val CardBorder = Color.White.copy(alpha = 0.06f)
-val TextMain = Color(0xFFF2F4FA)
-val TextMuted = Color(0xFF8A92A6)
+val TextMain = StaryColors.Text
+val TextMuted = StaryColors.Muted
 
 fun Modifier.appCard(radius: Dp = 16.dp): Modifier = this
     .clip(RoundedCornerShape(radius))
@@ -137,7 +138,7 @@ fun StatCard(
     ) {
         Text(
             text = value,
-            fontSize = 25.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Light,
             color = TextMain
         )

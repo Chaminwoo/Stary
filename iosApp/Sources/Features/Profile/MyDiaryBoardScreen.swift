@@ -113,10 +113,14 @@ struct MyStarsScreen: View {
                     .padding(.bottom, 4)
 
                     if sorted.isEmpty {
-                        Text(locale.t(.mydiaryEmpty))
-                            .font(.minSans(14))
-                            .foregroundStyle(Theme.textSecondary)
-                            .padding(.vertical, 48)
+                        LoadingGate(loading: store.loading) {
+                            SkeletonRows(count: 5).padding(.horizontal, 20)
+                        } empty: {
+                            Text(locale.t(.mydiaryEmpty))
+                                .font(.minSans(14))
+                                .foregroundStyle(Theme.textSecondary)
+                                .padding(.vertical, 48)
+                        }
                     } else if listMode {
                         listColumn
                             .padding(.horizontal, 16)

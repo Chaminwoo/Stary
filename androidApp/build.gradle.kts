@@ -203,6 +203,10 @@ dependencies {
     implementation("androidx.camera:camera-view:1.4.1")
     implementation("androidx.compose.material:material-icons-extended")
 
+    // 유리처럼 흐린 상단바·시트(chrisbanes/haze, Apache-2.0) — Android 12+ 는 실제 흐림, 그 아래는 반투명 판으로 대체.
+    // ⚠️ 1.7.x / 2.x 는 지금 Kotlin·Compose 조합과 맞지 않아 1.6.10 에 고정.
+    implementation("dev.chrisbanes.haze:haze:1.6.10")
+
     // 로그인 인트로 영상(무음 mp4 + 동적 속도 제어) 재생용
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")

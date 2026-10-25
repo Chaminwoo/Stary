@@ -33,6 +33,8 @@
     <string name="settings_sfx_volume">効果音の音量</string>
     <string name="settings_notif_popup">通知バナー</string>
     <string name="settings_notif_popup_desc">チャットや日記の通知を上部バナーで表示します</string>
+    <string name="settings_push_off">この端末の通知がオフです</string>
+    <string name="settings_push_off_desc">チャットや友だちの新しい投稿の通知を受け取るには、設定アプリでStaryの通知をオンにしてください</string>
     <string name="settings_language_desc">アプリに表示される言語を選択します</string>
     <string name="settings_help">ヘルプ</string>
     <string name="settings_help_replay">ヘルプをもう一度見る</string>
@@ -163,9 +165,18 @@
     <string name="upload_pick_video">動画（3秒以内）</string>
     <string name="upload_video_too_long">3秒以内の短い動画のみアップロードできます</string>
     <string name="upload_reselect">選び直す</string>
+    <string name="upload_crop_hint">ドラッグで位置、ピンチで大きさを調整</string>
+    <string name="upload_clear_media">添付を削除</string>
     <string name="upload_content_label">この場所の思い出を残してください</string>
     <string name="upload_star_shape">星の形</string>
     <string name="upload_star_color">星の色</string>
+    <string name="upload_see_all">すべて見る</string>
+    <string name="upload_owned_only">持っているものだけ</string>
+    <string name="picker_tab_shape">形</string>
+    <string name="picker_tab_color">色</string>
+    <string name="picker_group_basic">基本</string>
+    <string name="picker_group_achievement">実績の報酬</string>
+    <string name="picker_locked_hint">実績「%1$s」を達成すると使えます</string>
     <string name="upload_visibility">公開範囲</string>
     <string name="upload_vis_public">全体公開</string>
     <string name="upload_vis_friends">友達のみ</string>
@@ -191,6 +202,13 @@
     <string name="upload_slow_msg">まだサーバーに届いていません。書いた内容はそのまま残り、つながると自動で投稿されます。</string>
     <string name="upload_loc_mock_title">位置偽装アプリがオンになっています</string>
     <string name="upload_loc_mock_msg">星は実際の位置にだけ残せます。位置偽装アプリをオフにしてもう一度お試しください。</string>
+    <string name="upload_leave_title">書きかけの星があります</string>
+    <string name="upload_leave_msg">離れても文章はこの端末に残しておきます。次に開いたときに続きを書けます。</string>
+    <string name="upload_leave_exit">離れる</string>
+    <string name="upload_leave_stay">書き続ける</string>
+    <string name="upload_draft_found">書きかけの星が残っています</string>
+    <string name="upload_draft_restore">続きを書く</string>
+    <string name="upload_draft_discard">削除</string>
     <string name="profile_not_ready">プロフィールを読み込み中です。通信状況を確認して、しばらくしてからもう一度お試しください</string>
 
     <!-- 友達画面 -->
@@ -610,6 +628,8 @@
     <string name="starlog_empty_desc">100m以内に近づくか広告で解錠した\n誰かの星がここに集まります。\n一度開いた日記は星の図鑑にずっと残ります。</string>
     <string name="starlog_permanent_note">一度開いた日記は\n星の図鑑にずっと残ります</string>
     <string name="starlog_filtered_empty">条件に合う星がありません</string>
+    <string name="starlog_view_ring">星</string>
+    <string name="starlog_view_list">リスト</string>
     <string name="onb_starlog_title">星の図鑑</string>
     <string name="onb_starlog_msg">開いた誰かの星が\n円に集まります。\n100m以内でも広告でも\n開いた日記は星の図鑑にずっと残ります。\n押したまま星をなぞると\n真ん中にその星の話が浮かびます。</string>
 
@@ -828,4 +848,12 @@
     <string name="starlight_lineup">伝説アイテムを引いてみよう！</string>
     <string name="guide_exchange_title">星くずで鍵を作る</string>
     <string name="guide_exchange_msg">クエストで集めた星くずは星明かりの工房で鍵に交換できます（%1$d個 = 鍵1個）。</string>
+    <!-- 권한 안내 카드(S2 — core/ui/PermissionAsk.kt) -->
+    <string name="perm_loc_title">近くの星を見るには位置情報が必要です</string>
+    <string name="perm_loc_msg">今いる場所に星を残したり、近くの星を開いたりするときに使います。おおよその位置でも大丈夫です。</string>
+    <string name="perm_notif_title">新しいお知らせを通知で受け取りますか？</string>
+    <string name="perm_notif_msg">あなたの星にいいねやコメントがついたとき、友だちが新しい星を残したとき、友だち申請が届いたときにお知らせします。</string>
+    <string name="perm_allow">許可する</string>
+    <string name="perm_notif_allow">通知を受け取る</string>
+    <string name="perm_later">あとで</string>
 </resources>

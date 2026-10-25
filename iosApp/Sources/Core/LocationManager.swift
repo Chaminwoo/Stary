@@ -35,6 +35,10 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             coordinate = CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
         }
         #endif
+        // 권한이 없으면 시작하지 않는다 — 위치 창은 지도의 이유 카드(PermissionAsk)와 업로드 화면 안내에서만 띄운다.
+        // 허용되면 권한 콜백(locationManagerDidChangeAuthorization)이 추적을 시작한다.
+        let status = manager.authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
         manager.startUpdatingLocation()
     }
 

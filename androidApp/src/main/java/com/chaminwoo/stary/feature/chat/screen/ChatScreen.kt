@@ -43,7 +43,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -79,6 +78,9 @@ import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.model.ChatMessage
 import com.chaminwoo.stary.core.ui.CardBgTop
 import com.chaminwoo.stary.core.ui.PageBg
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
+import com.chaminwoo.stary.core.ui.StaryDialog
 import com.chaminwoo.stary.core.ui.TextMain
 import com.chaminwoo.stary.core.ui.TextMuted
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -266,9 +268,8 @@ fun ChatScreen(
         // 메시지 삭제 방식 선택 — 나에게서만(언제나, 상대 방엔 남음) / 모두에게서(내 메시지 1분 이내, 상대 쪽에서도 사라짐).
         pendingDelete?.let { target ->
             val canDeleteAll = vm.canDelete(target)
-            AlertDialog(
+            StaryDialog(
                 onDismissRequest = { pendingDelete = null },
-                containerColor = CardBgTop,
                 title = { Text(stringResource(R.string.chat_delete_title), color = TextMain) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -300,29 +301,25 @@ fun ChatScreen(
                 },
                 confirmButton = {},
                 dismissButton = {
-                    TextButton(onClick = { pendingDelete = null }) {
-                        Text(stringResource(R.string.common_cancel), color = TextMuted)
-                    }
+                    StaryButton(stringResource(R.string.common_cancel), { pendingDelete = null }, kind = StaryButtonKind.Ghost, compact = true)
                 }
             )
         }
 
         // 대화 내용 나에게서만 삭제 확인(탑바 ⋮) — 상대 대화방에는 그대로 남는다.
         if (showClearConfirm) {
-            AlertDialog(
+            StaryDialog(
                 onDismissRequest = { showClearConfirm = false },
-                containerColor = CardBgTop,
-                title = { Text(stringResource(R.string.chat_clear_title), color = TextMain) },
-                text = { Text(stringResource(R.string.chat_clear_confirm), color = TextMuted) },
+                title = { Text(stringResource(R.string.chat_clear_title)) },
+                text = { Text(stringResource(R.string.chat_clear_confirm)) },
                 confirmButton = {
-                    TextButton(onClick = { showClearConfirm = false; vm.clearForMe() }) {
-                        Text(stringResource(R.string.common_delete), color = Color(0xFFFF6B6B))
-                    }
+                    StaryButton(
+                        stringResource(R.string.common_delete), { showClearConfirm = false; vm.clearForMe() },
+                        kind = StaryButtonKind.Danger, compact = true,
+                    )
                 },
                 dismissButton = {
-                    TextButton(onClick = { showClearConfirm = false }) {
-                        Text(stringResource(R.string.common_cancel), color = TextMuted)
-                    }
+                    StaryButton(stringResource(R.string.common_cancel), { showClearConfirm = false }, kind = StaryButtonKind.Ghost, compact = true)
                 }
             )
         }

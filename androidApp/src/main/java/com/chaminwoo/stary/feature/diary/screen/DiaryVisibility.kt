@@ -1,33 +1,21 @@
 package com.chaminwoo.stary.feature.diary.screen
 
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.R
+import com.chaminwoo.stary.core.ui.StarySegmented
 
 /**
  * 공개 범위 선택지: (key, 라벨 문자열 리소스, 아이콘) — 지구본(전체) / 친구 / 자물쇠(나만).
@@ -60,50 +48,17 @@ internal fun VisibilityBadge(
     )
 }
 
-/** 수정 다이얼로그의 공개 범위 선택 줄 — 업로드 화면 칩과 같은 모양(선택 = 남색 테두리 + 옅은 면). */
+/** 수정 다이얼로그의 공개 범위 선택 줄 — 업로드 화면과 같은 면 선택 줄([StarySegmented]). */
 @Composable
 internal fun VisibilityChooser(
     selected: String,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val accent = Color(0xFF9FB3E8)
-    Row(
+    StarySegmented(
+        options = VisibilityOptions.map { (_, labelRes, icon) -> stringResource(labelRes) to icon },
+        selected = VisibilityOptions.indexOfFirst { it.first == selected }.coerceAtLeast(0),
+        onSelect = { onSelect(VisibilityOptions[it].first) },
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        VisibilityOptions.forEach { (key, labelRes, icon) ->
-            val isSelected = selected == key
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isSelected) Color.White.copy(alpha = 0.15f) else Color.Transparent)
-                    .border(
-                        if (isSelected) 2.dp else 1.dp,
-                        if (isSelected) accent else MaterialTheme.colorScheme.outline,
-                        RoundedCornerShape(10.dp),
-                    )
-                    .clickable { onSelect(key) }
-                    .padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Icon(
-                        icon, null,
-                        tint = if (isSelected) accent else MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Text(
-                        stringResource(labelRes),
-                        fontSize = 12.sp,
-                        color = if (isSelected) accent else MaterialTheme.colorScheme.secondary,
-                    )
-                }
-            }
-        }
-    }
+    )
 }

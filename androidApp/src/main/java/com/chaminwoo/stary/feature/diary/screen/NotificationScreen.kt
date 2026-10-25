@@ -80,11 +80,11 @@ fun NotificationScreen(
 
     LaunchedEffect(Unit) { vm.markAllRead() }
 
-    // null = Firestore 응답 대기 중 — 빈 화면으로 간주하지 않고 로딩 표시(검은 화면 방지).
+    // null = Firestore 응답 대기 중 — 빈 화면으로 간주하지 않고 목록 모양 자리 표시(검은 화면 방지).
     if (notifications == null) {
-        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            com.chaminwoo.stary.core.ui.StarLoadingIndicator()
-        }
+        com.chaminwoo.stary.core.ui.SkeletonRows(
+            modifier.fillMaxSize().padding(top = LocalTopBarInset.current + 8.dp).padding(horizontal = 16.dp)
+        )
         return
     }
 

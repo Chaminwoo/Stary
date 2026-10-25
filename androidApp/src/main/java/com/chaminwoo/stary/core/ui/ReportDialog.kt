@@ -1,9 +1,7 @@
 package com.chaminwoo.stary.core.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +17,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,13 +25,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.chaminwoo.stary.R
 
 private val Mint = Color(0xFF6EE7B7)
@@ -68,21 +63,10 @@ fun ReportDialog(
     // "기타" 전용 상세 사유 — 다른 사유로 바꾸면 전송하지 않는다(입력값은 남겨 되돌아와도 유지).
     var detail by remember { mutableStateOf("") }
     val isOther = selected == "other"
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF121821))
-                .border(
-                    1.dp,
-                    Brush.linearGradient(listOf(Mint.copy(alpha = 0.5f), Blue.copy(alpha = 0.4f))),
-                    RoundedCornerShape(22.dp)
-                )
-                .padding(18.dp)
-        ) {
-            Text(title, color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.size(12.dp))
+    StaryDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Column {
             REPORT_REASONS.forEach { (key, resId) ->
                 val isSel = selected == key
                 Row(
@@ -130,16 +114,16 @@ fun ReportDialog(
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
                 )
             }
-            Spacer(Modifier.size(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = TextMuted) }
-                Spacer(Modifier.width(4.dp))
-                TextButton(
-                    // "기타"는 설명을 적어야 접수된다(빈 설명은 관리자가 검토할 수 없음).
-                    enabled = selected != null && (!isOther || detail.isNotBlank()),
-                    onClick = { selected?.let { onSubmit(it, if (isOther) detail.trim() else "") } }
-                ) { Text(stringResource(R.string.report_submit), color = Color(0xFFFF6B6B), fontWeight = FontWeight.SemiBold) }
-            }
-        }
-    }
+        } },
+        confirmButton = {
+            StaryButton(
+                stringResource(R.string.report_submit),
+                { selected?.let { onSubmit(it, if (isOther) detail.trim() else "") } },
+                kind = StaryButtonKind.Danger, compact = true,
+                // "기타"는 설명을 적어야 접수된다(빈 설명은 관리자가 검토할 수 없음).
+                enabled = selected != null && (!isOther || detail.isNotBlank()),
+            )
+        },
+        dismissButton = { StaryButton(stringResource(R.string.common_cancel), onDismiss, kind = StaryButtonKind.Ghost, compact = true) },
+    )
 }

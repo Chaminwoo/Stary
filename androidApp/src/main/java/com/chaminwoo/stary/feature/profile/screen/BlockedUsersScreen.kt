@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PersonOff
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,6 +53,9 @@ import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.MinSans
 import com.chaminwoo.stary.core.model.BlockedUser
 import com.chaminwoo.stary.core.ui.CardBgTop
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
+import com.chaminwoo.stary.core.ui.StaryDialog
 import com.chaminwoo.stary.core.ui.TextMain
 import com.chaminwoo.stary.core.ui.TextMuted
 import com.chaminwoo.stary.core.ui.StaryEmptyState
@@ -131,7 +133,7 @@ fun BlockedUsersScreen(
             item {
                 Text(
                     stringResource(R.string.blocked_hint),
-                    color = TextMuted, fontFamily = MinSans, fontSize = 12.5.sp, lineHeight = 18.sp,
+                    color = TextMuted, fontFamily = MinSans, fontSize = 12.sp, lineHeight = 18.sp,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
@@ -146,26 +148,21 @@ fun BlockedUsersScreen(
 
         confirmTarget?.let { target ->
             val name = target.userName.ifBlank { stringResource(R.string.common_user) }
-            AlertDialog(
+            StaryDialog(
                 onDismissRequest = { confirmTarget = null },
-                containerColor = DialogBg,
-                titleContentColor = TextMain,
-                textContentColor = TextMuted,
-                title = { Text(stringResource(R.string.unblock), fontFamily = MinSans) },
-                text = { Text(stringResource(R.string.unblock_confirm_msg, name), fontFamily = MinSans) },
+                title = { Text(stringResource(R.string.unblock)) },
+                text = { Text(stringResource(R.string.unblock_confirm_msg, name)) },
                 confirmButton = {
-                    TextButton(onClick = {
+                    StaryButton(stringResource(R.string.unblock), compact = true, onClick = {
                         confirmTarget = null
                         scope.launch {
                             moderation.unblock(myId, target.userId)
                             com.chaminwoo.stary.core.ui.StaryToast.show(unblockedMsg)
                         }
-                    }) { Text(stringResource(R.string.unblock), color = Accent, fontFamily = MinSans) }
+                    })
                 },
                 dismissButton = {
-                    TextButton(onClick = { confirmTarget = null }) {
-                        Text(stringResource(R.string.common_cancel), color = TextMuted, fontFamily = MinSans)
-                    }
+                    StaryButton(stringResource(R.string.common_cancel), { confirmTarget = null }, kind = StaryButtonKind.Ghost, compact = true)
                 }
             )
         }
@@ -211,7 +208,7 @@ private fun BlockedRow(
                 } else {
                     Text(
                         display.name.take(1).uppercase().ifBlank { "?" },
-                        color = Accent, fontFamily = MinSans, fontSize = 16.sp,
+                        color = Accent, fontFamily = MinSans, fontSize = 15.sp,
                         fontWeight = FontWeight.Light
                     )
                 }

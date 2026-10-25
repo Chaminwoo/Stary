@@ -1,6 +1,9 @@
 ﻿package com.chaminwoo.stary.feature.profile.screen
 
 import com.chaminwoo.stary.core.ui.ScreenBackground
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
+import com.chaminwoo.stary.core.ui.StaryDialog
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.chaminwoo.stary.core.ui.rememberBackgroundScroll
 import android.content.Context
@@ -39,13 +42,13 @@ import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
@@ -125,6 +128,17 @@ fun SettingsScreen(
     var showTermsDialog by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
 
+    // 기기(시스템) 알림이 꺼져 있는지 — 설정 앱에서 켜고 돌아오면 다시 확인한다(iOS systemPushDenied 패리티).
+    var systemNotifOff by remember { mutableStateOf(!systemNotificationsOn(context)) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) systemNotifOff = !systemNotificationsOn(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // 차단한 사용자 수 — 안전 섹션 행의 우측 값. 비로그인이면 0.
     val myId = GoogleAuthHelper.currentUserId
     val blockedIds by remember(myId) {
@@ -185,6 +199,25 @@ fun SettingsScreen(
             // ── 알림 ──
             SectionLabel(stringResource(R.string.settings_notification), Icons.Filled.Notifications)
             GlassCard {
+                // 기기 알림이 꺼져 있으면 서버가 보내도 안 뜬다 — 가장 흔한 "알림이 안 와요" 원인이라 여기서 알려 주고
+                // 이 앱의 알림 설정 화면으로 보낸다. 켜져 있으면 행 자체가 없다(알림 카드를 두 번 거절한 뒤의 길이기도 하다).
+                if (systemNotifOff) {
+                    NavRow(
+                        icon = Icons.Filled.Warning,
+                        label = stringResource(R.string.settings_push_off),
+                        description = stringResource(R.string.settings_push_off_desc),
+                        value = "",
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                )
+                            }
+                        },
+                    )
+                    RowDivider()
+                }
                 ToggleRow(
                     icon = if (AppSettings.notificationsEnabled) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
                     label = stringResource(R.string.settings_notif_popup),
@@ -305,15 +338,14 @@ fun SettingsScreen(
         }
 
         if (showDeleteDialog) {
-            AlertDialog(
+            StaryDialog(
                 onDismissRequest = { if (!deleting) showDeleteDialog = false },
-                containerColor = DialogBg,
-                titleContentColor = Color(0xFFF0F0F0),
-                textContentColor = TextMuted,
-                title = { Text(stringResource(R.string.settings_delete_account), fontFamily = MinSans) },
-                text = { Text(stringResource(R.string.settings_delete_confirm_msg), fontFamily = MinSans) },
+                title = { Text(stringResource(R.string.settings_delete_account)) },
+                text = { Text(stringResource(R.string.settings_delete_confirm_msg)) },
                 confirmButton = {
-                    TextButton(
+                    StaryButton(
+                        stringResource(R.string.common_delete),
+                        kind = StaryButtonKind.Danger, compact = true,
                         enabled = !deleting,
                         onClick = {
                             deleting = true
@@ -329,12 +361,10 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                    ) { Text(stringResource(R.string.common_delete), color = SoftRed, fontFamily = MinSans) }
+                    )
                 },
                 dismissButton = {
-                    TextButton(enabled = !deleting, onClick = { showDeleteDialog = false }) {
-                        Text(stringResource(R.string.common_cancel), color = Accent, fontFamily = MinSans)
-                    }
+                    StaryButton(stringResource(R.string.common_cancel), { showDeleteDialog = false }, enabled = !deleting, kind = StaryButtonKind.Ghost, compact = true)
                 }
             )
         }
@@ -380,7 +410,7 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onSelect: (St
                     Text(
                         languageLabel(tag),
                         color = if (selected) Accent else TextMain,
-                        fontFamily = MinSans, fontSize = 16.sp,
+                        fontFamily = MinSans, fontSize = 15.sp,
                         fontWeight = if (selected) FontWeight.Light else FontWeight.Normal,
                         modifier = Modifier.weight(1f)
                     )
@@ -656,6 +686,10 @@ private fun StarThumb(enabled: Boolean, interactionSource: MutableInteractionSou
         )
     }
 }
+
+/** 기기 설정에서 이 앱 알림이 켜져 있는지(Android 13+ 알림 권한 거절도 여기서 꺼짐으로 보인다). */
+private fun systemNotificationsOn(context: Context): Boolean =
+    androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
 
 /** ContextWrapper 체인을 거슬러 올라가 Activity 를 찾는다(언어 변경 후 recreate 용). */
 private fun Context.findActivity(): android.app.Activity? {

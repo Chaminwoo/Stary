@@ -78,7 +78,7 @@ struct ProfilePhotoCropView: View {
                             .foregroundStyle(.black)
                     }
                 }
-                .font(.minSans(16))
+                .font(.minSans(15))
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
             }

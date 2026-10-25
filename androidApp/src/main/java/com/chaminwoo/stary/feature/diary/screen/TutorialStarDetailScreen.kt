@@ -156,7 +156,7 @@ fun TutorialStarDetailScreen(
                     Text(
                         stringResource(R.string.tutorial_star_msg),
                         style = TextStyle(
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             lineHeight = 28.sp,
                             letterSpacing = 0.1.sp,
                             lineBreak = LineBreak.Paragraph,

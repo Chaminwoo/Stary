@@ -90,7 +90,7 @@ struct ChatScreen: View {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 6) {
                     Text(shownName)
-                        .font(.minSans(18, .semibold))
+                        .font(.minSans(17, .semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     HiddenStarBadges(userId: friendId, size: 12)

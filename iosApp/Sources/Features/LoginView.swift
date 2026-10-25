@@ -229,7 +229,7 @@ struct StarDiaryButton: View {
                 Image(systemName: "star.fill")
                     .font(.system(size: 20))
                 Text(text)
-                    .font(.minSans(16))
+                    .font(.minSans(15))
             }
             .foregroundStyle(charcoal)
             .frame(maxWidth: .infinity)
@@ -399,7 +399,7 @@ private struct EmailLoginSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(locale.t(.loginEmail))
-                .font(.minSans(18, .semibold)).foregroundStyle(Theme.textPrimary)
+                .font(.minSans(17, .semibold)).foregroundStyle(Theme.textPrimary)
                 .padding(.bottom, 4)
             field(locale.t(.emailField), text: $email, secure: false)
                 .textContentType(.username)

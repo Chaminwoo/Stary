@@ -35,6 +35,8 @@
     <string name="settings_sfx_volume">효과음 볼륨</string>
     <string name="settings_notif_popup">알림 팝업</string>
     <string name="settings_notif_popup_desc">채팅·다이어리 알림을 상단 배너로 알려드려요</string>
+    <string name="settings_push_off">기기 알림이 꺼져 있어요</string>
+    <string name="settings_push_off_desc">채팅·친구 새 글 알림을 받으려면 설정 앱에서 Stary 알림을 켜 주세요</string>
     <string name="settings_language_desc">앱에 표시되는 언어를 선택해요</string>
     <string name="settings_help">도움말</string>
     <string name="settings_help_replay">도움말 다시 보기</string>
@@ -165,9 +167,18 @@
     <string name="upload_pick_video">동영상 (3초 이내)</string>
     <string name="upload_video_too_long">3초 이내의 짧은 영상만 올릴 수 있어요</string>
     <string name="upload_reselect">다시 선택</string>
+    <string name="upload_crop_hint">드래그로 위치, 두 손가락으로 크기를 맞춰요</string>
+    <string name="upload_clear_media">첨부 지우기</string>
     <string name="upload_content_label">이 장소의 기억을 남겨주세요</string>
     <string name="upload_star_shape">별 모양</string>
     <string name="upload_star_color">별 색상</string>
+    <string name="upload_see_all">모두 보기</string>
+    <string name="upload_owned_only">가진 것만 보기</string>
+    <string name="picker_tab_shape">모양</string>
+    <string name="picker_tab_color">색</string>
+    <string name="picker_group_basic">기본</string>
+    <string name="picker_group_achievement">업적 보상</string>
+    <string name="picker_locked_hint">‘%1$s’ 업적을 달성하면 열려요</string>
     <string name="upload_visibility">공개 범위</string>
     <string name="upload_vis_public">전체공개</string>
     <string name="upload_vis_friends">친구만</string>
@@ -193,6 +204,13 @@
     <string name="upload_slow_msg">아직 서버에 닿지 않았어요. 쓴 글은 그대로 있고, 연결되면 자동으로 올라가요.</string>
     <string name="upload_loc_mock_title">위치 조작 앱이 켜져 있어요</string>
     <string name="upload_loc_mock_msg">실제 위치에서만 별을 남길 수 있어요. 위치 조작 앱을 끄고 다시 시도해 주세요.</string>
+    <string name="upload_leave_title">쓰던 별이 있어요</string>
+    <string name="upload_leave_msg">나가도 글은 이 기기에 남겨 둘게요. 다음에 열면 이어서 쓸 수 있어요.</string>
+    <string name="upload_leave_exit">나가기</string>
+    <string name="upload_leave_stay">계속 쓰기</string>
+    <string name="upload_draft_found">쓰던 별이 남아 있어요</string>
+    <string name="upload_draft_restore">이어 쓰기</string>
+    <string name="upload_draft_discard">지우기</string>
     <string name="profile_not_ready">프로필 정보를 불러오는 중이에요. 네트워크를 확인하고 잠시 후 다시 시도해 주세요</string>
 
     <!-- 친구 화면 -->
@@ -613,6 +631,8 @@
     <string name="starlog_empty_desc">100m 안으로 다가가거나 광고로 해금한\n다른 사람의 별이 여기에 모여요.\n한 번 열어 본 다이어리는 별 도감에 영구히 남아요.</string>
     <string name="starlog_permanent_note">열어 본 다이어리는\n별 도감에 영구히 남아요</string>
     <string name="starlog_filtered_empty">조건에 맞는 별이 없어요</string>
+    <string name="starlog_view_ring">별</string>
+    <string name="starlog_view_list">목록</string>
     <string name="onb_starlog_title">별 도감</string>
     <string name="onb_starlog_msg">열어 본 다른 사람의 별이\n원으로 모여요.\n100m 안에서 열었든 광고로 열었든\n별 도감에 영구히 남아요.\n화면을 누른 채 별 위를 지나가면\n그 별의 이야기가 가운데 떠요.</string>
 
@@ -831,4 +851,12 @@
     <string name="starlight_lineup">전설 아이템을 뽑아보세요!</string>
     <string name="guide_exchange_title">별가루로 열쇠 만들기</string>
     <string name="guide_exchange_msg">퀘스트로 모은 별가루를 별빛 공방에서 열쇠로 바꿀 수 있어요(%1$d개 = 열쇠 1개).</string>
+    <!-- 권한 안내 카드(S2 — core/ui/PermissionAsk.kt) -->
+    <string name="perm_loc_title">내 주변 별을 보려면 위치가 필요해요</string>
+    <string name="perm_loc_msg">지금 있는 자리에 별을 남기고, 가까운 별을 열 때 써요. 대략적인 위치도 괜찮아요.</string>
+    <string name="perm_notif_title">새 소식을 알림으로 받을까요?</string>
+    <string name="perm_notif_msg">내 별에 좋아요나 댓글이 달리거나, 친구가 새 별을 남기거나, 친구 요청이 오면 알려 드려요.</string>
+    <string name="perm_allow">허용하기</string>
+    <string name="perm_notif_allow">알림 받기</string>
+    <string name="perm_later">나중에</string>
 </resources>

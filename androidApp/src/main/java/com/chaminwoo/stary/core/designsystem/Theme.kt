@@ -5,20 +5,39 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
+// 머티리얼 부품이 쓰는 칸을 전부 [StaryColors] 로 채운다 — 비워 두면 머티리얼 기본(보라 회색)이 나온다
+// (확인 창 = surfaceContainerHigh, 메뉴 = surfaceContainer, 시트 = surfaceContainerLow, 구분선 = outlineVariant).
 private val AppColorScheme = darkColorScheme(
-    background        = Bg,
-    surface           = Surface1,
-    surfaceVariant    = Surface2,
-    outline           = Outline,
-    primary           = Accent,
-    onPrimary         = Bg,
-    secondary         = TextSub,
-    onSecondary       = TextPrimary,
-    onBackground      = TextPrimary,
-    onSurface         = TextPrimary,
-    onSurfaceVariant  = TextSub,
-    error             = AccentRed,
-    onError           = Color.White,
+    primary                 = StaryColors.Accent,
+    onPrimary               = StaryColors.Bg,
+    primaryContainer        = Color(0xFF26304F),
+    onPrimaryContainer      = StaryColors.Text,
+    secondary               = StaryColors.Muted,
+    onSecondary             = StaryColors.Text,
+    secondaryContainer      = StaryColors.Raised,
+    onSecondaryContainer    = StaryColors.Text,
+    tertiary                = StaryColors.Mint,
+    onTertiary              = StaryColors.Bg,
+    background              = StaryColors.Bg,
+    onBackground            = StaryColors.Text,
+    surface                 = StaryColors.Surface,
+    onSurface               = StaryColors.Text,
+    surfaceVariant          = StaryColors.Raised,
+    onSurfaceVariant        = StaryColors.Muted,
+    surfaceTint             = StaryColors.Accent,
+    inverseSurface          = StaryColors.Text,
+    inverseOnSurface        = StaryColors.Bg,
+    error                   = StaryColors.Danger,
+    onError                 = Color.White,
+    outline                 = StaryColors.Line,
+    outlineVariant          = StaryColors.Line,
+    surfaceBright           = Color(0xFF252B3F),
+    surfaceDim              = StaryColors.Bg,
+    surfaceContainerLowest  = Color(0xFF0A0C13),
+    surfaceContainerLow     = Color(0xFF131726),
+    surfaceContainer        = StaryColors.Surface,
+    surfaceContainerHigh    = StaryColors.Raised,
+    surfaceContainerHighest = Color(0xFF252B3F),
 )
 
 /**

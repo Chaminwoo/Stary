@@ -347,7 +347,7 @@ private fun GuideCard(step: GuideStep, onAction: () -> Unit, onClose: () -> Unit
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                stringResource(title), color = Color(0xFFF0F0F0), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                stringResource(title), color = Color(0xFFF0F0F0), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(6.dp))

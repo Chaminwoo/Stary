@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 
 class FriendViewModel(
@@ -21,7 +22,11 @@ class FriendViewModel(
     private val repository: FriendRepository,
 ) : ViewModel() {
 
+    private val _friendsReady = MutableStateFlow(false)
+    /** [friends] 가 첫 목록을 받았는지 — 받기 전의 빈 목록은 "친구 없음"이 아니라 "불러오는 중"(자리 표시). */
+    val friendsReady = _friendsReady.asStateFlow()
     val friends = repository.observeFriends(me.userId)
+        .onEach { _friendsReady.value = true }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val incomingRequests = repository.observeIncomingRequests(me.userId)
@@ -60,7 +65,11 @@ class FriendViewModel(
             val name = GoogleAuthHelper.requireConfirmedName() ?: return@launchSafely
             val from = me.copy(userName = name, profileImageUrl = GoogleAuthHelper.currentUserPhotoUrl ?: me.profileImageUrl)
             val ok = repository.sendRequest(from, to)
-            if (ok) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FRIEND_REQUEST)
+            if (ok) {
+                com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FRIEND_REQUEST)
+                // 친구가 되면 그 친구의 새 별을 알려 줄 수 있게 — 알림을 켤지 물을 차례(PermissionAsk).
+                com.chaminwoo.stary.core.ui.PermissionAsk.requestNotificationAsk()
+            }
             _event.emit(
                 if (ok) FriendMessage(com.chaminwoo.stary.R.string.friend_toast_request_sent, to.userName)
                 else FriendMessage(com.chaminwoo.stary.R.string.friend_toast_request_failed)
@@ -72,7 +81,10 @@ class FriendViewModel(
         launchSafely {
             val ok = repository.acceptRequest(request)
             // 친구가 늘었다 — 퀘스트 "친구 사귀기"(같은 사람은 하루 한 번). 내 요청이 수락된 경우는 친구 목록 구독에서 센다.
-            if (ok) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FRIEND_ADD, key = request.fromId)
+            if (ok) {
+                com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FRIEND_ADD, key = request.fromId)
+                com.chaminwoo.stary.core.ui.PermissionAsk.requestNotificationAsk()
+            }
             _event.emit(
                 if (ok) FriendMessage(com.chaminwoo.stary.R.string.friend_toast_accepted, request.fromName)
                 else FriendMessage(com.chaminwoo.stary.R.string.friend_toast_accept_failed)

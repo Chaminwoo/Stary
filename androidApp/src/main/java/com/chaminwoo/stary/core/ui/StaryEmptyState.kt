@@ -136,7 +136,7 @@ fun StaryEmptyState(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     description,
-                    color = TextMuted, fontFamily = MinSans, fontSize = 12.5.sp,
+                    color = TextMuted, fontFamily = MinSans, fontSize = 12.sp,
                     lineHeight = 18.sp, textAlign = TextAlign.Center,
                 )
             }

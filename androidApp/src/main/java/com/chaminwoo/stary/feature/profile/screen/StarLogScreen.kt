@@ -9,6 +9,8 @@ import android.content.ContextWrapper
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,20 +28,25 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.People
@@ -101,7 +108,11 @@ import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.model.Friend
 import com.chaminwoo.stary.core.ui.FirstVisitInfo
 import com.chaminwoo.stary.core.ui.FriendPickerDialog
+import com.chaminwoo.stary.core.ui.StarShapeIcon
+import com.chaminwoo.stary.core.ui.StaryChip
 import com.chaminwoo.stary.core.ui.StaryEmptyState
+import com.chaminwoo.stary.core.ui.StarySegmented
+import com.chaminwoo.stary.core.ui.fadeEdges
 import com.chaminwoo.stary.core.ui.raisedCosmicBorder
 import com.chaminwoo.stary.core.util.DiaryUnlockStore
 import com.chaminwoo.stary.core.util.Haptics
@@ -133,6 +144,8 @@ import kotlin.math.sin
  *    손을 떼도 선택은 유지된다. 글씨는 그 별의 색을 따르고 같은 색 후광을 두른다.
  *  - "지도에서 보기" → 지도로 돌아가 그 별 위치로 카메라 + 파장(MapFocusState — 프로필 핀 별과 같은 로직).
  *  - 정렬(해금순/최신순/거리순/인기순) · 필터(친구만/친구 선택) — 바꿀 때마다 원이 다시 그려진다.
+ *  - 위쪽 "별 / 목록" 전환 — 목록은 별 하나를 한 줄로(별·제목·누구의 별·해금 날짜·거리). 같은 정렬·필터를 쓰고,
+ *    줄을 누르면 그 줄이 펼쳐져 '지도에서 보기'가 나온다. 마지막에 본 방식을 기억한다(2026-10, L1).
  *
  * 데이터 = DiaryUnlockStore(영구 해금 기록) ∩ 지금 존재하는 글(삭제·비공개 전환·차단 사용자 제외).
  *   해금 기록 = **실제로 열람한 모든 글** — 100m 접근 · 광고 · 잠금이 생기기 전(2026-09-21)의 열람까지
@@ -167,6 +180,22 @@ private fun ringAppearMs(i: Int, n: Int): Float {
     return i * gap
 }
 
+/** 별 도감 보기 방식(별 고리 / 목록) — 마지막에 본 방식을 기억한다. */
+private object StarLogPrefs {
+    private const val PREFS = "stary_prefs"
+    private const val KEY_LIST_MODE = "starlog_list_mode"
+
+    fun listMode(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LIST_MODE, false)
+
+    fun setListMode(context: Context, value: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_LIST_MODE, value).apply()
+    }
+}
+
+/** 위쪽 전환 줄 + 정렬 알약이 차지하는 높이 — 원 반지름과 목록 시작 위치를 이만큼 피한다. */
+private val TOP_CONTROLS = 106.dp
+
 /** 톡 떠오르는 크기 곡선 — 0.3 에서 1.2 까지 튀어 오른 뒤 1 로 가라앉는다. */
 private fun ringPop(u: Float): Float = when {
     u <= 0f -> 0f
@@ -189,7 +218,7 @@ fun StarLogScreen(
         if (userId == null) {
             Text(
                 stringResource(R.string.common_login_required),
-                color = TextSub, fontSize = 18.sp,
+                color = TextSub, fontSize = 17.sp,
                 modifier = Modifier.align(Alignment.Center)
             )
         } else {
@@ -214,6 +243,8 @@ private fun StarLogContent(userId: String, onOpenMap: (String) -> Unit) {
         viewModel(viewModelStoreOwner = activity, factory = DiaryViewModel.factory())
     } else viewModel(factory = DiaryViewModel.factory())
     val diaries by diaryViewModel.diaries.collectAsState()
+    val diariesReady by diaryViewModel.diariesReady.collectAsState()
+    val loading = com.chaminwoo.stary.core.ui.rememberStillLoading(diariesReady)
     val unlockedAt = DiaryUnlockStore.unlockedAt(context)
     // 지도에서 이미 끝났으면 즉시 반환(프로세스당 1회) — 지도를 거치지 않고 들어온 경우 대비.
     LaunchedEffect(userId) { DiaryUnlockStore.syncWithServer(context, userId) }
@@ -233,6 +264,7 @@ private fun StarLogContent(userId: String, onOpenMap: (String) -> Unit) {
     var selectedFriendIds by remember { mutableStateOf(emptySet<String>()) }
     var showFriendPicker by remember { mutableStateOf(false) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var listMode by remember { mutableStateOf(StarLogPrefs.listMode(context)) }
 
     // 거리순 기준점은 정렬을 고른 순간의 위치로 고정 — 걷는 동안 원이 계속 재배열되지 않게.
     val anchor = remember(sort) { here }
@@ -266,19 +298,22 @@ private fun StarLogContent(userId: String, onOpenMap: (String) -> Unit) {
     val revealStart = remember { mutableFloatStateOf(0f) }
     val revealCount = remember { mutableIntStateOf(0) }
     val sounded = remember { mutableIntStateOf(0) }
-    val revealKey = listOf(sort, friendsOnly, selectedFriendIds, shown.isNotEmpty())
+    // 목록 보기에선 원이 없으니 시계·반짝 소리를 멈추고, 별 보기로 돌아오면 원을 처음부터 다시 그린다.
+    val revealKey = listOf(sort, friendsOnly, selectedFriendIds, shown.isNotEmpty(), listMode)
     LaunchedEffect(revealKey) {
-        revealStart.floatValue = clock.floatValue
+        revealStart.floatValue = -1f // 다음 프레임 시각에서 시작
         revealCount.intValue = shown.size
         sounded.intValue = 0
     }
-    LaunchedEffect(Unit) {
-        var t0 = -1L
+    val clockBase = remember { longArrayOf(-1L) } // 멈췄다 다시 돌아도 시계가 뒤로 가지 않게 첫 프레임 시각을 기억
+    LaunchedEffect(listMode) {
+        if (listMode) return@LaunchedEffect
         while (isActive) {
             withFrameNanos { now ->
-                if (t0 < 0L) t0 = now
-                clock.floatValue = (now - t0) / 1_000_000f
+                if (clockBase[0] < 0L) clockBase[0] = now
+                clock.floatValue = (now - clockBase[0]) / 1_000_000f
             }
+            if (revealStart.floatValue < 0f) revealStart.floatValue = clock.floatValue
             // 별이 떠오르는 순간마다 "톡톡 반짝"(간격이 촘촘하면 MusicManager 가 알아서 솎는다)
             val n = revealCount.intValue
             val elapsed = clock.floatValue - revealStart.floatValue
@@ -295,6 +330,9 @@ private fun StarLogContent(userId: String, onOpenMap: (String) -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         when {
+            collected.isEmpty() && loading ->
+                if (listMode) com.chaminwoo.stary.core.ui.SkeletonRows(Modifier.padding(top = topClear), avatar = false)
+                else com.chaminwoo.stary.core.ui.SkeletonRing()
             collected.isEmpty() -> StaryEmptyState(
                 title = stringResource(R.string.starlog_empty_title),
                 description = stringResource(R.string.starlog_empty_desc),
@@ -303,6 +341,17 @@ private fun StarLogContent(userId: String, onOpenMap: (String) -> Unit) {
             shown.isEmpty() -> StaryEmptyState(
                 title = stringResource(R.string.starlog_filtered_empty),
                 modifier = Modifier.align(Alignment.Center),
+            )
+            listMode -> StarList(
+                stars = shown,
+                selectedId = selectedId,
+                onSelect = { id -> selectedId = if (id == selectedId) null else id },
+                here = here,
+                unlockedAt = unlockedAt,
+                onOpenMap = onOpenMap,
+                // 위 전환·정렬 줄 아래에서 시작하고, 아래 필터 알약 밑으로는 글이 녹아 사라진다.
+                modifier = Modifier.padding(top = topClear + TOP_CONTROLS).fadeEdges(top = 10.dp, bottom = bottomClear + 52.dp),
+                contentPadding = PaddingValues(bottom = bottomClear + 60.dp),
             )
             else -> StarRing(
                 stars = shown,
@@ -320,22 +369,39 @@ private fun StarLogContent(userId: String, onOpenMap: (String) -> Unit) {
                 selected = selected,
                 onOpenMap = onOpenMap,
                 // 원 중심은 화면 정중앙 — 위(정렬)·아래(필터) 알약과 겹치지 않을 만큼만 반지름을 제한.
-                verticalReserve = maxOf(topClear + 52.dp, bottomClear + 56.dp),
+                verticalReserve = maxOf(topClear + TOP_CONTROLS, bottomClear + 56.dp),
             )
         }
 
         if (collected.isNotEmpty()) {
-            // 정렬 — 상단 알약
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = topClear)
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Column(
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = topClear),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                StarLogSort.entries.forEach { s ->
-                    LogChip(label = sortLabel(s), selected = sort == s) { sort = s }
+                // 보기 방식 — 별(고리) / 목록. 마지막에 본 방식을 기억한다.
+                StarySegmented(
+                    options = listOf(
+                        stringResource(R.string.starlog_view_ring) to Icons.Filled.Stars,
+                        stringResource(R.string.starlog_view_list) to Icons.AutoMirrored.Filled.List,
+                    ),
+                    selected = if (listMode) 1 else 0,
+                    onSelect = { i ->
+                        listMode = i == 1
+                        StarLogPrefs.setListMode(context, listMode)
+                    },
+                    modifier = Modifier.width(184.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+                // 정렬 — 상단 알약
+                Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    StarLogSort.entries.forEach { s ->
+                        StaryChip(label = sortLabel(s), selected = sort == s) { sort = s }
+                    }
                 }
             }
             // 필터 — 하단 알약(지도 필터와 같은 동작: 친구 선택은 다시 누르면 해제)
@@ -345,12 +411,12 @@ private fun StarLogContent(userId: String, onOpenMap: (String) -> Unit) {
                     .padding(bottom = bottomClear),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                LogChip(
+                StaryChip(
                     label = stringResource(R.string.filter_friends),
                     selected = friendsOnly,
                     icon = Icons.Filled.People,
                 ) { friendsOnly = !friendsOnly }
-                LogChip(
+                StaryChip(
                     label = if (selectedFriendIds.isEmpty()) stringResource(R.string.filter_pick_friends)
                     else stringResource(R.string.filter_friends_n, selectedFriendIds.size),
                     selected = selectedFriendIds.isNotEmpty(),
@@ -454,7 +520,7 @@ private fun StarRing(
                 }
         ) {
             val now = clock.floatValue
-            val elapsed = now - revealStart.floatValue
+            val elapsed = if (revealStart.floatValue < 0f) 0f else now - revealStart.floatValue
             val dt = if (lastDraw[0] < 0f) 16f else (now - lastDraw[0]).coerceIn(0f, 64f)
             lastDraw[0] = now
 
@@ -572,13 +638,8 @@ private fun StarInfoPanel(d: Diary, here: LatLng, unlockedAt: Long?, onOpenMap: 
     val starColor = StarStyle.colorOf(d.starColor)
     val ink = readableOn(starColor)
     val halo = Shadow(color = starColor.copy(alpha = 0.9f), offset = Offset.Zero, blurRadius = 26f)
-    val locale: Locale = LocalConfiguration.current.locales[0]
-    val date = remember(unlockedAt, locale) {
-        unlockedAt?.let { DateFormat.getDateInstance(DateFormat.MEDIUM, locale).format(Date(it)) }
-    }
-    val meters = LocationHelper.distanceBetween(here.latitude, here.longitude, d.latitude, d.longitude)
-    val dist = if (meters >= 1000f) String.format(Locale.getDefault(), "%.1fkm", meters / 1000f)
-    else "${meters.roundToInt()}m"
+    val date = rememberUnlockDate(unlockedAt)
+    val dist = distanceLabel(here, d)
     val author = rememberCurrentUserName(d.userId, d.userName)
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
@@ -602,49 +663,122 @@ private fun StarInfoPanel(d: Diary, here: LatLng, unlockedAt: Long?, onOpenMap: 
             color = TextSub, fontFamily = MinSans, fontSize = 11.sp, maxLines = 1,
         )
         Spacer(Modifier.height(14.dp))
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(starColor.copy(alpha = 0.14f))
-                .border(1.dp, starColor.copy(alpha = 0.6f), RoundedCornerShape(50))
-                .clickable { onOpenMap(d.id) }
-                .padding(horizontal = 16.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.Map, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.starlog_open_map), color = ink, fontFamily = MinSans, fontSize = 13.sp)
+        MapPill(ink = ink, starColor = starColor) { onOpenMap(d.id) }
+    }
+}
+
+/** 해금 날짜(현재 앱 언어의 보통 길이) — 기록이 없으면 null. */
+@Composable
+private fun rememberUnlockDate(unlockedAt: Long?): String? {
+    val locale: Locale = LocalConfiguration.current.locales[0]
+    return remember(unlockedAt, locale) {
+        unlockedAt?.let { DateFormat.getDateInstance(DateFormat.MEDIUM, locale).format(Date(it)) }
+    }
+}
+
+private fun distanceLabel(here: LatLng, d: Diary): String {
+    val meters = LocationHelper.distanceBetween(here.latitude, here.longitude, d.latitude, d.longitude)
+    return if (meters >= 1000f) String.format(Locale.getDefault(), "%.1fkm", meters / 1000f)
+    else "${meters.roundToInt()}m"
+}
+
+/** '지도에서 보기' — 그 별의 색을 입은 알약(원 가운데 패널과 목록 줄이 함께 쓴다). */
+@Composable
+private fun MapPill(ink: Color, starColor: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(starColor.copy(alpha = 0.14f))
+            .border(1.dp, starColor.copy(alpha = 0.6f), RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Map, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(stringResource(R.string.starlog_open_map), color = ink, fontFamily = MinSans, fontSize = 13.sp)
+    }
+}
+
+/** 목록 보기 — 원과 같은 정렬·필터 결과를 한 줄씩. 맨 위에 모은 별 수. */
+@Composable
+private fun StarList(
+    stars: List<Diary>,
+    selectedId: String?,
+    onSelect: (String) -> Unit,
+    here: LatLng,
+    unlockedAt: Map<String, Long>,
+    onOpenMap: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
+    LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = contentPadding) {
+        item(key = "count") {
+            Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.starlog_count_label), color = TextSub, fontFamily = MinSans, fontSize = 12.sp)
+                Spacer(Modifier.width(6.dp))
+                Text("${stars.size}", color = TextPrimary, fontFamily = MinSans, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        items(stars, key = { it.id }) { d ->
+            StarLogRow(
+                d = d,
+                selected = d.id == selectedId,
+                here = here,
+                unlockedAt = unlockedAt[d.id],
+                onClick = { onSelect(d.id) },
+                onOpenMap = onOpenMap,
+            )
         }
     }
 }
 
+/** 목록 한 줄 — 별 · 제목 / 누구의 별 · 해금 날짜 · 거리. 누르면 펼쳐져 '지도에서 보기'(제목도 그 별의 색으로). */
 @Composable
-private fun LogChip(
-    label: String,
+private fun StarLogRow(
+    d: Diary,
     selected: Boolean,
-    icon: ImageVector? = null,
+    here: LatLng,
+    unlockedAt: Long?,
     onClick: () -> Unit,
+    onOpenMap: (String) -> Unit,
 ) {
-    val accent = Color(0xFF9FB3E8)
-    val shape = RoundedCornerShape(50)
-    Row(
-        modifier = Modifier
-            .clip(shape)
-            .background(if (selected) accent.copy(alpha = 0.24f) else Color(0xEE111120))
-            .raisedCosmicBorder(shape = shape)
+    val starColor = StarStyle.colorOf(d.starColor)
+    val ink = readableOn(starColor)
+    val date = rememberUnlockDate(unlockedAt)
+    val author = stringResource(R.string.starlog_author, rememberCurrentUserName(d.userId, d.userName))
+    val fill by animateColorAsState(if (selected) starColor.copy(alpha = 0.08f) else Color.Transparent, label = "starlogRow")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(fill)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 12.dp, vertical = 12.dp),
     ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = if (selected) accent else Color.White, modifier = Modifier.size(15.dp))
-            Spacer(Modifier.width(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StarShapeIcon(type = d.starType, colorIndex = d.starColor, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    d.displayTitle().ifBlank { "—" },
+                    color = if (selected) ink else TextPrimary, fontFamily = MinSans, fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    if (date != null) "$author · $date" else author,
+                    color = TextSub, fontFamily = MinSans, fontSize = 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(distanceLabel(here, d), color = TextSub, fontFamily = MinSans, fontSize = 12.sp, maxLines = 1)
         }
-        Text(
-            label,
-            color = if (selected) Color(0xFFDCE5FF) else Color(0xFFF0F0F0),
-            fontFamily = MinSans, fontSize = 13.sp, maxLines = 1,
-        )
+        AnimatedVisibility(selected) {
+            MapPill(ink = ink, starColor = starColor, modifier = Modifier.padding(start = 42.dp, top = 12.dp)) { onOpenMap(d.id) }
+        }
     }
 }
 

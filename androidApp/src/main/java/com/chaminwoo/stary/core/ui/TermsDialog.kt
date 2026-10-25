@@ -69,7 +69,7 @@ fun TermsDialog(
                 )
                 .padding(20.dp)
         ) {
-            Text(stringResource(R.string.terms_title), color = TextMain, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.terms_title), color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             if (requireAgreement) {
                 Spacer(Modifier.size(6.dp))
                 Text(stringResource(R.string.terms_intro), color = TermsMint, fontSize = 13.sp)

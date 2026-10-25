@@ -98,7 +98,7 @@ struct TutorialStarDetailScreen: View {
 
     private var bodyCard: some View {
         Text(LocaleManager.shared.t(.tutorialStarMsg))
-            .font(.minSans(16))
+            .font(.minSans(15))
             .lineSpacing(10)
             .tracking(0.1)
             .foregroundStyle(Theme.textPrimary.opacity(0.93))

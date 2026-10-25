@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -75,9 +74,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chaminwoo.stary.BuildConfig
 import com.chaminwoo.stary.R
+import com.chaminwoo.stary.core.designsystem.StaryColors
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.model.Friend
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
+import com.chaminwoo.stary.core.ui.StaryDialog
 import com.chaminwoo.stary.core.util.DiaryUnlockStore
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.MapFilterStore
@@ -320,16 +323,9 @@ fun MainListScreen(
 
     // 기간별 보기 다이얼로그 — 전체/오늘/7일/30일/1년 중 선택
     if (showPeriodPicker) {
-        AlertDialog(
+        StaryDialog(
             onDismissRequest = { showPeriodPicker = false },
-            containerColor = Color(0xFF1A1A1A),
-            title = {
-                Text(
-                    stringResource(R.string.filter_period),
-                    color = Color(0xFFF0F0F0),
-                    fontSize = 16.sp
-                )
-            },
+            title = { Text(stringResource(R.string.filter_period)) },
             text = {
                 Column {
                     // '전체 기간' 항목은 없음 — 해제는 활성 칩을 다시 탭.
@@ -346,20 +342,18 @@ fun MainListScreen(
                                 selected = periodDays == d,
                                 onClick = { periodDays = d; showPeriodPicker = false },
                                 colors = RadioButtonDefaults.colors(
-                                    selectedColor = Color(0xFF9FB3E8),
-                                    unselectedColor = Color(0xFF8A8A8A)
+                                    selectedColor = StaryColors.Accent,
+                                    unselectedColor = StaryColors.Muted
                                 )
                             )
-                            Text(periodLabel(d), color = Color(0xFFF0F0F0), fontSize = 14.sp)
+                            Text(periodLabel(d), color = StaryColors.Text, fontSize = 14.sp)
                         }
                     }
                 }
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showPeriodPicker = false }) {
-                    Text(stringResource(R.string.common_cancel), color = Color(0xFF8A8A8A))
-                }
+                StaryButton(stringResource(R.string.common_cancel), { showPeriodPicker = false }, kind = StaryButtonKind.Ghost, compact = true)
             }
         )
     }
@@ -394,7 +388,7 @@ fun MainListScreen(
         }
     }
 
-    // 권한 요청은 MainActivity 가 앱 시작 즉시 수행. 여기서는 "허용되어 있으면" 위치 추적을 시작하고
+    // 권한 요청은 지도 첫 진입의 이유 카드(core/ui/PermissionAsk)가 한다. 여기서는 "허용되어 있으면" 위치 추적을 시작하고
     // 현재 위치로 카메라를 맞춘다. 권한 다이얼로그가 닫히며 액티비티가 ON_RESUME 될 때도 재시도해
     // 허용 직후 곧바로 위치가 반영되도록 한다(예전엔 허용해도 시작 코드가 없어 기본 좌표에 멈춰 있었음).
     val startLocationIfGranted: () -> Unit = start@{
@@ -824,6 +818,6 @@ fun DpadButton(label: String, onClick: () -> Unit) {
         colors = ButtonDefaults.buttonColors(containerColor = Color(0xCC000000)),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
     ) {
-        Text(label, fontSize = 18.sp, color = Color.White)
+        Text(label, fontSize = 17.sp, color = Color.White)
     }
 }

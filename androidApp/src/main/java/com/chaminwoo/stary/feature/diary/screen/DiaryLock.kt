@@ -355,7 +355,7 @@ internal fun LockedContentCard(
         Text(
             if (adFree) stringResource(R.string.detail_locked_title_ad_free, StaryConfig.DIARY_OPEN_RADIUS_M.toInt())
             else stringResource(R.string.detail_locked_title_key, StaryConfig.DIARY_OPEN_RADIUS_M.toInt()),
-            fontSize = 14.5.sp, lineHeight = 23.sp, fontWeight = FontWeight.Medium,
+            fontSize = 14.sp, lineHeight = 23.sp, fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.94f),
             textAlign = TextAlign.Center,
         )

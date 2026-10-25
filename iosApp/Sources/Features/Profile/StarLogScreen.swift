@@ -9,6 +9,8 @@ import UIKit
 //    글씨는 그 별의 색 + 같은 색 후광.
 //  · "지도에서 보기" → MapFocusStore(루트가 NavigationStack 을 비우고 카메라 + 파장) — 프로필 핀 별과 같은 로직.
 //  · 정렬(해금순/최신순/거리순/인기순) · 필터(친구만/친구 선택) — 바꿀 때마다 원을 다시 그린다.
+//  · 위쪽 "별 / 목록" 전환 — 목록은 별 하나를 한 줄로(별·제목·누구의 별·해금 날짜·거리). 같은 정렬·필터를 쓰고,
+//    줄을 누르면 펼쳐져 '지도에서 보기'. 마지막에 본 방식을 기억한다(2026-10, L1 — Android 패리티).
 // 데이터 = DiaryUnlockStore(영구 해금) ∩ 지금 존재하는 글(삭제·비공개·차단 제외). 내 글은 넣지 않는다.
 //   해금 기록 = **실제로 열람한 모든 글** — 100m 접근 · 광고 · 잠금 이전(2026-09-21) 열람까지(서버 사본과 합침, 2026-09-26).
 
@@ -62,6 +64,8 @@ struct StarLogScreen: View {
     @ObservedObject private var directory = UserDirectory.shared
 
     @State private var sort: StarLogSort = .unlocked
+    /// 보기 방식 — false = 별(고리), true = 목록. Android StarLogPrefs 와 같은 키.
+    @AppStorage("starlog_list_mode") private var listMode = false
     @State private var friendsOnly = false
     @State private var selectedFriendIds: Set<String> = []
     @State private var showFriendPicker = false
@@ -112,6 +116,7 @@ struct StarLogScreen: View {
     private var revealToken: Int {
         var h = Hasher()
         h.combine(sort); h.combine(friendsOnly); h.combine(selectedFriendIds); h.combine(shown.isEmpty)
+        h.combine(listMode)   // 목록에서 별 보기로 돌아오면 원을 처음부터 다시 그린다
         return h.finalize()
     }
 
@@ -120,16 +125,30 @@ struct StarLogScreen: View {
             ScreenBackground(name: "mydiary_bg", darken: 0.86)
             if auth.uid == nil {
                 Text(locale.t(.commonLoginRequired))
-                    .font(.minSans(18))
+                    .font(.minSans(17))
                     .foregroundStyle(Theme.textSecondary)
             } else if collected.isEmpty {
-                StaryEmptyState(title: locale.t(.starlogEmptyTitle), description: locale.t(.starlogEmptyDesc))
+                LoadingGate(loading: store.loading) {
+                    if listMode {
+                        SkeletonRows(avatar: false)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                    } else {
+                        SkeletonRing()
+                    }
+                } empty: {
+                    StaryEmptyState(title: locale.t(.starlogEmptyTitle), description: locale.t(.starlogEmptyDesc))
+                }
             } else {
                 VStack(spacing: 0) {
-                    sortRow.padding(.top, 12)
+                    viewToggle.padding(.top, 12)
+                    sortRow.padding(.top, 10)
                     ZStack {
                         if shown.isEmpty {
                             StaryEmptyState(title: locale.t(.starlogFilteredEmpty))
+                        } else if listMode {
+                            list
                         } else {
                             ring
                         }
@@ -163,6 +182,7 @@ struct StarLogScreen: View {
         // 원 등장 — 기준 시각을 다시 잡고, 별이 떠오르는 순간마다 "톡톡 반짝"(간격은 MusicManager 가 솎는다).
         .task(id: revealToken) {
             revealStart = Date()
+            guard !listMode else { return }   // 목록 보기엔 원이 없으니 반짝 소리도 없다
             let n = shown.count
             let start = revealStart
             for i in 0..<n {
@@ -174,7 +194,14 @@ struct StarLogScreen: View {
         }
     }
 
-    // MARK: 정렬 / 필터 알약
+    // MARK: 보기 방식 / 정렬 / 필터 알약
+
+    private var viewToggle: some View {
+        StarySegmented(options: [(locale.t(.starlogViewRing), "star.circle.fill"),
+                                 (locale.t(.starlogViewList), "list.bullet")],
+                       selection: Binding(get: { listMode ? 1 : 0 }, set: { listMode = $0 == 1 }))
+            .frame(width: 184)
+    }
 
     private var sortRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -201,25 +228,7 @@ struct StarLogScreen: View {
     }
 
     private func chip(_ label: String, icon: String? = nil, active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 13))
-                        .foregroundStyle(active ? Theme.navyAccent : Color.white)
-                }
-                Text(label)
-                    .font(.minSans(13))
-                    .foregroundStyle(active ? Color(hex: 0xDCE5FF) : Theme.textPrimary)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(active ? Theme.navyAccent.opacity(0.24) : Color(hex: 0x111120).opacity(0.93),
-                        in: Capsule())
-            .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.75))
-        }
-        .buttonStyle(.plain)
+        StaryChip(label, selected: active, systemImage: icon, action: action)
     }
 
     // MARK: 별의 원
@@ -385,17 +394,11 @@ struct StarLogScreen: View {
     private func infoPanel(_ d: Diary) -> some View {
         let starColor = StarStyle.color(d.starColor)
         let ink = readable(starColor)
-        let meters = Geo.distanceMeters(lat1: here.latitude, lng1: here.longitude, lat2: d.latitude, lng2: d.longitude)
-        let dist = meters >= 1000 ? String(format: "%.1fkm", meters / 1000) : "\(Int(meters.rounded()))m"
+        let dist = distanceText(d)
         let meta: String = {
-            guard let ms = unlocks.unlockedAt[d.id ?? ""] else {
+            guard let date = unlockDateText(d, dateFormatter()) else {
                 return String(format: locale.t(.starlogMetaDistance), dist)
             }
-            let f = DateFormatter()
-            f.locale = locale.swiftLocale
-            f.dateStyle = .medium
-            f.timeStyle = .none
-            let date = f.string(from: Date(timeIntervalSince1970: Double(ms) / 1000))
             return String(format: locale.t(.starlogMeta), date, dist)
         }()
         let author = directory.name(d.userId, fallback: d.userName)
@@ -417,21 +420,123 @@ struct StarLogScreen: View {
                 .foregroundStyle(Theme.textSecondary)
                 .lineLimit(1)
                 .padding(.top, 4)
-            Button {
-                if let id = d.id { MapFocusStore.shared.request(diaryId: id) }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "map.fill").font(.system(size: 13))
-                    Text(locale.t(.starlogOpenMap)).font(.minSans(13))
-                }
-                .foregroundStyle(ink)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 9)
-                .background(starColor.opacity(0.14), in: Capsule())
-                .overlay(Capsule().stroke(starColor.opacity(0.6), lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 14)
+            mapButton(d, ink: ink, starColor: starColor)
+                .padding(.top, 14)
         }
+    }
+
+    /// '지도에서 보기' — 그 별의 색을 입은 알약(원 가운데 패널과 목록 줄이 함께 쓴다).
+    private func mapButton(_ d: Diary, ink: Color, starColor: Color) -> some View {
+        Button {
+            if let id = d.id { MapFocusStore.shared.request(diaryId: id) }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "map.fill").font(.system(size: 13))
+                Text(locale.t(.starlogOpenMap)).font(.minSans(13))
+            }
+            .foregroundStyle(ink)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(starColor.opacity(0.14), in: Capsule())
+            .overlay(Capsule().stroke(starColor.opacity(0.6), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func distanceText(_ d: Diary) -> String {
+        let meters = Geo.distanceMeters(lat1: here.latitude, lng1: here.longitude, lat2: d.latitude, lng2: d.longitude)
+        return meters >= 1000 ? String(format: "%.1fkm", meters / 1000) : "\(Int(meters.rounded()))m"
+    }
+
+    /// 날짜 형식기는 목록을 그릴 때 한 번만 만든다(줄마다 만들면 무겁다).
+    private func dateFormatter() -> DateFormatter {
+        let f = DateFormatter()
+        f.locale = locale.swiftLocale
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }
+
+    /// 해금 날짜(현재 앱 언어의 보통 길이) — 기록이 없으면 nil.
+    private func unlockDateText(_ d: Diary, _ f: DateFormatter) -> String? {
+        guard let ms = unlocks.unlockedAt[d.id ?? ""] else { return nil }
+        return f.string(from: Date(timeIntervalSince1970: Double(ms) / 1000))
+    }
+
+    // MARK: 목록 보기
+
+    /// 원과 같은 정렬·필터 결과를 한 줄씩. 맨 위에 모은 별 수. 위아래 끝은 살짝 녹여 알약 앞에서 글이 잘려 보이지 않게.
+    private var list: some View {
+        let stars = shown
+        let f = dateFormatter()
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 6) {
+                    Text(locale.t(.starlogCountLabel))
+                        .font(.minSans(12))
+                        .foregroundStyle(Theme.textSecondary)
+                    Text("\(stars.count)")
+                        .font(.minSans(13, .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 6)
+                ForEach(stars, id: \.id) { d in row(d, f) }
+            }
+            .padding(.top, 6)
+            .padding(.bottom, 16)
+        }
+        .mask {
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 10)
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 24)
+            }
+        }
+    }
+
+    /// 목록 한 줄 — 별 · 제목 / 누구의 별 · 해금 날짜 · 거리. 누르면 펼쳐져 '지도에서 보기'(제목도 그 별의 색으로).
+    private func row(_ d: Diary, _ f: DateFormatter) -> some View {
+        let selected = d.id != nil && d.id == selectedId
+        let starColor = StarStyle.color(d.starColor)
+        let ink = readable(starColor)
+        let author = String(format: locale.t(.starlogAuthor), directory.name(d.userId, fallback: d.userName))
+        let meta = unlockDateText(d, f).map { "\(author) · \($0)" } ?? author
+        let title = d.titleForDisplay().isEmpty ? "—" : d.titleForDisplay()
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 14) {
+                StarView(type: d.starType, colorIndex: d.starColor, size: 28, glow: false)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.minSans(15, .semibold))
+                        .foregroundStyle(selected ? ink : Theme.textPrimary)
+                        .lineLimit(1)
+                    Text(meta)
+                        .font(.minSans(12))
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 10)
+                Text(distanceText(d))
+                    .font(.minSans(12))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+            }
+            if selected {
+                mapButton(d, ink: ink, starColor: starColor)
+                    .padding(.leading, 42)
+                    .padding(.top, 12)
+                    .transition(.opacity)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? starColor.opacity(0.08) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeOut(duration: 0.2)) { selectedId = selected ? nil : d.id }
+        }
+        .padding(.horizontal, 8)
     }
 }

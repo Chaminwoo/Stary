@@ -168,7 +168,7 @@ struct WorkshopScreen: View {
         let slots = [FanSlot(idx: 0, dx: -84, dy: 18, rot: -13), FanSlot(idx: 2, dx: 84, dy: 18, rot: 13), FanSlot(idx: 1, dx: 0, dy: 0, rot: 0)]
         return VStack(spacing: 0) {
             Text(locale.t(.starlightLineup))
-                .font(.minSans(11.5, .semibold)).tracking(1.5).foregroundStyle(gold)
+                .font(.minSans(11, .semibold)).tracking(1.5).foregroundStyle(gold)
             ZStack(alignment: .top) {
                 ForEach(slots, id: \.idx) { s in
                     if s.idx < showcase.count {
@@ -190,7 +190,7 @@ struct WorkshopScreen: View {
                 .padding(.top, 6)
             Text(boxes > 0 ? String(format: locale.t(.starlightBoxesReady), boxes)
                            : String(format: locale.t(.starlightNoBox), store.config.boxCost))
-                .font(.minSans(12.5)).foregroundStyle(sub).multilineTextAlignment(.center)
+                .font(.minSans(12)).foregroundStyle(sub).multilineTextAlignment(.center)
                 .padding(.top, 6)
             HStack(spacing: 10) {
                 StarlightOpenButton(text: locale.t(.starlightOpenOne), enabled: !busy && boxes >= 1, primary: true) { open(1) }
@@ -221,11 +221,11 @@ struct WorkshopScreen: View {
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(locale.t(.starlightCollection)).font(.minSans(15, .semibold)).foregroundStyle(ink)
-                        Text(locale.t(.starlightCollectionDesc)).font(.minSans(11.5)).foregroundStyle(dim)
+                        Text(locale.t(.starlightCollectionDesc)).font(.minSans(11)).foregroundStyle(dim)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer()
-                    Text(locale.t(.starlightCollectionOpen)).font(.minSans(12.5, .semibold)).foregroundStyle(StarlightArt.violet)
+                    Text(locale.t(.starlightCollectionOpen)).font(.minSans(12, .semibold)).foregroundStyle(StarlightArt.violet)
                     Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(StarlightArt.violet)
                 }
                 HStack(spacing: 10) {
@@ -260,9 +260,9 @@ struct WorkshopScreen: View {
             ForEach(StarlightStore.rarities.reversed(), id: \.self) { r in
                 HStack(spacing: 8) {
                     Circle().fill(StarlightArt.rarityColor(r)).frame(width: 8, height: 8)
-                    Text(rarityName(r)).font(.minSans(12.5)).foregroundStyle(sub)
+                    Text(rarityName(r)).font(.minSans(12)).foregroundStyle(sub)
                     Spacer()
-                    Text(pct(cfg.percent(r))).font(.system(size: 12.5).monospacedDigit()).foregroundStyle(ink)
+                    Text(pct(cfg.percent(r))).font(.system(size: 12).monospacedDigit()).foregroundStyle(ink)
                 }
             }
             Group {
@@ -273,7 +273,7 @@ struct WorkshopScreen: View {
                 Text(String(format: locale.t(.starlightDupRule),
                             cfg.dupRefund["common"] ?? 0, cfg.dupRefund["rare"] ?? 0, cfg.dupRefund["epic"] ?? 0, cfg.dupRefund["legendary"] ?? 0))
             }
-            .font(.minSans(11.5)).foregroundStyle(dim).lineSpacing(2)
+            .font(.minSans(11)).foregroundStyle(dim).lineSpacing(2)
             .fixedSize(horizontal: false, vertical: true)
             // 아이템별 확률(접어 둔다) — 같은 등급 안에서는 모두 같은 확률.
             Button {
@@ -281,7 +281,7 @@ struct WorkshopScreen: View {
             } label: {
                 HStack {
                     Text(locale.t(oddsOpen ? .starlightOddsHide : .starlightOddsItems))
-                        .font(.minSans(12.5, .medium)).foregroundStyle(StarlightArt.violet)
+                        .font(.minSans(12, .medium)).foregroundStyle(StarlightArt.violet)
                     Spacer()
                     Image(systemName: oddsOpen ? "chevron.up" : "chevron.down")
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(StarlightArt.violet)
@@ -297,13 +297,13 @@ struct WorkshopScreen: View {
                         let group = pool.filter { $0.rarity == r }
                         if !group.isEmpty {
                             let each = cfg.percent(r) / Double(group.count)
-                            Text(rarityName(r)).font(.minSans(11.5, .semibold)).foregroundStyle(StarlightArt.rarityColor(r)).padding(.top, 4)
+                            Text(rarityName(r)).font(.minSans(11, .semibold)).foregroundStyle(StarlightArt.rarityColor(r)).padding(.top, 4)
                             ForEach(group) { item in
                                 HStack {
                                     Text("\(item.name(in: lang)) · \(starlightKindName(item.kind))")
-                                        .font(.minSans(11.5)).foregroundStyle(sub).lineLimit(1)
+                                        .font(.minSans(11)).foregroundStyle(sub).lineLimit(1)
                                     Spacer()
-                                    Text(pct(each)).font(.system(size: 11.5).monospacedDigit()).foregroundStyle(dim)
+                                    Text(pct(each)).font(.system(size: 11).monospacedDigit()).foregroundStyle(dim)
                                 }
                             }
                         }
@@ -387,7 +387,7 @@ private struct ShowcaseCard: View {
             ItemArt(item: item).frame(width: 70, height: 70)
             Spacer(minLength: 0)
             Text(item.name(in: locale.effectiveLanguage))
-                .font(.minSans(10.5, .medium)).foregroundStyle(ink)
+                .font(.minSans(10, .medium)).foregroundStyle(ink)
                 .multilineTextAlignment(.center).lineLimit(2)
         }
         .padding(.horizontal, 6).padding(.vertical, 8)
@@ -420,7 +420,7 @@ private struct ExchangeRow: View {
                 .frame(width: 46, height: 46)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.minSans(14, .medium)).foregroundStyle(ink)
-                    Text(desc).font(.minSans(11.5)).foregroundStyle(dim).fixedSize(horizontal: false, vertical: true)
+                    Text(desc).font(.minSans(11)).foregroundStyle(dim).fixedSize(horizontal: false, vertical: true)
                 }
             }
             HStack {

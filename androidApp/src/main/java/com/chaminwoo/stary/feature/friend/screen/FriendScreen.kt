@@ -37,7 +37,6 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Group
 import com.chaminwoo.stary.core.ui.FirstVisitInfo
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -74,6 +73,10 @@ import com.chaminwoo.stary.shared.config.StaryConfig
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.ui.CardBgTop
 import com.chaminwoo.stary.core.ui.PageBg
+import com.chaminwoo.stary.core.ui.StaryButton
+import com.chaminwoo.stary.core.ui.StaryButtonKind
+import com.chaminwoo.stary.core.ui.StaryChip
+import com.chaminwoo.stary.core.ui.StaryDialog
 import com.chaminwoo.stary.core.ui.TextMain
 import com.chaminwoo.stary.core.ui.TextMuted
 import com.chaminwoo.stary.core.ui.appCard
@@ -123,6 +126,8 @@ fun FriendScreen(
     }
     val vm: FriendViewModel = viewModel(factory = FriendViewModel.factory(me))
     val friends by vm.friends.collectAsState()
+    val friendsReady by vm.friendsReady.collectAsState()
+    val friendsLoading = com.chaminwoo.stary.core.ui.rememberStillLoading(friendsReady)
     val requests by vm.incomingRequests.collectAsState()
     val outgoing by vm.outgoingRequests.collectAsState()
     val allResults by vm.searchResults.collectAsState()
@@ -232,19 +237,15 @@ fun FriendScreen(
                         onClick = { onOpenProfile(user.userId, user.userName) }
                     ) {
                         if (alreadyFriend) {
-                            StatusChip(stringResource(R.string.friend_status_friend))
+                            StaryChip(stringResource(R.string.friend_status_friend), selected = false)
                         } else if (alreadyRequested) {
                             // 이미 보낸 pending 요청 — 다시 못 누르게 상태 칩으로 교체.
-                            StatusChip(stringResource(R.string.friend_status_requested))
+                            StaryChip(stringResource(R.string.friend_status_requested), selected = false)
                         } else {
-                            Pill(
-                                stringResource(R.string.friend_add),
-                                Icons.Filled.PersonAdd,
-                                Accent.copy(alpha = 0.16f),
-                                Accent
-                            ) {
-                                vm.sendRequest(user)
-                            }
+                            StaryButton(
+                                stringResource(R.string.friend_add), { vm.sendRequest(user) },
+                                compact = true, icon = Icons.Filled.PersonAdd,
+                            )
                         }
                     }
                 }
@@ -278,18 +279,14 @@ fun FriendScreen(
                         onClick = { onOpenProfile(req.fromId, req.fromName) }
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Pill(
-                                stringResource(R.string.friend_accept),
-                                Icons.Filled.Check,
-                                Accent.copy(alpha = 0.16f),
-                                Accent
-                            ) { vm.accept(req) }
-                            Pill(
-                                stringResource(R.string.friend_decline),
-                                Icons.Filled.Close,
-                                Color.White.copy(alpha = 0.06f),
-                                SoftRed
-                            ) { vm.decline(req) }
+                            StaryButton(
+                                stringResource(R.string.friend_accept), { vm.accept(req) },
+                                compact = true, icon = Icons.Filled.Check,
+                            )
+                            StaryButton(
+                                stringResource(R.string.friend_decline), { vm.decline(req) },
+                                kind = StaryButtonKind.Ghost, compact = true, icon = Icons.Filled.Close,
+                            )
                         }
                     }
                 }
@@ -297,7 +294,9 @@ fun FriendScreen(
 
             // --- 친구 목록 ---
             item { SectionHeader(stringResource(R.string.friend_my_friends), friends.size) }
-            if (friends.isEmpty()) {
+            if (friends.isEmpty() && friendsLoading) {
+                item { com.chaminwoo.stary.core.ui.SkeletonRows(count = 4) }
+            } else if (friends.isEmpty()) {
                 item {
                     // 검색창이 위에 있는 화면이라 액션 버튼 없이 안내만(StaryEmptyState 공용).
                     com.chaminwoo.stary.core.ui.StaryEmptyState(
@@ -378,13 +377,12 @@ fun FriendScreen(
 
         // 친구 행 롱프레스 → 대화 내용 나에게서만 삭제(채팅 화면 ⋮ 메뉴와 같은 동작) — 상대 대화방엔 그대로 남는다.
         clearTarget?.let { target ->
-            AlertDialog(
+            StaryDialog(
                 onDismissRequest = { clearTarget = null },
-                containerColor = CardBgTop,
-                title = { Text(stringResource(R.string.chat_clear_title), color = TextMain) },
-                text = { Text(stringResource(R.string.chat_clear_confirm), color = TextMuted) },
+                title = { Text(stringResource(R.string.chat_clear_title)) },
+                text = { Text(stringResource(R.string.chat_clear_confirm)) },
                 confirmButton = {
-                    TextButton(onClick = {
+                    StaryButton(stringResource(R.string.common_delete), kind = StaryButtonKind.Danger, compact = true, onClick = {
                         clearTarget = null
                         val summary = summaryByFriend[target.userId]
                         scope.launch {
@@ -397,14 +395,10 @@ fun FriendScreen(
                                 context.getString(if (ok) R.string.chat_clear_done else R.string.chat_action_failed)
                             )
                         }
-                    }) {
-                        Text(stringResource(R.string.common_delete), color = Color(0xFFFF6B6B))
-                    }
+                    })
                 },
                 dismissButton = {
-                    TextButton(onClick = { clearTarget = null }) {
-                        Text(stringResource(R.string.common_cancel), color = TextMuted)
-                    }
+                    StaryButton(stringResource(R.string.common_cancel), { clearTarget = null }, kind = StaryButtonKind.Ghost, compact = true)
                 }
             )
         }
@@ -444,7 +438,7 @@ private fun InviteCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 stringResource(R.string.invite_friends),
-                color = TextMain, fontSize = 14.5.sp, fontWeight = FontWeight.Light
+                color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Light
             )
             Text(
                 stringResource(R.string.invite_friends_desc),
@@ -630,7 +624,7 @@ private fun FriendRow(
             } else {
                 Text(
                     stringResource(R.string.friend_no_chat_yet),
-                    color = TextMuted.copy(alpha = 0.7f), fontSize = 12.5.sp, maxLines = 1
+                    color = TextMuted.copy(alpha = 0.7f), fontSize = 12.sp, maxLines = 1
                 )
             }
         }
@@ -689,50 +683,8 @@ private fun Avatar(
         } else {
             Text(
                 shownName.take(1).uppercase().ifBlank { "?" },
-                color = Accent, fontSize = 16.sp, fontWeight = FontWeight.Light
+                color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Light
             )
         }
-    }
-}
-
-@Composable
-private fun Pill(
-    text: String,
-    icon: ImageVector?,
-    container: Color,
-    contentColor: Color,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(container)
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (icon != null) {
-            Icon(
-                icon,
-                contentDescription = text,
-                tint = contentColor,
-                modifier = Modifier.size(15.dp)
-            )
-            Spacer(Modifier.width(4.dp))
-        }
-        Text(text, color = contentColor, fontSize = 12.5.sp, fontWeight = FontWeight.Light)
-    }
-}
-
-@Composable
-private fun StatusChip(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Accent.copy(alpha = 0.10f))
-            .border(1.dp, Accent.copy(alpha = 0.25f), RoundedCornerShape(50))
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        Text(text, color = Accent, fontSize = 12.5.sp, fontWeight = FontWeight.Light)
     }
 }

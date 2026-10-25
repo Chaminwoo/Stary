@@ -39,10 +39,17 @@ struct NotificationsScreen: View {
         ZStack {
             Theme.background.ignoresSafeArea()
             if items.isEmpty {
-                // 빈 상태도 별 언어로(떠 있는 골드 별 + 안내) — StaryEmptyState 공용.
+                // 빈 상태도 별 언어로(떠 있는 골드 별 + 안내) — StaryEmptyState 공용. 첫 응답 전엔 목록 모양 자리 표시.
+                LoadingGate(loading: !vm.loaded) {
+                    VStack {
+                        SkeletonRows().padding(.horizontal, 16).padding(.top, 8)
+                        Spacer(minLength: 0)
+                    }
+                } empty: {
                     StaryEmptyState(title: LocaleManager.shared.t(.notifEmpty),
-                                description: LocaleManager.shared.t(.notifEmptyDesc),
-                                starType: 0, starColorIndex: 1)
+                                    description: LocaleManager.shared.t(.notifEmptyDesc),
+                                    starType: 0, starColorIndex: 1)
+                }
             } else {
                 List {
                     ForEach(items) { n in

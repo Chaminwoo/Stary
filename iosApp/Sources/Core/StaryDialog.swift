@@ -7,9 +7,10 @@ import UIKit
 /// 말풍선처럼 보여, Android 와 생김새·위치가 전혀 달랐다(2026-08-25 사용자 지시).
 /// → **화면 한가운데 뜨는 사각(모서리 18) 카드**로 통일한다.
 ///
-/// 규격(Android `AlertDialog` + `ReportDialog` 에서 그대로 가져옴):
-///  - 배경 `Theme.surface`(0x1A1A1A) / 테두리 `Theme.outline` 1pt / 모서리 18 / 안쪽 여백 20
+/// 규격(Android `StaryDialog` 패리티):
+///  - 유리 패널(`glassPanel` — 흐린 재질 + 반투명 남색 + 위가 밝은 1pt 테두리) / 모서리 18 / 안쪽 여백 20
 ///  - 제목 MinSans 17 SemiBold `textPrimary`, 설명 MinSans 14 `textSecondary`
+///  - 버튼은 `StaryButton` compact — 취소 = ghost, 확인 = primary, 지우기·차단 = danger
 ///  - 최대 폭 340, 화면 좌우 여백 32
 ///
 /// 구현 메모: 화면 전체(내비게이션 바 포함)를 덮어야 해서 `fullScreenCover` 로 띄우고
@@ -21,6 +22,8 @@ enum StaryDialogStyle {
     static let maxWidth: CGFloat = 340
     static let screenPadding: CGFloat = 32
     static let scrimOpacity: Double = 0.55
+    /// 패널 색 — 어둡게 깐 뒤 화면 위에서도 판이 떠 보이게 상단바 유리보다 한 단 밝고 진하다(Android GlassFill).
+    static let glassTint = Color(hex: 0x262D48, alpha: 0.55)
 }
 
 /// 선택지 한 줄(액션시트 항목 대체).
@@ -82,7 +85,7 @@ extension View {
                                         .frame(width: 20)
                                 }
                                 Text(option.title)
-                                    .font(.minSans(16))
+                                    .font(.minSans(15))
                                 Spacer(minLength: 0)
                             }
                             .foregroundStyle(option.isDestructive ? Theme.accentRed : Theme.textPrimary)
@@ -94,7 +97,7 @@ extension View {
                     }
                 }
             } actions: {
-                StaryDialogTextButton(LocaleManager.shared.t(.commonCancel), color: Theme.textSecondary) {
+                StaryButton(LocaleManager.shared.t(.commonCancel), kind: .ghost, compact: true) {
                     isPresented.wrappedValue = false
                 }
             }
@@ -112,12 +115,10 @@ extension View {
             StaryDialogCard(title: title, message: message) {
                 EmptyView()
             } actions: {
-                StaryDialogTextButton(LocaleManager.shared.t(.commonCancel), color: Theme.textSecondary) {
+                StaryButton(LocaleManager.shared.t(.commonCancel), kind: .ghost, compact: true) {
                     isPresented.wrappedValue = false
                 }
-                StaryDialogTextButton(confirmTitle,
-                                      color: destructive ? Theme.accentRed : Theme.navyAccent,
-                                      weight: .semibold) {
+                StaryButton(confirmTitle, kind: destructive ? .danger : .primary, compact: true) {
                     isPresented.wrappedValue = false
                     DispatchQueue.main.async { onConfirm() }
                 }
@@ -134,8 +135,7 @@ extension View {
             StaryDialogCard(title: title, message: message) {
                 EmptyView()
             } actions: {
-                StaryDialogTextButton(LocaleManager.shared.t(.commonOk),
-                                      color: Theme.navyAccent, weight: .semibold) {
+                StaryButton(LocaleManager.shared.t(.commonOk), compact: true) {
                     isPresented.wrappedValue = false
                     onDismiss?()
                 }
@@ -168,24 +168,20 @@ struct StaryDialogCard<Content: View, Actions: View>: View {
             }
             content()
                 .padding(.top, 14)
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Spacer(minLength: 0)
                 actions()
             }
-            .padding(.top, 12)
+            .padding(.top, 18)
         }
         .padding(20)
         .frame(maxWidth: StaryDialogStyle.maxWidth)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: StaryDialogStyle.corner))
-        .overlay(
-            RoundedRectangle(cornerRadius: StaryDialogStyle.corner)
-                .strokeBorder(Theme.outline, lineWidth: 1)
-        )
+        .glassPanel(cornerRadius: StaryDialogStyle.corner, tint: StaryDialogStyle.glassTint)
         .padding(.horizontal, StaryDialogStyle.screenPadding)
     }
 }
 
-/// 팝업 하단 텍스트 버튼(Android `TextButton` 톤).
+/// 글자만 있는 버튼(Android `TextButton` 톤) — 약관 창처럼 따로 꾸민 카드용. 보통 확인 창은 `StaryButton(compact:)`.
 struct StaryDialogTextButton: View {
     let title: String
     var color: Color = Theme.navyAccent

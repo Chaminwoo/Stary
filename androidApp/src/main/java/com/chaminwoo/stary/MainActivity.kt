@@ -1,17 +1,12 @@
 package com.chaminwoo.stary
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.chaminwoo.stary.core.designsystem.StaryTheme
 import com.chaminwoo.stary.core.util.LocaleManager
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -33,24 +28,8 @@ class MainActivity : ComponentActivity() {
         // 같은 기기에 저장해 둔 커스텀 닉네임이 있으면 표시명에 즉시 반영(기본=구글 닉네임).
         GoogleAuthHelper.applyStoredNickname(this)
 
-        // 앱 시작 즉시 필요한 권한 요청 — 위치(지도 초기 위치)·푸시 알림(API 33+).
-        // 위치를 늦게 받으면 초기 지도가 기본 좌표로 떠서 주변 다이어리가 안 보이므로 켜자마자 요청한다.
-        val needed = buildList {
-            // 대략적인 위치만 허용한 사용자에게는 매 실행마다 다시 묻지 않는다(그 위치로도 별을 남길 수 있다).
-            if (!com.chaminwoo.stary.core.util.LocationHelper.hasPermission(this@MainActivity)) {
-                add(Manifest.permission.ACCESS_FINE_LOCATION)
-                add(Manifest.permission.ACCESS_COARSE_LOCATION)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-        if (needed.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, needed.toTypedArray(), 1001)
-        }
+        // 위치·알림 권한은 여기서 묻지 않는다 — 앱을 켜자마자(로그인 전) 창이 연달아 떠서 왜 필요한지 알 수 없었다.
+        // 지도에 들어왔을 때 / 별을 올리거나 친구를 추가한 뒤에 이유 카드부터 보여 준다(core/ui/PermissionAsk.kt, 2026-10 S2).
 
         // 푸시 알림 탭 → 채팅방/다이어리 상세로 딥링크. (콜드 스타트: onCreate, 살아있을 때: onNewIntent)
         handleDeepLinkIntent(intent)

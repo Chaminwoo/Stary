@@ -485,7 +485,7 @@ fun FloatingStatBox(
                     Text(
                         item.count.toString(),
                         color = item.color,
-                        fontSize = 26.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.SemiBold,
                         style = LocalTextStyle.current.merge(
                             TextStyle(shadow = Shadow(item.color.copy(alpha = 0.95f), blurRadius = 28f))

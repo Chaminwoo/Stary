@@ -100,9 +100,8 @@ private struct ReportDialogContent: View {
                 }
             }
         } actions: {
-            StaryDialogTextButton(locale.t(.commonCancel), color: Theme.textSecondary, action: onCancel)
-            StaryDialogTextButton(locale.t(.reportSubmit),
-                                  color: Theme.accentRed, weight: .semibold, enabled: canSubmit) {
+            StaryButton(locale.t(.commonCancel), kind: .ghost, compact: true, action: onCancel)
+            StaryButton(locale.t(.reportSubmit), kind: .danger, compact: true, enabled: canSubmit) {
                 guard let selected, canSubmit else { return }
                 let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
                 onSubmit(selected.rawValue, selected == .other ? trimmed : "")

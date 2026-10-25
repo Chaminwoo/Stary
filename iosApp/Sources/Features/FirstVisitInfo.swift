@@ -56,7 +56,7 @@ private struct FirstVisitInfoCard: View {
                         .foregroundStyle(.white)
                 }
                 Text(title)
-                    .font(.minSans(22, .medium))
+                    .font(.minSans(20, .medium))
                     .foregroundStyle(Theme.textPrimary)
                 Text(message)
                     .font(.minSans(14))

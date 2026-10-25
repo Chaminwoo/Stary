@@ -116,19 +116,7 @@ struct AchievementsScreen: View {
     }
 
     private func tabChip(_ label: String, _ index: Int, _ accent: Color) -> some View {
-        let selected = tab == index
-        return Button { tab = index } label: {
-            Text(label)
-                .font(.minSans(14, selected ? .semibold : .normal))
-                .foregroundStyle(selected ? accent : Theme.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(selected ? accent.opacity(0.16) : Color.white.opacity(0.04),
-                            in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12)
-                    .stroke(selected ? accent.opacity(0.7) : Color.white.opacity(0.06), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
+        StaryChip(label, selected: tab == index, accent: accent, fill: true) { tab = index }
     }
 
     // ── 공용 업적 — 칭호(주제별) / 별 모양 / 별 색 ──
@@ -448,7 +436,7 @@ struct AchievementsScreen: View {
                     let hint = starlight.hints[ach.id]
                     if let hint {
                         Text(locale.t(hint.level >= 2 ? .hintClear : .hintFaint))
-                            .font(.minSans(10.5, .semibold)).foregroundStyle(Theme.navyAccent)
+                            .font(.minSans(10, .semibold)).foregroundStyle(Theme.navyAccent)
                             .padding(.top, 3)
                         Text(hint.text(in: locale.effectiveLanguage))
                             .font(.minSans(12)).italic().foregroundStyle(Theme.navyAccent.opacity(0.85))
@@ -509,7 +497,7 @@ struct AchievementsScreen: View {
             } label: {
                 HStack(spacing: 4) {
                     ItemArt(item: item).frame(width: 16, height: 16)
-                    Text(locale.t(.telescopeLook)).font(.minSans(10.5)).foregroundStyle(Theme.navyAccent)
+                    Text(locale.t(.telescopeLook)).font(.minSans(10)).foregroundStyle(Theme.navyAccent)
                 }
                 .padding(.leading, 6).padding(.trailing, 9).padding(.vertical, 3)
                 .background(Theme.navyAccent.opacity(0.12), in: Capsule())

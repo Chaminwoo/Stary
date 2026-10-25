@@ -93,7 +93,7 @@ fun MusicScreen(modifier: Modifier = Modifier) {
     val userId = GoogleAuthHelper.currentUserId
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.common_login_required), color = MusicTextMuted, fontSize = 18.sp)
+            Text(stringResource(R.string.common_login_required), color = MusicTextMuted, fontSize = 17.sp)
         }
         return
     }
@@ -197,7 +197,7 @@ fun MusicScreen(modifier: Modifier = Modifier) {
             Text(
                 text = com.chaminwoo.stary.core.util.LocalizedNames.music(musicCtx, selected.id, selected.displayName),
                 color = if (selectedUnlocked) selectedColor else MusicTextMuted,
-                fontSize = 18.sp, fontWeight = FontWeight.Light,
+                fontSize = 17.sp, fontWeight = FontWeight.Light,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 textAlign = TextAlign.Center
             )

@@ -112,18 +112,20 @@ fun MyDiaryScreen(
     val userId = GoogleAuthHelper.currentUserId
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 18.sp)
+            Text(stringResource(R.string.common_login_required), color = TextMuted, fontSize = 17.sp)
         }
         return
     }
 
     val myDiaries by diaryViewModel.getMyDiaries(userId).collectAsState()
+    val ready by diaryViewModel.myDiariesReady(userId).collectAsState()
+    val loading = com.chaminwoo.stary.core.ui.rememberStillLoading(ready)
 
     val bgScroll = rememberBackgroundScroll()
     Box(modifier = modifier.nestedScroll(bgScroll).fillMaxSize()) {
         // 업로드 화면과 동일한 밝기의 배경
         ScreenBackground(R.drawable.mydiary_bg, darken = 0.82f, scroll = bgScroll)
-        DiaryStarsBoard(diaries = myDiaries, onDiaryClick = onDiaryClick)
+        DiaryStarsBoard(diaries = myDiaries, onDiaryClick = onDiaryClick, loading = loading)
 
         FirstVisitInfo(
             seenKey = "info_mydiary",
@@ -143,6 +145,8 @@ fun DiaryStarsBoard(
     diaries: List<Diary>,
     onDiaryClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** 첫 목록을 받기 전 — 빈 목록 안내 대신 자리 표시를 보인다. */
+    loading: Boolean = false,
 ) {
     var sortMode by remember { mutableStateOf(DiarySort.LATEST) }
     // 같은 정렬(특히 기본값 최신순)을 다시 골라도 재정렬이 보이도록 하는 토큰
@@ -198,7 +202,9 @@ fun DiaryStarsBoard(
             }
         }
 
-        if (diaries.isEmpty()) {
+        if (diaries.isEmpty() && loading) {
+            com.chaminwoo.stary.core.ui.SkeletonRows(Modifier.padding(horizontal = 20.dp), count = 5)
+        } else if (diaries.isEmpty()) {
             com.chaminwoo.stary.core.ui.StaryEmptyState(
                 title = stringResource(R.string.mydiary_empty),
                 description = stringResource(R.string.mydiary_empty_desc),

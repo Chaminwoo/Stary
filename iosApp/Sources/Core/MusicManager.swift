@@ -7,6 +7,7 @@ import SwiftUI
 /// - [enabled] 는 **모든 소리**(배경음악 + 효과음)의 on/off 다 — 설정의 "모든 소리 끄기"(2026-10-14 이름 변경,
 ///   예전 이름 "배경음악"은 효과음까지 꺼지는 게 버그처럼 보였다). 효과음만 따로 줄이려면 효과음 볼륨을 쓴다.
 /// - 트랙 전환은 [playTrack] (이어듣기용 위치 인자), 확정은 [commitSelectedTrack].
+/// - 다른 앱이 소리를 내면 배경음악만 쉬고 효과음은 그대로 낸다([observeSession] — Android 오디오 포커스 패리티).
 /// - 효과음: 맷돌(다이얼) 그라인딩음(돌리는 동안 [dialTick] 이 회전 속도에 비례해 반복,
 ///   놓으면 [dialRelease] 가 한 번만 끝까지), 다이어리 열람음([playOpenDiary], 배경음악보다 작게).
 final class MusicManager: ObservableObject {
@@ -26,6 +27,9 @@ final class MusicManager: ObservableObject {
 
     private var player: AVAudioPlayer?
     private var playingId: String?
+    /// 재생 의사 — 앱 전면 + 켜짐([resume])이면 true. 다른 앱 소리 때문에 쉬는 동안에도 유지돼, 그 소리가 그치면 이어서 튼다.
+    private var wantPlaying = false
+    private var sessionObservers: [NSObjectProtocol] = []
 
     // 효과음
     private var openPlayer: AVAudioPlayer?
@@ -75,12 +79,39 @@ final class MusicManager: ObservableObject {
         sfxVolume = (d.object(forKey: keySfxVol) != nil ? d.float(forKey: keySfxVol) : 1).clampedUnit
         playingId = selectedTrackId
         configureSession()
+        observeSession()
     }
 
     private func configureSession() {
         // .ambient: 다른 앱 오디오를 끊지 않고, 무음 스위치를 존중한다(앱 BGM 용).
         try? AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
         try? AVAudioSession.sharedInstance().setActive(true)
+    }
+
+    /// 다른 앱 소리에 양보(2026-10, S1). .ambient 라 효과음은 다른 앱 소리와 섞여 울리고, 배경음악만 쉰다.
+    ///  - 다른 앱이 소리를 내기 시작/그침 → 힌트 알림(.begin 멈춤 / .end 이어서). 앱이 전면일 때만 온다.
+    ///  - 전화·알람으로 끊겼다가 끝나면(.ended) 세션을 다시 켜고 이어서.
+    ///  - 음악 탭 미리듣기([playTrack])는 직접 고른 소리라 막지 않는다(.ambient 는 남의 소리를 멈출 수 없어 섞여 들린다).
+    private func observeSession() {
+        let nc = NotificationCenter.default
+        sessionObservers.append(nc.addObserver(forName: AVAudioSession.silenceSecondaryAudioHintNotification,
+                                               object: nil, queue: .main) { [weak self] note in
+            guard let self,
+                  let raw = note.userInfo?[AVAudioSessionSilenceSecondaryAudioHintTypeKey] as? UInt,
+                  let type = AVAudioSession.SilenceSecondaryAudioHintType(rawValue: raw) else { return }
+            if type == .begin {
+                self.player?.pause()
+            } else if self.wantPlaying {
+                self.resume()
+            }
+        })
+        sessionObservers.append(nc.addObserver(forName: AVAudioSession.interruptionNotification,
+                                               object: nil, queue: .main) { [weak self] note in
+            guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
+            try? AVAudioSession.sharedInstance().setActive(true)
+            if self?.wantPlaying == true { self?.resume() }
+        })
     }
 
     private func makePlayer(_ resName: String) -> AVAudioPlayer? {
@@ -91,8 +122,11 @@ final class MusicManager: ObservableObject {
     // MARK: - 배경음악
 
     /// 앱 전면 복귀 or 켜짐 → 현재 트랙을 마지막 위치에서 재생.
+    /// 다른 앱 소리가 나고 있으면 배경음악은 쉰다(효과음만) — 그 소리가 그치면 힌트(.end)가 와서 이어서 튼다.
     func resume() {
         guard enabled else { return }
+        wantPlaying = true
+        if AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint { return }
         if player == nil {
             let id = playingId ?? selectedTrackId
             guard let res = MusicCatalog.byId(id)?.resName, let p = makePlayer(res) else { return }
@@ -104,8 +138,11 @@ final class MusicManager: ObservableObject {
         if let p = player, !p.isPlaying { p.play() }
     }
 
-    /// 일시정지 — 현재 위치 보존.
-    func pause() { player?.pause() }
+    /// 일시정지 — 현재 위치 보존(앱이 뒤로 감 / 소리 끔).
+    func pause() {
+        wantPlaying = false
+        player?.pause()
+    }
 
     /// 토글 — on/off 저장 후 즉시 반영.
     func setActive(_ value: Bool) {

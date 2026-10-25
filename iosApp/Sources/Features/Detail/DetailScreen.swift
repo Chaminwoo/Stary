@@ -347,10 +347,10 @@ struct DetailScreen: View {
                     .padding(.top, 2)
                 }
             } actions: {
-                StaryDialogTextButton(LocaleManager.shared.t(.commonCancel), color: Theme.textSecondary) {
+                StaryButton(LocaleManager.shared.t(.commonCancel), kind: .ghost, compact: true) {
                     showEditDialog = false
                 }
-                StaryDialogTextButton(LocaleManager.shared.t(.commonSave), weight: .semibold) {
+                StaryButton(LocaleManager.shared.t(.commonSave), compact: true) {
                     // 부적절한 표현 필터(App Store 1.2)
                     if ContentFilter.anyObjectionable(editTitle, editContent) {
                         showToast(LocaleManager.shared.t(.contentBlocked)); return
@@ -544,7 +544,7 @@ struct DetailScreen: View {
 
     private var bodyCard: some View {
         Text((editedContent ?? (showOriginal ? diary.content : diary.contentForDisplay())).hangulWordWrapped)
-            .font(.minSans(16))
+            .font(.minSans(15))
             // 8 -> 10: 카드가 없어진 만큼 행간으로 문단을 잡아 준다(Android lineHeight 26 -> 28 대응).
             .lineSpacing(10)
             .tracking(0.1)
@@ -662,7 +662,7 @@ struct DetailScreen: View {
             // 문구 고정 — 열쇠가 있든 없든 같은 안내(없으면 탭했을 때 팝업이 광고를 안내한다). 광고제거 계정만 "바로 열기".
             Text(String(format: LocaleManager.shared.t(adFree.active ? .detailLockedTitleAdFree : .detailLockedTitleKey),
                         Int(AppConfig.diaryOpenRadiusM)))
-                .font(.minSans(14.5, .medium))
+                .font(.minSans(14, .medium))
                 .lineSpacing(7)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textPrimary.opacity(0.94))

@@ -31,23 +31,23 @@ struct StaryApp: App {
     }
 
     /// push 된 모든 화면의 시스템 내비바를 Android CenterAlignedTopAppBar 톤으로 통일 —
-    /// **반투명 검정 + 블러**(화면 배경이 비쳐 이어져 보이게) + 구분선 없음 +
-    /// 제목 **MinSans 18 SemiBold**/0xF0F0F0 + 뒤로가기 틴트 0xF0F0F0.
+    /// **유리**(블러 + 반투명 남색, Android `StaryGlass.Bar` 와 같은 틴트) + 아래 별빛 선 한 줄 +
+    /// 제목 **MinSans 17 SemiBold**/0xF0F0F0 + 뒤로가기 틴트 0xF0F0F0.
     /// (Android MainScreen 의 상단바: `TopBarScrim` 그라데이션 위에 같은 제목 스타일)
     private static func configureNavigationBarAppearance() {
         let appearance = UINavigationBarAppearance()
         // 화면 배경(ScreenBackground 는 ignoresSafeArea)이 내비바 뒤로 올라와 비친다.
         appearance.configureWithTransparentBackground()
         appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
-        appearance.backgroundColor = UIColor(red: 0x0D / 255.0, green: 0x0D / 255.0, blue: 0x0D / 255.0, alpha: 0.55)
-        appearance.shadowColor = .clear
+        appearance.backgroundColor = UIColor(red: 0x18 / 255.0, green: 0x1E / 255.0, blue: 0x34 / 255.0, alpha: 0.62)
+        appearance.shadowColor = UIColor(red: 0x9F / 255.0, green: 0xB3 / 255.0, blue: 0xE8 / 255.0, alpha: 0.13)
         let titleColor = UIColor(red: 0xF0 / 255.0, green: 0xF0 / 255.0, blue: 0xF0 / 255.0, alpha: 1)
-        let titleFont = UIFont.minSans(18, .semibold)
+        let titleFont = UIFont.minSans(17, .semibold)
         appearance.titleTextAttributes = [.foregroundColor: titleColor, .font: titleFont]
         appearance.largeTitleTextAttributes = [.foregroundColor: titleColor]
         // 뒤로가기 버튼 라벨도 같은 폰트로(기본 SF 가 섞이지 않게).
         let buttonAppearance = UIBarButtonItemAppearance()
-        buttonAppearance.normal.titleTextAttributes = [.foregroundColor: titleColor, .font: UIFont.minSans(16)]
+        buttonAppearance.normal.titleTextAttributes = [.foregroundColor: titleColor, .font: UIFont.minSans(15)]
         appearance.buttonAppearance = buttonAppearance
         appearance.backButtonAppearance = buttonAppearance
         UINavigationBar.appearance().standardAppearance = appearance
@@ -90,6 +90,7 @@ struct StaryApp: App {
             RootView()
                 .environmentObject(auth)
                 .preferredColorScheme(.dark)
+                .tint(Theme.navyAccent)
                 .onOpenURL { url in
                     if let link = Self.appLink(url) {
                         guard !link.id.isEmpty, link.id != "/" else { return }

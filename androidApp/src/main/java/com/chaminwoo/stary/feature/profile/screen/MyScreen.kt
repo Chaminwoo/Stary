@@ -67,7 +67,7 @@ fun MyScreen(
 
     if (userId == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("로그인이 필요해요", color = TextMuted, fontSize = 25.sp)
+            Text("로그인이 필요해요", color = TextMuted, fontSize = 24.sp)
         }
         return
     }
@@ -164,7 +164,7 @@ fun MyScreen(
 
                     Text(
                         text = GoogleAuthHelper.currentUserName ?: userId.take(12),
-                        fontSize = 22.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextMain,
                         letterSpacing = (-0.5).sp
@@ -218,7 +218,7 @@ fun MyScreen(
                     .padding(top = 24.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("내 다이어리", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
+                Text("내 다이어리", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
                 Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier

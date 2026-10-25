@@ -35,7 +35,7 @@ struct StaryEmptyState: View {
             if let description {
                 Spacer().frame(height: 6)
                 Text(description)
-                    .font(.minSans(12.5))
+                    .font(.minSans(12))
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
             }

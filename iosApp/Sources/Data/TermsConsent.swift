@@ -42,7 +42,7 @@ struct TermsDialogCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(locale.t(.termsTitle))
-                .font(.minSans(18, .semibold)).foregroundStyle(Theme.textPrimary)
+                .font(.minSans(17, .semibold)).foregroundStyle(Theme.textPrimary)
             if requireAgreement {
                 Spacer().frame(height: 6)
                 Text(locale.t(.termsIntro))
