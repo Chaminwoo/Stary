@@ -31,7 +31,8 @@ enum ViewedRepository {
     ///  - `unlocked`: `unlockedAt` 이 있는 문서.
     ///  - `legacy`  : `unlockedAt` 은 없지만 `viewedAt` 이 `AppConfig.diaryLockSinceMs` 이전(잠금이 없던 시절 = 본문까지 열람).
     static func fetchOpened(uid: String) async -> (unlocked: [String: Int64], legacy: [String: Int64])? {
-        guard let snap = try? await FirestoreService.viewedDiaries(of: uid).getDocuments() else { return nil }
+        // 서버에서만 — 기본 읽기는 오프라인이면 캐시를 성공으로 돌려줘, 다른 기기에서 연 별이 빠진 채 '동기화 끝'이 됐다(Android 와 같다).
+        guard let snap = try? await FirestoreService.viewedDiaries(of: uid).getDocuments(source: .server) else { return nil }
         var unlocked: [String: Int64] = [:]
         var legacy: [String: Int64] = [:]
         for d in snap.documents {

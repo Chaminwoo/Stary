@@ -152,8 +152,14 @@ fun DetailScreen(
 
     LaunchedEffect(Unit) {
         diaryViewModel.event.collect { message ->
-            if (message == com.chaminwoo.stary.feature.diary.DiaryEvent.DELETED) onBack?.invoke()
-            if (message == com.chaminwoo.stary.feature.diary.DiaryEvent.UPDATED) diary = repository.getDiaryById(diaryId)
+            // 삭제 성공 시 뒤로 가기는 삭제 버튼의 성공 콜백 한 곳에서만(예전엔 여기서도 불러 지도가 두 번 새로 만들어졌다).
+            when (message) {
+                com.chaminwoo.stary.feature.diary.DiaryEvent.UPDATED -> diary = repository.getDiaryById(diaryId)
+                com.chaminwoo.stary.feature.diary.DiaryEvent.UPDATE_FAILED,
+                com.chaminwoo.stary.feature.diary.DiaryEvent.DELETE_FAILED ->
+                    com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(message.messageRes))
+                else -> {}
+            }
         }
     }
 
@@ -252,6 +258,13 @@ fun DetailScreen(
         }
     }
     var commentInput by remember { mutableStateOf("") }
+    // 좋아요·댓글 서버 반영 실패 — 안내하고, 등록 못 한 댓글은 입력창에 되돌려 놓는다(새로 쓰는 중이면 그대로 둠).
+    LaunchedEffect(interactionVm) {
+        interactionVm.failed.collect { unsent ->
+            if (unsent != null && commentInput.isBlank()) commentInput = unsent
+            com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.toast_action_failed_network))
+        }
+    }
     var showReportDialog by remember { mutableStateOf(false) }
     // ── 신고·차단(App Store 1.2) — 헤더 ⋮ 메뉴 · 댓글 ⋮ 메뉴 ──
     var showMoreMenu by remember { mutableStateOf(false) }

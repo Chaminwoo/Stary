@@ -3,7 +3,7 @@ package com.chaminwoo.stary.feature.profile
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
+import com.chaminwoo.stary.core.util.launchSafely
 import com.chaminwoo.stary.data.repository.UserRepository
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.shared.config.StaryConfig
@@ -11,7 +11,6 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.MetadataChanges
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 
 class ProfileViewModel(private val userId: String) : ViewModel() {
     private val repo = UserRepository()
@@ -60,7 +59,7 @@ class ProfileViewModel(private val userId: String) : ViewModel() {
     }
 
     fun uploadProfileImage(uri: Uri) {
-        viewModelScope.launch {
+        launchSafely {
             _isUploading.value = true
             try {
                 _profileImageUrl.value = repo.uploadProfileImage(userId, uri)

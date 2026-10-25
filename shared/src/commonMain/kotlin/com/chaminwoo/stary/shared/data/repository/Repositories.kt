@@ -40,8 +40,8 @@ interface CommentRepository {
         userId: String,
         userName: String,
         content: String
-    )
-    suspend fun deleteComment(diaryId: String, commentId: String)
+    ): Boolean
+    suspend fun deleteComment(diaryId: String, commentId: String): Boolean
 }
 
 interface LikeRepository {
@@ -53,13 +53,13 @@ interface LikeRepository {
         diaryOwnerId: String,
         userId: String,
         userName: String
-    )
+    ): Boolean
 }
 
 interface NotificationRepository {
     fun observeNotifications(ownerId: String): Flow<List<AppNotification>>
     fun observeUnreadCount(ownerId: String): Flow<Int>
-    suspend fun markAllRead(ownerId: String)
+    suspend fun markAllRead(ownerId: String): Boolean
     suspend fun deleteNotification(notificationId: String)
 }
 

@@ -59,7 +59,8 @@ class FirebaseViewedRepository : ViewedDiaryRepository {
      * (viewedAt 은 다시 열 때마다 갱신돼 잠금 이후 시각으로 밀려나면 옛 열람이라는 증거가 사라진다).
      */
     suspend fun fetchOpened(userId: String): OpenedRecords? = try {
-        val docs = col(userId).get().await().documents
+        // 서버에서만 — 기본 get() 은 오프라인이면 캐시를 성공으로 돌려줘, 다른 기기에서 연 별이 빠진 채 '동기화 끝'이 됐다.
+        val docs = col(userId).get(com.google.firebase.firestore.Source.SERVER).await().documents
         val unlocked = HashMap<String, Long>()
         val legacy = HashMap<String, Long>()
         docs.forEach { d ->

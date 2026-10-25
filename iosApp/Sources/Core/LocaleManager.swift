@@ -176,6 +176,7 @@ enum L10n: String {
     case uploadStarShape, uploadStarColor, uploadVisibility, uploadAnonymous
     case uploadVisPublic, uploadVisFriends, uploadVisPrivate
     case uploadDailyLimit, toastUnlockAchievement, toastImageUploadFailed, uploadDone, uploadPreview, uploadNoLocation, profileNotReady
+    case actionFailedNetwork, savedWhenOnline
     case uploadLocPermTitle, uploadLocPermMsg, uploadLocPermBtn, uploadLocOffTitle, uploadLocOffMsg, uploadLocOffBtn
     case uploadLocNoneTitle, uploadLocNoneMsg, uploadLocRetry, uploadLocMockTitle, uploadLocMockMsg
     // 친구/채팅/로그인/알림 화면.
@@ -183,7 +184,7 @@ enum L10n: String {
     case friendRequests, friendMyFriends, friendEmpty, friendNoName, commonSearch
     // 친구 요청 상태/토스트(Android friend_status_* + FriendViewModel 토스트 대응 — %@ = 상대 이름).
     case friendStatusFriend, friendStatusRequested, friendRequestSent, friendRequestFail
-    case chatInputPlaceholder, commonFriend, chatSendFailed
+    case chatInputPlaceholder, commonFriend, chatSendFailed, chatSending
     case loginGoogle, loginBrowse, notifEmpty
     // 업적 화면(장착 버튼/히든 달성 알림).
     case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
@@ -588,6 +589,12 @@ enum L10n: String {
         case .profileNotReady:      return ("프로필 정보를 불러오는 중이에요. 네트워크를 확인하고 잠시 후 다시 시도해 주세요",
                                             "Still loading your profile. Check your connection and try again in a moment",
                                             "プロフィールを読み込み中です。通信状況を確認して、しばらくしてからもう一度お試しください")
+        case .actionFailedNetwork:  return ("연결을 확인하고 다시 시도해 주세요",
+                                            "Check your connection and try again.",
+                                            "接続を確認して、もう一度お試しください")
+        case .savedWhenOnline:      return ("연결이 늦어요. 연결되면 저장돼요",
+                                            "Connection is slow. It'll be saved once you're back online.",
+                                            "接続が遅いようです。つながると保存されます")
         case .uploadDone:           return ("별을 남겼어요 ✨", "Star saved ✨", "星を残しました ✨")
         case .uploadPreview:        return ("미리보기", "Preview", "プレビュー")
         case .friendSearchPlaceholder: return ("이름으로 친구 찾기", "Find friends by name", "名前で友達を探す")
@@ -607,6 +614,7 @@ enum L10n: String {
         case .commonSearch:         return ("검색", "Search", "検索")
         case .chatInputPlaceholder: return ("메시지 입력", "Message", "メッセージを入力")
         case .chatSendFailed:       return ("메시지를 보내지 못했어요", "Couldn't send the message", "メッセージを送信できませんでした")
+        case .chatSending:          return ("보내는 중", "Sending", "送信中")
         case .commonFriend:         return ("친구", "Friend", "友達")
         case .loginGoogle:          return ("Google 계정으로 로그인", "Sign in with Google", "Googleでログイン")
         case .loginBrowse:          return ("로그인 없이 둘러보기", "Browse without signing in", "ログインせずに見る")

@@ -1,3 +1,4 @@
+import FirebaseAuth
 import FirebaseFirestore
 import SwiftUI
 
@@ -16,15 +17,39 @@ final class UserDirectory: ObservableObject {
     }
 
     @Published private(set) var cache: [String: Info] = [:]
-    private var listening: Set<String> = []
+    /// 구독 중인 uid → 리스너. 오류로 끊기면 빠졌다가 다시 붙는다(Android 와 같다).
+    private var listening: [String: ListenerRegistration] = [:]
+    /// 한 번이라도 요청된 uid — 로그인(세션 복원 포함)이 생기면 끊긴 구독을 다시 붙인다.
+    private var wanted: Set<String> = []
+    private var authHandle: AuthStateDidChangeListenerHandle?
 
     private init() {}
 
-    /// uid 의 users/{uid} 문서를 실시간 구독(최초 1회만).
+    /// uid 의 users/{uid} 문서를 실시간 구독(이미 구독 중이면 그대로).
     func ensureWatching(_ userId: String) {
-        guard !userId.isEmpty, !listening.contains(userId) else { return }
-        listening.insert(userId)
-        FirestoreService.users.document(userId).addSnapshotListener { [weak self] snap, _ in
+        guard !userId.isEmpty else { return }
+        wanted.insert(userId)
+        if authHandle == nil {
+            authHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+                guard user != nil else { return }
+                Task { @MainActor in
+                    guard let self else { return }
+                    for id in Array(self.wanted) { self.ensureWatching(id) } // 사본으로 — 도는 중에 wanted 가 바뀐다
+                }
+            }
+        }
+        guard listening[userId] == nil else { return }
+        listening[userId] = FirestoreService.users.document(userId).addSnapshotListener { [weak self] snap, err in
+            if err != nil {
+                // 오류(인증 전·로그아웃 순간의 권한 거부)로 끊긴 리스너는 다시 오지 않는다 — 예전엔 '구독 중'으로 남아
+                // 앱을 다시 켤 때까지 이름·사진이 안 바뀌었다. 표시를 지우고 3초 뒤(로그인돼 있으면) 다시 붙인다.
+                Task { @MainActor in
+                    self?.listening.removeValue(forKey: userId)?.remove()
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    if Auth.auth().currentUser != nil { self?.ensureWatching(userId) }
+                }
+                return
+            }
             guard let snap, snap.exists else { return }
             let name = (snap.get("userName") as? String).flatMap { $0.isEmpty ? nil : $0 }
             let photo = (snap.get("profileImageUrl") as? String).flatMap { $0.isEmpty ? nil : $0 }

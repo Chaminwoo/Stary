@@ -134,8 +134,11 @@
     <string name="detail_comments_count">コメント %1$d</string>
     <string name="comment_placeholder">コメントを入力</string>
     <string name="cd_send">送信</string>
+    <string name="cd_chat_sending">送信中</string>
     <string name="toast_comment_added">コメントを投稿しました</string>
     <string name="toast_comment_deleted">コメントを削除しました</string>
+    <string name="toast_action_failed_network">接続を確認して、もう一度お試しください</string>
+    <string name="toast_saved_when_online">接続が遅いようです。つながると保存されます</string>
     <string name="detail_locating">位置を確認しています…</string>
     <!-- 100m 圏外の投稿ロック — タイトルのみ表示。写真・本文・コメントは接近または広告視聴で永久解放。コメント投稿は常に 100m 以内 -->
     <string name="detail_locked_title">%1$dm 以内に近づくか、\n広告を見て解錠してください！</string>
@@ -184,6 +187,8 @@
     <string name="upload_loc_none_title">現在地が見つかりませんでした</string>
     <string name="upload_loc_none_msg">窓の近くや屋外、Wi-Fiをオンにすると見つかりやすくなります。書いた内容はそのまま残っています。</string>
     <string name="upload_loc_retry">再試行</string>
+    <string name="upload_slow_title">接続が不安定です</string>
+    <string name="upload_slow_msg">まだサーバーに届いていません。書いた内容はそのまま残り、つながると自動で投稿されます。</string>
     <string name="upload_loc_mock_title">位置偽装アプリがオンになっています</string>
     <string name="upload_loc_mock_msg">星は実際の位置にだけ残せます。位置偽装アプリをオフにしてもう一度お試しください。</string>
     <string name="profile_not_ready">プロフィールを読み込み中です。通信状況を確認して、しばらくしてからもう一度お試しください</string>
@@ -234,6 +239,7 @@
     <string name="chat_clear_done">トーク履歴を削除しました</string>
     <string name="chat_clear_nothing">削除するメッセージがありません</string>
     <string name="chat_action_failed">削除できませんでした。しばらくしてからお試しください</string>
+    <string name="chat_send_failed">メッセージを送信できませんでした。接続を確認して、もう一度送ってください</string>
     <string name="common_friend">友達</string>
 
     <!-- 通知画面 -->
@@ -613,6 +619,7 @@
     <string name="login_please_wait">少々お待ちください</string>
     <string name="login_canceled">ログインをキャンセルしました。</string>
     <string name="login_no_account">使えるGoogleアカウントが見つかりませんでした。</string>
+    <string name="login_server_failed">ログインを完了できませんでした。接続を確認して、もう一度お試しください。</string>
     <string name="time_just_now">たった今</string>
     <string name="time_minutes_ago">%1$d分前</string>
     <string name="time_hours_ago">%1$d時間前</string>

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.chaminwoo.stary.core.model.FriendRequest
 import com.chaminwoo.stary.core.model.UserProfile
+import com.chaminwoo.stary.core.util.launchSafely
 import com.chaminwoo.stary.data.repository.FirebaseFriendRepository
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.shared.data.repository.FriendRepository
@@ -14,7 +15,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 class FriendViewModel(
     private val me: UserProfile,
@@ -42,19 +42,22 @@ class FriendViewModel(
     val event = _event.asSharedFlow()
 
     fun search(query: String) {
-        viewModelScope.launch {
+        launchSafely {
             _isSearching.value = true
-            _searchResults.value = repository.searchUsers(query.trim(), me.userId)
-            _isSearching.value = false
+            try {
+                _searchResults.value = repository.searchUsers(query.trim(), me.userId)
+            } finally {
+                _isSearching.value = false // 실패해도 검색 중 표시가 남지 않게
+            }
         }
     }
 
     fun clearSearch() { _searchResults.value = emptyList() }
 
     fun sendRequest(to: UserProfile) {
-        viewModelScope.launch {
+        launchSafely {
             // 요청에 박히는 내 이름/사진은 보내는 순간의 서버 확인값 — 화면을 열 때 잡아 둔 [me] 는 첫 실행 직후 구글 기본값일 수 있다.
-            val name = GoogleAuthHelper.requireConfirmedName() ?: return@launch
+            val name = GoogleAuthHelper.requireConfirmedName() ?: return@launchSafely
             val from = me.copy(userName = name, profileImageUrl = GoogleAuthHelper.currentUserPhotoUrl ?: me.profileImageUrl)
             val ok = repository.sendRequest(from, to)
             if (ok) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FRIEND_REQUEST)
@@ -66,7 +69,7 @@ class FriendViewModel(
     }
 
     fun accept(request: FriendRequest) {
-        viewModelScope.launch {
+        launchSafely {
             val ok = repository.acceptRequest(request)
             // 친구가 늘었다 — 퀘스트 "친구 사귀기"(같은 사람은 하루 한 번). 내 요청이 수락된 경우는 친구 목록 구독에서 센다.
             if (ok) com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.FRIEND_ADD, key = request.fromId)
@@ -78,14 +81,14 @@ class FriendViewModel(
     }
 
     fun decline(request: FriendRequest) {
-        viewModelScope.launch {
+        launchSafely {
             repository.declineRequest(request.id)
             _event.emit(FriendMessage(com.chaminwoo.stary.R.string.friend_toast_declined))
         }
     }
 
     fun remove(friendId: String, friendName: String) {
-        viewModelScope.launch {
+        launchSafely {
             repository.removeFriend(me.userId, friendId)
             _event.emit(FriendMessage(com.chaminwoo.stary.R.string.friend_toast_removed, friendName))
         }

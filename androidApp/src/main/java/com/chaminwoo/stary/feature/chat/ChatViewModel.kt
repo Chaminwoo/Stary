@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.model.ChatHidden
 import com.chaminwoo.stary.core.model.ChatMessage
+import com.chaminwoo.stary.core.util.launchSafely
 import com.chaminwoo.stary.data.repository.FirebaseChatRepository
 import com.chaminwoo.stary.shared.config.StaryConfig
 import com.chaminwoo.stary.shared.data.repository.ChatRepository
@@ -16,7 +17,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 /**
  * 1:1 친구 채팅 ViewModel.
@@ -54,10 +54,11 @@ class ChatViewModel(
 
     fun send(text: String) {
         if (text.isBlank()) return
-        viewModelScope.launch {
+        launchSafely {
             // 메시지·채팅 푸시에 박히는 이름은 서버 확인값 — [myName] 은 화면을 열 때의 표시용 값이라 구글 기본 이름일 수 있다.
-            val name = com.chaminwoo.stary.feature.auth.GoogleAuthHelper.requireConfirmedName() ?: return@launch
-            repository.sendMessage(chatId, myId, name, text)
+            val name = com.chaminwoo.stary.feature.auth.GoogleAuthHelper.requireConfirmedName() ?: return@launchSafely
+            // 연결이 약하면 메시지는 "보내는 중"으로 먼저 뜨고 연결되면 올라간다 — 거부(권한 등)될 때만 안내.
+            if (!repository.sendMessage(chatId, myId, name, text)) _event.tryEmit(ChatEvent.SEND_FAILED)
         }
     }
 
@@ -75,7 +76,7 @@ class ChatViewModel(
             if (message.senderId == myId) _event.tryEmit(ChatEvent.DELETE_EXPIRED)
             return
         }
-        viewModelScope.launch {
+        launchSafely {
             if (!repository.deleteMessage(chatId, message.id)) _event.tryEmit(ChatEvent.FAILED)
         }
     }
@@ -85,7 +86,7 @@ class ChatViewModel(
      * 친구 목록 미리보기용으로 "숨긴 뒤 내게 남는 마지막 메시지"를 같이 넘긴다.
      */
     fun hideForMe(message: ChatMessage) {
-        viewModelScope.launch {
+        launchSafely {
             val all = allMessages.value
             val h = hidden.value
             val ids = h.messageIds.toSet() + message.id
@@ -105,7 +106,7 @@ class ChatViewModel(
             _event.tryEmit(ChatEvent.NOTHING_TO_CLEAR)
             return
         }
-        viewModelScope.launch {
+        launchSafely {
             val upTo = allMessages.value.maxOfOrNull { it.createdAt } ?: 0L
             val ok = repository.clearChatForMe(myId, chatId, upTo)
             _event.tryEmit(if (ok) ChatEvent.CLEARED else ChatEvent.FAILED)
@@ -130,4 +131,5 @@ enum class ChatEvent(@StringRes val messageRes: Int) {
     NOTHING_TO_CLEAR(R.string.chat_clear_nothing),
     DELETE_EXPIRED(R.string.chat_delete_expired),
     FAILED(R.string.chat_action_failed),
+    SEND_FAILED(R.string.chat_send_failed),
 }

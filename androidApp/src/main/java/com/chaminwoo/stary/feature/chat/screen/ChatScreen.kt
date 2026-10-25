@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -115,6 +116,7 @@ fun ChatScreen(
     )
     val messages by vm.messages.collectAsState()
     var input by remember { mutableStateOf("") }
+    var lastSent by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     // 롱프레스한 메시지 — 삭제 방식 선택 팝업 대상(나에게서만 / 모두에게서). null 이면 팝업 숨김.
     var pendingDelete by remember { mutableStateOf<ChatMessage?>(null) }
@@ -132,7 +134,11 @@ fun ChatScreen(
 
     // 나만 삭제 등 결과 토스트.
     LaunchedEffect(vm) {
-        vm.event.collect { com.chaminwoo.stary.core.ui.StaryToast.show(chatContext.getString(it.messageRes)) }
+        vm.event.collect {
+            // 못 보낸 메시지는 입력창에 되돌린다(새로 쓰는 중이면 그대로 둠) — iOS ChatScreen 과 같다.
+            if (it == com.chaminwoo.stary.feature.chat.ChatEvent.SEND_FAILED && input.isBlank()) input = lastSent
+            com.chaminwoo.stary.core.ui.StaryToast.show(chatContext.getString(it.messageRes))
+        }
     }
 
     // 탑바 ⋮ 메뉴 "대화 내용 삭제" → 이 화면의 확인 팝업(지울 대화가 없으면 안내만).
@@ -241,6 +247,7 @@ fun ChatScreen(
                             } else {
                                 com.chaminwoo.stary.core.util.Haptics.light()
                                 vm.send(input)
+                                lastSent = input
                                 input = ""
                             }
                         },
@@ -362,7 +369,17 @@ private fun MessageBubble(
         if (isMine) {
             // 모두에게서 삭제 가능 잔여 시간 링(1분) — 다 돌면 사라진다.
             DeleteWindowRing(createdAt = msg.createdAt, visible = showDeleteRing)
-            Text(time, color = TextMuted, fontSize = 10.sp)
+            // 아직 서버에 안 올라간 메시지는 시간 대신 작은 시계(연결되면 저절로 바뀐다).
+            if (msg.pending) {
+                Icon(
+                    Icons.Outlined.Schedule,
+                    contentDescription = stringResource(R.string.cd_chat_sending),
+                    tint = TextMuted,
+                    modifier = Modifier.size(11.dp)
+                )
+            } else {
+                Text(time, color = TextMuted, fontSize = 10.sp)
+            }
             Spacer(Modifier.width(6.dp))
         }
         Column(

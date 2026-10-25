@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import androidx.compose.runtime.snapshotFlow
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.designsystem.StarCatalog
 import com.chaminwoo.stary.core.model.Diary
@@ -16,8 +17,10 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -46,10 +49,19 @@ class FirebaseDiaryRepository : DiaryRepository {
         private val listenerExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
             Thread(r, "diary-snapshots").apply { isDaemon = true }
         }
+
+        /** 새 별 번호(네트워크 없이 만든다) — 업로드 화면이 들고 있다가 다시 시도할 때도 같은 번호로 쓴다. */
+        fun newId(): String = staryFirestore.collection(StaryConfig.Collections.DIARIES).document().id
     }
 
-    // 전체 다이어리 실시간 조회
-    override fun observeAllDiaries(): Flow<List<Diary>> = callbackFlow {
+    // 전체 다이어리 실시간 조회 — 나만 보기는 본인만. 받은 순간이 아니라 **지금 로그인한 사용자** 기준으로 매번 다시 거른다
+    // (예전엔 콜백 시점의 uid 로 걸러, 로그인 직후 uid 가 늦게 채워지면 내 나만 보기 별이 다음 변경까지 빠졌다).
+    override fun observeAllDiaries(): Flow<List<Diary>> =
+        combine(observeAllDocs(), snapshotFlow { GoogleAuthHelper.currentUserId }) { list, uid ->
+            list.filter { it.visibilityType != "private" || it.userId == uid }
+        }
+
+    private fun observeAllDocs(): Flow<List<Diary>> = callbackFlow {
         // 앱 시작 시 지도는 로그인 전(auth==null)에 미리 렌더된다. 그때 첫 구독이 시작되면
         // 보안 규칙(request.auth!=null)에 막혀 PERMISSION_DENIED 로 Firestore 리스너가 죽고,
         // 로그인 후에도 스스로 복구되지 않아 지도에 다이어리가 안 뜬다.
@@ -62,13 +74,18 @@ class FirebaseDiaryRepository : DiaryRepository {
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .limit(MAX_OBSERVED_DIARIES)
                 .addSnapshotListener(listenerExecutor) { snapshot, error ->
-                    if (error != null) return@addSnapshotListener
-                    val currentUid = GoogleAuthHelper.currentUserId
+                    if (error != null) {
+                        if (FirebaseAuth.getInstance().currentUser == null) {
+                            // 로그아웃 순간의 권한 거부 — 아무것도 안 보내면 이전 계정의 목록(나만 보기 포함)이 그대로 남았다.
+                            trySend(emptyList())
+                        } else {
+                            // 로그인 중인데 끊김(드문 일시 오류) — 끊긴 리스너는 스스로 살아나지 않으니 잠시 뒤 다시 건다.
+                            launch(Dispatchers.Main) { delay(3_000); subscribe() }
+                        }
+                        return@addSnapshotListener
+                    }
                     val list = snapshot?.documents?.mapNotNull { doc ->
                         doc.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = doc.id)
-                    }?.filter { diary ->
-                        // private 다이어리는 본인만 볼 수 있음
-                        diary.visibilityType != "private" || diary.userId == currentUid
                     } ?: emptyList()
                     trySend(list)
                 }
@@ -89,8 +106,9 @@ class FirebaseDiaryRepository : DiaryRepository {
     // 다이어리 저장
     override suspend fun saveDiary(diary: Diary): Boolean {
         return try {
-            // 먼저 document 참조 생성해서 id 확보
-            val docRef = diaries.document()
+            // 번호가 정해져 오면 그 번호로 쓴다 — 연결이 약해 다시 시도해도(첫 시도는 기기에 쌓여 있다가 나중에 올라간다)
+            // 별이 두 개가 되지 않게. 번호가 없으면 새로 만든다.
+            val docRef = if (diary.id.isNotBlank()) diaries.document(diary.id) else diaries.document()
             val withMeta = diary.copy(
                 id = docRef.id,
                 createdAt = if (diary.createdAt == 0L) System.currentTimeMillis() else diary.createdAt,

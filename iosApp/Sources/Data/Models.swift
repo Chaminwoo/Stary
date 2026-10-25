@@ -644,6 +644,9 @@ struct ChatMessage: Identifiable, Codable {
 
     var createdAt: Int64 = 0
 
+    /// 이 기기에서 보냈지만 아직 서버에 안 올라간 메시지 — 화면 표시용("보내는 중"), 저장하지 않는다(CodingKeys 밖).
+    var pending = false
+
     enum CodingKeys: String, CodingKey { case id, senderId, senderName, text, createdAt }
 
     init(id: String? = nil, senderId: String = "", senderName: String = "",

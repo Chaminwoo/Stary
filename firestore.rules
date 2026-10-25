@@ -101,15 +101,26 @@ match /chats/{chatId} {
     // ── 다이어리 ────────────────────────────────────────────────────────────
     //  읽기 : 로그인 세션(익명 포함) — 지도에 남의 별 표시.
     //  생성 : userId 는 반드시 나 자신(남 명의 글 생성 금지).
-    //  수정 : 소유자=전체 수정 / 비소유자=카운터(좋아요·댓글·조회수)만(증가 트랜잭션 허용, 그 외 필드 변경 불가).
+    //  수정 : 소유자=전체 수정 / 비소유자=카운터(좋아요·댓글·조회수)만, 한 번에 ±1(조회수는 +1)만.
+    //         (예전엔 값 검사가 없어 조작된 앱이 남의 별 숫자를 아무 값으로나 바꿀 수 있었다 — 2026-10-25)
     //  삭제 : 소유자만(신고 조치 삭제는 서버 Admin SDK 가 규칙을 우회한다).
     match /diaries/{diaryId} {
+      // 카운터 한 칸 — 그대로이거나 +1, allowDown 이면 -1 도(좋아요 취소·댓글 삭제). 앱은 모두 FieldValue.increment(±1).
+      function counterStep(field, allowDown) {
+        let before = resource.data.get(field, 0);
+        let after = request.resource.data.get(field, 0);
+        return after == before || after == before + 1 || (allowDown && after == before - 1);
+      }
+
       allow read: if isSignedIn();
       allow create: if isMe(request.resource.data.userId);
       allow update: if isMe(resource.data.userId)
         || (isSignedIn()
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['likeCount', 'commentCount', 'viewCount']));
+                 .hasOnly(['likeCount', 'commentCount', 'viewCount'])
+            && counterStep('likeCount', true)
+            && counterStep('commentCount', true)
+            && counterStep('viewCount', false));
       allow delete: if isMe(resource.data.userId);
 
       // 댓글: 작성자(userId)만 생성, 삭제는 작성자 또는 글주인.

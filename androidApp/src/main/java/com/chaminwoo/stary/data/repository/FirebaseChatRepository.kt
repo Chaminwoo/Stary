@@ -8,6 +8,7 @@ import com.chaminwoo.stary.shared.config.StaryConfig
 import com.chaminwoo.stary.shared.data.repository.ChatRepository
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
@@ -80,12 +81,13 @@ class FirebaseChatRepository : ChatRepository {
     }
 
     override fun observeMessages(chatId: String): Flow<List<ChatMessage>> = callbackFlow {
+        // 메타 변경도 받는다 — 보낸 메시지가 서버에 올라가는 순간 "보내는 중" 표시를 지우려면 필요하다.
         val listener = messagesRef(chatId)
             .orderBy("createdAt", Query.Direction.ASCENDING)
-            .addSnapshotListener { snapshot, error ->
+            .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
                 if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
                 val list = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(ChatMessage::class.java)?.copy(id = doc.id)
+                    doc.toObject(ChatMessage::class.java)?.copy(id = doc.id, pending = doc.metadata.hasPendingWrites())
                 } ?: emptyList()
                 trySend(list)
             }
@@ -102,9 +104,14 @@ class FirebaseChatRepository : ChatRepository {
         if (body.isEmpty()) return false
         return try {
             val now = System.currentTimeMillis()
-            // ⚠️ 방 메타를 **먼저** 만든다 — 방 문서가 없는 첫 메시지에서도 목록/규칙이 방을 인지하게.
-            //    (서버 규칙이 방 문서 참여자로 게이팅하던 시절엔 이 순서가 아니면 첫 메시지가 거부됐다.)
-            chats.document(chatId).set(
+            val doc = messagesRef(chatId).document()
+            // 방 메타 + 메시지를 **한 묶음**으로 쓴다. 예전엔 방 메타의 서버 응답을 기다린 뒤에야 메시지를 써서,
+            // 연결이 약하면 내 메시지가 화면에 안 뜨고 그사이 앱을 끄면 사라졌다. 묶음은 commit 순간 기기에 쌓여
+            // 바로 보이고(보내는 중), 연결되면 함께 올라간다. 규칙은 get() 없이 chatId 로 판정해 첫 메시지 묶음도 통과한다.
+            // (메시지는 맵으로 쓴다 — ChatMessage 의 화면용 pending 필드를 서버에 싣지 않게.)
+            val batch = db.batch()
+            batch.set(
+                chats.document(chatId),
                 mapOf(
                     "participants" to chatId.split("_"),
                     "lastMessage" to body,
@@ -116,17 +123,18 @@ class FirebaseChatRepository : ChatRepository {
                     )
                 ),
                 SetOptions.merge()
-            ).await()
-            val doc = messagesRef(chatId).document()
-            doc.set(
-                ChatMessage(
-                    id = doc.id,
-                    senderId = senderId,
-                    senderName = senderName,
-                    text = body,
-                    createdAt = now
+            )
+            batch.set(
+                doc,
+                mapOf(
+                    "id" to doc.id,
+                    "senderId" to senderId,
+                    "senderName" to senderName,
+                    "text" to body,
+                    "createdAt" to now,
                 )
-            ).await()
+            )
+            batch.commit().await()
             true
         } catch (e: Exception) {
             Log.w("CHAT", "메시지 전송 실패: ${e.localizedMessage}")

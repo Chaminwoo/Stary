@@ -5,6 +5,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.shared.config.StaryConfig
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.ListenerRegistration
 
 /**
  * 사용자 현재 프로필(이름/사진) 디렉터리 — **표시 시점 해석**용 전역 캐시.
@@ -31,13 +33,31 @@ object UserDirectory {
 
     /** uid → 현재 프로필. Compose 가 관찰하는 상태 맵(리스너가 갱신). */
     private val cache = mutableStateMapOf<String, Info>()
-    private val listening = HashSet<String>()
+    /** 구독 중인 uid → 리스너. 오류로 끊기면 빠졌다가 다시 붙는다. */
+    private val listening = HashMap<String, ListenerRegistration>()
+    /** 한 번이라도 요청된 uid — 로그인(세션 복원 포함)이 생기면 끊긴 구독을 다시 붙인다. */
+    private val wanted = HashSet<String>()
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private var authHooked = false
+    private const val RESUBSCRIBE_MS = 3_000L
 
-    /** uid 의 users/{uid} 문서를 실시간 구독(최초 1회만). 메인 스레드에서 호출. */
+    /** uid 의 users/{uid} 문서를 실시간 구독(이미 구독 중이면 그대로). 메인 스레드에서 호출. */
     fun ensureWatching(userId: String) {
-        if (userId.isBlank() || !listening.add(userId)) return
-        staryFirestore.collection(StaryConfig.Collections.USERS).document(userId)
-            .addSnapshotListener { snap, _ ->
+        if (userId.isBlank()) return
+        wanted.add(userId)
+        hookAuth()
+        if (listening.containsKey(userId)) return
+        listening[userId] = staryFirestore.collection(StaryConfig.Collections.USERS).document(userId)
+            .addSnapshotListener { snap, error ->
+                if (error != null) {
+                    // 오류(인증 전·로그아웃 순간의 권한 거부)로 끊긴 리스너는 다시 오지 않는다 — 예전엔 '구독 중'으로 남아
+                    // 앱을 다시 켤 때까지 이름·사진이 안 바뀌었다. 표시를 지우고 3초 뒤(로그인돼 있으면) 다시 붙인다.
+                    listening.remove(userId)?.remove()
+                    main.postDelayed({
+                        if (FirebaseAuth.getInstance().currentUser != null) ensureWatching(userId)
+                    }, RESUBSCRIBE_MS)
+                    return@addSnapshotListener
+                }
                 if (snap != null && snap.exists()) {
                     cache[userId] = Info(
                         name = snap.getString("userName")?.takeIf { it.isNotBlank() },
@@ -45,6 +65,14 @@ object UserDirectory {
                     )
                 }
             }
+    }
+
+    private fun hookAuth() {
+        if (authHooked) return
+        authHooked = true
+        FirebaseAuth.getInstance().addAuthStateListener { auth ->
+            if (auth.currentUser != null) wanted.toList().forEach(::ensureWatching)
+        }
     }
 
     /** 여러 uid 를 한 번에 구독 시작(목록 화면에서 행마다 호출하는 대신). */

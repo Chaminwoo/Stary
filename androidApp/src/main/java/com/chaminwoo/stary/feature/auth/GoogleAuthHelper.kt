@@ -97,6 +97,9 @@ object GoogleAuthHelper {
     var lastSignInError: String? = null
         private set
 
+    /** 로그인·로그아웃 순번 — 늦게 끝난 옛 로그아웃이 그사이 다시 로그인한 세션을 지우지 않게 [signOut] 이 확인한다. */
+    private val sessionGeneration = java.util.concurrent.atomic.AtomicInteger(0)
+
     suspend fun signInWithGoogle(context: Context): String? {
         val credentialManager = CredentialManager.create(context)
 
@@ -129,8 +132,9 @@ object GoogleAuthHelper {
                 googlePhotoUrl = googleIdTokenCredential.profilePictureUri?.toString()
                 // 내 사진은 서버(users/{uid}.profileImageUrl) 확정값만 — 아래 서버 읽기 전엔 비워 둔다(구글 사진을 먼저 싣지 않게).
                 currentUserPhotoUrl = null
-                // Firebase Auth 에도 로그인 — Firestore/Storage 보안 규칙(request.auth != null)이
-                // 통과하려면 필수. 실패해도 앱 흐름은 막지 않는다.
+                // Firebase Auth 에도 로그인 — Firestore/Storage 보안 규칙(request.auth != null)이 통과하려면 필수.
+                // ⚠️ 실패하면 로그인 실패로 돌려 다시 시도하게 한다. 예전엔 삼키고 들어가 "로그인된 것처럼 보이지만
+                //    지도·저장이 전부 규칙에 막히는" 상태가 됐다(2026-10-25).
                 try {
                     FirebaseAuth.getInstance()
                         .signInWithCredential(GoogleAuthProvider.getCredential(idToken, null))
@@ -138,11 +142,13 @@ object GoogleAuthHelper {
                     currentUserEmail = FirebaseAuth.getInstance().currentUser?.email
                 } catch (e: Exception) {
                     Log.e(TAG, "Firebase Auth 로그인 실패: ${e.localizedMessage}")
-                    // 계정 선택은 됐는데 Firebase 로그인만 실패 — 이후 저장이 규칙에 막힌다. 얼마나 생기는지 본다.
                     com.chaminwoo.stary.core.util.StaryAnalytics.log(
                         "firebase_auth_fail", "reason" to e::class.java.simpleName,
                     )
+                    lastSignInError = context.getString(com.chaminwoo.stary.R.string.login_server_failed)
+                    return null
                 }
+                sessionGeneration.incrementAndGet()
                 currentUserId = signedInUid
                 com.chaminwoo.stary.core.util.StaryAnalytics.log("login_success", "method" to "google")
                 // 친구 검색이 가능하도록 공개 프로필(users/{uid}) 확정·기록 — startProfileSync 주석 참고.
@@ -217,6 +223,7 @@ object GoogleAuthHelper {
         val user = FirebaseAuth.getInstance().currentUser ?: return false
         val google = user.providerData.firstOrNull { it.providerId == GoogleAuthProvider.PROVIDER_ID }
         val uid = (google?.uid ?: user.uid).takeIf { it.isNotBlank() } ?: return false
+        sessionGeneration.incrementAndGet()
         currentUserId = uid
         googleName = google?.displayName ?: user.displayName
         currentUserName = googleName // 표시용 임시값 — 이어지는 applyStoredNickname/서버 확정으로 바뀐다
@@ -339,9 +346,13 @@ object GoogleAuthHelper {
     }
 
     suspend fun signOut(context: Context) = withContext(Dispatchers.IO) {
+        val generation = sessionGeneration.incrementAndGet()
         try {
             // ⚠️ 인증이 살아 있는 지금 이 기기 토큰을 떼어낸다 — 로그아웃 뒤엔 규칙에 막혀 못 지운다.
-            currentUserId?.let { clearFcmToken(it) }
+            //    연결이 약하면 끝없이 기다려, 그사이 다시 로그인한 세션을 늦게 끝난 로그아웃이 지웠다
+            //    → 1.5초까지만 기다리고(iOS AuthManager.signOut 과 같다), 그사이 새로 로그인했으면 손대지 않는다.
+            currentUserId?.let { uid -> withTimeoutOrNull(1_500) { clearFcmToken(uid) } }
+            if (sessionGeneration.get() != generation) return@withContext
             currentUserId = null
             currentUserName = null
             googleName = null
@@ -379,8 +390,16 @@ object GoogleAuthHelper {
         _confirmedName.value = trimmed
         NicknameStore.set(context, uid, trimmed)
         try {
-            staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
-                .set(mapOf("userName" to trimmed), SetOptions.merge()).await()
+            // 오프라인이면 서버 응답이 오지 않아 끝없이 기다렸다 — 쓰기는 이미 기기에 쌓였으니(연결되면 올라간다) 8초 뒤 안내만.
+            val acked = withTimeoutOrNull(8_000) {
+                staryFirestore.collection(StaryConfig.Collections.USERS).document(uid)
+                    .set(mapOf("userName" to trimmed), SetOptions.merge()).await()
+            }
+            if (acked == null) {
+                com.chaminwoo.stary.core.ui.StaryToast.show(
+                    com.chaminwoo.stary.core.util.LocaleManager.wrap(context).getString(com.chaminwoo.stary.R.string.toast_saved_when_online)
+                )
+            }
             true
         } catch (e: Exception) {
             Log.w(TAG, "닉네임 저장 실패: ${e.localizedMessage}")

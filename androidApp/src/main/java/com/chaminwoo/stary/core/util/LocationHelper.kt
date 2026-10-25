@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -172,39 +174,45 @@ object LocationHelper {
         }
     }
 
-    @SuppressLint("MissingPermission")
+    private val oneShotLock = Mutex()
+    private var lastOneShot: Location? = null
+
+    /**
+     * 1회 위치(거리순 정렬 등). 권한이 없으면 바로 null — 예전엔 대체 경로(getLastKnownLocation)가 권한 예외를 다시 던져
+     * 내 다이어리·별 상자를 열면 앱이 꺼졌다. 위치가 꺼져 있으면 콜백이 오지 않아 끝없이 기다렸다 → 10초 제한.
+     * 여러 화면이 동시에 불러도 측정은 한 번(잠금 + 30초 안의 결과 재사용).
+     */
     suspend fun getCurrentLocation(context: Context): Location? {
-        return try {
-            val appContext = context.applicationContext
-            val fusedClient = LocationServices.getFusedLocationProviderClient(appContext)
-            suspendCancellableCoroutine { cont ->
-                val request = LocationRequest.Builder(priorityFor(appContext), 1000)
-                    .setMaxUpdates(1)
-                    .build()
-                val callback = object : LocationCallback() {
-                    override fun onLocationResult(result: LocationResult) {
-                        fusedClient.removeLocationUpdates(this)
-                        // 일회성 fix 도 실시간 flow 에 반영(진입 직후 빠르게 내 위치 잡히게).
-                        // 단 모의 위치는 거부하고 null 반환(위치 조작 차단).
-                        val loc = result.lastLocation
-                        cont.resume(if (loc != null && acceptLocation(appContext, loc)) loc else null)
-                    }
-                }
-                fusedClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
-                cont.invokeOnCancellation { fusedClient.removeLocationUpdates(callback) }
-            }
-        } catch (e: Exception) {
-            getLocationFromManager(context)
+        val appContext = context.applicationContext
+        if (!hasPermission(appContext)) return null
+        return oneShotLock.withLock {
+            lastOneShot?.takeIf { ageMs(it) < 30_000 }
+                ?: (withTimeoutOrNull(10_000) { requestOneFix(appContext) } ?: lastKnownWithin(appContext, FALLBACK_MS))
+                    ?.also { lastOneShot = it }
         }
     }
 
     @SuppressLint("MissingPermission")
-    private fun getLocationFromManager(context: Context): Location? {
-        val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val loc = manager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            ?: manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        // 폴백 경로도 모의 위치는 거부
-        return loc?.takeUnless { isMock(it) }
+    private suspend fun requestOneFix(appContext: Context): Location? = try {
+        val fusedClient = LocationServices.getFusedLocationProviderClient(appContext)
+        suspendCancellableCoroutine { cont ->
+            val request = LocationRequest.Builder(priorityFor(appContext), 1000)
+                .setMaxUpdates(1)
+                .build()
+            val callback = object : LocationCallback() {
+                override fun onLocationResult(result: LocationResult) {
+                    fusedClient.removeLocationUpdates(this)
+                    // 일회성 fix 도 실시간 flow 에 반영(진입 직후 빠르게 내 위치 잡히게).
+                    // 단 모의 위치는 거부하고 null 반환(위치 조작 차단).
+                    val loc = result.lastLocation
+                    if (cont.isActive) cont.resume(if (loc != null && acceptLocation(appContext, loc)) loc else null)
+                }
+            }
+            fusedClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
+            cont.invokeOnCancellation { fusedClient.removeLocationUpdates(callback) }
+        }
+    } catch (e: SecurityException) {
+        null // 확인 직후 권한이 회수된 경우
     }
 
     /** 업로드 위치 결과 — 실패면 이유별로 다른 안내(권한 요청 / 위치 켜기 / 다시 시도 / 위치 조작)를 띄운다. */

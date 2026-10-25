@@ -4,13 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.chaminwoo.stary.core.model.AppNotification
+import com.chaminwoo.stary.core.util.launchSafely
 import com.chaminwoo.stary.data.repository.FirebaseNotificationRepository
 import com.chaminwoo.stary.data.repository.FirstStarFeed
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 class NotificationViewModel(private val userId: String) : ViewModel() {
 
@@ -29,7 +29,7 @@ class NotificationViewModel(private val userId: String) : ViewModel() {
 
     fun markAllRead() {
         FirstStarFeed.markAllSeen()
-        viewModelScope.launch { repo.markAllRead(userId) }
+        launchSafely { repo.markAllRead(userId) } // 실패해도 조용히 — 다음에 알림 화면을 열 때 다시 읽음 처리
     }
 
     fun delete(notificationId: String) {
@@ -38,7 +38,7 @@ class NotificationViewModel(private val userId: String) : ViewModel() {
             FirstStarFeed.hide(notificationId)
             return
         }
-        viewModelScope.launch { repo.deleteNotification(notificationId) }
+        launchSafely { repo.deleteNotification(notificationId) }
     }
 
     companion object {

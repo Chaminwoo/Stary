@@ -5,10 +5,18 @@ import UIKit
 
 /// 다이어리 사진을 Firebase Storage 에 업로드. Android ImageUploadHelper 와 동일 경로(diary_images/).
 enum ImageUploader {
+    /// 업로드 재시도는 1분까지(기본 10분) — 오프라인이면 '올리는 중'이 10분 동안 끝나지 않았다(Android StaryApplication 과 같다).
+    private static let storage: Storage = {
+        let s = Storage.storage()
+        s.maxUploadRetryTime = 60
+        s.maxOperationRetryTime = 30
+        return s
+    }()
+
     /// JPEG 로 압축 후 업로드하고 다운로드 URL 문자열을 반환.
     static func upload(_ data: Data) async throws -> String {
         let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.8) ?? data
-        let ref = Storage.storage().reference().child("diary_images/\(UUID().uuidString).jpg")
+        let ref = storage.reference().child("diary_images/\(UUID().uuidString).jpg")
         let meta = StorageMetadata()
         meta.contentType = "image/jpeg"
         _ = try await ref.putDataAsync(jpeg, metadata: meta)
@@ -20,7 +28,7 @@ enum ImageUploader {
     /// 여기서는 원본 파일 데이터를 그대로 올린다. Android ImageUploadHelper.uploadVideoResult 패리티.
     static func uploadVideo(_ data: Data, contentType: String) async throws -> String {
         let ext = contentType.contains("quicktime") || contentType.contains("mov") ? "mov" : "mp4"
-        let ref = Storage.storage().reference().child("diary_videos/\(UUID().uuidString).\(ext)")
+        let ref = storage.reference().child("diary_videos/\(UUID().uuidString).\(ext)")
         let meta = StorageMetadata()
         meta.contentType = contentType
         _ = try await ref.putDataAsync(data, metadata: meta)
@@ -31,7 +39,7 @@ enum ImageUploader {
     /// 부메랑(3초 움짤) GIF 업로드. contentType=image/gif 라 diary_images 규칙(이미지 타입)을 그대로 통과.
     /// URL 은 diary.videoUrl 에 저장해 스키마 유지(.gif 로 판별). Android uploadGifResult 패리티.
     static func uploadGif(_ data: Data) async throws -> String {
-        let ref = Storage.storage().reference().child("diary_images/\(UUID().uuidString).gif")
+        let ref = storage.reference().child("diary_images/\(UUID().uuidString).gif")
         let meta = StorageMetadata()
         meta.contentType = "image/gif"
         _ = try await ref.putDataAsync(data, metadata: meta)
@@ -51,7 +59,7 @@ enum ImageUploader {
         let oldUrl = (try? await userRef.getDocument(source: .server))?.get("profileImageUrl") as? String
 
         let millis = Int64(Date().timeIntervalSince1970 * 1000)
-        let ref = Storage.storage().reference().child("profile_images/\(uid)_\(millis).jpg")
+        let ref = storage.reference().child("profile_images/\(uid)_\(millis).jpg")
         let meta = StorageMetadata()
         meta.contentType = "image/jpeg"
         _ = try await ref.putDataAsync(jpeg, metadata: meta)
@@ -71,10 +79,10 @@ enum ImageUploader {
         guard let comps = URLComponents(string: url), comps.host == "firebasestorage.googleapis.com" else { return nil } // 구글 사진 등
         let parts = comps.percentEncodedPath.components(separatedBy: "/o/")
         guard parts.count == 2,
-              parts[0].hasSuffix("/b/\(Storage.storage().reference().bucket)"),
+              parts[0].hasSuffix("/b/\(storage.reference().bucket)"),
               let path = parts[1].removingPercentEncoding else { return nil }
         let mine = path == "profile_images/\(uid).jpg"
             || (path.hasPrefix("profile_images/\(uid)_") && path.hasSuffix(".jpg"))
-        return mine ? Storage.storage().reference().child(path) : nil
+        return mine ? storage.reference().child(path) : nil
     }
 }

@@ -273,16 +273,14 @@ final class AuthManager: ObservableObject {
         isGuest = false
         // ⚠️ 인증이 살아 있는 지금 이 기기 토큰을 떼어낸다 — 로그아웃 뒤엔 규칙에 막혀 못 지운다.
         //    네트워크가 느려도 로그아웃이 막히지 않게 짧게(1.5초) 기다린 뒤 진행한다.
-        let uid = Self.appUserId(of: Auth.auth().currentUser)
+        let user = Auth.auth().currentUser
+        let uid = Self.appUserId(of: user)
         Task { @MainActor in
             if let uid {
-                await withTaskGroup(of: Void.self) { group in
-                    group.addTask { await PushManager.shared.clearToken(for: uid) }
-                    group.addTask { try? await Task.sleep(nanoseconds: 1_500_000_000) }
-                    _ = await group.next()
-                    group.cancelAll()
-                }
+                _ = await withDeadline(seconds: 1.5) { await PushManager.shared.clearToken(for: uid) }
             }
+            // 기다리는 사이 다시 로그인했으면(새 세션) 손대지 않는다 — Android GoogleAuthHelper.signOut 순번 확인과 같은 목적.
+            guard Auth.auth().currentUser === user else { return }
             try? Auth.auth().signOut()
             GIDSignIn.sharedInstance.signOut()
         }
@@ -452,11 +450,15 @@ final class AuthManager: ObservableObject {
         displayName = trimmed
         confirmedName = trimmed
         UserDefaults.standard.set(trimmed, forKey: "nickname_\(uid)")
-        do {
-            try await FirestoreService.users.document(uid).setData(["userName": trimmed], merge: true)
+        // 오프라인이면 서버 응답이 오지 않아 끝없이 기다렸다 — 쓰기는 이미 기기에 쌓였으니(연결되면 올라간다) 8초 뒤 안내만.
+        // (Android GoogleAuthHelper.setNickname 과 같다)
+        let ref = FirestoreService.users.document(uid)
+        switch await withDeadline(seconds: 8, { try await ref.setData(["userName": trimmed], merge: true) }) {
+        case .done: return true
+        case .failed: return false
+        case .timedOut:
+            GlobalToast.shared.show(LocaleManager.shared.t(.savedWhenOnline))
             return true
-        } catch {
-            return false
         }
     }
 

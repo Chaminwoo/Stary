@@ -28,10 +28,15 @@ final class ChatViewModel: ObservableObject {
 
     func start() {
         stop()
+        // 메타 변경도 받는다 — 보낸 메시지가 서버에 올라가는 순간 "보내는 중" 표시를 지우려면 필요하다.
         reg = FirestoreService.messages(of: chatId)
             .order(by: "createdAt", descending: false)
-            .addSnapshotListener { [weak self] snap, _ in
-                self?.allMessages = snap?.documents.compactMap { try? $0.data(as: ChatMessage.self) } ?? []
+            .addSnapshotListener(includeMetadataChanges: true) { [weak self] snap, _ in
+                self?.allMessages = snap?.documents.compactMap { doc in
+                    guard var m = try? doc.data(as: ChatMessage.self) else { return nil }
+                    m.pending = doc.metadata.hasPendingWrites
+                    return m
+                } ?? []
             }
         guard !myUid.isEmpty else { return }
         hiddenReg = FirestoreService.chatHidden(of: myUid).document(chatId)
@@ -54,21 +59,23 @@ final class ChatViewModel: ObservableObject {
         let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty, !senderId.isEmpty else { return false }
         let now = FirestoreService.nowMillis
+        // 방 메타 + 메시지를 **한 묶음**으로 쓴다(Android FirebaseChatRepository 와 같다). 예전엔 방 메타의 서버 응답을
+        // 기다린 뒤에야 메시지를 써서, 연결이 약하면 내 메시지가 안 뜨고 그사이 앱을 끄면 사라졌다. 묶음은 commit 순간
+        // 기기에 쌓여 바로 보이고(보내는 중), 연결되면 함께 올라간다. 규칙은 get() 없이 chatId 로 판정해 첫 메시지도 통과.
+        let batch = FirestoreService.db.batch()
+        batch.setData([
+            "participants": chatId.components(separatedBy: "_"),
+            "lastMessage": body,
+            "lastSenderId": senderId,
+            "lastSenderName": senderName, // 인앱 채팅 배너 발신자명
+            "updatedAt": now,
+            "lastReadAt": [senderId: now], // 보낸 사람은 읽은 것으로(Android 패리티)
+        ], forDocument: FirestoreService.chats.document(chatId), merge: true)
+        batch.setData([
+            "senderId": senderId, "senderName": senderName, "text": body, "createdAt": now,
+        ], forDocument: FirestoreService.messages(of: chatId).document())
         do {
-            // ⚠️ 방 메타를 **먼저** 만든다(Android FirebaseChatRepository 와 동일 순서).
-            // 서버 규칙이 방 문서로 참여자를 확인하던 시절엔 방이 없으면 메시지 생성이 거부됐다.
-            try await FirestoreService.chats.document(chatId).setData([
-                "participants": chatId.components(separatedBy: "_"),
-                "lastMessage": body,
-                "lastSenderId": senderId,
-                "lastSenderName": senderName, // 인앱 채팅 배너 발신자명
-                "updatedAt": now,
-                "lastReadAt": [senderId: now], // 보낸 사람은 읽은 것으로(Android 패리티)
-            ], merge: true)
-            // async 컨텍스트에선 addDocument(data:) 의 async throws 오버로드가 선택됨.
-            _ = try await FirestoreService.messages(of: chatId).addDocument(data: [
-                "senderId": senderId, "senderName": senderName, "text": body, "createdAt": now,
-            ])
+            try await batch.commit()
             return true
         } catch {
             print("⚠️ 채팅 전송 실패: \(error.localizedDescription)")

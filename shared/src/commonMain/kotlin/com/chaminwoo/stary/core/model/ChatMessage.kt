@@ -11,5 +11,7 @@ data class ChatMessage(
     val senderId: String = "",
     val senderName: String = "",
     val text: String = "",
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    /** 이 기기에서 보냈지만 아직 서버에 안 올라간 메시지 — 화면 표시용("보내는 중"), 서버에는 저장하지 않는다. */
+    val pending: Boolean = false,
 )

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.LocationHelper
+import com.chaminwoo.stary.core.util.launchSafely
 import com.chaminwoo.stary.data.repository.FirebaseDiaryRepository
 import com.chaminwoo.stary.shared.data.repository.DiaryRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -12,7 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class DiaryViewModel(
     private val repository: DiaryRepository
@@ -30,15 +31,30 @@ class DiaryViewModel(
     private val _event = MutableSharedFlow<DiaryEvent>()
     val event = _event.asSharedFlow()
 
+    /**
+     * 별 저장. 20초 안에 서버 응답이 없으면(연결 약함) [DiaryEvent.SAVE_SLOW] — 예전엔 끝없이 기다려 '올리는 중'이 멈췄다.
+     * 쓰기는 이미 기기에 쌓여 있어 연결되면 올라가고, 다시 시도는 같은 번호(diary.id)로 써서 두 번 올라가지 않는다.
+     */
     fun saveDiary(diary: Diary) {
-        viewModelScope.launch {
-            val success = repository.saveDiary(diary)
-            _event.emit(if (success) DiaryEvent.SAVED else DiaryEvent.SAVE_FAILED)
+        launchSafely {
+            val success = withTimeoutOrNull(SAVE_TIMEOUT_MS) { repository.saveDiary(diary) }
+            _event.emit(
+                when (success) {
+                    true -> DiaryEvent.SAVED
+                    false -> DiaryEvent.SAVE_FAILED
+                    null -> DiaryEvent.SAVE_SLOW
+                }
+            )
         }
     }
 
+    /** 새 별 번호 — 업로드 화면이 한 번 받아 두고 다시 시도할 때도 같은 번호를 쓴다. */
+    fun newDiaryId(): String = FirebaseDiaryRepository.newId()
+
     // Factory — Repository를 ViewModel에 전달하기 위해
     companion object {
+        private const val SAVE_TIMEOUT_MS = 20_000L
+
         fun factory(): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -65,11 +81,11 @@ class DiaryViewModel(
             .filter { LocationHelper.distanceBetween(lat, lng, it.latitude, it.longitude) <= 150f }
             .map { it.id }
         if (ids.isEmpty()) return
-        viewModelScope.launch { repository.prefetchDiaries(ids) }
+        launchSafely { repository.prefetchDiaries(ids) }
     }
 
     fun updateDiary(diary: Diary) {
-        viewModelScope.launch {
+        launchSafely {
             val success = repository.updateDiary(diary)
             _event.emit(if (success) DiaryEvent.UPDATED else DiaryEvent.UPDATE_FAILED)
         }
@@ -77,7 +93,7 @@ class DiaryViewModel(
 
     // 기존 deleteDiary에 onSuccess 콜백 추가
     fun deleteDiary(diaryId: String, onSuccess: () -> Unit = {}) {
-        viewModelScope.launch {
+        launchSafely {
             val success = repository.deleteDiary(diaryId)
             if (success) {
                 _event.emit(DiaryEvent.DELETED)
@@ -94,6 +110,8 @@ class DiaryViewModel(
 enum class DiaryEvent(@androidx.annotation.StringRes val messageRes: Int) {
     SAVED(com.chaminwoo.stary.R.string.toast_diary_saved),
     SAVE_FAILED(com.chaminwoo.stary.R.string.toast_diary_save_failed),
+    /** 20초 넘게 서버 응답 없음 — 업로드 화면이 토스트 대신 "연결이 약해요" 창(다시 시도)을 띄운다. */
+    SAVE_SLOW(com.chaminwoo.stary.R.string.upload_slow_title),
     UPDATED(com.chaminwoo.stary.R.string.toast_diary_updated),
     UPDATE_FAILED(com.chaminwoo.stary.R.string.toast_diary_update_failed),
     DELETED(com.chaminwoo.stary.R.string.toast_diary_deleted),

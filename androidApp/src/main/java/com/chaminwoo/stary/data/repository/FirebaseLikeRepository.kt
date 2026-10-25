@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import android.util.Log
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.core.model.Like
@@ -41,37 +42,44 @@ class FirebaseLikeRepository : LikeRepository {
         diaryOwnerId: String,
         userId: String,
         userName: String
-    ) {
-        if (userId.isBlank() || diaryId.isBlank()) return
+    ): Boolean {
+        if (userId.isBlank() || diaryId.isBlank()) return false
         val now = System.currentTimeMillis()
         val diaryRef = db.collection(StaryConfig.Collections.DIARIES).document(diaryId)
         val likeRef = diaryRef.collection(StaryConfig.Collections.LIKES).document(userId)
 
-        db.runTransaction { tx ->
-            val likeSnap = tx.get(likeRef)
-            if (likeSnap.exists()) {
-                tx.delete(likeRef)
-                tx.update(diaryRef, "likeCount", FieldValue.increment(-1))
-            } else {
-                tx.set(likeRef, Like(userId = userId, userName = userName, createdAt = now))
-                tx.update(diaryRef, "likeCount", FieldValue.increment(1))
-                if (diaryOwnerId != userId) {
-                    val notifRef = db.collection(StaryConfig.Collections.NOTIFICATIONS).document()
-                    tx.set(
-                        notifRef,
-                        AppNotification(
-                            id = notifRef.id,
-                            type = NotificationType.LIKE.name,
-                            diaryId = diaryId,
-                            diaryTitle = diaryTitle,
-                            diaryOwnerId = diaryOwnerId,
-                            actorId = userId,
-                            actorName = userName,
-                            createdAt = now
+        // 트랜잭션은 오프라인이면 재시도 끝에 예외로 끝난다 — 잡지 않으면 viewModelScope 에서 앱이 꺼졌다.
+        return try {
+            db.runTransaction { tx ->
+                val likeSnap = tx.get(likeRef)
+                if (likeSnap.exists()) {
+                    tx.delete(likeRef)
+                    tx.update(diaryRef, "likeCount", FieldValue.increment(-1))
+                } else {
+                    tx.set(likeRef, Like(userId = userId, userName = userName, createdAt = now))
+                    tx.update(diaryRef, "likeCount", FieldValue.increment(1))
+                    if (diaryOwnerId != userId) {
+                        val notifRef = db.collection(StaryConfig.Collections.NOTIFICATIONS).document()
+                        tx.set(
+                            notifRef,
+                            AppNotification(
+                                id = notifRef.id,
+                                type = NotificationType.LIKE.name,
+                                diaryId = diaryId,
+                                diaryTitle = diaryTitle,
+                                diaryOwnerId = diaryOwnerId,
+                                actorId = userId,
+                                actorName = userName,
+                                createdAt = now
+                            )
                         )
-                    )
+                    }
                 }
-            }
-        }.await()
+            }.await()
+            true
+        } catch (e: Exception) {
+            Log.w("LikeRepo", "toggleLike failed", e)
+            false
+        }
     }
 }

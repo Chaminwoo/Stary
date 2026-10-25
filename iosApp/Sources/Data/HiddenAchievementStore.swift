@@ -15,14 +15,31 @@ final class HiddenAchievementStore: ObservableObject {
     @Published var loaded = false
 
     private var reg: ListenerRegistration?
+    private var authHandle: AuthStateDidChangeListenerHandle?
     /// 세션 내 중복 선점(트랜잭션/알림) 방지.
     private var attempted: Set<String> = []
 
     func start() {
+        if authHandle == nil {
+            // 로그인 전에 붙었다 권한 오류로 끊긴 구독을 로그인(세션 복원 포함) 때 다시 붙인다(Android HiddenClaimStore 와 같다).
+            authHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+                guard user != nil else { return }
+                Task { @MainActor in self?.start() }
+            }
+        }
         guard reg == nil else { return }
         reg = FirestoreService.hiddenAchievements.addSnapshotListener { [weak self] snap, err in
             guard let self else { return }
-            if err != nil { return } // 권한/네트워크 에러로 죽지 않게 무시
+            if err != nil {
+                // 끊긴 리스너는 다시 오지 않는다 — 예전엔 그대로 남아 앱을 다시 켤 때까지 선점 표시가 안 바뀌었다.
+                Task { @MainActor in
+                    self.reg?.remove()
+                    self.reg = nil
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    if Auth.auth().currentUser != nil { self.start() }
+                }
+                return
+            }
             var map: [String: HiddenClaim] = [:]
             for d in snap?.documents ?? [] {
                 map[d.documentID] = HiddenClaim(

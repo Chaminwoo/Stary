@@ -122,15 +122,23 @@ class FirebaseNotificationRepository : NotificationRepository {
         } catch (_: Exception) {}
     }
 
-    override suspend fun markAllRead(ownerId: String) {
+    override suspend fun markAllRead(ownerId: String): Boolean {
         // 저장 필드명은 `read`(위 observeUnreadCount 주석 참고). 쿼리/업데이트 모두 "read" 사용.
-        val unread = db.collection(StaryConfig.Collections.NOTIFICATIONS)
-            .whereEqualTo("diaryOwnerId", ownerId)
-            .whereEqualTo("read", false)
-            .get().await()
-
-        val batch = db.batch()
-        unread.documents.forEach { batch.update(it.reference, "read", true) }
-        batch.commit().await()
+        // 배치는 500건 제한 — 안 읽은 알림이 많으면 한 번에 commit 하다 예외로 앱이 꺼졌다 → 450건씩 나눈다.
+        return try {
+            val unread = db.collection(StaryConfig.Collections.NOTIFICATIONS)
+                .whereEqualTo("diaryOwnerId", ownerId)
+                .whereEqualTo("read", false)
+                .get().await()
+            unread.documents.chunked(450).forEach { chunk ->
+                val batch = db.batch()
+                chunk.forEach { batch.update(it.reference, "read", true) }
+                batch.commit().await()
+            }
+            true
+        } catch (e: Exception) {
+            Log.w("NotifRepo", "markAllRead failed", e)
+            false
+        }
     }
 }

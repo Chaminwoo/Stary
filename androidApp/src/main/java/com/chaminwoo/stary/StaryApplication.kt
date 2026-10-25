@@ -71,6 +71,11 @@ class StaryApplication : Application(), ImageLoaderFactory {
         com.chaminwoo.stary.core.ads.AdFreeAccount.start()
         // 첫 별 공지(firstStars) 읽음/숨김 기록 — 알림 화면·빨간 점에 합쳐진다.
         com.chaminwoo.stary.data.repository.FirstStarFeed.init(this)
+        // 사진·영상 업로드 재시도는 1분까지(기본 10분) — 오프라인이면 '올리는 중'이 10분 동안 끝나지 않았다.
+        com.google.firebase.storage.FirebaseStorage.getInstance().apply {
+            maxUploadRetryTimeMillis = 60_000
+            maxOperationRetryTimeMillis = 30_000
+        }
 
         // 앱 전면/후면 추적 — FCM 시스템 알림 vs 인앱 배너 이중 표시 방지에 사용.
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {

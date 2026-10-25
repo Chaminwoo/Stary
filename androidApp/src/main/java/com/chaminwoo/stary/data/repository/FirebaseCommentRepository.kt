@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import android.util.Log
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.AppNotification
 import com.chaminwoo.stary.core.model.Comment
@@ -8,6 +9,7 @@ import com.chaminwoo.stary.shared.config.StaryConfig
 import com.chaminwoo.stary.shared.data.repository.CommentRepository
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.WriteBatch
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.channels.awaitClose
@@ -40,7 +42,7 @@ class FirebaseCommentRepository : CommentRepository {
         userId: String,
         userName: String,
         content: String
-    ) {
+    ): Boolean {
         val now = System.currentTimeMillis()
         val diaryRef = db.collection(StaryConfig.Collections.DIARIES).document(diaryId)
         val commentRef = diaryRef.collection(StaryConfig.Collections.COMMENTS).document()
@@ -77,15 +79,25 @@ class FirebaseCommentRepository : CommentRepository {
             )
         }
 
-        batch.commit().await()
+        // 오프라인이면 commit 은 실패하지 않고 연결될 때까지 기다린다(목록엔 즉시 보임) — 권한 거부 같은 실패만 false.
+        return commitOrFalse(batch, "addComment")
     }
 
-    override suspend fun deleteComment(diaryId: String, commentId: String) {
+    override suspend fun deleteComment(diaryId: String, commentId: String): Boolean {
         val diaryRef = db.collection(StaryConfig.Collections.DIARIES).document(diaryId)
         val commentRef = diaryRef.collection(StaryConfig.Collections.COMMENTS).document(commentId)
         val batch = db.batch()
         batch.delete(commentRef)
         batch.update(diaryRef, "commentCount", FieldValue.increment(-1))
-        batch.commit().await()
+        return commitOrFalse(batch, "deleteComment")
     }
+
+    private suspend fun commitOrFalse(batch: WriteBatch, what: String): Boolean =
+        try {
+            batch.commit().await()
+            true
+        } catch (e: Exception) {
+            Log.w("CommentRepo", "$what failed", e)
+            false
+        }
 }

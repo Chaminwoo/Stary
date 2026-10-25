@@ -131,6 +131,11 @@ fun UploadScreen(
     var isUploading by remember { mutableStateOf(false) }
     // 업로드 위치 실패 이유 — null 이 아니면 이유별 안내 창을 띄운다.
     var locationProblem by remember { mutableStateOf<LocationHelper.UploadFix?>(null) }
+    // 이번 글의 별 번호 — 저장을 다시 시도해도 같은 번호로 써서 두 번 올라가지 않게(첫 시도는 기기에 쌓여 있다가 올라간다).
+    val diaryId = remember { diaryViewModel.newDiaryId() }
+    // 마지막으로 저장을 보낸 별 — 서버 응답이 늦으면(SAVE_SLOW) 이걸 그대로(같은 번호·같은 첨부) 다시 보낸다.
+    var lastAttempt by remember { mutableStateOf<Diary?>(null) }
+    var showSlowSave by remember { mutableStateOf(false) }
     var showImageSourceDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val cameraUri = remember { mutableStateOf<Uri?>(null) }
@@ -251,6 +256,12 @@ fun UploadScreen(
     LaunchedEffect(Unit) {
         com.chaminwoo.stary.core.util.StaryAnalytics.log("upload_open", "logged_in" to isLoggedIn)
         diaryViewModel.event.collect { msg ->
+            isUploading = false // 저장 결과가 올 때까지 버튼을 잠가 둔다(예전엔 바로 풀려 여러 번 누르면 별이 겹쳐 올라갔다)
+            if (msg == com.chaminwoo.stary.feature.diary.DiaryEvent.SAVE_SLOW) {
+                uploadFail("save_slow")
+                showSlowSave = true
+                return@collect
+            }
             com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(msg.messageRes))
             if (msg == com.chaminwoo.stary.feature.diary.DiaryEvent.SAVE_FAILED) uploadFail("save")
             if (msg == com.chaminwoo.stary.feature.diary.DiaryEvent.SAVED) {
@@ -592,18 +603,39 @@ fun UploadScreen(
                         com.chaminwoo.stary.core.util.LocationHelper.distanceBetween(lat, lng, it.latitude, it.longitude) <=
                             com.chaminwoo.stary.shared.config.StaryConfig.STAR_MERGE_RADIUS_M
                     }
-                    diaryViewModel.saveDiary(
-                        Diary(
-                            title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
-                            userId = GoogleAuthHelper.currentUserId ?: "",
-                            userName = uName,
-                            latitude = lat, longitude = lng,
-                            starType = starType, starColor = starColor,
-                            visibilityType = visibilityType
-                        )
+                    val toSave = Diary(
+                        id = diaryId,
+                        title = title, content = content, imageUrl = imageUrl, videoUrl = videoUrl,
+                        userId = GoogleAuthHelper.currentUserId ?: "",
+                        userName = uName,
+                        latitude = lat, longitude = lng,
+                        starType = starType, starColor = starColor,
+                        visibilityType = visibilityType
                     )
-                    isUploading = false
+                    lastAttempt = toSave
+                    diaryViewModel.saveDiary(toSave) // isUploading 은 저장 결과 이벤트에서 푼다
                 }
+            }
+
+            // 서버 응답이 20초 넘게 없음 — 쓴 글·첨부는 그대로 두고, 같은 별(번호·첨부)로 다시 보낼 수 있게.
+            if (showSlowSave) {
+                AlertDialog(
+                    onDismissRequest = { showSlowSave = false },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    title = { Text(stringResource(R.string.upload_slow_title), color = MaterialTheme.colorScheme.onBackground) },
+                    text = { Text(stringResource(R.string.upload_slow_msg), color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showSlowSave = false
+                            lastAttempt?.let { isUploading = true; diaryViewModel.saveDiary(it) }
+                        }) { Text(stringResource(R.string.upload_loc_retry), color = MaterialTheme.colorScheme.onBackground) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showSlowSave = false }) {
+                            Text(stringResource(R.string.common_confirm), color = MaterialTheme.colorScheme.secondary)
+                        }
+                    },
+                )
             }
 
             // 업로드 위치 실패 안내 — 이유별 행동(권한 요청 / 위치 설정 / 다시 시도).

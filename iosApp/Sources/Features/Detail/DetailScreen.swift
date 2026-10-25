@@ -571,7 +571,9 @@ struct DetailScreen: View {
                     guard let name = await auth.confirmedNameOrWait() else {
                         showToast(LocaleManager.shared.t(.profileNotReady)); return
                     }
-                    await vm.toggleLike(uid: auth.uid, userName: name)
+                    if !(await vm.toggleLike(uid: auth.uid, userName: name)) {
+                        showToast(LocaleManager.shared.t(.actionFailedNetwork))
+                    }
                 }
             }
             // 공유 → 공유 영상 화면(스토리용 영상을 만들어 보여 주고 SNS 공유/저장 — Android ShareDiaryButton → ShareVideoDialog 패리티).
@@ -810,7 +812,10 @@ struct DetailScreen: View {
                             if commentText.isEmpty { commentText = t } // 입력을 되돌려 다시 보낼 수 있게
                             showToast(LocaleManager.shared.t(.profileNotReady)); return
                         }
-                        await vm.addComment(uid: auth.uid, userName: name, text: t)
+                        if !(await vm.addComment(uid: auth.uid, userName: name, text: t)) {
+                            if commentText.isEmpty { commentText = t } // 못 보낸 댓글은 입력창에 되돌린다
+                            showToast(LocaleManager.shared.t(.actionFailedNetwork))
+                        }
                     }
                 } label: {
                     Image(systemName: "paperplane.fill")
@@ -844,7 +849,9 @@ struct DetailScreen: View {
                             Spacer()
                             if c.userId == auth.uid {
                                 Button {
-                                    Task { await vm.deleteComment(c) }
+                                    Task {
+                                        if !(await vm.deleteComment(c)) { showToast(LocaleManager.shared.t(.actionFailedNetwork)) }
+                                    }
                                 } label: {
                                     Image(systemName: "trash").font(.caption2).foregroundStyle(Theme.textFaint)
                                 }

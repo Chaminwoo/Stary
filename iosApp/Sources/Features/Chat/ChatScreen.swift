@@ -211,6 +211,13 @@ struct ChatScreen: View {
             if mine {
                 Spacer(minLength: 40)
                 if canDelete { DeleteWindowRing(createdAt: msg.createdAt) }
+                // 아직 서버에 안 올라간 메시지 — 작은 시계(연결되면 저절로 사라진다, Android 와 같다).
+                if msg.pending {
+                    Image(systemName: "clock")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.textFaint)
+                        .accessibilityLabel(LocaleManager.shared.t(.chatSending))
+                }
             }
             Text(msg.text.hangulWordWrapped)
                 .font(.minSans(15))                       // Android MessageBubble 15sp
