@@ -84,6 +84,7 @@ internal object AdMobRewarded {
                     ad = loaded
                     isReady = true
                     lastError = null
+                    if (BuildConfig.DEBUG) Log.i(TAG, "폴백(AdMob) 보상형 로드 성공 — " + loaded.responseInfo.mediationAdapterClassName)
                     onSettled()
                 }
 

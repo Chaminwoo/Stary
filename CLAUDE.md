@@ -57,6 +57,10 @@ iOS 보상형 광고(LevelPlay/AdMob) 키·대시보드 등 사용자가 직접 
   - `:shared` 는 `com.android.kotlin.multiplatform.library` 플러그인 사용 (`com.android.library` 와 비호환).
     `kotlin { android { ... } }` 블록 사용 (구 `androidLibrary` 는 deprecated).
   - `:androidApp` 는 AGP 내장 Kotlin 을 쓰므로 `org.jetbrains.kotlin.android` 를 **명시 적용하면 안 된다**('kotlin' extension 중복 오류).
+- **R8(릴리즈) keep 규칙은 좁게**(2026-10-14, Play Console "R8 구성으로 메모리 사용량 증가·성능 저하" 경고 대응):
+  `androidApp/proguard-rules.pro` 에 `-keep class some.pkg.** { *; }` 같은 **패키지 전체 보존 규칙을 넣지 말 것**(라이브러리는 자체 consumer 규칙을 싣는다).
+  리플렉션 대상 멤버만 보존(Firestore 모델 = `core.model` 의 무인자 생성자·필드·getter/setter, Gson TypeToken 시그니처).
+  규칙을 바꾸면 디버그가 아니라 **릴리즈 빌드**(R8 적용)로 로그인·지도·별 불러오기·화면 이동을 확인한다.
 - iOS 네이티브 컴파일/링크는 **macOS + Xcode 에서만** 가능. Windows 에선 iOS 타깃 자동 비활성(Android 빌드엔 무영향).
 - 빌드 전 필요한 값(없으면 placeholder 로 빌드는 되지만 런타임 동작 안 함):
   - 루트 `secrets.properties` 의 `MAPS_API_KEY`, `GOOGLE_WEB_CLIENT_ID`
@@ -99,6 +103,14 @@ iOS 보상형 광고(LevelPlay/AdMob) 키·대시보드 등 사용자가 직접 
 - **읽기 실패 / 문서 없음 / 문서는 있으나 필드 없음**을 구분한다. 읽기 실패면 서버·기기 캐시 **둘 다 쓰지 말고**, 재시도(iOS: 앱 복귀 시 `retryProfileSyncIfNeeded`)한다. 기본값을 닉네임 캐시에 굳히지 말 것.
 - `users/{uid}` 에 `userName`/`profileImageUrl` 을 쓰는 곳은 `ensureProfile`/`upsertProfile`(로그인), `setNickname`, `ImageUploader.uploadProfile` **뿐**이어야 한다. 다른 곳에서 구글 기본값을 써 넣는 코드를 새로 만들지 말 것(항상 `merge`, 값이 있으면 보존).
 - 화면의 내 사진은 `auth.photoUrl`(로그인 때 서버 확정) + 서버 우선 읽기. 기본 `getDocument()` 한 번 읽고 nil 이면 "사진 없음" 처리하지 말 것.
+- **표시 규칙: 내 사진 = 항상 `users/{uid}.profileImageUrl`. 구글 사진은 서버에서 "사진 없음"이 확인됐을 때(설정 전)만.** 서버 값을 모르는 동안은 기본 아이콘.
+  Android(2026-10-19 재발 수정): `ProfileViewModel` 은 `users/{uid}` 실시간 구독(캐시 스냅샷은 값이 있을 때만 믿고, "없음"은 서버 스냅샷으로만 확정 → `photoConfirmed`),
+  `ProfileScreen` 은 `profileImageUrl ?: (photoConfirmed 일 때만 googlePhotoUrl)`. `GoogleAuthHelper.currentUserPhotoUrl` 은 서버 확정값만(로그인 직후 null), 구글 사진은 `googlePhotoUrl` 에 따로.
+  (예전: 화면 열 때 기본 get() 1회 → 재설치 직후 실패하면 `?: currentUserPhotoUrl`(=구글 사진)로 폴백하고 다시 안 읽었다.)
+- **다른 사람에게 나가는 문서(별·댓글·좋아요·친구 요청/수락·채팅·개척/히든 선점)에 내 이름을 박을 땐 서버 확인값만**(2026-10-19):
+  Android `GoogleAuthHelper.requireConfirmedName()` / `confirmedName`, iOS `auth.confirmedNameOrWait()` / `auth.confirmedName`.
+  `currentUserName`(Android)·`auth.displayName`(iOS)은 **표시용 임시값**이라 기기 첫 실행(코치마크가 뜨는 재설치) 직후엔 구글 기본 이름이다 — 이걸 쓰면 설정한 닉네임 대신 구글 이름이 퍼진다.
+  확인값을 끝내 모르면(오프라인) 동작을 취소하고 `profile_not_ready`/`profileNotReady` 안내. 서버 읽기 실패 시 앱 복귀(`onResume` / `retryProfileSyncIfNeeded`)에 재시도.
 - 확인 순서: ① 닉네임·사진을 바꾼 계정으로 로그아웃→재로그인 ② 앱 삭제→재설치→로그인 ③ 비행기 모드/느린 망에서 위 둘 → 닉네임·사진이 유지되고, 망이 돌아오면 서버 값으로 맞춰지는지. Firestore 콘솔의 `users/{uid}` 값도 직접 확인.
 
 ## 2.7 ⚠️ iOS 알림 탭 → 다이어리 이동/열기 안 됨(2026-10-09 수정). 알림·딥링크 코드를 건드릴 때 읽을 것

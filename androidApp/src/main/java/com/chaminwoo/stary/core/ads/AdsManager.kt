@@ -52,9 +52,10 @@ object AdsManager {
     private val appKey: String get() = BuildConfig.LEVELPLAY_APP_KEY
     private val rewardedAdUnitId: String get() = BuildConfig.LEVELPLAY_REWARDED_AD_UNIT
 
-    /** LevelPlay 키가 실제 값인지(placeholder 가 아닌지). */
+    /** LevelPlay 키가 실제 값인지(placeholder 가 아닌지). 디버그 `-PadsForceFallback=true` 빌드면 꺼서 AdMob 폴백만 탄다. */
     private val levelPlayConfigured: Boolean
-        get() = appKey.isNotBlank() && !appKey.startsWith("TODO_") &&
+        get() = !(BuildConfig.DEBUG && BuildConfig.ADS_FORCE_FALLBACK) &&
+            appKey.isNotBlank() && !appKey.startsWith("TODO_") &&
             rewardedAdUnitId.isNotBlank() && !rewardedAdUnitId.startsWith("TODO_")
 
     /** 광고를 시도라도 해볼 수 있는지 — 둘 중 하나라도 살아 있으면 true. */

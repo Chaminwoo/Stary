@@ -67,8 +67,8 @@ android {
         applicationId = "com.chaminwoo.stary_ios"
         minSdk = 26
         targetSdk = 36
-        versionCode = 30
-        versionName = "1.5.9"
+        versionCode = 33
+        versionName = "1.6.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // TODO: secrets.properties 에 실제 값 채우기 (커밋 금지)
@@ -83,6 +83,8 @@ android {
         // AdMob 폴백 — 보상형 단위는 BuildConfig, 앱 ID 는 매니페스트 메타데이터로.
         buildConfigField("String", "ADMOB_REWARDED_AD_UNIT", "\"$admobRewardedAdUnitAndroid\"")
         manifestPlaceholders["ADMOB_APP_ID"] = admobAppIdAndroid
+        // 폴백 점검용(디버그 전용) — `-PadsForceFallback=true` 로 빌드하면 LevelPlay 를 건너뛰고 AdMob 으로만 간다.
+        buildConfigField("boolean", "ADS_FORCE_FALLBACK", (findProperty("adsForceFallback") == "true").toString())
     }
 
     signingConfigs {
