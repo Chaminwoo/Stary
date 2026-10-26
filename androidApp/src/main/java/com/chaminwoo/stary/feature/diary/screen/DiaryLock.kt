@@ -783,8 +783,9 @@ private fun rubberBand(delta: Offset, maxPx: Float, softPx: Float): Offset {
  * 아직 로드 전이면 "광고를 불러오는 중이에요" 후 도착 즉시 재생([AdsManager.showRewardedWhenReady]).
  * 키 없음/로드 실패/시간 초과/Activity 없음 → "지금은 광고를 불러올 수 없어요".
  * 디버그 빌드에서는 원인(키 미설정 / LevelPlay 오류 코드)을 그대로 알려 준다(릴리스엔 일반 안내만).
+ * [notFinished] = 끝까지 안 봤을 때 안내(별가루 화면은 "별가루를 받아요"로).
  */
-internal fun watchAdForKey(context: Context, onRewarded: () -> Unit) {
+internal fun watchAdForKey(context: Context, notFinished: Int = R.string.detail_ad_not_finished, onRewarded: () -> Unit) {
     val ads = AdsManager
     if (ads.showing) return
     val activity = context.findHostActivity()
@@ -810,7 +811,7 @@ internal fun watchAdForKey(context: Context, onRewarded: () -> Unit) {
         },
         onResult = { rewarded ->
             if (rewarded) onRewarded()
-            else StaryToast.show(context.getString(R.string.detail_ad_not_finished))
+            else StaryToast.show(context.getString(notFinished))
         },
     )
 }

@@ -471,10 +471,12 @@ internal fun slAuraRadiusExpression(scale: Float): Expression {
     )
 }
 
-/** 그 사람이 단 오라 → 지도 표현. 안 달았거나 아이템을 모르면 null. */
-internal fun slAuraOf(userId: String): SlAura? {
-    val id = com.chaminwoo.stary.feature.starlight.StarlightStore.auraByUser[userId] ?: return null
-    val item = com.chaminwoo.stary.feature.starlight.StarlightStore.item(id) ?: return null
+/**
+ * 그 별에 두른 고리(`diaries/{id}.ring` — 2026-10-26부터 사람이 아니라 별마다) → 지도 표현.
+ * 안 둘렀거나 아이템을 모르면 null.
+ */
+internal fun slAuraOf(ringId: String): SlAura? {
+    val item = com.chaminwoo.stary.feature.starlight.StarlightStore.item(ringId) ?: return null
     val raw = item.payload["pattern"] as? String
     val hexes = (item.payload["colors"] as? List<*>).orEmpty().mapNotNull { v ->
         (v as? String)?.trim()?.removePrefix("#")?.takeIf { it.length == 6 && it.toLongOrNull(16) != null }?.let { "#" + it.uppercase() }
@@ -628,7 +630,7 @@ internal fun diaryFeature(d: Diary, lng: Double, lat: Double, near: Boolean, alp
         addNumberProperty("alpha", alpha)
         addStringProperty("icon", starIconId(StarStyle.safeType(d.starType), colorIdx))
         addStringProperty("sparkleIcon", sparkleStarIconId(StarStyle.safeType(d.starType), colorIdx))
-        val sl = slAuraOf(d.userId)
+        val sl = slAuraOf(d.ring)
         addStringProperty("slAura", sl?.pattern ?: "")
         addStringProperty("slAuraColor", sl?.color ?: "#000000")
         addStringProperty("slAuraColor2", sl?.color2 ?: "#000000")

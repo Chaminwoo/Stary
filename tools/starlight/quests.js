@@ -3,7 +3,7 @@
  * 앱(Android `QuestCatalog.kt` / iOS `QuestCatalog.swift`)과 서버(functions/starlight.js claimQuest)가 **같은 문서**를 읽는다.
  * 예전엔 목록·목표 수·문구가 Android/iOS/서버 세 곳에 따로 박혀 있어 하나만 고치면 어긋났다 — 이제 여기만 고친다.
  *
- * 난이도(tier): easy(앱 기능 한 번 써 보기) · normal(발품·사람과 엮이는 일) · hard(며칠 모아야 하거나 공방까지 가는 일).
+ * 난이도(tier): easy(앱 기능 한 번 써 보기) · normal(발품·사람과 엮이는 일) · hard(며칠 모아야 하거나 별가루 메뉴까지 가는 일).
  * 하루 3개 = 1일째는 [firstDay] 고정(첫 사용 안내와 같은 순서), 2일째부터 쉬움 1개 + 그 이상 2개
  * (칸마다 hardChance 확률로 어려움, hardFromDay 일째부터). 보상은 [rewards] — 난이도별 별가루.
  *
@@ -123,10 +123,11 @@ q("share", "SHARE", "normal",
   t3("별 공유 영상 만들기", "Make a star share video", "星のシェア動画を作る"),
   t3("별을 열고 공유 버튼을 눌러요", "Open a star and tap the share button", "星を開いてシェアボタンをタップ"));
 
-// ── 어려움 — 며칠 모으거나 공방까지 가야 하는 일 ───────────────────────
+// ── 어려움 — 며칠 모으거나 별가루 메뉴까지 가야 하는 일 ───────────────────────
+// 2026-10-26 성운 상자 → 우주 항해(id·event 는 그대로 — 옛 앱은 상자를 열 때 같은 이벤트를 보고한다).
 q("open_box", "OPEN_BOX", "hard",
-  t3("성운 상자 하나 열기", "Open a nebula box", "星雲の箱をひとつ開ける"),
-  t3("별빛 공방에서 별가루로 상자를 만들어 열어요", "Craft a box with stardust at the Starlight Workshop and open it", "星明かりの工房で星くずから箱を作って開けよう"));
+  t3("우주 항해 한 번 떠나기", "Go on a space voyage", "宇宙航海に1回出かける"),
+  t3("메뉴 › 별가루에서 별가루로 우주 항해를 떠나요", "Spend stardust on a space voyage in Menu › Stardust", "メニュー › 星くず で星くずを使って宇宙航海へ"));
 q("friend_add2", "FRIEND_ADD", "hard",
   t3("새 친구 2명 사귀기", "Make 2 new friends", "新しい友だちを2人作る"),
   t3("지금 친구 수에서 두 명 더 — 요청을 수락하거나 보낸 요청이 수락되면 돼요", "Two more than you have now — accept requests or get yours accepted", "今の友だちからさらに2人 — 申請の承認でも、送った申請の承認でもOK"),

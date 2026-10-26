@@ -964,11 +964,11 @@ fun DiaryMap(
     val lastShown = remember { ArrayList<ShownStar>() }
     // 전이/등장이 도중에 끊겼는지(재시작이 같은 키로 조기 반환해 반쯤 투명한 별이 남는 것 방지).
     var needsSettle by remember { mutableStateOf(false) }
-    // 별빛 공방 오라를 단 사람(바뀌면 별 feature 의 오라 속성을 다시 만든다).
-    val slAuraByUser = com.chaminwoo.stary.feature.starlight.StarlightStore.auraByUser
-    // 뽑기 풀(오라 정의)이 늦게 오면 그때 다시 — 정의를 알아야 스프라이트를 그린다.
+    // 별 고리(diaries/{id}.ring — 2026-10-26부터 별마다)를 두른 별이 하나라도 떠 있는지 — 고리 애니메이션을 돌릴지.
+    var slAnyRing by remember { mutableStateOf(false) }
+    // 뽑기 풀(고리 정의)이 늦게 오면 그때 다시 — 정의를 알아야 스프라이트를 그린다.
     val slItems = com.chaminwoo.stary.feature.starlight.StarlightStore.items
-    LaunchedEffect(diaries, styleRef, currentLatLng, cameraIdleTick, revealKey, revealSettleTick, slAuraByUser, slItems) {
+    LaunchedEffect(diaries, styleRef, currentLatLng, cameraIdleTick, revealKey, revealSettleTick, slItems) {
         val style = styleRef ?: return@LaunchedEffect
         val source = diarySource ?: return@LaunchedEffect
         val map = mapRef ?: return@LaunchedEffect
@@ -1002,7 +1002,8 @@ fun DiaryMap(
         }
 
         val reveal = revealKey != lastRevealKey
-        val key = Triple(reps.map { it.id }, nearIds, slAuraByUser to slItems.size)
+        // 고리는 별 문서에 실려 오고, 서버가 안 가진 고리를 만든 직후 지우기도 한다 — 대표 별의 고리까지 키에 넣는다.
+        val key = Triple(reps.map { it.id + "|" + it.ring }, nearIds, slItems.size)
         if (key == lastFeaturesKey && !reveal && !needsSettle) return@LaunchedEffect
         lastFeaturesKey = key
 
@@ -1027,8 +1028,10 @@ fun DiaryMap(
                 }
             }
 
-        // 공방 오라 스프라이트 — 지금 누군가 달고 있는 오라만 등록(한 번 등록하면 유지).
-        slAuraByUser.values.distinct().forEach { id ->
+        // 고리 스프라이트 — 지금 떠 있는 별이 두른 고리만 등록(한 번 등록하면 유지).
+        val rings = valid.mapNotNull { d -> d.ring.takeIf { it.isNotBlank() } }.distinct()
+        slAnyRing = rings.isNotEmpty()
+        rings.forEach { id ->
             val item = com.chaminwoo.stary.feature.starlight.StarlightStore.item(id) ?: return@forEach
             val imgId = slAuraSpriteImageId(item)
             if (imgId !in addedIcons) {
@@ -1471,8 +1474,8 @@ fun DiaryMap(
                 auraLayers[g]?.setProperties(
                     PropertyFactory.circleTranslate(arrayOf(0f, floatDy))
                 )
-                // 별빛 공방 오라 — 빛은 숨 쉬고, pulse 고리는 천천히 퍼지며 사라지고, 스프라이트는 돌거나 흔들린다.
-                if (com.chaminwoo.stary.feature.starlight.StarlightStore.auraByUser.isNotEmpty()) {
+                // 별 고리 — 빛은 숨 쉬고, pulse 고리는 천천히 퍼지며 사라지고, 스프라이트는 돌거나 흔들린다.
+                if (slAnyRing) {
                     val breathe = (sin(t * 1.2f + phase) + 1f) / 2f // 0..1
                     val spread = ((t * 0.24f + g * 0.25f) % 1f)      // 0..1 퍼짐(약 4.2초 — 예전 2.2초는 "두근거림"이 정신없었다)
                     slGlowLayers[g]?.setProperties(

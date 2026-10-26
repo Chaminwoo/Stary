@@ -3,6 +3,7 @@ package com.chaminwoo.stary.feature.starlight
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.chaminwoo.stary.core.designsystem.StarCatalog
@@ -18,18 +19,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlin.coroutines.resume
 
 /**
- * 별빛 공방(2026-10-22) — 별가루 지갑 · 성운 상자 · 뽑기 풀.
+ * 별가루(2026-10-26 개편, 옛 "별빛 공방") — 별가루 지갑 · 우주 항해 · 뽑기 풀.
  *
  * - 지갑 `wallets/{uid}` 는 **읽기만**(규칙상 쓰기 불가). 바꾸는 일은 전부 [request] 로 서버(functions/starlight.js)에 맡긴다:
  *   `users/{uid}/starlightOps/{id}` 에 `{op, 인자, status:"pending"}` 을 만들면 서버가 같은 문서에 결과를 쓴다.
  * - 뽑기 풀 `starlightItems`(active) · 설정 `starlightConfig/main` 도 DB 에서 읽는다 — 앱 업데이트 없이 늘리고 확률을 바꾼다.
  *   설정 문서가 없으면 [Config.DEFAULT](서버 DEFAULT_CONFIG 와 같은 값).
- * - 모양·색 아이템은 [StarCatalog] 에 가르쳐 둔다(도감·업로드 피커에서 그릴 수 있게).
- * - 장착(프레임·배지·오라·칭호)은 서버가 소유를 확인하고 `starlightEquips/{uid}` 에 쓴다([equip]). 지도 오라는 그 컬렉션 중
- *   오라를 단 사람만 구독해([auraByUser]) 그 사람의 별에 입힌다 — 장착을 바꾸면 이미 올린 별에도 바로 반영된다.
+ * - 우주 항해([voyage]) 는 경로(일반 · 희귀 탐사)마다 값과 확률이 다르다. **천장(확정 보정)은 없다** — 매 항해가 독립.
+ * - 광고 보상([adReward]) 은 하루 한도·연속 간격을 서버가 센다(한국 시간 자정에 초기화).
+ * - 모양·색 아이템은 [StarCatalog] 에 가르쳐 둔다(업로드 피커·업적 탐사 칸에서 그릴 수 있게).
+ * - 장착(프레임·배지·칭호)은 서버가 소유를 확인하고 `starlightEquips/{uid}` 에 쓴다([equip]).
+ *   별 고리는 장착이 아니라 **별마다** 고른다(업로드 → `diaries/{id}.ring`, 서버 checkDiaryRing 이 소유 확인).
  * - 천체 망원경: 업적 ??? 공개는 [revealed], 히든 업적 단서는 [hints](서버가 문구까지 지갑에 넣어 준다).
  * iOS `StarlightStore.swift` 와 같은 필드·규칙.
  */
@@ -45,39 +50,51 @@ object StarlightStore {
 
     val RARITIES = listOf("common", "rare", "epic", "legendary")
 
+    /** 항해 경로 id — 화면 순서. 설정에 다른 경로가 있어도 화면엔 이 둘만(새 경로는 앱 업데이트 때). */
+    val ROUTES = listOf("normal", "rare")
+
+    /** 항해 경로 하나 — [cost] 한 번 떠나는 별가루, [weights] 등급 확률(합이 100이 아니어도 비율). */
+    data class Route(val cost: Int, val weights: Map<String, Double>) {
+        /** 등급별 확률(%) — 확률 안내용. */
+        fun percent(rarity: String): Double {
+            val total = weights.values.sum()
+            return if (total <= 0) 0.0 else (weights[rarity] ?: 0.0) * 100 / total
+        }
+    }
+
     data class Config(
         val questStardust: Int,
         val bonusStardust: Int,
         val keyCost: Int,
+        /** 옛 성운 상자 한 개 값 — 남은 상자를 별가루로 돌려줄 때(convertBoxes) 서버가 쓴다. */
         val boxCost: Int,
-        val rarityWeights: Map<String, Double>,
-        val pityEpic: Int,
-        val pityLegendary: Int,
+        val voyages: Map<String, Route>,
         val dupRefund: Map<String, Int>,
-        val maxOpen: Int,
+        val maxVoyage: Int,
+        val maxExchange: Int,
+        val adStardust: Int,
+        val adDailyCap: Int,
+        val adCooldownSec: Int,
         /** 단서가 준비된 히든 업적 id — 반사·전파 망원경 버튼은 여기 있는 업적에만. */
         val hintTargets: Set<String> = emptySet(),
-        /** 공방 상자 카드에 겹쳐 보여 줄 대표 아이템 id(DB `showcase`) — 비면 전설 아이템 앞 3개. */
-        val showcase: List<String> = emptyList(),
     ) {
-        /** 등급별 확률(%) — 확률 공개용. */
-        fun percent(rarity: String): Double {
-            val total = rarityWeights.values.sum()
-            return if (total <= 0) 0.0 else (rarityWeights[rarity] ?: 0.0) * 100 / total
-        }
+        fun route(id: String): Route = voyages[id] ?: DEFAULT.voyages[id] ?: Route(0, emptyMap())
 
         companion object {
             val DEFAULT = Config(
                 questStardust = 10, bonusStardust = 20, keyCost = 10, boxCost = 100,
-                rarityWeights = mapOf("common" to 60.0, "rare" to 28.0, "epic" to 10.0, "legendary" to 2.0),
-                pityEpic = 10, pityLegendary = 50,
+                voyages = mapOf(
+                    "normal" to Route(50, mapOf("common" to 66.0, "rare" to 28.0, "epic" to 5.0, "legendary" to 1.0)),
+                    "rare" to Route(300, mapOf("common" to 12.0, "rare" to 28.0, "epic" to 50.0, "legendary" to 10.0)),
+                ),
                 dupRefund = mapOf("common" to 10, "rare" to 25, "epic" to 50, "legendary" to 100),
-                maxOpen = 10,
+                maxVoyage = 10, maxExchange = 99,
+                adStardust = 10, adDailyCap = 10, adCooldownSec = 10,
             )
         }
     }
 
-    /** 뽑기 풀의 아이템 하나. [payload] 는 종류별(kind) 그림/효과 정의 — StarlightItems.kt 가 해석한다. */
+    /** 뽑기 풀의 아이템 하나. [payload] 는 종류별(kind) 그림/효과 정의 — StarlightArt.kt 가 해석한다. */
     data class Item(
         val id: String,
         val kind: String,
@@ -92,15 +109,14 @@ object StarlightStore {
         fun descIn(lang: String) = desc[lang] ?: desc["ko"].orEmpty()
     }
 
-    /** 장착 칸. */
-    enum class Slot(val id: String, val kind: String) { FRAME("frame", "frame"), BADGE("badge", "badge"), AURA("aura", "aura"), TITLE("title", "title") }
+    /** 장착 칸 — 별 고리는 별마다 고르므로 칸이 없다(서버 equip 은 옛 앱용 aura 칸을 아직 받는다). */
+    enum class Slot(val id: String, val kind: String) { FRAME("frame", "frame"), BADGE("badge", "badge"), TITLE("title", "title") }
 
     /** 한 사람의 장착 상태(아이템 id). */
-    data class Equips(val frame: String? = null, val badge: String? = null, val aura: String? = null, val title: String? = null) {
+    data class Equips(val frame: String? = null, val badge: String? = null, val title: String? = null) {
         fun of(slot: Slot) = when (slot) {
             Slot.FRAME -> frame
             Slot.BADGE -> badge
-            Slot.AURA -> aura
             Slot.TITLE -> title
         }
     }
@@ -110,37 +126,42 @@ object StarlightStore {
         fun textIn(lang: String) = text[lang] ?: text["ko"].orEmpty()
     }
 
-    /** 상자 하나를 연 결과. */
+    /** 항해 한 번에서 찾아온 것. */
     data class Draw(val id: String, val rarity: String, val kind: String, val dup: Boolean, val refund: Int, val keys: Int)
 
     sealed interface OpResult {
         data class Done(val result: Map<String, Any?>) : OpResult
-        /** [code] = 서버 오류 코드(insufficient · already · not_ready · no_boxes · empty_pool · invalid · server) 또는 timeout · offline. */
+        /**
+         * [code] = 서버 오류 코드(insufficient · invalid · empty_pool · ad_limit · ad_cooldown · already · not_ready · server)
+         * 또는 timeout · offline.
+         */
         data class Failed(val code: String) : OpResult
     }
 
     var stardust by mutableIntStateOf(0)
         private set
+    /** 옛 성운 상자(개편 전에 만들어 둔 것) — 별가루 화면을 열면 [convertBoxes] 로 별가루가 된다. */
     var boxes by mutableIntStateOf(0)
         private set
     /** 가진 아이템 id → 개수(꾸미기는 1, 소모품은 남은 수). */
     var owned by mutableStateOf<Map<String, Int>>(emptyMap())
         private set
-    var sinceEpic by mutableIntStateOf(0)
-        private set
-    var sinceLegendary by mutableIntStateOf(0)
+    /** 오늘(한국 시간) 받은 광고 보상 횟수 · 마지막으로 받은 시각(ms). */
+    private var adsDay by mutableStateOf("")
+    private var adsN by mutableIntStateOf(0)
+    var adsLast by mutableLongStateOf(0L)
         private set
     /** 서버 지갑을 한 번이라도 받았는지(받기 전엔 잔액을 "…"로). */
     var walletLoaded by mutableStateOf(false)
         private set
     var config by mutableStateOf(Config.DEFAULT)
         private set
-    /** 뽑기 풀 전체(뽑히지 않게 내린 것 포함 — 이미 가진 사람이 계속 그려야 한다). 도감은 [shownItems]. */
+    /** 뽑기 풀 전체(뽑히지 않게 내린 것 포함 — 이미 가진 사람이 계속 그려야 한다). */
     var items by mutableStateOf<List<Item>>(emptyList())
         private set
     private var itemIndex: Map<String, Item> = emptyMap()
 
-    fun item(id: String?): Item? = id?.let { itemIndex[it] }
+    fun item(id: String?): Item? = id?.takeIf { it.isNotBlank() }?.let { itemIndex[it] }
 
     /** 공방 칭호는 users.equippedTitle 에 "sl:{아이템 id}" 로 들어간다(업적 칭호 id 와 안 겹치게 — 서버 equip 이 쓴다). */
     const val TITLE_PREFIX = "sl:"
@@ -149,14 +170,15 @@ object StarlightStore {
     fun titleItem(titleId: String?): Item? =
         titleId?.takeIf { it.startsWith(TITLE_PREFIX) }?.let { item(it.removePrefix(TITLE_PREFIX)) }
 
-    /** 도감에 보일 것 — 지금 뽑히는 것 + 내렸어도 내가 가진 것. */
-    val shownItems: List<Item> get() = items.filter { it.active || (owned[it.id] ?: 0) > 0 }
+    /** 오늘(한국 시간) 광고 보상을 더 받을 수 있는 횟수. */
+    val adsLeft: Int
+        get() = (config.adDailyCap - (if (adsDay == kstDay()) adsN else 0)).coerceAtLeast(0)
+
+    /** 지금 뽑히는 아이템 중 [rarity] 인 것의 수 — 확률 안내("n종"). */
+    fun poolCount(rarity: String): Int = items.count { it.active && it.rarity == rarity }
 
     /** 내 장착 상태. */
     var myEquips by mutableStateOf(Equips())
-        private set
-    /** 오라를 단 사람 → 오라 아이템 id(지도에서 그 사람의 별 둘레에 그린다). */
-    var auraByUser by mutableStateOf<Map<String, String>>(emptyMap())
         private set
     /** 굴절 망원경으로 조건을 연 업적 id. */
     var revealed by mutableStateOf<Set<String>>(emptySet())
@@ -165,7 +187,7 @@ object StarlightStore {
     var hints by mutableStateOf<Map<String, Hint>>(emptyMap())
         private set
 
-    /** 가진 별 모양 번호(성운 상자) — 업로드 피커에서 내장 0~20 뒤에 붙인다. */
+    /** 가진 별 모양 번호(우주 항해) — 업로드 피커에서 내장 0~20 뒤에 붙인다. */
     val ownedShapeTypes: List<Int>
         get() = items.filter { it.kind == "shape" && (owned[it.id] ?: 0) > 0 }
             .mapNotNull { (it.payload["type"] as? Number)?.toInt() }.distinct().sorted()
@@ -173,11 +195,7 @@ object StarlightStore {
         get() = items.filter { it.kind == "color" && (owned[it.id] ?: 0) > 0 }
             .mapNotNull { (it.payload["index"] as? Number)?.toInt() }.distinct().sorted()
 
-    /** 공방 상자 카드의 대표 아이템 — DB showcase 순서, 없으면 지금 뽑히는 전설 앞 3개. */
-    val showcaseItems: List<Item>
-        get() = config.showcase.mapNotNull(::item).ifEmpty { items.filter { it.active && it.rarity == "legendary" }.take(3) }
-
-    /** 가진 아이템 중 [kind] 인 것. */
+    /** 가진 아이템 중 [kind] 인 것(희귀한 것부터). */
     fun ownedOf(kind: String): List<Item> = items.filter { it.kind == kind && (owned[it.id] ?: 0) > 0 }
 
     private var uid: String? = null
@@ -185,11 +203,13 @@ object StarlightStore {
     private var itemsReg: ListenerRegistration? = null
     private var configReg: ListenerRegistration? = null
     private var equipReg: ListenerRegistration? = null
-    private var auraReg: ListenerRegistration? = null
     private var retryJob: Job? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private fun db() = staryFirestore
+
+    /** 서버 adReward 와 같은 "하루" — 한국 시간 날짜(yyyy-MM-dd). */
+    private fun kstDay(): String = LocalDate.now(ZoneOffset.ofHours(9)).toString()
 
     /** 로그인 사용자로 구독 시작(같은 uid 면 무시). MainScreen `LaunchedEffect(userId)` — QuestStore 와 함께. */
     fun start(uid: String) {
@@ -217,12 +237,6 @@ object StarlightStore {
             if (snap == null || this.uid != uid) return@addSnapshotListener
             myEquips = parseEquips(snap)
         }
-        // 오라를 단 사람만(aura != null) — 지도에 그릴 사람 수만큼만 읽는다.
-        auraReg = db().collection(EQUIPS).whereNotEqualTo("aura", null).addSnapshotListener { q, e ->
-            if (e != null) return@addSnapshotListener retry(uid, "오라", e)
-            if (q == null || this.uid != uid) return@addSnapshotListener
-            auraByUser = q.documents.mapNotNull { d -> d.getString("aura")?.let { d.id to it } }.toMap()
-        }
         configReg = db().collection(CONFIG).document("main").addSnapshotListener { snap, e ->
             if (e != null) return@addSnapshotListener retry(uid, "설정", e)
             if (snap == null || this.uid != uid) return@addSnapshotListener
@@ -247,7 +261,6 @@ object StarlightStore {
         itemsReg?.remove(); itemsReg = null
         configReg?.remove(); configReg = null
         equipReg?.remove(); equipReg = null
-        auraReg?.remove(); auraReg = null
     }
 
     fun stop() {
@@ -255,7 +268,7 @@ object StarlightStore {
         retryJob?.cancel(); retryJob = null
         uid = null
         stardust = 0; boxes = 0; owned = emptyMap()
-        sinceEpic = 0; sinceLegendary = 0
+        adsDay = ""; adsN = 0; adsLast = 0L
         walletLoaded = false
         myEquips = Equips()
         revealed = emptySet()
@@ -268,9 +281,10 @@ object StarlightStore {
         owned = (snap.get("items") as? Map<*, *>)
             ?.mapNotNull { (k, v) -> (k as? String)?.let { key -> (v as? Number)?.toInt()?.let { key to it } } }
             ?.toMap() ?: emptyMap()
-        val pity = snap.get("pity") as? Map<*, *>
-        sinceEpic = (pity?.get("sinceEpic") as? Number)?.toInt() ?: 0
-        sinceLegendary = (pity?.get("sinceLegendary") as? Number)?.toInt() ?: 0
+        val ads = snap.get("ads") as? Map<*, *>
+        adsDay = ads?.get("day") as? String ?: ""
+        adsN = (ads?.get("n") as? Number)?.toInt() ?: 0
+        adsLast = (ads?.get("last") as? Number)?.toLong() ?: 0L
         revealed = (snap.get("revealed") as? Map<*, *>)?.filterValues { it == true }?.keys?.mapNotNull { it as? String }?.toSet() ?: emptySet()
         hints = (snap.get("hints") as? Map<*, *>)?.mapNotNull { (k, v) ->
             val id = k as? String ?: return@mapNotNull null
@@ -286,20 +300,32 @@ object StarlightStore {
         val d = Config.DEFAULT
         if (!snap.exists()) return d
         fun int(k: String, def: Int) = (snap.get(k) as? Number)?.toInt() ?: def
-        fun numMap(k: String): Map<String, Number>? = (snap.get(k) as? Map<*, *>)
+        fun numMap(m: Any?): Map<String, Number>? = (m as? Map<*, *>)
             ?.mapNotNull { (key, v) -> (key as? String)?.let { s -> (v as? Number)?.let { s to it } } }?.toMap()
+        // 경로마다 기본값 위에 덮는다(서버 mergeVoyages 와 같은 규칙).
+        val voyages = d.voyages.toMutableMap()
+        (snap.get("voyages") as? Map<*, *>)?.forEach { (k, v) ->
+            val id = k as? String ?: return@forEach
+            val m = v as? Map<*, *> ?: return@forEach
+            val base = voyages[id] ?: Route(0, emptyMap())
+            voyages[id] = Route(
+                cost = (m["cost"] as? Number)?.toInt() ?: base.cost,
+                weights = base.weights + (numMap(m["weights"])?.mapValues { it.value.toDouble() } ?: emptyMap()),
+            )
+        }
         return Config(
             questStardust = int("questStardust", d.questStardust),
             bonusStardust = int("bonusStardust", d.bonusStardust),
             keyCost = int("keyCost", d.keyCost),
             boxCost = int("boxCost", d.boxCost),
-            rarityWeights = d.rarityWeights + (numMap("rarityWeights")?.mapValues { it.value.toDouble() } ?: emptyMap()),
-            pityEpic = int("pityEpic", d.pityEpic),
-            pityLegendary = int("pityLegendary", d.pityLegendary),
-            dupRefund = d.dupRefund + (numMap("dupRefund")?.mapValues { it.value.toInt() } ?: emptyMap()),
-            maxOpen = int("maxOpen", d.maxOpen),
+            voyages = voyages,
+            dupRefund = d.dupRefund + (numMap(snap.get("dupRefund"))?.mapValues { it.value.toInt() } ?: emptyMap()),
+            maxVoyage = int("maxVoyage", d.maxVoyage),
+            maxExchange = int("maxExchange", d.maxExchange),
+            adStardust = int("adStardust", d.adStardust),
+            adDailyCap = int("adDailyCap", d.adDailyCap),
+            adCooldownSec = int("adCooldownSec", d.adCooldownSec),
             hintTargets = (snap.get("hintTargets") as? List<*>)?.mapNotNull { it as? String }?.toSet() ?: emptySet(),
-            showcase = (snap.get("showcase") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
         )
     }
 
@@ -308,7 +334,6 @@ object StarlightStore {
         else Equips(
             frame = snap.getString("frame")?.takeIf { it.isNotBlank() },
             badge = snap.getString("badge")?.takeIf { it.isNotBlank() },
-            aura = snap.getString("aura")?.takeIf { it.isNotBlank() },
             title = snap.getString("title")?.takeIf { it.isNotBlank() },
         )
 
@@ -319,6 +344,18 @@ object StarlightStore {
     /** 장착/해제(서버가 소유 확인). */
     suspend fun equip(slot: Slot, itemId: String?): OpResult =
         request("equip", buildMap { put("slot", slot.id); if (itemId != null) put("itemId", itemId) })
+
+    /** 우주 항해 — [route] 경로로 [count] 번(서버가 별가루를 빼고 결과를 정한다). */
+    suspend fun voyage(route: String, count: Int): OpResult = request("voyage", mapOf("route" to route, "count" to count))
+
+    /** 열쇠 구매 — 별가루 [Config.keyCost] × [count]. */
+    suspend fun buyKeys(count: Int): OpResult = request("exchange", mapOf("to" to "key", "count" to count))
+
+    /** 광고를 끝까지 본 뒤 — 별가루 [Config.adStardust](하루 한도·간격은 서버가 센다). */
+    suspend fun adReward(): OpResult = request("adReward")
+
+    /** 남은 옛 성운 상자를 별가루로(상자 값 그대로). 상자가 없으면 서버가 "already". */
+    suspend fun convertBoxes(): OpResult = request("convertBoxes")
 
     /** 천체 망원경 사용 — [target] = 업적 id(굴절: ??? 업적 / 반사·전파: 히든 업적). */
     suspend fun useTelescope(itemId: String, target: String): OpResult =
@@ -390,7 +427,7 @@ object StarlightStore {
         } ?: OpResult.Failed("timeout")
     }
 
-    /** openBox 결과 → [Draw] 목록. */
+    /** voyage 결과 → [Draw] 목록. */
     fun draws(result: Map<String, Any?>): List<Draw> =
         (result["results"] as? List<*>)?.mapNotNull { r ->
             val m = r as? Map<*, *> ?: return@mapNotNull null

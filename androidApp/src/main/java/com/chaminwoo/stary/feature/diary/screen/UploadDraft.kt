@@ -4,7 +4,7 @@ import android.content.Context
 import org.json.JSONObject
 
 /**
- * 업로드 화면에서 쓰다 나간 글 — 제목·본문·별 모양/색·공개 범위만 기기에 남긴다(사진·움짤은 다시 고른다).
+ * 업로드 화면에서 쓰다 나간 글 — 제목·본문·별 모양/색·별 고리·공개 범위만 기기에 남긴다(사진·움짤은 다시 고른다).
  * 계정마다 따로 둔다(다른 계정으로 로그인하면 보이지 않게). 저장에 성공하면 지운다. iOS `UploadDraftStore` 패리티.
  */
 internal object UploadDraftStore {
@@ -14,6 +14,8 @@ internal object UploadDraftStore {
         val starType: Int,
         val starColor: Int,
         val visibility: String,
+        /** 별 고리 아이템 id(빈 값 = 미착용) — 이어 쓸 때 그 고리를 아직 가졌을 때만 되살린다. */
+        val ring: String = "",
     ) {
         val hasText: Boolean get() = title.isNotBlank() || content.isNotBlank()
     }
@@ -31,6 +33,7 @@ internal object UploadDraftStore {
                 starType = o.optInt("starType"),
                 starColor = o.optInt("starColor"),
                 visibility = o.optString("visibility", "public"),
+                ring = o.optString("ring"),
             )
         }.getOrNull()?.takeIf { it.hasText }
     }
@@ -42,6 +45,7 @@ internal object UploadDraftStore {
             .put("starType", draft.starType)
             .put("starColor", draft.starColor)
             .put("visibility", draft.visibility)
+            .put("ring", draft.ring)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(key(uid), o.toString()).apply()
     }
 

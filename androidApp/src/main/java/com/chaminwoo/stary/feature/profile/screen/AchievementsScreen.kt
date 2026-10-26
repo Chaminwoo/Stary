@@ -31,6 +31,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.chaminwoo.stary.core.ui.FirstVisitInfo
@@ -92,15 +94,23 @@ private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 private val CardBg = Color(0xFF15151F)
 
+/** 다른 화면에서 업적의 특정 탭으로 바로 보낼 때(별가루 화면의 "찾은 것은 업적 › 특별 › 탐사") — 한 번 쓰고 비운다. */
+object AchievementsTab {
+    const val SPECIAL = 1
+    private var pending: Int? = null
+    fun request(tab: Int) { pending = tab }
+    internal fun consume(): Int? = pending.also { pending = null }
+}
+
 /**
  * 업적 화면 — **공용 / 특별 / 히든** 3탭(2026-10-19 재구성 — 69개가 한 목록에 섞여 난잡하던 것을 나눴다).
  *  - 공용: 누구나 쓰다 보면 얻는 업적. 칭호(주제별 묶음) · 별 모양 · 별 색을 작은 탭으로 나누고, 모양·색은 3열 타일.
- *  - 특별: 모두가 갖지는 못하는 업적 — 특별한 순간(날짜·시각) · 퀘스트 보상 · 초대 · 개척 칭호.
+ *  - 특별: 모두가 갖지는 못하는 것 — **탐사**(우주 항해에서 찾은 것, 2026-10-26 맨 앞) · 특별한 순간(날짜·시각) · 퀘스트 보상 · 초대 · 개척 칭호.
  *  - 히든: 앱 전체에서 단 한 명(HiddenAchievements).
  * 분류 목록은 [Achievements.commonTitleGroups]/[Achievements.specialGroups] (iOS 와 같은 id·순서).
  */
 @Composable
-fun AchievementsScreen(modifier: Modifier = Modifier) {
+fun AchievementsScreen(modifier: Modifier = Modifier, onOpenWorkshop: () -> Unit = {}) {
     val context = LocalContext.current
     val userId = GoogleAuthHelper.currentUserId
     androidx.compose.runtime.LaunchedEffect(Unit) { com.chaminwoo.stary.feature.quest.QuestStore.report(com.chaminwoo.stary.feature.quest.QuestEvent.VISIT_ACHIEVEMENTS) }
@@ -115,7 +125,7 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
     val stats = rememberUserStats(userId)
     var equipped by remember { mutableStateOf(StigmaStore.equipped(context, userId)) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by remember { mutableIntStateOf(AchievementsTab.consume() ?: 0) }
 
     // 히든 업적 달성 현황(전역)
     val hiddenRepo = remember { HiddenAchievementRepository() }
@@ -171,6 +181,8 @@ fun AchievementsScreen(modifier: Modifier = Modifier) {
                     myPioneerCodes = myPioneerCodes,
                     onToggleEquip = toggleAch,
                     onTogglePioneer = toggleEquip,
+                    onTitleChanged = { equipped = it },
+                    onOpenWorkshop = onOpenWorkshop,
                 )
                 else -> HiddenTab(
                     claims = claims,
@@ -480,10 +492,18 @@ private fun SpecialTab(
     myPioneerCodes: List<String>,
     onToggleEquip: (Achievement) -> Unit,
     onTogglePioneer: (String, String) -> Unit,
+    onTitleChanged: (String?) -> Unit,
+    onOpenWorkshop: () -> Unit,
 ) {
     val context = LocalContext.current
     val list = Achievements.special
     val done = list.count { it.unlocked(stats) } + myPioneerCodes.size
+    // 탐사 — 우주 항해에서 찾은 것(가진 것만). 종류 칩으로 거르고, 누르면 상세(프레임·배지·칭호는 장착).
+    val finds = com.chaminwoo.stary.feature.starlight.ownedFinds()
+    val findKinds = com.chaminwoo.stary.feature.starlight.findKinds(finds)
+    var findKind by remember { mutableStateOf<String?>(null) }
+    val shownFinds = if (findKind == null) finds else finds.filter { it.kind == findKind }
+    var detail by remember { mutableStateOf<StarlightStore.Item?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -502,6 +522,41 @@ private fun SpecialTab(
                         stringResource(R.string.ach_special_count, done),
                         color = Purple, fontSize = 13.sp, fontWeight = FontWeight.Light
                     )
+                }
+            }
+        }
+
+        // ── 탐사(우주 항해) — 맨 앞 ──
+        item(key = "special_voyage") {
+            SpecialHeader(stringResource(R.string.ach_voyage_section), stringResource(R.string.ach_voyage_sub), finds.size, null)
+        }
+        if (finds.isEmpty()) {
+            item(key = "voyage_empty") { VoyageEmptyCard(onOpenWorkshop) }
+        } else {
+            item(key = "voyage_loadout") {
+                com.chaminwoo.stary.feature.starlight.VoyageLoadout(equipped) { k -> findKind = k.takeIf { it in findKinds } }
+            }
+            item(key = "voyage_kinds") {
+                Row(
+                    Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    StaryChip("${stringResource(R.string.starlight_all)} ${finds.size}", findKind == null, accent = Purple) {
+                        com.chaminwoo.stary.core.util.Haptics.tick(); findKind = null
+                    }
+                    findKinds.forEach { k ->
+                        StaryChip("${com.chaminwoo.stary.feature.starlight.kindName(k)} ${finds.count { it.kind == k }}", findKind == k, accent = Purple) {
+                            com.chaminwoo.stary.core.util.Haptics.tick(); findKind = k
+                        }
+                    }
+                }
+            }
+            items(shownFinds.chunked(3), key = { row -> "voyage_row_${row.first().id}" }) { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    row.forEach { item ->
+                        com.chaminwoo.stary.feature.starlight.OwnedCell(item, equipped, onClick = { detail = item }, modifier = Modifier.weight(1f))
+                    }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -579,6 +634,48 @@ private fun SpecialTab(
         }
 
         item { Spacer(Modifier.height(24.dp)) }
+    }
+
+    detail?.let { item ->
+        com.chaminwoo.stary.feature.starlight.ItemDetailDialog(
+            item, equippedTitle = equipped, onTitleChanged = onTitleChanged, onDismiss = { detail = null },
+        )
+    }
+}
+
+/** 탐사에서 아직 찾은 것이 없을 때 — 어떻게 얻는지 + 별가루 화면으로. */
+@Composable
+private fun VoyageEmptyCard(onGo: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CardBg)
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(Purple.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.RocketLaunch, null, tint = Purple, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Text(
+            stringResource(R.string.ach_voyage_empty), color = TextMuted, fontSize = 12.sp, lineHeight = 17.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            stringResource(R.string.ach_voyage_go), color = Purple, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(Purple.copy(alpha = 0.12f))
+                .border(1.dp, Purple.copy(alpha = 0.35f), RoundedCornerShape(50))
+                .clickable(onClick = onGo)
+                .padding(horizontal = 12.dp, vertical = 7.dp)
+        )
     }
 }
 

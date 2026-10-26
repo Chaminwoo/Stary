@@ -123,7 +123,7 @@ fun ProfileScreen(
     onOpenMyDiary: () -> Unit = {},
     onOpenFriends: () -> Unit = {},
     onOpenDiary: (String) -> Unit = {},
-    onOpenCollection: () -> Unit = {},
+    onOpenFinds: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -357,21 +357,21 @@ fun ProfileScreen(
                 modifier = Modifier.clickable { onOpenAchievements() }.padding(6.dp)
             )
 
-            // 수집품(별빛 공방에서 얻은 것) — 가진 게 있을 때만.
-            if (com.chaminwoo.stary.feature.starlight.StarlightStore.owned.isNotEmpty()) {
+            // 탐사 수집품(우주 항해에서 찾은 것 → 업적 › 특별 › 탐사) — 가진 게 있을 때만.
+            if (com.chaminwoo.stary.feature.starlight.ownedFinds().isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(Color(0x14FFFFFF))
                         .border(0.75.dp, Color(0x33B47CFF), RoundedCornerShape(50))
-                        .clickable { onOpenCollection() }
+                        .clickable { onOpenFinds() }
                         .padding(horizontal = 14.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     com.chaminwoo.stary.feature.starlight.StardustIcon(Modifier.size(14.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.nav_collection), color = Color(0xFFE2C8FF), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.profile_finds), color = Color(0xFFE2C8FF), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }

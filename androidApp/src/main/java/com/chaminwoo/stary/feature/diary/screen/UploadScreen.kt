@@ -10,8 +10,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -112,7 +114,10 @@ import com.chaminwoo.stary.feature.diary.DiaryViewModel
 import com.chaminwoo.stary.feature.profile.Achievements
 import com.chaminwoo.stary.feature.profile.StarUnlocks
 import com.chaminwoo.stary.feature.profile.rememberUserStats
+import com.chaminwoo.stary.feature.starlight.AuraArt
 import com.chaminwoo.stary.feature.starlight.StarlightStore
+import com.chaminwoo.stary.feature.starlight.rarityColor
+import com.chaminwoo.stary.feature.starlight.starlightLang
 import com.chaminwoo.stary.shared.config.StaryConfig
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -198,6 +203,9 @@ fun UploadScreen(
     // 별 모양/색 — iOS UploadScreen 의 무한 회전 휠(WheelPicker) 구조 패리티(선택 = 항상 정중앙).
     var starType by remember { mutableIntStateOf(0) }
     var starColor by remember { mutableIntStateOf(0) }
+    // 별 고리(우주 항해, 2026-10-26) — 이 별에만 두른다. 빈 값 = 미착용. 칸은 고리를 가진 사람에게만 보인다.
+    var ring by remember { mutableStateOf("") }
+    val rings = StarlightStore.ownedOf("aura")
 
     // 업적 해금 상태 — 잠긴 별 모양/색 판정에 사용 (비로그인 시 기본 항목만)
     val unlockedIds: Set<String> =
@@ -230,7 +238,7 @@ fun UploadScreen(
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) } // 저장에 성공했으면 닫힐 때 임시 저장하지 않는다
     val hasText = title.isNotBlank() || content.isNotBlank()
-    val draftNow by rememberUpdatedState(UploadDraftStore.Draft(title, content, starType, starColor, visibilityType))
+    val draftNow by rememberUpdatedState(UploadDraftStore.Draft(title, content, starType, starColor, visibilityType, ring))
     // 뒤로·알림으로 이동·앱 전환 어느 쪽으로 나가도 쓴 글은 기기에 남긴다.
     fun keepDraft() {
         if (!saved && draftNow.hasText) UploadDraftStore.save(context, draftUid, draftNow)
@@ -472,7 +480,9 @@ fun UploadScreen(
                 userName = uName,
                 latitude = lat, longitude = lng,
                 starType = starType, starColor = starColor,
-                visibilityType = visibilityType
+                visibilityType = visibilityType,
+                // 지금 가진 고리만(서버 checkDiaryRing 도 소유를 다시 확인한다).
+                ring = ring.takeIf { id -> rings.any { it.id == id } }.orEmpty(),
             )
             lastAttempt = toSave
             diaryViewModel.saveDiary(toSave) // isUploading 은 저장 결과 이벤트에서 푼다
@@ -574,6 +584,7 @@ fun UploadScreen(
                                     title = d.title; content = d.content
                                     starType = d.starType; starColor = d.starColor
                                     visibilityType = d.visibility
+                                    ring = d.ring
                                 }
                                 pendingDraft = null
                             },
@@ -719,6 +730,17 @@ fun UploadScreen(
                         checked = ownedOnly, onChange = setOwnedOnly,
                         modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp),
                     )
+
+                    // ── 별 고리 — 우주 항해에서 찾은 고리가 있을 때만. 고른 고리는 이 별에만 둘린다 ──
+                    if (rings.isNotEmpty()) {
+                        Spacer(Modifier.height(14.dp))
+                        SectionHeader(stringResource(R.string.upload_ring))
+                        Spacer(Modifier.height(8.dp))
+                        RingPicker(
+                            rings = rings, selected = ring, starType = starType, starColor = starColor,
+                            enabled = !isUploading, onSelect = { ring = it },
+                        )
+                    }
 
                     Hairline(Modifier.padding(top = 16.dp, bottom = 20.dp))
 
@@ -892,6 +914,71 @@ private fun SectionHeader(label: String, enabled: Boolean = true, onSeeAll: (() 
 @Composable
 private fun Hairline(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(1.dp).background(StaryColors.Line.copy(alpha = 0.7f)))
+}
+
+/**
+ * 별 고리 고르기 — 맨 앞 "미착용", 뒤로 가진 고리(지금 고른 모양·색 별에 둘러 미리 보여 준다).
+ * 고른 칸은 고리 등급 빛 테두리. 지도에선 이 별에만 같은 고리가 돈다(DiaryMap 고리 스프라이트). iOS `RingPicker` 패리티.
+ */
+@Composable
+private fun RingPicker(
+    rings: List<StarlightStore.Item>,
+    selected: String,
+    starType: Int,
+    starColor: Int,
+    enabled: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    val lang = starlightLang()
+    val chosen = selected.takeIf { id -> rings.any { it.id == id } }.orEmpty()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .alpha(if (enabled) 1f else 0.5f),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        RingCell(
+            label = stringResource(R.string.upload_ring_none), selected = chosen.isEmpty(),
+            accent = StaryColors.Accent, enabled = enabled, onClick = { onSelect("") },
+        ) { StarShapeIcon(type = starType, colorIndex = starColor, modifier = Modifier.size(26.dp)) }
+        rings.forEach { item ->
+            RingCell(
+                label = item.nameIn(lang), selected = chosen == item.id,
+                accent = rarityColor(item.rarity), enabled = enabled, onClick = { onSelect(item.id) },
+            ) { AuraArt(item.payload, Modifier.fillMaxSize(), starType = starType, starColor = starColor, itemId = item.id) }
+        }
+    }
+}
+
+@Composable
+private fun RingCell(
+    label: String,
+    selected: Boolean,
+    accent: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    art: @Composable () -> Unit,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        Modifier
+            .width(72.dp)
+            .clip(shape)
+            .background(if (selected) accent.copy(alpha = 0.12f) else FieldFill)
+            .border(if (selected) 1.5.dp else 0.dp, if (selected) accent.copy(alpha = 0.8f) else Color.Transparent, shape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) { art() }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label, color = if (selected) StaryColors.Text else StaryColors.Muted, fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+    }
 }
 
 /** 쓰다 나간 글이 있을 때 맨 위 한 줄 — 이어 쓰기 / 지우기. */

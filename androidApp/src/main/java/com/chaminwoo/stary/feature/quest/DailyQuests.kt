@@ -45,7 +45,7 @@ enum class QuestEvent {
     MUSIC,              // 배경음악 바꾸기
     FOCUS,              // 지도를 가만히 두어 집중 모드 들어가기
     UNLOCK_KEY,         // 열쇠로 별 열기
-    OPEN_BOX,           // 성운 상자 열기(별빛 공방)
+    OPEN_BOX,           // 우주 항해 떠나기(별가루 — 2026-10-26 전엔 성운 상자 열기, 이름은 서버 퀘스트 정의와 맞춰 그대로)
     ACHIEVEMENT,        // 새 업적 달성
 }
 

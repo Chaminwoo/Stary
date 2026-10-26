@@ -38,6 +38,11 @@ data class Diary(
     /** 공개 범위: "public"(전체), "friends"(친구만), "private"(나만보기). */
     val visibilityType: String = "public",
     /**
+     * 별 고리(2026-10-26) — 올릴 때 고른 고리 아이템 id(`starlightItems` 의 kind "aura"). 빈 값 = 미착용.
+     * 서버(`checkDiaryRing`)가 만들 때 소유를 확인하고, 안 가진 고리면 지운다. 지도는 이 값으로 그 별에만 고리를 그린다.
+     */
+    val ring: String = "",
+    /**
      * 서버(Cloud Functions `translateDiaryOn*`)가 채우는 자동 선번역 — **앱은 읽기만 한다**(쓰지 않음).
      * 예전 글·번역 전·번역 실패는 null/빈 값이고, 그때는 원문이 나온다. 구조는 functions/translations.js 머리말 참고.
      * ⚠️ 수정·신고·공유·알림은 반드시 원문(title/content)을 쓴다. 화면 표시만 [localizedTitle]/[localizedContent].

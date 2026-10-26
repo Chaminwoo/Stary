@@ -148,7 +148,11 @@ fun NavGraph(
                 onLogout = onLogout,
                 onOpenMyDiary = { navController.navigate(NavRoute.MyDiary) },
                 onOpenFriends = { navController.navigate(NavRoute.Friends) },
-                onOpenCollection = { navController.navigate(NavRoute.Collection) { launchSingleTop = true } },
+                onOpenFinds = {
+                    // 탐사 수집품 → 업적 화면의 특별 탭(탐사 칸이 맨 위)
+                    com.chaminwoo.stary.feature.profile.screen.AchievementsTab.request(com.chaminwoo.stary.feature.profile.screen.AchievementsTab.SPECIAL)
+                    navController.navigate(NavRoute.Achievements) { launchSingleTop = true }
+                },
                 onOpenDiary = { diaryId ->
                     // 프로필 핀 별 탭 → 지도로 가서 카메라 이동 + 파장 연출(친구 별 탭과 동일).
                     com.chaminwoo.stary.core.util.MapFocusState.request(diaryId)
@@ -159,18 +163,26 @@ fun NavGraph(
             )
         }
 
+        // 별가루 ↔ 업적(탐사)은 서로 오가므로, 이미 뒤에 있으면 새로 쌓지 않고 그 화면으로 돌아간다.
         composable<NavRoute.Achievements> {
-            AchievementsScreen()
+            AchievementsScreen(
+                onOpenWorkshop = {
+                    if (!navController.popBackStack<NavRoute.Workshop>(inclusive = false)) {
+                        navController.navigate(NavRoute.Workshop) { launchSingleTop = true }
+                    }
+                },
+            )
         }
 
         composable<NavRoute.Workshop> {
             com.chaminwoo.stary.feature.starlight.WorkshopScreen(
-                onOpenCollection = { navController.navigate(NavRoute.Collection) { launchSingleTop = true } },
+                onOpenFinds = {
+                    com.chaminwoo.stary.feature.profile.screen.AchievementsTab.request(com.chaminwoo.stary.feature.profile.screen.AchievementsTab.SPECIAL)
+                    if (!navController.popBackStack<NavRoute.Achievements>(inclusive = false)) {
+                        navController.navigate(NavRoute.Achievements) { launchSingleTop = true }
+                    }
+                },
             )
-        }
-
-        composable<NavRoute.Collection> {
-            com.chaminwoo.stary.feature.starlight.CollectionScreen()
         }
 
         composable<NavRoute.Music> {

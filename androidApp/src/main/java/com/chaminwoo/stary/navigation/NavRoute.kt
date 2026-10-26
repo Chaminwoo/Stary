@@ -94,19 +94,13 @@ sealed class NavRoute {
         override val showFab = false
     }
 
-    /** 별빛 공방(2026-10-22) — 별가루를 열쇠·성운 상자로 바꾸고 상자를 연다(드로어: 업적 아래, 퀘스트 창 별가루 칩). */
+    /**
+     * 별가루(2026-10-26 개편, 옛 "별빛 공방") — 광고로 별가루 받기 · 열쇠 구매 · 우주 항해(드로어: 업적 아래, 퀘스트 창 별가루 칩).
+     * 항해에서 찾은 것은 업적 › 특별 › 탐사에서 본다(옛 수집품 화면은 없앴다).
+     */
     @Serializable
     data object Workshop : NavRoute() {
-        override val title = "별빛 공방"
-        override val isRoot = false
-        override val showTopBar = true
-        override val showFab = false
-    }
-
-    /** 수집품(2026-10-22) — 별빛 공방에서 얻은 것을 모아 보고 장착한다(공방 · 프로필에서 진입). */
-    @Serializable
-    data object Collection : NavRoute() {
-        override val title = "수집품"
+        override val title = "별가루"
         override val isRoot = false
         override val showTopBar = true
         override val showFab = false

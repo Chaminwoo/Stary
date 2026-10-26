@@ -426,7 +426,7 @@ private fun SheetBody(
                 "${rewards.count { lockOf(it) == null }}/${rewards.size}",
                 rewardsShown,
             )
-            group(stringResource(R.string.nav_workshop), workshop.size.toString(), workshop)
+            group(stringResource(R.string.ach_voyage_section), workshop.size.toString(), workshop)
         }
         // 잠긴 칸 안내 — 어떤 업적을 달성하면 열리는지.
         AnimatedVisibility(lockedPick != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {

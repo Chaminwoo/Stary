@@ -56,7 +56,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -193,7 +193,7 @@ private fun iconOf(event: QuestEvent?): ImageVector = when (event) {
     QuestEvent.COMMENT_OTHER -> Icons.AutoMirrored.Filled.Chat
     QuestEvent.FRIEND_ADD -> Icons.Filled.Group
     QuestEvent.INVITE -> Icons.AutoMirrored.Filled.Send
-    QuestEvent.OPEN_BOX -> Icons.Filled.Inventory2
+    QuestEvent.OPEN_BOX -> Icons.Filled.RocketLaunch
     QuestEvent.ACHIEVEMENT -> Icons.Filled.MilitaryTech
 }
 

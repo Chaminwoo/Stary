@@ -154,7 +154,6 @@ fun MainScreen(
         currentDestination?.hasRoute<NavRoute.Profile>() == true -> NavRoute.Profile
         currentDestination?.hasRoute<NavRoute.Achievements>() == true -> NavRoute.Achievements
         currentDestination?.hasRoute<NavRoute.Workshop>() == true -> NavRoute.Workshop
-        currentDestination?.hasRoute<NavRoute.Collection>() == true -> NavRoute.Collection
         currentDestination?.hasRoute<NavRoute.Music>() == true -> NavRoute.Music
         currentDestination?.hasRoute<NavRoute.Settings>() == true -> NavRoute.Settings
         currentDestination?.hasRoute<NavRoute.Friends>() == true -> NavRoute.Friends
@@ -1095,7 +1094,6 @@ private fun localizedTitle(route: NavRoute): String = when (route) {
     is NavRoute.Profile -> stringResource(R.string.nav_profile)
     is NavRoute.Achievements -> stringResource(R.string.nav_achievements)
     is NavRoute.Workshop -> stringResource(R.string.nav_workshop)
-    is NavRoute.Collection -> stringResource(R.string.nav_collection)
     is NavRoute.Music -> stringResource(R.string.nav_music)
     is NavRoute.MyDiary -> stringResource(R.string.nav_my_diary)
     is NavRoute.StarLog -> stringResource(R.string.nav_star_log)
