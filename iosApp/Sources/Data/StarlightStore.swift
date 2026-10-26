@@ -1,14 +1,17 @@
 import FirebaseFirestore
 import Foundation
 
-/// 별빛 공방(2026-10-22) — 별가루 지갑 · 성운 상자 · 뽑기 풀. Android `feature/starlight/StarlightStore.kt` 패리티(같은 필드·규칙).
+/// 별가루(2026-10-26 개편, 옛 "별빛 공방") — 별가루 지갑 · 우주 항해 · 뽑기 풀. Android `feature/starlight/StarlightStore.kt` 패리티(같은 필드·규칙).
 ///
 /// - 지갑 `wallets/{uid}` 는 **읽기만**(규칙상 쓰기 불가). 바꾸는 일은 전부 `request` 로 서버(functions/starlight.js)에 맡긴다:
 ///   `users/{uid}/starlightOps/{id}` 에 `{op, 인자, status:"pending"}` 을 만들면 서버가 같은 문서에 결과를 쓴다.
 /// - 뽑기 풀 `starlightItems` · 설정 `starlightConfig/main` 도 DB 에서 읽는다 — 앱 업데이트 없이 늘리고 확률을 바꾼다.
 ///   설정 문서가 없으면 `Config.default`(서버 DEFAULT_CONFIG 와 같은 값).
-/// - 모양·색 아이템은 `StarCatalog` 에 가르쳐 둔다(도감·업로드 휠에서 그릴 수 있게).
-/// - 장착(프레임·배지·오라·칭호)은 서버가 소유를 확인하고 `starlightEquips/{uid}` 에 쓴다. 지도 오라는 그중 오라를 단 사람만 구독(`auraByUser`).
+/// - 우주 항해(`voyage`)는 경로(일반 · 희귀 탐사)마다 값과 확률이 다르다. **천장(확정 보정)은 없다** — 매 항해가 독립.
+/// - 광고 보상(`adReward`)은 하루 한도·연속 간격을 서버가 센다(한국 시간 자정에 초기화).
+/// - 모양·색 아이템은 `StarCatalog` 에 가르쳐 둔다(업로드 피커·업적 탐사 칸에서 그릴 수 있게).
+/// - 장착(프레임·배지·칭호)은 서버가 소유를 확인하고 `starlightEquips/{uid}` 에 쓴다(`equip`).
+///   별 고리는 장착이 아니라 **별마다** 고른다(업로드 → `diaries/{id}.ring`, 서버 checkDiaryRing 이 소유 확인).
 /// - 천체 망원경: 업적 ??? 공개는 `revealed`, 히든 업적 단서는 `hints`(서버가 문구까지 지갑에 넣어 준다).
 @MainActor
 final class StarlightStore: ObservableObject {
@@ -16,6 +19,8 @@ final class StarlightStore: ObservableObject {
     private init() {}
 
     nonisolated static let rarities = ["common", "rare", "epic", "legendary"]
+    /// 항해 경로 id — 화면 순서. 설정에 다른 경로가 있어도 화면엔 이 둘만(새 경로는 앱 업데이트 때).
+    nonisolated static let routes = ["normal", "rare"]
     /// 공방 칭호는 users.equippedTitle 에 "sl:{아이템 id}" 로 들어간다(업적 칭호 id 와 안 겹치게 — 서버 equip 이 쓴다).
     nonisolated static let titlePrefix = "sl:"
     private nonisolated static let wallets = "wallets"
@@ -26,27 +31,41 @@ final class StarlightStore: ObservableObject {
     private nonisolated static let opTimeout: Double = 25
     private nonisolated static let resubscribeDelay: UInt64 = 3_000_000_000
 
+    /// 항해 경로 하나 — `cost` 한 번 떠나는 별가루, `weights` 등급 확률(합이 100이 아니어도 비율).
+    struct Route: Equatable {
+        var cost: Int
+        var weights: [String: Double]
+
+        /// 등급별 확률(%) — 확률 안내용.
+        func percent(_ rarity: String) -> Double {
+            let total = weights.values.reduce(0, +)
+            return total <= 0 ? 0 : (weights[rarity] ?? 0) * 100 / total
+        }
+    }
+
     struct Config: Equatable {
         var questStardust = 10
         var bonusStardust = 20
         var keyCost = 10
+        /// 옛 성운 상자 한 개 값 — 남은 상자를 별가루로 돌려줄 때(convertBoxes) 서버가 쓴다.
         var boxCost = 100
-        var rarityWeights: [String: Double] = ["common": 60, "rare": 28, "epic": 10, "legendary": 2]
-        var pityEpic = 10
-        var pityLegendary = 50
+        var voyages: [String: Route] = [
+            "normal": Route(cost: 50, weights: ["common": 66, "rare": 28, "epic": 5, "legendary": 1]),
+            "rare": Route(cost: 300, weights: ["common": 12, "rare": 28, "epic": 50, "legendary": 10]),
+        ]
         var dupRefund: [String: Int] = ["common": 10, "rare": 25, "epic": 50, "legendary": 100]
-        var maxOpen = 10
+        var maxVoyage = 10
+        var maxExchange = 99
+        var adStardust = 10
+        var adDailyCap = 10
+        var adCooldownSec = 10
         /// 단서가 준비된 히든 업적 id — 반사·전파 망원경 버튼은 여기 있는 업적에만.
         var hintTargets: Set<String> = []
-        /// 공방 상자 카드에 겹쳐 보여 줄 대표 아이템 id(DB `showcase`) — 비면 전설 아이템 앞 3개.
-        var showcase: [String] = []
 
         static let `default` = Config()
 
-        /// 등급별 확률(%) — 확률 공개용.
-        func percent(_ rarity: String) -> Double {
-            let total = rarityWeights.values.reduce(0, +)
-            return total <= 0 ? 0 : (rarityWeights[rarity] ?? 0) * 100 / total
+        func route(_ id: String) -> Route {
+            voyages[id] ?? Config.default.voyages[id] ?? Route(cost: 0, weights: [:])
         }
     }
 
@@ -78,9 +97,9 @@ final class StarlightStore: ObservableObject {
         }
     }
 
-    /// 장착 칸.
+    /// 장착 칸 — 별 고리는 별마다 고르므로 칸이 없다(서버 equip 은 옛 앱용 aura 칸을 아직 받는다).
     enum Slot: String, CaseIterable {
-        case frame, badge, aura, title
+        case frame, badge, title
         var kind: String { rawValue }
         static func of(kind: String) -> Slot? { Slot(rawValue: kind) }
     }
@@ -89,14 +108,12 @@ final class StarlightStore: ObservableObject {
     struct Equips: Equatable {
         var frame: String?
         var badge: String?
-        var aura: String?
         var title: String?
 
         func of(_ slot: Slot) -> String? {
             switch slot {
             case .frame: return frame
             case .badge: return badge
-            case .aura: return aura
             case .title: return title
             }
         }
@@ -109,7 +126,7 @@ final class StarlightStore: ObservableObject {
         func text(in lang: String) -> String { text[lang] ?? text["ko"] ?? "" }
     }
 
-    /// 상자 하나를 연 결과.
+    /// 항해 한 번에서 찾아온 것.
     struct Draw {
         let itemId: String
         let rarity: String
@@ -119,27 +136,29 @@ final class StarlightStore: ObservableObject {
         let keys: Int
     }
 
-    /// code = 서버 오류 코드(insufficient · already · not_ready · no_boxes · empty_pool · invalid · server) 또는 timeout · offline.
+    /// code = 서버 오류 코드(insufficient · invalid · empty_pool · ad_limit · ad_cooldown · already · not_ready · server)
+    /// 또는 timeout · offline.
     enum OpResult {
         case done([String: Any])
         case failed(String)
     }
 
     @Published private(set) var stardust = 0
+    /// 옛 성운 상자(개편 전에 만들어 둔 것) — 별가루 화면을 열면 `convertBoxes` 로 별가루가 된다.
     @Published private(set) var boxes = 0
     /// 가진 아이템 id → 개수(꾸미기는 1, 소모품은 남은 수).
     @Published private(set) var owned: [String: Int] = [:]
-    @Published private(set) var sinceEpic = 0
-    @Published private(set) var sinceLegendary = 0
+    /// 오늘(한국 시간) 받은 광고 보상 횟수 · 마지막으로 받은 시각(ms).
+    @Published private(set) var adsDay = ""
+    @Published private(set) var adsN = 0
+    @Published private(set) var adsLast: Int64 = 0
     /// 서버 지갑을 한 번이라도 받았는지(받기 전엔 잔액을 "…"로).
     @Published private(set) var walletLoaded = false
     @Published private(set) var config = Config.default
-    /// 뽑기 풀 전체(뽑히지 않게 내린 것 포함 — 이미 가진 사람이 계속 그려야 한다). 도감은 `shownItems`.
+    /// 뽑기 풀 전체(뽑히지 않게 내린 것 포함 — 이미 가진 사람이 계속 그려야 한다).
     @Published private(set) var items: [Item] = []
     /// 내 장착 상태.
     @Published private(set) var myEquips = Equips()
-    /// 오라를 단 사람 → 오라 아이템 id(지도에서 그 사람의 별 둘레에 그린다).
-    @Published private(set) var auraByUser: [String: String] = [:]
     /// 굴절 망원경으로 조건을 연 업적 id.
     @Published private(set) var revealed: Set<String> = []
     /// 반사·전파 망원경으로 얻은 히든 업적 단서.
@@ -150,7 +169,7 @@ final class StarlightStore: ObservableObject {
     private var regs: [ListenerRegistration] = []
     private var retryTask: Task<Void, Never>?
 
-    func item(_ id: String?) -> Item? { id.flatMap { itemIndex[$0] } }
+    func item(_ id: String?) -> Item? { id.flatMap { $0.isEmpty ? nil : itemIndex[$0] } }
 
     /// 지금 구독 중인 사용자(= AuthManager.uid). 칭호 기기 사본 키(equipped_title_{uid})에 쓴다.
     var currentUid: String? { uid }
@@ -161,16 +180,13 @@ final class StarlightStore: ObservableObject {
         return item(String(t.dropFirst(Self.titlePrefix.count)))
     }
 
-    /// 도감에 보일 것 — 지금 뽑히는 것 + 내렸어도 내가 가진 것.
-    /// 공방 상자 카드의 대표 아이템 — DB showcase 순서, 없으면 지금 뽑히는 전설 앞 3개(Android `showcaseItems` 패리티).
-    var showcaseItems: [Item] {
-        let picked = config.showcase.compactMap { item($0) }
-        return picked.isEmpty ? Array(items.filter { $0.active && $0.rarity == "legendary" }.prefix(3)) : picked
-    }
+    /// 오늘(한국 시간) 광고 보상을 더 받을 수 있는 횟수.
+    var adsLeft: Int { max(0, config.adDailyCap - (adsDay == Self.kstDay() ? adsN : 0)) }
 
-    var shownItems: [Item] { items.filter { $0.active || (owned[$0.id] ?? 0) > 0 } }
+    /// 지금 뽑히는 아이템 중 rarity 인 것의 수 — 확률 안내("n종").
+    func poolCount(_ rarity: String) -> Int { items.filter { $0.active && $0.rarity == rarity }.count }
 
-    /// 가진 별 모양 번호(성운 상자) — 업로드 휠에서 내장 0~20 뒤에 붙인다.
+    /// 가진 별 모양 번호(우주 항해) — 업로드 휠에서 내장 0~20 뒤에 붙인다.
     var ownedShapeTypes: [Int] {
         Array(Set(ownedOf("shape").compactMap { $0.int("type") })).sorted()
     }
@@ -184,6 +200,14 @@ final class StarlightStore: ObservableObject {
     /// 가진 망원경 중 mode(reveal / hint) 인 것, 효과가 약한 것부터(아껴 쓰게).
     func telescopes(_ mode: String) -> [Item] {
         ownedOf("telescope").filter { $0.str("mode") == mode }.sorted { ($0.int("level") ?? 0) < ($1.int("level") ?? 0) }
+    }
+
+    /// 서버 adReward 와 같은 "하루" — 한국 시간 날짜(yyyy-MM-dd).
+    nonisolated static func kstDay(_ now: Date = Date()) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 9 * 3600) ?? .current
+        let c = cal.dateComponents([.year, .month, .day], from: now)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
     // MARK: - 구독
@@ -204,7 +228,7 @@ final class StarlightStore: ObservableObject {
         retryTask = nil
         uid = nil
         stardust = 0; boxes = 0; owned = [:]
-        sinceEpic = 0; sinceLegendary = 0
+        adsDay = ""; adsN = 0; adsLast = 0
         walletLoaded = false
         myEquips = Equips()
         revealed = []
@@ -221,7 +245,7 @@ final class StarlightStore: ObservableObject {
                 let s = StarlightStore.shared
                 guard s.uid == uid else { return }
                 s.stardust = w.stardust; s.boxes = w.boxes; s.owned = w.owned
-                s.sinceEpic = w.sinceEpic; s.sinceLegendary = w.sinceLegendary
+                s.adsDay = w.adsDay; s.adsN = w.adsN; s.adsLast = w.adsLast
                 s.revealed = w.revealed; s.hints = w.hints
                 if w.fromServer { s.walletLoaded = true }
             }
@@ -248,19 +272,6 @@ final class StarlightStore: ObservableObject {
             Task { @MainActor in
                 guard StarlightStore.shared.uid == uid else { return }
                 StarlightStore.shared.myEquips = e
-            }
-        })
-        // 오라를 단 사람만(aura != null) — 지도에 그릴 사람 수만큼만 읽는다.
-        regs.append(db.collection(Self.equipsCol).whereField("aura", isNotEqualTo: NSNull()).addSnapshotListener { snap, err in
-            if err != nil { Task { @MainActor in StarlightStore.shared.retry(uid) }; return }
-            guard let snap else { return }
-            var map: [String: String] = [:]
-            for d in snap.documents {
-                if let a = d.get("aura") as? String, !a.isEmpty { map[d.documentID] = a }
-            }
-            Task { @MainActor in
-                guard StarlightStore.shared.uid == uid else { return }
-                if StarlightStore.shared.auraByUser != map { StarlightStore.shared.auraByUser = map }
             }
         })
         regs.append(db.collection(Self.configCol).document("main").addSnapshotListener { snap, err in
@@ -293,7 +304,8 @@ final class StarlightStore: ObservableObject {
     private struct Wallet {
         var stardust = 0, boxes = 0
         var owned: [String: Int] = [:]
-        var sinceEpic = 0, sinceLegendary = 0
+        var adsDay = "", adsN = 0
+        var adsLast: Int64 = 0
         var revealed: Set<String> = []
         var hints: [String: Hint] = [:]
         var fromServer = false
@@ -306,9 +318,10 @@ final class StarlightStore: ObservableObject {
         for (k, v) in (snap.get("items") as? [String: Any]) ?? [:] {
             if let n = (v as? NSNumber)?.intValue { w.owned[k] = n }
         }
-        let pity = snap.get("pity") as? [String: Any]
-        w.sinceEpic = (pity?["sinceEpic"] as? NSNumber)?.intValue ?? 0
-        w.sinceLegendary = (pity?["sinceLegendary"] as? NSNumber)?.intValue ?? 0
+        let ads = snap.get("ads") as? [String: Any]
+        w.adsDay = (ads?["day"] as? String) ?? ""
+        w.adsN = (ads?["n"] as? NSNumber)?.intValue ?? 0
+        w.adsLast = (ads?["last"] as? NSNumber)?.int64Value ?? 0
         for (k, v) in (snap.get("revealed") as? [String: Any]) ?? [:] where (v as? Bool) == true { w.revealed.insert(k) }
         for (k, v) in (snap.get("hints") as? [String: Any]) ?? [:] {
             guard let m = v as? [String: Any], let t = m["text"] as? [String: Any] else { continue }
@@ -328,16 +341,24 @@ final class StarlightStore: ObservableObject {
         c.bonusStardust = int("bonusStardust") ?? c.bonusStardust
         c.keyCost = int("keyCost") ?? c.keyCost
         c.boxCost = int("boxCost") ?? c.boxCost
-        for (k, v) in (snap.get("rarityWeights") as? [String: Any]) ?? [:] {
-            if let n = (v as? NSNumber)?.doubleValue { c.rarityWeights[k] = n }
+        // 경로마다 기본값 위에 덮는다(서버 mergeVoyages 와 같은 규칙).
+        for (id, v) in (snap.get("voyages") as? [String: Any]) ?? [:] {
+            guard let m = v as? [String: Any] else { continue }
+            var r = c.voyages[id] ?? Route(cost: 0, weights: [:])
+            if let cost = (m["cost"] as? NSNumber)?.intValue { r.cost = cost }
+            for (k, w) in (m["weights"] as? [String: Any]) ?? [:] {
+                if let n = (w as? NSNumber)?.doubleValue { r.weights[k] = n }
+            }
+            c.voyages[id] = r
         }
-        c.pityEpic = int("pityEpic") ?? c.pityEpic
-        c.pityLegendary = int("pityLegendary") ?? c.pityLegendary
         for (k, v) in (snap.get("dupRefund") as? [String: Any]) ?? [:] {
             if let n = (v as? NSNumber)?.intValue { c.dupRefund[k] = n }
         }
-        c.maxOpen = int("maxOpen") ?? c.maxOpen
-        c.showcase = (snap.get("showcase") as? [Any])?.compactMap { $0 as? String } ?? []
+        c.maxVoyage = int("maxVoyage") ?? c.maxVoyage
+        c.maxExchange = int("maxExchange") ?? c.maxExchange
+        c.adStardust = int("adStardust") ?? c.adStardust
+        c.adDailyCap = int("adDailyCap") ?? c.adDailyCap
+        c.adCooldownSec = int("adCooldownSec") ?? c.adCooldownSec
         c.hintTargets = Set((snap.get("hintTargets") as? [Any])?.compactMap { $0 as? String } ?? [])
         return c
     }
@@ -345,7 +366,7 @@ final class StarlightStore: ObservableObject {
     nonisolated static func parseEquips(_ snap: DocumentSnapshot) -> Equips {
         guard snap.exists else { return Equips() }
         func s(_ k: String) -> String? { (snap.get(k) as? String).flatMap { $0.isEmpty ? nil : $0 } }
-        return Equips(frame: s("frame"), badge: s("badge"), aura: s("aura"), title: s("title"))
+        return Equips(frame: s("frame"), badge: s("badge"), title: s("title"))
     }
 
     private nonisolated static func parseItem(_ doc: QueryDocumentSnapshot) -> Item? {
@@ -395,6 +416,22 @@ final class StarlightStore: ObservableObject {
         return await request("equip", args)
     }
 
+    /// 우주 항해 — route 경로로 count 번(서버가 별가루를 빼고 결과를 정한다).
+    func voyage(_ route: String, _ count: Int) async -> OpResult {
+        await request("voyage", ["route": route, "count": count])
+    }
+
+    /// 열쇠 구매 — 별가루 `Config.keyCost` × count.
+    func buyKeys(_ count: Int) async -> OpResult {
+        await request("exchange", ["to": "key", "count": count])
+    }
+
+    /// 광고를 끝까지 본 뒤 — 별가루 `Config.adStardust`(하루 한도·간격은 서버가 센다).
+    func adReward() async -> OpResult { await request("adReward") }
+
+    /// 남은 옛 성운 상자를 별가루로(상자 값 그대로). 상자가 없으면 서버가 "already".
+    func convertBoxes() async -> OpResult { await request("convertBoxes") }
+
     /// 천체 망원경 사용 — target = 업적 id(굴절: ??? 업적 / 반사·전파: 히든 업적).
     func useTelescope(_ itemId: String, target: String) async -> OpResult {
         await request("useItem", ["itemId": itemId, "target": target])
@@ -426,7 +463,7 @@ final class StarlightStore: ObservableObject {
         }
     }
 
-    /// openBox 결과 → Draw 목록.
+    /// voyage 결과 → Draw 목록.
     nonisolated static func draws(_ result: [String: Any]) -> [Draw] {
         ((result["results"] as? [Any]) ?? []).compactMap { r in
             guard let m = r as? [String: Any], let id = m["id"] as? String else { return nil }

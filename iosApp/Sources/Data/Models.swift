@@ -42,6 +42,9 @@ struct Diary: Identifiable, Codable, Hashable {
 
     var visibilityType: String = "public"
 
+    /// 이 별에 단 별 고리(우주 항해 아이템 id, 2026-10-26). 비어 있으면 고리 없음 — 업로드 때 고른다(서버 checkDiaryRing 이 소유 확인).
+    var ring: String = ""
+
     /// 서버(Cloud Functions)가 채우는 자동 선번역 — **읽기 전용**(encode 에 넣지 않는다: 수정 시 setData(merge:) 가
     /// 낡은 번역을 되써서 서버 값을 덮어쓰면 안 된다). 없으면 nil → 원문. 표시는 DiaryText.swift 의 *ForDisplay 만 쓸 것.
     var translations: DiaryTranslations?
@@ -68,6 +71,7 @@ struct Diary: Identifiable, Codable, Hashable {
         starPath: String = "",
         starColors: [String] = [],
         visibilityType: String = "public",
+        ring: String = "",
         translations: DiaryTranslations? = nil
     ) {
         self.id = id
@@ -89,6 +93,7 @@ struct Diary: Identifiable, Codable, Hashable {
         self.starPath = starPath
         self.starColors = starColors
         self.visibilityType = visibilityType
+        self.ring = ring
         self.translations = translations
     }
 
@@ -122,6 +127,8 @@ struct Diary: Identifiable, Codable, Hashable {
         case starColors
 
         case visibilityType
+
+        case ring
 
         case translations
     }
@@ -209,6 +216,8 @@ struct Diary: Identifiable, Codable, Hashable {
         StarCatalog.shared.learn(type: starType, path: starPath, color: starColor, colors: starColors)
 
         visibilityType = str(.visibilityType) ?? "public"
+
+        ring = str(.ring) ?? ""
 
         // 번역은 부가 정보 — 어떤 모양이어도(null/예상 밖 타입) 글 자체가 누락되지 않게 실패하면 nil.
         translations = try? c.decodeIfPresent(DiaryTranslations.self, forKey: .translations)
@@ -315,6 +324,9 @@ struct Diary: Identifiable, Codable, Hashable {
             visibilityType,
             forKey: .visibilityType
         )
+
+        // 고리를 단 별만 싣는다(Android `Diary.ring` 과 같은 필드).
+        if !ring.isEmpty { try container.encode(ring, forKey: .ring) }
     }
 
     // MARK: - Hashable / Equatable

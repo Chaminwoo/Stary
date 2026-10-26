@@ -36,10 +36,10 @@ final class TabRouter: ObservableObject {
     static let upload = 2
     static let friends = 3
     static let profile = 4
-    /// 별빛 공방(2026-10-22) — 퀘스트 창 별가루 칩 · 첫 별 안내 "공방 가기".
+    /// 별가루(우주 항해, 2026-10-26 — 옛 별빛 공방) — 퀘스트 창 별가루 칩 · 첫 별 안내 · 업적 탐사 "항해하러 가기".
     static let workshop = 5
-    /// 수집품(2026-10-22) — 공방 "수집품 보기" · 프로필 "수집품".
-    static let collection = 6
+    /// 업적(2026-10-26 — 옛 수집품 대신) — 별가루 화면 "찾은 것은 업적 › 특별 › 탐사"(AchievementsTab 으로 탭 지정).
+    static let achievements = 6
 
     @Published private(set) var request: (tab: Int, nonce: Int) = (TabRouter.map, 0)
 

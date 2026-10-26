@@ -334,7 +334,7 @@ private func questSymbol(_ e: QuestEvent?) -> String {
     case .music: return "music.note"
     case .focus: return "leaf.fill"
     case .unlockKey: return "lock.open.fill"
-    case .openBox: return "shippingbox.fill"
+    case .openBox: return "moon.stars.fill" // 우주 항해(옛 성운 상자 열기) — Android RocketLaunch 대응
     case .achievement: return "medal.fill"
     }
 }

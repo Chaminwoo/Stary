@@ -373,7 +373,7 @@ struct StarPickerSheet: View {
         return VStack(alignment: .leading, spacing: 0) {
             group(LocaleManager.shared.t(.pickerGroupBasic), "\(g.basic.count)", g.basic)
             group(LocaleManager.shared.t(.pickerGroupAchievement), "\(g.rewardsOwned)/\(g.rewards.count)", g.rewardsShown)
-            group(LocaleManager.shared.t(.navWorkshop), "\(g.workshop.count)", g.workshop)
+            group(LocaleManager.shared.t(.achVoyageSection), "\(g.workshop.count)", g.workshop)
         }
         .padding(.bottom, 12)
     }

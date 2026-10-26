@@ -1,9 +1,22 @@
 import FirebaseFirestore
 import SwiftUI
 
+/// 다른 화면에서 업적의 특정 탭으로 바로 보낼 때(별가루 화면의 "찾은 것은 업적 › 특별 › 탐사", 프로필의 탐사 수집품) — 한 번 쓰고 비운다.
+/// 뒤에 이미 열려 있던 업적 화면(별가루 ↔ 업적을 오가다 돌아온 경우)도 바뀐 값을 받아 그 탭으로 간다. Android `AchievementsTab` 패리티.
+@MainActor
+final class AchievementsTab: ObservableObject {
+    static let shared = AchievementsTab()
+    nonisolated static let special = 1
+    @Published private(set) var pending: Int?
+    private init() {}
+
+    func request(_ tab: Int) { pending = tab }
+    func consume() { pending = nil }
+}
+
 /// 업적 화면 — **공용 / 특별 / 히든** 3탭(2026-10-19 재구성, Android AchievementsScreen 패리티).
 ///  - 공용: 누구나 얻는 업적 — 칭호(주제별 묶음) · 별 모양 · 별 색(3열 타일).
-///  - 특별: 모두가 갖지는 못하는 업적 — 특별한 순간 · 퀘스트 보상 · 초대 · 개척 칭호.
+///  - 특별: 모두가 갖지는 못하는 것 — **탐사**(우주 항해에서 찾은 것, 2026-10-26 맨 앞) · 특별한 순간 · 퀘스트 보상 · 초대 · 개척 칭호.
 ///  - 히든: 앱 전체에서 단 한 명.
 /// 프로필의 칭호/업적 아이콘 탭으로 진입한다. 장착한 칭호는 users/{uid}.equippedTitle 에 기록.
 struct AchievementsScreen: View {
@@ -31,6 +44,9 @@ struct AchievementsScreen: View {
     /// 별빛 공방 — 천체 망원경(굴절: ??? 조건 공개 / 반사·전파: 히든 업적 단서).
     @ObservedObject private var starlight = StarlightStore.shared
     @State private var telescopeAsk: TelescopeAsk?
+    /// 특별 › 탐사 — 종류 칩(nil = 전체) · 누른 아이템 상세.
+    @State private var findKind: String?
+    @State private var findDetail: StarlightStore.Item?
 
     private var mine: [Diary] { store.mine(uid: auth.uid) }
     /// 열람 업적은 "다른 사람의 다이어리" 기준 — 내 글 열람 기록 제외.
@@ -78,9 +94,22 @@ struct AchievementsScreen: View {
                     .transition(.opacity)
                     .zIndex(5)
             }
+            if let item = findDetail {
+                StarlightItemDetail(item: item, equippedTitle: equippedTitleId, onTitleChanged: { equippedTitleId = $0 }) {
+                    withAnimation(.easeOut(duration: 0.18)) { findDetail = nil }
+                }
+                .transition(.opacity)
+                .zIndex(6)
+            }
         }
         .navigationTitle(locale.t(.navAchievements))
         .navigationBarTitleDisplayMode(.inline)
+        // 별가루 화면·프로필에서 "탐사"로 보낸 요청 — 처음 열릴 때도(구독 시점 값), 뒤에 열려 있다가 돌아올 때도 받는다.
+        .onReceive(AchievementsTab.shared.$pending) { p in
+            guard let p else { return }
+            tab = p
+            DispatchQueue.main.async { AchievementsTab.shared.consume() }
+        }
         .task {
             hidden.start()
             guard let uid = auth.uid else { return }
@@ -266,6 +295,34 @@ struct AchievementsScreen: View {
             }
             .frame(height: 52)
 
+            // ── 탐사(우주 항해) — 맨 앞. 가진 것만, 종류 칩으로 거르고 누르면 상세(프레임·배지·칭호는 장착). ──
+            let finds = ownedFinds()
+            let kinds = findKinds(finds)
+            specialHeader(locale.t(.achVoyageSection), locale.t(.achVoyageSub), done: finds.count, total: nil)
+            if finds.isEmpty {
+                voyageEmptyCard
+            } else {
+                VoyageLoadout(equippedTitle: equippedTitleId) { k in
+                    guard kinds.contains(k) else { return }
+                    Haptics.tick()
+                    withAnimation(.easeOut(duration: 0.18)) { findKind = k }
+                }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        findChip(locale.t(.starlightAll), finds.count, findKind == nil) { findKind = nil }
+                        ForEach(kinds, id: \.self) { k in
+                            findChip(starlightKindName(k), finds.filter { $0.kind == k }.count, findKind == k) { findKind = k }
+                        }
+                    }
+                }
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3), spacing: 10) {
+                    ForEach(findKind.map { k in finds.filter { $0.kind == k } } ?? finds) { item in
+                        OwnedCell(item: item, equippedTitle: equippedTitleId)
+                            .onTapGesture { withAnimation(.easeOut(duration: 0.18)) { findDetail = item } }
+                    }
+                }
+            }
+
             let groups = Achievements.specialGroups
             ForEach(groups.indices, id: \.self) { i in
                 let group = groups[i]
@@ -291,6 +348,42 @@ struct AchievementsScreen: View {
             }
         }
         .padding(16)
+    }
+
+    private func findChip(_ text: String, _ count: Int, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
+        StaryChip("\(text) \(count)", selected: selected, accent: Self.special) {
+            Haptics.tick()
+            withAnimation(.easeOut(duration: 0.18)) { action() }
+        }
+    }
+
+    /// 탐사에서 아직 찾은 것이 없을 때 — 어떻게 얻는지 + 별가루 화면으로.
+    private var voyageEmptyCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 18))
+                .foregroundStyle(Self.special)
+                .frame(width: 44, height: 44)
+                .background(Self.special.opacity(0.12), in: Circle())
+            Text(locale.t(.achVoyageEmpty))
+                .font(.minSans(12)).foregroundStyle(Theme.textSecondary).lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                Haptics.tick()
+                TabRouter.shared.go(TabRouter.workshop)
+            } label: {
+                Text(locale.t(.achVoyageGo))
+                    .font(.minSans(12, .semibold)).foregroundStyle(Self.special)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Self.special.opacity(0.12), in: Capsule())
+                    .overlay(Capsule().strokeBorder(Self.special.opacity(0.35), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(14)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.06), lineWidth: 1))
     }
 
     private func specialTitle(_ g: Achievements.Special) -> String {

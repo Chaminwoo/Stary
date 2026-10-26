@@ -67,7 +67,13 @@ private struct ChatTarget: Identifiable {
 
 /// 드로어(좌측 메뉴)/FAB 에서 여는 하위 화면 — Android `NavRoute` 대응.
 enum DrawerDest: Hashable {
-    case myDiary, starLog, profile, achievements, workshop, collection, music, friends, settings, notifications, upload
+    case myDiary, starLog, profile, achievements, workshop, music, friends, settings, notifications, upload
+}
+
+/// path 에 직접 넣은 드로어 목적지와 그 자리 — `MainTabView.goBackOrPush` 가 "이미 뒤에 있나"를 알려고 쓴다.
+private struct PushedDest {
+    let dest: DrawerDest
+    let index: Int
 }
 
 /// 메인 홈 — Android `MainScreen` 대응.
@@ -100,6 +106,9 @@ struct MainTabView: View {
     /// (Android MainScreen drawerReveal/drawerItemReveal 패리티 — 간격 45ms, 한 항목 300ms, 슬라이드 22pt)
     @State private var drawerItemsIn = false
     @State private var path = NavigationPath()
+    /// 드로어 목적지를 넣은 자리(NavigationPath 는 안을 들여다볼 수 없다). 화면 안에서 push 한 값(친구·별 상세)은 없어도 된다 —
+    /// 자리(인덱스)로 기억하므로, path 가 줄면 넘친 기록만 버리면 맞는다.
+    @State private var pushed: [PushedDest] = []
     @State private var chatTarget: ChatTarget?
     @State private var diaryTarget: Diary?
     // 일반 업적 해금 축하 팝업(Android AchievementUnlockWatcher 대응) — 큐 + 친구 수(스탯 계산용).
@@ -173,7 +182,7 @@ struct MainTabView: View {
                 if let warp = uploadWarp {
                     DiaryOpenWarpView(data: warp) {
                         uploadWarp = nil
-                        path.append(DrawerDest.upload)
+                        push(DrawerDest.upload)
                     }
                     .allowsHitTesting(false)
                 }
@@ -304,7 +313,7 @@ struct MainTabView: View {
         // 길찾기/포커스 요청 → 전부 pop 하고 지도(루트)로 (Android popUpTo Main 대응).
         .onChange(of: focus.pendingDiaryId) { id in
             if id != nil {
-                path = NavigationPath()
+                resetPath()
                 chatTarget = nil
                 diaryTarget = nil
                 drawerOpen = false
@@ -319,7 +328,7 @@ struct MainTabView: View {
         // 설정 > 도움말 다시 보기 → 지도로 돌아가 코치마크 재생.
         .onChange(of: onboardingReplay.requested) { requested in
             if requested {
-                path = NavigationPath()
+                resetPath()
                 chatTarget = nil
                 diaryTarget = nil
                 drawerOpen = false
@@ -333,18 +342,18 @@ struct MainTabView: View {
             guard let route else { return }
             switch route {
             case .chat(let friendId, let friendName):
-                path = NavigationPath()
+                resetPath()
                 diaryTarget = nil
                 chatTarget = ChatTarget(friendId: friendId, friendName: friendName)
             case .diary(let diaryId):
                 // 상세 직행은 100m 열람 게이팅을 우회하므로 지도에서 그 별로 포커스(공유 딥링크와 동일 정책).
-                path = NavigationPath()
+                resetPath()
                 chatTarget = nil; diaryTarget = nil
                 MapFocusStore.shared.request(diaryId: diaryId)
             case .diaryDetail(let diaryId):
                 // 내 글에 달린 좋아요·댓글 → 상세 직행(Android navigateToDetail). 목록이 로드 전이어도 열리도록
                 // 구독 목록에 없으면 Firestore 에서 직접 읽는다 — 못 찾으면 조용히 무시하지 않고 안내한다.
-                path = NavigationPath()
+                resetPath()
                 chatTarget = nil; diaryTarget = nil
                 Task { @MainActor in
                     if let d = await store.diary(id: diaryId, viewerUid: auth.uid) {
@@ -355,27 +364,30 @@ struct MainTabView: View {
                 }
             case .friends:
                 chatTarget = nil; diaryTarget = nil
-                path = NavigationPath()
-                path.append(DrawerDest.friends)
+                resetPath()
+                push(DrawerDest.friends)
             case .upload:
                 chatTarget = nil; diaryTarget = nil
-                path = NavigationPath()
-                path.append(DrawerDest.upload)
+                resetPath()
+                push(DrawerDest.upload)
             }
             pushRouter.pending = nil
         }
         // 탭바 시절 go(tab) 호출부(딥링크/업로드 성공/프로필 버블) → 드로어 내비 목적지로 해석.
         .onChange(of: router.request.nonce) { _ in
             switch router.request.tab {
-            case TabRouter.map: path = NavigationPath()
-            case TabRouter.friends: path.append(DrawerDest.friends)
-            case TabRouter.upload: path.append(DrawerDest.upload)
-            case TabRouter.profile: path.append(DrawerDest.profile)
-            case TabRouter.workshop: path.append(DrawerDest.workshop)
-            case TabRouter.collection: path.append(DrawerDest.collection)
-            default: path.append(DrawerDest.myDiary)
+            case TabRouter.map: resetPath()
+            case TabRouter.friends: push(DrawerDest.friends)
+            case TabRouter.upload: push(DrawerDest.upload)
+            case TabRouter.profile: push(DrawerDest.profile)
+            // 별가루 ↔ 업적(탐사)은 서로 오가므로, 이미 뒤에 있으면 새로 쌓지 않고 그 화면으로 돌아간다(Android popBackStack 패리티).
+            case TabRouter.workshop: goBackOrPush(.workshop)
+            case TabRouter.achievements: goBackOrPush(.achievements)
+            default: push(DrawerDest.myDiary)
             }
         }
+        // 뒤로 가기(스와이프·버튼)로 path 가 줄면 넘친 기록을 버린다.
+        .onChange(of: path.count) { n in pushed.removeAll { $0.index >= n } }
         .environmentObject(store)
         .environmentObject(location)
         .environmentObject(viewed)
@@ -577,7 +589,7 @@ struct MainTabView: View {
                 )
             Spacer()
             Button {
-                path.append(DrawerDest.notifications)
+                push(DrawerDest.notifications)
             } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "heart")
@@ -820,7 +832,27 @@ struct MainTabView: View {
     /// 드로어 항목 탭 — 닫고 push.
     private func open(_ dest: DrawerDest) {
         withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
+        push(dest)
+    }
+
+    private func push(_ dest: DrawerDest) {
+        pushed.append(PushedDest(dest: dest, index: path.count))
         path.append(dest)
+    }
+
+    /// 전부 pop 하고 지도(루트)로.
+    private func resetPath() {
+        path = NavigationPath()
+        pushed.removeAll()
+    }
+
+    /// 이미 뒤에 있으면 위에 쌓인 화면을 걷어 내고 그리로 돌아가고, 없으면 새로 쌓는다.
+    private func goBackOrPush(_ dest: DrawerDest) {
+        if let p = pushed.last(where: { $0.dest == dest }), p.index < path.count {
+            path.removeLast(path.count - p.index - 1)
+        } else {
+            push(dest)
+        }
     }
 
     // MARK: - push 목적지 (Android NavGraph 대응)
@@ -836,7 +868,6 @@ struct MainTabView: View {
             case .profile: ProfileScreen()
             case .achievements: AchievementsEntry()
             case .workshop: WorkshopScreen()
-            case .collection: CollectionScreen()
             case .music: MusicScreen()
             case .friends: FriendsScreen()
             case .settings: SettingsScreen()

@@ -342,7 +342,7 @@ struct MapLibreView: UIViewRepresentable {
             context.coordinator.startStarReveal(mapView)
         }
 
-        // 별빛 공방 오라 — 누가 오라를 달거나 바꾸면 이미 올린 별에도 바로 반영(Android auraByUser 키 패리티).
+        // 별 고리(별마다 diaries/{id}.ring) — 떠 있는 별의 고리나 뽑기 풀(고리 정의)이 바뀌면 후광을 다시 만든다(Android 패리티).
         context.coordinator.refreshStarlightAuraIfNeeded(mapView)
 
         // 스타일 이펙트.
@@ -407,11 +407,11 @@ struct MapLibreView: UIViewRepresentable {
         var twinkleTimer: Timer?
         var twinkleT: Double = 0
 
-        /// 별빛 공방 오라 구성 키(누가 무엇을 달았나 + 아이템 수) — 바뀌면 후광 소스를 다시 만든다.
-        /// "|" 로 시작 = 오라를 단 사람이 없음(트윙클 루프가 오라 애니메이션을 건너뛴다).
+        /// 별 고리 구성 키(떠 있는 별이 두른 고리 + 아이템 수) — 바뀌면 후광 소스를 다시 만든다.
+        /// "|" 로 시작 = 고리를 두른 별이 없음(트윙클 루프가 고리 애니메이션을 건너뛴다).
         var lastSlAuraKey = "|"
-        /// 사람별 공방 오라(패턴, 색1, 색2) — refreshStarlightAuraIfNeeded 가 채운다.
-        var slAuraByUser: [String: SlAura] = [:]
+        /// 고리 id → 지도 표현(패턴, 색1, 색2 …) — refreshStarlightAuraIfNeeded 가 채운다.
+        var slAuraByRing: [String: SlAura] = [:]
         /// 공방 오라 반경 표현식 캐시(1/32 단위).
         var slRadiusCache: [Int: NSExpression] = [:]
 

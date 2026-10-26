@@ -403,11 +403,11 @@ extension MapLibreView.Coordinator {
         "sl-aura-img-\(item.id)-\(StarlightArt.javaHash(StarlightAura.key(item.payload)))"
     }
 
-    /// 그 사람이 단 오라. 안 달았거나 아이템을 모르면 nil. (Android slAuraOf 패리티)
+    /// 그 별에 두른 고리(`diaries/{id}.ring` — 2026-10-26부터 사람이 아니라 별마다) → 지도 표현.
+    /// 안 둘렀거나 아이템을 모르면 nil. (Android slAuraOf 패리티)
     @MainActor
-    static func slAuraOf(_ userId: String) -> SlAura? {
-        let store = StarlightStore.shared
-        guard let id = store.auraByUser[userId], let item = store.item(id) else { return nil }
+    static func slAuraOf(ring ringId: String) -> SlAura? {
+        guard let item = StarlightStore.shared.item(ringId) else { return nil }
         let raw = item.str("pattern") ?? "halo"
         let hasSprite = StarlightAura.spritePatterns.contains(raw)
         let pattern = StyleFx.slPatterns.contains(raw) ? raw : "halo"
@@ -419,21 +419,22 @@ extension MapLibreView.Coordinator {
                       spin: m.spinDegPerSec, wobble: m.wobbleDeg, flicker: m.flicker ? 1 : 0)
     }
 
-    /// 공방 오라 구성이 바뀌었으면(누가 달았나 · 아이템 목록) 후광 소스를 다시 만든다 — updateUIView 에서 매번 부른다.
+    /// 별 고리 구성이 바뀌었으면(떠 있는 별이 두른 고리 · 아이템 목록) 후광 소스를 다시 만든다 — updateUIView 에서 매번 부른다.
+    /// 고리는 별 문서에 실려 오고, 서버가 안 가진 고리를 만든 직후 지우기도 한다 — 떠 있는 별의 고리로 키를 만든다(Android 패리티).
     @MainActor
     func refreshStarlightAuraIfNeeded(_ mapView: MLNMapView) {
         let store = StarlightStore.shared
-        let key = store.auraByUser.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
-            + "|\(store.items.count)"
+        let rings = Set((mapView.annotations ?? []).compactMap { ($0 as? DiaryAnnotation)?.diary.ring }.filter { !$0.isEmpty })
+        let key = rings.sorted().joined(separator: ",") + "|\(store.items.count)"
         guard key != lastSlAuraKey else { return }
         lastSlAuraKey = key
-        // 후광 소스 갱신(비격리)에서 쓰도록 사람별 오라를 미리 풀어 둔다.
-        var byUser: [String: SlAura] = [:]
-        for uid in store.auraByUser.keys { if let sl = Self.slAuraOf(uid) { byUser[uid] = sl } }
-        slAuraByUser = byUser
-        // 지금 누군가 달고 있는 오라의 스프라이트만 등록(한 번 등록하면 스타일이 바뀔 때까지 유지).
+        // 후광 소스 갱신(비격리)에서 쓰도록 고리별 표현을 미리 풀어 둔다.
+        var byRing: [String: SlAura] = [:]
+        for id in rings { if let sl = Self.slAuraOf(ring: id) { byRing[id] = sl } }
+        slAuraByRing = byRing
+        // 지금 떠 있는 별이 두른 고리의 스프라이트만 등록(한 번 등록하면 스타일이 바뀔 때까지 유지).
         if let style = styleRef {
-            for id in Set(store.auraByUser.values) {
+            for id in rings {
                 guard let item = store.item(id) else { continue }
                 let name = Self.slSpriteName(item)
                 guard style.image(forName: name) == nil,
@@ -458,7 +459,7 @@ extension MapLibreView.Coordinator {
                 let f = MLNPointFeature()
                 f.coordinate = a.coordinate
                 let fresh = nowMs - a.diary.createdAt <= StyleFx.freshWindowMs
-                let sl = self.slAuraByUser[a.diary.userId]
+                let sl = a.diary.ring.isEmpty ? nil : self.slAuraByRing[a.diary.ring]
                 f.attributes = [
                     "sizeMult": max(a.sizeMult, 1.0),
                     "auraColor": Self.starColorHex(a.diary.starColor),

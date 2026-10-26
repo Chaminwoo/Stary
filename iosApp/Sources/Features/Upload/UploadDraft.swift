@@ -1,12 +1,14 @@
 import Foundation
 
-/// 업로드 화면에서 쓰다 나간 글 — 제목·본문·별 모양/색·공개 범위만 기기에 남긴다(사진·움짤은 다시 고른다).
+/// 업로드 화면에서 쓰다 나간 글 — 제목·본문·별 모양/색·공개 범위·별 고리만 기기에 남긴다(사진·움짤은 다시 고른다).
 struct UploadDraft: Codable, Equatable {
     var title: String
     var content: String
     var starType: Int
     var starColor: Int
     var visibility: String
+    /// 별 고리(2026-10-26) — 옵셔널이라 예전에 남긴 글(키 없음)도 그대로 읽힌다. nil = 미착용.
+    var ring: String? = nil
 
     var hasText: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||

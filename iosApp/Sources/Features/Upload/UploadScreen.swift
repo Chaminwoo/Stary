@@ -24,7 +24,9 @@ struct UploadScreen: View {
     @State private var visibility: Visibility = .publicAll
     @State private var starType = 1
     @State private var starColor = 9
-    /// 성운 상자에서 얻은 별 모양·색 — 휠 끝에 덧붙인다.
+    /// 별 고리(우주 항해, 2026-10-26) — 이 별에만 두른다. 빈 값 = 미착용. 칸은 고리를 가진 사람에게만 보인다.
+    @State private var ring = ""
+    /// 우주 항해에서 찾은 별 모양·색 — 휠 끝에 덧붙인다. 고리 칸도 여기서 가진 고리를 읽는다.
     @ObservedObject private var starlight = StarlightStore.shared
     /// 가진 것만 보기 — 잠긴 칸을 휠에서 뺀다(한 번 켜 두면 기억). 지금 고른 칸은 잠겨 있어도 남긴다.
     @AppStorage(StarPickerPrefs.ownedOnlyKey) private var ownedOnly = false
@@ -238,6 +240,14 @@ struct UploadScreen: View {
             OwnedOnlyToggle(isOn: $ownedOnly)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 6)
+            // ── 별 고리 — 우주 항해에서 찾은 고리가 있을 때만. 고른 고리는 이 별에만 둘린다(Android 패리티) ──
+            let rings = starlight.ownedOf("aura")
+            if !rings.isEmpty {
+                sectionHeader(LocaleManager.shared.t(.uploadRing))
+                    .padding(.top, 14)
+                RingPicker(rings: rings, selected: $ring, starType: starType, starColor: starColor, enabled: !saving)
+                    .padding(.top, 8)
+            }
             hairline
                 .padding(.top, 16)
                 .padding(.bottom, 20)
@@ -587,7 +597,7 @@ struct UploadScreen: View {
 
     private var draftNow: UploadDraft {
         UploadDraft(title: title, content: content, starType: starType, starColor: starColor,
-                    visibility: visibility.rawValue)
+                    visibility: visibility.rawValue, ring: ring.isEmpty ? nil : ring)
     }
 
     /// 쓴 글이 있으면 기기에 남긴다. 저장에 성공하면 제목·본문을 비우므로 그 뒤엔 남기지 않는다.
@@ -602,6 +612,7 @@ struct UploadScreen: View {
         starType = d.starType
         starColor = d.starColor
         visibility = Visibility(type: d.visibility)
+        ring = d.ring ?? ""
         pendingDraft = nil
     }
 
@@ -700,7 +711,9 @@ struct UploadScreen: View {
             createdAt: FirestoreService.nowMillis,
             starType: starType,
             starColor: starColor,
-            visibilityType: visibility.rawValue
+            visibilityType: visibility.rawValue,
+            // 지금 가진 고리만(서버 checkDiaryRing 도 소유를 다시 확인한다).
+            ring: starlight.ownedOf("aura").contains { $0.id == ring } ? ring : ""
         )
         do {
             let newId = try await store.save(diary)
@@ -810,6 +823,60 @@ struct UploadScreen: View {
         Rectangle()
             .fill(Theme.outline.opacity(0.7))
             .frame(height: 1)
+    }
+}
+
+/// 별 고리 고르기 — 맨 앞 "미착용", 뒤로 가진 고리(지금 고른 모양·색 별에 둘러 미리 보여 준다).
+/// 고른 칸은 고리 등급 빛 테두리. 지도에선 이 별에만 같은 고리가 돈다(MapStyleEffects 고리 스프라이트). Android `RingPicker` 패리티.
+private struct RingPicker: View {
+    let rings: [StarlightStore.Item]
+    @Binding var selected: String
+    let starType: Int
+    let starColor: Int
+    let enabled: Bool
+    @ObservedObject private var locale = LocaleManager.shared
+
+    var body: some View {
+        let chosen = rings.contains { $0.id == selected } ? selected : ""
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                cell(locale.t(.uploadRingNone), chosen.isEmpty, Theme.navyAccent, "") {
+                    StarView(type: starType, colorIndex: starColor, size: 26, glow: false)
+                }
+                ForEach(rings) { item in
+                    cell(item.name(in: locale.effectiveLanguage), chosen == item.id, StarlightArt.rarityColor(item.rarity), item.id) {
+                        AuraArt(item: item, starType: starType, starColor: starColor)
+                    }
+                }
+            }
+        }
+        .opacity(enabled ? 1 : 0.5)
+        .disabled(!enabled)
+    }
+
+    private func cell<Art: View>(_ label: String, _ on: Bool, _ accent: Color, _ id: String,
+                                 @ViewBuilder art: () -> Art) -> some View {
+        let picture = art()
+        let shape = RoundedRectangle(cornerRadius: 16)
+        return Button {
+            guard selected != id else { return }
+            Haptics.tick()
+            selected = id
+        } label: {
+            VStack(spacing: 4) {
+                picture.frame(width: 56, height: 56)
+                Text(label)
+                    .font(.minSans(11, on ? .semibold : .normal))
+                    .foregroundStyle(on ? Theme.textPrimary : Theme.textSecondary)
+                    .lineLimit(1)
+            }
+            .padding(.vertical, 8).padding(.horizontal, 4)
+            .frame(width: 72)
+            .background(on ? accent.opacity(0.12) : Color(hex: 0x181E34, alpha: 0.6), in: shape)
+            .overlay(shape.strokeBorder(on ? accent.opacity(0.8) : .clear, lineWidth: 1.5))
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
     }
 }
 

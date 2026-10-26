@@ -94,12 +94,16 @@ private val TextMain = Color(0xFFF0F0F0)
 private val TextMuted = Color(0xFF8A8A8A)
 private val CardBg = Color(0xFF15151F)
 
-/** 다른 화면에서 업적의 특정 탭으로 바로 보낼 때(별가루 화면의 "찾은 것은 업적 › 특별 › 탐사") — 한 번 쓰고 비운다. */
+/**
+ * 다른 화면에서 업적의 특정 탭으로 바로 보낼 때(별가루 화면의 "찾은 것은 업적 › 특별 › 탐사") — 한 번 쓰고 비운다.
+ * 관찰 가능한 값이라 이미 떠 있는 업적 화면(뒤로 가기로 돌아온 경우 포함)도 바로 탭을 바꾼다. iOS `AchievementsTab` 패리티.
+ */
 object AchievementsTab {
     const val SPECIAL = 1
-    private var pending: Int? = null
+    var pending by mutableStateOf<Int?>(null)
+        private set
     fun request(tab: Int) { pending = tab }
-    internal fun consume(): Int? = pending.also { pending = null }
+    internal fun consume() { pending = null }
 }
 
 /**
@@ -125,7 +129,15 @@ fun AchievementsScreen(modifier: Modifier = Modifier, onOpenWorkshop: () -> Unit
     val stats = rememberUserStats(userId)
     var equipped by remember { mutableStateOf(StigmaStore.equipped(context, userId)) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var tab by remember { mutableIntStateOf(AchievementsTab.consume() ?: 0) }
+    var tab by remember { mutableIntStateOf(AchievementsTab.pending ?: 0) }
+    // 탭 요청은 컴포지션 밖(이펙트)에서 비운다 — 처음 열 때도, 이미 떠 있을 때 들어온 요청도 같은 길.
+    val tabRequest = AchievementsTab.pending
+    androidx.compose.runtime.LaunchedEffect(tabRequest) {
+        if (tabRequest != null) {
+            tab = tabRequest
+            AchievementsTab.consume()
+        }
+    }
 
     // 히든 업적 달성 현황(전역)
     val hiddenRepo = remember { HiddenAchievementRepository() }

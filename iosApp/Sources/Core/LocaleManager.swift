@@ -266,24 +266,24 @@ enum L10n: String {
     case guideQuestTip, guideLater, guideProfileTitle, guideProfileMsg, questGo, questStartHere
     case guideOpenTitle, guideOpenMsg, guideOpenBtn, guideOpenHint, guideNoTarget, guideDone
 
-    // 별빛 공방(2026-10-22) — Android starlight_* / telescope_* / hint_* / nav_workshop / guide_exchange_* 와 같은 문구(tools 로 생성).
+    // 별가루(2026-10-26 — 옛 별빛 공방) — Android starlight_* / telescope_* / hint_* / nav_workshop / guide_exchange_* 와 같은 문구.
     case starlightEquip, starlightUnequip, starlightEquipped, starlightEquipDone, starlightUnequipDone, starlightUseShape
-    case starlightUseColor, starlightUseReveal, starlightUseHint, telescopeLook, telescopeTitle, telescopeAskReveal
+    case starlightUseColor, starlightUseReveal, starlightUseHint, starlightUseRing, telescopeLook, telescopeTitle, telescopeAskReveal
     case telescopeAskHint, telescopeUseItem, telescopeCancel, telescopeRevealedToast, telescopeHintToast, telescopeAlready
-    case hintFaint, hintClear, navWorkshop, starlightStardust, starlightBox, starlightKeys
-    case starlightStardustOwned, starlightSubtitle, starlightExchangeTitle, starlightToKey, starlightToKeyDesc, starlightToBox
-    case starlightToBoxDesc, starlightMakeCost, starlightOpenTitle, starlightBoxesReady, starlightNoBox, starlightOpenOne
-    case starlightOpenMany, starlightCollection, starlightCollected, starlightOwnedN, starlightOddsTitle, starlightRarityCommon
-    case starlightRarityRare, starlightRarityEpic, starlightRarityLegendary, starlightPity, starlightPityNow, starlightDupRule
-    case starlightKindShape, starlightKindColor, starlightKindTitle, starlightKindFrame, starlightKindBadge, starlightKindAura
-    case starlightKindTelescope, starlightKindKeyBundle, starlightKindOther, starlightNew, starlightStacked, starlightDupRefund, starlightDupOwned, starlightDupExplain, starlightDustPlus
-    case starlightKeysPlus, starlightTapClose, starlightMadeKeys, starlightMadeBox, starlightStardustGained, starlightErrInsufficient
-    /// 성운 상자 연출 · 수집품(2026-10-22 — Android starlight_showcase … nav_collection 패리티).
-    case navCollection, starlightShowcase, starlightCollectionOpen, starlightCollectionDesc, starlightCollectionEmpty
+    case hintFaint, hintClear, navWorkshop, starlightStardust, starlightKeys, starlightStardustOwned
+    case starlightOwnedN, starlightOddsTitle, starlightRarityCommon, starlightRarityRare, starlightRarityEpic, starlightRarityLegendary
+    case starlightDupRule, starlightKindShape, starlightKindColor, starlightKindTitle, starlightKindFrame, starlightKindBadge, starlightKindAura
+    case starlightKindTelescope, starlightKindKeyBundle, starlightKindOther, starlightNew, starlightStacked, starlightDupOwned, starlightDupExplain, starlightDustPlus
+    case starlightKeysPlus, starlightMadeKeys, starlightStardustGained, starlightErrInsufficient
     case starlightAll, starlightLoadout, starlightSlotEmpty, starlightTapToWake, starlightSkip, starlightFlipAll
-    case starlightTapCard, starlightConfirm, starlightWaiting, starlightOddsItems, starlightOddsHide, starlightLineup
-    case starlightErrNoBoxes, starlightErrEmptyPool, starlightErrTimeout, starlightErrGeneric, starlightGo, guideExchangeTitle
-    case guideExchangeMsg
+    case starlightTapCard, starlightConfirm, starlightWaiting
+    case starlightErrEmptyPool, starlightErrTimeout, starlightErrGeneric, starlightGo, guideExchangeTitle, guideExchangeMsg
+    /// 우주 항해 · 열쇠 구매 · 광고 별가루 · 확률 · 탐사 수집품 · 별 고리(2026-10-26 — Android voyage_* / ach_voyage_* / upload_ring* / profile_finds 패리티).
+    case voyageTitle, voyageSub, voyageRouteNormal, voyageRouteRare, voyageEpicPlus, voyageLaunch, voyageShort
+    case voyageOdds, voyageOddsKinds, voyageOddsEach, voyageOddsEqual, voyageOddsIndependent, voyageFindsLink, voyageBoxesConverted
+    case voyageKeyTitle, voyageKeyEach, voyageBuy, voyageAd, voyageAdFree, voyageAdLeft, voyageAdLimit, voyageAdCooldown
+    case voyageAdNotFinished, voyageAdDoneToday, achVoyageSection, achVoyageSub, achVoyageEmpty, achVoyageGo
+    case uploadRing, uploadRingNone, profileFinds
 
     /// (ko, en, ja).
     private var table: (String, String, String) {
@@ -803,7 +803,7 @@ enum L10n: String {
         case .guideOpenBtn: return ("별 열어 보기", "Open a star", "星を開ける")
         case .guideOpenHint: return ("자물쇠를 눌러 열쇠로 열어 보세요", "Tap the lock to use your key", "錠前をタップして鍵を使おう")
         case .guideNoTarget: return ("아직 열어 볼 다른 사람의 별이 없어요.", "There are no other stars to open yet.", "開けられる誰かの星がまだありません。")
-        case .guideDone: return ("잘했어요! 퀘스트로 별가루를 모아 열쇠와 성운 상자로 바꿔 보세요.", "Nice! Collect stardust from quests and trade it for keys and nebula boxes.", "やったね！クエストで星くずを集めて、鍵や星雲の箱と交換しよう。")
+        case .guideDone: return ("잘했어요! 퀘스트로 별가루를 모아 열쇠를 사거나 우주 항해를 떠나 보세요.", "Nice! Collect stardust from quests to buy keys or set off on a space voyage.", "やったね！クエストで星くずを集めて、鍵を買ったり宇宙航海に出かけよう。")
         case .guideQuestTip: return ("첫 퀘스트가 도착했어요!\n여기를 눌러 확인해 보세요", "Your first quest is here!\nTap to check it out", "最初のクエストが届きました！\nここをタップして確認しましょう")
         case .guideLater: return ("나중에", "Later", "あとで")
         case .guideProfileTitle: return ("이름이나 프로필 사진을 바꿔 보세요!", "Change your name or profile photo!", "名前かプロフィール写真を変えてみましょう！")
@@ -825,7 +825,7 @@ enum L10n: String {
         case .achThemeSocial: return ("교감", "Connection", "交流")
         case .achThemeDecor: return ("꾸미기", "Style", "おしゃれ")
         case .achThemeMeteor: return ("유성", "Meteors", "流れ星")
-        case .achSpecialIntro: return ("모두가 가질 수는 없는 업적이에요.\n특별한 날·퀘스트·초대·개척으로만 얻을 수 있어요.", "Not everyone gets these.\nThey come only from special moments, quests, invites and pioneering.", "誰もが持てるわけではない実績です。\n特別な日・クエスト・招待・開拓でしか手に入りません。")
+        case .achSpecialIntro: return ("모두가 가질 수는 없는 업적이에요.\n우주 항해·특별한 날·퀘스트·초대·개척으로만 얻을 수 있어요.", "Not everyone gets these.\nThey come only from voyages, special moments, quests, invites and pioneering.", "誰もが持てるわけではない実績です。\n宇宙航海・特別な日・クエスト・招待・開拓でしか手に入りません。")
         case .achSpecialCount: return ("%d개 보유", "%d earned", "%d個獲得")
         case .achSpecialMoments: return ("특별한 순간", "Special moments", "特別な瞬間")
         case .achSpecialMomentsSub: return ("그날, 그 시각에만 열려요", "Opens only on that day, at that moment", "その日、その時だけ開きます")
@@ -835,7 +835,7 @@ enum L10n: String {
         case .achSpecialInviteSub: return ("Stary 로 이어진 인연에게만", "Only for bonds made through Stary", "Staryでつながった縁だけに")
         case .achPioneerEmpty: return ("이번 주 금빛 비콘이 뜬 나라에 처음으로 별을 남기면\n그 나라의 개척자가 돼요", "Be the first to leave a star in this week's golden-beacon country\nto become its pioneer", "今週金色のビーコンが出た国に最初に星を残すと\nその国の開拓者になれます")
         case .questToday: return ("오늘의 퀘스트", "Today's quests", "今日のクエスト")
-        case .questSubtitle: return ("퀘스트를 깨고 별가루를 모아요.\n별빛 공방에서 열쇠나 성운 상자로 바꿀 수 있어요", "Clear quests to collect stardust.\nTrade it for keys or nebula boxes at the Starlight Workshop", "クエストをクリアして星くずを集めよう。\n星明かりの工房で鍵や星雲の箱に交換できます")
+        case .questSubtitle: return ("퀘스트를 깨고 별가루를 모아요.\n별가루로 열쇠를 사거나 우주 항해를 떠날 수 있어요", "Clear quests to collect stardust.\nSpend it on keys or a space voyage", "クエストをクリアして星くずを集めよう。\n星くずで鍵を買ったり、宇宙航海に出かけられます")
         case .questClaim: return ("받기", "Claim", "受け取る")
         case .questClaimed: return ("받음", "Claimed", "受取済み")
         case .questBonus: return ("세 개 모두 받으면 보너스 별가루 +%1$d", "Claim all three for bonus stardust +%1$d", "3つすべて受け取るとボーナス星くず +%1$d")
@@ -860,7 +860,7 @@ enum L10n: String {
         case .detailKeyUnlocked: return ("열쇠로 별을 열었어요", "You opened the star with a key", "鍵で星を開きました")
         case .detailAdKeyUnlocked: return ("광고로 받은 열쇠로 별을 열었어요", "You opened the star with the key from the ad", "広告でもらった鍵で星を開きました")
         case .detailKeyQuestHint: return ("퀘스트로 모은 별가루를 별빛 공방에서 열쇠로 바꿀 수 있어요", "Trade quest stardust for keys at the Starlight Workshop", "クエストで集めた星くずは星明かりの工房で鍵に交換できます")
-        case .coachStepQuest: return ("오늘의 퀘스트를 깨고 별가루를 모아요\n별가루로 열쇠와 성운 상자를 만들어요", "Clear today's quests to collect stardust\nTurn it into keys and nebula boxes", "今日のクエストで星くずを集めよう\n星くずで鍵や星雲の箱を作れます")
+        case .coachStepQuest: return ("오늘의 퀘스트를 깨고 별가루를 모아요\n별가루로 열쇠를 사고 우주 항해를 떠나요", "Clear today's quests to collect stardust\nBuy keys and set off on space voyages", "今日のクエストで星くずを集めよう\n星くずで鍵を買って宇宙航海へ")
         case .starlightEquip: return ("장착하기", "Equip", "装備する")
         case .starlightUnequip: return ("해제하기", "Unequip", "外す")
         case .starlightEquipped: return ("장착 중", "Equipped", "装備中")
@@ -870,6 +870,7 @@ enum L10n: String {
         case .starlightUseColor: return ("별을 올릴 때 별 색 고르기에 나타나요.", "It appears in the star color picker when you post a star.", "星を投稿するとき、星の色の選択に表示されます。")
         case .starlightUseReveal: return ("업적 화면에서 조건이 ??? 인 업적의 망원경 버튼으로 써요.", "Use it from the telescope button on achievements whose condition shows ???.", "実績画面で条件が ??? の実績にある望遠鏡ボタンから使います。")
         case .starlightUseHint: return ("업적 화면의 히든 탭에서 아직 아무도 얻지 못한 업적에 써요.", "Use it in the Hidden tab of the achievements screen on achievements nobody has earned yet.", "実績画面の隠しタブで、まだ誰も得ていない実績に使います。")
+        case .starlightUseRing: return ("별을 올릴 때 별 색 아래 \"별 고리\"에서 골라 그 별에 둘러요.", "When posting a star, pick it under Star ring (below the color) to circle that star.", "星を投稿するとき、星の色の下の「星の輪」から選んでその星にまとわせます。")
         case .telescopeLook: return ("망원경으로 보기", "Use telescope", "望遠鏡で見る")
         case .telescopeTitle: return ("천체 망원경", "Telescope", "天体望遠鏡")
         case .telescopeAskReveal: return ("망원경을 하나 써서 이 업적의 가려진 조건을 볼까요?", "Use a telescope to see this achievement's hidden condition?", "望遠鏡をひとつ使って、この実績の隠れた条件を見ますか？")
@@ -881,79 +882,82 @@ enum L10n: String {
         case .telescopeAlready: return ("이미 그만큼 또렷하게 보고 있어요", "You can already see it that clearly", "すでにそこまではっきり見えています")
         case .hintFaint: return ("흐릿한 단서", "Faint clue", "かすかな手がかり")
         case .hintClear: return ("선명한 단서", "Clear clue", "はっきりした手がかり")
-        case .navWorkshop: return ("별빛 공방", "Starlight Workshop", "星明かりの工房")
+        case .navWorkshop: return ("별가루", "Stardust", "星くず")
         case .starlightStardust: return ("별가루", "Stardust", "星くず")
-        case .starlightBox: return ("성운 상자", "Nebula Box", "星雲の箱")
         case .starlightKeys: return ("열쇠", "Keys", "鍵")
         case .starlightStardustOwned: return ("보유 별가루 %1$d", "Stardust owned: %1$d", "所持している星くず %1$d")
-        case .starlightSubtitle: return ("퀘스트로 모은 별가루를 열쇠나 성운 상자로 바꿔요. 상자 속엔 별 모양·색·칭호·프레임 같은 것들이 잠들어 있어요.", "Turn the stardust you earn from quests into keys or nebula boxes. Star shapes, colors, titles and frames sleep inside the boxes.", "クエストで集めた星くずを鍵や星雲の箱に交換しましょう。箱の中には星の形・色・称号・フレームなどが眠っています。")
-        case .starlightExchangeTitle: return ("바꾸기", "Exchange", "交換")
-        case .starlightToKey: return ("열쇠 만들기", "Craft keys", "鍵を作る")
-        case .starlightToKeyDesc: return ("100m 밖 멀리 있는 별을 여는 열쇠예요.", "Keys open stars more than 100 m away.", "100m以上離れた星を開ける鍵です。")
-        case .starlightToBox: return ("성운 상자 만들기", "Craft a nebula box", "星雲の箱を作る")
-        case .starlightToBoxDesc: return ("무엇이 나올지는 열어 봐야 알아요. 화려할수록 드물어요.", "You only know what is inside once you open it. The more dazzling, the rarer.", "何が出るかは開けてのお楽しみ。華やかなものほど珍しいです。")
-        case .starlightMakeCost: return ("%1$d 만들기", "Craft · %1$d", "%1$dで作る")
-        case .starlightOpenTitle: return ("성운 상자 열기", "Open nebula boxes", "星雲の箱を開ける")
-        case .starlightBoxesReady: return ("열 수 있는 상자 %1$d개", "%1$d box(es) ready to open", "開けられる箱 %1$d個")
-        case .starlightNoBox: return ("상자가 없어요 — 별가루 %1$d개로 하나 만들 수 있어요", "No boxes yet — craft one with %1$d stardust", "箱がありません — 星くず%1$d個で作れます")
-        case .starlightOpenOne: return ("1개 열기", "Open 1", "1個開ける")
-        case .starlightOpenMany: return ("%1$d개 열기", "Open %1$d", "%1$d個開ける")
-        case .starlightCollection: return ("별빛 도감", "Collection", "星明かり図鑑")
-        case .starlightCollected: return ("%1$d / %2$d 수집", "%1$d / %2$d collected", "%1$d / %2$d 収集")
         case .starlightOwnedN: return ("%1$d개 가지고 있어요", "You own %1$d", "%1$d個持っています")
         case .starlightOddsTitle: return ("확률 안내", "Drop rates", "確率のご案内")
         case .starlightRarityCommon: return ("일반", "Common", "ノーマル")
         case .starlightRarityRare: return ("희귀", "Rare", "レア")
         case .starlightRarityEpic: return ("영웅", "Epic", "エピック")
         case .starlightRarityLegendary: return ("전설", "Legendary", "レジェンド")
-        case .starlightPity: return ("영웅 이상은 늦어도 %1$d번째 상자에서, 전설은 늦어도 %2$d번째 상자에서 반드시 나와요. 같은 등급 안에서는 모든 아이템의 확률이 같아요.", "An Epic or better is guaranteed by your %1$dth box, and a Legendary by your %2$dth. Within a rarity, every item is equally likely.", "エピック以上は遅くとも%1$d個目、レジェンドは遅くとも%2$d個目の箱で必ず出ます。同じレア度の中では、どのアイテムも同じ確率です。")
-        case .starlightPityNow: return ("지금까지 영웅 이상 없이 %1$d번, 전설 없이 %2$d번 열었어요.", "Opened %1$d without an Epic+ and %2$d without a Legendary so far.", "これまでエピック以上なしで%1$d回、レジェンドなしで%2$d回開けました。")
         case .starlightDupRule: return ("이미 가진 꾸미기 아이템이 다시 나오면 별가루로 돌려받아요 — 일반 %1$d · 희귀 %2$d · 영웅 %3$d · 전설 %4$d. 망원경은 개수가 쌓이고, 열쇠 묶음은 바로 열쇠가 돼요.", "Duplicate cosmetics are refunded as stardust — Common %1$d · Rare %2$d · Epic %3$d · Legendary %4$d. Telescopes stack, and key bundles turn into keys right away.", "持っている飾りアイテムが再び出たら星くずで戻ってきます — ノーマル%1$d・レア%2$d・エピック%3$d・レジェンド%4$d。望遠鏡は数が増え、鍵の束はすぐに鍵になります。")
         case .starlightKindShape: return ("별 모양", "Star shape", "星の形")
         case .starlightKindColor: return ("별 색", "Star color", "星の色")
         case .starlightKindTitle: return ("칭호", "Title", "称号")
         case .starlightKindFrame: return ("프로필 프레임", "Profile frame", "プロフィールフレーム")
         case .starlightKindBadge: return ("이름 배지", "Name badge", "名前バッジ")
-        case .starlightKindAura: return ("별 오라", "Star aura", "星のオーラ")
+        case .starlightKindAura: return ("별 고리", "Star ring", "星の輪")
         case .starlightKindTelescope: return ("천체 망원경", "Telescope", "天体望遠鏡")
         case .starlightKindKeyBundle: return ("열쇠 묶음", "Key bundle", "鍵の束")
         case .starlightKindOther: return ("별빛 조각", "Starlight piece", "星明かりのかけら")
         case .starlightNew: return ("새로 얻었어요!", "New!", "新しく手に入れました！")
         case .starlightStacked: return ("보관함에 쌓였어요", "Added to your stash", "保管庫に追加されました")
-        case .starlightDupRefund: return ("이미 있어요 · 별가루 +%1$d", "Duplicate · +%1$d stardust", "所持済み・星くず +%1$d")
         case .starlightDupOwned: return ("이미 있어요", "Owned", "所持済み")
         case .starlightDupExplain: return ("이미 가진 아이템이라 별가루로 바꿨어요.", "You already have this, so it became stardust.", "すでに持っているので、星くずに替えました。")
         case .starlightDustPlus: return ("별가루 +%1$d", "Stardust +%1$d", "星くず +%1$d")
         case .starlightKeysPlus: return ("열쇠 +%1$d", "+%1$d keys", "鍵 +%1$d")
-        case .starlightTapClose: return ("화면을 탭하면 닫혀요", "Tap anywhere to close", "画面をタップすると閉じます")
-        case .starlightMadeKeys: return ("열쇠 %1$d개를 만들었어요", "Crafted %1$d key(s)", "鍵を%1$d個作りました")
-        case .starlightMadeBox: return ("성운 상자 %1$d개를 만들었어요", "Crafted %1$d nebula box(es)", "星雲の箱を%1$d個作りました")
+        case .starlightMadeKeys: return ("열쇠 %1$d개를 샀어요", "Bought %1$d key(s)", "鍵を%1$d個購入しました")
         case .starlightStardustGained: return ("별가루 %1$d개를 받았어요", "Received %1$d stardust", "星くずを%1$d個受け取りました")
         case .starlightErrInsufficient: return ("별가루가 모자라요", "Not enough stardust", "星くずが足りません")
-        case .starlightErrNoBoxes: return ("열 상자가 없어요", "No boxes to open", "開ける箱がありません")
-        case .starlightErrEmptyPool: return ("상자 속을 아직 채우는 중이에요. 조금 뒤에 열어 주세요", "The boxes are still being filled. Please try again later", "箱の中身を準備中です。少し後で開けてください")
+        case .starlightErrEmptyPool: return ("우주를 아직 채우는 중이에요. 조금 뒤에 떠나 주세요", "Space is still being filled. Please set sail a little later", "宇宙をまだ準備中です。少し後で出航してください")
         case .starlightErrTimeout: return ("응답이 늦어요 — 연결되면 처리돼요", "Taking a while — it will go through once you are online", "応答が遅れています — 接続されると処理されます")
         case .starlightErrGeneric: return ("지금은 할 수 없어요. 잠시 뒤 다시 시도해 주세요", "Can't do that right now. Please try again shortly", "今はできません。しばらくしてからもう一度お試しください")
-        case .starlightGo: return ("공방 가기", "Go to workshop", "工房へ")
-        case .navCollection: return ("수집품", "Collection", "コレクション")
-        case .starlightShowcase: return ("성운 상자에서 멋진 별 모양, 색, 프로필 프레임 등을 뽑아보세요!", "Pull dazzling star shapes, colors, profile frames and more from Nebula Boxes!", "星雲ボックスから素敵な星の形・色・プロフィールフレームなどを引いてみよう！")
-        case .starlightCollectionOpen: return ("수집품 보기", "View collection", "コレクションを見る")
-        case .starlightCollectionDesc: return ("상자에서 얻은 칭호·별 모양·프레임을 모아 보고 장착해요", "See and equip the titles, shapes and frames you've found", "箱から手に入れた称号・星の形・フレームを見て装備しよう")
-        case .starlightCollectionEmpty: return ("아직 모은 것이 없어요. 별빛 공방에서 성운 상자를 열어 보세요!", "Nothing collected yet. Open a Nebula Box at the Starlight Workshop!", "まだ何も集めていません。星明かり工房で星雲ボックスを開けてみよう！")
+        case .starlightGo: return ("열쇠 사러 가기", "Buy keys", "鍵を買いに行く")
         case .starlightAll: return ("전체", "All", "すべて")
         case .starlightLoadout: return ("지금 장착 중", "Equipped now", "装備中")
         case .starlightSlotEmpty: return ("비어 있음", "Empty", "なし")
-        case .starlightTapToWake: return ("상자를 톡톡 두드려 깨워 보세요", "Tap the box to wake it up", "箱をトントンして起こしてみよう")
+        case .starlightTapToWake: return ("수정구를 세 번 두드려 보세요", "Tap the crystal ball three times", "水晶玉を3回たたいてみよう")
         case .starlightSkip: return ("건너뛰기", "Skip", "スキップ")
         case .starlightFlipAll: return ("모두 뒤집기", "Reveal all", "すべてめくる")
         case .starlightTapCard: return ("카드를 눌러 뒤집어 보세요", "Tap a card to flip it", "カードをタップしてめくろう")
         case .starlightConfirm: return ("확인", "OK", "OK")
         case .starlightWaiting: return ("별빛을 모으는 중…", "Gathering starlight…", "星の光を集めています…")
-        case .starlightOddsItems: return ("아이템별 확률 보기", "Show odds per item", "アイテム別の確率を見る")
-        case .starlightOddsHide: return ("접기", "Hide", "閉じる")
-        case .starlightLineup: return ("전설 아이템을 뽑아보세요!", "Pull a legendary item!", "伝説アイテムを引いてみよう！")
-        case .guideExchangeTitle: return ("별가루로 열쇠 만들기", "Craft a key from stardust", "星くずで鍵を作る")
-        case .guideExchangeMsg: return ("퀘스트로 모은 별가루를 별빛 공방에서 열쇠로 바꿀 수 있어요(%1$d개 = 열쇠 1개).", "Trade the stardust from quests for a key at the Starlight Workshop (%1$d = 1 key).", "クエストで集めた星くずは星明かりの工房で鍵に交換できます（%1$d個 = 鍵1個）。")
+        case .guideExchangeTitle: return ("별가루로 열쇠 사기", "Buy a key with stardust", "星くずで鍵を買う")
+        case .guideExchangeMsg: return ("퀘스트로 모은 별가루로 열쇠를 살 수 있어요(%1$d개 = 열쇠 1개).", "Buy keys with the stardust from quests (%1$d = 1 key).", "クエストで集めた星くずで鍵を買えます（%1$d個 = 鍵1個）。")
+        // 우주 항해(2026-10-26) — Android voyage_* 와 같은 문구(%1$s → %1$@).
+        case .voyageTitle: return ("우주 항해", "Space Voyage", "宇宙航海")
+        case .voyageSub: return ("어떤 별이 기다릴지는 떠나 봐야 알아요", "You only learn which stars await once you set sail", "どんな星が待っているかは、旅立ってみないとわからない")
+        case .voyageRouteNormal: return ("일반 탐사", "Standard Expedition", "通常探査")
+        case .voyageRouteRare: return ("희귀 탐사", "Rare Expedition", "レア探査")
+        case .voyageEpicPlus: return ("영웅 이상 %1$@", "Epic+ %1$@", "エピック以上 %1$@")
+        case .voyageLaunch: return ("출항하기", "Set sail", "出航する")
+        case .voyageShort: return ("별가루가 %1$d 모자라요", "%1$d stardust short", "星くずが%1$d足りません")
+        case .voyageOdds: return ("확률", "Odds", "確率")
+        case .voyageOddsKinds: return ("%1$d종", "%1$d kinds", "%1$d種")
+        case .voyageOddsEach: return ("하나당 %1$@", "%1$@ each", "1つあたり%1$@")
+        case .voyageOddsEqual: return ("같은 등급 안에서는 모든 아이템이 같은 확률이에요.", "Within a rarity, every item is equally likely.", "同じレア度の中では、どのアイテムも同じ確率です。")
+        case .voyageOddsIndependent: return ("항해는 매번 독립이에요. 앞선 결과가 다음 확률을 바꾸지 않고, 여러 번 한꺼번에 떠나도 한 번씩 떠난 것과 확률이 같아요.", "Every voyage is independent. Past results never change the odds, and sailing several at once has the same odds as sailing one at a time.", "航海は毎回独立しています。前の結果が次の確率を変えることはなく、まとめて出航しても1回ずつと同じ確率です。")
+        case .voyageFindsLink: return ("찾은 것은 업적 › 특별 › 탐사에서 볼 수 있어요", "Your finds are in Achievements › Special › Voyage", "見つけたものは 実績 › 特別 › 探査 で見られます")
+        case .voyageBoxesConverted: return ("남아 있던 성운 상자 %1$d개를 별가루 %2$d로 바꿔 드렸어요", "Your %1$d leftover nebula box(es) became %2$d stardust", "残っていた星雲の箱%1$d個を星くず%2$dに替えました")
+        case .voyageKeyTitle: return ("열쇠 구매", "Buy keys", "鍵を購入")
+        case .voyageKeyEach: return ("열쇠 1개 · 별가루 %1$d", "1 key · %1$d stardust", "鍵1個・星くず%1$d")
+        case .voyageBuy: return ("구매하기", "Buy", "購入する")
+        case .voyageAd: return ("광고 보고 별가루 +%1$d", "Watch an ad · +%1$d stardust", "広告を見て星くず+%1$d")
+        case .voyageAdFree: return ("광고 없이 받기 · 별가루 +%1$d", "Claim ad-free · +%1$d stardust", "広告なしで受け取る・星くず+%1$d")
+        case .voyageAdLeft: return ("오늘 %1$d번 남음", "%1$d left today", "今日あと%1$d回")
+        case .voyageAdLimit: return ("오늘 받을 수 있는 만큼 다 받았어요. 내일 다시 만나요", "That's all for today. See you tomorrow", "今日の分はすべて受け取りました。また明日")
+        case .voyageAdCooldown: return ("조금 뒤에 다시 받을 수 있어요", "You can claim again in a moment", "少し後でまた受け取れます")
+        case .voyageAdNotFinished: return ("광고를 끝까지 봐야 별가루를 받아요", "Watch the whole ad to get stardust", "広告を最後まで見ると星くずがもらえます")
+        case .voyageAdDoneToday: return ("오늘은 다 받았어요", "All claimed today", "今日は受け取り済み")
+        case .achVoyageSection: return ("탐사", "Voyage", "探査")
+        case .achVoyageSub: return ("우주 항해에서 찾은 것 — 프레임·배지·칭호는 눌러서 장착해요", "What you found on voyages — tap frames, badges and titles to equip", "宇宙航海で見つけたもの — フレーム・バッジ・称号はタップで装備")
+        case .achVoyageEmpty: return ("아직 찾은 것이 없어요.\n별가루 메뉴에서 우주 항해를 떠나 보세요", "Nothing found yet.\nSet sail from the Stardust menu", "まだ何も見つけていません。\n星くずメニューから宇宙航海に出かけよう")
+        case .achVoyageGo: return ("항해하러 가기", "Go voyaging", "航海へ")
+        case .uploadRing: return ("별 고리", "Star ring", "星の輪")
+        case .uploadRingNone: return ("미착용", "None", "なし")
+        case .profileFinds: return ("탐사 수집품", "Voyage finds", "探査コレクション")
         }
     }
 

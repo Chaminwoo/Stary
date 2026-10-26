@@ -146,22 +146,25 @@ struct ProfileScreen: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    // 별빛 공방 수집품 — 상자에서 얻은 것이 있을 때만(Android ProfileScreen 패리티).
-                    if !starlight.owned.isEmpty {
+                    // 탐사 수집품(우주 항해에서 찾은 것 → 업적 › 특별 › 탐사) — 가진 게 있을 때만(Android ProfileScreen 패리티).
+                    if !ownedFinds().isEmpty {
                         Button {
                             Haptics.tick()
-                            TabRouter.shared.go(TabRouter.collection)
+                            AchievementsTab.shared.request(AchievementsTab.special)
+                            showAchievements = true
                         } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "square.grid.2x2.fill").font(.system(size: 11, weight: .semibold))
-                                Text(locale.t(.navCollection)).font(.minSans(12, .medium))
+                            HStack(spacing: 6) {
+                                StardustIcon().frame(width: 14, height: 14)
+                                Text(locale.t(.profileFinds)).font(.minSans(13, .medium))
+                                    .foregroundStyle(Color(hex: 0xE2C8FF))
                             }
-                            .foregroundStyle(StarlightArt.violet)
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(StarlightArt.violet.opacity(0.14), in: Capsule())
-                            .overlay(Capsule().strokeBorder(StarlightArt.violet.opacity(0.45), lineWidth: 0.75))
+                            .padding(.horizontal, 14).padding(.vertical, 7)
+                            .background(Color.white.opacity(0.08), in: Capsule())
+                            .overlay(Capsule().strokeBorder(StarlightArt.violet.opacity(0.2), lineWidth: 0.75))
+                            .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
+                        .padding(.top, 6)
                     }
                 }
                 // ZStack 가운데 정렬 기준을 44pt 위로 — `.offset` 은 GeometryReader 좌표에 잡히지 않아
