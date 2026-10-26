@@ -699,5 +699,7 @@ function storagePathFromUrl(url) {
   }
 }
 
-// ── 별빛 공방(별가루 지갑 · 성운 상자) — starlight.js ──
-exports.onStarlightOp = require("./starlight").onStarlightOp;
+// ── 별가루(지갑 · 우주 항해 · 광고 보상 · 별 고리 확인) — starlight.js ──
+const starlight = require("./starlight");
+exports.onStarlightOp = starlight.onStarlightOp;
+exports.checkDiaryRing = starlight.checkDiaryRing;

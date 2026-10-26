@@ -1,13 +1,13 @@
 /**
- * 성운 상자 뽑기 풀(별빛 공방, 2026-10-22) — 이 파일이 원본이고, seed.js 가 Firestore `starlightItems` 로 올린다.
+ * 우주 항해 뽑기 풀(2026-10-22 별빛 공방 성운 상자 → 2026-10-26 별가루 · 우주 항해) — 이 파일이 원본이고, seed.js 가 Firestore `starlightItems` 로 올린다.
  *
- * 등급 = **제작 난이도**(사용자 지시): 일반 60 · 희귀 28 · 영웅 10 · 전설 2 (같은 등급 안에서는 균등, `weight` 로 조절 가능).
+ * 등급 = **제작 난이도**(사용자 지시). 등급 확률은 항해 경로마다 다르다(아래 config.voyages). 같은 등급 안에서는 균등, `weight` 로 조절 가능.
  *  - 별 모양: 한 덩어리 윤곽(일반) → 여러 부품(희귀) → 구멍·대칭 세부(영웅) → 겹친 고리·구멍·장식(전설)
  *  - 별 색: 단색(일반) → 2색(희귀) → 3색(영웅). 색은 그라데이션 단계 이상으로 "어렵게" 만들 방법이 없어 전설은 두지 않는다.
  *  - 칭호: 단색(일반) → 2색(희귀) → 3색(영웅) → 3색 + 빛 흐름(전설)
  *  - 프로필 프레임: 정지 고리(일반) → 그라데이션·점선 회전(희귀) → 궤도 별·꽃잎(영웅) → 별자리·오로라(전설)
  *  - 이름 배지: 단순 실루엣(일반) → 부품·구멍(희귀) → 꼬리 여럿(영웅) → 눈·혀가 있는 깃털(전설)
- *  - 지도 별 오라: 빛·위성 하나·반딧불(희귀) → 맥동·쌍둥이 궤도·나선(영웅) → 토성 고리·혜성(전설)
+ *  - 별 고리(옛 별 오라, 업로드 때 별마다): 빛·위성 하나·반딧불(희귀) → 맥동·쌍둥이 궤도·나선(영웅) → 토성 고리·혜성(전설)
  *    (2026-10-22 추가 5종. 영웅 맥동은 "너무 자주 두근거린다" 피드백으로 느리게 — 오라 speed 는 한 주기 초)
  *  - 천체 망원경: 굴절(일반, 업적 ??? 조건 1개) → 반사(희귀, 히든 업적 흐릿한 힌트) → 전파(영웅, 히든 업적 선명한 힌트)
  *  - 열쇠 묶음: 3개(일반) → 6개(희귀) — 뽑는 즉시 열쇠가 된다.
@@ -215,12 +215,12 @@ add("badge_phoenix", "badge", "legendary",
   t3("불꽃 속에서 다시 날아오르는 새. 이름 옆에서 금빛 날개를 활짝 펼쳐요.", "The bird that rises again from the flames, spreading golden wings beside your name.", "炎の中から再び舞い上がる鳥。名前のそばで金色の翼を大きく広げます。"),
   { path: B.phoenix(), colors: ["#FFF6C2", "#FF7A59", "#C2185B"] });
 
-// ── 지도 별 오라 ──────────────────────────────────────────────────────────
+// ── 별 고리(옛 이름 별 오라) — 2026-10-26부터 업로드 때 별마다 고른다(diaries.ring) ─────────────
 // pattern: halo(빛) · pulse(퍼지는 고리) · orbit(count 개 위성) · fireflies(count 개 반딧불) · spiral(나선 별가루) · saturn(기운 고리) · comet(혜성)
 // speed = 한 주기(초) — 회전형은 한 바퀴, 맥동형은 한 번 퍼지는 시간. 앱은 모르는 pattern 을 halo 로 그린다.
 add("aura_halo", "aura", "rare",
   t3("은은한 후광", "Gentle Halo", "やわらかな後光"),
-  t3("내 별 둘레에 숨 쉬듯 번지는 빛.", "Light that breathes softly around your stars.", "あなたの星のまわりに、息づくように広がる光。"),
+  t3("내 별 둘레에 숨 쉬듯 번지는 빛.", "Light that breathes softly around your star.", "あなたの星のまわりに、息づくように広がる光。"),
   { pattern: "halo", colors: ["#CFE3FF", "#9FB3FF"], speed: 4.5 });
 add("aura_pulse", "aura", "epic",
   t3("별의 맥박", "Star Pulse", "星の鼓動"),
@@ -232,11 +232,11 @@ add("aura_saturn", "aura", "legendary",
   { pattern: "saturn", colors: ["#FFF1C9", "#F2B66D", "#9FD3FF"], tilt: -20, speed: 14 });
 add("aura_moon", "aura", "rare",
   t3("달빛 위성", "Moonlit Satellite", "月明かりの衛星"),
-  t3("작은 달 하나가 내 별 곁을 천천히 맴돌아요.", "A tiny moon slowly circles your stars.", "小さな月がひとつ、あなたの星のそばをゆっくり巡ります。"),
+  t3("작은 달 하나가 내 별 곁을 천천히 맴돌아요.", "A tiny moon slowly circles your star.", "小さな月がひとつ、あなたの星のそばをゆっくり巡ります。"),
   { pattern: "orbit", count: 1, colors: ["#F4F1E0", "#9FB3FF"], speed: 10 });
 add("aura_fireflies", "aura", "rare",
   t3("반딧불 산책", "Firefly Stroll", "ホタルの散歩"),
-  t3("연둣빛 반딧불 다섯 마리가 별 둘레를 느긋하게 날아다녀요.", "Five yellow-green fireflies drift lazily around your stars.", "黄緑のホタル五匹が、星のまわりをのんびり飛びまわります。"),
+  t3("연둣빛 반딧불 다섯 마리가 별 둘레를 느긋하게 날아다녀요.", "Five yellow-green fireflies drift lazily around your star.", "黄緑のホタル五匹が、星のまわりをのんびり飛びまわります。"),
   { pattern: "fireflies", count: 5, colors: ["#E4FF8A", "#7CF5A8"], speed: 16 });
 add("aura_twins", "aura", "epic",
   t3("쌍둥이 별", "Twin Stars", "ふたご星"),
@@ -248,7 +248,7 @@ add("aura_spiral", "aura", "epic",
   { pattern: "spiral", colors: ["#F0DCFF", "#8C7CFF"], speed: 20 });
 add("aura_comet", "aura", "legendary",
   t3("혜성의 궤적", "Comet's Trail", "彗星の軌跡"),
-  t3("푸른 꼬리를 길게 끄는 혜성이 내 별 둘레를 쉼 없이 돌아요.", "A comet with a long blue tail circles your stars without rest.", "青い尾を長く引く彗星が、星のまわりを休まず巡ります。"),
+  t3("푸른 꼬리를 길게 끄는 혜성이 내 별 둘레를 쉼 없이 돌아요.", "A comet with a long blue tail circles your star without rest.", "青い尾を長く引く彗星が、星のまわりを休まず巡ります。"),
   { pattern: "comet", colors: ["#FFFFFF", "#8FE6FF", "#7C5CFF"], speed: 7 });
 
 // ── 천체 망원경 ───────────────────────────────────────────────────────────
@@ -275,20 +275,30 @@ add("keys_6", "keyBundle", "rare",
   t3("묵직한 열쇠 여섯 개. 멀리 있는 별들을 마음껏 열어 보세요.", "Six heavy keys. Open faraway stars to your heart's content.", "ずっしりした鍵が六つ。遠くの星を思う存分開けてみて。"),
   { keys: 6 });
 
-/** 공개 설정 — functions/starlight.js DEFAULT_CONFIG 와 같은 값(이 문서가 있으면 서버·앱 모두 이걸 쓴다). */
+/**
+ * 공개 설정 — functions/starlight.js DEFAULT_CONFIG 와 같은 값(이 문서가 있으면 서버·앱 모두 이걸 쓴다).
+ * 2026-10-26: 성운 상자 → 우주 항해(voyages). 천장(pityEpic/pityLegendary) 없음 — seed 가 문서를 통째로 덮어 옛 값도 지워진다.
+ */
 const config = {
   questStardust: 10,
   bonusStardust: 20,
   keyCost: 10,
   boxCost: 100,
+  /** 옛 앱(성운 상자) 확률 — 새 앱은 voyages. */
   rarityWeights: { common: 60, rare: 28, epic: 10, legendary: 2 },
-  pityEpic: 10,
-  pityLegendary: 50,
+  /** 우주 항해 — 일반 탐사: 영웅·전설이 상자의 절반 / 희귀 탐사: 다섯 배(사용자 지시). 일반 등급이 나머지를 채운다. */
+  voyages: {
+    normal: { cost: 50, weights: { common: 66, rare: 28, epic: 5, legendary: 1 } },
+    rare: { cost: 300, weights: { common: 12, rare: 28, epic: 50, legendary: 10 } },
+  },
   dupRefund: { common: 10, rare: 25, epic: 50, legendary: 100 },
   maxOpen: 10,
+  maxVoyage: 10,
   maxExchange: 99,
-  /** 공방 "성운 상자 열기" 영역에 겹쳐 보여 줄 대표 아이템(전설) — 바꾸려면 여기만. */
-  showcase: ["shape_compass", "frame_constellation", "aura_saturn"],
+  /** 광고 보상 — 한 편에 별가루 10, 하루(한국 자정 기준) 10편, 직전 보상 10초 안엔 다시 못 받는다. */
+  adStardust: 10,
+  adDailyCap: 10,
+  adCooldownSec: 10,
 };
 
 module.exports = { items, config };

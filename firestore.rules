@@ -184,19 +184,20 @@ match /chats/{chatId} {
         allow read, write: if isMe(userId);
       }
 
-      // 별빛 공방 요청(2026-10-22): 본인이 { op, 인자, status:'pending' } 으로 만들기만 하고, 처리 결과는 서버
-      // (functions/starlight.js onStarlightOp)가 같은 문서에 쓴다. 수정/삭제 불가 — 결과를 위조하지 못하게.
+      // 별가루 요청(2026-10-22, 우주 항해·광고 보상·상자 환급 2026-10-26): 본인이 { op, 인자, status:'pending' } 으로
+      // 만들기만 하고, 처리 결과는 서버(functions/starlight.js onStarlightOp)가 같은 문서에 쓴다. 수정/삭제 불가 — 결과를 위조하지 못하게.
       match /starlightOps/{opId} {
         allow read: if isMe(userId);
         allow create: if isMe(userId)
           && request.resource.data.status == 'pending'
-          && request.resource.data.op in ['claimQuest', 'claimBonus', 'exchange', 'openBox', 'useItem', 'equip'];
+          && request.resource.data.op in ['claimQuest', 'claimBonus', 'exchange', 'openBox', 'voyage', 'adReward',
+                                          'convertBoxes', 'useItem', 'equip'];
         allow update, delete: if false;
       }
     }
 
     // ── 별빛 공방 지갑(2026-10-22) ─────────────────────────────────────────
-    //  문서 id = appUserId. 별가루·성운 상자·뽑은 아이템·천장. 본인만 읽고, 쓰기는 서버(onStarlightOp)만 —
+    //  문서 id = appUserId. 별가루·옛 성운 상자·뽑은 아이템·광고 보상 횟수. 본인만 읽고, 쓰기는 서버(onStarlightOp)만 —
     //  users 문서 필드로 두면 본인이 마음대로 늘릴 수 있어서 따로 둔다(adFree 와 같은 이유).
     match /wallets/{userId} {
       allow read: if isMe(userId);
