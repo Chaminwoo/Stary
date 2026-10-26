@@ -64,18 +64,30 @@ print("::notice title=%s::%s" % (t, esc))
 PYEOF
 }
 
+# 이미지 축소판(JPEG→base64)을 주석으로 — 공개 API 로 읽어 복원하면 PNG 를 내려받지 않고도 화면을 볼 수 있다.
+thumbnote() {   # thumbnote <제목> <PNG…>
+  local title="$1"; shift
+  local out="$WORK/thumb_$RANDOM.txt" f
+  : > "$out"
+  for f in "$@"; do
+    [ -f "$f" ] || continue
+    echo "=== $(basename "$f") $(stats "$f")" >> "$out"
+    "$PY" "$HERE/shot_stats.py" thumb "$f" 300 9000 >> "$out" 2>/dev/null || echo "(썸네일 실패)" >> "$out"
+  done
+  note "$title" "$out"
+}
+
 # ── 0. Duo 기기 종류 / 런타임 ───────────────────────────────────────────────
 INFO="$WORK/info.txt"
 {
   echo "mode=$MODE langs=$LANGS scenes=$SCENES zoom=$SHOT_ZOOM"
   xcodebuild -version 2>&1
-  echo "── iPhone 기기 종류 ──"
-  xcrun simctl list devicetypes 2>&1 | grep -i "iphone" || true
+  echo "── Duo 기기 종류 ──"
+  xcrun simctl list devicetypes 2>&1 | grep -i -E "duo|iphone 18" || true
   echo "── 런타임 ──"
   xcrun simctl list runtimes 2>&1 || true
 } > "$INFO"
 cat "$INFO"
-note "Duo 0 환경" "$INFO"
 
 duo_type() {   # 이름에 "Duo" 가 들어간 첫 기기 종류 → "이름|id"
   xcrun simctl list devicetypes -j | "$PY" -c '
@@ -131,12 +143,13 @@ HELP="$WORK/help.txt"
   echo; echo "### xcrun simctl io help"; limit 30 xcrun simctl io "$UDID" help 2>&1 | head -80
   echo; echo "### simctl io screenConfig (사용법)"; limit 30 xcrun simctl io "$UDID" screenConfig 2>&1 | head -40
   echo; echo "### simctl io screenshot (사용법)"; limit 30 xcrun simctl io "$UDID" screenshot --help 2>&1 | head -30
+  echo; echo "### 환경"; cat "$INFO"
 } > "$HELP" 2>&1
-note "Duo 1 simctl 사용법" "$HELP"
+note "Duo 1 환경·simctl 사용법" "$HELP"
 
+# (io enumerate 는 2차 점검에서 화면 1=바깥 1398x2034 · 3=안쪽 2007x2853 · 2/4=TV출력 720x480 으로 확인했다 — 주석에서 뺀다)
 ENUM="$WORK/enum.txt"
 limit 60 xcrun simctl io "$UDID" enumerate > "$ENUM" 2>&1 || true
-note "Duo 2 io enumerate" "$ENUM"
 
 # 기기 프로필 + 시뮬레이터 바이너리에서 fold/posture/hinge 단서 찾기(접기/펴기를 CLI 로 하는 법을 모른다).
 PROF="$WORK/profile.txt"
@@ -160,7 +173,7 @@ for t in json.load(sys.stdin)["devicetypes"]:
     strings -a "$b" 2>/dev/null | grep -i -E "fold|posture|hinge" | sort -u | head -40
   done
 } > "$PROF" 2>&1
-note "Duo 6 프로필·문자열" "$PROF"
+note "Duo 3 프로필·문자열" "$PROF"
 
 # ── 2. 모든 화면 켜기 → 화면별 크기/밝기 ────────────────────────────────────
 TABLE="$WORK/table.txt"
@@ -205,77 +218,87 @@ for id in 0 1 2 3 4 5 6 7 8; do probe "d$id" "--display=$id"; done
 probe internal "--display=internal"
 probe external "--display=external"
 echo "선택: label=${SEL_LABEL:-없음} args='${SEL_ARGS}' exact=$SEL_EXACT" | tee -a "$TABLE"
-note "Duo 3 화면 점검" "$TABLE"
+note "Duo 2 화면 점검" "$TABLE"
 
-# 점검용 ASCII 축소판 — 켜진 화면들.
-ASC="$WORK/ascii_probe.txt"; : > "$ASC"
-for f in "$WORK"/probe_*.png; do
-  [ -f "$f" ] || continue
-  echo "=== $(basename "$f") $(stats "$f")" >> "$ASC"
-  "$PY" "$HERE/shot_stats.py" ascii "$f" 50 >> "$ASC" 2>/dev/null || true
-done
-note "Duo 4 화면별 축소판(설정 앱)" "$ASC"
 
-# ── 2.5 안쪽 화면이 검정이면 "펴기" 실험 ─────────────────────────────────────
-# 1차 점검(2026-10-26): 화면 1(바깥 1398×2034)·3(안쪽 2007×2853) 모두 power on 인데 앱은 바깥에만 그려지고 안쪽은 검정이었다.
-# 가설: 접힌 상태(바깥만 그림)에서 벗어나려면 바깥을 꺼야 SpringBoard 가 안쪽으로 옮겨 간다(= 펴기).
-#       (1~3차에서 *안쪽을 끄자* SpringBoard 가 죽은 것의 반대 방향.)
+# ── 2.5 안쪽 화면(2007×2853) 만들기 ──────────────────────────────────────────
+# 점검 결과(2026-10-26): 앱은 화면 1(바깥 1398×2034)에만 그려지고 화면 3(안쪽 2007×2853)은 켜도 검정이다.
+#   실험 A/B/C(바깥 끄기 · 안쪽 껐다 켜기 · 재부팅 후 바깥 끄기)는 전부 실패했고, 바깥(1)을 끄면 SpringBoard 가 죽어
+#   그 뒤 앱 실행이 전부 "The system shell probably crashed" 로 실패했다 → **화면을 끄는 실험은 하지 않는다**(촬영 잡도 같은 스크립트를 탄다).
+# 새 방법: 앱이 그려지는 화면 1 자체를 안쪽 크기로 바꾼다 — `screenConfig --display=1 geometry 2007x2853@3`
+#   (프로필에 resizableScene 기능이 있다). 논리 크기 669×951pt @3x 라 실제 안쪽 화면과 같은 레이아웃이다.
 EXP="$WORK/exp.txt"; : > "$EXP"
-INNER_OK=0
-exp_probe() {   # exp_probe <라벨> — 설정 앱을 다시 띄우고 바깥(1)·안쪽(3) 화면을 찍어 밝기를 본다
-  local label="$1" id f line
-  limit 60 xcrun simctl launch "$UDID" com.apple.Preferences >/dev/null 2>&1 || echo "[$label] 설정 앱 실행 실패" | tee -a "$EXP"
-  sleep 8
-  for id in 1 3; do
-    f="$WORK/exp_${label}_d$id.png"; rm -f "$f"
-    if limit 40 xcrun simctl io "$UDID" screenshot --display=$id "$f" >/dev/null 2>&1 && [ -s "$f" ]; then
-      line=$(stats "$f"); echo "[$label] d$id: $line" | tee -a "$EXP"
-      if [ "$id" = 3 ] && is_bright "$line"; then INNER_OK=1; fi
-    else
-      echo "[$label] d$id: 촬영 실패" | tee -a "$EXP"
-    fi
-  done
+GEOM_OK=0
+
+reboot_device() {   # 시스템 화면이 죽었을 때 — 껐다 켜서 처음 상태로
+  xcrun simctl shutdown "$UDID" >/dev/null 2>&1; sleep 3
+  xcrun simctl boot "$UDID" >/dev/null 2>&1
+  limit 600 xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || echo "bootstatus 시간 초과" | tee -a "$EXP"
+  sleep 6
 }
-if [ "$SEL_EXACT" != 1 ]; then
-  echo "── 실험 A: 바깥 화면(1)을 끈다 ──" | tee -a "$EXP"
-  limit 20 xcrun simctl io "$UDID" screenConfig --display=1 power off 2>&1 | tee -a "$EXP"
+
+geom_try() {   # geom_try <WxH[@scale]> — 화면 1 을 바꾸고 설정 앱이 뜨는지·크기·밝기를 확인
+  local spec="$1" out rc f line tag
+  tag=$(echo "$spec" | tr -c 'a-z0-9
+' '_')
+  echo "── 실험 G: 화면 1 geometry $spec ──" | tee -a "$EXP"
+  out=$(limit 30 xcrun simctl io "$UDID" screenConfig --display=1 geometry "$spec" 2>&1); rc=$?
+  echo "rc=$rc ${out:0:700}" | tee -a "$EXP"
   sleep 8
-  exp_probe A
-  if [ "$INNER_OK" != 1 ]; then
-    echo "── 실험 B: 안쪽(3)을 껐다 켠다(바깥은 꺼진 채) ──" | tee -a "$EXP"
-    limit 20 xcrun simctl io "$UDID" screenConfig --display=3 power off 2>&1 | tee -a "$EXP"
-    sleep 4
-    limit 20 xcrun simctl io "$UDID" screenConfig --display=3 power on 2>&1 | tee -a "$EXP"
-    sleep 8
-    exp_probe B
+  if ! limit 60 xcrun simctl launch "$UDID" com.apple.Preferences >/dev/null 2>&1; then
+    echo "[G $spec] 설정 앱 실행 실패 — 시스템 화면이 죽은 듯 → 재부팅" | tee -a "$EXP"
+    reboot_device
+    return 1
   fi
-  if [ "$INNER_OK" != 1 ]; then
-    echo "── 실험 C: 재부팅 → 바깥(1) 끄고 안쪽(3) 켜기 ──" | tee -a "$EXP"
-    xcrun simctl shutdown "$UDID" 2>&1 | tee -a "$EXP"
-    sleep 3
-    xcrun simctl boot "$UDID" 2>&1 | tee -a "$EXP"
-    limit 600 xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || echo "bootstatus 시간 초과" | tee -a "$EXP"
-    sleep 5
-    limit 20 xcrun simctl io "$UDID" screenConfig --display=1 power off 2>&1 | tee -a "$EXP"
-    limit 20 xcrun simctl io "$UDID" screenConfig --display=3 power on 2>&1 | tee -a "$EXP"
-    sleep 8
-    exp_probe C
-  fi
-  if [ "$INNER_OK" = 1 ]; then
-    SEL_ARGS="--display=3"; SEL_LABEL="inner"; SEL_EXACT=1
-    echo "결론: 안쪽 화면(3)이 켜졌다 → 촬영에 쓴다" | tee -a "$EXP"
+  sleep 8
+  f="$WORK/exp_G_${tag}_d1.png"; rm -f "$f"
+  if limit 40 xcrun simctl io "$UDID" screenshot --display=1 "$f" >/dev/null 2>&1 && [ -s "$f" ]; then
+    line=$(stats "$f"); echo "[G $spec] d1: $line" | tee -a "$EXP"
+    case "$line" in
+      "${WANT_W}x${WANT_H} "*) if is_bright "$line"; then GEOM_OK=1; return 0; fi ;;
+    esac
   else
-    echo "결론: 안쪽 화면(3)은 계속 검정" | tee -a "$EXP"
+    echo "[G $spec] d1: 촬영 실패" | tee -a "$EXP"
+  fi
+  return 1
+}
+
+if [ "$SEL_EXACT" != 1 ]; then
+  geom_try "${WANT_W}x${WANT_H}@3" || geom_try "${WANT_W}x${WANT_H}" || true
+  if [ "$GEOM_OK" = 1 ]; then
+    SEL_ARGS="--display=1"; SEL_LABEL="geometry"; SEL_EXACT=1
+    echo "결론: 화면 1 을 ${WANT_W}x${WANT_H} 로 바꿨다 → 촬영에 쓴다" | tee -a "$EXP"
+  else
+    echo "결론: geometry 로는 ${WANT_W}x${WANT_H} 를 못 만들었다" | tee -a "$EXP"
+    # 실패가 설정을 남겼을 수 있으니 처음 상태로 돌려 놓는다(바깥 화면 촬영이라도 되게).
+    reboot_device
   fi
 fi
-note "Duo 7 펴기 실험" "$EXP"
-EXPASC="$WORK/ascii_exp.txt"; : > "$EXPASC"
-for f in "$WORK"/exp_*_d3.png; do
-  [ -f "$f" ] || continue
-  echo "=== $(basename "$f") $(stats "$f")" >> "$EXPASC"
-  "$PY" "$HERE/shot_stats.py" ascii "$f" 50 >> "$EXPASC" 2>/dev/null || true
-done
-note "Duo 8 실험 축소판(안쪽)" "$EXPASC"
+note "Duo 4 geometry 실험" "$EXP"
+thumbnote "Duo 5 실험 썸네일(화면 1)" "$WORK"/exp_G_*_d1.png
+
+# 점검 전용 — 접기/펴기 단서(simctl ui 옵션 · capabilities.plist · SimulatorKit 문자열). 촬영 잡에서는 건너뛴다.
+if [ "$MODE" = "probe" ]; then
+  INFO2="$WORK/info2.txt"
+  {
+    bundle=$(xcrun simctl list devicetypes -j | "$PY" -c '
+import json, sys
+for t in json.load(sys.stdin)["devicetypes"]:
+    if "duo" in t["name"].lower():
+        print(t.get("bundlePath", "")); break
+')
+    echo "### simctl help ui"; limit 20 xcrun simctl help ui </dev/null 2>&1 | head -40
+    echo; echo "### simctl ui <device> (인자 없이)"; limit 20 xcrun simctl ui "$UDID" </dev/null 2>&1 | head -30
+    echo; echo "### simctl help io"; limit 20 xcrun simctl help io </dev/null 2>&1 | grep -i -E "screenConfig|geometry|power|posture|fold" | head -20
+    echo; echo "### capabilities.plist"; plutil -p "$bundle/Contents/Resources/capabilities.plist" 2>&1 | head -80
+    echo; echo "### SimulatorKit / Simulator 문자열(fold·hinge·posture·flip·dual·spanning·screen mode)"
+    for b in $(find "$(xcode-select -p)" -maxdepth 7 \( -name SimulatorKit -o -name Simulator -o -name CoreSimulatorUtilities -o -name DeviceKit \) -type f 2>/dev/null | head -6); do
+      echo "-- $b"
+      strings -a "$b" 2>/dev/null | grep -i -E "fold|hinge|posture|flip|spanning|screenConfig|geometry|display.*mode|dual" | sort -u | head -40
+    done
+  } > "$INFO2" 2>&1
+  note "Duo 8 접기 단서" "$INFO2"
+fi
 
 if [ -z "$SEL_LABEL" ]; then
   echo "::warning::켜진(검정 아닌) 화면을 찾지 못했다 — 기본 화면으로 시도한다"
@@ -296,6 +319,7 @@ xcrun simctl privacy "$UDID" grant location "$BUNDLE_ID" || true
 xcrun simctl location "$UDID" set "$SHOT_LAT,$SHOT_LNG" || true
 
 SHOT_NOTE="$WORK/shot_note.txt"; : > "$SHOT_NOTE"
+SHOT_FILES=()
 for lang in $LANGS; do
   dir="$OUT_DIR/duo/$lang"; mkdir -p "$dir"
   i=0
@@ -332,13 +356,14 @@ for lang in $LANGS; do
       *) echo "::warning::$lang/$scene 크기가 ${WANT_W}x${WANT_H} 가 아니다: $line" ;;
     esac
     {
-      echo "=== $lang/$(printf '%02d' "$i")_$scene  $line"
-      cat "$base.log" "$base.err.log" 2>/dev/null | grep -E "❌|⚠️|Firestore" | head -3 | sed 's/^/log: /'
-      "$PY" "$HERE/shot_stats.py" ascii "$base.png" 56 2>/dev/null
+      echo "$lang/$(printf '%02d' "$i")_$scene  $line"
+      cat "$base.log" "$base.err.log" 2>/dev/null | grep -E "❌|⚠️|Firestore" | head -3 | sed 's/^/  log: /'
     } >> "$SHOT_NOTE"
+    SHOT_FILES+=("$base.png")
   done
 done
-note "Duo 5 촬영 결과 축소판($LANGS)" "$SHOT_NOTE"
+note "Duo 6 촬영 결과 요약($LANGS)" "$SHOT_NOTE"
+thumbnote "Duo 7 촬영 썸네일($LANGS)" ${SHOT_FILES[@]+"${SHOT_FILES[@]}"}
 
 xcrun simctl shutdown "$UDID" || true
 echo "── 결과 ──"

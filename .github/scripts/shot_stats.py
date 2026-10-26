@@ -6,6 +6,7 @@ CI 로그/아티팩트는 내려받으려면 로그인이 필요하다. 대신 �
 
   shot_stats.py brief <png>            → "2007x2853 mean=12.3 bright=3.10%"
   shot_stats.py ascii <png> [cols]     → 밝기를 글자로 옮긴 축소판(기본 60열)
+  shot_stats.py thumb <png> [폭] [최대바이트] → JPEG 축소판을 base64 한 줄로(주석에 실어 공개 API 로 복원해 볼 수 있다)
 """
 import struct
 import sys
@@ -64,6 +65,27 @@ def ascii_art(path, cols=60):
     return "\n".join(out)
 
 
+def thumb_b64(path, maxw=300, budget=9000):
+    """JPEG 축소판 base64 — 용량(budget 바이트)에 맞을 때까지 화질을 낮춘다."""
+    import base64
+    import io
+    try:
+        from PIL import Image  # type: ignore
+    except Exception:
+        return "(Pillow 없음)"
+    img = Image.open(path).convert("RGB")
+    w, h = img.size
+    img = img.resize((maxw, max(1, int(h * maxw / w))))
+    data = b""
+    for q in (60, 50, 40, 32, 25, 18):
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=q, optimize=True)
+        data = buf.getvalue()
+        if len(data) <= budget:
+            break
+    return base64.b64encode(data).decode()
+
+
 def main(argv):
     if len(argv) < 3:
         print(__doc__)
@@ -71,6 +93,8 @@ def main(argv):
     cmd, path = argv[1], argv[2]
     if cmd == "brief":
         print(brief(path))
+    elif cmd == "thumb":
+        print(thumb_b64(path, int(argv[3]) if len(argv) > 3 else 300, int(argv[4]) if len(argv) > 4 else 9000))
     elif cmd == "ascii":
         print(ascii_art(path, int(argv[3]) if len(argv) > 3 else 60))
     else:
