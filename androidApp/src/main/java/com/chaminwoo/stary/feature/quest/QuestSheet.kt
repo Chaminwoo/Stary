@@ -382,7 +382,6 @@ fun QuestSheet(
                             icon = iconOf(def.event),
                             title = def.titleIn(lang),
                             hint = def.hintIn(lang),
-                            tier = def.tier,
                             target = def.target,
                             reward = catalog?.reward(def, StarlightStore.config.questStardust) ?: StarlightStore.config.questStardust,
                             progress = daily.progressOf(def.id).coerceAtMost(def.target),
@@ -410,25 +409,6 @@ fun QuestSheet(
             ResetCountdown()
         }
     }
-}
-
-/** 난이도 표시 — 쉬움(민트) · 보통(하늘) · 어려움(보라). 모르는 값은 쉬움. */
-@Composable
-private fun TierTag(tier: String) {
-    val (label, color) = when (tier) {
-        "hard" -> R.string.quest_tier_hard to Color(0xFFD59CFF)
-        "normal" -> R.string.quest_tier_normal to Color(0xFF7CB8FF)
-        else -> R.string.quest_tier_easy to Mint
-    }
-    Text(
-        stringResource(label),
-        color = color, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(color.copy(alpha = 0.13f))
-            .border(0.5.dp, color.copy(alpha = 0.45f), RoundedCornerShape(50))
-            .padding(horizontal = 7.dp, vertical = 1.dp),
-    )
 }
 
 /** "새 퀘스트까지 N시간 M분" — 기기 현지 자정 기준, 30초마다 갱신. */
@@ -466,8 +446,6 @@ private fun QuestRow(
     progress: Int,
     claimed: Boolean,
     onClaim: () -> Unit,
-    /** 난이도(easy · normal · hard) — 제목 위 작은 표시. null = 보너스 행. */
-    tier: String? = null,
     highlight: Boolean = false,
     onGo: (() -> Unit)? = null,
 ) {
@@ -529,9 +507,6 @@ private fun QuestRow(
                         color = QuestGold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.height(2.dp))
-                } else if (tier != null && !claimed) {
-                    TierTag(tier)
-                    Spacer(Modifier.height(3.dp))
                 }
                 Text(
                     title,

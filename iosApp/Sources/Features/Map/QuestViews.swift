@@ -166,7 +166,6 @@ struct QuestSheetView: View {
                                 title: q.titleIn(locale.effectiveLanguage), hint: q.hintIn(locale.effectiveLanguage),
                                 target: q.target,
                                 reward: catalog.catalog?.reward(q, fallback: starlight.config.questStardust) ?? starlight.config.questStardust,
-                                tier: q.tier,
                                 progress: min(d.progressOf(q.id), q.target),
                                 claimed: d.claimed.contains(q.id),
                                 highlight: q.id == highlightId,
@@ -340,27 +339,6 @@ private func questSymbol(_ e: QuestEvent?) -> String {
     }
 }
 
-/// 난이도 꼬리표 — 쉬움(민트) · 보통(푸른빛) · 어려움(보랏빛). Android `TierTag` 패리티.
-private struct TierTag: View {
-    let tier: String
-    @ObservedObject private var locale = LocaleManager.shared
-    var body: some View {
-        let (key, color): (L10n, Color) = {
-            switch tier {
-            case "hard": return (.questTierHard, Color(hex: 0xD59CFF))
-            case "normal": return (.questTierNormal, Color(hex: 0x7CB8FF))
-            default: return (.questTierEasy, Theme.mint)
-            }
-        }()
-        Text(locale.t(key))
-            .font(.minSans(10, .semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(color.opacity(0.14), in: Capsule())
-            .overlay(Capsule().strokeBorder(color.opacity(0.45), lineWidth: 0.6))
-    }
-}
-
 private struct QuestRowView: View {
     let index: Int
     let symbol: String
@@ -368,7 +346,6 @@ private struct QuestRowView: View {
     let hint: String
     let target: Int
     let reward: Int
-    var tier: String? = nil
     let progress: Int
     let claimed: Bool
     var highlight: Bool = false
@@ -404,7 +381,6 @@ private struct QuestRowView: View {
                         .font(.minSans(14, .medium))
                         .foregroundStyle(claimed ? Color(hex: 0x8A93A3) : Theme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
-                    if let tier, !claimed { TierTag(tier: tier) }
                 }
                 Text(hint)
                     .font(.minSans(11))
