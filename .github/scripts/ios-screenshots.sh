@@ -41,6 +41,13 @@ limit() { local s="$1"; shift; perl -e 'alarm shift; exec @ARGV' "$s" "$@"; }
 
 stats() { "$PY" "$HERE/shot_stats.py" brief "$1" 2>/dev/null || echo "?"; }
 
+# stats 출력 줄("2007x2853 mean=.. bright=3.10%")이 검정이 아니면(밝은 픽셀 0.3% 초과) 참.
+is_bright() {
+  local b
+  b=$(echo "$1" | sed -n 's/.*bright=\([0-9.]*\)%.*/\1/p')
+  [ -n "$b" ] && [ "$(echo "$b > 0.3" | bc -l 2>/dev/null || echo 0)" = "1" ]
+}
+
 # 파일 내용을 GitHub 주석으로 — 공개 API(check-runs/annotations)로 읽을 수 있다.
 note() {   # note <제목> <파일>
   "$PY" - "$1" "$2" <<'PYEOF'
@@ -119,7 +126,8 @@ limit 600 xcrun simctl bootstatus "$UDID" -b || echo "::warning::bootstatus 가 
 # ── 1. 사용법 / enumerate (진단) ────────────────────────────────────────────
 HELP="$WORK/help.txt"
 {
-  echo "### xcrun simctl help"; limit 30 xcrun simctl help 2>&1 | head -90
+  # (1차 점검: `simctl help | head` 가 30초 알람에 죽어 출력이 비었다 → 파일로 받고 stdin 을 막는다)
+  echo "### xcrun simctl --help"; limit 20 xcrun simctl --help </dev/null > "$WORK/h1.txt" 2>&1; head -90 "$WORK/h1.txt"
   echo; echo "### xcrun simctl io help"; limit 30 xcrun simctl io "$UDID" help 2>&1 | head -80
   echo; echo "### simctl io screenConfig (사용법)"; limit 30 xcrun simctl io "$UDID" screenConfig 2>&1 | head -40
   echo; echo "### simctl io screenshot (사용법)"; limit 30 xcrun simctl io "$UDID" screenshot --help 2>&1 | head -30
@@ -129,6 +137,30 @@ note "Duo 1 simctl 사용법" "$HELP"
 ENUM="$WORK/enum.txt"
 limit 60 xcrun simctl io "$UDID" enumerate > "$ENUM" 2>&1 || true
 note "Duo 2 io enumerate" "$ENUM"
+
+# 기기 프로필 + 시뮬레이터 바이너리에서 fold/posture/hinge 단서 찾기(접기/펴기를 CLI 로 하는 법을 모른다).
+PROF="$WORK/profile.txt"
+{
+  bundle=$(xcrun simctl list devicetypes -j | "$PY" -c '
+import json, sys
+for t in json.load(sys.stdin)["devicetypes"]:
+    if "duo" in t["name"].lower():
+        print(t.get("bundlePath", "")); break
+')
+  echo "bundle: $bundle"
+  ls -R "$bundle/Contents/Resources" 2>&1 | head -40
+  echo "### profile.plist (앞 60줄)"
+  plutil -p "$bundle/Contents/Resources/profile.plist" 2>&1 | head -60
+  echo "### profile.plist (fold/screen/display/posture/hinge/chrome/orientation 줄)"
+  plutil -p "$bundle/Contents/Resources/profile.plist" 2>&1 | grep -i -E "fold|screen|display|posture|hinge|chrome|orient|primary" | head -80
+  echo "### strings"
+  for b in "$(xcrun -f simctl)" "/Library/Developer/PrivateFrameworks/CoreSimulator.framework/CoreSimulator" \
+           "$(xcode-select -p)/Applications/Simulator.app/Contents/MacOS/Simulator"; do
+    echo "-- $b"
+    strings -a "$b" 2>/dev/null | grep -i -E "fold|posture|hinge" | sort -u | head -40
+  done
+} > "$PROF" 2>&1
+note "Duo 6 프로필·문자열" "$PROF"
 
 # ── 2. 모든 화면 켜기 → 화면별 크기/밝기 ────────────────────────────────────
 TABLE="$WORK/table.txt"
@@ -183,6 +215,67 @@ for f in "$WORK"/probe_*.png; do
   "$PY" "$HERE/shot_stats.py" ascii "$f" 50 >> "$ASC" 2>/dev/null || true
 done
 note "Duo 4 화면별 축소판(설정 앱)" "$ASC"
+
+# ── 2.5 안쪽 화면이 검정이면 "펴기" 실험 ─────────────────────────────────────
+# 1차 점검(2026-10-26): 화면 1(바깥 1398×2034)·3(안쪽 2007×2853) 모두 power on 인데 앱은 바깥에만 그려지고 안쪽은 검정이었다.
+# 가설: 접힌 상태(바깥만 그림)에서 벗어나려면 바깥을 꺼야 SpringBoard 가 안쪽으로 옮겨 간다(= 펴기).
+#       (1~3차에서 *안쪽을 끄자* SpringBoard 가 죽은 것의 반대 방향.)
+EXP="$WORK/exp.txt"; : > "$EXP"
+INNER_OK=0
+exp_probe() {   # exp_probe <라벨> — 설정 앱을 다시 띄우고 바깥(1)·안쪽(3) 화면을 찍어 밝기를 본다
+  local label="$1" id f line
+  limit 60 xcrun simctl launch "$UDID" com.apple.Preferences >/dev/null 2>&1 || echo "[$label] 설정 앱 실행 실패" | tee -a "$EXP"
+  sleep 8
+  for id in 1 3; do
+    f="$WORK/exp_${label}_d$id.png"; rm -f "$f"
+    if limit 40 xcrun simctl io "$UDID" screenshot --display=$id "$f" >/dev/null 2>&1 && [ -s "$f" ]; then
+      line=$(stats "$f"); echo "[$label] d$id: $line" | tee -a "$EXP"
+      if [ "$id" = 3 ] && is_bright "$line"; then INNER_OK=1; fi
+    else
+      echo "[$label] d$id: 촬영 실패" | tee -a "$EXP"
+    fi
+  done
+}
+if [ "$SEL_EXACT" != 1 ]; then
+  echo "── 실험 A: 바깥 화면(1)을 끈다 ──" | tee -a "$EXP"
+  limit 20 xcrun simctl io "$UDID" screenConfig --display=1 power off 2>&1 | tee -a "$EXP"
+  sleep 8
+  exp_probe A
+  if [ "$INNER_OK" != 1 ]; then
+    echo "── 실험 B: 안쪽(3)을 껐다 켠다(바깥은 꺼진 채) ──" | tee -a "$EXP"
+    limit 20 xcrun simctl io "$UDID" screenConfig --display=3 power off 2>&1 | tee -a "$EXP"
+    sleep 4
+    limit 20 xcrun simctl io "$UDID" screenConfig --display=3 power on 2>&1 | tee -a "$EXP"
+    sleep 8
+    exp_probe B
+  fi
+  if [ "$INNER_OK" != 1 ]; then
+    echo "── 실험 C: 재부팅 → 바깥(1) 끄고 안쪽(3) 켜기 ──" | tee -a "$EXP"
+    xcrun simctl shutdown "$UDID" 2>&1 | tee -a "$EXP"
+    sleep 3
+    xcrun simctl boot "$UDID" 2>&1 | tee -a "$EXP"
+    limit 600 xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || echo "bootstatus 시간 초과" | tee -a "$EXP"
+    sleep 5
+    limit 20 xcrun simctl io "$UDID" screenConfig --display=1 power off 2>&1 | tee -a "$EXP"
+    limit 20 xcrun simctl io "$UDID" screenConfig --display=3 power on 2>&1 | tee -a "$EXP"
+    sleep 8
+    exp_probe C
+  fi
+  if [ "$INNER_OK" = 1 ]; then
+    SEL_ARGS="--display=3"; SEL_LABEL="inner"; SEL_EXACT=1
+    echo "결론: 안쪽 화면(3)이 켜졌다 → 촬영에 쓴다" | tee -a "$EXP"
+  else
+    echo "결론: 안쪽 화면(3)은 계속 검정" | tee -a "$EXP"
+  fi
+fi
+note "Duo 7 펴기 실험" "$EXP"
+EXPASC="$WORK/ascii_exp.txt"; : > "$EXPASC"
+for f in "$WORK"/exp_*_d3.png; do
+  [ -f "$f" ] || continue
+  echo "=== $(basename "$f") $(stats "$f")" >> "$EXPASC"
+  "$PY" "$HERE/shot_stats.py" ascii "$f" 50 >> "$EXPASC" 2>/dev/null || true
+done
+note "Duo 8 실험 축소판(안쪽)" "$EXPASC"
 
 if [ -z "$SEL_LABEL" ]; then
   echo "::warning::켜진(검정 아닌) 화면을 찾지 못했다 — 기본 화면으로 시도한다"
