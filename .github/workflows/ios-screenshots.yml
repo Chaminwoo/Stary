@@ -1,0 +1,149 @@
+name: iOS Screenshots
+
+# App Store 스크린샷 자동 촬영 — iPhone Duo(폴더블) 안쪽 화면 2007×2853.
+#  - 실행: `screenshots` 브랜치에 push 하면 자동으로 돈다(또는 Actions 탭 → iOS Screenshots → Run workflow, main 에 있을 때).
+#  - probe 잡 : 앱 없이 Duo 시뮬레이터만 켜서 화면/사용법/밝기를 점검(빠름). 결과는 **주석(annotation)** 으로 남는다.
+#  - shots 잡 : 앱을 시뮬레이터용으로 빌드 → Duo 에서 `-StaryShot <장면>` 으로 띄워(iosApp/Sources/Core/ScreenshotMode.swift) 촬영.
+#               별은 서버가 아니라 샘플(익명 인증이 꺼져 있어 둘러보기는 별 0개였다 — 1차 실행). 결과 PNG 는 아티팩트 "Stary-screenshots".
+#  - 앱은 세로 전용이라 2007×2853(세로)만 찍는다. 가로(2853×2007)는 앱이 가로를 지원하지 않아 대상이 아니다.
+#  - 지도 스타일은 MAPTILER_KEY 시크릿이 있어야 실제(야경) 스타일 — 없으면 데모 스타일로 찍힌다.
+#  - 촬영 스크립트: .github/scripts/ios-screenshots.sh · 점검 도구: .github/scripts/shot_stats.py
+on:
+  push:
+    branches: [screenshots]
+  workflow_dispatch:
+    inputs:
+      xcode:
+        description: "Xcode 앱 이름(/Applications/<이름>.app)"
+        default: "Xcode_27.1"
+      langs:
+        description: "언어(공백 구분) — 한국어가 성공하면 'ko en'"
+        default: "ko"
+      scenes:
+        description: "장면(login map constellation globe)"
+        default: "login map constellation globe"
+      zoom:
+        description: "지도 줌"
+        default: "13"
+
+env:
+  XCODE_APP: ${{ inputs.xcode || 'Xcode_27.1' }}
+  SHOT_LANGS: ${{ inputs.langs || 'ko' }}
+  SHOT_SCENES: ${{ inputs.scenes || 'login map constellation globe' }}
+  SHOT_ZOOM: ${{ inputs.zoom || '13' }}
+
+jobs:
+  probe:
+    name: Duo 점검 (앱 없이)
+    runs-on: xcode-27   # GitHub 프리뷰 이미지 — Xcode 27.x + iOS 27 시뮬레이터
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "/Applications/${XCODE_APP}.app"
+          xcodebuild -version
+
+      - name: Pillow (점검용 — 실패해도 계속)
+        run: |
+          python3 -m venv /tmp/venv && /tmp/venv/bin/pip install --quiet pillow || echo "::warning::Pillow 설치 실패 — 밝기/축소판 생략"
+
+      - name: Duo 점검
+        env:
+          MODE: probe
+          OUT_DIR: screenshots
+        run: |
+          if [ -x /tmp/venv/bin/python ]; then export PY=/tmp/venv/bin/python; fi
+          bash .github/scripts/ios-screenshots.sh
+
+      - name: Upload probe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Duo-probe
+          path: screenshots/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  shots:
+    name: Screenshots (Duo)
+    runs-on: xcode-27
+    timeout-minutes: 80
+    env:
+      MAPTILER_KEY: ${{ secrets.MAPTILER_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "/Applications/${XCODE_APP}.app"
+          xcodebuild -version
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Pillow (점검용 — 실패해도 계속)
+        run: |
+          python3 -m venv /tmp/venv && /tmp/venv/bin/pip install --quiet pillow || echo "::warning::Pillow 설치 실패 — 밝기/축소판 생략"
+
+      - name: local.properties 작성 (Android SDK 위치)
+        run: echo "sdk.dir=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" > local.properties
+
+      # 지도 키만 주입(광고 키는 촬영에 불필요). 값은 로그에 찍지 않는다.
+      - name: (선택) 지도 키 → Local.secrets.xcconfig
+        run: |
+          echo "MAPTILER_KEY = $MAPTILER_KEY" > iosApp/Config/Local.secrets.xcconfig
+          if [ -z "$MAPTILER_KEY" ]; then echo "::warning::MAPTILER_KEY 시크릿이 없다 — 지도가 데모 스타일로 찍힌다"; fi
+
+      - name: Generate Xcode project
+        run: cd iosApp && xcodegen generate
+
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          if ! xcodebuild \
+            -project iosApp/Stary.xcodeproj \
+            -scheme Stary \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build.log | tail -60; then
+            grep -E " error: " build.log | head -40 | sort -u | while IFS= read -r l; do
+              echo "::error::${l}"
+            done
+            exit 65
+          fi
+
+      - name: Take screenshots
+        env:
+          MODE: shots
+          APP_PATH: build/dd/Build/Products/Debug-iphonesimulator/Stary.app
+          OUT_DIR: screenshots
+          LANGS: ${{ env.SHOT_LANGS }}
+          SCENES: ${{ env.SHOT_SCENES }}
+          SHOT_LAT: "37.5665"
+          SHOT_LNG: "126.9780"
+        run: |
+          if [ -x /tmp/venv/bin/python ]; then export PY=/tmp/venv/bin/python; fi
+          bash .github/scripts/ios-screenshots.sh
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stary-screenshots
+          path: screenshots/
+          retention-days: 30
+          if-no-files-found: warn

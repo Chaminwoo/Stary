@@ -16,6 +16,12 @@ final class DiaryStore: ObservableObject {
         if started && startedUid == uid { return }
         started = true
         startedUid = uid
+        // 스크린샷 자동 촬영 — 서버 대신 샘플 별(Core/ScreenshotMode.swift).
+        if ScreenshotMode.isActive {
+            diaries = ScreenshotMode.demoDiaries()
+            loading = false
+            return
+        }
         repo.stopAll()
         loading = true
         repo.observeAll(currentUid: uid) { [weak self] list in

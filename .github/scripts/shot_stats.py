@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""스크린샷 점검용 — 크기 · 밝기 · ASCII 축소판.
+
+CI 로그/아티팩트는 내려받으려면 로그인이 필요하다. 대신 이 출력을 GitHub 주석(annotation)으로 남기면 공개 API 로 읽을 수 있어서
+"검정 화면인지 / 별이 보이는지 / 버튼이 겹치지 않았는지" 를 PNG 를 열지 않고도 대략 가늠할 수 있다.
+
+  shot_stats.py brief <png>            → "2007x2853 mean=12.3 bright=3.10%"
+  shot_stats.py ascii <png> [cols]     → 밝기를 글자로 옮긴 축소판(기본 60열)
+"""
+import struct
+import sys
+
+RAMP = " .:-=+*#%@"
+
+
+def png_size(path):
+    with open(path, "rb") as f:
+        head = f.read(24)
+    if head[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    return struct.unpack(">II", head[16:24])
+
+
+def open_image(path):
+    try:
+        from PIL import Image  # type: ignore
+    except Exception:
+        return None
+    try:
+        return Image.open(path).convert("L")
+    except Exception:
+        return None
+
+
+def brief(path):
+    size = png_size(path)
+    img = open_image(path)
+    if img is None:
+        import os
+        w, h = size if size else (0, 0)
+        return f"{w}x{h} mean=? bright=? bytes={os.path.getsize(path)}"
+    w, h = img.size
+    small = img.resize((max(1, w // 8), max(1, h // 8)))
+    px = list(small.getdata())
+    mean = sum(px) / len(px)
+    bright = 100.0 * sum(1 for v in px if v > 32) / len(px)
+    return f"{w}x{h} mean={mean:.1f} bright={bright:.2f}%"
+
+
+def ascii_art(path, cols=60):
+    img = open_image(path)
+    if img is None:
+        return "(Pillow 없음 — 축소판 생략)"
+    w, h = img.size
+    rows = max(1, int(cols * h / w * 0.5))   # 글자 칸은 세로가 가로의 약 2배
+    small = img.resize((cols, rows))
+    out = []
+    for y in range(rows):
+        line = []
+        for x in range(cols):
+            v = small.getpixel((x, y))
+            line.append(RAMP[min(len(RAMP) - 1, v * len(RAMP) // 256)])
+        out.append("".join(line).rstrip())
+    return "\n".join(out)
+
+
+def main(argv):
+    if len(argv) < 3:
+        print(__doc__)
+        return 2
+    cmd, path = argv[1], argv[2]
+    if cmd == "brief":
+        print(brief(path))
+    elif cmd == "ascii":
+        print(ascii_art(path, int(argv[3]) if len(argv) > 3 else 60))
+    else:
+        print(__doc__)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
