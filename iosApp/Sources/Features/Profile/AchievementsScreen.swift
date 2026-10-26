@@ -295,18 +295,13 @@ struct AchievementsScreen: View {
             }
             .frame(height: 52)
 
-            // ── 탐사(우주 항해) — 맨 앞. 가진 것만, 종류 칩으로 거르고 누르면 상세(프레임·배지·칭호는 장착). ──
+            // ── 잠든 우주(깨워서 찾은 것) — 맨 앞. 모은 것만, 종류 칩으로 거르고 누르면 상세(프레임·배지·칭호는 장착). ──
             let finds = ownedFinds()
             let kinds = findKinds(finds)
             specialHeader(locale.t(.achVoyageSection), locale.t(.achVoyageSub), done: finds.count, total: nil)
             if finds.isEmpty {
                 voyageEmptyCard
             } else {
-                VoyageLoadout(equippedTitle: equippedTitleId) { k in
-                    guard kinds.contains(k) else { return }
-                    Haptics.tick()
-                    withAnimation(.easeOut(duration: 0.18)) { findKind = k }
-                }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         findChip(locale.t(.starlightAll), finds.count, findKind == nil) { findKind = nil }

@@ -124,10 +124,10 @@ q("share", "SHARE", "normal",
   t3("별을 열고 공유 버튼을 눌러요", "Open a star and tap the share button", "星を開いてシェアボタンをタップ"));
 
 // ── 어려움 — 며칠 모으거나 별가루 메뉴까지 가야 하는 일 ───────────────────────
-// 2026-10-26 성운 상자 → 우주 항해(id·event 는 그대로 — 옛 앱은 상자를 열 때 같은 이벤트를 보고한다).
+// 2026-10-26 성운 상자 → 우주 항해 → 2026-10-27 잠든 우주(id·event 는 그대로 — 옛 앱은 상자를 열 때 같은 이벤트를 보고한다).
 q("open_box", "OPEN_BOX", "hard",
-  t3("우주 항해 한 번 떠나기", "Go on a space voyage", "宇宙航海に1回出かける"),
-  t3("메뉴 › 별가루에서 별가루로 우주 항해를 떠나요", "Spend stardust on a space voyage in Menu › Stardust", "メニュー › 星くず で星くずを使って宇宙航海へ"));
+  t3("잠든 우주 한 번 깨우기", "Awaken a sleeping cosmos", "眠れる宇宙を1回目覚めさせる"),
+  t3("메뉴 › 별가루에서 별가루로 잠든 우주를 깨워요", "Spend stardust to awaken a sleeping cosmos in Menu › Stardust", "メニュー › 星くず で星くずを使って眠れる宇宙を目覚めさせる"));
 q("friend_add2", "FRIEND_ADD", "hard",
   t3("새 친구 2명 사귀기", "Make 2 new friends", "新しい友だちを2人作る"),
   t3("지금 친구 수에서 두 명 더 — 요청을 수락하거나 보낸 요청이 수락되면 돼요", "Two more than you have now — accept requests or get yours accepted", "今の友だちからさらに2人 — 申請の承認でも、送った申請の承認でもOK"),

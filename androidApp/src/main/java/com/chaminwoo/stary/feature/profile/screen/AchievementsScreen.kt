@@ -538,16 +538,13 @@ private fun SpecialTab(
             }
         }
 
-        // ── 탐사(우주 항해) — 맨 앞 ──
+        // ── 잠든 우주(깨워서 찾은 것) — 맨 앞, 모은 것만 ──
         item(key = "special_voyage") {
             SpecialHeader(stringResource(R.string.ach_voyage_section), stringResource(R.string.ach_voyage_sub), finds.size, null)
         }
         if (finds.isEmpty()) {
             item(key = "voyage_empty") { VoyageEmptyCard(onOpenWorkshop) }
         } else {
-            item(key = "voyage_loadout") {
-                com.chaminwoo.stary.feature.starlight.VoyageLoadout(equipped) { k -> findKind = k.takeIf { it in findKinds } }
-            }
             item(key = "voyage_kinds") {
                 Row(
                     Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),

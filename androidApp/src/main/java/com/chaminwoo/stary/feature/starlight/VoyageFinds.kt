@@ -61,7 +61,8 @@ import kotlinx.coroutines.launch
 /*
  * 탐사 수집품(2026-10-26 — 옛 "수집품" 화면을 업적 › 특별 › 탐사로 옮겼다). 우주 항해에서 찾은 것을 모아 보고,
  * 프레임·배지·칭호는 눌러서 장착한다. 별 고리는 별을 올릴 때 별 색 아래에서 고르고(그 별에만), 모양·색은 업로드 고르기에,
- * 망원경은 업적 화면에서 쓴다. 업적 화면 특별 탭이 [VoyageLoadout] · [OwnedCell] · [ItemDetailDialog] 를 늘어놓는다.
+ * 망원경은 업적 화면에서 쓴다. 업적 화면 특별 탭이 [OwnedCell] · [ItemDetailDialog] 를 늘어놓는다
+ * (2026-10-27 — "지금 장착 중" 요약은 사용자 지시로 뺐다. 모은 것만 보인다).
  * iOS `VoyageFinds.swift` 패리티.
  */
 
@@ -83,77 +84,6 @@ fun ownedFinds(): List<StarlightStore.Item> {
 /** 가진 것들의 종류(칩 순서). */
 fun findKinds(finds: List<StarlightStore.Item>): List<String> =
     KIND_ORDER.filter { k -> finds.any { it.kind == k } } + finds.map { it.kind }.distinct().filter { it !in KIND_ORDER }
-
-/**
- * 지금 장착 중 — 프레임 두른 내 사진 · 이름 + 배지 · 칭호, 아래 칸 요약(프레임 · 배지 · 칭호). 칸을 누르면 그 종류만 보여 준다.
- * [equippedTitle] = 지금 달린 칭호 id(업적 칭호와 한 자리 — "sl:" 일 때만 탐사 칭호).
- */
-@Composable
-fun VoyageLoadout(equippedTitle: String?, onSlot: (String) -> Unit) {
-    val eq = StarlightStore.myEquips
-    val name = GoogleAuthHelper.confirmedName.collectAsState().value ?: GoogleAuthHelper.currentUserName.orEmpty()
-    val photo = GoogleAuthHelper.currentUserPhotoUrl
-    val frame = StarlightStore.item(eq.frame)
-    val badge = StarlightStore.item(eq.badge)
-    val title = StarlightStore.titleItem(equippedTitle)
-    val lang = starlightLang()
-    val shape = RoundedCornerShape(20.dp)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xFF1E1936), Color(0xFF13131D))))
-            .border(1.dp, Brush.linearGradient(listOf(Gold.copy(alpha = 0.4f), Violet.copy(alpha = 0.25f))), shape)
-            .padding(16.dp),
-    ) {
-        Text(stringResource(R.string.starlight_loadout), color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
-        Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FramedAvatar(frame?.payload, size = 76.dp, modifier = Modifier.clickable { onSlot("frame") }) {
-                if (photo != null) ThumbAsyncImage(photo, null, Modifier.fillMaxSize().clip(CircleShape), sizePx = 256)
-                else Icon(Icons.Filled.AccountCircle, null, tint = Color(0xFF555555), modifier = Modifier.fillMaxSize())
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(name.ifBlank { "···" }, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    EquippedBadge(eq, size = 20.dp, modifier = Modifier.padding(start = 6.dp))
-                }
-                if (title != null) {
-                    Spacer(Modifier.height(4.dp))
-                    TitleText("『${title.nameIn(lang)}』", title.payload, fontSize = 13f, modifier = Modifier.clickable { onSlot("title") })
-                }
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("frame" to frame, "badge" to badge, "title" to title).forEach { (k, it) ->
-                SlotPill(kindName(k), it?.nameIn(lang), it?.rarity, Modifier.weight(1f)) { onSlot(k) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SlotPill(label: String, value: String?, rarity: String?, modifier: Modifier, onClick: () -> Unit) {
-    val c = rarity?.let { rarityColor(it) } ?: Dim
-    Column(
-        modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (value != null) c.copy(alpha = 0.10f) else Color(0x0FFFFFFF))
-            .border(0.75.dp, if (value != null) c.copy(alpha = 0.45f) else Line, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 7.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(label, color = Dim, fontSize = 10.sp, maxLines = 1)
-        Text(
-            value ?: stringResource(R.string.starlight_slot_empty),
-            color = if (value != null) Ink else Dim, fontSize = 10.sp, fontWeight = FontWeight.Medium,
-            maxLines = 1, textAlign = TextAlign.Center,
-        )
-    }
-}
 
 /** 가진 아이템 한 칸 — 등급 빛 바탕, 장착 중이면 체크, 망원경은 남은 개수. */
 @Composable

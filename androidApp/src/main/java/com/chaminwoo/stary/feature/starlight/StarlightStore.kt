@@ -22,6 +22,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.coroutines.resume
+import kotlin.math.max
 
 /**
  * 별가루(2026-10-26 개편, 옛 "별빛 공방") — 별가루 지갑 · 우주 항해 · 뽑기 풀.
@@ -138,8 +139,15 @@ object StarlightStore {
         data class Failed(val code: String) : OpResult
     }
 
-    var stardust by mutableIntStateOf(0)
-        private set
+    /** 지갑 문서의 별가루(서버 값). */
+    private var serverStardust by mutableIntStateOf(0)
+    /**
+     * 받는 중인 보상을 더한 "적어도 이만큼"(퀘스트·광고 보상이 누르는 즉시 보이게, 2026-10-27) — 받기 요청이 모두 끝나면 0.
+     * 서버 값과 더하지 않고 큰 쪽을 보여 준다 — 지갑 갱신과 요청 완료 중 무엇이 먼저 와도 두 번 더해 보이지 않게.
+     */
+    private var creditFloor by mutableIntStateOf(0)
+    private var crediting = 0
+    val stardust: Int get() = max(serverStardust, creditFloor)
     /** 옛 성운 상자(개편 전에 만들어 둔 것) — 별가루 화면을 열면 [convertBoxes] 로 별가루가 된다. */
     var boxes by mutableIntStateOf(0)
         private set
@@ -151,7 +159,10 @@ object StarlightStore {
     private var adsN by mutableIntStateOf(0)
     var adsLast by mutableLongStateOf(0L)
         private set
-    /** 서버 지갑을 한 번이라도 받았는지(받기 전엔 잔액을 "…"로). */
+    /**
+     * 지갑을 한 번이라도 받았는지(받기 전엔 잔액을 "…"로). 기기 캐시 값도 받은 것으로 친다(2026-10-27) — 예전엔 서버 확정 값만 기다렸는데,
+     * 캐시와 서버 값이 같으면 다시 알림이 오지 않아 "…"가 계속 남았다. 문서가 없으면(아직 한 번도 받은 적 없음) 0.
+     */
     var walletLoaded by mutableStateOf(false)
         private set
     var config by mutableStateOf(Config.DEFAULT)
@@ -267,7 +278,7 @@ object StarlightStore {
         removeListeners()
         retryJob?.cancel(); retryJob = null
         uid = null
-        stardust = 0; boxes = 0; owned = emptyMap()
+        serverStardust = 0; creditFloor = 0; crediting = 0; boxes = 0; owned = emptyMap()
         adsDay = ""; adsN = 0; adsLast = 0L
         walletLoaded = false
         myEquips = Equips()
@@ -276,7 +287,7 @@ object StarlightStore {
     }
 
     private fun applyWallet(snap: DocumentSnapshot) {
-        stardust = (snap.get("stardust") as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
+        serverStardust = (snap.get("stardust") as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
         boxes = (snap.get("boxes") as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
         owned = (snap.get("items") as? Map<*, *>)
             ?.mapNotNull { (k, v) -> (k as? String)?.let { key -> (v as? Number)?.toInt()?.let { key to it } } }
@@ -293,7 +304,7 @@ object StarlightStore {
                 ?: return@mapNotNull null
             id to Hint((m["level"] as? Number)?.toInt() ?: 1, text)
         }?.toMap() ?: emptyMap()
-        if (!snap.metadata.isFromCache) walletLoaded = true
+        walletLoaded = true
     }
 
     private fun parseConfig(snap: DocumentSnapshot): Config {
@@ -351,8 +362,22 @@ object StarlightStore {
     /** 열쇠 구매 — 별가루 [Config.keyCost] × [count]. */
     suspend fun buyKeys(count: Int): OpResult = request("exchange", mapOf("to" to "key", "count" to count))
 
-    /** 광고를 끝까지 본 뒤 — 별가루 [Config.adStardust](하루 한도·간격은 서버가 센다). */
-    suspend fun adReward(): OpResult = request("adReward")
+    /** 광고를 끝까지 본 뒤 — 별가루 [Config.adStardust](하루 한도·간격은 서버가 센다). 받는 즉시 화면에 더한다. */
+    suspend fun adReward(): OpResult = requestCredit("adReward", emptyMap(), config.adStardust)
+
+    /**
+     * 별가루를 받는 요청 — 서버가 처리하기 전에 [amount] 를 화면에 먼저 더해 두고([creditFloor]), 끝나면(성공·실패 모두) 걷는다.
+     * 성공이면 그 사이 지갑 구독이 서버 값을 이미 가져왔고, 실패면 원래 값으로 돌아간다.
+     */
+    suspend fun requestCredit(op: String, args: Map<String, Any>, amount: Int): OpResult {
+        creditFloor = stardust + amount.coerceAtLeast(0)
+        crediting++
+        val r = request(op, args)
+        // 성공 결과의 잔액은 서버 확정 값 — 지갑 알림보다 요청 완료가 먼저 와도 바로 맞춘다.
+        if (r is OpResult.Done) (r.result["stardust"] as? Number)?.toInt()?.let { if (it > serverStardust) serverStardust = it }
+        if (--crediting <= 0) { crediting = 0; creditFloor = 0 }
+        return r
+    }
 
     /** 남은 옛 성운 상자를 별가루로(상자 값 그대로). 상자가 없으면 서버가 "already". */
     suspend fun convertBoxes(): OpResult = request("convertBoxes")

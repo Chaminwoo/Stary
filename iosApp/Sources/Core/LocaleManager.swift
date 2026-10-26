@@ -279,10 +279,10 @@ enum L10n: String {
     case starlightTapCard, starlightConfirm, starlightWaiting
     case starlightErrEmptyPool, starlightErrTimeout, starlightErrGeneric, starlightGo, guideExchangeTitle, guideExchangeMsg
     /// 우주 항해 · 열쇠 구매 · 광고 별가루 · 확률 · 탐사 수집품 · 별 고리(2026-10-26 — Android voyage_* / ach_voyage_* / upload_ring* / profile_finds 패리티).
-    case voyageTitle, voyageSub, voyageRouteNormal, voyageRouteRare, voyageEpicPlus, voyageLaunch, voyageShort
-    case voyageOdds, voyageOddsKinds, voyageOddsEach, voyageOddsEqual, voyageOddsIndependent, voyageFindsLink, voyageBoxesConverted
-    case voyageKeyTitle, voyageKeyEach, voyageBuy, voyageAd, voyageAdFree, voyageAdLeft, voyageAdLimit, voyageAdCooldown
-    case voyageAdNotFinished, voyageAdDoneToday, achVoyageSection, achVoyageSub, achVoyageEmpty, achVoyageGo
+    case voyageTitle, voyageRouteNormal, voyageRouteRare, voyageRubHint, voyageLaunch, voyageShort
+    case voyageOdds, voyageOddsKinds, voyageOddsEach, voyageOddsEqual, voyageOddsIndependent, voyageBoxesConverted
+    case voyageKeyTitle, voyageKeyEach, voyageBuy, voyageAdTitle, voyageAdTitleFree, voyageAdTodayLeft, voyageAdWatch, voyageAdClaim
+    case voyageAdLimit, voyageAdCooldown, voyageAdNotFinished, achVoyageSection, achVoyageSub, achVoyageEmpty, achVoyageGo
     case uploadRing, uploadRingNone, profileFinds
 
     /// (ko, en, ja).
@@ -803,7 +803,7 @@ enum L10n: String {
         case .guideOpenBtn: return ("별 열어 보기", "Open a star", "星を開ける")
         case .guideOpenHint: return ("자물쇠를 눌러 열쇠로 열어 보세요", "Tap the lock to use your key", "錠前をタップして鍵を使おう")
         case .guideNoTarget: return ("아직 열어 볼 다른 사람의 별이 없어요.", "There are no other stars to open yet.", "開けられる誰かの星がまだありません。")
-        case .guideDone: return ("잘했어요! 퀘스트로 별가루를 모아 열쇠를 사거나 우주 항해를 떠나 보세요.", "Nice! Collect stardust from quests to buy keys or set off on a space voyage.", "やったね！クエストで星くずを集めて、鍵を買ったり宇宙航海に出かけよう。")
+        case .guideDone: return ("잘했어요! 퀘스트로 별가루를 모아 열쇠를 사거나 잠든 우주를 깨워 보세요.", "Nice! Collect stardust from quests to buy keys or awaken a sleeping cosmos.", "やったね！クエストで星くずを集めて、鍵を買ったり眠れる宇宙を目覚めさせよう。")
         case .guideQuestTip: return ("첫 퀘스트가 도착했어요!\n여기를 눌러 확인해 보세요", "Your first quest is here!\nTap to check it out", "最初のクエストが届きました！\nここをタップして確認しましょう")
         case .guideLater: return ("나중에", "Later", "あとで")
         case .guideProfileTitle: return ("이름이나 프로필 사진을 바꿔 보세요!", "Change your name or profile photo!", "名前かプロフィール写真を変えてみましょう！")
@@ -825,7 +825,7 @@ enum L10n: String {
         case .achThemeSocial: return ("교감", "Connection", "交流")
         case .achThemeDecor: return ("꾸미기", "Style", "おしゃれ")
         case .achThemeMeteor: return ("유성", "Meteors", "流れ星")
-        case .achSpecialIntro: return ("모두가 가질 수는 없는 업적이에요.\n우주 항해·특별한 날·퀘스트·초대·개척으로만 얻을 수 있어요.", "Not everyone gets these.\nThey come only from voyages, special moments, quests, invites and pioneering.", "誰もが持てるわけではない実績です。\n宇宙航海・特別な日・クエスト・招待・開拓でしか手に入りません。")
+        case .achSpecialIntro: return ("모두가 가질 수는 없는 업적이에요.\n잠든 우주·특별한 날·퀘스트·초대·개척으로만 얻을 수 있어요.", "Not everyone gets these.\nThey come only from sleeping cosmos, special moments, quests, invites and pioneering.", "誰もが持てるわけではない実績です。\n眠れる宇宙・特別な日・クエスト・招待・開拓でしか手に入りません。")
         case .achSpecialCount: return ("%d개 보유", "%d earned", "%d個獲得")
         case .achSpecialMoments: return ("특별한 순간", "Special moments", "特別な瞬間")
         case .achSpecialMomentsSub: return ("그날, 그 시각에만 열려요", "Opens only on that day, at that moment", "その日、その時だけ開きます")
@@ -835,7 +835,7 @@ enum L10n: String {
         case .achSpecialInviteSub: return ("Stary 로 이어진 인연에게만", "Only for bonds made through Stary", "Staryでつながった縁だけに")
         case .achPioneerEmpty: return ("이번 주 금빛 비콘이 뜬 나라에 처음으로 별을 남기면\n그 나라의 개척자가 돼요", "Be the first to leave a star in this week's golden-beacon country\nto become its pioneer", "今週金色のビーコンが出た国に最初に星を残すと\nその国の開拓者になれます")
         case .questToday: return ("오늘의 퀘스트", "Today's quests", "今日のクエスト")
-        case .questSubtitle: return ("퀘스트를 깨고 별가루를 모아요.\n별가루로 열쇠를 사거나 우주 항해를 떠날 수 있어요", "Clear quests to collect stardust.\nSpend it on keys or a space voyage", "クエストをクリアして星くずを集めよう。\n星くずで鍵を買ったり、宇宙航海に出かけられます")
+        case .questSubtitle: return ("퀘스트를 깨고 별가루를 모아요.\n별가루로 열쇠를 사거나 잠든 우주를 깨울 수 있어요", "Clear quests to collect stardust.\nSpend it on keys or on awakening a sleeping cosmos", "クエストをクリアして星くずを集めよう。\n星くずで鍵を買ったり、眠れる宇宙を目覚めさせたりできます")
         case .questClaim: return ("받기", "Claim", "受け取る")
         case .questClaimed: return ("받음", "Claimed", "受取済み")
         case .questBonus: return ("세 개 모두 받으면 보너스 별가루 +%1$d", "Claim all three for bonus stardust +%1$d", "3つすべて受け取るとボーナス星くず +%1$d")
@@ -860,7 +860,7 @@ enum L10n: String {
         case .detailKeyUnlocked: return ("열쇠로 별을 열었어요", "You opened the star with a key", "鍵で星を開きました")
         case .detailAdKeyUnlocked: return ("광고로 받은 열쇠로 별을 열었어요", "You opened the star with the key from the ad", "広告でもらった鍵で星を開きました")
         case .detailKeyQuestHint: return ("퀘스트로 모은 별가루를 별빛 공방에서 열쇠로 바꿀 수 있어요", "Trade quest stardust for keys at the Starlight Workshop", "クエストで集めた星くずは星明かりの工房で鍵に交換できます")
-        case .coachStepQuest: return ("오늘의 퀘스트를 깨고 별가루를 모아요\n별가루로 열쇠를 사고 우주 항해를 떠나요", "Clear today's quests to collect stardust\nBuy keys and set off on space voyages", "今日のクエストで星くずを集めよう\n星くずで鍵を買って宇宙航海へ")
+        case .coachStepQuest: return ("오늘의 퀘스트를 깨고 별가루를 모아요\n별가루로 열쇠를 사고 잠든 우주를 깨워요", "Clear today's quests to collect stardust\nBuy keys and awaken sleeping cosmos", "今日のクエストで星くずを集めよう\n星くずで鍵を買って眠れる宇宙を目覚めさせよう")
         case .starlightEquip: return ("장착하기", "Equip", "装備する")
         case .starlightUnequip: return ("해제하기", "Unequip", "外す")
         case .starlightEquipped: return ("장착 중", "Equipped", "装備中")
@@ -911,53 +911,52 @@ enum L10n: String {
         case .starlightMadeKeys: return ("열쇠 %1$d개를 샀어요", "Bought %1$d key(s)", "鍵を%1$d個購入しました")
         case .starlightStardustGained: return ("별가루 %1$d개를 받았어요", "Received %1$d stardust", "星くずを%1$d個受け取りました")
         case .starlightErrInsufficient: return ("별가루가 모자라요", "Not enough stardust", "星くずが足りません")
-        case .starlightErrEmptyPool: return ("우주를 아직 채우는 중이에요. 조금 뒤에 떠나 주세요", "Space is still being filled. Please set sail a little later", "宇宙をまだ準備中です。少し後で出航してください")
+        case .starlightErrEmptyPool: return ("우주를 아직 채우는 중이에요. 조금 뒤에 다시 깨워 주세요", "The cosmos is still being filled. Please try awakening it a little later", "宇宙をまだ準備中です。少し後でもう一度目覚めさせてください")
         case .starlightErrTimeout: return ("응답이 늦어요 — 연결되면 처리돼요", "Taking a while — it will go through once you are online", "応答が遅れています — 接続されると処理されます")
         case .starlightErrGeneric: return ("지금은 할 수 없어요. 잠시 뒤 다시 시도해 주세요", "Can't do that right now. Please try again shortly", "今はできません。しばらくしてからもう一度お試しください")
         case .starlightGo: return ("열쇠 사러 가기", "Buy keys", "鍵を買いに行く")
         case .starlightAll: return ("전체", "All", "すべて")
         case .starlightLoadout: return ("지금 장착 중", "Equipped now", "装備中")
         case .starlightSlotEmpty: return ("비어 있음", "Empty", "なし")
-        case .starlightTapToWake: return ("수정구를 세 번 두드려 보세요", "Tap the crystal ball three times", "水晶玉を3回たたいてみよう")
+        case .starlightTapToWake: return ("수정구를 세 번 두드려 깨워 보세요", "Tap the crystal ball three times to awaken it", "水晶玉を3回たたいて目覚めさせよう")
         case .starlightSkip: return ("건너뛰기", "Skip", "スキップ")
         case .starlightFlipAll: return ("모두 뒤집기", "Reveal all", "すべてめくる")
         case .starlightTapCard: return ("카드를 눌러 뒤집어 보세요", "Tap a card to flip it", "カードをタップしてめくろう")
         case .starlightConfirm: return ("확인", "OK", "OK")
-        case .starlightWaiting: return ("별빛을 모으는 중…", "Gathering starlight…", "星の光を集めています…")
+        case .starlightWaiting: return ("깨어나는 중…", "Waking up…", "目覚めています…")
         case .guideExchangeTitle: return ("별가루로 열쇠 사기", "Buy a key with stardust", "星くずで鍵を買う")
         case .guideExchangeMsg: return ("퀘스트로 모은 별가루로 열쇠를 살 수 있어요(%1$d개 = 열쇠 1개).", "Buy keys with the stardust from quests (%1$d = 1 key).", "クエストで集めた星くずで鍵を買えます（%1$d個 = 鍵1個）。")
         // 우주 항해(2026-10-26) — Android voyage_* 와 같은 문구(%1$s → %1$@).
-        case .voyageTitle: return ("우주 항해", "Space Voyage", "宇宙航海")
-        case .voyageSub: return ("어떤 별이 기다릴지는 떠나 봐야 알아요", "You only learn which stars await once you set sail", "どんな星が待っているかは、旅立ってみないとわからない")
-        case .voyageRouteNormal: return ("일반 탐사", "Standard Expedition", "通常探査")
-        case .voyageRouteRare: return ("희귀 탐사", "Rare Expedition", "レア探査")
-        case .voyageEpicPlus: return ("영웅 이상 %1$@", "Epic+ %1$@", "エピック以上 %1$@")
-        case .voyageLaunch: return ("출항하기", "Set sail", "出航する")
+        case .voyageTitle: return ("잠든 우주", "Sleeping Cosmos", "眠れる宇宙")
+        case .voyageRouteNormal: return ("옅은 잠", "Light Slumber", "浅い眠り")
+        case .voyageRouteRare: return ("깊은 잠", "Deep Slumber", "深い眠り")
+        case .voyageRubHint: return ("수정구는 문지르면 가치가 변합니다", "Rub the crystal ball to change its worth", "水晶玉はこすると価値が変わります")
+        case .voyageLaunch: return ("깨우기", "Awaken", "目覚めさせる")
         case .voyageShort: return ("별가루가 %1$d 모자라요", "%1$d stardust short", "星くずが%1$d足りません")
         case .voyageOdds: return ("확률", "Odds", "確率")
         case .voyageOddsKinds: return ("%1$d종", "%1$d kinds", "%1$d種")
         case .voyageOddsEach: return ("하나당 %1$@", "%1$@ each", "1つあたり%1$@")
         case .voyageOddsEqual: return ("같은 등급 안에서는 모든 아이템이 같은 확률이에요.", "Within a rarity, every item is equally likely.", "同じレア度の中では、どのアイテムも同じ確率です。")
-        case .voyageOddsIndependent: return ("항해는 매번 독립이에요. 앞선 결과가 다음 확률을 바꾸지 않고, 여러 번 한꺼번에 떠나도 한 번씩 떠난 것과 확률이 같아요.", "Every voyage is independent. Past results never change the odds, and sailing several at once has the same odds as sailing one at a time.", "航海は毎回独立しています。前の結果が次の確率を変えることはなく、まとめて出航しても1回ずつと同じ確率です。")
-        case .voyageFindsLink: return ("찾은 것은 업적 › 특별 › 탐사에서 볼 수 있어요", "Your finds are in Achievements › Special › Voyage", "見つけたものは 実績 › 特別 › 探査 で見られます")
+        case .voyageOddsIndependent: return ("깨울 때마다 확률은 독립이에요. 앞선 결과가 다음 확률을 바꾸지 않고, 여러 번 한꺼번에 깨워도 한 번씩 깨운 것과 확률이 같아요.", "Every awakening is independent. Past results never change the odds, and awakening several at once has the same odds as one at a time.", "目覚めさせるたびに確率は独立しています。前の結果が次の確率を変えることはなく、まとめて目覚めさせても1回ずつと同じ確率です。")
         case .voyageBoxesConverted: return ("남아 있던 성운 상자 %1$d개를 별가루 %2$d로 바꿔 드렸어요", "Your %1$d leftover nebula box(es) became %2$d stardust", "残っていた星雲の箱%1$d個を星くず%2$dに替えました")
         case .voyageKeyTitle: return ("열쇠 구매", "Buy keys", "鍵を購入")
         case .voyageKeyEach: return ("열쇠 1개 · 별가루 %1$d", "1 key · %1$d stardust", "鍵1個・星くず%1$d")
         case .voyageBuy: return ("구매하기", "Buy", "購入する")
-        case .voyageAd: return ("광고 보고 별가루 +%1$d", "Watch an ad · +%1$d stardust", "広告を見て星くず+%1$d")
-        case .voyageAdFree: return ("광고 없이 받기 · 별가루 +%1$d", "Claim ad-free · +%1$d stardust", "広告なしで受け取る・星くず+%1$d")
-        case .voyageAdLeft: return ("오늘 %1$d번 남음", "%1$d left today", "今日あと%1$d回")
+        case .voyageAdTitle: return ("광고 보고 별가루 받기", "Watch an ad for stardust", "広告を見て星くずをもらう")
+        case .voyageAdTitleFree: return ("광고 없이 별가루 받기", "Get stardust, no ad needed", "広告なしで星くずをもらう")
+        case .voyageAdTodayLeft: return ("오늘 %1$d번 더 받을 수 있어요", "You can claim %1$d more today", "今日はあと%1$d回もらえます")
+        case .voyageAdWatch: return ("광고 보기", "Watch ad", "広告を見る")
+        case .voyageAdClaim: return ("받기", "Claim", "もらう")
         case .voyageAdLimit: return ("오늘 받을 수 있는 만큼 다 받았어요. 내일 다시 만나요", "That's all for today. See you tomorrow", "今日の分はすべて受け取りました。また明日")
         case .voyageAdCooldown: return ("조금 뒤에 다시 받을 수 있어요", "You can claim again in a moment", "少し後でまた受け取れます")
         case .voyageAdNotFinished: return ("광고를 끝까지 봐야 별가루를 받아요", "Watch the whole ad to get stardust", "広告を最後まで見ると星くずがもらえます")
-        case .voyageAdDoneToday: return ("오늘은 다 받았어요", "All claimed today", "今日は受け取り済み")
-        case .achVoyageSection: return ("탐사", "Voyage", "探査")
-        case .achVoyageSub: return ("우주 항해에서 찾은 것 — 프레임·배지·칭호는 눌러서 장착해요", "What you found on voyages — tap frames, badges and titles to equip", "宇宙航海で見つけたもの — フレーム・バッジ・称号はタップで装備")
-        case .achVoyageEmpty: return ("아직 찾은 것이 없어요.\n별가루 메뉴에서 우주 항해를 떠나 보세요", "Nothing found yet.\nSet sail from the Stardust menu", "まだ何も見つけていません。\n星くずメニューから宇宙航海に出かけよう")
-        case .achVoyageGo: return ("항해하러 가기", "Go voyaging", "航海へ")
+        case .achVoyageSection: return ("잠든 우주", "Sleeping Cosmos", "眠れる宇宙")
+        case .achVoyageSub: return ("잠든 우주를 깨워 찾은 것 — 프레임·배지·칭호는 눌러서 장착해요", "What you found by awakening — tap frames, badges and titles to equip", "眠れる宇宙を目覚めさせて見つけたもの — フレーム・バッジ・称号はタップで装備")
+        case .achVoyageEmpty: return ("아직 찾은 것이 없어요.\n별가루 메뉴에서 잠든 우주를 깨워 보세요", "Nothing found yet.\nAwaken a sleeping cosmos from the Stardust menu", "まだ何も見つけていません。\n星くずメニューで眠れる宇宙を目覚めさせよう")
+        case .achVoyageGo: return ("깨우러 가기", "Go awaken", "目覚めさせに行く")
         case .uploadRing: return ("별 고리", "Star ring", "星の輪")
         case .uploadRingNone: return ("미착용", "None", "なし")
-        case .profileFinds: return ("탐사 수집품", "Voyage finds", "探査コレクション")
+        case .profileFinds: return ("우주 수집품", "Cosmic finds", "宇宙コレクション")
         }
     }
 

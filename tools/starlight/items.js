@@ -1,11 +1,11 @@
 /**
- * 우주 항해 뽑기 풀(2026-10-22 별빛 공방 성운 상자 → 2026-10-26 별가루 · 우주 항해) — 이 파일이 원본이고, seed.js 가 Firestore `starlightItems` 로 올린다.
+ * 잠든 우주 뽑기 풀(2026-10-22 별빛 공방 성운 상자 → 2026-10-26 별가루 · 우주 항해 → 2026-10-27 잠든 우주) — 이 파일이 원본이고, seed.js 가 Firestore `starlightItems` 로 올린다.
  *
  * 등급 = **제작 난이도**(사용자 지시). 등급 확률은 항해 경로마다 다르다(아래 config.voyages). 같은 등급 안에서는 균등, `weight` 로 조절 가능.
  *  - 별 모양: 한 덩어리 윤곽(일반) → 여러 부품(희귀) → 구멍·대칭 세부(영웅) → 겹친 고리·구멍·장식(전설)
  *  - 별 색: 단색(일반) → 2색(희귀) → 3색(영웅). 색은 그라데이션 단계 이상으로 "어렵게" 만들 방법이 없어 전설은 두지 않는다.
  *  - 칭호: 단색(일반) → 2색(희귀) → 3색(영웅) → 3색 + 빛 흐름(전설)
- *  - 프로필 프레임: 정지 고리(일반) → 그라데이션·점선 회전(희귀) → 궤도 별·꽃잎(영웅) → 별자리·오로라(전설)
+ *  - 프로필 프레임: 정지 고리(희귀) → 그라데이션·점선 회전(영웅) → 궤도 별·꽃잎·별자리·오로라(전설) — 2026-10-27 한 등급씩 올림
  *  - 이름 배지: 단순 실루엣(일반) → 부품·구멍(희귀) → 꼬리 여럿(영웅) → 눈·혀가 있는 깃털(전설)
  *  - 별 고리(옛 별 오라, 업로드 때 별마다): 빛·위성 하나·반딧불(희귀) → 맥동·쌍둥이 궤도·나선(영웅) → 토성 고리·혜성(전설)
  *    (2026-10-22 추가 5종. 영웅 맥동은 "너무 자주 두근거린다" 피드백으로 느리게 — 오라 speed 는 한 주기 초)
@@ -157,26 +157,29 @@ add("title_lighthouse", "title", "epic",
 add("title_night_composer", "title", "legendary",
   t3("밤하늘의 작곡가", "Composer of the Night Sky", "夜空の作曲家"),
   t3("별 하나하나가 음표라면, 이 사람의 지도는 한 곡의 노래예요.", "If every star were a note, this person's map would be a song.", "星のひとつひとつが音符なら、この人の地図は一曲の歌です。"),
-  { colors: ["#FFE6A8", "#FF8FD1", "#8EC5FF"], shimmer: true });
+  // 빛이 흐르는 칭호는 첫 색 → 끝 색으로 바뀐 뒤 처음으로 튄다 — 처음과 끝을 같은 파랑으로 둬 이음매 없이 돈다(2026-10-27 사용자 지시).
+  { colors: ["#8EC5FF", "#FF8FD1", "#8EC5FF"], shimmer: true });
 
 // ── 프로필 프레임 ─────────────────────────────────────────────────────────
-add("frame_silver", "frame", "common",
+// 2026-10-27 모든 프레임을 한 등급씩 올렸다(일반 → 희귀 → 영웅 → 전설, 전설은 그대로). 등급 확률(경로별 weights)은 그대로라
+// 전설 전체 확률은 변하지 않고, 같은 등급 안의 하나당 확률만 나뉜다. 이미 가진 사람의 소유는 그대로.
+add("frame_silver", "frame", "rare",
   t3("은빛 고리", "Silver Ring", "銀の輪"),
   t3("군더더기 없는 은빛 테두리.", "A clean silver border, nothing more.", "飾り気のない銀のふち取り。"),
   { pattern: "ring", colors: ["#F2F5FA", "#A9B4C6"], width: 0.05 });
-add("frame_dawn", "frame", "rare",
+add("frame_dawn", "frame", "epic",
   t3("새벽 고리", "Dawn Ring", "夜明けの輪"),
   t3("복숭아빛·금빛·보랏빛이 한 바퀴를 도는 새벽 하늘.", "Dawn sky in a loop — peach, gold, and violet.", "ピーチ・金・紫がひと巡りする夜明けの空。"),
   { pattern: "ring", colors: ["#FFB59A", "#FFE6A8", "#B8A2FF"], width: 0.06, glow: true });
-add("frame_dotted_orbit", "frame", "rare",
+add("frame_dotted_orbit", "frame", "epic",
   t3("점선 궤도", "Dotted Orbit", "点線の軌道"),
   t3("천천히 도는 인공위성의 궤도.", "The slow-turning orbit of a satellite.", "ゆっくり回る人工衛星の軌道。"),
   { pattern: "dash", colors: ["#9FD3FF", "#CFE3FF"], width: 0.045, count: 24, speed: 40 });
-add("frame_three_stars", "frame", "epic",
+add("frame_three_stars", "frame", "legendary",
   t3("세 별의 궤도", "Orbit of Three", "三つ星の軌道"),
   t3("금빛·하늘빛·분홍빛 별 셋이 나를 중심으로 돌아요.", "Three stars — gold, sky, and pink — circle around you.", "金・空色・ピンクの三つの星が、あなたを中心に回ります。"),
   { pattern: "orbit", colors: ["#FFE6A8", "#9FD3FF", "#F5A3FF"], width: 0.055, count: 3, speed: 14, glow: true });
-add("frame_blossom", "frame", "epic",
+add("frame_blossom", "frame", "legendary",
   t3("벚꽃 화관", "Blossom Wreath", "桜の花冠"),
   t3("꽃잎 열두 장을 엮어 만든 화관.", "A wreath woven from twelve petals.", "十二枚の花びらで編んだ花冠。"),
   { pattern: "petals", colors: ["#FFD1E3", "#FF9CC2"], width: 0.05, count: 12, speed: 140 });

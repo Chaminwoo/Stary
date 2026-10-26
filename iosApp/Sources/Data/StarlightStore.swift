@@ -143,7 +143,13 @@ final class StarlightStore: ObservableObject {
         case failed(String)
     }
 
-    @Published private(set) var stardust = 0
+    /// 지갑 문서의 별가루(서버 값).
+    @Published private var serverStardust = 0
+    /// 받는 중인 보상을 더한 "적어도 이만큼"(퀘스트·광고 보상이 누르는 즉시 보이게, 2026-10-27) — 받기 요청이 모두 끝나면 0.
+    /// 서버 값과 더하지 않고 큰 쪽을 보여 준다 — 지갑 갱신과 요청 완료 중 무엇이 먼저 와도 두 번 더해 보이지 않게.
+    @Published private var creditFloor = 0
+    private var crediting = 0
+    var stardust: Int { max(serverStardust, creditFloor) }
     /// 옛 성운 상자(개편 전에 만들어 둔 것) — 별가루 화면을 열면 `convertBoxes` 로 별가루가 된다.
     @Published private(set) var boxes = 0
     /// 가진 아이템 id → 개수(꾸미기는 1, 소모품은 남은 수).
@@ -152,7 +158,8 @@ final class StarlightStore: ObservableObject {
     @Published private(set) var adsDay = ""
     @Published private(set) var adsN = 0
     @Published private(set) var adsLast: Int64 = 0
-    /// 서버 지갑을 한 번이라도 받았는지(받기 전엔 잔액을 "…"로).
+    /// 지갑을 한 번이라도 받았는지(받기 전엔 잔액을 "…"로). 기기 캐시 값도 받은 것으로 친다(2026-10-27) — 예전엔 서버 확정 값만
+    /// 기다렸는데, 캐시와 서버 값이 같으면 다시 알림이 오지 않아 "…"가 계속 남았다. 문서가 없으면(아직 한 번도 받은 적 없음) 0.
     @Published private(set) var walletLoaded = false
     @Published private(set) var config = Config.default
     /// 뽑기 풀 전체(뽑히지 않게 내린 것 포함 — 이미 가진 사람이 계속 그려야 한다).
@@ -227,7 +234,7 @@ final class StarlightStore: ObservableObject {
         retryTask?.cancel()
         retryTask = nil
         uid = nil
-        stardust = 0; boxes = 0; owned = [:]
+        serverStardust = 0; creditFloor = 0; crediting = 0; boxes = 0; owned = [:]
         adsDay = ""; adsN = 0; adsLast = 0
         walletLoaded = false
         myEquips = Equips()
@@ -244,10 +251,10 @@ final class StarlightStore: ObservableObject {
             Task { @MainActor in
                 let s = StarlightStore.shared
                 guard s.uid == uid else { return }
-                s.stardust = w.stardust; s.boxes = w.boxes; s.owned = w.owned
+                s.serverStardust = w.stardust; s.boxes = w.boxes; s.owned = w.owned
                 s.adsDay = w.adsDay; s.adsN = w.adsN; s.adsLast = w.adsLast
                 s.revealed = w.revealed; s.hints = w.hints
-                if w.fromServer { s.walletLoaded = true }
+                s.walletLoaded = true
             }
         })
         regs.append(db.collection(Self.itemsCol).addSnapshotListener { snap, err in
@@ -308,7 +315,6 @@ final class StarlightStore: ObservableObject {
         var adsLast: Int64 = 0
         var revealed: Set<String> = []
         var hints: [String: Hint] = [:]
-        var fromServer = false
     }
 
     private nonisolated static func parseWallet(_ snap: DocumentSnapshot) -> Wallet {
@@ -329,7 +335,6 @@ final class StarlightStore: ObservableObject {
             for (l, s) in t { if let s = s as? String { text[l] = s } }
             w.hints[k] = Hint(level: (m["level"] as? NSNumber)?.intValue ?? 1, text: text)
         }
-        w.fromServer = !snap.metadata.isFromCache
         return w
     }
 
@@ -426,8 +431,21 @@ final class StarlightStore: ObservableObject {
         await request("exchange", ["to": "key", "count": count])
     }
 
-    /// 광고를 끝까지 본 뒤 — 별가루 `Config.adStardust`(하루 한도·간격은 서버가 센다).
-    func adReward() async -> OpResult { await request("adReward") }
+    /// 광고를 끝까지 본 뒤 — 별가루 `Config.adStardust`(하루 한도·간격은 서버가 센다). 받는 즉시 화면에 더한다.
+    func adReward() async -> OpResult { await requestCredit("adReward", [:], config.adStardust) }
+
+    /// 별가루를 받는 요청 — 서버가 처리하기 전에 amount 를 화면에 먼저 더해 두고(`creditFloor`), 끝나면(성공·실패 모두) 걷는다.
+    /// 성공이면 그 사이 지갑 구독이 서버 값을 이미 가져왔고, 실패면 원래 값으로 돌아간다. Android `requestCredit` 패리티.
+    func requestCredit(_ op: String, _ args: [String: Any], _ amount: Int) async -> OpResult {
+        creditFloor = stardust + max(0, amount)
+        crediting += 1
+        let r = await request(op, args)
+        // 성공 결과의 잔액은 서버 확정 값 — 지갑 알림보다 요청 완료가 먼저 와도 바로 맞춘다.
+        if case .done(let result) = r, let s = (result["stardust"] as? NSNumber)?.intValue, s > serverStardust { serverStardust = s }
+        crediting -= 1
+        if crediting <= 0 { crediting = 0; creditFloor = 0 }
+        return r
+    }
 
     /// 남은 옛 성운 상자를 별가루로(상자 값 그대로). 상자가 없으면 서버가 "already".
     func convertBoxes() async -> OpResult { await request("convertBoxes") }

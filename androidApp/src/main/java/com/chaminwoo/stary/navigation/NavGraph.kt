@@ -175,14 +175,7 @@ fun NavGraph(
         }
 
         composable<NavRoute.Workshop> {
-            com.chaminwoo.stary.feature.starlight.WorkshopScreen(
-                onOpenFinds = {
-                    com.chaminwoo.stary.feature.profile.screen.AchievementsTab.request(com.chaminwoo.stary.feature.profile.screen.AchievementsTab.SPECIAL)
-                    if (!navController.popBackStack<NavRoute.Achievements>(inclusive = false)) {
-                        navController.navigate(NavRoute.Achievements) { launchSingleTop = true }
-                    }
-                },
-            )
+            com.chaminwoo.stary.feature.starlight.WorkshopScreen()
         }
 
         composable<NavRoute.Music> {

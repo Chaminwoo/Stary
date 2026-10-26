@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// 우주 항해 연출(2026-10-26 — 성운 상자 대신 수정구, 시안 "천문 원반 받침"). 세 박자:
+/// 깨우기 연출(2026-10-27 잠든 우주 — 별 마법진 위로 뜬 수정구, 시안 그대로). 세 박자:
 ///
 ///  1. **두드리기** — 수정구를 세 번 두드린다. 누른 자리에서 금이 갈라지고(방사형 + 거미줄), 두드릴수록 안의 성운이 빨리 돈다.
 ///  2. **깨짐** — 결과 등급 빛으로 모였다가(1초) 누른 자리를 중심으로 유리가 불규칙한 조각으로 부서진다.
@@ -22,7 +22,8 @@ struct OpeningState: Equatable {
 }
 
 private let taps3 = 3
-private let openingSky = SkyStars(seed: 29, n: 80)
+/// 별가루 화면과 같은 잔별(같은 시드) — 창이 떠도 하늘이 그대로 이어진다.
+private let openingSky = SkyStars(seed: 11)
 
 private func now() -> Double { Date().timeIntervalSinceReferenceDate }
 private func clamp01(_ v: Double) -> Double { min(max(v, 0), 1) }
@@ -75,7 +76,7 @@ struct VoyageOpening: View {
 
                 // ── 하늘 · 수정구 · 깨짐 ──
                 OrbCanvas(frames: eng.frames) { c, size in
-                    Self.drawSky(&c, size, t: eng.t, center: CGPoint(x: size.width / 2, y: oy + orbCY * k), tint: tint)
+                    drawSpace(&c, size, orb: eng, sky: openingSky, focusY: oy + orbCY * k, deep: true)
                     let ci = Self.cardProgress(eng.t, start)
                     eng.draw(&c, k: k, ox: ox, oy: oy, viewW: size.width, viewH: size.height,
                              stageAlpha: 1 - ci, auraShift: ci, auraY: (size.height * 0.45 - oy) / k)
@@ -94,7 +95,7 @@ struct VoyageOpening: View {
 
                 // ── 두드리기 안내(받침 바로 아래) ──
                 prompt(tint)
-                    .padding(.top, oy + 402 * k)
+                    .padding(.top, oy + 452 * k)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .opacity(waking && !skip ? 1 : 0)
                     .animation(.easeInOut(duration: 0.32), value: waking && !skip)
@@ -159,20 +160,6 @@ struct VoyageOpening: View {
     }
 
     // MARK: - 그림
-
-    /// 잔별 + 수정구 뒤 경로 빛 성운.
-    private static func drawSky(_ c: inout GraphicsContext, _ size: CGSize, t: CGFloat, center: CGPoint, tint: RouteTint) {
-        let sky = openingSky
-        for i in 0..<sky.count {
-            let tw = 0.5 + 0.5 * sin(t * sky.w[i] + sky.p[i])
-            let a = (0.08 + 0.4 * tw) * min(sky.s[i] / 1.6, 1)
-            c.fill(StarlightArt.circle(CGPoint(x: sky.x[i] * size.width, y: sky.y[i] * size.height), sky.s[i] * 0.75),
-                   with: .color(.white.opacity(Double(a))))
-        }
-        let r = size.width * 0.95
-        c.fill(StarlightArt.circle(center, r), with: .radialGradient(
-            Gradient(colors: [tint.accent.opacity(0.15), tint.accent.opacity(0.04), .clear]), center: center, startRadius: 0, endRadius: r))
-    }
 
     /// 카드가 솟는 0.7초(0 → 1, 부드럽게) — 받침·문장이 지워지고 후광이 카드 뒤로 옮겨 간다.
     private static func cardProgress(_ t: CGFloat, _ start: CGFloat?) -> CGFloat {

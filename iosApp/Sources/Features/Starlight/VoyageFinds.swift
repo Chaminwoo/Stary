@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// 탐사 수집품(2026-10-26 — 옛 "수집품" 화면을 업적 › 특별 › 탐사로 옮겼다). 우주 항해에서 찾은 것을 모아 보고,
+/// 잠든 우주 수집품(2026-10-26 — 옛 "수집품" 화면을 업적 › 특별로 옮겼다). 잠든 우주를 깨워 찾은 것을 모아 보고,
 /// 프레임·배지·칭호는 눌러서 장착한다. 별 고리는 별을 올릴 때 별 색 아래에서 고르고(그 별에만), 모양·색은 업로드 고르기에,
-/// 망원경은 업적 화면에서 쓴다. 업적 화면 특별 탭이 `VoyageLoadout` · `OwnedCell` · `StarlightItemDetail` 을 늘어놓는다.
+/// 망원경은 업적 화면에서 쓴다. 업적 화면 특별 탭이 `OwnedCell` · `StarlightItemDetail` 을 늘어놓는다(2026-10-27 — "지금 장착 중" 요약은 뺐다).
 /// Android `VoyageFinds.kt` 패리티.
 
 /// 종류 순서(장착형 먼저).
@@ -49,108 +49,6 @@ func syncStarlightTitle(_ itemId: String?) -> String? {
         UserDefaults.standard.removeObject(forKey: key)
     }
     return UserDefaults.standard.string(forKey: key)
-}
-
-// MARK: - 지금 장착 중
-
-/// 프레임 두른 내 사진 · 이름 + 배지 · 칭호, 아래 칸 요약(프레임 · 배지 · 칭호). 칸을 누르면 그 종류만 보여 준다.
-/// equippedTitle = 지금 달린 칭호 id(업적 칭호와 한 자리 — "sl:" 일 때만 탐사 칭호).
-struct VoyageLoadout: View {
-    let equippedTitle: String?
-    let onSlot: (String) -> Void
-    @EnvironmentObject var auth: AuthManager
-    @ObservedObject private var store = StarlightStore.shared
-    @ObservedObject private var locale = LocaleManager.shared
-
-    private static let avatar: CGFloat = 76
-
-    var body: some View {
-        let eq = store.myEquips
-        let lang = locale.effectiveLanguage
-        let frame = store.item(eq.frame)
-        let badge = store.item(eq.badge)
-        let title = store.titleItem(equippedTitle)
-        let a = Self.avatar
-        let photo = a * (1 - 2 * StarlightArt.frameInset)
-        VStack(alignment: .leading, spacing: 12) {
-            Text(locale.t(.starlightLoadout))
-                .font(.minSans(11, .semibold)).tracking(1.2).foregroundStyle(VoyageColor.gold)
-            HStack(spacing: 14) {
-                ZStack {
-                    LoadoutPhoto(url: auth.photoUrl)
-                        .frame(width: frame != nil ? photo : a, height: frame != nil ? photo : a)
-                        .clipShape(Circle())
-                    if let frame { FrameArt(item: frame).frame(width: a, height: a).allowsHitTesting(false) }
-                }
-                .frame(width: a, height: a)
-                .contentShape(Circle())
-                .onTapGesture { onSlot("frame") }
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(auth.confirmedName.map { $0.isEmpty ? "Stargazer" : $0 } ?? "···")
-                            .font(.minSans(17, .semibold)).foregroundStyle(VoyageColor.ink).lineLimit(1)
-                        EquippedBadge(equips: eq, size: 20)
-                    }
-                    if let title {
-                        TitleText(text: "『\(title.name(in: lang))』", item: title, fontSize: 13)
-                            .onTapGesture { onSlot("title") }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            // 칸 요약 — 무엇이 끼워져 있는지 / 비었는지
-            HStack(spacing: 6) {
-                slotPill("frame", frame, lang)
-                slotPill("badge", badge, lang)
-                slotPill("title", title, lang)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LinearGradient(colors: [Color(hex: 0x1E1936), Color(hex: 0x13131D)], startPoint: .top, endPoint: .bottom),
-                    in: RoundedRectangle(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(
-            LinearGradient(colors: [VoyageColor.gold.opacity(0.4), StarlightArt.violet.opacity(0.25)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing),
-            lineWidth: 1))
-    }
-
-    private func slotPill(_ k: String, _ item: StarlightStore.Item?, _ lang: String) -> some View {
-        let c = item.map { StarlightArt.rarityColor($0.rarity) } ?? VoyageColor.dim
-        return VStack(spacing: 1) {
-            Text(starlightKindName(k)).font(.minSans(10)).foregroundStyle(VoyageColor.dim).lineLimit(1)
-            Text(item?.name(in: lang) ?? locale.t(.starlightSlotEmpty))
-                .font(.minSans(10, .medium)).foregroundStyle(item != nil ? VoyageColor.ink : VoyageColor.dim).lineLimit(1)
-        }
-        .padding(.horizontal, 6).padding(.vertical, 7)
-        .frame(maxWidth: .infinity)
-        .background(item != nil ? c.opacity(0.10) : Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(item != nil ? c.opacity(0.45) : VoyageColor.line, lineWidth: 0.75))
-        .contentShape(RoundedRectangle(cornerRadius: 12))
-        .onTapGesture { onSlot(k) }
-    }
-}
-
-/// 내 사진(로그인 때 서버에서 확정한 값) — 없으면 기본 아이콘.
-private struct LoadoutPhoto: View {
-    let url: String?
-    @State private var image: UIImage?
-
-    var body: some View {
-        ZStack {
-            Color(hex: 0x0D0D0D)
-            if let image {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Image(systemName: "person.crop.circle.fill").resizable().scaledToFit()
-                    .foregroundStyle(Color(hex: 0x555555))
-            }
-        }
-        .task(id: url) {
-            guard let url, !url.isEmpty else { image = nil; return }
-            image = await AvatarThumbCache.shared.image(for: url, maxPixel: 256)
-        }
-    }
 }
 
 // MARK: - 가진 아이템 한 칸

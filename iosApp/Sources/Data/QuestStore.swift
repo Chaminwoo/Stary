@@ -439,7 +439,10 @@ final class QuestStore: ObservableObject {
         let day = d.day
         d.claimed.insert(id)
         daily = d
-        let r = await StarlightStore.shared.request("claimQuest", ["day": day, "questId": id])
+        // 별가루도 누르는 즉시 화면에 더한다(서버가 거절하면 원래대로).
+        let sl = StarlightStore.shared
+        let reward = DailyQuests.shared.catalog?.reward(q, fallback: sl.config.questStardust) ?? sl.config.questStardust
+        let r = await sl.requestCredit("claimQuest", ["day": day, "questId": id], reward)
         return settle(r) {
             if var cur = daily, cur.day == day { cur.claimed.remove(id); daily = cur }
         }
@@ -452,7 +455,7 @@ final class QuestStore: ObservableObject {
         let day = d.day
         d.bonus = true
         daily = d
-        let r = await StarlightStore.shared.request("claimBonus", ["day": day])
+        let r = await StarlightStore.shared.requestCredit("claimBonus", ["day": day], StarlightStore.shared.config.bonusStardust)
         return settle(r) {
             if var cur = daily, cur.day == day { cur.bonus = false; daily = cur }
         }

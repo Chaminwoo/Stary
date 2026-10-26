@@ -258,7 +258,9 @@ object QuestStore {
         val def = d.quests.firstOrNull { it.id == id } ?: return 0
         if (!d.isComplete(def) || id in d.claimed) return 0
         daily = d.copy(claimed = d.claimed + id)
-        return settle(StarlightStore.request("claimQuest", mapOf("day" to d.day, "questId" to id))) {
+        // 별가루도 누르는 즉시 화면에 더한다(서버가 거절하면 원래대로).
+        val reward = DailyQuests.catalog?.reward(def, StarlightStore.config.questStardust) ?: StarlightStore.config.questStardust
+        return settle(StarlightStore.requestCredit("claimQuest", mapOf("day" to d.day, "questId" to id), reward)) {
             daily?.let { cur -> if (cur.day == d.day) daily = cur.copy(claimed = cur.claimed - id) }
         }
     }
@@ -271,7 +273,7 @@ object QuestStore {
         val d = daily ?: return 0
         if (!d.bonusReady || d.bonus) return 0
         daily = d.copy(bonus = true)
-        return settle(StarlightStore.request("claimBonus", mapOf("day" to d.day))) {
+        return settle(StarlightStore.requestCredit("claimBonus", mapOf("day" to d.day), StarlightStore.config.bonusStardust)) {
             daily?.let { cur -> if (cur.day == d.day) daily = cur.copy(bonus = false) }
         }
     }

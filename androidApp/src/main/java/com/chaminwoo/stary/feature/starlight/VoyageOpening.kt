@@ -84,7 +84,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * 우주 항해 연출(2026-10-26 — 성운 상자 대신 수정구, 시안 "천문 원반 받침"). 세 박자:
+ * 깨우기 연출(2026-10-27 잠든 우주 — 별 마법진 위로 뜬 수정구, 시안 그대로). 세 박자:
  *
  *  1. **두드리기** — 수정구를 세 번 두드린다. 누른 자리에서 금이 갈라지고(방사형 + 거미줄), 두드릴수록 안의 성운이 빨리 돈다.
  *  2. **깨짐** — 결과 등급 빛으로 모였다가(1초) 누른 자리를 중심으로 유리가 불규칙한 조각으로 부서진다.
@@ -108,7 +108,8 @@ internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
     val engine = rememberOrbEngine(interactive = true, rare = state.route == "rare")
     val frame = rememberOrbClock(engine)
     val sparks = remember { SparkField() }
-    val sky = remember { SkyStars(seed = 29, n = 80) }
+    // 별가루 화면과 같은 잔별(같은 자리) — 창이 떠도 하늘이 그대로 이어진다.
+    val sky = remember { SkyStars(seed = 11) }
     var skip by remember { mutableStateOf(false) }
 
     DisposableEffect(engine) {
@@ -191,17 +192,7 @@ internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
                     },
             ) {
                 frame.value
-                val t = engine.t
-                for (i in 0 until sky.size) {
-                    val tw = 0.5f + 0.5f * sin(t * sky.w[i] + sky.p[i])
-                    drawCircle(
-                        Color.White.copy(alpha = (0.08f + 0.4f * tw) * (sky.s[i] / 1.6f).coerceAtMost(1f)),
-                        sky.s[i] * 0.75f * density, Offset(sky.x[i] * size.width, sky.y[i] * size.height),
-                    )
-                }
-                val c = Offset(size.width / 2f, oy + ORB_CY * k)
-                val r = size.width * 0.95f
-                drawCircle(Brush.radialGradient(listOf(tint.accent.copy(alpha = 0.15f), tint.accent.copy(alpha = 0.04f), Color.Transparent), c, r), r, c)
+                drawSpace(engine, sky, focusY = oy + ORB_CY * k, deep = true)
                 drawIntoCanvas {
                     engine.draw(
                         it.nativeCanvas, k, ox, oy, size.width, size.height,
@@ -223,9 +214,9 @@ internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
                 )
             }
 
-            // ── 두드리기 안내(받침 바로 아래) ──
+            // ── 두드리기 안내(마법진 바로 아래) ──
             if (promptA > 0.01f) {
-                val promptY = with(dens) { (oy + 402f * k).toDp() }
+                val promptY = with(dens) { (oy + 452f * k).toDp() }
                 Column(
                     Modifier
                         .align(Alignment.TopCenter)
