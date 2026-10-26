@@ -72,7 +72,6 @@ import com.chaminwoo.stary.core.designsystem.StaryColors
 import com.chaminwoo.stary.core.designsystem.StaryResponsive
 import com.chaminwoo.stary.core.designsystem.TopBarScrim
 import com.chaminwoo.stary.core.ui.StaryGlass
-import com.chaminwoo.stary.core.ui.glassBar
 import com.chaminwoo.stary.core.ui.glassSheet
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
@@ -591,10 +590,9 @@ fun MainScreen(
                         exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(MapUiState.CHROME_HIDE_MS)),
                     ) {
                         CenterAlignedTopAppBar(
-                            // 반투명 탑바 — 컨테이너는 투명으로 두고 배경을 직접 깐다. 지도 위는 스크림 그라데이션
-                            // (지도는 흐릴 수 없다), 나머지 화면은 뒤가 흐리게 비치는 유리.
-                            modifier = if (currentRoute is NavRoute.Main) Modifier.background(TopBarScrim)
-                            else Modifier.glassBar(glassState),
+                            // 반투명 탑바 — 컨테이너는 투명으로 두고 배경을 직접 깐다. 모든 화면이 지도 탑바와 같은
+                            // 스크림(검정 베이스 + 아래로 살짝 투명)으로 통일(2026-10-26 사용자 지시, 예전엔 지도 외 화면은 유리).
+                            modifier = Modifier.background(TopBarScrim),
                             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                                 containerColor = Color.Transparent,
                                 titleContentColor = Color(0xFFF0F0F0),

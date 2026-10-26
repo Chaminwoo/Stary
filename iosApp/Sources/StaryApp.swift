@@ -30,17 +30,15 @@ struct StaryApp: App {
         Self.configureNavigationBarAppearance()
     }
 
-    /// push 된 모든 화면의 시스템 내비바를 Android CenterAlignedTopAppBar 톤으로 통일 —
-    /// **유리**(블러 + 반투명 남색, Android `StaryGlass.Bar` 와 같은 틴트) + 아래 별빛 선 한 줄 +
-    /// 제목 **MinSans 17 SemiBold**/0xF0F0F0 + 뒤로가기 틴트 0xF0F0F0.
-    /// (Android MainScreen 의 상단바: `TopBarScrim` 그라데이션 위에 같은 제목 스타일)
+    /// push 된 모든 화면의 시스템 내비바를 **지도 상단바와 같은 스크림**으로 통일(2026-10-26 사용자 지시) —
+    /// 위(상태바)는 거의 검정, 아래로 살짝 투명(0x0D0D0D 1.0 → 0.925 → 0.80, Android `TopBarScrim` 과 같은 값) +
+    /// 제목 **MinSans 17 SemiBold**/0xF0F0F0 + 뒤로가기 틴트 0xF0F0F0. (예전: 블러 유리 + 별빛 선)
     private static func configureNavigationBarAppearance() {
         let appearance = UINavigationBarAppearance()
         // 화면 배경(ScreenBackground 는 ignoresSafeArea)이 내비바 뒤로 올라와 비친다.
         appearance.configureWithTransparentBackground()
-        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
-        appearance.backgroundColor = UIColor(red: 0x18 / 255.0, green: 0x1E / 255.0, blue: 0x34 / 255.0, alpha: 0.62)
-        appearance.shadowColor = UIColor(red: 0x9F / 255.0, green: 0xB3 / 255.0, blue: 0xE8 / 255.0, alpha: 0.13)
+        appearance.backgroundImage = topBarScrimImage()
+        appearance.shadowColor = .clear
         let titleColor = UIColor(red: 0xF0 / 255.0, green: 0xF0 / 255.0, blue: 0xF0 / 255.0, alpha: 1)
         let titleFont = UIFont.minSans(17, .semibold)
         appearance.titleTextAttributes = [.foregroundColor: titleColor, .font: titleFont]
@@ -62,6 +60,20 @@ struct StaryApp: App {
             [.font: segmentFont, .foregroundColor: titleColor], for: .normal)
         UISegmentedControl.appearance().setTitleTextAttributes(
             [.font: UIFont.minSans(13, .semibold), .foregroundColor: UIColor.black], for: .selected)
+    }
+
+    /// 지도 상단바 스크림(RootView)과 같은 세로 그라데이션 — 내비바(상태바 포함 높이)에 늘려 깐다.
+    private static func topBarScrimImage() -> UIImage {
+        let size = CGSize(width: 1, height: 100)
+        return UIGraphicsImageRenderer(size: size).image { ctx in
+            let base = UIColor(red: 0x0D / 255.0, green: 0x0D / 255.0, blue: 0x0D / 255.0, alpha: 1)
+            let colors = [base.withAlphaComponent(1.0).cgColor,
+                          base.withAlphaComponent(0.925).cgColor,
+                          base.withAlphaComponent(0.80).cgColor] as CFArray
+            let locations: [CGFloat] = [0, 0.55, 1]
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) else { return }
+            ctx.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
+        }
     }
 
     /// 앱 링크 해석 → (종류 host, id). 구글 로그인 콜백 등 다른 URL 이면 nil.
