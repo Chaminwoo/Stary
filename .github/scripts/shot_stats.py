@@ -7,6 +7,7 @@ CI 로그/아티팩트는 내려받으려면 로그인이 필요하다. 대신 �
   shot_stats.py brief <png>            → "2007x2853 mean=12.3 bright=3.10%"
   shot_stats.py ascii <png> [cols]     → 밝기를 글자로 옮긴 축소판(기본 60열)
   shot_stats.py thumb <png> [폭] [최대바이트] → JPEG 축소판을 base64 한 줄로(주석에 실어 공개 API 로 복원해 볼 수 있다)
+  shot_stats.py fit <in> <out> <W> <H>  → 가로세로를 덮도록 확대한 뒤 가운데를 W×H 로 잘라 저장(비율이 조금 다를 때)
 """
 import struct
 import sys
@@ -86,12 +87,26 @@ def thumb_b64(path, maxw=300, budget=9000):
     return base64.b64encode(data).decode()
 
 
+def fit(src, dst, w, h):
+    """cover 확대 + 중앙 자르기 — 왜곡 없이 정확히 w×h 로 만든다."""
+    from PIL import Image  # type: ignore
+    img = Image.open(src).convert("RGB")
+    sw, sh = img.size
+    k = max(w / sw, h / sh)
+    nw, nh = max(w, round(sw * k)), max(h, round(sh * k))
+    img = img.resize((nw, nh), Image.LANCZOS)
+    x, y = (nw - w) // 2, (nh - h) // 2
+    img.crop((x, y, x + w, y + h)).save(dst, "PNG")
+
+
 def main(argv):
     if len(argv) < 3:
         print(__doc__)
         return 2
     cmd, path = argv[1], argv[2]
-    if cmd == "brief":
+    if cmd == "fit":
+        fit(path, argv[3], int(argv[4]), int(argv[5]))
+    elif cmd == "brief":
         print(brief(path))
     elif cmd == "thumb":
         print(thumb_b64(path, int(argv[3]) if len(argv) > 3 else 300, int(argv[4]) if len(argv) > 4 else 9000))

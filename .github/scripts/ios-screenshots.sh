@@ -65,17 +65,21 @@ PYEOF
 }
 
 # 이미지 축소판(JPEG→base64)을 주석으로 — 공개 API 로 읽어 복원하면 PNG 를 내려받지 않고도 화면을 볼 수 있다.
-thumbnote() {   # thumbnote <제목> <PNG…>
+# GitHub 주석 메시지는 API 응답에서 4096자로 잘리므로 이미지 1장당 주석 1개(base64 ≈ 3.9K자 이하)로 올린다.
+thumbnote() {   # thumbnote <제목 접두> <PNG…>
   local title="$1"; shift
-  local out="$WORK/thumb_$RANDOM.txt" f
-  : > "$out"
+  local f out
   for f in "$@"; do
     [ -f "$f" ] || continue
-    echo "=== $(basename "$f") $(stats "$f")" >> "$out"
-    "$PY" "$HERE/shot_stats.py" thumb "$f" 300 9000 >> "$out" 2>/dev/null || echo "(썸네일 실패)" >> "$out"
+    out="$WORK/thumb_$RANDOM.txt"
+    echo "=== $(basename "$f") $(stats "$f")" > "$out"
+    "$PY" "$HERE/shot_stats.py" thumb "$f" 150 2850 >> "$out" 2>/dev/null || echo "(썸네일 실패)" >> "$out"
+    note "$title $(basename "$f" .png)" "$out"
   done
-  note "$title" "$out"
 }
+
+# 점검용 주석 — 촬영 잡에서는 건너뛴다(주석은 스텝당 10개 제한, 썸네일 자리 확보).
+pnote() { [ "$MODE" = "probe" ] && note "$@"; return 0; }
 
 # ── 0. Duo 기기 종류 / 런타임 ───────────────────────────────────────────────
 INFO="$WORK/info.txt"
@@ -145,7 +149,7 @@ HELP="$WORK/help.txt"
   echo; echo "### simctl io screenshot (사용법)"; limit 30 xcrun simctl io "$UDID" screenshot --help 2>&1 | head -30
   echo; echo "### 환경"; cat "$INFO"
 } > "$HELP" 2>&1
-note "Duo 1 환경·simctl 사용법" "$HELP"
+pnote "Duo 1 환경·simctl 사용법" "$HELP"
 
 # (io enumerate 는 2차 점검에서 화면 1=바깥 1398x2034 · 3=안쪽 2007x2853 · 2/4=TV출력 720x480 으로 확인했다 — 주석에서 뺀다)
 ENUM="$WORK/enum.txt"
@@ -173,7 +177,7 @@ for t in json.load(sys.stdin)["devicetypes"]:
     strings -a "$b" 2>/dev/null | grep -i -E "fold|posture|hinge" | sort -u | head -40
   done
 } > "$PROF" 2>&1
-note "Duo 3 프로필·문자열" "$PROF"
+pnote "Duo 3 프로필·문자열" "$PROF"
 
 # ── 2. 모든 화면 켜기 → 화면별 크기/밝기 ────────────────────────────────────
 TABLE="$WORK/table.txt"
@@ -218,7 +222,7 @@ for id in 0 1 2 3 4 5 6 7 8; do probe "d$id" "--display=$id"; done
 probe internal "--display=internal"
 probe external "--display=external"
 echo "선택: label=${SEL_LABEL:-없음} args='${SEL_ARGS}' exact=$SEL_EXACT" | tee -a "$TABLE"
-note "Duo 2 화면 점검" "$TABLE"
+pnote "Duo 2 화면 점검" "$TABLE"
 
 
 # ── 2.5 안쪽 화면(2007×2853) 만들기 ──────────────────────────────────────────
@@ -263,7 +267,7 @@ geom_try() {   # geom_try <WxH[@scale]> — 화면 1 을 바꾸고 설정 앱이
   return 1
 }
 
-if [ "$SEL_EXACT" != 1 ]; then
+if [ "$SEL_EXACT" != 1 ] && [ "$MODE" = "probe" ]; then
   geom_try "${WANT_W}x${WANT_H}@3" || geom_try "${WANT_W}x${WANT_H}" || true
   if [ "$GEOM_OK" = 1 ]; then
     SEL_ARGS="--display=1"; SEL_LABEL="geometry"; SEL_EXACT=1
@@ -274,8 +278,8 @@ if [ "$SEL_EXACT" != 1 ]; then
     reboot_device
   fi
 fi
-note "Duo 4 geometry 실험" "$EXP"
-thumbnote "Duo 5 실험 썸네일(화면 1)" "$WORK"/exp_G_*_d1.png
+pnote "Duo 4 geometry 실험" "$EXP"
+[ "$MODE" = "probe" ] && thumbnote "Duo 5" "$WORK"/exp_G_*_d1.png
 
 # 점검 전용 — 접기/펴기 단서(simctl ui 옵션 · capabilities.plist · SimulatorKit 문자열). 촬영 잡에서는 건너뛴다.
 if [ "$MODE" = "probe" ]; then
@@ -298,6 +302,34 @@ for t in json.load(sys.stdin)["devicetypes"]:
     done
   } > "$INFO2" 2>&1
   note "Duo 8 접기 단서" "$INFO2"
+
+  # Simulator.app 을 띄워 메뉴에 접기/펴기·화면 전환 항목이 있는지 본다(접근성 권한이 없으면 오류만 남는다).
+  MENU="$WORK/menu.txt"
+  {
+    open -a Simulator --args -CurrentDeviceUDID "$UDID" 2>&1; sleep 12
+    echo "### 창 목록"
+    limit 30 osascript -e 'tell application "System Events" to tell process "Simulator" to get name of every window' 2>&1
+    for m in File Edit Device Features Window "I/O" Debug; do
+      echo "### 메뉴 $m"
+      limit 30 osascript -e "tell application \"System Events\" to tell process \"Simulator\" to get name of every menu item of menu \"$m\" of menu bar 1" 2>&1 | tr ',' '
+' | sed 's/^ *//' | head -60
+    done
+    echo "### 메뉴 막대"
+    limit 30 osascript -e 'tell application "System Events" to tell process "Simulator" to get name of every menu bar item of menu bar 1' 2>&1
+  } > "$MENU" 2>&1
+  note "Duo 9 Simulator 메뉴" "$MENU"
+
+  # 화면 1 이 받아들이는 다른 크기(모드 목록 단서) — 화면 1 만 건드리고 곧바로 원래대로 돌려 놓는다.
+  GM="$WORK/geom_modes.txt"; : > "$GM"
+  for spec in 1398x2034@3 2034x1398@3 1206x2622@3 1320x2868@3 2007x2853@2 1003x1426@2; do
+    r=$(limit 30 xcrun simctl io "$UDID" screenConfig --display=1 geometry "$spec" 2>&1 | tr '
+' ' ')
+    echo "$spec → ${r:0:160}" >> "$GM"
+  done
+  limit 30 xcrun simctl io "$UDID" screenConfig --display=1 geometry 1398x2034@3 >/dev/null 2>&1 || true
+  limit 30 xcrun simctl io "$UDID" screenConfig --display=3 geometry 2007x2853@3 2>&1 | head -3 | sed 's/^/d3 2007x2853@3 → /' >> "$GM"
+  limit 30 xcrun simctl io "$UDID" enumerate 2>&1 | grep -i -E "mode|size|scale|name|id:|uuid|power" | head -40 >> "$GM"
+  note "Duo 10 geometry 모드 단서" "$GM"
 fi
 
 if [ -z "$SEL_LABEL" ]; then
@@ -317,6 +349,12 @@ xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifi
 xcrun simctl install "$UDID" "$APP_PATH" || { echo "::error::앱 설치 실패"; exit 1; }
 xcrun simctl privacy "$UDID" grant location "$BUNDLE_ID" || true
 xcrun simctl location "$UDID" set "$SHOT_LAT,$SHOT_LNG" || true
+
+# 설치 직후 첫 실행은 첫 화면이 늦게(8초 넘게) 그려진다 — 한 번 띄워 데워 두고 시작한다.
+limit 60 xcrun simctl launch "$UDID" "$BUNDLE_ID" -StaryShot map -app_language "${LANGS%% *}" >/dev/null 2>&1 || true
+sleep 12
+xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
+sleep 2
 
 SHOT_NOTE="$WORK/shot_note.txt"; : > "$SHOT_NOTE"
 SHOT_FILES=()
@@ -341,12 +379,13 @@ for lang in $LANGS; do
     fi
     sleep "$wait"
     line=""
-    for try in 1 2 3; do
+    for try in 1 2 3 4; do
       # (SEL_ARGS 는 "--display=3" 한 단어이거나 빈 문자열)
       limit 40 xcrun simctl io "$UDID" screenshot $SEL_ARGS "$base.png" >/dev/null 2>&1
       line=$(stats "$base.png")
       bright=$(echo "$line" | sed -n 's/.*bright=\([0-9.]*\)%.*/\1/p')
-      [ -n "$bright" ] && [ "$(echo "$bright > 0.3" | bc -l 2>/dev/null || echo 0)" = "1" ] && break
+      # 상태바 시계만 찍혀도 0.3% 를 넘는다(로그인 첫 실행이 검정인데 통과했다) → 촬영은 1.5% 넘어야 "그려졌다"로 본다.
+      [ -n "$bright" ] && [ "$(echo "$bright > 1.5" | bc -l 2>/dev/null || echo 0)" = "1" ] && break
       echo "    $lang/$scene 시도 $try: 거의 검정($line) — 8초 더 기다린다"
       sleep 8
     done
@@ -360,10 +399,14 @@ for lang in $LANGS; do
       cat "$base.log" "$base.err.log" 2>/dev/null | grep -E "❌|⚠️|Firestore" | head -3 | sed 's/^/  log: /'
     } >> "$SHOT_NOTE"
     SHOT_FILES+=("$base.png")
+    case "$line" in
+      "${WANT_W}x${WANT_H} "*) ;;
+      *) "$PY" "$HERE/shot_stats.py" fit "$base.png" "${base}_${WANT_W}x${WANT_H}.png" "$WANT_W" "$WANT_H" >/dev/null 2>&1            && echo "    사본: ${base}_${WANT_W}x${WANT_H}.png (확대·중앙 자르기)" ;;
+    esac
   done
 done
 note "Duo 6 촬영 결과 요약($LANGS)" "$SHOT_NOTE"
-thumbnote "Duo 7 촬영 썸네일($LANGS)" ${SHOT_FILES[@]+"${SHOT_FILES[@]}"}
+thumbnote "Duo 7" ${SHOT_FILES[@]+"${SHOT_FILES[@]}"}
 
 xcrun simctl shutdown "$UDID" || true
 echo "── 결과 ──"
