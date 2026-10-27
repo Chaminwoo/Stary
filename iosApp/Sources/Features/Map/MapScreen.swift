@@ -773,7 +773,25 @@ struct MapScreen: View {
         // 현재 값도 주므로 이미 fix 가 있는 상태로 지도가 떠도 바로 놓인다.
         // 로그인 상태면 **새 계정으로 확인됐을 때만** — 이전에 가입한 계정은 재설치여도 웰컴 별을 띄우지 않는다(ReturningAccountOnboarding).
         .onReceive(location.$coordinate) { c in
+            guard !ScreenshotMode.isActive else { return } // 스크린샷엔 웰컴 별을 놓지 않는다
             if let c, auth.uid == nil || auth.returningAccount == false { tutorial.ensurePlaced(near: c) }
+        }
+        // 스크린샷 촬영 장면(Core/ScreenshotMode.swift) — 별자리 선 켜기 / 글로브 자동 진입 / 가장 가까운 별 상세 열기.
+        .task {
+            switch ScreenshotMode.scene {
+            case "constellation":
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                constellationOn = true
+            case "globe":
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                let c = location.coordinateOrDefault
+                enterGlobe(lat: c.latitude, lng: c.longitude)
+            case "detail":
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                selected = ScreenshotMode.detailDiary()
+            default:
+                break
+            }
         }
         .onAppear {
             guideProgress.bind(auth.uid)

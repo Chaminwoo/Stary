@@ -22,7 +22,7 @@ final class PermissionAsk: ObservableObject {
     @Published private(set) var notificationPending = false
 
     func locationDue(_ location: LocationManager) -> Bool {
-        !locationAnswered && location.permissionNotDetermined && Self.cooled(Self.locationLaterKey, Self.locationCooldown)
+        !ScreenshotMode.isActive && !locationAnswered && location.permissionNotDetermined && Self.cooled(Self.locationLaterKey, Self.locationCooldown)
     }
 
     func answerLocation(later: Bool) {

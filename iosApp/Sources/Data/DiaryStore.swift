@@ -17,6 +17,12 @@ final class DiaryStore: ObservableObject {
         started = true
         startedUid = uid
         repo.stopAll()
+        // 스크린샷 촬영 모드 — 서버 대신 내장 샘플 별(Core/ScreenshotMode.swift).
+        if ScreenshotMode.isActive {
+            diaries = ScreenshotMode.demoDiaries()
+            loading = false
+            return
+        }
         loading = true
         repo.observeAll(currentUid: uid) { [weak self] list in
             guard let self else { return }
@@ -48,7 +54,10 @@ final class DiaryStore: ObservableObject {
     @discardableResult
     func save(_ diary: Diary) async throws -> String { try await repo.save(diary) }
     func delete(_ id: String) async throws { try await repo.delete(id) }
-    func incrementView(_ id: String) async { await repo.incrementViewCount(id) }
+    func incrementView(_ id: String) async {
+        guard !ScreenshotMode.isActive else { return } // 샘플 별은 서버에 없다
+        await repo.incrementViewCount(id)
+    }
 
     /// 새 글 작성 시 친구들에게 FRIEND_POST 인앱 알림 생성(Android notifyFriendPost 대응).
     /// (private 글은 호출하지 않음)

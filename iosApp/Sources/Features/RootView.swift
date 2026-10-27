@@ -42,9 +42,16 @@ struct RootView: View {
         // 새 버전 안내 — 로그인/메인 어느 화면이든 맨 위에(Android MainScreen AppUpdatePromptHost 패리티).
         .overlay { AppUpdatePromptOverlay() }
         // 앱을 열 때와 앞으로 돌아올 때마다 App Store 에 새 버전이 있는지 확인 — 있으면 닫을 수 없는 강제 업데이트 팝업.
-        .task { await AppUpdateChecker.shared.check() }
+        // (스크린샷 촬영 모드에선 업데이트 팝업 대신 둘러보기로 바로 진입 — Core/ScreenshotMode.swift)
+        .task {
+            if ScreenshotMode.isActive {
+                if ScreenshotMode.entersAsGuest && !auth.canEnterApp { await auth.browseAsGuest() }
+                return
+            }
+            await AppUpdateChecker.shared.check()
+        }
         .onChange(of: scenePhase) { phase in
-            if phase == .active { Task { await AppUpdateChecker.shared.check() } }
+            if phase == .active, !ScreenshotMode.isActive { Task { await AppUpdateChecker.shared.check() } }
         }
         .font(.minSans(15))   // 앱 기본 폰트(Android bodyLarge = MinSans 16sp 대응)
         // 시스템 글꼴 크기 상한 — 고정 높이 카드가 많아 그대로 두면 큰 글꼴에서 글자가 잘린다
@@ -318,6 +325,12 @@ struct MainTabView: View {
                 diaryTarget = nil
                 drawerOpen = false
             }
+        }
+        // 스크린샷 촬영 장면 `drawer` — 지도가 뜬 뒤 왼쪽 메뉴를 펼친다(Core/ScreenshotMode.swift).
+        .task {
+            guard ScreenshotMode.scene == "drawer" else { return }
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            withAnimation(.easeOut(duration: 0.25)) { drawerOpen = true }
         }
         // 코치마크나 위치 카드가 떠 있는 동안엔 첫 사용 안내 카드를 숨긴다(안내는 한 번에 하나씩).
         .onChange(of: showCoachMark || locationAskVisible) { chrome.coachMarkShowing = $0 }

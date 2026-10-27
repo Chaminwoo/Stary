@@ -41,6 +41,10 @@
         "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
       },
       {
+        "source": "/shots/*.jpg",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+      },
+      {
         "source": "/globe/*.jpg",
         "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
       },
@@ -50,6 +54,10 @@
       }
     ],
     "rewrites": [
+      {
+        "source": "/support",
+        "destination": "/support.html"
+      },
       {
         "source": "**",
         "destination": "/index.html"

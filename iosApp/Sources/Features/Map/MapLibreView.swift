@@ -173,7 +173,7 @@ struct MapLibreView: UIViewRepresentable {
 
             mapView.setCenter(
                 userLocation ?? fallback,
-                zoomLevel: 15,
+                zoomLevel: ScreenshotMode.mapZoom ?? 15,
                 animated: false
             )
         }
@@ -230,7 +230,9 @@ struct MapLibreView: UIViewRepresentable {
 
             context.coordinator.didAutoCenter = true
 
-            context.coordinator.movePitchedCamera(mapView, to: me, zoomLevel: 15, animated: true)
+            // 스크린샷 촬영 모드는 줌을 실행 인자로 받고 애니메이션 없이 옮긴다(Core/ScreenshotMode.swift).
+            context.coordinator.movePitchedCamera(mapView, to: me, zoomLevel: ScreenshotMode.mapZoom ?? 15,
+                                                  animated: !ScreenshotMode.isActive)
         }
 
         // 외부 포커스 요청.

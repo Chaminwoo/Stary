@@ -78,7 +78,8 @@ final class AuthManager: ObservableObject {
     func browseAsGuest() async {
         isBusy = true
         errorMessage = nil
-        if Auth.auth().currentUser == nil {
+        // 스크린샷 촬영 모드는 서버에 닿지 않는다(익명 인증도 건너뜀 — Core/ScreenshotMode.swift).
+        if Auth.auth().currentUser == nil, !ScreenshotMode.isActive {
             _ = try? await Auth.auth().signInAnonymously()
         }
         // anon = 익명 세션이 생겼는지 — 콘솔에서 익명 인증이 꺼져 있으면 0(둘러보기 지도가 비어 보인다).

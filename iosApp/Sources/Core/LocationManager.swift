@@ -29,6 +29,12 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func start() {
+        // 스크린샷 촬영 모드 — 실기기든 시뮬레이터든 촬영 좌표로 고정(샘플 별이 100m 안/밖으로 일정하게 놓인다).
+        if let shot = ScreenshotMode.coordinate {
+            coordinate = shot
+            authorized = true
+            return
+        }
         #if targetEnvironment(simulator)
         // 컴퓨터(시뮬레이터)에서는 실제 GPS 가 없거나 엉뚱한 기본 위치라, 내 위치를 건국대로 시작한다(#2).
         if coordinate == nil {
@@ -140,6 +146,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        if ScreenshotMode.isActive { return } // 촬영 좌표 고정
         #if targetEnvironment(simulator)
         // 컴퓨터(시뮬레이터)의 기본 시뮬레이션 위치는 미국(쿠퍼티노)이라 서울 폴백을 덮어쓴다 →
         // 시뮬레이터에서는 위치 업데이트를 무시하고 start() 의 서울 기본 좌표를 유지한다.

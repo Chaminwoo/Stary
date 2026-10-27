@@ -75,7 +75,11 @@ struct LoginView: View {
                 }
             }
         }
-        .onAppear { StaryAnalytics.log("login_view") }
+        .onAppear {
+            StaryAnalytics.log("login_view")
+            // 스크린샷 촬영 모드 — 인트로 영상이 끝나길 기다리지 않고 바로 로고·버튼(Core/ScreenshotMode.swift).
+            if ScreenshotMode.isActive { revealUI() }
+        }
         .sheet(isPresented: $showEmailLogin) {
             EmailLoginSheet()
                 .environmentObject(auth)
