@@ -81,8 +81,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -180,8 +182,11 @@ fun WorkshopScreen() {
     var oddsSheet by remember { mutableStateOf(false) }
 
     val orb = rememberOrbEngine(interactive = false, rare = route == "rare")
-    // 깨우기 창이 덮는 동안엔 무대 수정구를 쉬게 한다(창이 제 수정구를 굴린다).
-    val frame = rememberOrbClock(orb, running = opening == null)
+    // 무대 수정구가 화면 어디에 그려지는지 — 깨우기 창이 그 자리에서 이어받아 다가간다(순간이동 없이).
+    val spot = remember { OrbSpot() }
+    // 깨우기 창이 무대를 다 덮은 동안엔 무대 수정구를 쉬게 한다(창이 제 수정구를 굴린다). 스며들고 걷히는 동안엔 같이 돈다.
+    var covered by remember { mutableStateOf(false) }
+    val frame = rememberOrbClock(orb, running = opening == null || !covered)
     LaunchedEffect(route) { orb.setRoute(route == "rare", animate = true) }
 
     val accent by animateColorAsState(routeTint(route).accent, tween(600), label = "route_accent")
@@ -233,7 +238,8 @@ fun WorkshopScreen() {
         busy = true
         Haptics.medium()
         // 요청은 창을 띄우자마자 — 두드리는 동안 결과가 온다(늦으면 세 번째 두드림 뒤 수정구가 떨며 기다린다).
-        opening = OpeningState(count = k, route = r)
+        covered = false
+        opening = OpeningState(count = k, route = r, from = spot.place())
         scope.launch {
             val res = StarlightStore.voyage(r, k)
             busy = false
@@ -241,7 +247,7 @@ fun WorkshopScreen() {
                 is StarlightStore.OpResult.Done -> {
                     val draws = StarlightStore.draws(res.result)
                     if (draws.isEmpty()) {
-                        opening = null
+                        opening = opening?.copy(failed = true)
                         return@launch fail("server")
                     }
                     StaryAnalytics.log(
@@ -252,7 +258,7 @@ fun WorkshopScreen() {
                     opening = opening?.copy(draws = draws)
                 }
                 is StarlightStore.OpResult.Failed -> {
-                    opening = null
+                    opening = opening?.copy(failed = true)
                     fail(res.code)
                 }
             }
@@ -314,7 +320,7 @@ fun WorkshopScreen() {
         val stageLeft = (maxWidth - (ORB_W * k).dp) / 2
         val hintTop = stageTop + (HINT_Y * k).dp
 
-        Stage(orb, frame, k, stageLeft, stageTop) {
+        Stage(orb, frame, k, stageLeft, stageTop, spot) {
             route = if (orb.rare) "rare" else "normal"
             // 시안 진동 [18, 40, 28] — 묵직하게 한 번, 잠깐 쉬고 가볍게 한 번.
             scope.launch {
@@ -345,7 +351,7 @@ fun WorkshopScreen() {
         }
     }
 
-    opening?.let { st -> VoyageOpening(st, onDone = { if (st.draws != null) opening = null }) }
+    opening?.let { st -> VoyageOpening(st, stage = orb, onCover = { covered = it }, onDone = { opening = null }) }
     if (adSheet) {
         AdSheet(
             busy = adBusy,
@@ -364,15 +370,17 @@ fun WorkshopScreen() {
 
 /**
  * 깊은 우주 바탕 — 남색 그라데이션 + 수정구 뒤 경로 빛(문지르는 동안 · 바뀔 때 수정구 색을 그대로 따라간다) + 보랏빛·푸른 성운 두 덩이
- * + 깜빡이는 잔별 + 8초마다 지나가는 별똥별. [deep] = 깨우기 창(단색 바탕 + 경로 빛 + 잔별만).
+ * + 깜빡이는 잔별 + 8초마다 지나가는 별똥별. [deep] 1 = 깨우기 창(단색 바탕 + 경로 빛 + 잔별만), 그 사이 값은 둘을 섞는다
+ * (창이 무대에서 다가가는 동안). [spread] = 잔별을 수정구([focusY]) 둘레로 벌리는 정도 — 다가갈 때 먼 별이 살짝 밀려난다.
  * 시간은 수정구 시계([OrbEngine.t])라 앱이 뒤로 가면 같이 쉰다.
  */
-internal fun DrawScope.drawSpace(orb: OrbEngine, sky: SkyStars, focusY: Float, deep: Boolean) {
+internal fun DrawScope.drawSpace(orb: OrbEngine, sky: SkyStars, focusY: Float, deep: Float, spread: Float = 1f) {
     val t = orb.t
     val w = size.width
     val h = size.height
-    if (deep) drawRect(Color(0xFF04060E))
-    else drawRect(Brush.verticalGradient(0f to Color(0xFF03050D), 0.33f to Color(0xFF070B1E), 0.66f to Color(0xFF0A0B1C), 1f to Color(0xFF04050C)))
+    val near = 1f - deep
+    if (near > 0f) drawRect(Brush.verticalGradient(0f to Color(0xFF03050D), 0.33f to Color(0xFF070B1E), 0.66f to Color(0xFF0A0B1C), 1f to Color(0xFF04050C)))
+    if (deep > 0f) drawRect(Color(0xFF04060E), alpha = deep)
     val acc = Color(orb.glowColor)
     drawRect(
         Brush.radialGradient(
@@ -380,17 +388,18 @@ internal fun DrawScope.drawSpace(orb: OrbEngine, sky: SkyStars, focusY: Float, d
             center = Offset(w / 2f, focusY), radius = w * 1.05f,
         ),
     )
-    if (!deep) {
-        drawRect(Brush.radialGradient(listOf(Color(0x1C7B5CFF), Color(0x007B5CFF)), Offset(w * 0.12f, h * 0.16f), w * 0.85f))
-        drawRect(Brush.radialGradient(listOf(Color(0x143E7BFF), Color(0x003E7BFF)), Offset(w * 0.92f, h * 0.8f), w * 0.75f))
+    if (near > 0f) {
+        drawRect(Brush.radialGradient(listOf(Color(0x1C7B5CFF), Color(0x007B5CFF)), Offset(w * 0.12f, h * 0.16f), w * 0.85f), alpha = near)
+        drawRect(Brush.radialGradient(listOf(Color(0x143E7BFF), Color(0x003E7BFF)), Offset(w * 0.92f, h * 0.8f), w * 0.75f), alpha = near)
     }
+    val fx = w / 2f
     for (i in 0 until sky.size) {
         val tw = 0.5f + 0.5f * sin(t * sky.w[i] + sky.p[i])
-        val p = Offset(sky.x[i] * w, sky.y[i] * h)
+        val p = Offset(fx + (sky.x[i] * w - fx) * spread, focusY + (sky.y[i] * h - focusY) * spread)
         if (sky.s[i] > 1.48f) drawSparkle(p, (2.2f + 1.6f * tw) * density, Color.White.copy(alpha = 0.35f + 0.5f * tw))
         else drawCircle(Color.White.copy(alpha = (0.1f + 0.45f * tw) * min(1f, sky.s[i] / 1.6f)), sky.s[i] * 0.75f * density, p)
     }
-    if (!deep) {
+    if (near > 0f) {
         // 별똥별 — 8초마다 0.9초, 매번 다른 자리(위쪽 하늘)
         val idx = floor(t / 8f)
         val u = (t - idx * 8f) / 0.9f
@@ -403,7 +412,7 @@ internal fun DrawScope.drawSpace(orb: OrbEngine, sky: SkyStars, focusY: Float, d
             val dy = len * 0.38f
             val head = Offset(sx + dx * u, sy + dy * u)
             val tail = Offset(head.x - dx * 0.45f, head.y - dy * 0.45f)
-            val fade = sin(u * PI.toFloat())
+            val fade = sin(u * PI.toFloat()) * near
             drawLine(
                 Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.55f * fade)), tail, head),
                 tail, head, strokeWidth = 1.4f * density, cap = StrokeCap.Round,
@@ -415,11 +424,13 @@ internal fun DrawScope.drawSpace(orb: OrbEngine, sky: SkyStars, focusY: Float, d
 /**
  * 화면 전체 캔버스 — 바탕 + 마법진 · 은하수 · 수정구. 수정구 둘레(반지름 1.35배)에서 시작한 손가락만 받는다:
  * 짧게 누르면 누른 쪽으로 돌고, 끌면 문지르기(다 차면 [onRouteFlip]). 수정구 위의 손가락은 다른 곳(서랍 등)이 가져가지 않게 모두 먹는다.
+ * 그릴 때마다 수정구 자리를 [spot] 에 적는다(깨우기 창이 그 자리에서 이어받는다).
  */
 @Composable
-private fun Stage(orb: OrbEngine, frame: State<Long>, k: Float, left: Dp, top: Dp, onRouteFlip: () -> Unit) {
+private fun Stage(orb: OrbEngine, frame: State<Long>, k: Float, left: Dp, top: Dp, spot: OrbSpot, onRouteFlip: () -> Unit) {
     val sky = remember { SkyStars(seed = 11) }
     val flip by rememberUpdatedState(onRouteFlip)
+    val view = LocalView.current
     val density = LocalDensity.current
     val kp = k * density.density
     val ox = with(density) { left.toPx() }
@@ -427,6 +438,7 @@ private fun Stage(orb: OrbEngine, frame: State<Long>, k: Float, left: Dp, top: D
     Canvas(
         Modifier
             .fillMaxSize()
+            .onGloballyPositioned { spot.at(it.screenPos(view)) }
             .pointerInput(orb, kp, ox, oy) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
@@ -476,7 +488,8 @@ private fun Stage(orb: OrbEngine, frame: State<Long>, k: Float, left: Dp, top: D
             },
     ) {
         frame.value
-        drawSpace(orb, sky, focusY = oy + ORB_CY * kp, deep = false)
+        spot.set(kp, ox, oy)
+        drawSpace(orb, sky, focusY = oy + ORB_CY * kp, deep = 0f)
         drawIntoCanvas { orb.draw(it.nativeCanvas, kp, ox, oy, size.width, size.height) }
     }
 }
@@ -494,7 +507,7 @@ private fun sparklePath(cx: Float, cy: Float, r: Float, k: Float) = Path().apply
 }
 
 /** CSS ease-in-out 근사(부드러운 계단). */
-private fun ease(x: Float): Float {
+internal fun ease(x: Float): Float {
     val t = x.coerceIn(0f, 1f)
     return t * t * (3f - 2f * t)
 }

@@ -376,8 +376,9 @@ private class OrbLeak(val a: Float, val w: Float, val l: Float)
 /**
  * 수정구 한 개의 상태와 그림. 프레임마다 [step] → [draw].
  * [interactive] = false(별가루 화면 무대)면 두드려도 금이 가지 않고 누른 쪽으로 돈다. 문지르기([rubStart]/[rubMove]/[rubEnd])는 무대에서만.
+ * 같은 [seed] 면 별 · 은하 · 마법진 배치가 같다 — 깨우기 창은 무대 수정구의 seed 로 만들어 [follow] 로 이어받는다.
  */
-internal class OrbEngine(seed: Int, private val interactive: Boolean) {
+internal class OrbEngine(val seed: Int, private val interactive: Boolean) {
     enum class Phase { IDLE, WAIT, CONVERGE, SHATTER, REVEAL }
 
     var phase by mutableStateOf(Phase.IDLE)
@@ -710,6 +711,24 @@ internal class OrbEngine(seed: Int, private val interactive: Boolean) {
             from = target; to = target; mixT = 1f
         }
         updatePalette()
+    }
+
+    /**
+     * 무대 수정구([src], 같은 [seed])를 지금 모습 그대로 이어받는다 — 깨우기 창이 무대 구슬에서 끊김 없이 다가가게.
+     * 배치는 seed 가 같아 이미 같고, 여기선 시계 · 돌기 · 경로 색 · 잠깐 남은 빛(물결 · 불꽃 · 별똥별)만 옮긴다.
+     */
+    fun follow(src: OrbEngine) {
+        t = src.t
+        omega = src.omega; idleDir = src.idleDir; spinA = src.spinA
+        pulse = src.pulse; flowA = src.flowA; ringA = src.ringA
+        flash = src.flash; rubP = src.rubP
+        rubSparks.clear(); rubSparks += src.rubSparks
+        waves.clear(); waves += src.waves
+        shoot = src.shoot; shootAt = src.shootAt
+        rare = src.rare; from = src.from; to = src.to; mixT = src.mixT
+        lastE = -1f
+        updatePalette()
+        bx = src.bx; by = src.by
     }
 
     /** 누른 쪽으로 돌린다(-1 왼쪽 · 1 오른쪽) — 더해지기만 하니 빨리 돌 때 반대쪽은 먼저 브레이크가 된다. */
@@ -2387,13 +2406,18 @@ internal class OrbEngine(seed: Int, private val interactive: Boolean) {
 internal fun reducedMotion(context: android.content.Context): Boolean =
     runCatching { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false)
 
+/** [from] = 이어받을 무대 수정구 — 같은 seed 로 만들어 지금 모습 그대로 시작한다(경로가 다르면 그쪽으로 섞어 간다). */
 @Composable
-internal fun rememberOrbEngine(interactive: Boolean, rare: Boolean): OrbEngine {
+internal fun rememberOrbEngine(interactive: Boolean, rare: Boolean, from: OrbEngine? = null): OrbEngine {
     val context = LocalContext.current
     return remember {
-        OrbEngine(Random.nextInt(), interactive).apply {
+        OrbEngine(from?.seed ?: Random.nextInt(), interactive).apply {
             setRoute(rare, animate = false)
             if (reducedMotion(context)) { motion = .35f; flashOk = false }
+            if (from != null) {
+                follow(from)
+                setRoute(rare, animate = true)
+            }
         }
     }
 }

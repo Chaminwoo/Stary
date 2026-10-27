@@ -1,6 +1,9 @@
 package com.chaminwoo.stary.feature.starlight
 
+import android.view.View
+import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -23,9 +26,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -45,7 +50,9 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,9 +68,12 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -72,20 +82,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.ui.clickBounce
 import com.chaminwoo.stary.core.util.Haptics
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * 깨우기 연출(2026-10-27 잠든 우주 — 별 마법진 위로 뜬 수정구, 시안 그대로). 세 박자:
+ * 깨우기 연출(2026-10-27 잠든 우주 — 별 마법진 위로 뜬 수정구, 시안 그대로). 다가가기 + 세 박자:
  *
+ *  0. **다가가기** — 창이 별가루 화면 위로 스며든다(무대 수정구를 같은 seed 로 이어받아 같은 자리 · 같은 모습).
+ *     그 자리에서 카메라가 수정구로 1초 동안 부드럽게 다가가고(바탕은 깊은 우주로, 먼 별은 살짝 밀려난다),
+ *     경로 · 안내 · 건너뛰기는 다 다가간 뒤에 떠오른다. 창 자체의 등장 · 퇴장 애니메이션은 끄고 여기서 직접 그린다.
  *  1. **두드리기** — 수정구를 세 번 두드린다. 누른 자리에서 금이 갈라지고(방사형 + 거미줄), 두드릴수록 안의 성운이 빨리 돈다.
  *  2. **깨짐** — 결과 등급 빛으로 모였다가(1초) 누른 자리를 중심으로 유리가 불규칙한 조각으로 부서진다.
  *     등급이 높을수록 빛이 넓고 화려하다(일반: 흰 빛 · 희귀: 빛줄기 8 · 영웅: 보랏빛 번쩍임 + 14 · 전설: 금빛 섬광 + 22 + 금가루).
@@ -93,24 +110,107 @@ import kotlin.random.Random
  *     이미 가진 것은 그림의 빛이 빠지며 별가루로 바뀌는 과정을 보여 준다.
  *
  * 요청은 창을 띄우자마자 보낸다([OpeningState.draws] 가 오기 전에 세 번 두드리면 금이 천천히 번지며 수정구가 떨고 기다린다).
- * 건너뛰기 = 깨지는 장면 없이 카드로(카드는 자동으로 뒤집힌다). iOS `VoyageOpening.swift` 와 같은 흐름.
+ * 건너뛰기 = 깨지는 장면 없이 카드로(카드는 자동으로 뒤집힌다). 닫을 땐 창이 0.32초 동안 걷히며 별가루 화면이 드러난다.
+ * iOS `VoyageOpening.swift` 와 같은 흐름.
  */
-internal data class OpeningState(val count: Int, val route: String, val draws: List<StarlightStore.Draw>? = null)
+internal data class OpeningState(
+    val count: Int,
+    val route: String,
+    val draws: List<StarlightStore.Draw>? = null,
+    /** 무대 수정구가 있던 화면 자리 — 여기서부터 다가간다(모르면 제자리에서 스며들기만). */
+    val from: OrbPlace? = null,
+    /** 요청 실패 — 창을 걷는다(안내는 별가루 화면이 띄운다). */
+    val failed: Boolean = false,
+)
+
+/** 화면 위 수정구 무대 자리(화면 px) — 무대 원점 ([x], [y]) · 1단위 = [k] px. */
+internal data class OrbPlace(val k: Float, val x: Float, val y: Float)
+
+/** 별가루 화면 수정구가 지금 화면 어디에 그려지는지 — 무대가 그릴 때마다 적고, 깨우기를 누를 때 [place] 로 꺼낸다. */
+internal class OrbSpot {
+    private var sx = 0f
+    private var sy = 0f
+    private var k = 0f
+    private var ox = 0f
+    private var oy = 0f
+
+    /** 캔버스의 화면 위치(px). */
+    fun at(p: Offset) { sx = p.x; sy = p.y }
+
+    /** 캔버스 안 무대 원점 · 1단위 크기(px). */
+    fun set(k: Float, ox: Float, oy: Float) { this.k = k; this.ox = ox; this.oy = oy }
+
+    fun place(): OrbPlace? = if (k > 0f) OrbPlace(k, sx + ox, sy + oy) else null
+}
+
+/** 화면(디스플레이) 기준 위치 — 별가루 화면과 깨우기 창(다른 창)의 좌표를 맞출 때. [view] = 이 노드가 든 Compose 뷰. */
+internal fun LayoutCoordinates.screenPos(view: View): Offset {
+    val at = IntArray(2)
+    view.getLocationOnScreen(at)
+    val p = positionInRoot()
+    return Offset(at[0] + p.x, at[1] + p.y)
+}
 
 private const val TAPS = 3
 
+/** 창이 별가루 화면 위로 스며드는 시간(초) — 이 동안은 무대 수정구도 같이 돈다. */
+private const val SEEP = .28f
+/** 다가가기 — 시작(초) · 길이(초) · 화면 맞춤 구도보다 얼마나 더 가까이. */
+private const val PUSH_AT = .06f
+private const val PUSH_DUR = 1.05f
+private const val PUSH_IN = 1.2f
+/** 천천히 떠나 길게 내려앉는 카메라. */
+private val PushEase = CubicBezierEasing(.45f, 0f, .15f, 1f)
+/** 경로 · 안내 · 건너뛰기가 떠오르는 때(초) · 길이. 두드림은 [TAP_FROM] 만큼 다가간 뒤부터 받는다. */
+private const val CHROME_AT = .8f
+private const val CHROME_DUR = .35f
+private const val TAP_FROM = .6f
+
+/**
+ * [stage] = 별가루 화면 수정구(이어받는다). [onCover] = 창이 화면을 다 덮었는지(true 인 동안 무대 수정구가 쉰다).
+ * [onDone] 은 창이 다 걷힌 뒤에 부른다.
+ */
 @Composable
-internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
+internal fun VoyageOpening(state: OpeningState, stage: OrbEngine?, onCover: (Boolean) -> Unit, onDone: () -> Unit) {
     val draws = state.draws
     val best = draws?.maxByOrNull { StarlightStore.RARITIES.indexOf(it.rarity) }?.rarity
     val tint = routeTint(state.route)
     val scope = rememberCoroutineScope()
-    val engine = rememberOrbEngine(interactive = true, rare = state.route == "rare")
+    val engine = rememberOrbEngine(interactive = true, rare = state.route == "rare", from = stage)
     val frame = rememberOrbClock(engine)
     val sparks = remember { SparkField() }
     // 별가루 화면과 같은 잔별(같은 자리) — 창이 떠도 하늘이 그대로 이어진다.
     val sky = remember { SkyStars(seed = 11) }
     var skip by remember { mutableStateOf(false) }
+    val cover by rememberUpdatedState(onCover)
+    val done by rememberUpdatedState(onDone)
+
+    // 창이 뜬 뒤 흐른 시간(초) — 수정구 시계라 앱이 뒤로 가면 같이 쉬고, 프레임이 밀려도 건너뛰지 않는다.
+    val t0 = remember { engine.t }
+    fun age() = engine.t - t0
+    fun chromeIn() = ease((age() - CHROME_AT) / CHROME_DUR)
+
+    // 걷기 — 0.32초 동안 옅어진 뒤 닫는다(그동안 무대 수정구는 다시 돈다).
+    val leave = remember { Animatable(1f) }
+    var leaving by remember { mutableStateOf(false) }
+    fun close() {
+        if (leaving) return
+        leaving = true
+        cover(false)
+        scope.launch {
+            leave.animateTo(0f, tween(320, easing = FastOutSlowInEasing))
+            done()
+        }
+    }
+    LaunchedEffect(state.failed) { if (state.failed) close() }
+
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { frame.value }.first { age() >= SEEP }
+        if (!leaving) cover(true)
+        snapshotFlow { frame.value }.first { age() >= CHROME_AT }
+        settled = true
+    }
 
     DisposableEffect(engine) {
         engine.onConverge = { Haptics.medium() }
@@ -163,25 +263,57 @@ internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
     }
 
     Dialog(
-        onDismissRequest = { if (cardsShown) onDone() },
+        onDismissRequest = { if (cardsShown) close() },
         properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false, decorFitsSystemWindows = false),
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFA04060E))) {
+        // 창 자체의 등장(확대 · 페이드)과 뒤 어둡게 하기를 끈다 — 스며들기 · 다가가기 · 걷히기는 아래에서 직접 그린다.
+        val view = LocalView.current
+        DisposableEffect(view) {
+            (view.parent as? DialogWindowProvider)?.window?.run {
+                setWindowAnimations(0)
+                clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            }
+            onDispose {}
+        }
+        var origin by remember { mutableStateOf<Offset?>(null) }
+        BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .onGloballyPositioned { origin = it.screenPos(view) }
+                .graphicsLayer {
+                    frame.value
+                    alpha = if (origin == null) 0f else ease(age() / SEEP) * leave.value
+                }
+                .background(Color(0xFA04060E)),
+        ) {
             val dens = LocalDensity.current
             val w = constraints.maxWidth.toFloat()
             val h = constraints.maxHeight.toFloat()
-            // 수정구 무대(시안 단위) → 화면 px: 가로를 꽉 채우되 세로가 짧으면 줄인다. 구슬은 화면 40% 높이.
-            val k = min(w / ORB_W, h / 560f)
+            // 다 다가간 구도(시안 단위 → 화면 px): 화면 맞춤보다 [PUSH_IN] 배 가까이, 구슬은 화면 40% 높이.
+            // 마법진 아래 안내(452 단위)가 내비게이션 바 위에 남는 데까지만 키운다.
+            val kFit = min(w / ORB_W, h / 560f)
+            val kRoom = (h * 0.6f - WindowInsets.navigationBars.getBottom(dens) - with(dens) { 64.dp.toPx() }) / (452f - ORB_CY)
+            val k = max(kFit, min(kFit * PUSH_IN, kRoom))
             val ox = w / 2f - ORB_CX * k
             val oy = h * 0.40f - ORB_CY * k
+            // 출발 구도 — 무대 수정구가 있던 자리(이 창 좌표). 모르거나 "애니메이션 끄기"면 처음부터 다 다가간 구도로 스며들기만.
+            val o = origin
+            val from = state.from?.takeIf { o != null && engine.motion >= 1f }
+            val k0 = from?.k ?: k
+            val cx0 = if (from != null && o != null) from.x - o.x + ORB_CX * k0 else w / 2f
+            val cy0 = if (from != null && o != null) from.y - o.y + ORB_CY * k0 else h * 0.40f
+            // 지금 그려진 구도(k · ox · oy · 다가간 정도) — 두드린 자리를 무대 단위로 바꿀 때
+            val shown = remember { FloatArray(4) }
 
             // ── 하늘 · 수정구 · 깨짐 ──
             Canvas(
                 Modifier
                     .fillMaxSize()
-                    .pointerInput(engine, k, ox, oy) {
+                    .pointerInput(engine) {
                         detectTapGestures { p ->
-                            if (engine.tap((p.x - ox) / k, (p.y - oy) / k)) {
+                            // 다가가는 동안엔 받지 않는다(깨우기를 연달아 누른 손가락이 바로 금을 내지 않게).
+                            if (shown[3] < TAP_FROM) return@detectTapGestures
+                            if (engine.tap((p.x - shown[1]) / shown[0], (p.y - shown[2]) / shown[0])) {
                                 when (engine.taps) {
                                     1 -> Haptics.light()
                                     2 -> Haptics.medium()
@@ -192,17 +324,25 @@ internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
                     },
             ) {
                 frame.value
-                drawSpace(engine, sky, focusY = oy + ORB_CY * k, deep = true)
+                // 크기는 같은 비율로(곱으로) 늘고, 구슬 가운데는 곧게 옮겨 간다.
+                val z = if (from == null) 1f else PushEase.transform(((age() - PUSH_AT) / PUSH_DUR).coerceIn(0f, 1f))
+                val kz = k0 * (k / k0).pow(z)
+                val cx = cx0 + (w / 2f - cx0) * z
+                val cy = cy0 + (h * 0.40f - cy0) * z
+                val oxz = cx - ORB_CX * kz
+                val oyz = cy - ORB_CY * kz
+                shown[0] = kz; shown[1] = oxz; shown[2] = oyz; shown[3] = z
+                drawSpace(engine, sky, focusY = cy, deep = z, spread = 1f + 0.07f * z)
                 drawIntoCanvas {
                     engine.draw(
-                        it.nativeCanvas, k, ox, oy, size.width, size.height,
-                        stageAlpha = 1f - cardIn, auraShift = cardIn, auraY = (size.height * 0.45f - oy) / k,
+                        it.nativeCanvas, kz, oxz, oyz, size.width, size.height,
+                        stageAlpha = 1f - cardIn, auraShift = cardIn, auraY = (size.height * 0.45f - oyz) / kz,
                     )
                 }
             }
 
-            // ── 경로 · 횟수(카드가 뜨면 사라진다) ──
-            if (cardIn < 0.99f) {
+            // ── 경로 · 횟수(다 다가간 뒤 떠오르고, 카드가 뜨면 사라진다) ──
+            if (cardIn < 0.99f && settled) {
                 Text(
                     "${routeName(state.route)} · ×${state.count}",
                     color = tint.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
@@ -210,18 +350,24 @@ internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
                         .align(Alignment.TopCenter)
                         .statusBarsPadding()
                         .padding(top = 18.dp)
-                        .graphicsLayer { alpha = 1f - cardIn },
+                        .graphicsLayer {
+                            frame.value
+                            alpha = (1f - cardIn) * chromeIn()
+                        },
                 )
             }
 
             // ── 두드리기 안내(마법진 바로 아래) ──
-            if (promptA > 0.01f) {
+            if (promptA > 0.01f && settled) {
                 val promptY = with(dens) { (oy + 452f * k).toDp() }
                 Column(
                     Modifier
                         .align(Alignment.TopCenter)
                         .offset(y = promptY)
-                        .graphicsLayer { alpha = promptA },
+                        .graphicsLayer {
+                            frame.value
+                            alpha = promptA * chromeIn()
+                        },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
@@ -279,7 +425,7 @@ internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
                     PillButton(
                         stringResource(if (allFlipped) R.string.starlight_confirm else R.string.starlight_flip_all),
                         primary = allFlipped, tint = tint,
-                    ) { if (allFlipped) onDone() else flipAll() }
+                    ) { if (allFlipped) close() else flipAll() }
                 }
             }
 
@@ -288,8 +434,8 @@ internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
                 sparks.draw(this, frame.value)
             }
 
-            // ── 건너뛰기 ──
-            if (!cardsShown && !skip) {
+            // ── 건너뛰기(다 다가간 뒤 떠오른다) ──
+            if (!cardsShown && !skip && settled) {
                 Text(
                     stringResource(R.string.starlight_skip),
                     color = Sub, fontSize = 13.sp,
@@ -297,6 +443,10 @@ internal fun VoyageOpening(state: OpeningState, onDone: () -> Unit) {
                         .align(Alignment.TopEnd)
                         .statusBarsPadding()
                         .padding(12.dp)
+                        .graphicsLayer {
+                            frame.value
+                            alpha = chromeIn()
+                        }
                         .clip(RoundedCornerShape(50))
                         .background(Color(0x1FFFFFFF))
                         .clickable {

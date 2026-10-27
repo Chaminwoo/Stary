@@ -575,6 +575,7 @@ final class OrbFrames: ObservableObject {
 
 /// 수정구 한 개의 상태와 그림. 프레임마다 `step` → `draw`.
 /// `interactive` = false(별가루 화면 무대)면 두드려도 금이 가지 않고 누른 쪽으로 돈다. 문지르기(`rubStart`/`rubMove`/`rubEnd`)는 무대에서만.
+/// 같은 `seed` 면 별 · 은하 · 마법진 배치가 같다 — 깨우기 창은 무대 수정구의 seed 로 만들어 `follow` 로 이어받는다.
 /// 메인 스레드에서만 쓴다(CADisplayLink · SwiftUI) — Canvas 그리기 클로저에서도 부를 수 있게 actor 격리는 두지 않는다.
 final class OrbEngine: ObservableObject {
     enum Phase { case idle, wait, converge, shatter, reveal }
@@ -597,6 +598,7 @@ final class OrbEngine: ObservableObject {
 
     private(set) var t: CGFloat = 0
 
+    let seed: UInt64
     private let interactive: Bool
     private let rnd: OrbRandom
 
@@ -722,6 +724,7 @@ final class OrbEngine: ObservableObject {
     }()
 
     init(seed: UInt64, interactive: Bool, rare: Bool) {
+        self.seed = seed
         self.interactive = interactive
         let r = OrbRandom(seed)
         rnd = r
@@ -901,6 +904,32 @@ final class OrbEngine: ObservableObject {
             mixT = 1
         }
         updatePalette()
+    }
+
+    /// 무대 수정구(`src`, 같은 `seed`)를 지금 모습 그대로 이어받는다 — 깨우기 창이 무대 구슬에서 끊김 없이 다가가게.
+    /// 배치는 seed 가 같아 이미 같고, 여기선 시계 · 돌기 · 경로 색 · 잠깐 남은 빛(물결 · 불꽃 · 별똥별)만 옮긴다.
+    func follow(_ src: OrbEngine) {
+        t = src.t
+        omega = src.omega
+        idleDir = src.idleDir
+        spinA = src.spinA
+        pulse = src.pulse
+        flowA = src.flowA
+        ringA = src.ringA
+        flash = src.flash
+        rubP = src.rubP
+        rubSparks = src.rubSparks
+        waves = src.waves
+        shoot = src.shoot
+        shootAt = src.shootAt
+        rare = src.rare
+        fromM = src.fromM
+        toM = src.toM
+        mixT = src.mixT
+        palM = -1
+        updatePalette()
+        bx = src.bx
+        by = src.by
     }
 
     /// 누른 쪽으로 돌린다(-1 왼쪽 · 1 오른쪽) — 더해지기만 하니 빨리 돌 때 반대쪽은 먼저 브레이크가 된다.

@@ -1,8 +1,11 @@
 import SwiftUI
 import UIKit
 
-/// 깨우기 연출(2026-10-27 잠든 우주 — 별 마법진 위로 뜬 수정구, 시안 그대로). 세 박자:
+/// 깨우기 연출(2026-10-27 잠든 우주 — 별 마법진 위로 뜬 수정구, 시안 그대로). 다가가기 + 세 박자:
 ///
+///  0. **다가가기** — 창이 별가루 화면 위로 스며든다(무대 수정구를 같은 seed 로 이어받아 같은 자리 · 같은 모습).
+///     그 자리에서 카메라가 수정구로 1초 동안 부드럽게 다가가고(바탕은 깊은 우주로, 먼 별은 살짝 밀려난다),
+///     경로 · 안내 · 건너뛰기는 다 다가간 뒤에 떠오른다.
 ///  1. **두드리기** — 수정구를 세 번 두드린다. 누른 자리에서 금이 갈라지고(방사형 + 거미줄), 두드릴수록 안의 성운이 빨리 돈다.
 ///  2. **깨짐** — 결과 등급 빛으로 모였다가(1초) 누른 자리를 중심으로 유리가 불규칙한 조각으로 부서진다.
 ///     등급이 높을수록 빛이 넓고 화려하다(일반: 흰 빛 · 희귀: 빛줄기 8 · 영웅: 보랏빛 번쩍임 + 14 · 전설: 금빛 섬광 + 22 + 금가루).
@@ -10,23 +13,71 @@ import UIKit
 ///     이미 가진 것은 그림의 빛이 빠지며 별가루로 바뀌는 과정을 보여 준다.
 ///
 /// 요청은 창을 띄우자마자 보낸다(`state.draws` 가 오기 전에 세 번 두드리면 금이 천천히 번지며 수정구가 떨고 기다린다).
-/// 건너뛰기 = 깨지는 장면 없이 카드로(카드는 자동으로 뒤집힌다). Android `VoyageOpening.kt` 와 같은 흐름.
+/// 건너뛰기 = 깨지는 장면 없이 카드로(카드는 자동으로 뒤집힌다). 닫을 땐 창이 0.32초 동안 걷히며 별가루 화면이 드러난다.
+/// Android `VoyageOpening.kt` 와 같은 흐름.
 struct OpeningState: Equatable {
     let count: Int
     let route: String
     var draws: [StarlightStore.Draw]?
+    /// 무대 수정구가 있던 자리(전역 pt) — 여기서부터 다가간다(없으면 제자리에서 스며들기만).
+    var from: OrbPlace?
 
     static func == (a: OpeningState, b: OpeningState) -> Bool {
         a.count == b.count && a.route == b.route && (a.draws == nil) == (b.draws == nil)
     }
 }
 
+/// 화면 위 수정구 무대 자리(전역 pt) — 무대 원점 (x, y) · 1단위 = k pt.
+struct OrbPlace {
+    let k: CGFloat
+    let x: CGFloat
+    let y: CGFloat
+}
+
+/// 창이 별가루 화면 위로 스며드는 시간(초) — 이 동안은 무대 수정구도 같이 돈다.
+let openingSeep: Double = 0.28
+
 private let taps3 = 3
 /// 별가루 화면과 같은 잔별(같은 시드) — 창이 떠도 하늘이 그대로 이어진다.
 private let openingSky = SkyStars(seed: 11)
+/// 다가가기 — 시작(초) · 길이(초) · 화면 맞춤 구도보다 얼마나 더 가까이. 두드림은 tapFrom 만큼 다가간 뒤부터 받는다.
+private let pushAt: CGFloat = 0.06
+private let pushDur: CGFloat = 1.05
+private let pushIn: CGFloat = 1.2
+private let tapFrom: CGFloat = 0.6
+/// 경로 · 안내 · 건너뛰기가 떠오르는 때(초) · 길이.
+private let chromeAt: Double = 0.8
+private let chromeDur: Double = 0.35
 
 private func now() -> Double { Date().timeIntervalSinceReferenceDate }
 private func clamp01(_ v: Double) -> Double { min(max(v, 0), 1) }
+
+/// 천천히 떠나 길게 내려앉는 카메라 — CSS cubic-bezier(.45, 0, .15, 1)(Android `PushEase` 와 같은 곡선).
+private func pushEase(_ x: CGFloat) -> CGFloat {
+    if x <= 0 { return 0 }
+    if x >= 1 { return 1 }
+    func bz(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat {
+        3 * a * (1 - t) * (1 - t) * t + 3 * b * (1 - t) * t * t + t * t * t
+    }
+    var lo: CGFloat = 0
+    var hi: CGFloat = 1
+    var t = x
+    for _ in 0..<24 {
+        let v = bz(0.45, 0.15, t)
+        if abs(v - x) < 0.0002 { break }
+        if v < x { lo = t } else { hi = t }
+        t = (lo + hi) / 2
+    }
+    return bz(0, 1, t)
+}
+
+/// 지금 그려진 구도(pt) — 두드린 자리를 무대 단위로 바꿀 때. 캔버스가 그릴 때마다 적는다.
+private final class ShownFrame {
+    var k: CGFloat = 0
+    var ox: CGFloat = 0
+    var oy: CGFloat = 0
+    var z: CGFloat = 0
+}
 
 struct VoyageOpening: View {
     let state: OpeningState
@@ -42,12 +93,26 @@ struct VoyageOpening: View {
     @State private var cardStart: CGFloat?
     @State private var cardsVisible = false
     @State private var sparks = SparkField()
+    /// 창이 뜬 수정구 시각(다가가기가 이걸로 센다) · 경로 · 안내 · 건너뛰기가 떠올랐는지.
+    @State private var t0: CGFloat?
+    @State private var chromeIn = false
+    @State private var shown = ShownFrame()
 
-    init(state: OpeningState, onDone: @escaping () -> Void) {
+    /// stage = 별가루 화면 수정구 — 같은 seed 로 만들어 지금 모습 그대로 이어받는다(경로가 다르면 그쪽으로 섞어 간다).
+    init(state: OpeningState, stage: OrbEngine?, onDone: @escaping () -> Void) {
         self.state = state
         self.onDone = onDone
-        _engine = StateObject(wrappedValue: OrbEngine(seed: UInt64.random(in: 1...UInt64.max), interactive: true,
-                                                      rare: state.route == "rare"))
+        let rare = state.route == "rare"
+        _engine = StateObject(wrappedValue: Self.makeEngine(stage: stage, rare: rare))
+    }
+
+    private static func makeEngine(stage: OrbEngine?, rare: Bool) -> OrbEngine {
+        let e = OrbEngine(seed: stage?.seed ?? UInt64.random(in: 1...UInt64.max), interactive: true, rare: rare)
+        if let stage {
+            e.follow(stage)
+            e.setRoute(rare: rare, animate: true)
+        }
+        return e
     }
 
     private var best: String? {
@@ -61,43 +126,64 @@ struct VoyageOpening: View {
         let eng = engine
         let sp = sparks
         let start = cardStart
+        let born = t0
+        let xf = shown
         let waking = eng.phase == .idle || eng.phase == .wait
         GeometryReader { geo in
-            // 수정구 무대(시안 단위) → 화면 pt: 가로를 꽉 채우되 세로가 짧으면 줄인다. 구슬은 화면 40% 높이.
             let w = geo.size.width
             let h = geo.size.height
-            let k = min(w / orbW, h / 560)
-            let ox = w / 2 - orbCX * k
-            let oy = h * 0.40 - orbCY * k
             let origin = geo.frame(in: .global).origin
             let safe = geo.safeAreaInsets
+            // 다 다가간 구도(시안 단위 → 화면 pt): 화면 맞춤보다 pushIn 배 가까이, 구슬은 화면 40% 높이.
+            // 마법진 아래 안내(452 단위)가 홈 표시줄 위에 남는 데까지만 키운다.
+            let kFit = min(w / orbW, h / 560)
+            let kRoom = (h * 0.6 - safe.bottom - 64) / (452 - orbCY)
+            let k = max(kFit, min(kFit * pushIn, kRoom))
+            let oy = h * 0.40 - orbCY * k
+            // 출발 구도 — 무대 수정구가 있던 자리(이 창 좌표). 없거나 "동작 줄이기"면 처음부터 다 다가간 구도로 스며들기만.
+            let from = reduceMotion ? nil : state.from
+            let k0 = from?.k ?? k
+            let cx0 = from.map { $0.x - origin.x + orbCX * k0 } ?? w / 2
+            let cy0 = from.map { $0.y - origin.y + orbCY * k0 } ?? h * 0.40
             ZStack {
                 Color(hex: 0x04060E).opacity(0.98)
 
                 // ── 하늘 · 수정구 · 깨짐 ──
                 OrbCanvas(frames: eng.frames) { c, size in
-                    drawSpace(&c, size, orb: eng, sky: openingSky, focusY: oy + orbCY * k, deep: true)
+                    // 크기는 같은 비율로(곱으로) 늘고, 구슬 가운데는 곧게 옮겨 간다.
+                    let age = born.map { eng.t - $0 } ?? 0
+                    let z = from == nil ? 1 : pushEase((age - pushAt) / pushDur)
+                    let kz = k0 * pow(k / k0, z)
+                    let cx = cx0 + (w / 2 - cx0) * z
+                    let cy = cy0 + (h * 0.40 - cy0) * z
+                    let oxz = cx - orbCX * kz
+                    let oyz = cy - orbCY * kz
+                    xf.k = kz
+                    xf.ox = oxz
+                    xf.oy = oyz
+                    xf.z = z
+                    drawSpace(&c, size, orb: eng, sky: openingSky, focusY: cy, deep: z, spread: 1 + 0.07 * z)
                     let ci = Self.cardProgress(eng.t, start)
-                    eng.draw(&c, k: k, ox: ox, oy: oy, viewW: size.width, viewH: size.height,
-                             stageAlpha: 1 - ci, auraShift: ci, auraY: (size.height * 0.45 - oy) / k)
+                    eng.draw(&c, k: kz, ox: oxz, oy: oyz, viewW: size.width, viewH: size.height,
+                             stageAlpha: 1 - ci, auraShift: ci, auraY: (size.height * 0.45 - oyz) / kz)
                 }
                 .contentShape(Rectangle())
-                .gesture(SpatialTapGesture().onEnded { v in tapOrb(v.location, k: k, ox: ox, oy: oy) })
+                .gesture(SpatialTapGesture().onEnded { v in tapOrb(v.location) })
 
-                // ── 경로 · 횟수(카드가 뜨면 사라진다) ──
+                // ── 경로 · 횟수(다 다가간 뒤 떠오르고, 카드가 뜨면 사라진다) ──
                 Text("\(routeName(state.route)) · ×\(state.count)")
                     .font(.minSans(13, .semibold)).tracking(1)
                     .foregroundStyle(tint.accent)
                     .padding(.top, safe.top + 18)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .opacity(cardsVisible ? 0 : 1)
+                    .opacity(cardsVisible || !chromeIn ? 0 : 1)
                     .allowsHitTesting(false)
 
                 // ── 두드리기 안내(받침 바로 아래) ──
                 prompt(tint)
                     .padding(.top, oy + 452 * k)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .opacity(waking && !skip ? 1 : 0)
+                    .opacity(waking && !skip && chromeIn ? 1 : 0)
                     .animation(.easeInOut(duration: 0.32), value: waking && !skip)
                     .allowsHitTesting(false)
 
@@ -110,17 +196,21 @@ struct VoyageOpening: View {
                 OrbCanvas(frames: eng.frames) { c, _ in sp.draw(&c, now: eng.t) }
                     .allowsHitTesting(false)
 
-                // ── 건너뛰기 ──
+                // ── 건너뛰기(다 다가간 뒤 떠오른다) ──
                 if !cardsShown && !skip {
                     skipButton
                         .padding(12)
                         .padding(.top, safe.top)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .opacity(chromeIn ? 1 : 0)
+                        .allowsHitTesting(chromeIn)
                 }
             }
         }
         .ignoresSafeArea()
         .onAppear {
+            t0 = eng.t
+            withAnimation(.easeInOut(duration: chromeDur).delay(chromeAt)) { chromeIn = true }
             eng.pxScale = displayScale
             eng.setReducedMotion(reduceMotion)
             eng.onConverge = { Haptics.medium() }
@@ -227,8 +317,10 @@ struct VoyageOpening: View {
 
     // MARK: - 동작
 
-    private func tapOrb(_ p: CGPoint, k: CGFloat, ox: CGFloat, oy: CGFloat) {
-        guard k > 0, engine.tap((p.x - ox) / k, (p.y - oy) / k) else { return }
+    /// 두드림 — 지금 그려진 구도로 무대 단위로 바꾼다. 다가가는 동안엔 받지 않는다(깨우기를 연달아 누른 손가락이 바로 금을 내지 않게).
+    private func tapOrb(_ p: CGPoint) {
+        let f = shown
+        guard f.k > 0, f.z >= tapFrom, engine.tap((p.x - f.ox) / f.k, (p.y - f.oy) / f.k) else { return }
         switch engine.taps {
         case 1: Haptics.soft()
         case 2: Haptics.medium()

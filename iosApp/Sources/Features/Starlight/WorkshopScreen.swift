@@ -100,17 +100,17 @@ private func sparklePath(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat, _ k: CGFloa
 }
 
 /// 깊은 우주 바탕 — 남색 그라데이션 + 수정구 뒤 경로 빛(문지르는 동안 · 바뀔 때 수정구 색을 그대로 따라간다) + 보랏빛·푸른 성운 두 덩이
-/// + 깜빡이는 잔별 + 8초마다 지나가는 별똥별. deep = 깨우기 창(단색 바탕 + 경로 빛 + 잔별만).
+/// + 깜빡이는 잔별 + 8초마다 지나가는 별똥별. deep 1 = 깨우기 창(단색 바탕 + 경로 빛 + 잔별만), 그 사이 값은 둘을 섞는다
+/// (창이 무대에서 다가가는 동안). spread = 잔별을 수정구(focusY) 둘레로 벌리는 정도 — 다가갈 때 먼 별이 살짝 밀려난다.
 /// 시간은 수정구 시계(`OrbEngine.t`)라 화면이 가려지면 같이 쉰다. Android `drawSpace` 패리티.
-func drawSpace(_ c: inout GraphicsContext, _ size: CGSize, orb: OrbEngine, sky: SkyStars, focusY: CGFloat, deep: Bool) {
+func drawSpace(_ c: inout GraphicsContext, _ size: CGSize, orb: OrbEngine, sky: SkyStars, focusY: CGFloat, deep: CGFloat, spread: CGFloat = 1) {
     let t = orb.t
     let w = size.width
     let h = size.height
+    let near = 1 - deep
     let full = Path(CGRect(origin: .zero, size: size))
     c.blendMode = .normal
-    if deep {
-        c.fill(full, with: .color(Color(hex: 0x04060E)))
-    } else {
+    if near > 0 {
         let bg: [Gradient.Stop] = [
             .init(color: Color(hex: 0x03050D), location: 0),
             .init(color: Color(hex: 0x070B1E), location: 0.33),
@@ -119,6 +119,9 @@ func drawSpace(_ c: inout GraphicsContext, _ size: CGSize, orb: OrbEngine, sky: 
         ]
         c.fill(full, with: .linearGradient(Gradient(stops: bg), startPoint: .zero, endPoint: CGPoint(x: 0, y: h)))
     }
+    if deep > 0 {
+        c.fill(full, with: .color(Color(hex: 0x04060E).opacity(Double(deep))))
+    }
     let acc = orb.glowColor
     let accStops: [Gradient.Stop] = [
         .init(color: acc.opacity(0.17), location: 0),
@@ -126,17 +129,18 @@ func drawSpace(_ c: inout GraphicsContext, _ size: CGSize, orb: OrbEngine, sky: 
         .init(color: acc.opacity(0), location: 1),
     ]
     c.fill(full, with: .radialGradient(Gradient(stops: accStops), center: CGPoint(x: w / 2, y: focusY), startRadius: 0, endRadius: w * 1.05))
-    if !deep {
+    if near > 0 {
         let violet = Color(hex: 0x7B5CFF)
         let blue = Color(hex: 0x3E7BFF)
-        c.fill(full, with: .radialGradient(Gradient(colors: [violet.opacity(0.1098), violet.opacity(0)]),
+        c.fill(full, with: .radialGradient(Gradient(colors: [violet.opacity(Double(0.1098 * near)), violet.opacity(0)]),
                                            center: CGPoint(x: w * 0.12, y: h * 0.16), startRadius: 0, endRadius: w * 0.85))
-        c.fill(full, with: .radialGradient(Gradient(colors: [blue.opacity(0.0784), blue.opacity(0)]),
+        c.fill(full, with: .radialGradient(Gradient(colors: [blue.opacity(Double(0.0784 * near)), blue.opacity(0)]),
                                            center: CGPoint(x: w * 0.92, y: h * 0.8), startRadius: 0, endRadius: w * 0.75))
     }
+    let fx = w / 2
     for i in 0..<sky.count {
         let tw = 0.5 + 0.5 * sin(t * sky.w[i] + sky.p[i])
-        let p = CGPoint(x: sky.x[i] * w, y: sky.y[i] * h)
+        let p = CGPoint(x: fx + (sky.x[i] * w - fx) * spread, y: focusY + (sky.y[i] * h - focusY) * spread)
         if sky.s[i] > 1.48 {
             c.fill(StarlightArt.sparkle(p, 2.2 + 1.6 * tw), with: .color(.white.opacity(Double(0.35 + 0.5 * tw))))
         } else {
@@ -144,7 +148,7 @@ func drawSpace(_ c: inout GraphicsContext, _ size: CGSize, orb: OrbEngine, sky: 
             c.fill(StarlightArt.circle(p, sky.s[i] * 0.75), with: .color(.white.opacity(Double(a))))
         }
     }
-    guard !deep else { return }
+    guard near > 0 else { return }
     // 별똥별 — 8초마다 0.9초, 매번 다른 자리(위쪽 하늘)
     let idx = floor(t / 8)
     let u = (t - idx * 8) / 0.9
@@ -158,7 +162,7 @@ func drawSpace(_ c: inout GraphicsContext, _ size: CGSize, orb: OrbEngine, sky: 
     let dy = len * 0.38
     let head = CGPoint(x: sx + dx * u, y: sy + dy * u)
     let tail = CGPoint(x: head.x - dx * 0.45, y: head.y - dy * 0.45)
-    let fade = Double(sin(u * .pi))
+    let fade = Double(sin(u * .pi) * near)
     var streak = Path()
     streak.move(to: tail)
     streak.addLine(to: head)
@@ -167,10 +171,11 @@ func drawSpace(_ c: inout GraphicsContext, _ size: CGSize, orb: OrbEngine, sky: 
 }
 
 /// 무대 자리(화면 pt) — 무대(시안 340 × 446 단위)는 화면이 허락하는 만큼 크게(폭은 시안 비율, 높이는 깨우기 버튼까지 한 화면에).
-/// 남는 높이는 위 4 : 아래 6.
+/// 남는 높이는 위 4 : 아래 6. origin = 무대 캔버스의 전역 위치(깨우기 창이 수정구 자리를 이어받을 때).
 private struct StageLayout {
     let w: CGFloat
     let h: CGFloat
+    let origin: CGPoint
     let top: CGFloat
     let k: CGFloat
     let stageTop: CGFloat
@@ -180,6 +185,7 @@ private struct StageLayout {
     init(_ geo: GeometryProxy) {
         w = geo.size.width
         h = geo.size.height
+        origin = geo.frame(in: .global).origin
         top = geo.safeAreaInsets.top
         let avail = h - top - geo.safeAreaInsets.bottom
         let fit = min(w / refW, (avail - chromeH) / hintY)
@@ -210,6 +216,10 @@ struct WorkshopScreen: View {
     @State private var busy = false
     @State private var adBusy = false
     @State private var opening: OpeningState?
+    /// 깨우기 창이 떠 있는 동안 붙잡아 둔 무대 자리 — 상단바가 숨으며 안전 영역이 바뀌어도 아래 무대가 움직이지 않게.
+    @State private var frozen: StageLayout?
+    /// 깨우기 창이 화면을 다 덮었다 — 이때만 무대 수정구가 쉰다(스며들고 걷히는 동안엔 같이 돈다).
+    @State private var covered = false
     @State private var adSheet = false
     @State private var keySheet = false
     @State private var oddsSheet = false
@@ -225,13 +235,13 @@ struct WorkshopScreen: View {
         let short = loaded ? max(0, cost - store.stardust) : 0
         ZStack {
             GeometryReader { geo in
-                stage(StageLayout(geo), n: n, options: options, cost: cost, short: short, loaded: loaded)
+                stage(frozen ?? StageLayout(geo), n: n, options: options, cost: cost, short: short, loaded: loaded)
             }
             .ignoresSafeArea()
 
             if let st = opening {
-                VoyageOpening(state: st) {
-                    if st.draws != nil { withAnimation(.easeOut(duration: 0.2)) { opening = nil } }
+                VoyageOpening(state: st, stage: orb) {
+                    if st.draws != nil { closeOpening() }
                 }
                 .transition(.opacity)
                 .zIndex(10)
@@ -258,7 +268,7 @@ struct WorkshopScreen: View {
         }
         .onAppear {
             orb.setReducedMotion(reduceMotion)
-            orb.run(opening == nil)
+            orb.run(stageRuns)
             routeMix = route == "rare" ? 1 : 0
             StaryAnalytics.log("workshop_open", ["stardust": store.stardust])
         }
@@ -266,8 +276,8 @@ struct WorkshopScreen: View {
             orb.run(false)
             orb.rubEnd()
         }
-        // 깨우기 창이 덮는 동안엔 무대 수정구를 쉬게 한다(창이 제 수정구를 굴린다).
-        .onChange(of: opening == nil) { idle in orb.run(idle) }
+        // 깨우기 창이 다 덮은 동안엔 무대 수정구를 쉬게 한다(창이 제 수정구를 굴린다).
+        .onChange(of: stageRuns) { on in orb.run(on) }
         .onChange(of: route) { r in
             orb.setRoute(rare: r == "rare", animate: true)
             withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.6)) { routeMix = r == "rare" ? 1 : 0 }
@@ -276,6 +286,9 @@ struct WorkshopScreen: View {
         // 개편 전에 만들어 둔 성운 상자 → 별가루로(상자 값 그대로). 지갑을 받은 뒤 한 번.
         .task(id: loaded) { await convertLeftoverBoxes() }
     }
+
+    /// 무대 수정구 시계 — 깨우기 창이 화면을 다 덮은 동안만 쉰다.
+    private var stageRuns: Bool { opening == nil || !covered }
 
     // MARK: 무대
 
@@ -286,7 +299,7 @@ struct WorkshopScreen: View {
         let top = lay.stageTop
         return ZStack(alignment: .topLeading) {
             OrbCanvas(frames: eng.frames) { c, size in
-                drawSpace(&c, size, orb: eng, sky: stageSky, focusY: top + orbCY * k, deep: false)
+                drawSpace(&c, size, orb: eng, sky: stageSky, focusY: top + orbCY * k, deep: 0)
                 eng.draw(&c, k: k, ox: left, oy: top, viewW: size.width, viewH: size.height)
             }
             .frame(width: lay.w, height: lay.h)
@@ -315,7 +328,7 @@ struct WorkshopScreen: View {
                 .padding(.top, lay.hintTop)
 
             ZStack(alignment: .topTrailing) {
-                WakeButton(mix: m, accent: accent, cost: cost, short: short, loaded: loaded, busy: busy, orb: orb) { sail(n) }
+                WakeButton(mix: m, accent: accent, cost: cost, short: short, loaded: loaded, busy: busy, orb: orb) { sail(n, from: lay) }
                 if options.count > 1 {
                     CountChip(counts: options, value: n, accent: accent) { c in
                         guard c != count else { return }
@@ -368,7 +381,7 @@ struct WorkshopScreen: View {
         }
     }
 
-    private func sail(_ k: Int) {
+    private func sail(_ k: Int, from lay: StageLayout) {
         guard !busy, opening == nil, store.walletLoaded else { return }
         let r = route
         if store.stardust < store.config.route(r).cost * k {
@@ -377,8 +390,16 @@ struct WorkshopScreen: View {
         }
         busy = true
         Haptics.medium()
+        // 무대 자리를 붙잡아 두고(상단바가 숨어도 아래 무대가 그대로), 창은 그 수정구 자리에서 스며들어 다가간다.
+        frozen = lay
+        covered = false
+        let from = OrbPlace(k: lay.k, x: lay.origin.x + lay.stageLeft, y: lay.origin.y + lay.stageTop)
         // 요청은 창을 띄우자마자 — 두드리는 동안 결과가 온다(늦으면 세 번째 두드림 뒤 수정구가 떨며 기다린다).
-        withAnimation(.easeOut(duration: 0.2)) { opening = OpeningState(count: k, route: r) }
+        withAnimation(.easeOut(duration: openingSeep)) { opening = OpeningState(count: k, route: r, from: from) }
+        // 창이 다 스며든 뒤엔 무대 수정구를 쉬게 한다.
+        DispatchQueue.main.asyncAfter(deadline: .now() + (openingSeep + 0.02)) {
+            if opening != nil { covered = true }
+        }
         Task {
             let res = await store.voyage(r, k)
             busy = false
@@ -386,7 +407,7 @@ struct WorkshopScreen: View {
             case .done(let result):
                 let draws = StarlightStore.draws(result)
                 guard !draws.isEmpty else {
-                    withAnimation { opening = nil }
+                    closeOpening()
                     fail("server")
                     return
                 }
@@ -395,9 +416,19 @@ struct WorkshopScreen: View {
                 QuestStore.report(.openBox)
                 opening?.draws = draws
             case .failed(let code):
-                withAnimation { opening = nil }
+                closeOpening()
                 fail(code)
             }
+        }
+    }
+
+    /// 깨우기 창 걷기 — 0.32초 동안 옅어지며 별가루 화면이 드러난다(무대 수정구는 바로 다시 돈다).
+    private func closeOpening() {
+        covered = false
+        withAnimation(.easeOut(duration: 0.32)) { opening = nil }
+        // 상단바가 돌아온 뒤에 무대 자리를 다시 잰다(그 사이엔 연출 전 자리 그대로).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if opening == nil { frozen = nil }
         }
     }
 
