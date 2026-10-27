@@ -42,6 +42,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -267,7 +268,7 @@ internal const val MAX_LIKE_SIZE_MULT = 3f
 
 /** 신규 별(24시간 이내) 오오라 — 인기 오오라 최대치(0.42)보다 은은하게, 업적 리빌과 같은 "발광" 톤을 옅게 차용. */
 internal const val FRESH_WINDOW_MS = 86_400_000L
-internal const val FRESH_AURA_OPACITY = 0.16f
+internal const val FRESH_AURA_OPACITY = 0.08f
 
 /**
  * float/pulse 위상 그룹 수 — ⚠️ iconTranslate 는 레이어 전체 일괄 적용이라,
@@ -303,6 +304,210 @@ internal val MY_LOCATION_STOPS = listOf(
     Triple(15f, 7.0f, 2.0f),
 )
 
+/**
+ * 내 위치 = 민트 **크리스탈** + 땅에 깔린 **유리 고리**(2026-10-28 "하나의 우주" 지도 개편).
+ * 고리 비트맵(투명 원판 · 또렷한 테두리 · 천천히 도는 밝은 호 3개 · 가는 눈금)은 `icon-pitch-alignment: map` 이라 40° 기울기에서 땅의 타원으로 눕고,
+ * 호가 도는 건 루프에서 `iconRotate` 만 갱신한다. 부드러운 파장 하나는 [CURRENT_WAVE_LAYER](stroke 만 있는 원)이 퍼진다.
+ * 크기는 [MY_LOCATION_STOPS] 의 반지름 비율(줌 15 = 1.0)로 줌에 따라 줄어든다. iOS `StyleFx.myRingDp/myCrystalDp` 와 같은 값.
+ */
+internal const val CURRENT_RING_LAYER = "current-ring-layer"
+internal const val CURRENT_WAVE_LAYER = "current-wave-layer"
+internal const val CURRENT_CRYSTAL_LAYER = "current-location-layer"
+internal const val CURRENT_RING_ICON = "current-ring-icon"
+internal const val CURRENT_CRYSTAL_ICON = "current-crystal-icon"
+/** 줌 15 에서 고리 지름 / 크리스탈 높이(dp). */
+internal const val MY_RING_DP = 76f
+internal const val MY_CRYSTAL_DP = 30f
+/** 고리 도는 속도(°/초) / 파장 주기(초) / 파장이 퍼지는 최대 배율(고리 반지름 기준). */
+internal const val MY_RING_SPIN_DEG = 14f
+internal const val MY_WAVE_PERIOD = 3.4f
+internal const val MY_WAVE_SPREAD = 1.0f
+private const val MY_RING_BITMAP_PX = 256
+private const val MY_CRYSTAL_BITMAP_PX = 96
+
+/** 줌별 배율(반지름 비율) 표현식 — [base] 를 곱한다. */
+internal fun myLocationScaleExpression(base: Float): Expression = Expression.interpolate(
+    Expression.linear(), Expression.zoom(),
+    *MY_LOCATION_STOPS.map { Expression.stop(it.first, base * it.second / 7f) }.toTypedArray()
+)
+
+/** 파장 원 반지름(px) — 고리 반지름의 [frac] 배(+ 고리 안쪽에서 시작해 바깥으로). */
+internal fun myWaveRadiusExpression(density: Float, frac: Float): Expression {
+    val ringRadiusPx = MY_RING_DP / 2f * density
+    return Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        *MY_LOCATION_STOPS.map { Expression.stop(it.first, ringRadiusPx * it.second / 7f * frac) }.toTypedArray()
+    )
+}
+
+internal fun myRingBitmap(): Bitmap {
+    val side = MY_RING_BITMAP_PX
+    val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+    val cv = Canvas(out)
+    val c = side / 2f
+    val rim = side * 0.45f
+    fun p(alpha: Int, w: Float, blur: Float = 0f) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = w
+        strokeCap = Paint.Cap.ROUND
+        color = AndroidColor.argb(alpha, 110, 231, 183)
+        if (blur > 0f) maskFilter = android.graphics.BlurMaskFilter(blur, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    // 반투명 원판(안쪽이 살짝 더 밝은 유리)
+    cv.drawCircle(c, c, rim, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = android.graphics.RadialGradient(
+            c, c, rim,
+            intArrayOf(AndroidColor.argb(46, 110, 231, 183), AndroidColor.argb(22, 110, 231, 183), AndroidColor.argb(60, 150, 255, 215)),
+            floatArrayOf(0f, 0.7f, 1f), android.graphics.Shader.TileMode.CLAMP,
+        )
+    })
+    // 테두리 번짐 + 또렷한 선 + 안쪽 가는 선
+    cv.drawCircle(c, c, rim, p(90, 9f, 7f))
+    cv.drawCircle(c, c, rim, p(235, 2.6f))
+    cv.drawCircle(c, c, rim * 0.88f, p(70, 1.2f))
+    // 가는 눈금 36개
+    for (i in 0 until 36) {
+        val a = Math.toRadians(i * 10.0)
+        val r0 = rim * 0.935f
+        val r1 = rim * (if (i % 3 == 0) 0.985f else 0.965f)
+        cv.drawLine(
+            c + (kotlin.math.cos(a) * r0).toFloat(), c + (sin(a) * r0).toFloat(),
+            c + (kotlin.math.cos(a) * r1).toFloat(), c + (sin(a) * r1).toFloat(), p(80, 1.3f),
+        )
+    }
+    // 밝은 호 3개(이게 도는 부분)
+    val oval = android.graphics.RectF(c - rim, c - rim, c + rim, c + rim)
+    for (i in 0 until 3) {
+        val start = i * 120f + 8f
+        cv.drawArc(oval, start, 46f, false, Paint(p(120, 7f, 5f)))
+        cv.drawArc(oval, start, 46f, false, Paint(p(255, 3.4f)).apply { color = AndroidColor.argb(255, 214, 255, 240) })
+    }
+    return out
+}
+
+internal fun myCrystalBitmap(): Bitmap {
+    val side = MY_CRYSTAL_BITMAP_PX
+    val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+    val cv = Canvas(out)
+    val w = side.toFloat()
+    fun pt(x: Float, y: Float) = (x * w) to (y * w)
+    // 팔각 보석: 위 table, 어깨, 아래 뾰족한 pavilion
+    val top = 0.07f; val shoulder = 0.34f; val bottom = 0.94f
+    val cx = 0.5f
+    val tl = pt(0.36f, top); val tr = pt(0.64f, top)
+    val l = pt(0.14f, shoulder); val r = pt(0.86f, shoulder)
+    val b = pt(cx, bottom)
+    val mid = pt(cx, shoulder)
+    fun poly(vararg pts: Pair<Float, Float>) = android.graphics.Path().apply {
+        moveTo(pts[0].first, pts[0].second)
+        for (i in 1 until pts.size) lineTo(pts[i].first, pts[i].second)
+        close()
+    }
+    val outline = poly(tl, tr, r, b, l)
+    // 바깥 광
+    cv.drawPath(outline, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.argb(170, 110, 231, 183)
+        maskFilter = android.graphics.BlurMaskFilter(w * 0.09f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    })
+    fun fill(path: android.graphics.Path, argb: Int) =
+        cv.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = argb })
+    fill(poly(tl, tr, pt(0.64f, shoulder), pt(0.36f, shoulder)), AndroidColor.parseColor("#D8FFF0")) // table(가장 밝음)
+    fill(poly(tl, pt(0.36f, shoulder), l), AndroidColor.parseColor("#8FF0C9"))
+    fill(poly(tr, r, pt(0.64f, shoulder)), AndroidColor.parseColor("#5FD8A8"))
+    fill(poly(l, pt(0.36f, shoulder), mid, b), AndroidColor.parseColor("#47C896"))
+    fill(poly(pt(0.36f, shoulder), pt(0.64f, shoulder), b, mid), AndroidColor.parseColor("#7BEBC0"))
+    fill(poly(r, pt(0.64f, shoulder), mid, b), AndroidColor.parseColor("#2FA97B"))
+    // 가장자리 + 면 경계 하이라이트
+    val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE; strokeWidth = w * 0.018f; strokeJoin = Paint.Join.ROUND
+        color = AndroidColor.argb(230, 235, 255, 248)
+    }
+    cv.drawPath(outline, edge)
+    cv.drawLine(l.first, l.second, r.first, r.second, edge.apply { alpha = 150 })
+    cv.drawLine(pt(0.36f, shoulder).first, shoulder * w, b.first, b.second, edge.apply { alpha = 110 })
+    cv.drawLine(pt(0.64f, shoulder).first, shoulder * w, b.first, b.second, edge.apply { alpha = 110 })
+    // 반짝임 하이라이트
+    cv.drawCircle(w * 0.42f, w * 0.2f, w * 0.045f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
+    return out
+}
+
+/**
+ * 지도 위쪽 "하늘" + 광택(2026-10-28 "하나의 우주"): 기울인 지도 윗부분이 안개 낀 밤하늘로 이어지고(탑바 영역까지 — 지도는 탑바 뒤까지 깔린다),
+ * 땅은 알갱이 대신 넓은 빛띠가 천천히 비치는 매끈한 판처럼 보인다. 정적 그리기(프레임마다 재계산 없음)라 지도 성능에 영향이 없다.
+ * [k] = 0..1 세기(저줌 글로브 전환 땐 0 으로 빠진다). iOS `SkyOverlay` 와 같은 수치.
+ */
+internal const val SKY_HEIGHT_FRAC = 0.30f
+private val SKY_STARS: FloatArray = run {
+    val rnd = kotlin.random.Random(2810)
+    FloatArray(48 * 4) { i ->
+        when (i % 4) {
+            0 -> rnd.nextFloat()                            // x (0..1)
+            1 -> rnd.nextFloat().let { it * it } * 0.9f     // y (0..0.9 of sky, 위쪽에 몰림)
+            2 -> 0.5f + rnd.nextFloat() * 1.1f              // 반지름(dp)
+            else -> 0.35f + rnd.nextFloat() * 0.65f         // 밝기
+        }
+    }
+}
+
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMapSky(k: Float, density: Float) {
+    if (k <= 0.01f) return
+    val w = size.width
+    val h = size.height
+    val skyH = h * SKY_HEIGHT_FRAC
+    // 땅 광택: 비스듬한 넓은 빛띠 두 줄(아주 옅게) — 알갱이 없는 유리판 느낌
+    drawRect(
+        brush = Brush.linearGradient(
+            0.00f to Color.Transparent,
+            0.30f to Color.Transparent,
+            0.36f to Color(0xFFB4C0FF).copy(alpha = 0.045f * k),
+            0.42f to Color.Transparent,
+            0.64f to Color.Transparent,
+            0.68f to Color(0xFFB4C0FF).copy(alpha = 0.03f * k),
+            0.73f to Color.Transparent,
+            start = Offset(0f, h * 0.15f),
+            end = Offset(w, h * 0.95f),
+        )
+    )
+    // 하늘 안개: 위에서 아래로 짙은 남보라 → 투명
+    drawRect(
+        brush = Brush.verticalGradient(
+            0.00f to Color(0xFF04031A).copy(alpha = 0.86f * k),
+            0.40f to Color(0xFF0A0830).copy(alpha = 0.50f * k),
+            0.75f to Color(0xFF14104A).copy(alpha = 0.16f * k),
+            1.00f to Color.Transparent,
+            startY = 0f, endY = skyH,
+        ),
+        size = Size(w, skyH),
+    )
+    // 성운 두 덩이
+    drawRect(
+        brush = Brush.radialGradient(
+            0f to Color(0xFF7C5CFF).copy(alpha = 0.20f * k), 1f to Color.Transparent,
+            center = Offset(w * 0.82f, skyH * 0.12f), radius = w * 0.55f,
+        ),
+        size = Size(w, skyH),
+    )
+    drawRect(
+        brush = Brush.radialGradient(
+            0f to Color(0xFF3FD0C0).copy(alpha = 0.10f * k), 1f to Color.Transparent,
+            center = Offset(w * 0.14f, skyH * 0.30f), radius = w * 0.45f,
+        ),
+        size = Size(w, skyH),
+    )
+    // 별 점
+    var i = 0
+    while (i < SKY_STARS.size) {
+        val y = SKY_STARS[i + 1] * skyH
+        val fade = 1f - y / skyH
+        drawCircle(
+            Color.White.copy(alpha = (SKY_STARS[i + 3] * 0.8f * fade * k).coerceIn(0f, 1f)),
+            radius = SKY_STARS[i + 2] * density * 0.8f,
+            center = Offset(SKY_STARS[i] * w, y),
+        )
+        i += 4
+    }
+}
+
 /** 3D 글로브 "지구 보기" 버튼 노출 줌(이하로 줌아웃하면 버튼 표시 — 자동 전환 없음) / 지도 최소 줌. */
 internal const val GLOBE_BUTTON_ZOOM = 3.0
 internal const val MAP_MIN_ZOOM = 2.4
@@ -312,7 +517,7 @@ internal const val MERCATOR_MAX_LAT = 85.05112877980659
 internal const val HAZE_START_ZOOM = 4.4
 
 /** 기본 카메라 틸트(도) — 줌과 무관하게 항상 살짝 기울여 입체감을 낸다. */
-internal const val BASE_TILT_DEG = 25.0
+internal const val BASE_TILT_DEG = 40.0
 
 /**
  * 별 기본/근접 크기(iconSize 배율).
@@ -686,20 +891,54 @@ internal fun sparkleSizeBase(set: Int) = when (set) {
     else -> 0.32f
 }
 
-/** 마커 곁 스파클 비트맵 — 작은 4꼭지 별(글로우+본체). 작은/보통 별 곁에서 쓰는 기본 반짝이. */
+/**
+ * 마커 곁 스파클 비트맵 — **굽은 4갈래 반짝**(수정구 시안 `sparkleR` 와 같은 모양: 중심을 지나는 2차 곡선 4개).
+ * 평소엔 가운데 작은 점으로 보이다가 [sparkleFlash] 로 불투명도가 치솟을 때만 갈래가 드러난다.
+ * ⚠️ 32px 캔버스 유지 — [sparkleStarBitmap] 과 데이터 주도로 섞어도 크기가 안 어긋난다. iOS `StarStyle.sparkleGlintImage` 와 같은 비율.
+ */
 internal fun sparkleBitmap(): Bitmap {
     val side = 32
     val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(out)
-    val starSize = side * 0.62f
-    val offset = (side - starSize) / 2f
-    val path = android.graphics.Path(StarStyle.starPath(0, starSize)).apply { offset(offset, offset) }
+    val c = side / 2f
+    val r = side * 0.46f
+    val k = r * 0.10f // 제어점을 중심에서 살짝 비껴 갈래 뿌리를 가늘게 모은다
+    val path = android.graphics.Path().apply {
+        moveTo(c, c - r)
+        quadTo(c + k, c - k, c + r, c)
+        quadTo(c + k, c + k, c, c + r)
+        quadTo(c - k, c + k, c - r, c)
+        quadTo(c - k, c - k, c, c - r)
+        close()
+    }
     canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE
-        maskFilter = android.graphics.BlurMaskFilter(4.5f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        maskFilter = android.graphics.BlurMaskFilter(3.2f, android.graphics.BlurMaskFilter.Blur.NORMAL)
     })
     canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
+    // 평소에도 보이는 작은 알갱이
+    canvas.drawCircle(c, c, side * 0.075f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
     return out
+}
+
+/**
+ * 스파클 한 번 번쩍 — 수정구 시안 `flashEnv`: 날카롭게 올라(0.18) 느리게(세제곱) 꺼진다. [u] = 0..1 주기 위상.
+ * 반환 0..1. iOS `StarStyle.sparkleFlash` 와 같은 식.
+ */
+internal fun sparkleFlash(u: Float): Float {
+    if (u < 0.18f) {
+        val s = sin(u / 0.18f * (Math.PI.toFloat() / 2f))
+        return s * s
+    }
+    val d = 1f - (u - 0.18f) / 0.82f
+    return d * d * d
+}
+
+/** 스파클 세트별 번쩍임 주기(초) — 세트마다 다르게 해서 한꺼번에 깜박이지 않게. */
+internal fun sparkleFlashPeriod(set: Int) = when (set) {
+    0 -> 2.6f
+    1 -> 3.4f
+    else -> 4.3f
 }
 
 /**

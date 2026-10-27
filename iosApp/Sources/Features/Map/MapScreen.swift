@@ -529,6 +529,10 @@ struct MapScreen: View {
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
 
+            // 하늘 안개 + 땅 광택(정적) — 저줌 글로브 전환 구간(줌 4.4→2.4)엔 세기가 0 으로 빠진다. Android drawMapSky 패리티.
+            MapSkyOverlay(strength: voidZoom <= 0 ? 1 : 1 - min(max((4.4 - voidZoom) / 2.0, 0), 1))
+                .ignoresSafeArea()
+
             // 필터가 걸려 있는 동안 지도에 도는 은은한 빛(필터 색) — 지도 위, 버튼 아래. 터치 통과.
             // (예전 여명·황혼 오버레이 SkyOverlay 는 2026-10-14 삭제 — 같은 모양을 필터 빛이 물려받았다.)
             FilterGlowOverlay(tintHex: filterKind?.hex)

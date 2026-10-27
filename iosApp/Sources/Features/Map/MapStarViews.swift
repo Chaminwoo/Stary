@@ -88,6 +88,13 @@ enum MapSparkle {
         return CGFloat((zoom - minZoom) / (fullZoom - minZoom))
     }
 
+    /// 짧게 번쩍이고 천천히 사라지는 곡선(0..1) — 수정구 시안 `flashEnv`, Android `sparkleFlash` 와 같은 식. u = 주기 안 위치 0..1.
+    static func flashEnv(_ u: Double) -> Double {
+        if u < 0.18 { let s = sin(u / 0.18 * .pi / 2); return s * s }
+        let d = 1 - (u - 0.18) / 0.82
+        return d * d * d
+    }
+
     /// sizeMult에 따른 파티클 수.
     static func particleCount(sizeMult: Double) -> Int {
         if sizeMult >= 2.6 { return 3 }
@@ -112,6 +119,7 @@ enum MapSparkle {
         let radii: [CGFloat] = [markerSize * 0.42, markerSize * 0.56, markerSize * 0.62]
         let sizes: [CGFloat] = [markerSize * 0.30, markerSize * 0.24, markerSize * 0.16]
         let periods: [Double] = [2 * .pi / 1.1, 2 * .pi / 0.8, 2 * .pi / 1.5]
+        let flashPeriods: [Double] = [2.6, 3.4, 4.3]
 
         // 안쪽 궤도 방향은 별마다 랜덤, 바깥 궤도는 반대(Android 의 안/밖 역방향 관계 유지).
         let firstClockwise = rng.flip()
@@ -153,15 +161,16 @@ enum MapSparkle {
                 )
             ))
 
-            // Android 식 반짝임 — op = 0.30 + 0.60·(…), 각속도 2.4…3.45, 위상 랜덤.
-            let twPeriod = 2 * Double.pi / rng.range(2.4, 3.45)
-            let tw = CABasicAnimation(keyPath: "opacity")
-            tw.fromValue = 0.30
-            tw.toValue = 0.90
-            tw.duration = twPeriod / 2
-            tw.autoreverses = true
+            // Android 식 번쩍임(2026-10-28 수정구 시안) — 평소 0.26 의 작은 알갱이, 주기마다 한 번 flashEnv 로 번쩍.
+            // 주기·곡선은 Android `sparkleFlashPeriod`/`sparkleFlash` 와 같은 값. 위상만 별마다 랜덤.
+            let twPeriod = flashPeriods[set]
+            let steps = 48
+            let tw = CAKeyframeAnimation(keyPath: "opacity")
+            tw.values = (0...steps).map { 0.26 + 0.74 * flashEnv(Double($0) / Double(steps)) }
+            tw.keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+            tw.calculationMode = .linear
+            tw.duration = twPeriod
             tw.repeatCount = .infinity
-            tw.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             tw.timeOffset = rng.unit() * twPeriod
             tw.isRemovedOnCompletion = false
 
@@ -239,17 +248,29 @@ enum MapSparkle {
                 height: body
             )
 
-            let path = StarShape(type: 0).path(in: rect).cgPath
+            // 굽은 4갈래 반짝(중심을 지나는 2차 곡선 4개 — 수정구 시안 sparkleR, Android sparkleBitmap 과 같은 비율) + 평소에도 보이는 작은 알갱이.
+            let c = CGPoint(x: rect.midX, y: rect.midY)
+            let r = px * 0.46
+            let k = r * 0.10
+            let path = UIBezierPath()
+            path.move(to: CGPoint(x: c.x, y: c.y - r))
+            path.addQuadCurve(to: CGPoint(x: c.x + r, y: c.y), controlPoint: CGPoint(x: c.x + k, y: c.y - k))
+            path.addQuadCurve(to: CGPoint(x: c.x, y: c.y + r), controlPoint: CGPoint(x: c.x + k, y: c.y + k))
+            path.addQuadCurve(to: CGPoint(x: c.x - r, y: c.y), controlPoint: CGPoint(x: c.x - k, y: c.y + k))
+            path.addQuadCurve(to: CGPoint(x: c.x, y: c.y - r), controlPoint: CGPoint(x: c.x - k, y: c.y - k))
+            path.close()
 
             cg.setShadow(
                 offset: .zero,
-                blur: px * 0.18,
+                blur: px * 0.14,
                 color: UIColor.white.withAlphaComponent(0.9).cgColor
             )
 
             cg.setFillColor(UIColor.white.cgColor)
-            cg.addPath(path)
-            cg.fillPath(using: .evenOdd)
+            cg.addPath(path.cgPath)
+            cg.fillPath()
+            let core = px * 0.075
+            cg.fillEllipse(in: CGRect(x: c.x - core, y: c.y - core, width: core * 2, height: core * 2))
         }
 
         whiteCache[key] = img

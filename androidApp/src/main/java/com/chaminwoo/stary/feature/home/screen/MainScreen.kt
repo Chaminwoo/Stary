@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -690,14 +691,14 @@ fun MainScreen(
                                         }
                                     }
                                 }
-                                // 내 프로필: 우측 + 버튼 — 프로필에 띄울 별(다이어리) 고르기
+                                // 내 프로필: 우측 핀 버튼 — 프로필에 띄울 별(다이어리) 고르기 (2026-10-28: + → 핀 아이콘)
                                 if (currentRoute is NavRoute.Profile && ProfilePinState.visible) {
                                     IconButton(
                                         onClick = { ProfilePinState.onOpen() },
                                         modifier = Modifier.clickBounce()
                                     ) {
                                         Icon(
-                                            Icons.Filled.Add,
+                                            Icons.Outlined.PushPin,
                                             contentDescription = stringResource(R.string.profile_pin_diaries),
                                             tint = Color(0xFFF0F0F0)
                                         )

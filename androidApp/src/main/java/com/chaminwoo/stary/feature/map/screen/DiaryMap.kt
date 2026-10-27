@@ -685,23 +685,39 @@ fun DiaryMap(
                         Point.fromLngLat(start.longitude, start.latitude)
                     )
                     style.addSource(src)
+                    // 땅에 깔린 유리 고리(icon-pitch-alignment=map → 기울기에서 타원으로 눕는다) → 퍼지는 파장 → 위에 뜬 크리스탈.
+                    // 모두 줌을 풀수록 작아진다(MY_LOCATION_STOPS) — 멀리서 보면 큰 원이 지도를 덮던 문제.
+                    style.addImage(CURRENT_RING_ICON, myRingBitmap())
+                    style.addImage(CURRENT_CRYSTAL_ICON, myCrystalBitmap())
                     style.addLayer(
-                        CircleLayer("current-location-layer", CURRENT_SOURCE).withProperties(
-                            // 줌을 풀수록 점점 작아진다(MY_LOCATION_STOPS) — 멀리서 보면 큰 원이 지도를 덮던 문제.
-                            PropertyFactory.circleRadius(
-                                Expression.interpolate(
-                                    Expression.linear(), Expression.zoom(),
-                                    *MY_LOCATION_STOPS.map { Expression.stop(it.first, it.second) }.toTypedArray()
-                                )
-                            ),
-                            PropertyFactory.circleColor(AndroidColor.parseColor("#6EE7B7")),
-                            PropertyFactory.circleStrokeWidth(
-                                Expression.interpolate(
-                                    Expression.linear(), Expression.zoom(),
-                                    *MY_LOCATION_STOPS.map { Expression.stop(it.first, it.third) }.toTypedArray()
-                                )
-                            ),
-                            PropertyFactory.circleStrokeColor(AndroidColor.parseColor("#FFFFFF")),
+                        SymbolLayer(CURRENT_RING_LAYER, CURRENT_SOURCE).withProperties(
+                            PropertyFactory.iconImage(CURRENT_RING_ICON),
+                            PropertyFactory.iconSize(myLocationScaleExpression(MY_RING_DP * screenDensity / 256f)),
+                            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
+                            PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                            PropertyFactory.iconAllowOverlap(true),
+                            PropertyFactory.iconIgnorePlacement(true),
+                        )
+                    )
+                    style.addLayer(
+                        CircleLayer(CURRENT_WAVE_LAYER, CURRENT_SOURCE).withProperties(
+                            PropertyFactory.circleRadius(myWaveRadiusExpression(screenDensity, 0.2f)),
+                            PropertyFactory.circleColor(AndroidColor.TRANSPARENT),
+                            PropertyFactory.circleOpacity(0f),
+                            PropertyFactory.circleStrokeColor(AndroidColor.parseColor("#9FF5D4")),
+                            PropertyFactory.circleStrokeWidth(1.3f),
+                            PropertyFactory.circleStrokeOpacity(0f),
+                            PropertyFactory.circlePitchAlignment(Property.CIRCLE_PITCH_ALIGNMENT_MAP),
+                        )
+                    )
+                    style.addLayer(
+                        SymbolLayer(CURRENT_CRYSTAL_LAYER, CURRENT_SOURCE).withProperties(
+                            PropertyFactory.iconImage(CURRENT_CRYSTAL_ICON),
+                            PropertyFactory.iconSize(myLocationScaleExpression(MY_CRYSTAL_DP * screenDensity / 96f)),
+                            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                            PropertyFactory.iconOffset(arrayOf(0f, -4f)),
+                            PropertyFactory.iconAllowOverlap(true),
+                            PropertyFactory.iconIgnorePlacement(true),
                         )
                     )
                     locationSource = src
@@ -759,6 +775,8 @@ fun DiaryMap(
                     radius = r,
                 )
             )
+            // 1.5) 하늘 안개 + 땅 광택(정적) — 저줌 글로브 전환 땐 헤이즈에 자리를 내준다.
+            drawMapSky(k = 1f - hazeAlpha.value.coerceIn(0f, 1f), density = screenDensity)
             // 2) 글로브 근접 대기 헤이즈: 줌아웃할수록 파란 대기가 차올라 글로브 전환과 이어진다
             val a = hazeAlpha.value
             if (a > 0f) {
@@ -1426,6 +1444,9 @@ fun DiaryMap(
         val orbitLayers = Array(MAX_ORBIT_STARS) { i -> Array(PHASE_GROUPS) { g -> style.getLayer(orbitLayerId(i, g)) as? SymbolLayer } }
         val particleLayers = Array(PHASE_GROUPS) { style.getLayer(particleLayerId(it)) as? SymbolLayer }
         val roadGlintLayer = style.getLayer(ROAD_GLINT_LAYER) as? LineLayer
+        val myRingLayer = style.getLayer(CURRENT_RING_LAYER) as? SymbolLayer
+        val myWaveLayer = style.getLayer(CURRENT_WAVE_LAYER) as? CircleLayer
+        val myWaveRadiusCache = HashMap<Int, Expression>()
         // 도로 글린트 불투명도는 줌 보간(1회 설치) — 흐름이 이음매 없이 이어지므로 페이드가 불필요하다.
         roadGlintLayer?.setProperties(PropertyFactory.lineOpacity(roadGlintOpacityExpression()))
         // 값이 연속 변하는 표현식은 양자화해 캐시(눈에 안 보이는 1/64 단위) — 매 틱 트리 재생성 방지.
@@ -1542,7 +1563,10 @@ fun DiaryMap(
 
                         for (s in 0 until SPARKLE_SETS) {
                             val sl = sparkleLayers[s][g] ?: continue
-                            val op = 0.30f + 0.60f * ((sin(t * (2.4f + 0.35f * g) + phase + s * 2.1f) + 1f) / 2f)
+                            // 평소엔 작은 알갱이(0.26), 주기마다 한 번 번쩍(sparkleFlash) — 수정구 시안의 굽은 반짝임.
+                            val per = sparkleFlashPeriod(s)
+                            val u = (((t / per) + g * 0.25f + s * 0.37f) % 1f)
+                            val op = 0.26f + 0.74f * sparkleFlash(u)
                             // 세트별 목표 오프셋(dp) — 위성은 부모 파티클 위치 + 주전원(그 파티클을 공전).
                             val dpAt: (Float) -> Pair<Float, Float> = when (s) {
                                 SPARKLE_SATELLITE_SET -> { tier ->
@@ -1597,6 +1621,20 @@ fun DiaryMap(
                     PropertyFactory.iconOpacity(
                         particleOpExprCache.getOrPut(quant(twinkle)) { particleOpacityExpression(quant(twinkle) / 64f) }
                     )
+                )
+            }
+            // 내 위치 고리: 밝은 호가 천천히 돌고(iconRotate), 부드러운 파장이 주기마다 하나 퍼진다(원 stroke 만).
+            myRingLayer?.setProperties(PropertyFactory.iconRotate((t * MY_RING_SPIN_DEG) % 360f))
+            myWaveLayer?.let { wl ->
+                val wu = (t % MY_WAVE_PERIOD) / MY_WAVE_PERIOD // 0..1
+                val spread = 1f - (1f - wu) * (1f - wu)         // 처음 빠르게 → 끝에서 느리게
+                val frac = 0.2f + (MY_WAVE_SPREAD - 0.2f) * spread
+                val fade = (1f - wu).let { it * it } * 0.55f
+                wl.setProperties(
+                    PropertyFactory.circleRadius(
+                        myWaveRadiusCache.getOrPut((frac * 40f).toInt()) { myWaveRadiusExpression(screenDensity, (frac * 40f).toInt() / 40f) }
+                    ),
+                    PropertyFactory.circleStrokeOpacity(fade),
                 )
             }
             // 도로 글린트: 대시 위상을 전체 주기에 걸쳐 흘려 빛 알갱이가 도로를 따라 **끊김 없이** 흐른다

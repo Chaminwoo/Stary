@@ -147,6 +147,7 @@
     <!-- 100m 밖 게시물 잠금(2026-09-21, 09-22 개편) — 제목만 보이고 미디어/본문/댓글은 100m 접근 또는 광고로 **영구 해금**. 댓글 작성은 항상 100m 이내 -->
     <string name="detail_locked_title">%1$dm 이내로 다가가거나,\n광고를 통해 해금하세요!</string>
     <string name="detail_locked_distance">현재 위치로부터 %1$s</string>
+    <string name="detail_locked_keys_distance">열쇠 %1$d개 · 현재 위치로부터 %2$s</string>
     <string name="detail_comment_near_only">%1$dm 이내에서만 댓글을 남길 수 있어요</string>
     <string name="detail_locked_photo">이 사진은 잠겨 있어요</string>
     <string name="detail_locked_video">이 영상은 잠겨 있어요</string>
@@ -699,11 +700,11 @@
     <string name="quest_key_gained">열쇠 %1$d개를 받았어요</string>
     <string name="quest_keys_owned">보유 열쇠 %1$d개</string>
     <string name="quest_close">닫기</string>
-    <string name="detail_locked_title_key">%1$dm 이내로 다가가거나,\n열쇠를 사용해 해금하세요!</string>
+    <string name="detail_locked_title_key">%1$dm 이내로 다가가거나,\n열쇠로 열어보세요!</string>
     <string name="detail_locked_title_no_key">열쇠가 없어요.\n광고를 보고 열쇠를 얻어 보세요!</string>
     <string name="detail_use_key">열쇠로 열기</string>
     <string name="detail_get_key_ad">광고 보고 열쇠 받기</string>
-    <string name="detail_key_unlocked">열쇠로 별을 열었어요</string>
+    <string name="detail_key_unlocked">열쇠 1개를 사용했어요 (남은 열쇠 %1$d개)</string>
     <string name="detail_ad_key_unlocked">광고로 받은 열쇠로 별을 열었어요</string>
     <string name="detail_key_quest_hint">퀘스트로 모은 별가루로 열쇠를 살 수 있어요 (메뉴 › 별가루)</string>
     <string name="coach_step_quest">오늘의 퀘스트를 깨고 별가루를 모아요\n별가루로 열쇠를 사고 잠든 우주를 깨워요</string>

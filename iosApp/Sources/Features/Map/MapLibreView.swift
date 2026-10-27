@@ -85,7 +85,7 @@ struct MapLibreView: UIViewRepresentable {
     static let globeButtonZoom = 3.0
 
     /// 지도 기본 기울기.
-    static let baseTiltDeg: CGFloat = 25
+    static let baseTiltDeg: CGFloat = 40
 
     /// 야경 커스텀 스타일 URL.
     static let staryStyleURL: URL? = {
@@ -408,6 +408,7 @@ struct MapLibreView: UIViewRepresentable {
 
         var twinkleTimer: Timer?
         var twinkleT: Double = 0
+        var myWaveRadiusCache: [Int: NSExpression] = [:]
 
         /// 별 고리 구성 키(떠 있는 별이 두른 고리 + 아이템 수) — 바뀌면 후광 소스를 다시 만든다.
         /// "|" 로 시작 = 고리를 두른 별이 없음(트윙클 루프가 고리 애니메이션을 건너뛴다).
@@ -617,7 +618,7 @@ struct MapLibreView: UIViewRepresentable {
 
         // MARK: Base Tilt
 
-        /// 기본 기울기(Android BASE_TILT_DEG=25) 보장 — makeUIView 시점엔 프레임이 0 이라 setCamera 의 pitch 가 안 먹으므로,
+        /// 기본 기울기(Android BASE_TILT_DEG=40) 보장 — makeUIView 시점엔 프레임이 0 이라 setCamera 의 pitch 가 안 먹으므로,
         /// 레이아웃 후(스타일/맵 로드 완료, 카메라 이동 끝)에 pitch 가 어긋나 있으면 다시 맞춘다. 줌/중심은 그대로.
         func ensureBaseTilt(
             _ mapView: MLNMapView

@@ -208,7 +208,7 @@ struct ProfileScreen: View {
             // (배경음악/설정/알림 진입점은 드로어와 지도 상단 하트로 이동 — Android MainScreen 대응.)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showPinPicker = true } label: { Image(systemName: "plus") }
+                    Button { showPinPicker = true } label: { Image(systemName: "pin") }
                         .tint(Theme.textPrimary)
                 }
             }

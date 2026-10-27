@@ -145,6 +145,7 @@
     <!-- Locked diary (beyond 100m): only the title shows; media/body/comments unlock for good by walking close or watching an ad. Writing comments always needs 100m -->
     <string name="detail_locked_title">Get within %1$dm,\nor unlock it with an ad!</string>
     <string name="detail_locked_distance">%1$s from your current location</string>
+    <string name="detail_locked_keys_distance">%1$d keys · %2$s from your current location</string>
     <string name="detail_comment_near_only">You can comment only within %1$dm</string>
     <string name="detail_locked_photo">This photo is locked</string>
     <string name="detail_locked_video">This video is locked</string>
@@ -696,11 +697,11 @@
     <string name="quest_key_gained">You got %1$d key(s)</string>
     <string name="quest_keys_owned">Keys: %1$d</string>
     <string name="quest_close">Close</string>
-    <string name="detail_locked_title_key">Get within %1$dm,\nor unlock it with a key!</string>
+    <string name="detail_locked_title_key">Get within %1$dm,\nor open it with a key!</string>
     <string name="detail_locked_title_no_key">You have no keys.\nWatch an ad to get one!</string>
     <string name="detail_use_key">Open with a key</string>
     <string name="detail_get_key_ad">Watch an ad for a key</string>
-    <string name="detail_key_unlocked">You opened the star with a key</string>
+    <string name="detail_key_unlocked">Used 1 key (%1$d left)</string>
     <string name="detail_ad_key_unlocked">You opened the star with the key from the ad</string>
     <string name="detail_key_quest_hint">Buy keys with the stardust from quests (Menu › Stardust)</string>
     <string name="coach_step_quest">Clear today\'s quests to collect stardust\nBuy keys and awaken sleeping cosmos</string>

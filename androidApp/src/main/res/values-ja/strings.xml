@@ -145,6 +145,7 @@
     <!-- 100m 圏外の投稿ロック — タイトルのみ表示。写真・本文・コメントは接近または広告視聴で永久解放。コメント投稿は常に 100m 以内 -->
     <string name="detail_locked_title">%1$dm 以内に近づくか、\n広告を見て解錠してください！</string>
     <string name="detail_locked_distance">現在地から %1$s</string>
+    <string name="detail_locked_keys_distance">鍵 %1$d個 · 現在地から %2$s</string>
     <string name="detail_comment_near_only">コメントは %1$dm 以内でのみ書けます</string>
     <string name="detail_locked_photo">この写真はロックされています</string>
     <string name="detail_locked_video">この動画はロックされています</string>
@@ -696,11 +697,11 @@
     <string name="quest_key_gained">鍵を%1$d個受け取りました</string>
     <string name="quest_keys_owned">所持している鍵 %1$d個</string>
     <string name="quest_close">閉じる</string>
-    <string name="detail_locked_title_key">%1$dm 以内に近づくか、\n鍵を使って解錠してください！</string>
+    <string name="detail_locked_title_key">%1$dm 以内に近づくか、\n鍵で開いてみましょう！</string>
     <string name="detail_locked_title_no_key">鍵がありません。\n広告を見て鍵を手に入れよう！</string>
     <string name="detail_use_key">鍵で開く</string>
     <string name="detail_get_key_ad">広告を見て鍵をもらう</string>
-    <string name="detail_key_unlocked">鍵で星を開きました</string>
+    <string name="detail_key_unlocked">鍵を1個使いました（残り%1$d個）</string>
     <string name="detail_ad_key_unlocked">広告でもらった鍵で星を開きました</string>
     <string name="detail_key_quest_hint">クエストで集めた星くずで鍵を買えます（メニュー › 星くず）</string>
     <string name="coach_step_quest">今日のクエストで星くずを集めよう\n星くずで鍵を買って眠れる宇宙を目覚めさせよう</string>

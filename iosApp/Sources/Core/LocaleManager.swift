@@ -251,6 +251,7 @@ enum L10n: String {
     case questTierEasy, questTierNormal, questTierHard
     case detailLockedTitleKey, detailLockedTitleNoKey, detailUseKey, detailGetKeyAd
     case detailKeyUnlocked, detailAdKeyUnlocked, detailKeyQuestHint, coachStepQuest
+    case detailLockedKeysDistance
 
     /// 업적 화면 공용/특별/히든 재구성(2026-10-19 — Android ach_tab_special / ach_theme_* / ach_special_* 와 같은 문구).
     case achTabSpecial, achSubShapes, achSubColors, achThemeRecord, achThemeStreak, achThemePlace
@@ -853,11 +854,12 @@ enum L10n: String {
         case .questTierEasy: return ("쉬움", "Easy", "かんたん")
         case .questTierNormal: return ("보통", "Normal", "ふつう")
         case .questTierHard: return ("어려움", "Hard", "むずかしい")
-        case .detailLockedTitleKey: return ("%1$dm 이내로 다가가거나,\n열쇠를 사용해 해금하세요!", "Get within %1$dm,\nor unlock it with a key!", "%1$dm 以内に近づくか、\n鍵を使って解錠してください！")
+        case .detailLockedTitleKey: return ("%1$dm 이내로 다가가거나,\n열쇠로 열어보세요!", "Get within %1$dm,\nor open it with a key!", "%1$dm 以内に近づくか、\n鍵で開いてみましょう！")
         case .detailLockedTitleNoKey: return ("열쇠가 없어요.\n광고를 보고 열쇠를 얻어 보세요!", "You have no keys.\nWatch an ad to get one!", "鍵がありません。\n広告を見て鍵を手に入れよう！")
         case .detailUseKey: return ("열쇠로 열기", "Open with a key", "鍵で開く")
         case .detailGetKeyAd: return ("광고 보고 열쇠 받기", "Watch an ad for a key", "広告を見て鍵をもらう")
-        case .detailKeyUnlocked: return ("열쇠로 별을 열었어요", "You opened the star with a key", "鍵で星を開きました")
+        case .detailKeyUnlocked: return ("열쇠 1개를 사용했어요 (남은 열쇠 %d개)", "Used 1 key (%d left)", "鍵を1個使いました（残り%d個）")
+        case .detailLockedKeysDistance: return ("열쇠 %d개 · 현재 위치로부터 %@", "%d keys · %@ from your current location", "鍵 %d個 · 現在地から %@")
         case .detailAdKeyUnlocked: return ("광고로 받은 열쇠로 별을 열었어요", "You opened the star with the key from the ad", "広告でもらった鍵で星を開きました")
         case .detailKeyQuestHint: return ("퀘스트로 모은 별가루를 별빛 공방에서 열쇠로 바꿀 수 있어요", "Trade quest stardust for keys at the Starlight Workshop", "クエストで集めた星くずは星明かりの工房で鍵に交換できます")
         case .coachStepQuest: return ("오늘의 퀘스트를 깨고 별가루를 모아요\n별가루로 열쇠를 사고 잠든 우주를 깨워요", "Clear today's quests to collect stardust\nBuy keys and awaken sleeping cosmos", "今日のクエストで星くずを集めよう\n星くずで鍵を買って眠れる宇宙を目覚めさせよう")

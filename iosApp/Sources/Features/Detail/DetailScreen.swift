@@ -672,8 +672,10 @@ struct DetailScreen: View {
                     .font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
                 Text(location.coordinate == nil
                      ? LocaleManager.shared.t(.detailLocating)
-                     : String(format: LocaleManager.shared.t(.detailLockedDistance),
-                              Geo.formatDistance(distanceM)))
+                     // 열쇠가 필요한 계정은 보유 개수도 같은 줄에(2026-10-28 시안 승인, Android 패리티).
+                     : adFree.active
+                        ? String(format: LocaleManager.shared.t(.detailLockedDistance), Geo.formatDistance(distanceM))
+                        : String(format: LocaleManager.shared.t(.detailLockedKeysDistance), quests.keys, Geo.formatDistance(distanceM)))
                     .font(.minSans(12))
                     .tracking(0.2)
                     .monospacedDigit()
@@ -726,7 +728,8 @@ struct DetailScreen: View {
         DiaryUnlockStore.shared.unlock(id)
         switch via {
         case .key:
-            showToast(LocaleManager.shared.t(.detailKeyUnlocked))
+            // 열쇠는 연출 시작 때 이미 차감됐다 → 지금 값이 "남은 열쇠"(Android 동일).
+            showToast(String(format: LocaleManager.shared.t(.detailKeyUnlocked), quests.keys))
             QuestStore.report(.unlockKey)
         case .ad: showToast(LocaleManager.shared.t(.detailAdKeyUnlocked))
         case .adFree: showToast(LocaleManager.shared.t(.detailAdUnlocked))

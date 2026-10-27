@@ -324,13 +324,12 @@ internal fun LockedContentCard(
                 onFinished = {
                     DiaryUnlockStore.unlock(context, diaryId)
                     StaryToast.show(
-                        context.getString(
-                            when (via) {
-                                UnlockVia.KEY -> R.string.detail_key_unlocked
-                                UnlockVia.AD -> R.string.detail_ad_key_unlocked
-                                UnlockVia.AD_FREE -> R.string.detail_ad_unlocked
-                            }
-                        )
+                        when (via) {
+                            // 열쇠는 연출 시작 때 이미 차감됐다 → 지금 값이 "남은 열쇠".
+                            UnlockVia.KEY -> context.getString(R.string.detail_key_unlocked, QuestStore.keys)
+                            UnlockVia.AD -> context.getString(R.string.detail_ad_key_unlocked)
+                            UnlockVia.AD_FREE -> context.getString(R.string.detail_ad_unlocked)
+                        }
                     )
                     if (via == UnlockVia.KEY) QuestStore.report(QuestEvent.UNLOCK_KEY)
                 },
@@ -368,6 +367,8 @@ internal fun LockedContentCard(
             Spacer(modifier = Modifier.width(5.dp))
             Text(
                 if (!locationKnown) stringResource(R.string.detail_locating)
+                // 열쇠가 필요한 계정은 보유 개수도 같은 줄에(2026-10-28 시안 승인).
+                else if (!adFree) stringResource(R.string.detail_locked_keys_distance, keys, formatDistanceM(distance))
                 else stringResource(R.string.detail_locked_distance, formatDistanceM(distance)),
                 style = TextStyle(
                     fontSize = 12.sp,
