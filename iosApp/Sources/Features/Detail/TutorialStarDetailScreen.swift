@@ -80,7 +80,7 @@ struct TutorialStarDetailScreen: View {
                 // 작성자는 시스템(STARY)이라 프로필 진입이 없다.
                 HStack(spacing: 0) {
                     StarView(type: TutorialStarState.starType, colorIndex: TutorialStarState.starColor,
-                             size: 18, glow: false)
+                             size: 18)
                     Spacer().frame(width: 8)
                     Text(TutorialStarState.authorName)
                         .font(.minSans(13))

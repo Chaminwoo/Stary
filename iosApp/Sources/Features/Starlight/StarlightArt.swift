@@ -138,7 +138,8 @@ extension StarlightArt {
     static let keyPath: CGPath = StarShape(type: 15).path(in: CGRect(x: 0, y: 0, width: 1, height: 1)).cgPath
 }
 
-/// 크리스탈 그림을 정사각 가운데에 그린다(+ 선택적 뒤 빛). Android `CrystalCanvas` 패리티.
+/// 크리스탈 그림을 정사각 가운데에 그린다(+ 선택적 뒤 빛) + 지도 별 같은 빛번짐 · 유리 결 빛([CrystalShine], 2026-10-28).
+/// 번짐 색은 그라데이션이면 가운데 색. 뒤 빛([glow])을 깐 자리는 둥근 후광을 겹치지 않는다. Android `CrystalCanvas` 패리티.
 struct CrystalGlyph: View {
     let key: String
     let seed: Int
@@ -159,6 +160,7 @@ struct CrystalGlyph: View {
                 }
                 if let img = StarlightArt.bakeCrystal(key: key, px: s * scale, seed: seed, colors: ui, unit: unit) {
                     Image(uiImage: img).resizable().interpolation(.high).frame(width: s, height: s)
+                        .crystalShine(.image(img), color: Color(ui[ui.count / 2]), side: s, halo: !glow)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -478,6 +480,7 @@ struct AuraArt: View {
                     Image(uiImage: StarCrystal.image(type: starType, colorIndex: starColor, size: side * 0.42))
                         .resizable()
                         .frame(width: side * 0.42, height: side * 0.42)
+                        .crystalShine(.star(starType), color: StarStyle.color(starColor), side: side * 0.42)
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
             }
@@ -529,9 +532,11 @@ struct ItemArt: View {
         case "shape":
             Image(uiImage: StarCrystal.image(type: item.int("type") ?? 1, colorIndex: 9, size: s * 0.78))
                 .resizable().frame(width: s * 0.78, height: s * 0.78)
+                .crystalShine(.star(item.int("type") ?? 1), color: StarStyle.color(9), side: s * 0.78)
         case "color":
             Image(uiImage: StarCrystal.image(type: 1, colorIndex: item.int("index") ?? 0, size: s * 0.78))
                 .resizable().frame(width: s * 0.78, height: s * 0.78)
+                .crystalShine(.star(1), color: StarStyle.color(item.int("index") ?? 0), side: s * 0.78)
         case "frame":
             ZStack {
                 ZStack {

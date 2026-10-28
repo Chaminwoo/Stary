@@ -654,12 +654,13 @@ internal fun particleBitmap(): Bitmap {
  * 별 레이어 바로 위의 심볼 레이어가 프레임 그림(sheen-t{모양}-{0..N})을 바꿔 끼운다 — 프레임 [SHEEN_FRAMES] 는 빈 그림.
  * iOS `StarMarkerView` 의 sheen 과 같은 값.
  */
-internal const val SHEEN_PERIOD_MIN = 5.5f
-internal const val SHEEN_PERIOD_SPREAD = 2.5f
-internal const val SHEEN_WINDOW = 0.26f
+// 앱 곳곳의 크리스탈 유리 결 빛(CrystalShine)과 같은 값을 쓴다 — 한쪽만 바꾸지 않게.
+internal const val SHEEN_PERIOD_MIN = com.chaminwoo.stary.core.ui.CrystalShine.SHEEN_PERIOD_MIN
+internal const val SHEEN_PERIOD_SPREAD = com.chaminwoo.stary.core.ui.CrystalShine.SHEEN_PERIOD_SPREAD
+internal const val SHEEN_WINDOW = com.chaminwoo.stary.core.ui.CrystalShine.SHEEN_WINDOW
 internal const val SHEEN_FRAMES = 14
 internal const val SHEEN_SIDE_PX = 64
-internal const val SHEEN_OPACITY = 0.75f
+internal const val SHEEN_OPACITY = com.chaminwoo.stary.core.ui.CrystalShine.SHEEN_OPACITY
 internal fun sheenLayerId(group: Int) = "diary-sheen-$group"
 internal fun sheenIconId(type: Int, frame: Int) = "sheen-t$type-$frame"
 

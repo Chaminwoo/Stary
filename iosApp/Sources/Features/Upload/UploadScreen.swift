@@ -361,7 +361,7 @@ struct UploadScreen: View {
     private var titleField: some View {
         VStack(alignment: .trailing, spacing: 0) {
             HStack(spacing: 12) {
-                StarView(type: starType, colorIndex: starColor, size: 26, glow: false)
+                StarView(type: starType, colorIndex: starColor, size: 26)
                 TextField("", text: $title,
                           prompt: Text(LocaleManager.shared.t(.fieldTitle)).foregroundColor(placeholder))
                     .textFieldStyle(.plain)
@@ -464,7 +464,7 @@ struct UploadScreen: View {
             let t = ids[p]
             let locked = StarUnlocks.lockedShapeAch(t, unlocked) != nil
             ZStack {
-                StarView(type: t, colorIndex: starColor, size: 40, glow: false)
+                StarView(type: t, colorIndex: starColor, size: 40)
                     .opacity(locked ? 0.25 : 1)
                 if locked {
                     Image(systemName: "lock.fill").font(.caption2).foregroundStyle(Theme.textSecondary)
@@ -841,7 +841,7 @@ private struct RingPicker: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 cell(locale.t(.uploadRingNone), chosen.isEmpty, Theme.navyAccent, "") {
-                    StarView(type: starType, colorIndex: starColor, size: 26, glow: false)
+                    StarView(type: starType, colorIndex: starColor, size: 26)
                 }
                 ForEach(rings) { item in
                     cell(item.name(in: locale.effectiveLanguage), chosen == item.id, StarlightArt.rarityColor(item.rarity), item.id) {

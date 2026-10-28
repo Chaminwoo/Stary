@@ -33,10 +33,13 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import com.chaminwoo.stary.core.designsystem.StarStyle
+import com.chaminwoo.stary.core.ui.CrystalShine
 import com.chaminwoo.stary.core.ui.bakeCrystalIcon
 import com.chaminwoo.stary.feature.profile.ParticleEffect
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -458,9 +461,9 @@ fun FloatingStatBox(
                 val scaled = scaledIdx
                 for (i in 0 until n) {
                     if (i == scaled) continue
-                    drawOne(items[i], crystalIcons[i], starIcons[i], bodies[i].pos, iconPx * richness(items[i].count), bodies[i].rot, 1f)
+                    drawOne(items[i], crystalIcons[i], starIcons[i], bodies[i].pos, iconPx * richness(items[i].count), bodies[i].rot, 1f, shineSeed = i)
                 }
-                scaled?.let { drawOne(items[it], crystalIcons[it], starIcons[it], bodies[it].pos, iconPx * richness(items[it].count), bodies[it].rot, grabScale.value) }
+                scaled?.let { drawOne(items[it], crystalIcons[it], starIcons[it], bodies[it].pos, iconPx * richness(items[it].count), bodies[it].rot, grabScale.value, shineSeed = it) }
             }
         }
 
@@ -560,7 +563,10 @@ private fun collide(a: Body, b: Body, aGrab: Boolean, bGrab: Boolean, grabbedVel
     }
 }
 
-/** 후광 + 크리스탈 아이콘 한 개를 [pos] 중심에 [scale] 확대 · [rotationDeg] 회전해 그린다. */
+/**
+ * 후광 + 크리스탈 아이콘 한 개를 [pos] 중심에 [scale] 확대 · [rotationDeg] 회전해 그린다.
+ * [shineSeed] 가 있으면 지도 별 같은 테두리 빛번짐 · 유리 결 빛([CrystalShine])까지(본체만 — 잔상 · 파티클은 빼고).
+ */
 private fun DrawScope.drawBubble(
     icon: ImageBitmap,
     color: Color,
@@ -570,6 +576,7 @@ private fun DrawScope.drawBubble(
     scale: Float,
     glow: Float = -1f,   // <0 이면 기본식, 그 외는 지정 알파
     alpha: Float = 1f,
+    shineSeed: Int? = null,
 ) {
     val r = iconPx / 2f
     val glowAlpha = if (glow >= 0f) glow else (0.32f * scale).coerceAtMost(0.6f)
@@ -585,6 +592,7 @@ private fun DrawScope.drawBubble(
     val sz = iconPx * scale
     if (sz < 1f) return
     rotate(rotationDeg, pivot = pos) {
+        if (shineSeed != null) drawCrystalGlow(icon, color, pos, sz)
         drawImage(
             image = icon,
             dstOffset = IntOffset((pos.x - sz / 2f).roundToInt(), (pos.y - sz / 2f).roundToInt()),
@@ -592,14 +600,41 @@ private fun DrawScope.drawBubble(
             alpha = alpha,
         )
     }
+    if (shineSeed != null) drawCrystalSheen(icon, pos, sz, rotationDeg, shineSeed)
 }
 
-/** 별 모양(핀 다이어리) 또는 크리스탈 아이콘을 골라 그린다. */
+/** 별 모양(핀 다이어리) 또는 크리스탈 아이콘을 골라 그린다(빛번짐 · 유리 결 빛 포함). */
 private fun DrawScope.drawOne(
     item: StatBubble, icon: ImageBitmap, starIcon: ImageBitmap?, pos: Offset, iconPx: Float, rotationDeg: Float, scale: Float,
+    shineSeed: Int,
 ) {
-    if (item.starType >= 0 && starIcon != null) drawStarBubble(starIcon, item.color, pos, iconPx, rotationDeg, scale)
-    else drawBubble(icon, item.color, pos, iconPx, rotationDeg, scale)
+    if (item.starType >= 0 && starIcon != null) drawStarBubble(starIcon, item.color, pos, iconPx, rotationDeg, scale, shineSeed)
+    else drawBubble(icon, item.color, pos, iconPx, rotationDeg, scale, shineSeed = shineSeed)
+}
+
+/** 테두리 빛번짐 — 구운 그림의 알파를 흐리게 번진 빛(그림과 같이 돈다 — 호출부의 rotate 안에서). */
+private fun DrawScope.drawCrystalGlow(icon: ImageBitmap, color: Color, pos: Offset, sz: Float) {
+    val bmp = icon.asAndroidBitmap()
+    drawIntoCanvas { c ->
+        CrystalShine.drawGlow(c.nativeCanvas, CrystalShine.glowOf(bmp), color.toArgb(), pos.x - sz / 2f, pos.y - sz / 2f, sz)
+    }
+}
+
+/** 유리 결 빛 — 빛줄기는 화면 기준 왼쪽 위 → 오른쪽 아래, 마스크(그림)만 [rotationDeg] 로 돈다. 루프가 매 프레임 다시 그린다. */
+private fun DrawScope.drawCrystalSheen(icon: ImageBitmap, pos: Offset, sz: Float, rotationDeg: Float, seed: Int) {
+    val q = CrystalShine.sheenAt(CrystalShine.nowSec(), seed * 7919 + 13)
+    if (q < 0f) return
+    val bmp = icon.asAndroidBitmap()
+    val left = pos.x - sz / 2f
+    val top = pos.y - sz / 2f
+    drawIntoCanvas { c ->
+        CrystalShine.drawSheen(c.nativeCanvas, q, left, top, sz) { nc ->
+            val save = nc.save()
+            nc.rotate(rotationDeg, pos.x, pos.y)
+            CrystalShine.drawBitmap(nc, bmp, left, top, sz, CrystalShine.maskPaint)
+            nc.restoreToCount(save)
+        }
+    }
 }
 
 /** StarStyle 별(핀 다이어리) 크리스탈 채움을 1회 굽는다 — 지도 마커/내 다이어리와 동일 무늬. */
@@ -610,9 +645,9 @@ private fun bakeCrystalStar(type: Int, colorIndex: Int, sizePx: Int): ImageBitma
     return image
 }
 
-/** 후광 + 구운 별 비트맵(핀 다이어리). */
+/** 후광 + 구운 별 비트맵(핀 다이어리) + 빛번짐 · 유리 결 빛. */
 private fun DrawScope.drawStarBubble(
-    icon: ImageBitmap, color: Color, pos: Offset, iconPx: Float, rotationDeg: Float, scale: Float,
+    icon: ImageBitmap, color: Color, pos: Offset, iconPx: Float, rotationDeg: Float, scale: Float, shineSeed: Int,
 ) {
     val r = (iconPx / 2f) * scale
     val glowAlpha = (0.34f * scale).coerceAtMost(0.62f)
@@ -623,12 +658,14 @@ private fun DrawScope.drawStarBubble(
     val sz = r * 2f
     if (sz < 1f) return
     rotate(rotationDeg, pivot = pos) {
+        drawCrystalGlow(icon, color, pos, sz)
         drawImage(
             image = icon,
             dstOffset = IntOffset((pos.x - r).roundToInt(), (pos.y - r).roundToInt()),
             dstSize = IntSize(sz.roundToInt(), sz.roundToInt()),
         )
     }
+    drawCrystalSheen(icon, pos, sz, rotationDeg, shineSeed)
 }
 
 /** 히든 아이콘 주변을 도는 스파클 오라(궤도 + 반짝임 + 흰 하이라이트). 떠 있을 때도 화려하게. */

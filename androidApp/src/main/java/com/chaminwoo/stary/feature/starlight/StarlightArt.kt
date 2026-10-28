@@ -41,12 +41,15 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -63,6 +66,8 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.PathParser
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
+import com.chaminwoo.stary.core.ui.CrystalSheen
+import com.chaminwoo.stary.core.ui.CrystalShine
 import com.chaminwoo.stary.core.ui.StarShapeIcon
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.PI
@@ -149,7 +154,10 @@ internal fun bakeCrystal(key: String, px: Int, seed: Int, colors: List<Int>, uni
     return bmp.asImageBitmap().also { crystalCache.put(k, it) }
 }
 
-/** 크리스탈 그림을 정사각 가운데에 그린다(+ 선택적 뒤 빛). */
+/**
+ * 크리스탈 그림을 정사각 가운데에 그린다(+ 선택적 뒤 빛).
+ * 지도 별 같은 빛번짐(테두리 번짐 + 옅은 후광) · 유리 결 빛([CrystalShine], 2026-10-28)을 늘 입힌다 — [glow] 면 후광은 그 빛으로 대신.
+ */
 @Composable
 private fun CrystalCanvas(
     key: String,
@@ -160,17 +168,29 @@ private fun CrystalCanvas(
     unit: () -> android.graphics.Path?,
 ) {
     val argb = remember(colors) { colors.ifEmpty { listOf(Color.White) }.map { it.toArgb() } }
-    Canvas(modifier) {
-        val s = size.minDimension
-        val px = s.roundToInt()
-        val img = bakeCrystal(key, px, seed, argb, unit) ?: return@Canvas
-        val left = ((size.width - s) / 2).roundToInt()
-        val top = ((size.height - s) / 2).roundToInt()
-        if (glow) {
-            val c = Offset(size.width / 2, size.height / 2)
-            drawCircle(Brush.radialGradient(listOf(Color(argb.last()).copy(alpha = 0.32f), Color.Transparent), c, s * 0.55f), s * 0.55f, c)
+    val glowArgb = argb[argb.size / 2] // 그라데이션이면 가운데 색으로 번진다
+    Box(modifier) {
+        Canvas(Modifier.matchParentSize()) {
+            val s = size.minDimension
+            val px = s.roundToInt()
+            val img = bakeCrystal(key, px, seed, argb, unit) ?: return@Canvas
+            val left = ((size.width - s) / 2).roundToInt()
+            val top = ((size.height - s) / 2).roundToInt()
+            if (glow) {
+                val c = Offset(size.width / 2, size.height / 2)
+                drawCircle(Brush.radialGradient(listOf(Color(argb.last()).copy(alpha = 0.32f), Color.Transparent), c, s * 0.55f), s * 0.55f, c)
+            }
+            drawIntoCanvas { canvas ->
+                val nc = canvas.nativeCanvas
+                if (!glow) CrystalShine.drawHalo(nc, glowArgb, left + px / 2f, top + px / 2f, px.toFloat())
+                CrystalShine.drawGlow(nc, CrystalShine.glowOf(img.asAndroidBitmap()), glowArgb, left.toFloat(), top.toFloat(), px.toFloat())
+            }
+            drawImage(img, dstOffset = IntOffset(left, top), dstSize = IntSize(px, px))
         }
-        drawImage(img, dstOffset = IntOffset(left, top), dstSize = IntSize(px, px))
+        CrystalSheen(Modifier.matchParentSize()) { nc, l, t, s ->
+            val img = bakeCrystal(key, s.roundToInt(), seed, argb, unit) ?: return@CrystalSheen
+            CrystalShine.drawBitmap(nc, img.asAndroidBitmap(), l, t, s, CrystalShine.maskPaint)
+        }
     }
 }
 

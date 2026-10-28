@@ -208,6 +208,7 @@ struct KeyUnlockAnimationView: View {
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 54, height: 54)
+                    .crystalShine(.image(opened ? open : closed), color: color, side: 54)
                     .rotationEffect(.degrees(jiggle))
                     .scaleEffect(CGFloat(lockScale))
                     .offset(y: CGFloat(bounce))
@@ -264,10 +265,12 @@ struct CrystalPullIcon: View {
                 // 숨쉬기 애니메이션은 이 opacity 에만 — 화면 전환 중 레이아웃까지 반복 애니메이션되지 않게 범위를 좁힌다.
                 .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: glowOn)
                 .offset(x: pull.width * 0.5, y: pull.height * 0.5)
+            // 빛번짐 · 유리 결 빛(지도 별처럼) — 뒤 후광이 이미 있어 둥근 후광은 겹치지 않는다.
             Image(uiImage: image)
                 .resizable()
                 .interpolation(.high)
                 .frame(width: iconSize, height: iconSize)
+                .crystalShine(.image(image), color: color, side: iconSize, halo: false)
                 .scaleEffect(pressed ? 1.06 : 1)
                 .rotationEffect(.degrees(Double(pull.width / DiaryLock.pullMax) * 6))
                 .offset(pull)

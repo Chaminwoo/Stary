@@ -461,8 +461,8 @@ final class StarMarkerView: MLNAnnotationView {
     private static let memberOrbitSpeed = 0.42
     private static let memberOrbitSpacing = 2.4
 
-    /// 멤버 혜성 머리 최소 크기(pt) — 별 크기의 40% 와 이것 중 큰 쪽.
-    private static let satSize: CGFloat = 14
+    /// 멤버 혜성 머리 최소 크기(pt) — 별 크기의 1/3 과 이것 중 큰 쪽.
+    private static let satSize: CGFloat = 12
 
     /// 위성 기본 불투명도(줌 게이트가 열렸을 때).
     static let satelliteAlpha: CGFloat = 0.92
@@ -497,9 +497,15 @@ final class StarMarkerView: MLNAnnotationView {
     private var jobs: [StarAnimJob] = []
     private var zoomScale: CGFloat = 1
 
-    /// 멤버 혜성 궤도 반경 — 스파클(0.56) 바깥에서 대표 별을 크게 감싼다. 멤버마다 조금씩 바깥으로.
+    /// 멤버 혜성 궤도 반경 — 대표 별 몸 바로 바깥을 감싼다. 멤버마다 조금씩 바깥으로.
+    /// Android `memberOrbitRadius` 와 같은 값(2026-10-28 "너무 넓어서 겉돈다" → 0.75 + 0.05i 에서 조금 안쪽으로).
     private static func satelliteRadius(markerSize: CGFloat, satIndex: Int) -> CGFloat {
-        markerSize * (0.75 + 0.05 * CGFloat(satIndex))
+        markerSize * (0.64 + 0.04 * CGFloat(satIndex))
+    }
+
+    /// 멤버 혜성 머리(그림) 크기 — 몸은 그 0.78. Android `MEMBER_BODY`(0.26) = 1/3 × 0.78.
+    private static func memberHead(markerSize: CGFloat) -> CGFloat {
+        max(satSize, markerSize / 3)
     }
 
     /// 뷰 한 변(줌 배율 1 기준) — 스파클 궤도/위성/부유 진폭이 다 들어가는 크기.
@@ -517,7 +523,7 @@ final class StarMarkerView: MLNAnnotationView {
             satIndex: max(members.count - 1, 0)
         )
 
-        let satExtent = maxRadius + max(satSize, markerSize * 0.4) / 2 + floatAmp
+        let satExtent = maxRadius + memberHead(markerSize: markerSize) / 2 + floatAmp
         let orbitExtent = markerSize * MapSparkle.maxOrbitExtentRatio + floatAmp
 
         return max(satExtent, orbitExtent) * 1.8
@@ -623,7 +629,7 @@ final class StarMarkerView: MLNAnnotationView {
         rng: inout StarMotionRandom
     ) {
         let members = Array(annotation.members.dropFirst().prefix(Self.maxOrbitStars))
-        let head = max(Self.satSize, markerSize * 0.4)
+        let head = Self.memberHead(markerSize: markerSize)
         let base = rng.unit()
         let tilt = 0.22 + (Double(rng.next() % 4) - 1.5) * 0.10
         let dir: Double = rng.flip() ? 1 : -1
@@ -655,10 +661,11 @@ final class StarMarkerView: MLNAnnotationView {
 
     /// 유리 결 빛 — 지도 시안 drawSheen, Android `sheenBitmap`/`sheenImageExpression` 과 같은 값:
     /// 주기 5.5~8초(별마다), 지나가는 시간은 주기의 26%, 불투명도 0.75 × sin. 시안(7~11초 · 30%)보다 조금 빠르다.
-    private static let sheenPeriodMin = 5.5
-    private static let sheenPeriodSpread = 2.5
-    private static let sheenWindow = 0.26
-    private static let sheenOpacity = 0.75
+    /// 앱 곳곳의 크리스탈 유리 결 빛([CrystalShine])과 같은 값을 쓴다.
+    private static let sheenPeriodMin = CrystalShine.sheenPeriodMin
+    private static let sheenPeriodSpread = CrystalShine.sheenPeriodSpread
+    private static let sheenWindow = CrystalShine.sheenWindow
+    private static let sheenOpacity = CrystalShine.sheenOpacity
 
     private func installSheen(over frame: CGRect, type: Int, markerSize: CGFloat, rng: inout StarMotionRandom) {
         let starSize = markerSize * 0.78
@@ -700,7 +707,7 @@ final class StarMarkerView: MLNAnnotationView {
         let rMax = 0.17 * starSize
         let spark = CALayer()
         spark.bounds = CGRect(x: 0, y: 0, width: rMax * 2, height: rMax * 2)
-        spark.contents = Self.sheenSparkle(radius: rMax).cgImage
+        spark.contents = CrystalShine.sparkleImage(radius: rMax).cgImage
         spark.opacity = 0
         host.layer.addSublayer(spark)
 
@@ -748,40 +755,6 @@ final class StarMarkerView: MLNAnnotationView {
         jobs.append(StarAnimJob(layer: spark, key: "sheen-pos", anim: keyframe("position", sparkPos, keyTimes)))
         jobs.append(StarAnimJob(layer: spark, key: "sheen-scale", anim: keyframe("transform.scale", sparkScale, keyTimes)))
         jobs.append(StarAnimJob(layer: spark, key: "sheen-op", anim: keyframe("opacity", sparkAlpha, keyTimes)))
-    }
-
-    private static var sheenSparkleCache: [Int: UIImage] = [:]
-
-    /// 빛을 타고 가는 굽은 4갈래 반짝 + 둥근 번짐(Android `sheenBitmap` 의 반짝과 같은 비율).
-    private static func sheenSparkle(radius r: CGFloat) -> UIImage {
-        let key = Int((r * 4).rounded())
-        if let cached = sheenSparkleCache[key] { return cached }
-        let side = r * 2
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.opaque = false
-        let img = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: fmt).image { ctx in
-            let cg = ctx.cgContext
-            let c = CGPoint(x: r, y: r)
-            if let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                     colors: [UIColor.white.withAlphaComponent(0.5).cgColor,
-                                              UIColor.white.withAlphaComponent(0).cgColor] as CFArray,
-                                     locations: [0, 1]) {
-                cg.drawRadialGradient(grad, startCenter: c, startRadius: 0, endCenter: c, endRadius: r * 0.9, options: [])
-            }
-            let k = r * 0.10
-            let path = UIBezierPath()
-            path.move(to: CGPoint(x: c.x, y: c.y - r))
-            path.addQuadCurve(to: CGPoint(x: c.x + r, y: c.y), controlPoint: CGPoint(x: c.x + k, y: c.y - k))
-            path.addQuadCurve(to: CGPoint(x: c.x, y: c.y + r), controlPoint: CGPoint(x: c.x + k, y: c.y + k))
-            path.addQuadCurve(to: CGPoint(x: c.x - r, y: c.y), controlPoint: CGPoint(x: c.x - k, y: c.y + k))
-            path.addQuadCurve(to: CGPoint(x: c.x, y: c.y - r), controlPoint: CGPoint(x: c.x - k, y: c.y - k))
-            path.close()
-            cg.setFillColor(UIColor.white.cgColor)
-            cg.addPath(path.cgPath)
-            cg.fillPath()
-        }
-        sheenSparkleCache[key] = img
-        return img
     }
 
     // MARK: Animation

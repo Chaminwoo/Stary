@@ -248,9 +248,16 @@ private struct MusicDial: View {
                     center: .center, startRadius: 1, endRadius: glowR
                 ))
                 .frame(width: glowR * 2, height: glowR * 2)
-            StarShape(type: track.starType)
-                .fill(col.opacity(unlocked ? (0.45 + 0.55 * closeness) : 0.30), style: FillStyle(eoFill: true))
-                .frame(width: starSize, height: starSize)
+            // 크리스탈 별 + 빛번짐 · 유리 결 빛 — 빛은 위쪽에서 멀수록(잠김이면 더) 옅다(Android `StarShapeIcon(type, color)`).
+            let starColor = col.opacity(unlocked ? (0.45 + 0.55 * closeness) : 0.30)
+            Canvas { ctx, sz in
+                ctx.withCGContext { cg in
+                    StarCrystal.draw(in: cg, type: track.starType, colors: [UIColor(starColor)],
+                                     rect: CGRect(origin: .zero, size: sz))
+                }
+            }
+            .frame(width: starSize, height: starSize)
+            .crystalShine(.star(track.starType), color: starColor, side: starSize)
             if !unlocked {
                 Image(systemName: "lock.fill")
                     .font(.system(size: CGFloat(10 + 5 * closeness)))

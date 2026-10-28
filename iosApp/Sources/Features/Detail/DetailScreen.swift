@@ -509,7 +509,7 @@ struct DetailScreen: View {
                 if canOpenProfile { openProfile(diary.userId, authorName) }
             } label: {
                 HStack(spacing: 0) {
-                    StarView(type: diary.starType, colorIndex: diary.starColor, size: 18, glow: false)
+                    StarView(type: diary.starType, colorIndex: diary.starColor, size: 18)
                     Spacer().frame(width: 8)
                     Text(authorName.isEmpty ? LocaleManager.shared.t(.commonAnonymous) : authorName)
                         .font(.minSans(13))

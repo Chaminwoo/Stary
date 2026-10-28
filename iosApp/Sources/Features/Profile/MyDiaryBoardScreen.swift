@@ -279,6 +279,7 @@ private struct BananaDialView: View {
 }
 
 /// 팔레트 밖 색으로 그리는 크리스탈 별(다이얼 전용 — StarView 는 colorIndex 만 받는다).
+/// 빛번짐 · 유리 결 빛도 그 색으로 — 색 알파(선택에서 먼 별은 흐림)만큼 같이 옅어진다(Android `StarShapeIcon(type, color)`).
 private struct TintedStar: View {
     let type: Int
     let color: Color
@@ -292,6 +293,7 @@ private struct TintedStar: View {
             }
         }
         .frame(width: size, height: size)
+        .crystalShine(.star(type), color: color, side: size)
     }
 }
 

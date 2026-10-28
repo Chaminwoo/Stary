@@ -8,7 +8,8 @@ import UIKit
 /// (`HiddenAchievement.badgeType/badgeColor` — Android 정의와 값 동일).
 ///
 /// - 달성한 히든이 없으면 **아무것도 그리지 않는다**(레이아웃 영향 없음).
-/// - 파티클 없는 정적 렌더 — 리스트 스크롤에서 가볍게([StarCrystal.image] NSCache 재사용).
+/// - 파티클 없이 빛번짐 · 유리 결 빛만([CrystalShine] — 빛은 Core Animation 이라 리스트 스크롤에서도 가볍다).
+///   별 그림은 [StarCrystal.image] NSCache 재사용.
 /// - ⚠️ 익명 다이어리/댓글에는 붙이지 말 것(작성자 은닉이 깨진다).
 struct HiddenStarBadges: View {
     let userId: String
@@ -29,7 +30,7 @@ struct HiddenStarBadges: View {
     }
 }
 
-/// 배지 별 1개(캐시된 비트맵). 업적 화면 등에서 단독으로도 쓸 수 있다.
+/// 배지 별 1개(캐시된 비트맵) + 지도 별 같은 빛번짐 · 유리 결 빛. 업적 화면 등에서 단독으로도 쓸 수 있다.
 struct HiddenStarBadge: View {
     let type: Int
     let colorIndex: Int
@@ -39,5 +40,6 @@ struct HiddenStarBadge: View {
         Image(uiImage: StarCrystal.image(type: type, colorIndex: colorIndex, size: size))
             .resizable()
             .frame(width: size, height: size)
+            .crystalShine(.star(type), color: StarStyle.color(colorIndex), side: size)
     }
 }

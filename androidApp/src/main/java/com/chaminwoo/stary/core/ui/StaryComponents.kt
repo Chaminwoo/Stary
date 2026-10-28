@@ -64,22 +64,56 @@ fun Modifier.raisedCosmicBorder(width: Dp = 0.75.dp, shape: Shape = CircleShape)
     shape = shape,
 )
 
-/** UploadScreen 피커와 DiaryCard에서 공통으로 쓰는 별 모양 아이콘. StarStyle 경로와 동일. */
+/**
+ * UploadScreen 피커와 DiaryCard에서 공통으로 쓰는 별 모양 아이콘. StarStyle 경로와 동일.
+ * [shine] = 지도 별 같은 빛번짐 + 유리 결 빛([CrystalShine], 2026-10-28) — 색의 알파(잠김 · 흐림)만큼 같이 옅어진다.
+ */
 @Composable
-fun StarShapeIcon(type: Int, color: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        drawIntoCanvas { canvas ->
-            StarStyle.drawCrystalFill(canvas.nativeCanvas, type, listOf(color.toArgb()), 0f, 0f, size.minDimension)
-        }
+fun StarShapeIcon(type: Int, color: Color, modifier: Modifier = Modifier, shine: Boolean = true) {
+    CrystalStarIcon(type, color, modifier, shine) { canvas, left, top, side ->
+        StarStyle.drawCrystalFill(canvas, type, listOf(color.toArgb()), left, top, side)
     }
 }
 
-/** 색 인덱스 기반 별 아이콘 — 수정 결정(크리스탈) 패싯 채움(그라데이션 색은 2색 혼합). */
+/** 색 인덱스 기반 별 아이콘 — 수정 결정(크리스탈) 패싯 채움(그라데이션 색은 2색 혼합) + 빛번짐 · 유리 결 빛. */
 @Composable
-fun StarShapeIcon(type: Int, colorIndex: Int, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        drawIntoCanvas { canvas ->
-            StarStyle.drawCrystalFill(canvas.nativeCanvas, type, colorIndex, 0f, 0f, size.minDimension)
+fun StarShapeIcon(type: Int, colorIndex: Int, modifier: Modifier = Modifier, shine: Boolean = true) {
+    CrystalStarIcon(type, StarStyle.colorOf(colorIndex), modifier, shine) { canvas, left, top, side ->
+        StarStyle.drawCrystalFill(canvas, type, colorIndex, left, top, side)
+    }
+}
+
+/** 크리스탈 별 본체(요소 가운데 정사각) — [shine] 이면 뒤에 빛번짐, 위에 유리 결 빛 겹. */
+@Composable
+private fun CrystalStarIcon(
+    type: Int,
+    glow: Color,
+    modifier: Modifier,
+    shine: Boolean,
+    fill: (android.graphics.Canvas, Float, Float, Float) -> Unit,
+) {
+    if (!shine) {
+        Canvas(modifier = modifier) {
+            val side = size.minDimension
+            drawIntoCanvas { canvas -> fill(canvas.nativeCanvas, (size.width - side) / 2f, (size.height - side) / 2f, side) }
+        }
+        return
+    }
+    val argb = glow.toArgb()
+    Box(modifier = modifier) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val side = size.minDimension
+            val left = (size.width - side) / 2f
+            val top = (size.height - side) / 2f
+            drawIntoCanvas { canvas ->
+                val nc = canvas.nativeCanvas
+                CrystalShine.drawHalo(nc, argb, left + side / 2f, top + side / 2f, side)
+                CrystalShine.drawGlow(nc, CrystalShine.starGlow(type, side), argb, left, top, side)
+                fill(nc, left, top, side)
+            }
+        }
+        CrystalSheen(Modifier.matchParentSize(), alpha = glow.alpha) { nc, left, top, side ->
+            CrystalShine.drawStarMask(nc, type, left, top, side)
         }
     }
 }

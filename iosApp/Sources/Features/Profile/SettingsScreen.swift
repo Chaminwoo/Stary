@@ -414,6 +414,7 @@ private struct StarThumb: View {
                 }
             }
             .frame(width: 22, height: 22)
+            .crystalShine(.star(1), color: starColor, side: 22)
         }
         .frame(width: 40, height: 40)
         .scaleEffect(enabled && active ? 1.3 : 1)

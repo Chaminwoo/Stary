@@ -12,7 +12,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Key
@@ -84,6 +83,7 @@ import com.chaminwoo.stary.core.ads.AdFreeAccount
 import com.chaminwoo.stary.core.ads.AdsManager
 import com.chaminwoo.stary.core.ui.MediaLoadingFrame
 import com.chaminwoo.stary.core.ui.StaryToast
+import com.chaminwoo.stary.core.ui.CrystalImage
 import com.chaminwoo.stary.core.ui.bakeCrystalIcon
 import com.chaminwoo.stary.core.util.DiaryUnlockStore
 import com.chaminwoo.stary.core.util.Haptics
@@ -558,9 +558,10 @@ private fun KeyUnlockAnimation(color: Color, seed: Int, showKey: Boolean, onFini
                 }
             }
         }
-        Image(
+        // 크리스탈 자물쇠 + 지도 별 같은 빛번짐 · 유리 결 빛(CrystalImage).
+        CrystalImage(
             bitmap = if (opened) open else closed,
-            contentDescription = null,
+            glowColor = color,
             modifier = Modifier
                 .size(iconSize)
                 .graphicsLayer {
@@ -754,9 +755,11 @@ private fun CrystalPullIcon(
                 )
             }
         }
-        Image(
+        // 빛번짐 · 유리 결 빛(CrystalImage) — 둥근 후광은 위의 숨쉬는 후광이 대신한다.
+        CrystalImage(
             bitmap = crystal,
-            contentDescription = null,
+            glowColor = color,
+            halo = false,
             modifier = Modifier
                 .size(iconSize)
                 .graphicsLayer {

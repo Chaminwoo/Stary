@@ -405,7 +405,7 @@ struct StarPickerSheet: View {
             if let ring {
                 Circle().stroke(ring, lineWidth: 1.5).frame(width: 46, height: 46)
             }
-            StarView(type: shapes ? id : starType, colorIndex: shapes ? starColor : id, size: 30, glow: false)
+            StarView(type: shapes ? id : starType, colorIndex: shapes ? starColor : id, size: 30)
                 .opacity(ach == nil ? 1 : 0.28)
             if ach != nil {
                 Image(systemName: "lock.fill")

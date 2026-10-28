@@ -2,7 +2,6 @@ package com.chaminwoo.stary.core.ui
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -27,7 +26,7 @@ import com.chaminwoo.stary.feature.profile.rememberHiddenAchievementsOf
  *
  * - 달성한 히든이 없으면 **아무것도 그리지 않는다**(레이아웃 영향 없음).
  * - 프로필의 히든 아이콘([com.chaminwoo.stary.feature.profile.HiddenIconWithEffect])과 달리
- *   파티클 없이 정적 렌더 — 리스트 스크롤에서 가볍게.
+ *   파티클 없이 빛번짐 · 유리 결 빛만(빛이 지나가는 동안만 다시 그린다) — 리스트 스크롤에서 가볍게.
  * - 별 비트맵은 (모양,색,px) 키로 캐시해 재사용(크리스탈 채움은 path 연산이 많아 매 프레임 렌더 금지).
  * - ⚠️ 익명 다이어리/댓글에는 붙이지 말 것(작성자 은닉이 깨진다).
  *
@@ -56,12 +55,12 @@ fun HiddenStarBadges(
     }
 }
 
-/** 배지 별 1개(캐시된 비트맵). 업적 화면 등에서 단독으로도 쓸 수 있다. */
+/** 배지 별 1개(캐시된 비트맵) + 지도 별 같은 빛번짐 · 유리 결 빛([CrystalImage]). 업적 화면 등에서 단독으로도 쓸 수 있다. */
 @Composable
 fun HiddenStarBadge(type: Int, colorIndex: Int, size: Dp = 12.dp) {
     val px = with(LocalDensity.current) { size.roundToPx() }.coerceAtLeast(1)
     val bitmap = remember(type, colorIndex, px) { badgeBitmap(type, colorIndex, px) }
-    Image(bitmap = bitmap, contentDescription = null, modifier = Modifier.size(size))
+    CrystalImage(bitmap = bitmap, glowColor = StarStyle.colorOf(colorIndex), modifier = Modifier.size(size))
 }
 
 /** (모양,색,px) → 크리스탈 별 비트맵. 프로세스 수명 캐시(종류가 유한: 히든 업적 수 × 몇 가지 크기). */

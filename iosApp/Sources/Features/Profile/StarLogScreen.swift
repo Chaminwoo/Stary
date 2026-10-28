@@ -333,6 +333,17 @@ struct StarLogScreen: View {
             var layer = ctx
             layer.opacity = alpha
             layer.draw(Image(uiImage: img), in: CGRect(x: p.x - sz / 2, y: p.y - sz / 2, width: sz, height: sz))
+            // 유리 결 빛 — 지도 별처럼 별마다 다른 때에 흰 사선 빛이 몸을 훑는다(빛번짐은 지도 별 그림에 이미 있다).
+            // 시드 = id 의 Java hashCode 라 Android 고리와 같은 때에 빛난다.
+            let q = CrystalShine.sheenAt(CrystalShine.now(), seed: Int(StarlightArt.javaHash(d.id ?? "")))
+            if q >= 0 {
+                let bodySide = lay.starPx * scale
+                let body = CGRect(x: p.x - bodySide / 2, y: p.y - bodySide / 2, width: bodySide, height: bodySide)
+                CrystalShine.drawSheen(in: ctx, q: q, body: body, alpha: alpha) { m in
+                    m.fill(StarShape(type: StarStyle.safeType(d.starType)).path(in: body),
+                           with: .color(.white), style: FillStyle(eoFill: true))
+                }
+            }
             if hv > 0.01 {
                 let rr = lay.starPx * scale * 0.8
                 ctx.stroke(Path(ellipseIn: CGRect(x: p.x - rr, y: p.y - rr, width: rr * 2, height: rr * 2)),
@@ -505,7 +516,7 @@ struct StarLogScreen: View {
         let title = d.titleForDisplay().isEmpty ? "—" : d.titleForDisplay()
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 14) {
-                StarView(type: d.starType, colorIndex: d.starColor, size: 28, glow: false)
+                StarView(type: d.starType, colorIndex: d.starColor, size: 28)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.minSans(15, .semibold))

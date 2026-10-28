@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.chaminwoo.stary.R
 import com.chaminwoo.stary.core.designsystem.StarStyle
 import com.chaminwoo.stary.core.model.Diary
+import com.chaminwoo.stary.core.ui.CrystalShine
 import com.chaminwoo.stary.core.util.LocationHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -381,7 +382,7 @@ private val starBitmapPaint = android.graphics.Paint(
     android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG
 )
 
-/** 구운 비트맵으로 별 1개 그리기 — 후광(원형, 회전 무관) + 본체(회전). */
+/** 구운 비트맵으로 별 1개 그리기 — 후광(원형, 회전 무관) + 본체(회전) + 유리 결 빛. */
 private fun drawStarBaked(nc: android.graphics.Canvas, b: StarBody, cx: Float, cy: Float, rotationDeg: Float) {
     val bmp = b.bitmap ?: return
     val save = nc.save()
@@ -390,6 +391,22 @@ private fun drawStarBaked(nc: android.graphics.Canvas, b: StarBody, cx: Float, c
     nc.rotate(rotationDeg)
     nc.drawBitmap(bmp, -b.bitmapCenter, -b.bitmapCenter, starBitmapPaint)
     nc.restoreToCount(save)
+    drawStarSheen(nc, b, cx, cy, b.r, rotationDeg)
+}
+
+/**
+ * 유리 결 빛 — 지도 별처럼 별마다 5.5~8초에 한 번 흰 사선 빛줄기(화면 기준 ↘)가 몸을 훑고 반짝이가 그 빛을 탄다([CrystalShine]).
+ * 몸 실루엣(돌아가는 그대로)으로 오린다. 프레임 루프가 매 프레임 다시 그린다.
+ */
+private fun drawStarSheen(nc: android.graphics.Canvas, b: StarBody, cx: Float, cy: Float, r: Float, rotationDeg: Float) {
+    val q = CrystalShine.sheenAt(CrystalShine.nowSec(), b.diary.id.hashCode())
+    if (q < 0f) return
+    CrystalShine.drawSheen(nc, q, cx - r, cy - r, r * 2f) { c ->
+        val save = c.save()
+        c.rotate(rotationDeg, cx, cy)
+        CrystalShine.drawStarMask(c, b.type, cx - r, cy - r, r * 2f)
+        c.restoreToCount(save)
+    }
 }
 
 /** 별 한 개 그리기 — 후광(radial glow) + StarStyle 별 모양. [scale] 확대, [rotationDeg] 회전(자유 회전). */
@@ -427,5 +444,6 @@ private fun DrawScope.drawStar(b: StarBody, cx: Float, cy: Float, scale: Float =
         // 본체 — 수정 결정(크리스탈) 패싯 채움(지도 마커와 동일)
         StarStyle.drawCrystalFill(nc, b.type, b.colorIndex, cx - r, cy - r, sizePx)
         nc.restoreToCount(save)
+        drawStarSheen(nc, b, cx, cy, r, rotationDeg)
     }
 }

@@ -245,7 +245,7 @@ struct AchievementsScreen: View {
             ZStack(alignment: .bottomTrailing) {
                 Group {
                     switch ach.reward {
-                    case .shape(let t): StarView(type: t, colorIndex: 9, size: 32, glow: false)
+                    case .shape(let t): StarView(type: t, colorIndex: 9, size: 32)
                     case .color(let c): Circle().fill(StarStyle.fill(c)).frame(width: 28, height: 28)
                     case .title: Image(systemName: "star.fill").foregroundStyle(Theme.navyAccent)
                     }
@@ -481,7 +481,7 @@ struct AchievementsScreen: View {
             Text(LocalizedNames.title(ach.id, fallback: n) ?? n)
                 .font(.minSans(11)).foregroundStyle(Theme.textFaint)
         case .shape(let t):
-            StarView(type: t, colorIndex: 9, size: 22, glow: false)
+            StarView(type: t, colorIndex: 9, size: 22)
         case .color(let c):
             Circle().fill(StarStyle.fill(c)).frame(width: 18, height: 18)
         }

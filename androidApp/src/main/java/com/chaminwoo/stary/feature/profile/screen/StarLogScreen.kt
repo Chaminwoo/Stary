@@ -79,8 +79,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -106,6 +109,7 @@ import com.chaminwoo.stary.core.designsystem.TextSub
 import com.chaminwoo.stary.core.geo.LatLng
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.model.Friend
+import com.chaminwoo.stary.core.ui.CrystalShine
 import com.chaminwoo.stary.core.ui.FirstVisitInfo
 import com.chaminwoo.stary.core.ui.FriendPickerDialog
 import com.chaminwoo.stary.core.ui.StarShapeIcon
@@ -567,13 +571,29 @@ private fun StarRing(
                     bmp.asImageBitmap()
                 }
                 val sz = (starPx * scale).roundToInt().coerceAtLeast(1)
+                val bodyLeft = p.x - sz / 2f
+                val bodyTop = p.y - sz / 2f
+                // 지도 별 같은 테두리 빛번짐(CrystalShine) — 본체 바로 뒤.
+                drawIntoCanvas { cv ->
+                    CrystalShine.drawGlow(
+                        cv.nativeCanvas, CrystalShine.starGlow(d.starType, sz.toFloat()), c.toArgb(),
+                        bodyLeft, bodyTop, sz.toFloat(), alpha,
+                    )
+                }
                 drawImage(
                     image = img,
-                    dstOffset = IntOffset((p.x - sz / 2f).roundToInt(), (p.y - sz / 2f).roundToInt()),
+                    dstOffset = IntOffset(bodyLeft.roundToInt(), bodyTop.roundToInt()),
                     dstSize = IntSize(sz, sz),
                     alpha = alpha,
                     filterQuality = FilterQuality.Medium,
                 )
+                // 유리 결 빛 — 별마다 5.5~8초에 한 번 흰 사선 빛줄기 + 반짝이(시계가 매 프레임 다시 그린다).
+                val sheen = CrystalShine.sheenAt(CrystalShine.nowSec(), d.id.hashCode())
+                if (sheen >= 0f) drawIntoCanvas { cv ->
+                    CrystalShine.drawSheen(cv.nativeCanvas, sheen, bodyLeft, bodyTop, sz.toFloat(), alpha) { nc ->
+                        CrystalShine.drawStarMask(nc, d.starType, bodyLeft, bodyTop, sz.toFloat())
+                    }
+                }
                 if (hv > 0.01f) {
                     drawCircle(
                         color = c.copy(alpha = 0.55f * hv),

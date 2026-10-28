@@ -118,12 +118,15 @@ internal const val MEMBER_ORBIT_SPEED = 0.42f
 internal const val MEMBER_ORBIT_SPACING = 2.4f
 /** 멤버 궤도 납작함 — 멤버마다 조금씩 달라 한 장의 판이 아니라 겹친 고리로 보인다. */
 internal fun memberOrbitFlat(satIndex: Int) = 0.36f + 0.04f * satIndex
-/** 멤버 궤도 반경(별 한 변 대비) — 스파클 바깥에서 대표를 크게 감싼다. iOS `StarMarkerView.satelliteRadius`. */
-private fun memberOrbitRadius(satIndex: Int) = 0.75f + 0.05f * satIndex
-/** 멤버 머리(별 몸) 크기 — 대표 한 변의 0.30(iOS 머리 0.4 × 몸 0.78). 너무 작거나 크지 않게 dp 로 묶는다. */
-private const val MEMBER_BODY = 0.30f
-private const val MEMBER_BODY_MIN_DP = 8f
-private const val MEMBER_BODY_MAX_DP = 26f
+/**
+ * 멤버 궤도 반경(별 한 변 대비) — 대표 별 몸 바로 바깥을 감싼다. iOS `StarMarkerView.satelliteRadius`.
+ * (2026-10-28 "너무 넓어서 겉돈다" → 0.75 + 0.05i 에서 조금 안쪽으로.)
+ */
+private fun memberOrbitRadius(satIndex: Int) = 0.64f + 0.04f * satIndex
+/** 멤버 머리(별 몸) 크기 — 대표 한 변의 0.26(iOS 머리 1/3 × 몸 0.78). 너무 작거나 크지 않게 dp 로 묶는다(2026-10-28 0.30 → 살짝 작게). */
+private const val MEMBER_BODY = 0.26f
+private const val MEMBER_BODY_MIN_DP = 7f
+private const val MEMBER_BODY_MAX_DP = 23f
 private const val MEMBER_TAIL_SPAN = 0.7f
 
 /** MapLibre 카메라 → 화면 중심 거리 = 화면 높이 × 1.5 (0.5·H / tan(fov/2), 기본 fov = 2·atan(1/3)). */

@@ -1080,6 +1080,7 @@ private struct AchievementUnlockOverlay: View {
                                                              size: 62))
                                 .resizable()
                                 .frame(width: 62, height: 62)
+                                .crystalShine(.star(rewardStar.type), color: StarStyle.color(rewardStar.colorIndex), side: 62)
                         }
                     }
                     .scaleEffect(starScale)
@@ -1168,9 +1169,11 @@ private struct BundleRow: View {
                 case .shape(let t):
                     Image(uiImage: StarCrystal.image(type: t, colorIndex: 15, size: 32))
                         .resizable().frame(width: 32, height: 32)
+                        .crystalShine(.star(t), color: StarStyle.color(15), side: 32)
                 case .title:
                     Image(uiImage: StarCrystal.image(type: 3, colorIndex: 15, size: 30))
                         .resizable().frame(width: 30, height: 30)
+                        .crystalShine(.star(3), color: StarStyle.color(15), side: 30)
                 }
             }
             .frame(width: 34, height: 34)

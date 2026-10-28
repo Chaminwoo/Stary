@@ -467,9 +467,10 @@ private extension CGAffineTransform {
     }
 }
 
-/// 별 + 후광을 그리는 표시용 뷰.
+/// 별 + 빛을 그리는 표시용 뷰.
 /// 채움은 **수정 결정(크리스탈)** — 실루엣은 [StarShape] 그대로 두고 내부를 불규칙 파편으로
 /// 갈라 조각마다 색을 달리한다([StarCrystal], Android `drawCrystalFill` 패리티).
+/// [glow] = 지도 별 같은 빛번짐 + 유리 결 빛([CrystalShine], 2026-10-28 — Android `StarShapeIcon(shine)`). false 면 본체만.
 struct StarView: View {
     let type: Int
     let colorIndex: Int
@@ -477,7 +478,7 @@ struct StarView: View {
     var glow: Bool = true
 
     var body: some View {
-        Canvas { ctx, canvasSize in
+        let star = Canvas { ctx, canvasSize in
             ctx.withCGContext { cg in
                 StarCrystal.draw(
                     in: cg, type: type, colorIndex: colorIndex,
@@ -486,7 +487,10 @@ struct StarView: View {
             }
         }
         .frame(width: size, height: size)
-        .shadow(color: glow ? StarStyle.color(colorIndex).opacity(0.8) : .clear,
-                radius: glow ? size * 0.22 : 0)
+        if glow {
+            star.crystalShine(.star(type), color: StarStyle.color(colorIndex), side: size)
+        } else {
+            star
+        }
     }
 }

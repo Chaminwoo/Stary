@@ -527,19 +527,20 @@ final class FloatingEngine: ObservableObject {
         for (i, b) in bodies.enumerated() {
             if i == scaledIdx { continue }
             drawSymbol(context, idx: i, color: itemColor(i), pos: b.pos,
-                       scale: richness(count(i)), rot: b.rot, glow: -1, alpha: 1)
+                       scale: richness(count(i)), rot: b.rot, glow: -1, alpha: 1, shineSeed: i)
         }
         if let s = scaledIdx, s < bodies.count {
             drawSymbol(context, idx: s, color: itemColor(s), pos: bodies[s].pos,
-                       scale: richness(count(s)) * grabScale, rot: bodies[s].rot, glow: -1, alpha: 1)
+                       scale: richness(count(s)) * grabScale, rot: bodies[s].rot, glow: -1, alpha: 1, shineSeed: s)
         }
     }
 
     private func itemColor(_ i: Int) -> Color { i < items.count ? items[i].color : .white }
 
-    /// 후광 + (회전/확대된) 심볼 한 개.
+    /// 후광 + (회전/확대된) 심볼 한 개. [shineSeed] 가 있으면(본체만 — 파티클 · 잔상은 없음) 지도 별 같은
+    /// 빛번짐(실루엣 테두리 빛) + 유리 결 빛([CrystalShine]) — Android `drawBubble(shineSeed)` 패리티.
     private func drawSymbol(_ context: GraphicsContext, idx: Int, color: Color, pos: CGPoint,
-                            scale: CGFloat, rot: CGFloat, glow: CGFloat, alpha: CGFloat) {
+                            scale: CGFloat, rot: CGFloat, glow: CGFloat, alpha: CGFloat, shineSeed: Int? = nil) {
         let r = rad * scale
         let glowAlpha = glow >= 0 ? glow : min(0.34 * scale, 0.62)
         let glowR = r * 2.6
@@ -550,12 +551,31 @@ final class FloatingEngine: ObservableObject {
                                   center: pos, startRadius: 0, endRadius: glowR)
         )
         guard let sym = context.resolveSymbol(id: idx) else { return }
+        let side = min(sym.size.width, sym.size.height)
         var ctx = context
         ctx.translateBy(x: pos.x, y: pos.y)
         ctx.rotate(by: .degrees(Double(rot)))
         ctx.scaleBy(x: scale, y: scale)
         ctx.opacity = Double(alpha)
+        if shineSeed != nil {
+            ctx.addFilter(.shadow(color: color.opacity(CrystalShine.glowOpacity), radius: side * CrystalShine.glowRadius))
+        }
         ctx.draw(sym, at: .zero, anchor: .center)
+        guard let seed = shineSeed else { return }
+        // 유리 결 빛 — 빛은 화면 기준 왼쪽 위에서(아이콘이 돌아도). 실루엣은 같은 회전 · 확대로 그린 심볼.
+        let q = CrystalShine.sheenAt(CrystalShine.now(), seed: seed &* 7919 &+ 13)
+        guard q >= 0 else { return }
+        let body = side * scale
+        CrystalShine.drawSheen(
+            in: context, q: q,
+            body: CGRect(x: pos.x - body / 2, y: pos.y - body / 2, width: body, height: body),
+            alpha: Double(alpha)
+        ) { m in
+            m.translateBy(x: pos.x, y: pos.y)
+            m.rotate(by: .degrees(Double(rot)))
+            m.scaleBy(x: scale, y: scale)
+            m.draw(sym, at: .zero, anchor: .center)
+        }
     }
 
     /// 히든 아이콘 주변을 도는 스파클 오라(궤도 + 반짝임 + 흰 하이라이트). 떠 있을 때도 화려하게.

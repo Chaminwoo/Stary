@@ -112,6 +112,7 @@ private struct FloatingStar: View {
             Image(uiImage: StarCrystal.image(type: type, colorIndex: colorIndex, size: 42))
                 .resizable()
                 .frame(width: 42, height: 42)
+                .crystalShine(.star(type), color: StarStyle.color(colorIndex), side: 42)
                 .scaleEffect(CGFloat(pulse))
                 .offset(y: CGFloat(sin(phase) * 5))
                 .opacity(0.92)
