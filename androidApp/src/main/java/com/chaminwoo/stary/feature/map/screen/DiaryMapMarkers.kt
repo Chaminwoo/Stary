@@ -102,16 +102,23 @@ internal const val CONSTELLATION_SOURCE = "constellation-lines"
 internal const val CONSTELLATION_LAYER = "constellation-layer"
 internal const val CONSTELLATION_GLOW_LAYER = "constellation-glow-layer"
 internal const val CONSTELLATION_HALO_LAYER = "constellation-halo-layer"
-// 도로 위를 흐르는 빛(지도 시안 ground.js 의 flow) — 금빛은 앞으로, 장밋빛은 거꾸로 대시 위상을 흘린다.
-// ⚠️ dash/gap 값(선 두께 배수)은 maplibre_style.json 의 line-dasharray([5, 50])와 일치해야 한다. iOS `StyleFx.roadGlint*` 와 같은 값.
-internal const val ROAD_GLINT_LAYER = "road-glint"
-internal const val ROAD_GLINT_ROSE_LAYER = "road-glint-rose"
-internal const val ROAD_GLINT_DASH = 5f
-internal const val ROAD_GLINT_GAP = 50f
-internal const val ROAD_GLINT_SPEED = 2.4f // 초당 위상 이동(선 두께 배수) — 줌 15 에서 약 8px/초(시안 9~18 m/s)
-// 위상 양자화 단계(대시 아틀라스 캐시 재사용 — 두 레이어가 같은 단계 집합을 쓴다). 단계폭 55/200 = 0.275(줌 15 에서 약 0.9px).
-// ⚠️ 흐름 레이어는 line-cap butt 여야 한다(둥근 끝 대시는 아틀라스를 15줄씩 먹어 200 단계를 못 담는다).
-internal const val ROAD_GLINT_STEPS = 200
+// 길 위를 흐르는 빛(지도 시안 ground.js 의 FS_FLOW) — 머리가 빛나는 작은 혜성이 큰길을 따라 가다 사라진다.
+// 혜성은 maplibre_style.json 의 심볼 레이어(symbol-placement line)가 길마다 일정 간격으로 놓고,
+// 루프가 icon-offset(길 방향 이동) · icon-opacity(sin 페이드)를 그룹별로 흘린다. 금빛은 앞으로, 장밋빛은 거꾸로.
+// ⚠️ 레이어 id 는 gen_style.py FLOW_GROUPS(간격은 거기) · iOS `StyleFx.flowGroups` 와 같아야 한다.
+internal class FlowGroup(val layerId: String, val rose: Boolean, val period: Float, val phase: Float)
+internal val FLOW_GROUPS = listOf(
+    FlowGroup("flow-gold-0", false, 9f, 0f),
+    FlowGroup("flow-gold-1", false, 11f, 0.45f),
+    FlowGroup("flow-rose-0", true, 10f, 0.2f),
+    FlowGroup("flow-rose-1", true, 12f, 0.7f),
+)
+internal const val FLOW_GOLD_ICON = "flow-gold"
+internal const val FLOW_ROSE_ICON = "flow-rose"
+/** 혜성 그림 크기(dp, icon-size 1 = 줌 15) · 한 번에 가는 거리(dp). 시안: 꼬리 16~30m, 속도 9~18m/s(줌 15 ≈ 5~10dp/초). */
+internal const val FLOW_SPRITE_W_DP = 26f
+internal const val FLOW_SPRITE_H_DP = 10f
+internal const val FLOW_TRAVEL_DP = 70f
 internal const val CONSTELLATION_HALO_OPACITY = 0.18f
 internal const val CONSTELLATION_GLOW_OPACITY = 0.42f
 internal const val CONSTELLATION_LINE_OPACITY = 0.95f
@@ -590,6 +597,11 @@ internal fun diaryFeature(d: Diary, lng: Double, lat: Double, near: Boolean, alp
         addStringProperty("id", d.id)
         addBooleanProperty("near", near)
         addNumberProperty("phaseGroup", kotlin.math.abs(d.id.hashCode()) % PHASE_GROUPS)
+        // 유리 결 빛(sheen) — 별마다 다른 때 · 다른 빠르기로 지나가게 하는 값(id 해시, 0..1)
+        val hh = (d.id.hashCode().toLong() and 0xFFFFFFFFL)
+        addNumberProperty("starType", StarStyle.safeType(d.starType))
+        addNumberProperty("sheenPh", (hh % 1000L) / 1000f)
+        addNumberProperty("sheenRate", 1f / (SHEEN_PERIOD_MIN + (hh / 1000L % 1000L) / 1000f * SHEEN_PERIOD_SPREAD))
         addNumberProperty("sizeMult", sizeMult)
         addStringProperty("auraColor", starColorHex(colorIdx))
         addBooleanProperty("fresh", System.currentTimeMillis() - d.createdAt <= FRESH_WINDOW_MS)
@@ -726,8 +738,8 @@ internal fun sparkleStarBitmap(type: Int, colorIdx: Int): Bitmap {
 internal const val SPARKLE_SIZE_POW = 0.8f
 
 /** 스파클 iconSize — 줌 11 이하 완전 숨김, sizeMult^[SPARKLE_SIZE_POW] 로 큰 별 곁일수록 커진다. */
-internal fun sparkleSizeExpression(set: Int): Expression {
-    val base = sparkleSizeBase(set)
+internal fun sparkleSizeExpression(set: Int, mul: Float = 1f): Expression {
+    val base = sparkleSizeBase(set) * mul
     fun sized(zoomMult: Float): Expression = Expression.product(
         Expression.literal(base * zoomMult),
         Expression.pow(Expression.get("sizeMult"), Expression.literal(SPARKLE_SIZE_POW))
@@ -767,12 +779,12 @@ internal fun satelliteOrbitDp(sizeMult: Float): Float =
  * dp × density ÷ (해당 레이어 icon-size) 로 환산해야 기기 밀도와 무관하게 목표 dp 에 놓인다.
  */
 internal fun sparkleOffsetExpression(
-    set: Int, sizeZoomFactor: Float, density: Float, dpAt: (Float) -> Pair<Float, Float>,
+    set: Int, sizeZoomFactor: Float, density: Float, dpAt: (Float) -> Pair<Float, Float>, sizeMul: Float = 1f,
 ): Expression {
     fun offsetFor(tier: Float): Expression {
         val (dxDp, dyDp) = dpAt(tier)
         val spriteScale = (
-            sparkleSizeBase(set) * sizeZoomFactor *
+            sparkleSizeBase(set) * sizeMul * sizeZoomFactor *
                 Math.pow(tier.toDouble(), SPARKLE_SIZE_POW.toDouble()).toFloat()
             ).coerceAtLeast(0.0001f)
         val k = density / spriteScale
@@ -787,6 +799,111 @@ internal fun sparkleOffsetExpression(
         Expression.stop(3.1f, offsetFor(3.5f)),
         Expression.stop(4f, offsetFor(4.5f)),
         Expression.stop(5f, offsetFor(5.5f)),
+    )
+}
+
+/**
+ * 스파클 궤도 기울기(rad) — 지도 시안 sparks 의 tilt(±0.45): 납작한 타원 궤도를 세트 · 위상 그룹마다 조금씩 기울여
+ * 별 둘레를 비스듬히 돈다. 궤도 납작함([SPARKLE_ORBIT_FLAT])도 시안 값(0.42). iOS `MapSparkle.orbitTilt` 와 같은 값.
+ */
+internal fun sparkleOrbitTilt(set: Int, group: Int): Float =
+    (if (set == 0) 0.36f else -0.30f) + (group - 1.5f) * 0.12f
+internal const val SPARKLE_ORBIT_FLAT = 0.42f
+
+/** 궤도 위 앞쪽 정도(0 = 뒤 … 1 = 앞) — sin(각)이 -0.3..0.3 을 지날 때 부드럽게 넘어간다. iOS `MapSparkle.frontness` 와 같은 식. */
+internal fun sparkleFrontness(sinAng: Float): Float {
+    val x = ((sinAng + 0.3f) / 0.6f).coerceIn(0f, 1f)
+    return x * x * (3f - 2f * x)
+}
+
+/**
+ * 유리 결 빛(sheen) — 지도 시안 drawSheen: 흰 빛줄기 하나가 별 몸의 **왼쪽 위 → 오른쪽 아래**로 훑고 지나가고,
+ * 그 빛을 타고 작은 반짝이 하나가 건너간다. 시안(주기 7~11초, 지나가는 데 주기의 30%)보다 조금 빠르게:
+ * 주기 [SHEEN_PERIOD_MIN]~+[SHEEN_PERIOD_SPREAD] 초, 지나가는 시간은 주기의 [SHEEN_WINDOW].
+ * 별 레이어 바로 위의 심볼 레이어가 프레임 그림(sheen-t{모양}-{0..N})을 바꿔 끼운다 — 프레임 [SHEEN_FRAMES] 는 빈 그림.
+ * iOS `StarMarkerView` 의 sheen 과 같은 값.
+ */
+internal const val SHEEN_PERIOD_MIN = 5.5f
+internal const val SHEEN_PERIOD_SPREAD = 2.5f
+internal const val SHEEN_WINDOW = 0.26f
+internal const val SHEEN_FRAMES = 14
+internal const val SHEEN_SIDE_PX = 64
+internal const val SHEEN_OPACITY = 0.75f
+internal fun sheenLayerId(group: Int) = "diary-sheen-$group"
+internal fun sheenIconId(type: Int, frame: Int) = "sheen-t$type-$frame"
+
+/** 유리 결 빛 한 프레임 — 별 본체([starBitmap] 과 같은 78% 비율) 모양으로 오린 흰 사선 띠 + 띠를 타고 가는 굽은 반짝. */
+internal fun sheenBitmap(type: Int, frame: Int): Bitmap {
+    val side = SHEEN_SIDE_PX
+    val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+    if (frame >= SHEEN_FRAMES) return out // 빈 그림(지나가는 중이 아닐 때)
+    val cv = Canvas(out)
+    val q = (frame + 0.5f) / SHEEN_FRAMES // 0..1 진행
+    val starSize = side * 0.78f
+    val off = (side - starSize) / 2f
+    val body = android.graphics.Path(StarStyle.starPath(type, starSize)).apply { offset(off, off) }
+    // 시안: 128 캔버스에서 p = -46 + u*220, 띠 = (p-30,p-30)→(p+30,p+30) 의 흰색(가운데 0.95)
+    val p = (-46f + q * 220f) / 128f * side
+    val hw = 30f / 128f * side
+    cv.save()
+    cv.clipPath(body)
+    cv.drawRect(0f, 0f, side.toFloat(), side.toFloat(), Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = android.graphics.LinearGradient(
+            p - hw, p - hw, p + hw, p + hw,
+            intArrayOf(0x00FFFFFF, 0xF2FFFFFF.toInt(), 0x00FFFFFF), floatArrayOf(0f, 0.5f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+    })
+    cv.restore()
+    // 빛을 타고 건너가는 반짝(시안: 중심에서 (q-0.5)*0.62*크기, 반지름 0.17*크기*sin)
+    val e = sin(q * Math.PI.toFloat())
+    val c = side / 2f + (q - 0.5f) * 0.62f * starSize
+    val r = 0.17f * starSize * e
+    if (r > 0.5f) {
+        val k = r * 0.10f
+        val sp = android.graphics.Path().apply {
+            moveTo(c, c - r)
+            quadTo(c + k, c - k, c + r, c)
+            quadTo(c + k, c + k, c, c + r)
+            quadTo(c - k, c + k, c - r, c)
+            quadTo(c - k, c - k, c, c - r)
+            close()
+        }
+        cv.drawCircle(c, c, r * 0.9f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = android.graphics.RadialGradient(c, c, r * 0.9f, (((0.5f * e * 255).toInt()) shl 24) or 0xFFFFFF, 0x00FFFFFF,
+                android.graphics.Shader.TileMode.CLAMP)
+        })
+        cv.drawPath(sp, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = (((0.95f * e * 255).toInt()) shl 24) or 0xFFFFFF })
+    }
+    return out
+}
+
+/** 유리 결 빛 심볼의 icon-image — 별마다 (T·sheenRate + sheenPh) 주기 위상이 [SHEEN_WINDOW] 안일 때만 프레임 0..N-1, 아니면 빈 그림 N. */
+internal fun sheenImageExpression(tSec: Float): Expression {
+    val cyc = Expression.mod(
+        Expression.sum(Expression.product(Expression.literal(tSec), Expression.get("sheenRate")), Expression.get("sheenPh")),
+        Expression.literal(1f),
+    )
+    val frame = Expression.min(
+        Expression.floor(Expression.product(cyc, Expression.literal(SHEEN_FRAMES / SHEEN_WINDOW))),
+        Expression.literal(SHEEN_FRAMES),
+    )
+    return Expression.concat(
+        Expression.literal("sheen-t"), Expression.toString(Expression.get("starType")),
+        Expression.literal("-"), Expression.toString(frame),
+    )
+}
+
+/** 유리 결 빛 불투명도 — 지나가는 동안 sin 으로 차올랐다 사라진다(시안 globalAlpha = a·sin(uπ)). */
+internal fun sheenOpacityExpression(tSec: Float): Expression {
+    val cyc = Expression.mod(
+        Expression.sum(Expression.product(Expression.literal(tSec), Expression.get("sheenRate")), Expression.get("sheenPh")),
+        Expression.literal(1f),
+    )
+    val u = Expression.min(Expression.division(cyc, Expression.literal(SHEEN_WINDOW)), Expression.literal(1f))
+    return Expression.product(
+        Expression.literal(SHEEN_OPACITY), Expression.get("alpha"),
+        Expression.sin(Expression.product(u, Expression.literal(Math.PI.toFloat()))),
     )
 }
 
@@ -977,25 +1094,67 @@ internal fun particleOpacityExpression(twinkle: Float): Expression =
         Expression.stop(12f, twinkle),
     )
 
+/** 흐르는 빛 불투명도 — 시안 u_flowA 줌 곡선(12.8 → 0.35, 14 → 0.8, 16 → 1) × [a](그룹의 sin 페이드). */
+internal fun flowOpacityExpression(a: Float): Expression =
+    Expression.interpolate(
+        Expression.linear(), Expression.zoom(),
+        Expression.stop(12f, 0f),
+        Expression.stop(12.8f, 0.35f * a),
+        Expression.stop(14f, 0.8f * a),
+        Expression.stop(16f, a),
+    )
+
 /**
- * 도로 글린트 대시 배열 — 위상 [phase](0..[ROAD_GLINT_DASH]+[ROAD_GLINT_GAP]) 만큼 흘린 대시 패턴.
- * 위상을 **전체 주기(dash+gap)** 에 걸쳐 이동시키고, 배열 총합을 항상 한 주기로 맞춰 타일링이
- * 이음매 없이 반복되게 한다 — 위상이 한 바퀴 돌아 0 으로 되돌아가도 알갱이가 튀지 않고 연속으로 흐른다.
- * (기존 [0,q,dash,gap-q] 방식은 위상이 gap 구간만 이동해 되돌아갈 때 대시가 뒤로 점프했다.)
+ * 혜성 그림 — 시안 FS_FLOW: 꼬리에서 머리로 갈수록 밝아지는 가는 몸통(along²) + 넓은 번짐 + 머리의 둥근 빛 + 작은 굽은 반짝.
+ * 머리는 +x(이동 방향). 장밋빛([rose])은 거꾸로 흐르므로 좌우를 뒤집어 그린다. iOS `flowImage` 와 같은 그림.
  */
-internal fun roadGlintDashArray(phase: Float): Array<Float> {
-    val dash = ROAD_GLINT_DASH
-    val gap = ROAD_GLINT_GAP
-    val period = dash + gap
-    // u = 언시프트 패턴에서 라인 시작점이 놓이는 위치(0..period). phase 가 커질수록 알갱이가 앞으로 흐른다.
-    val u = ((period - (phase % period)) % period + period) % period
-    return if (u < dash) {
-        // 라인 시작이 대시(ON) 내부 — 남은 대시부터 그린다. 배열 합=period 라 타일 경계에서 ON 끼리 합쳐져 dash 복원.
-        arrayOf(dash - u, gap, u, 0f)
-    } else {
-        // 라인 시작이 갭(OFF) 내부 — 0 길이 ON 으로 시작해 남은 갭 → 대시 → 남은 갭.
-        arrayOf(0f, period - u, dash, u - dash)
+internal fun flowBitmap(density: Float, rose: Boolean): Bitmap {
+    val s = density
+    val w = (FLOW_SPRITE_W_DP * s).toInt()
+    val h = (FLOW_SPRITE_H_DP * s).toInt()
+    val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val cv = Canvas(out)
+    if (rose) cv.scale(-1f, 1f, w / 2f, h / 2f)
+    val (glowRgb, coreRgb) = if (rose) 0xFF8FA8 to 0xFFE2EA else 0xFFD694 to 0xFFF4DE
+    fun argb(rgb: Int, a: Float) = (((a.coerceIn(0f, 1f) * 255).toInt()) shl 24) or rgb
+    val cy = h / 2f
+    val tailX = 1.5f * s
+    val headX = w - 5.5f * s
+    fun along(rgb: Int, peak: Float) = android.graphics.LinearGradient(
+        tailX, cy, headX, cy,
+        intArrayOf(argb(rgb, 0f), argb(rgb, 0.06f * peak), argb(rgb, 0.25f * peak), argb(rgb, 0.56f * peak), argb(rgb, peak)),
+        floatArrayOf(0f, 0.25f, 0.5f, 0.75f, 1f), android.graphics.Shader.TileMode.CLAMP,
+    )
+    // 넓은 번짐
+    cv.drawLine(tailX, cy, headX, cy, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = along(glowRgb, 0.55f); strokeWidth = 4.2f * s; strokeCap = Paint.Cap.ROUND
+        maskFilter = android.graphics.BlurMaskFilter(1.6f * s, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    })
+    // 가는 몸통
+    cv.drawLine(tailX, cy, headX, cy, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = along(coreRgb, 1f); strokeWidth = 1.3f * s; strokeCap = Paint.Cap.ROUND
+    })
+    // 머리의 둥근 빛
+    val hr = 4.6f * s
+    cv.drawCircle(headX, cy, hr, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = android.graphics.RadialGradient(
+            headX, cy, hr,
+            intArrayOf(argb(coreRgb, 0.95f), argb(glowRgb, 0.5f), argb(glowRgb, 0.14f), argb(glowRgb, 0f)),
+            floatArrayOf(0f, 0.25f, 0.55f, 1f), android.graphics.Shader.TileMode.CLAMP,
+        )
+    })
+    // 작은 굽은 반짝(4갈래, 가운데로 오목)
+    val r = 3.4f * s
+    val sp = android.graphics.Path().apply {
+        moveTo(headX, cy - r * 0.7f)
+        quadTo(headX, cy, headX + r, cy)
+        quadTo(headX, cy, headX, cy + r * 0.7f)
+        quadTo(headX, cy, headX - r, cy)
+        quadTo(headX, cy, headX, cy - r * 0.7f)
+        close()
     }
+    cv.drawPath(sp, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = argb(0xFFFFFF, 0.85f) })
+    return out
 }
 
 /**

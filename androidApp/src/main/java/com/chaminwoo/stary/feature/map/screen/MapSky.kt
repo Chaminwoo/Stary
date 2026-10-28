@@ -20,8 +20,8 @@ import kotlin.math.sin
  *  - 땅 빛: 시안 바닥 셰이더의 (1) 먼 곳 보랏빛 반사(프레넬) (2) 화면을 비스듬히 가로지르는 넓은 빛띠 두 겹(아주 느리게 흐른다)
  *          (3) 한 곳에 모인 부드러운 반사광.
  *  - 비네트: 아래쪽 어둠 + 가장자리 둥근 어둠.
- * 2026-10-28 피드백: 하늘 띠 · 위쪽 안개 삭제, 확대(줌 13+)에서만 시안 느낌 — 줌을 빼면(11-) 예전 지도처럼
- * 땅 빛이 꺼지고 예전 비네트로 돌아간다. 그 사이는 [mapNearFactor] 로 부드럽게 섞는다(스타일 JSON 의 전환 구간과 같다).
+ * 2026-10-28 피드백: 하늘 띠 · 위쪽 안개 삭제. 땅 빛은 필터처럼 줌과 무관하게 유지, 비네트는 줌을 빼면(11-) 예전 비네트로
+ * [mapNearFactor] 를 따라 부드럽게 섞는다(스타일 JSON 의 전환 구간과 같다).
  * 시안은 화면 390×844 기준 px — 여기선 위치는 화면 비율로 쓴다.
  *
  * ⚠️ 지도(MapLibre)는 별도 GL 표면이라 이 오버레이의 BlendMode.Plus 는 지도와 더해지지 않는다(투명 창에 더해질 뿐).
@@ -60,14 +60,15 @@ private fun addLight(r: Float, g: Float, b: Float, k: Float): Color {
 // ── 땅 빛 ─────────────────────────────────────────────────────────────
 
 /**
- * 땅 빛. [k] 0..1(저줌 글로브 전환 · 줌을 뺀 예전 지도에선 0), [zoom] 카메라 줌, [t] 초.
- * 시안: near = 1 - smoothstep(0.7, 3.2, 픽셀 하나가 덮는 m) — 줌 15 에서 거의 1, 13 에서 0(멀리 볼수록 광택이 흐려진다).
+ * 땅 빛. [k] 0..1(저줌 글로브 전환에선 0), [t] 초.
+ * 2026-10-28 피드백: 줌에 따라 나타났다 사라지면 어색하다 → 필터처럼 **줌과 무관하게 같은 세기**로 유지한다
+ * (시안 줌 15 의 세기 — 시안 near 계수 = 1).
  */
-internal fun DrawScope.drawMapGroundLight(k: Float, zoom: Float, t: Float) {
+internal fun DrawScope.drawMapGroundLight(k: Float, t: Float) {
     if (k <= 0.01f) return
     val w = size.width
     val h = size.height
-    val near = 1f - smooth(0.7f, 3.2f, 2f.pow(15f - zoom))
+    val near = 1f // 필터처럼 줌과 무관(시안 줌 15 의 값)
 
     // (1) 먼 곳일수록 하늘빛(보랏빛)을 비춘다 — col += (0.07, 0.062, 0.19) · gl0² · 0.5
     val fres = Array(9) { i ->

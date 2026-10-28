@@ -440,6 +440,9 @@ fun DiaryMap(
 
                     // 별가루 파티클 — 생성 후 갱신 없음(반짝임은 레이어 opacity 만 루프에서 갱신).
                     style.addImage(PARTICLE_ICON_ID, particleBitmap())
+                    // 길 위를 흐르는 혜성 그림(스타일 JSON 의 flow-* 심볼 레이어가 쓴다)
+                    style.addImage(FLOW_GOLD_ICON, flowBitmap(screenDensity, rose = false))
+                    style.addImage(FLOW_ROSE_ICON, flowBitmap(screenDensity, rose = true))
                     style.addSource(
                         GeoJsonSource(STAR_PARTICLE_SOURCE, starParticleFeatures(start))
                     )
@@ -635,6 +638,16 @@ fun DiaryMap(
                             Expression.eq(Expression.get("phaseGroup"), Expression.literal(g))
                         )
                         style.addLayer(layer)
+                        // 유리 결 빛(sheen) — 별 바로 위에서 흰 빛줄기가 몸을 훑고 지나간다(프레임 · 불투명도는 루프가 갱신).
+                        style.addLayer(
+                            SymbolLayer(sheenLayerId(g), DIARY_SOURCE).withProperties(
+                                PropertyFactory.iconImage(sheenImageExpression(0f)),
+                                PropertyFactory.iconSize(starSizeExpression(1f, MARKER_SIDE_PX.toFloat() / SHEEN_SIDE_PX)),
+                                PropertyFactory.iconOpacity(0f),
+                                PropertyFactory.iconAllowOverlap(true),
+                                PropertyFactory.iconIgnorePlacement(true),
+                            ).also { it.setFilter(Expression.eq(Expression.get("phaseGroup"), Expression.literal(g))) }
+                        )
                     }
 
                     // 별 곁 마이크로 스파클 — 크기에 따라 1개 → 2개 → +위성(궤도/부유/게이트는 루프에서 갱신).
@@ -760,11 +773,9 @@ fun DiaryMap(
                 )
             }
             // 1) 땅 빛(먼 곳 보랏빛 · 비스듬한 빛띠 · 반사광) → 비네트 (지도 시안, MapSky.kt).
-            //    확대(줌 13+)에서만 켜지고 줌을 빼면(11-) 예전 지도처럼 꺼진다. 저줌 글로브 전환 땐 헤이즈에 자리를 내준다.
-            val zoomNow = skyZoom.floatValue
-            val nearK = mapNearFactor(zoomNow)
-            drawMapGroundLight(k = nearK * (1f - hazeAlpha.value.coerceIn(0f, 1f)), zoom = zoomNow, t = skyT.floatValue)
-            drawMapVignette(near = nearK)
+            //    땅 빛은 필터처럼 줌과 무관하게 유지(저줌 글로브 전환 땐 헤이즈에 자리를 내준다), 비네트만 줌 11→13 에서 예전↔시안을 섞는다.
+            drawMapGroundLight(k = 1f - hazeAlpha.value.coerceIn(0f, 1f), t = skyT.floatValue)
+            drawMapVignette(near = mapNearFactor(skyZoom.floatValue))
             // 2) 글로브 근접 대기 헤이즈: 줌아웃할수록 파란 대기가 차올라 글로브 전환과 이어진다
             val a = hazeAlpha.value
             if (a > 0f) {
@@ -1031,6 +1042,10 @@ fun DiaryMap(
                 val orbitIconId = orbitStarIconId(type, color)
                 if (addedIcons.add(orbitIconId)) {
                     style.addImage(orbitIconId, orbitStarBitmap(type, color))
+                }
+                // 유리 결 빛 프레임 — 모양별로 한 번(빈 그림 포함 N+1 장)
+                if (addedIcons.add("sheen-t$type")) {
+                    for (f in 0..SHEEN_FRAMES) style.addImage(sheenIconId(type, f), sheenBitmap(type, f))
                 }
             }
 
@@ -1431,9 +1446,11 @@ fun DiaryMap(
         val sparkleLayers = Array(SPARKLE_SETS) { s -> Array(PHASE_GROUPS) { g -> style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer } }
         val orbitLayers = Array(MAX_ORBIT_STARS) { i -> Array(PHASE_GROUPS) { g -> style.getLayer(orbitLayerId(i, g)) as? SymbolLayer } }
         val particleLayers = Array(PHASE_GROUPS) { style.getLayer(particleLayerId(it)) as? SymbolLayer }
-        val roadGlintLayer = style.getLayer(ROAD_GLINT_LAYER) as? LineLayer
-        val roadGlintRoseLayer = style.getLayer(ROAD_GLINT_ROSE_LAYER) as? LineLayer
-        // 도로 글린트 불투명도는 maplibre_style.json 의 줌 보간 그대로(흐름이 이음매 없이 이어지므로 페이드 불필요).
+        val sheenLayers = Array(PHASE_GROUPS) { style.getLayer(sheenLayerId(it)) as? SymbolLayer }
+        val sheenSizeCache = HashMap<Int, Expression>()
+        val sparkleSizeCache = HashMap<Int, Expression>()
+        val flowLayers = FLOW_GROUPS.map { style.getLayer(it.layerId) as? SymbolLayer }
+        val flowOpExprCache = HashMap<Int, Expression>()
         // 값이 연속 변하는 표현식은 양자화해 캐시(눈에 안 보이는 1/64 단위) — 매 틱 트리 재생성 방지.
         val sizeExprCache = HashMap<Int, Expression>()
         val groundExprCache = HashMap<Int, Expression>()
@@ -1441,7 +1458,6 @@ fun DiaryMap(
         val particleOpExprCache = HashMap<Int, Expression>()
         fun quant(v: Float) = (v * 64f).toInt()
         var t = 0f
-        var lastDashOffset = -1f
         while (isActive) {
             // 앱이 후면이면 스타일 갱신을 멈춰 배터리를 아낀다(전면 복귀 시 자동 재개).
             if (!com.chaminwoo.stary.core.util.AppForeground.isForeground) {
@@ -1475,6 +1491,17 @@ fun DiaryMap(
                     PropertyFactory.iconSize(
                         sizeExprCache.getOrPut(quant(pulse)) { starSizeExpression(quant(pulse) / 64f) }
                     ),
+                )
+                // 유리 결 빛 — 별과 같은 크기(맥동 포함) · 같은 부유, 프레임은 별마다의 위상으로 고른다.
+                sheenLayers[g]?.setProperties(
+                    PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
+                    PropertyFactory.iconSize(
+                        sheenSizeCache.getOrPut(quant(pulse)) {
+                            starSizeExpression(quant(pulse) / 64f, MARKER_SIDE_PX.toFloat() / SHEEN_SIDE_PX)
+                        }
+                    ),
+                    PropertyFactory.iconImage(sheenImageExpression(t % 3600f)),
+                    PropertyFactory.iconOpacity(sheenOpacityExpression(t % 3600f)),
                 )
                 // 후광도 같은 float 적용 → 별과 함께 떠오른다(circle-translate=paint, 이동 중에도).
                 auraLayers[g]?.setProperties(
@@ -1538,10 +1565,20 @@ fun DiaryMap(
                     // (줌 인 최대(sparkleZoom=1)에서는 ×1.0 이라 기존의 '자연스러운' 근접 배치를 그대로 유지.)
                     val orbitZoomScale = 0.4f + 0.6f * sparkleZoom
                     if (sparkleZoom > 0.01f) { // 숨김 줌에서는 갱신 자체를 건너뛴다
+                        // 궤도 위치(dp 단위 비율) — 시안 sparks: 납작한 타원(SPARKLE_ORBIT_FLAT)을 세트 · 그룹마다 기울여(tilt) 돈다.
+                        // 앞쪽(아래 반)에 올 땐 크고 밝게, 뒤쪽(위 반)에선 작고 흐리게 — 별 둘레를 입체로 도는 느낌.
+                        // 세 번째 값 = 앞쪽 정도(0 뒤 … 1 앞) — 옆을 지날 때 툭 바뀌지 않게 sin 으로 부드럽게 넘긴다(iOS 같은 식).
+                        fun orbitAt(set: Int, ang: Float): Triple<Float, Float, Float> {
+                            val tilt = sparkleOrbitTilt(set, g)
+                            val ox = kotlin.math.cos(ang)
+                            val oy = sin(ang) * SPARKLE_ORBIT_FLAT
+                            val ct = kotlin.math.cos(tilt)
+                            val st = sin(tilt)
+                            return Triple(ox * ct - oy * st, ox * st + oy * ct, sparkleFrontness(sin(ang)))
+                        }
                         // 부모(set 1) 궤도 각 — 위성(set 2)이 이 위치를 중심으로 주전원 공전한다.
                         val parentAng = t * -0.8f + phase + 1.9f
-                        val parentUx = kotlin.math.cos(parentAng)
-                        val parentUy = sin(parentAng) * 0.55f
+                        val (parentUx, parentUy, _) = orbitAt(1, parentAng)
                         val satAng = t * 3.4f + phase
                         val satUx = kotlin.math.cos(satAng)
                         val satUy = sin(satAng) * 0.55f
@@ -1551,7 +1588,13 @@ fun DiaryMap(
                             // 평소엔 작은 알갱이(0.26), 주기마다 한 번 번쩍(sparkleFlash) — 수정구 시안의 굽은 반짝임.
                             val per = sparkleFlashPeriod(s)
                             val u = (((t / per) + g * 0.25f + s * 0.37f) % 1f)
-                            val op = 0.26f + 0.74f * sparkleFlash(u)
+                            val env = sparkleFlash(u)
+                            val ang = t * (if (s == 0) 1.1f else -0.8f) + phase + s * 1.9f
+                            val (ux, uy, front) = if (s == SPARKLE_SATELLITE_SET) Triple(0f, 0f, 1f) else orbitAt(s, ang)
+                            val depth = 0.6f + 0.4f * front
+                            val op = (0.26f + 0.74f * env) * depth
+                            // 크기도 살짝씩 — 번쩍일 때 커지고(시안 .16+.2·env), 뒤쪽에선 작아진다. 1/16 단위로 양자화(표현식 캐시).
+                            val mul = ((0.86f + 0.34f * env) * (0.8f + 0.2f * front) * 16f).toInt() / 16f
                             // 세트별 목표 오프셋(dp) — 위성은 부모 파티클 위치 + 주전원(그 파티클을 공전).
                             val dpAt: (Float) -> Pair<Float, Float> = when (s) {
                                 SPARKLE_SATELLITE_SET -> { tier ->
@@ -1560,15 +1603,17 @@ fun DiaryMap(
                                     (parentUx * pr + satUx * sr) to (parentUy * pr + satUy * sr)
                                 }
                                 else -> { tier ->
-                                    val ang = t * (if (s == 0) 1.1f else -0.8f) + phase + s * 1.9f
                                     val r = orbitTargetDp(s, tier) * orbitZoomScale
-                                    (kotlin.math.cos(ang) * r) to (sin(ang) * 0.55f * r)
+                                    (ux * r) to (uy * r)
                                 }
                             }
                             sl.setProperties(
+                                PropertyFactory.iconSize(sparkleSizeCache.getOrPut(s * 1000 + (mul * 16f).toInt()) { sparkleSizeExpression(s, mul) }),
                                 PropertyFactory.iconOffset(
-                                    sparkleOffsetExpression(s, sparkleZoom, screenDensity, dpAt)
+                                    sparkleOffsetExpression(s, sparkleZoom, screenDensity, dpAt, mul)
                                 ),
+                                // 반짝이 자체도 천천히 돈다(번쩍일 때 조금 더 돌아간다 — 시안 sparkleR 의 회전).
+                                PropertyFactory.iconRotate((t * 24f + env * 70f + g * 37f + s * 53f) % 360f),
                                 PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
                                 PropertyFactory.iconOpacity(
                                     sparkleOpExprCache.getOrPut(s * 100_000 + quant(op)) {
@@ -1608,16 +1653,17 @@ fun DiaryMap(
                     )
                 )
             }
-            // 도로 글린트: 대시 위상을 전체 주기에 걸쳐 흘려 빛 알갱이가 도로를 따라 **끊김 없이** 흐른다
-            // (line-dasharray=paint, 이동 중에도 계속). 위상을 ROAD_GLINT_STEPS 단계로 양자화해 대시 아틀라스 캐시 재사용.
-            val period = ROAD_GLINT_DASH + ROAD_GLINT_GAP
-            val rawPhase = (t * ROAD_GLINT_SPEED) % period
-            val p = (rawPhase / period * ROAD_GLINT_STEPS).toInt().toFloat() / ROAD_GLINT_STEPS * period
-            if (p != lastDashOffset) {
-                lastDashOffset = p
-                roadGlintLayer?.setProperties(PropertyFactory.lineDasharray(roadGlintDashArray(p)))
-                // 장밋빛은 같은 단계 집합을 거꾸로 — 반대 방향으로 흐른다(아틀라스 캐시 공유)
-                roadGlintRoseLayer?.setProperties(PropertyFactory.lineDasharray(roadGlintDashArray(period - p)))
+            // 길 위를 흐르는 혜성: 그룹마다 길 방향으로 FLOW_TRAVEL_DP 만큼 가며 sin 으로 나타났다 사라진다
+            // (icon-offset 은 layout 이지만 allowOverlap+ignorePlacement 라 재배치가 싸다 — 이동 중에도 계속).
+            for ((i, fg) in FLOW_GROUPS.withIndex()) {
+                val layer = flowLayers[i] ?: continue
+                val u = ((t / fg.period) + fg.phase) % 1f
+                val x = (u - 0.5f) * FLOW_TRAVEL_DP * (if (fg.rose) -1f else 1f)
+                val q = (sin(Math.PI.toFloat() * u) * 32f).toInt()
+                layer.setProperties(
+                    PropertyFactory.iconOffset(arrayOf(x, 0f)),
+                    PropertyFactory.iconOpacity(flowOpExprCache.getOrPut(q) { flowOpacityExpression(q / 32f) }),
+                )
             }
             delay(50)
         }

@@ -1231,8 +1231,8 @@
       "minzoom": 11.0
     },
     {
-      "id": "road-glint",
-      "type": "line",
+      "id": "flow-gold-0",
+      "type": "symbol",
       "source": "openmaptiles",
       "source-layer": "transportation",
       "filter": [
@@ -1245,67 +1245,41 @@
       ],
       "minzoom": 12,
       "layout": {
-        "line-cap": "butt",
-        "line-join": "round"
-      },
-      "paint": {
-        "line-color": "#FFD694",
-        "line-width": [
+        "symbol-placement": "line",
+        "symbol-spacing": 200,
+        "icon-image": "flow-gold",
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        "icon-rotation-alignment": "map",
+        "icon-pitch-alignment": "map",
+        "icon-size": [
           "interpolate",
           [
-            "linear"
-          ],
-          [
-            "zoom"
-          ],
-          13,
-          2.2,
-          15,
-          3.2,
-          17,
-          5.0
-        ],
-        "line-blur": [
-          "interpolate",
-          [
-            "linear"
-          ],
-          [
-            "zoom"
-          ],
-          13,
-          1.1,
-          15,
-          1.6,
-          17,
-          2.5
-        ],
-        "line-opacity": [
-          "interpolate",
-          [
-            "linear"
+            "exponential",
+            1.6
           ],
           [
             "zoom"
           ],
           12,
-          0,
-          13,
-          0.35,
-          14,
-          0.8,
-          16,
-          1
+          0.5,
+          15,
+          1.0,
+          18,
+          2.0
         ],
-        "line-dasharray": [
-          5,
-          50
+        "icon-offset": [
+          0,
+          0
         ]
+      },
+      "paint": {
+        "icon-opacity": 0
       }
     },
     {
-      "id": "road-glint-rose",
-      "type": "line",
+      "id": "flow-gold-1",
+      "type": "symbol",
       "source": "openmaptiles",
       "source-layer": "transportation",
       "filter": [
@@ -1318,62 +1292,130 @@
       ],
       "minzoom": 12,
       "layout": {
-        "line-cap": "butt",
-        "line-join": "round"
-      },
-      "paint": {
-        "line-color": "#FF8FA8",
-        "line-width": [
+        "symbol-placement": "line",
+        "symbol-spacing": 260,
+        "icon-image": "flow-gold",
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        "icon-rotation-alignment": "map",
+        "icon-pitch-alignment": "map",
+        "icon-size": [
           "interpolate",
           [
-            "linear"
-          ],
-          [
-            "zoom"
-          ],
-          13,
-          2.2,
-          15,
-          3.2,
-          17,
-          5.0
-        ],
-        "line-blur": [
-          "interpolate",
-          [
-            "linear"
-          ],
-          [
-            "zoom"
-          ],
-          13,
-          1.1,
-          15,
-          1.6,
-          17,
-          2.5
-        ],
-        "line-opacity": [
-          "interpolate",
-          [
-            "linear"
+            "exponential",
+            1.6
           ],
           [
             "zoom"
           ],
           12,
-          0,
-          13,
-          0.35,
-          14,
-          0.8,
-          16,
-          1
+          0.5,
+          15,
+          1.0,
+          18,
+          2.0
         ],
-        "line-dasharray": [
-          5,
-          50
+        "icon-offset": [
+          0,
+          0
         ]
+      },
+      "paint": {
+        "icon-opacity": 0
+      }
+    },
+    {
+      "id": "flow-rose-0",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": [
+        "in",
+        "class",
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary"
+      ],
+      "minzoom": 12,
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 230,
+        "icon-image": "flow-rose",
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        "icon-rotation-alignment": "map",
+        "icon-pitch-alignment": "map",
+        "icon-size": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.5,
+          15,
+          1.0,
+          18,
+          2.0
+        ],
+        "icon-offset": [
+          0,
+          0
+        ]
+      },
+      "paint": {
+        "icon-opacity": 0
+      }
+    },
+    {
+      "id": "flow-rose-1",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": [
+        "in",
+        "class",
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary"
+      ],
+      "minzoom": 12,
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 300,
+        "icon-image": "flow-rose",
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        "icon-rotation-alignment": "map",
+        "icon-pitch-alignment": "map",
+        "icon-size": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.5,
+          15,
+          1.0,
+          18,
+          2.0
+        ],
+        "icon-offset": [
+          0,
+          0
+        ]
+      },
+      "paint": {
+        "icon-opacity": 0
       }
     }
   ]

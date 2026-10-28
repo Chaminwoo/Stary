@@ -408,8 +408,6 @@ struct MapLibreView: UIViewRepresentable {
 
         var twinkleTimer: Timer?
         var twinkleT: Double = 0
-        /// 길 위를 흐르는 빛의 마지막 대시 위상(같으면 갱신 생략). 스타일을 다시 올리면 -1 로 비운다.
-        var lastGlintPhase: Double = -1
 
         /// 별 고리 구성 키(떠 있는 별이 두른 고리 + 아이템 수) — 바뀌면 후광 소스를 다시 만든다.
         /// "|" 로 시작 = 고리를 두른 별이 없음(트윙클 루프가 고리 애니메이션을 건너뛴다).
