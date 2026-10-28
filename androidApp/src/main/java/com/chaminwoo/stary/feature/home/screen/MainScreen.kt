@@ -108,6 +108,7 @@ import com.chaminwoo.stary.feature.diary.NotificationViewModel
 import com.chaminwoo.stary.navigation.NavGraph
 import com.chaminwoo.stary.navigation.NavRoute
 import com.chaminwoo.stary.navigation.navigateToDetail
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -219,8 +220,20 @@ fun MainScreen(
         mutableStateOf(false)
     }
 
+    // 딥링크 이동은 앱에 들어온 뒤(로그인 화면이 닫힘) + NavHost 가 그래프를 붙인 뒤에만 한다.
+    // 비로그인으로 켜면 NavHost 는 contentReady(인트로 영상 끝/로그인)까지 없어서, 그 전에 navigate 하면
+    // "You must call setGraph() before calling getGraph()" 로 앱이 꺼졌다(1.6.1 Play 크래시 — 비로그인 상태에서 일일 알림 탭).
+    // 예전엔 알림 탭이 로그인 화면을 강제로 닫아 약관·로그인도 건너뛰었다 → 이제 로그인/둘러보기로 들어올 때까지 미룬다
+    // (iOS 는 MainTabView 가 뜬 뒤에야 PushRouter 요청을 받아 원래 이렇게 동작). 미루는 동안 키가 바뀌지 않게 소비는 기다린 뒤에.
+    suspend fun awaitNavReady() {
+        androidx.compose.runtime.snapshotFlow { showLogin }.first { !it }
+        navController.currentBackStackEntryFlow.first()
+    }
+
     // 푸시 알림 탭 딥링크 — DeepLinkState 관찰(콜드 스타트/앱 살아있을 때 모두). 소비 후 해당 화면으로 이동.
     androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.diaryId) {
+        if (com.chaminwoo.stary.core.util.DeepLinkState.diaryId == null) return@LaunchedEffect
+        awaitNavReady()
         com.chaminwoo.stary.core.util.DeepLinkState.consumeDiary()?.let {
             navController.navigateToDetail(it)
         }
@@ -238,22 +251,24 @@ fun MainScreen(
         }
     }
     androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.chatFriendId) {
+        if (com.chaminwoo.stary.core.util.DeepLinkState.chatFriendId == null) return@LaunchedEffect
+        awaitNavReady()
         com.chaminwoo.stary.core.util.DeepLinkState.consumeChat()?.let { (fid, fname) ->
-            showLogin = false
             navController.navigate(NavRoute.Chat(friendId = fid, friendName = fname))
         }
     }
     // 친구 요청 푸시 탭 → 친구 화면(받은 요청). nonce 가 올라갈 때만 이동(최초 0 은 무시).
     androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.friendsNonce) {
         if (com.chaminwoo.stary.core.util.DeepLinkState.friendsNonce > 0) {
-            showLogin = false
+            awaitNavReady()
             navController.navigate(NavRoute.Friends)
         }
     }
     // 일일 알림 탭 → 업로드 화면. nonce 가 올라갈 때만 이동(최초 0 은 무시).
+    // 일일 알림은 로그인과 상관없이 울려서, 비로그인 콜드 스타트에서 이 경로가 크래시를 냈다(awaitNavReady 주석).
     androidx.compose.runtime.LaunchedEffect(com.chaminwoo.stary.core.util.DeepLinkState.uploadNonce) {
         if (com.chaminwoo.stary.core.util.DeepLinkState.uploadNonce > 0) {
-            showLogin = false
+            awaitNavReady()
             navController.navigate(NavRoute.Upload)
         }
     }

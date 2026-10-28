@@ -218,7 +218,7 @@ extension MapLibreView.Coordinator {
         ground.circleRadius = bodyExpr(StyleFx.groundLightK)
         ground.circleOpacity = NSExpression(forConstantValue: StyleFx.groundLightOpacity)
         ground.circleBlur = NSExpression(forConstantValue: 1.0)
-        ground.circlePitchAlignment = NSExpression(forConstantValue: NSValue(mglCirclePitchAlignment: .map))
+        ground.circlePitchAlignment = NSExpression(forConstantValue: NSValue(mlnCirclePitchAlignment: .map))
         style.addLayer(ground)
         let aura = MLNCircleStyleLayer(identifier: StyleFx.auraLayerID, source: auraSource)
         aura.circleColor = auraColorExpr
