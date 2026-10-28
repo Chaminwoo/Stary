@@ -77,20 +77,6 @@ private enum StyleFx {
         (2, 2.0, 0.8), (6, 3.0, 1.0), (10, 4.5, 1.4), (13, 6.0, 1.8), (15, 7.0, 2.0),
     ]
 
-    /// 내 위치 = 민트 **크리스탈** + 땅에 깔린 **유리 고리**(2026-10-28 "하나의 우주" 지도 개편) — Android `DiaryMapMarkers.kt` 의 CURRENT_* / MY_* 상수와 같은 값.
-    ///  · 고리: 비트맵(원판·테두리·눈금·밝은 호 3개)이 icon-pitch-alignment=map 으로 기울기에서 타원으로 눕고, 호가 도는 건 루프의 iconRotation 갱신뿐.
-    ///  · 파장: stroke 만 있는 원(circle-pitch-alignment=map)이 주기마다 하나 퍼진다.
-    ///  · 크기: 줌 15 에서 고리 지름 myRingDp / 크리스탈 높이 myCrystalDp, 줌을 풀면 myLocationStops 반지름 비율로 줄어든다.
-    static let myRingLayerID = "current-ring-layer"
-    static let myWaveLayerID = "current-wave-layer"
-    static let myRingImageID = "current-ring-icon"
-    static let myCrystalImageID = "current-crystal-icon"
-    static let myRingDp: CGFloat = 76
-    static let myCrystalDp: CGFloat = 30
-    static let myRingSpinDeg = 14.0
-    static let myWavePeriod = 3.4
-    static let myWaveSpread = 1.0
-
     static let mint = UIColor(red: 0x6E / 255.0, green: 0xE7 / 255.0, blue: 0xB7 / 255.0, alpha: 1)
     static let brightLine = UIColor(red: 0xE6 / 255.0, green: 1.0, blue: 0xF4 / 255.0, alpha: 1)
 }
@@ -261,37 +247,11 @@ extension MapLibreView.Coordinator {
             }
             return NSExpression(mglJSONObject: json)
         }
-        // 줌별 배율(반지름 비율, 줌 15 = 1) 표현식 — Android myLocationScaleExpression.
-        func scaleExpr(_ base: Double) -> NSExpression {
-            stopsExpr { $0.radius / 7.0 * base }
-        }
-        // 땅에 깔린 유리 고리 → 퍼지는 파장 → 위에 뜬 크리스탈 (Android 와 같은 순서).
-        style.setImage(Self.myRingImage(), forName: StyleFx.myRingImageID)
-        style.setImage(Self.myCrystalImage(), forName: StyleFx.myCrystalImageID)
-        let ring = MLNSymbolStyleLayer(identifier: StyleFx.myRingLayerID, source: meSource)
-        ring.iconImageName = NSExpression(forConstantValue: StyleFx.myRingImageID)
-        ring.iconScale = scaleExpr(1)
-        ring.iconPitchAlignment = NSExpression(forConstantValue: NSValue(mglIconPitchAlignment: .map))
-        ring.iconRotationAlignment = NSExpression(forConstantValue: NSValue(mglIconRotationAlignment: .map))
-        ring.iconAllowsOverlap = NSExpression(forConstantValue: true)
-        ring.iconIgnoresPlacement = NSExpression(forConstantValue: true)
-        style.addLayer(ring)
-        let wave = MLNCircleStyleLayer(identifier: StyleFx.myWaveLayerID, source: meSource)
-        wave.circleRadius = Self.myWaveRadius(0.2)
-        wave.circleColor = NSExpression(forConstantValue: UIColor.clear)
-        wave.circleOpacity = NSExpression(forConstantValue: 0)
-        wave.circleStrokeColor = NSExpression(forConstantValue: UIColor(red: 0x9F / 255.0, green: 0xF5 / 255.0, blue: 0xD4 / 255.0, alpha: 1))
-        wave.circleStrokeWidth = NSExpression(forConstantValue: 1.3)
-        wave.circleStrokeOpacity = NSExpression(forConstantValue: 0)
-        wave.circlePitchAlignment = NSExpression(forConstantValue: NSValue(mglCirclePitchAlignment: .map))
-        style.addLayer(wave)
-        let me = MLNSymbolStyleLayer(identifier: StyleFx.myLocationLayerID, source: meSource)
-        me.iconImageName = NSExpression(forConstantValue: StyleFx.myCrystalImageID)
-        me.iconScale = scaleExpr(1)
-        me.iconAnchor = NSExpression(forConstantValue: NSValue(mglIconAnchor: .bottom))
-        me.iconOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: 0, dy: -4)))
-        me.iconAllowsOverlap = NSExpression(forConstantValue: true)
-        me.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+        let me = MLNCircleStyleLayer(identifier: StyleFx.myLocationLayerID, source: meSource)
+        me.circleRadius = stopsExpr { $0.radius }
+        me.circleColor = NSExpression(forConstantValue: StyleFx.mint)
+        me.circleStrokeWidth = stopsExpr { $0.stroke }
+        me.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
         style.addLayer(me)
         myLocationSource = meSource
         updateMyLocation(parent.userLocation)
@@ -548,7 +508,6 @@ extension MapLibreView.Coordinator {
             } else {
                 self.lastGateZero = false
             }
-            self.animateMyLocation(style)
             for g in 0..<StyleFx.phaseGroups {
                 guard let layer = style.layer(
                     withIdentifier: StyleFx.particleLayerID(g)) as? MLNSymbolStyleLayer else { continue }
@@ -585,166 +544,6 @@ extension MapLibreView.Coordinator {
             .truncatingRemainder(dividingBy: period)
         let a: [Double] = u < dash ? [dash - u, gap, u, 0] : [0, period - u, dash, u - dash]
         return a.map { NSNumber(value: $0) }
-    }
-
-    /// 내 위치 고리 한 틱 — 밝은 호가 천천히 돌고(iconRotation), 부드러운 파장이 주기마다 하나 퍼진다. Android 루프의 myRing/myWave 부분과 같은 식.
-    private func animateMyLocation(_ style: MLNStyle) {
-        let t = twinkleT
-        if let ring = style.layer(withIdentifier: StyleFx.myRingLayerID) as? MLNSymbolStyleLayer {
-            ring.iconRotation = NSExpression(forConstantValue: (t * StyleFx.myRingSpinDeg).truncatingRemainder(dividingBy: 360))
-        }
-        if let wave = style.layer(withIdentifier: StyleFx.myWaveLayerID) as? MLNCircleStyleLayer {
-            let wu = t.truncatingRemainder(dividingBy: StyleFx.myWavePeriod) / StyleFx.myWavePeriod // 0..1
-            let spread = 1 - (1 - wu) * (1 - wu)                                                      // 처음 빠르게 → 끝에서 느리게
-            let frac = 0.2 + (StyleFx.myWaveSpread - 0.2) * spread
-            let fade = (1 - wu) * (1 - wu) * 0.55
-            let q = Int(frac * 40)
-            let radius: NSExpression
-            if let e = myWaveRadiusCache[q] { radius = e } else {
-                radius = Self.myWaveRadius(Double(q) / 40)
-                myWaveRadiusCache[q] = radius
-            }
-            wave.circleRadius = radius
-            wave.circleStrokeOpacity = NSExpression(forConstantValue: fade)
-        }
-    }
-
-    /// 파장 원 반지름(pt) — 고리 반지름의 [frac] 배. 줌별로 myLocationStops 비율을 따라간다(Android myWaveRadiusExpression).
-    static func myWaveRadius(_ frac: Double) -> NSExpression {
-        let ringRadius = Double(StyleFx.myRingDp) / 2
-        var json: [Any] = ["interpolate", ["linear"], ["zoom"]]
-        for st in StyleFx.myLocationStops {
-            json.append(st.zoom)
-            json.append(ringRadius * st.radius / 7.0 * frac)
-        }
-        return NSExpression(mglJSONObject: json)
-    }
-
-    /// 고리 비트맵 — 반투명 원판 · 또렷한 테두리 · 가는 눈금 36개 · 밝은 호 3개. Android `myRingBitmap`(256px) 과 같은 비율.
-    private static func myRingImage() -> UIImage {
-        let side = StyleFx.myRingDp
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = 256 / side // 비트맵은 256px — Android 와 같은 해상도
-        fmt.opaque = false
-        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: fmt).image { ctx in
-            let cg = ctx.cgContext
-            let c = CGPoint(x: side / 2, y: side / 2)
-            let k = side / 256 // Android 256px 좌표 → pt
-            let rim = side * 0.45
-            func mint(_ a: CGFloat) -> CGColor { UIColor(red: 110 / 255.0, green: 231 / 255.0, blue: 183 / 255.0, alpha: a).cgColor }
-            // 원판(안쪽이 살짝 더 밝은 유리)
-            if let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                     colors: [mint(46 / 255), mint(22 / 255),
-                                              UIColor(red: 150 / 255.0, green: 1, blue: 215 / 255.0, alpha: 60 / 255).cgColor] as CFArray,
-                                     locations: [0, 0.7, 1]) {
-                cg.saveGState()
-                cg.addEllipse(in: CGRect(x: c.x - rim, y: c.y - rim, width: rim * 2, height: rim * 2))
-                cg.clip()
-                cg.drawRadialGradient(grad, startCenter: c, startRadius: 0, endCenter: c, endRadius: rim, options: [])
-                cg.restoreGState()
-            }
-            func circle(_ r: CGFloat, alpha: CGFloat, width: CGFloat, blur: CGFloat = 0) {
-                cg.saveGState()
-                if blur > 0 { cg.setShadow(offset: .zero, blur: blur, color: mint(alpha)) }
-                cg.setStrokeColor(mint(alpha))
-                cg.setLineWidth(width)
-                cg.strokeEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
-                cg.restoreGState()
-            }
-            circle(rim, alpha: 90 / 255, width: 9 * k, blur: 7 * k)
-            circle(rim, alpha: 235 / 255, width: 2.6 * k)
-            circle(rim * 0.88, alpha: 70 / 255, width: 1.2 * k)
-            // 가는 눈금 36개
-            cg.setStrokeColor(mint(80 / 255))
-            cg.setLineWidth(1.3 * k)
-            cg.setLineCap(.round)
-            for i in 0..<36 {
-                let a = CGFloat(i) * 10 * .pi / 180
-                let r0 = rim * 0.935
-                let r1 = rim * (i % 3 == 0 ? 0.985 : 0.965)
-                cg.move(to: CGPoint(x: c.x + cos(a) * r0, y: c.y + sin(a) * r0))
-                cg.addLine(to: CGPoint(x: c.x + cos(a) * r1, y: c.y + sin(a) * r1))
-                cg.strokePath()
-            }
-            // 밝은 호 3개(이게 도는 부분)
-            for i in 0..<3 {
-                let start = (CGFloat(i) * 120 + 8) * .pi / 180
-                let end = start + 46 * .pi / 180
-                cg.saveGState()
-                cg.setShadow(offset: .zero, blur: 5 * k, color: mint(120 / 255))
-                cg.setStrokeColor(mint(120 / 255))
-                cg.setLineWidth(7 * k)
-                cg.addArc(center: c, radius: rim, startAngle: start, endAngle: end, clockwise: false)
-                cg.strokePath()
-                cg.restoreGState()
-                cg.setStrokeColor(UIColor(red: 214 / 255.0, green: 1, blue: 240 / 255.0, alpha: 1).cgColor)
-                cg.setLineWidth(3.4 * k)
-                cg.addArc(center: c, radius: rim, startAngle: start, endAngle: end, clockwise: false)
-                cg.strokePath()
-            }
-        }
-    }
-
-    /// 크리스탈 비트맵 — 위 table 이 밝은 팔각 보석(Android `myCrystalBitmap` 96px 과 같은 면 구성·색).
-    private static func myCrystalImage() -> UIImage {
-        let side = StyleFx.myCrystalDp
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = 96 / side
-        fmt.opaque = false
-        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: fmt).image { ctx in
-            let cg = ctx.cgContext
-            let w = side
-            func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * w, y: y * w) }
-            let top: CGFloat = 0.07, shoulder: CGFloat = 0.34, bottom: CGFloat = 0.94
-            let tl = pt(0.36, top), tr = pt(0.64, top)
-            let l = pt(0.14, shoulder), r = pt(0.86, shoulder)
-            let b = pt(0.5, bottom)
-            let mid = pt(0.5, shoulder)
-            let sl = pt(0.36, shoulder), sr = pt(0.64, shoulder)
-            func poly(_ pts: [CGPoint]) -> CGPath {
-                let p = CGMutablePath()
-                p.addLines(between: pts)
-                p.closeSubpath()
-                return p
-            }
-            func hex(_ v: UInt32, _ a: CGFloat = 1) -> CGColor {
-                UIColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255, blue: CGFloat(v & 0xFF) / 255, alpha: a).cgColor
-            }
-            let outline = poly([tl, tr, r, b, l])
-            // 바깥 광
-            cg.saveGState()
-            cg.setShadow(offset: .zero, blur: w * 0.09, color: hex(0x6EE7B7, 170 / 255))
-            cg.setFillColor(hex(0x6EE7B7, 170 / 255))
-            cg.addPath(outline)
-            cg.fillPath()
-            cg.restoreGState()
-            func fill(_ pts: [CGPoint], _ color: UInt32) {
-                cg.setFillColor(hex(color))
-                cg.addPath(poly(pts))
-                cg.fillPath()
-            }
-            fill([tl, tr, sr, sl], 0xD8FFF0)   // table(가장 밝음)
-            fill([tl, sl, l], 0x8FF0C9)
-            fill([tr, r, sr], 0x5FD8A8)
-            fill([l, sl, mid, b], 0x47C896)
-            fill([sl, sr, b, mid], 0x7BEBC0)
-            fill([r, sr, mid, b], 0x2FA97B)
-            // 가장자리 + 면 경계 하이라이트
-            cg.setLineJoin(.round)
-            cg.setLineWidth(w * 0.018)
-            cg.setStrokeColor(hex(0xEBFFF8, 230 / 255))
-            cg.addPath(outline)
-            cg.strokePath()
-            cg.setStrokeColor(hex(0xEBFFF8, 150 / 255))
-            cg.move(to: l); cg.addLine(to: r); cg.strokePath()
-            cg.setStrokeColor(hex(0xEBFFF8, 110 / 255))
-            cg.move(to: sl); cg.addLine(to: b); cg.strokePath()
-            cg.move(to: sr); cg.addLine(to: b); cg.strokePath()
-            // 반짝임 하이라이트
-            cg.setFillColor(UIColor.white.cgColor)
-            let hr = w * 0.045
-            cg.fillEllipse(in: CGRect(x: w * 0.42 - hr, y: w * 0.2 - hr, width: hr * 2, height: hr * 2))
-        }
     }
 
     /// 공방 오라 한 틱(Android 애니메이션 루프의 sl-aura 부분 패리티). 반경 표현식은 1/32 단위로 캐시한다.

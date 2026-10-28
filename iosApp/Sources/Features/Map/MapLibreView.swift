@@ -408,7 +408,6 @@ struct MapLibreView: UIViewRepresentable {
 
         var twinkleTimer: Timer?
         var twinkleT: Double = 0
-        var myWaveRadiusCache: [Int: NSExpression] = [:]
         /// 길 위를 흐르는 빛의 마지막 대시 위상(같으면 갱신 생략). 스타일을 다시 올리면 -1 로 비운다.
         var lastGlintPhase: Double = -1
 

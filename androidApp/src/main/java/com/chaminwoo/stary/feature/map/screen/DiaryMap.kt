@@ -696,39 +696,23 @@ fun DiaryMap(
                         Point.fromLngLat(start.longitude, start.latitude)
                     )
                     style.addSource(src)
-                    // 땅에 깔린 유리 고리(icon-pitch-alignment=map → 기울기에서 타원으로 눕는다) → 퍼지는 파장 → 위에 뜬 크리스탈.
-                    // 모두 줌을 풀수록 작아진다(MY_LOCATION_STOPS) — 멀리서 보면 큰 원이 지도를 덮던 문제.
-                    style.addImage(CURRENT_RING_ICON, myRingBitmap())
-                    style.addImage(CURRENT_CRYSTAL_ICON, myCrystalBitmap())
                     style.addLayer(
-                        SymbolLayer(CURRENT_RING_LAYER, CURRENT_SOURCE).withProperties(
-                            PropertyFactory.iconImage(CURRENT_RING_ICON),
-                            PropertyFactory.iconSize(myLocationScaleExpression(MY_RING_DP * screenDensity / 256f)),
-                            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
-                            PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-                            PropertyFactory.iconAllowOverlap(true),
-                            PropertyFactory.iconIgnorePlacement(true),
-                        )
-                    )
-                    style.addLayer(
-                        CircleLayer(CURRENT_WAVE_LAYER, CURRENT_SOURCE).withProperties(
-                            PropertyFactory.circleRadius(myWaveRadiusExpression(screenDensity, 0.2f)),
-                            PropertyFactory.circleColor(AndroidColor.TRANSPARENT),
-                            PropertyFactory.circleOpacity(0f),
-                            PropertyFactory.circleStrokeColor(AndroidColor.parseColor("#9FF5D4")),
-                            PropertyFactory.circleStrokeWidth(1.3f),
-                            PropertyFactory.circleStrokeOpacity(0f),
-                            PropertyFactory.circlePitchAlignment(Property.CIRCLE_PITCH_ALIGNMENT_MAP),
-                        )
-                    )
-                    style.addLayer(
-                        SymbolLayer(CURRENT_CRYSTAL_LAYER, CURRENT_SOURCE).withProperties(
-                            PropertyFactory.iconImage(CURRENT_CRYSTAL_ICON),
-                            PropertyFactory.iconSize(myLocationScaleExpression(MY_CRYSTAL_DP * screenDensity / 96f)),
-                            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
-                            PropertyFactory.iconOffset(arrayOf(0f, -4f)),
-                            PropertyFactory.iconAllowOverlap(true),
-                            PropertyFactory.iconIgnorePlacement(true),
+                        CircleLayer("current-location-layer", CURRENT_SOURCE).withProperties(
+                            // 줌을 풀수록 점점 작아진다(MY_LOCATION_STOPS) — 멀리서 보면 큰 원이 지도를 덮던 문제.
+                            PropertyFactory.circleRadius(
+                                Expression.interpolate(
+                                    Expression.linear(), Expression.zoom(),
+                                    *MY_LOCATION_STOPS.map { Expression.stop(it.first, it.second) }.toTypedArray()
+                                )
+                            ),
+                            PropertyFactory.circleColor(AndroidColor.parseColor("#6EE7B7")),
+                            PropertyFactory.circleStrokeWidth(
+                                Expression.interpolate(
+                                    Expression.linear(), Expression.zoom(),
+                                    *MY_LOCATION_STOPS.map { Expression.stop(it.first, it.third) }.toTypedArray()
+                                )
+                            ),
+                            PropertyFactory.circleStrokeColor(AndroidColor.parseColor("#FFFFFF")),
                         )
                     )
                     locationSource = src
@@ -764,10 +748,10 @@ fun DiaryMap(
             val r = hypot(size.width, size.height) / 2f
             if (r <= 0f) return@Canvas
             // 0) 세계 상하 끝(타일 한계) 밖 빈 공간 — 스타일 레이어가 못 그리는 영역이라
-            //    물 레이어와 같은 색(줌 보간)으로 덮어 바다가 이어진 것처럼 보이게 한다.
-            val (voidTop, voidBottom, voidZoom) = worldVoid.value
+            //    물 레이어와 같은 색으로 덮어 바다가 이어진 것처럼 보이게 한다(빈 공간은 줌 6 밑에서만 보인다).
+            val (voidTop, voidBottom, _) = worldVoid.value
             if (voidTop > 0f || voidBottom < size.height) {
-                val sea = Color(0xFF04091A) // 물 레이어와 같은 깊은 남색(지도 시안)
+                val sea = Color(0xFF090820) // 물 레이어의 저줌 색(maplibre_style.json water 줌 6 값)
                 if (voidTop > 0f) drawRect(sea, size = Size(size.width, voidTop))
                 if (voidBottom < size.height) drawRect(
                     sea,
@@ -775,14 +759,12 @@ fun DiaryMap(
                     size = Size(size.width, size.height - voidBottom),
                 )
             }
-            // 1) 땅 빛(먼 곳 보랏빛 · 비스듬한 빛띠 · 반사광) + 위쪽 안개 → 하늘 띠 → 비네트 (지도 시안 그대로, MapSky.kt).
-            //    저줌 글로브 전환 땐 헤이즈에 자리를 내준다.
-            val skyK = 1f - hazeAlpha.value.coerceIn(0f, 1f)
+            // 1) 땅 빛(먼 곳 보랏빛 · 비스듬한 빛띠 · 반사광) → 비네트 (지도 시안, MapSky.kt).
+            //    확대(줌 13+)에서만 켜지고 줌을 빼면(11-) 예전 지도처럼 꺼진다. 저줌 글로브 전환 땐 헤이즈에 자리를 내준다.
             val zoomNow = skyZoom.floatValue
-            val tNow = skyT.floatValue
-            drawMapGroundLight(k = skyK, zoom = zoomNow, t = tNow)
-            drawMapSkyBand(k = skyK, zoom = zoomNow, t = tNow, density = screenDensity)
-            drawMapVignette()
+            val nearK = mapNearFactor(zoomNow)
+            drawMapGroundLight(k = nearK * (1f - hazeAlpha.value.coerceIn(0f, 1f)), zoom = zoomNow, t = skyT.floatValue)
+            drawMapVignette(near = nearK)
             // 2) 글로브 근접 대기 헤이즈: 줌아웃할수록 파란 대기가 차올라 글로브 전환과 이어진다
             val a = hazeAlpha.value
             if (a > 0f) {
@@ -1451,12 +1433,7 @@ fun DiaryMap(
         val particleLayers = Array(PHASE_GROUPS) { style.getLayer(particleLayerId(it)) as? SymbolLayer }
         val roadGlintLayer = style.getLayer(ROAD_GLINT_LAYER) as? LineLayer
         val roadGlintRoseLayer = style.getLayer(ROAD_GLINT_ROSE_LAYER) as? LineLayer
-        val myRingLayer = style.getLayer(CURRENT_RING_LAYER) as? SymbolLayer
-        val myWaveLayer = style.getLayer(CURRENT_WAVE_LAYER) as? CircleLayer
-        val myWaveRadiusCache = HashMap<Int, Expression>()
-        // 도로 글린트 불투명도는 줌 보간(1회 설치) — 흐름이 이음매 없이 이어지므로 페이드가 불필요하다.
-        roadGlintLayer?.setProperties(PropertyFactory.lineOpacity(roadGlintOpacityExpression()))
-        roadGlintRoseLayer?.setProperties(PropertyFactory.lineOpacity(roadGlintOpacityExpression()))
+        // 도로 글린트 불투명도는 maplibre_style.json 의 줌 보간 그대로(흐름이 이음매 없이 이어지므로 페이드 불필요).
         // 값이 연속 변하는 표현식은 양자화해 캐시(눈에 안 보이는 1/64 단위) — 매 틱 트리 재생성 방지.
         val sizeExprCache = HashMap<Int, Expression>()
         val groundExprCache = HashMap<Int, Expression>()
@@ -1629,20 +1606,6 @@ fun DiaryMap(
                     PropertyFactory.iconOpacity(
                         particleOpExprCache.getOrPut(quant(twinkle)) { particleOpacityExpression(quant(twinkle) / 64f) }
                     )
-                )
-            }
-            // 내 위치 고리: 밝은 호가 천천히 돌고(iconRotate), 부드러운 파장이 주기마다 하나 퍼진다(원 stroke 만).
-            myRingLayer?.setProperties(PropertyFactory.iconRotate((t * MY_RING_SPIN_DEG) % 360f))
-            myWaveLayer?.let { wl ->
-                val wu = (t % MY_WAVE_PERIOD) / MY_WAVE_PERIOD // 0..1
-                val spread = 1f - (1f - wu) * (1f - wu)         // 처음 빠르게 → 끝에서 느리게
-                val frac = 0.2f + (MY_WAVE_SPREAD - 0.2f) * spread
-                val fade = (1f - wu).let { it * it } * 0.55f
-                wl.setProperties(
-                    PropertyFactory.circleRadius(
-                        myWaveRadiusCache.getOrPut((frac * 40f).toInt()) { myWaveRadiusExpression(screenDensity, (frac * 40f).toInt() / 40f) }
-                    ),
-                    PropertyFactory.circleStrokeOpacity(fade),
                 )
             }
             // 도로 글린트: 대시 위상을 전체 주기에 걸쳐 흘려 빛 알갱이가 도로를 따라 **끊김 없이** 흐른다

@@ -529,7 +529,7 @@ struct MapScreen: View {
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
 
-            // 땅 빛 · 하늘 띠 · 비네트(지도 시안) — 저줌 글로브 전환 구간(줌 4.4→2.4)엔 세기가 0 으로 빠진다. Android MapSky.kt 패리티.
+            // 땅 빛 · 비네트(지도 시안) — 확대(줌 13+)에서만 켜지고 줌을 빼면(11-) 예전 지도 느낌. Android MapSky.kt 패리티.
             MapSkyOverlay()
                 .ignoresSafeArea()
 
@@ -863,7 +863,7 @@ struct MapScreen: View {
         GeometryReader { geo in
             let h = geo.size.height
             if voidTopY > 0 || voidBottomY < h {
-                let sea = Color(hex: 0x04091A) // 물 레이어와 같은 깊은 남색(지도 시안)
+                let sea = Color(hex: 0x090820) // 물 레이어의 저줌 색(maplibre_style.json water 줌 6 값 — 빈 공간은 줌 6 밑에서만 보인다)
                 ZStack(alignment: .top) {
                     if voidTopY > 0 {
                         sea.frame(height: min(voidTopY, h))
