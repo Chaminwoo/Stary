@@ -60,15 +60,14 @@ private fun addLight(r: Float, g: Float, b: Float, k: Float): Color {
 // ── 땅 빛 ─────────────────────────────────────────────────────────────
 
 /**
- * 땅 빛. [k] 0..1(저줌 글로브 전환에선 0), [t] 초.
- * 2026-10-28 피드백: 줌에 따라 나타났다 사라지면 어색하다 → 필터처럼 **줌과 무관하게 같은 세기**로 유지한다
- * (시안 줌 15 의 세기 — 시안 near 계수 = 1).
+ * 땅 빛. [k] 0..1(저줌 글로브 전환 · 줌을 뺀 예전 지도에선 0), [zoom] 카메라 줌, [t] 초.
+ * 시안: near = 1 - smoothstep(0.7, 3.2, 픽셀 하나가 덮는 m) — 줌 15 에서 거의 1, 13 에서 0(멀리 볼수록 광택이 흐려진다).
  */
-internal fun DrawScope.drawMapGroundLight(k: Float, t: Float) {
+internal fun DrawScope.drawMapGroundLight(k: Float, zoom: Float, t: Float) {
     if (k <= 0.01f) return
     val w = size.width
     val h = size.height
-    val near = 1f // 필터처럼 줌과 무관(시안 줌 15 의 값)
+    val near = 1f - smooth(0.7f, 3.2f, 2f.pow(15f - zoom))
 
     // (1) 먼 곳일수록 하늘빛(보랏빛)을 비춘다 — col += (0.07, 0.062, 0.19) · gl0² · 0.5
     val fres = Array(9) { i ->

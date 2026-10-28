@@ -231,6 +231,53 @@ fun DiaryMap(
     }
     var constellationEnabled by remember { mutableStateOf(false) }
 
+    // 오버레이가 보는 줌 — 대기 헤이즈 알파 · 땅 빛 줌. 값이 실제로 변할 때만 state 갱신(팬 중 불필요한 다시 그리기 방지).
+    fun syncAtmosphereZoom(z: Double) {
+        val a = ((HAZE_START_ZOOM - z) / (HAZE_START_ZOOM - MAP_MIN_ZOOM)).toFloat().coerceIn(0f, 1f)
+        if (a != hazeAlpha.value) hazeAlpha.value = a
+        val sz = (z * 20).toInt() / 20f
+        if (sz != skyZoom.floatValue) skyZoom.floatValue = sz
+    }
+
+    // 바다 덮개 · 땅 빛 · 비네트 · 저줌 대기 헤이즈(지도 위 화면 필터) — 라이브 지도 위와 파장 연출(스냅샷) 위에 같이 쓴다.
+    fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAtmosphere() {
+        val r = hypot(size.width, size.height) / 2f
+        if (r <= 0f) return
+        // 0) 세계 상하 끝(타일 한계) 밖 빈 공간 — 스타일 레이어가 못 그리는 영역이라
+        //    물 레이어와 같은 색으로 덮어 바다가 이어진 것처럼 보이게 한다(빈 공간은 줌 6 밑에서만 보인다).
+        val (voidTop, voidBottom, _) = worldVoid.value
+        if (voidTop > 0f || voidBottom < size.height) {
+            val sea = Color(0xFF090820) // 물 레이어의 저줌 색(maplibre_style.json water 줌 6 값)
+            if (voidTop > 0f) drawRect(sea, size = Size(size.width, voidTop))
+            if (voidBottom < size.height) drawRect(
+                sea,
+                topLeft = Offset(0f, voidBottom),
+                size = Size(size.width, size.height - voidBottom),
+            )
+        }
+        // 1) 땅 빛(먼 곳 보랏빛 · 비스듬한 빛띠 · 반사광) → 비네트 (지도 시안, MapSky.kt).
+        //    확대(줌 13+)에서만 켜지고 줌을 빼면(11-) 예전 지도 느낌 — 그 사이는 부드럽게 섞는다.
+        val zoomNow = skyZoom.floatValue
+        val nearK = mapNearFactor(zoomNow)
+        drawMapGroundLight(k = nearK * (1f - hazeAlpha.value.coerceIn(0f, 1f)), zoom = zoomNow, t = skyT.floatValue)
+        drawMapVignette(near = nearK)
+        // 2) 글로브 근접 대기 헤이즈: 줌아웃할수록 파란 대기가 차올라 글로브 전환과 이어진다
+        val a = hazeAlpha.value
+        if (a > 0f) {
+            drawRect(Color(0xFF060E1C).copy(alpha = 0.35f * a))
+            drawRect(
+                brush = Brush.radialGradient(
+                    0.0f to Color.Transparent,
+                    0.55f to Color.Transparent,
+                    0.85f to Color(0xFF3E7CC4).copy(alpha = 0.10f * a),
+                    1.0f to Color(0xFF9BD1FF).copy(alpha = 0.22f * a),
+                    center = center,
+                    radius = r,
+                )
+            )
+        }
+    }
+
     // 다이어리 진입 직전 "지도 왜곡" 연출 — 스냅샷을 파장+울렁시킨 뒤 상세로([DiaryOpenWarp]).
     val warpState = remember { mutableStateOf<DiaryOpenWarpData?>(null) }
     // 업로드 버튼 탭 연출용 — 파장 중심을 버튼 위치로 잡기 위한 좌표(루트 기준).
@@ -366,6 +413,8 @@ fun DiaryMap(
                 map.addOnCameraMoveStartedListener { isCameraMoving.value = true }
                 map.addOnCameraIdleListener {
                     isCameraMoving.value = false
+                    // 화면을 다시 열면(상세에서 돌아오기 등) 이동 없이 시작하므로 멈출 때도 맞춘다 — 땅 빛이 기본 줌 값으로 남지 않게.
+                    syncAtmosphereZoom(map.cameraPosition.zoom)
                     cameraIdleTick++
                     updateWorldVoid(map)
                     // 마지막 카메라(중심+줌) 저장 — 다음 실행의 초기 카메라가 "마지막으로 보던 곳"이 되게.
@@ -379,12 +428,7 @@ fun DiaryMap(
                 map.addOnCameraMoveListener {
                     updateWorldVoid(map)
                     val z = map.cameraPosition.zoom
-                    // 대기 헤이즈: 알파가 실제로 변할 때만 state 갱신(팬 중 불필요한 리컴포지션 방지)
-                    val a = ((HAZE_START_ZOOM - z) / (HAZE_START_ZOOM - MAP_MIN_ZOOM))
-                        .toFloat().coerceIn(0f, 1f)
-                    if (a != hazeAlpha.value) hazeAlpha.value = a
-                    val sz = (z * 20).toInt() / 20f
-                    if (sz != skyZoom.floatValue) skyZoom.floatValue = sz
+                    syncAtmosphereZoom(z)
                     val cb = onGlobeAvailabilityRef.value ?: return@addOnCameraMoveListener
                     val c = map.cameraPosition.target
                     cb(c?.latitude ?: 0.0, c?.longitude ?: 0.0, z <= GLOBE_BUTTON_ZOOM)
@@ -435,14 +479,12 @@ fun DiaryMap(
                     } else false
                 }
                 map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
+                    syncAtmosphereZoom(map.cameraPosition.zoom)
                     val start = initialLatLngRef.value
                     // ── 레이어 순서(아래→위): 파티클 → 별자리 → 경로 → 바닥광 → 오오라 → 위성 → 별 → 스파클 ──
 
                     // 별가루 파티클 — 생성 후 갱신 없음(반짝임은 레이어 opacity 만 루프에서 갱신).
                     style.addImage(PARTICLE_ICON_ID, particleBitmap())
-                    // 길 위를 흐르는 혜성 그림(스타일 JSON 의 flow-* 심볼 레이어가 쓴다)
-                    style.addImage(FLOW_GOLD_ICON, flowBitmap(screenDensity, rose = false))
-                    style.addImage(FLOW_ROSE_ICON, flowBitmap(screenDensity, rose = true))
                     style.addSource(
                         GeoJsonSource(STAR_PARTICLE_SOURCE, starParticleFeatures(start))
                     )
@@ -756,42 +798,9 @@ fun DiaryMap(
             }
         }
 
-        // 비네트 + 저줌 대기 헤이즈 — 그리기 전용(터치는 지도로 통과), FAB/워프 오버레이보다 아래.
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val r = hypot(size.width, size.height) / 2f
-            if (r <= 0f) return@Canvas
-            // 0) 세계 상하 끝(타일 한계) 밖 빈 공간 — 스타일 레이어가 못 그리는 영역이라
-            //    물 레이어와 같은 색으로 덮어 바다가 이어진 것처럼 보이게 한다(빈 공간은 줌 6 밑에서만 보인다).
-            val (voidTop, voidBottom, _) = worldVoid.value
-            if (voidTop > 0f || voidBottom < size.height) {
-                val sea = Color(0xFF090820) // 물 레이어의 저줌 색(maplibre_style.json water 줌 6 값)
-                if (voidTop > 0f) drawRect(sea, size = Size(size.width, voidTop))
-                if (voidBottom < size.height) drawRect(
-                    sea,
-                    topLeft = Offset(0f, voidBottom),
-                    size = Size(size.width, size.height - voidBottom),
-                )
-            }
-            // 1) 땅 빛(먼 곳 보랏빛 · 비스듬한 빛띠 · 반사광) → 비네트 (지도 시안, MapSky.kt).
-            //    땅 빛은 필터처럼 줌과 무관하게 유지(저줌 글로브 전환 땐 헤이즈에 자리를 내준다), 비네트만 줌 11→13 에서 예전↔시안을 섞는다.
-            drawMapGroundLight(k = 1f - hazeAlpha.value.coerceIn(0f, 1f), t = skyT.floatValue)
-            drawMapVignette(near = mapNearFactor(skyZoom.floatValue))
-            // 2) 글로브 근접 대기 헤이즈: 줌아웃할수록 파란 대기가 차올라 글로브 전환과 이어진다
-            val a = hazeAlpha.value
-            if (a > 0f) {
-                drawRect(Color(0xFF060E1C).copy(alpha = 0.35f * a))
-                drawRect(
-                    brush = Brush.radialGradient(
-                        0.0f to Color.Transparent,
-                        0.55f to Color.Transparent,
-                        0.85f to Color(0xFF3E7CC4).copy(alpha = 0.10f * a),
-                        1.0f to Color(0xFF9BD1FF).copy(alpha = 0.22f * a),
-                        center = center,
-                        radius = r,
-                    )
-                )
-            }
-        }
+        // 바다 덮개 · 땅 빛 · 비네트 · 저줌 대기 헤이즈 — 그리기 전용(터치는 지도로 통과), FAB/워프 오버레이보다 아래.
+        // 파장 연출(별 열람/생성)은 지도 스냅샷이라 이 오버레이가 안 찍힌다 → 연출의 스냅샷 위에 같은 걸 다시 그린다(DiaryOpenWarp overSnapshot).
+        Canvas(modifier = Modifier.fillMaxSize()) { drawAtmosphere() }
 
         // 필터가 걸려 있는 동안 지도에 도는 은은한 빛(필터 색) — 비네트 위, UI 아래. 터치 통과.
         // 빛의 고리가 퍼지는 동안엔 링 안쪽(지나간 자리)만 새 색으로 깔린다.
@@ -803,8 +812,8 @@ fun DiaryMap(
         // 업로드 버튼 파장 연출 — 버튼들이 연출 내내 그대로 보여야 하므로 버튼보다 아래(먼저) 그린다.
         warpState.value?.let { wd ->
             if (wd.openCreate) {
-                DiaryOpenWarp(wd) { onWarpFinished(wd) }
-                // 파장은 지도 스냅샷이라 Compose 오버레이인 필터 빛이 안 찍힌다 — 위에 같은 빛을 이어 그려 필터 색을 유지.
+                // 파장은 지도 스냅샷이라 Compose 오버레이(땅 빛 · 비네트 · 필터 빛)가 안 찍힌다 — 위에 같은 빛을 이어 그려 유지.
+                DiaryOpenWarp(wd, overSnapshot = { drawAtmosphere() }) { onWarpFinished(wd) }
                 FilterGlowOverlay(tint = glowTint, wave = filterWave, advance = false, modifier = Modifier.fillMaxSize())
             }
         }
@@ -947,9 +956,9 @@ fun DiaryMap(
         // 업로드 연출과 달리 버튼까지 덮는 몰입 연출이라 버튼 위에 그린다.
         warpState.value?.let { wd ->
             if (!wd.openCreate) {
-                DiaryOpenWarp(wd) { onWarpFinished(wd) }
-                // 파장은 지도 스냅샷이라 Compose 오버레이인 필터 빛이 안 찍혀 연출 동안 필터 색이 풀려 보였다(2026-10-19)
-                // — 같은 위상의 빛을 위에 이어 그려 필터 색을 유지한다.
+                // 파장은 지도 스냅샷이라 Compose 오버레이가 안 찍혀 연출 동안 필터 색(2026-10-19) · 땅 빛(2026-10-28)이 풀려 보였다
+                // — 같은 위상의 빛을 스냅샷 위에 이어 그려 유지한다.
+                DiaryOpenWarp(wd, overSnapshot = { drawAtmosphere() }) { onWarpFinished(wd) }
                 FilterGlowOverlay(tint = glowTint, wave = filterWave, advance = false, modifier = Modifier.fillMaxSize())
             }
         }
@@ -1449,8 +1458,8 @@ fun DiaryMap(
         val sheenLayers = Array(PHASE_GROUPS) { style.getLayer(sheenLayerId(it)) as? SymbolLayer }
         val sheenSizeCache = HashMap<Int, Expression>()
         val sparkleSizeCache = HashMap<Int, Expression>()
-        val flowLayers = FLOW_GROUPS.map { style.getLayer(it.layerId) as? SymbolLayer }
-        val flowOpExprCache = HashMap<Int, Expression>()
+        val flowLayers = FLOW_STREAMS.map { st -> FLOW_PARTS.map { style.getLayer(flowLayerId(st, it)) as? LineLayer } }
+        val flowLastStep = IntArray(FLOW_STREAMS.size) { -1 }
         // 값이 연속 변하는 표현식은 양자화해 캐시(눈에 안 보이는 1/64 단위) — 매 틱 트리 재생성 방지.
         val sizeExprCache = HashMap<Int, Expression>()
         val groundExprCache = HashMap<Int, Expression>()
@@ -1653,17 +1662,16 @@ fun DiaryMap(
                     )
                 )
             }
-            // 길 위를 흐르는 혜성: 그룹마다 길 방향으로 FLOW_TRAVEL_DP 만큼 가며 sin 으로 나타났다 사라진다
-            // (icon-offset 은 layout 이지만 allowOverlap+ignorePlacement 라 재배치가 싸다 — 이동 중에도 계속).
-            for ((i, fg) in FLOW_GROUPS.withIndex()) {
-                val layer = flowLayers[i] ?: continue
-                val u = ((t / fg.period) + fg.phase) % 1f
-                val x = (u - 0.5f) * FLOW_TRAVEL_DP * (if (fg.rose) -1f else 1f)
-                val q = (sin(Math.PI.toFloat() * u) * 32f).toInt()
-                layer.setProperties(
-                    PropertyFactory.iconOffset(arrayOf(x, 0f)),
-                    PropertyFactory.iconOpacity(flowOpExprCache.getOrPut(q) { flowOpacityExpression(q / 32f) }),
-                )
+            // 길 위를 흐르는 혜성: 점선 위상을 한 칸씩 민다(칸이 바뀔 때만 갱신 — 이동 중에도 계속, 점선은 paint 라 가볍다).
+            // 장밋빛은 거꾸로 — 꼬리도 반대쪽(머리 = 시작 + 길이)이라 같은 무늬 집합을 나눠 쓴다.
+            for ((si, st) in FLOW_STREAMS.withIndex()) {
+                val step = ((t / st.period) * FLOW_STEPS).toInt() % FLOW_STEPS
+                if (step == flowLastStep[si]) continue
+                flowLastStep[si] = step
+                for ((pi, part) in FLOW_PARTS.withIndex()) {
+                    val head = if (st.reverse) ((FLOW_STEPS - step) % FLOW_STEPS + part.len) % FLOW_STEPS else step
+                    flowLayers[si][pi]?.setProperties(PropertyFactory.lineDasharray(flowDashArray(head, part.len, part.k)))
+                }
             }
             delay(50)
         }

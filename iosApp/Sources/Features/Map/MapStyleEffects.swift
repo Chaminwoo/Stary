@@ -7,7 +7,7 @@ import UIKit
 //  · 별가루 파티클: 시작 위치 반경 20km 에 400개(시드 42, 위상 4그룹) + 트윙클 루프
 //  · 별자리 라인: 뷰포트의 대표 별들을 최근접 2개와 잇는 3겹(후광/글로우/밝은 선) 라인
 //  · 별 빛: 땅에 누운 바닥 빛 + 모든 별 후광 2겹 CircleLayer(어노테이션 뷰 아래에 깔린다)
-//  · 길 위를 흐르는 빛: flow-gold-* · flow-rose-* 혜성 심볼을 루프가 길 방향으로 흘린다
+//  · 길 위를 흐르는 빛: flow-{gold|rose}-{glow|tail|body|head} 점선 혜성의 위상을 루프가 흘린다
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Android DiaryMapMarkers 상수 패리티.
@@ -49,19 +49,31 @@ private enum StyleFx {
     /// 신규 별(24시간 이내) 판정 창(Android FRESH_WINDOW_MS).
     static let freshWindowMs: Int64 = 86_400_000
 
-    /// 길 위를 흐르는 빛 — 머리가 빛나는 작은 혜성(지도 시안 FS_FLOW)이 큰길을 따라 가다 사라진다. 금빛 앞으로 · 장밋빛 거꾸로.
-    /// 혜성은 maplibre_style.json 의 심볼 레이어(symbol-placement line)가 놓고, 루프가 iconOffset · iconOpacity 를 그룹별로 흘린다.
-    /// ⚠️ id 는 gen_style.py FLOW_GROUPS · Android `FLOW_GROUPS` 와 같은 값(주기 · 위상도 같다).
-    static let flowGroups: [(id: String, rose: Bool, period: Double, phase: Double)] = [
-        ("flow-gold-0", false, 9, 0), ("flow-gold-1", false, 11, 0.45),
-        ("flow-rose-0", true, 10, 0.2), ("flow-rose-1", true, 12, 0.7),
+    /// 길 위를 흐르는 빛 — 머리가 빛나는 작은 혜성이 큰길을 따라 흐른다(지도 시안 FS_FLOW). 금빛은 앞으로, 장밋빛은 거꾸로.
+    /// 한 혜성 = 같은 머리 위치에서 끝나는 점선 4겹(번짐 · 꼬리 · 몸통 · 머리, 짧을수록 밝다) — maplibre_style.json 의 선 레이어.
+    /// 점선은 길 선을 따라가므로 곡선에서도 길 밖으로 안 나간다(2026-10-28: 심볼을 iconOffset 으로 밀던 방식은 곡선에서 튀어나갔다).
+    /// ⚠️ 폭 배율 k · 길이(칸)는 gen_style.py FLOW_PARTS · Android `FLOW_PARTS` 와 같아야 한다.
+    static let flowParts: [(name: String, k: Double, len: Int)] = [
+        ("glow", 4.5, 8), ("tail", 1.2, 24), ("body", 1.6, 10), ("head", 2.6, 3),
     ]
-    static let flowGoldImage = "flow-gold"
-    static let flowRoseImage = "flow-rose"
-    /// 혜성 그림 크기(pt, icon-size 1 = 줌 15) · 한 번에 가는 거리(pt). Android FLOW_SPRITE_W_DP/H_DP · FLOW_TRAVEL_DP.
-    static let flowSpriteW: CGFloat = 26
-    static let flowSpriteH: CGFloat = 10
-    static let flowTravel = 70.0
+    /// 흐름 줄기 — 이름, 거꾸로 흐르는지, 한 바퀴(혜성 간격)를 도는 시간(초). Android `FLOW_STREAMS`.
+    static let flowStreams: [(name: String, reverse: Bool, period: Double)] = [("gold", false, 8), ("rose", true, 11)]
+    /// 한 바퀴 칸 수 · 한 칸 길이(px, 줌 14 굵기 기준) — 96 × 2.5 = 240px 마다 혜성 하나.
+    static let flowSteps = 96
+    static let flowStepPx = 2.5
+    static func flowLayerID(_ stream: String, _ part: String) -> String { "flow-\(stream)-\(part)" }
+
+    /// 머리가 [head] 칸, 길이 [len] 칸인 점선(선 폭 단위 = px / k). 배열 합 = 한 바퀴라 타일 경계에서 이어진다.
+    /// 길이 0 의 대시는 butt 끝이라 그려지지 않는다. Android `flowDashArray` · gen_style.py `flow_dash` 와 같은 식.
+    static func flowDash(head: Int, len: Int, k: Double) -> [NSNumber] {
+        let n = flowSteps
+        let u = flowStepPx / k
+        let s0 = ((head - len) % n + n) % n
+        let a: [Double] = s0 + len <= n
+            ? [0, Double(s0) * u, Double(len) * u, Double(n - s0 - len) * u]
+            : [Double(s0 + len - n) * u, Double(n - len) * u, Double(n - s0) * u, 0]
+        return a.map { NSNumber(value: $0) }
+    }
 
     /// 별빛 공방 오라(장착한 사람의 별) — Android sl-aura-glow/pulse/sprite 패리티(위상 그룹 없이 1벌).
     ///  · glow  : 은은한 빛(모든 패턴의 바탕, 숨 쉬듯 밝기만 변함)
@@ -114,14 +126,12 @@ extension MapLibreView.Coordinator {
         mapRef = mapView
         // 새 스타일엔 공방 오라 스프라이트 이미지가 없다 — 다음 갱신에서 다시 등록하게 키를 비운다.
         lastSlAuraKey = "|"
+        lastFlowSteps = [-1, -1] // 새 스타일의 점선은 처음 값 — 다음 틱에 다시 맞춘다
         ensureBaseTilt(mapView) // 기본 기울기(40°) — 프레임이 잡힌 뒤라 여기서부터 pitch 가 먹는다
         guard style.source(withIdentifier: StyleFx.particleSourceID) == nil else { return }
 
         // ── 별가루 파티클 — 시작 위치 기준 1회 생성, 이후 갱신 없음(Android 동일) ──
         style.setImage(Self.particleImage(), forName: StyleFx.particleImageID)
-        // 길 위를 흐르는 혜성 그림(스타일 JSON 의 flow-* 심볼 레이어가 쓴다)
-        style.setImage(Self.flowImage(rose: false), forName: StyleFx.flowGoldImage)
-        style.setImage(Self.flowImage(rose: true), forName: StyleFx.flowRoseImage)
         let center = parent.userLocation
             ?? LocationManager.lastSavedCoordinate
             ?? CLLocationCoordinate2D(latitude: AppConfig.defaultLat, longitude: AppConfig.defaultLng)
@@ -528,70 +538,20 @@ extension MapLibreView.Coordinator {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    /// 길 위를 흐르는 혜성 한 틱 — 그룹마다 길 방향으로 flowTravel 만큼 가며 sin 으로 나타났다 사라진다(Android 루프와 같은 식).
+    /// 길 위를 흐르는 혜성 한 틱 — 점선 위상을 한 칸씩 민다(칸이 바뀔 때만 갱신, Android 루프와 같은 식).
+    /// 장밋빛은 거꾸로 — 꼬리도 반대쪽(머리 = 시작 + 길이)이라 같은 무늬 집합을 나눠 쓴다.
     private func animateFlows(_ style: MLNStyle) {
-        for g in StyleFx.flowGroups {
-            guard let layer = style.layer(withIdentifier: g.id) as? MLNSymbolStyleLayer else { continue }
-            let u = (twinkleT / g.period + g.phase).truncatingRemainder(dividingBy: 1)
-            let x = (u - 0.5) * StyleFx.flowTravel * (g.rose ? -1 : 1)
-            let a = Double(Int(sin(.pi * u) * 32)) / 32
-            layer.iconOffset = NSExpression(forConstantValue: NSValue(cgVector: CGVector(dx: x, dy: 0)))
-            // 줌 곡선은 시안 u_flowA(12.8 → 0.35, 14 → 0.8, 16 → 1) × 페이드
-            layer.iconOpacity = NSExpression(mglJSONObject:
-                ["interpolate", ["linear"], ["zoom"], 12, 0, 12.8, 0.35 * a, 14, 0.8 * a, 16, a] as [Any])
-        }
-    }
-
-    /// 혜성 그림 — 꼬리에서 머리로 갈수록 밝아지는 가는 몸통 + 넓은 번짐 + 머리의 둥근 빛 + 작은 굽은 반짝.
-    /// 머리는 +x(이동 방향), 장밋빛은 거꾸로 흐르므로 좌우를 뒤집는다. Android `flowBitmap` 과 같은 그림.
-    static func flowImage(rose: Bool) -> UIImage {
-        let w = StyleFx.flowSpriteW, h = StyleFx.flowSpriteH
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.opaque = false
-        return UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { ctx in
-            let cg = ctx.cgContext
-            if rose { cg.translateBy(x: w, y: 0); cg.scaleBy(x: -1, y: 1) }
-            let glowRGB: (CGFloat, CGFloat, CGFloat) = rose ? (1, 0x8F / 255.0, 0xA8 / 255.0) : (1, 0xD6 / 255.0, 0x94 / 255.0)
-            let coreRGB: (CGFloat, CGFloat, CGFloat) = rose ? (1, 0xE2 / 255.0, 0xEA / 255.0) : (1, 0xF4 / 255.0, 0xDE / 255.0)
-            func col(_ c: (CGFloat, CGFloat, CGFloat), _ a: CGFloat) -> CGColor { UIColor(red: c.0, green: c.1, blue: c.2, alpha: a).cgColor }
-            let cy = h / 2, tailX: CGFloat = 1.5, headX = w - 5.5
-            let space = CGColorSpaceCreateDeviceRGB()
-            func along(_ c: (CGFloat, CGFloat, CGFloat), _ peak: CGFloat, width: CGFloat, blur: CGFloat) {
-                guard let grad = CGGradient(colorsSpace: space,
-                                            colors: [col(c, 0), col(c, 0.06 * peak), col(c, 0.25 * peak), col(c, 0.56 * peak), col(c, peak)] as CFArray,
-                                            locations: [0, 0.25, 0.5, 0.75, 1]) else { return }
-                cg.saveGState()
-                let line = CGMutablePath()
-                line.move(to: CGPoint(x: tailX, y: cy)); line.addLine(to: CGPoint(x: headX, y: cy))
-                cg.addPath(line.copy(strokingWithWidth: width, lineCap: .round, lineJoin: .round, miterLimit: 1))
-                cg.clip()
-                if blur > 0 { cg.setShadow(offset: .zero, blur: blur, color: col(c, 0.5 * peak)) }
-                cg.drawLinearGradient(grad, start: CGPoint(x: tailX, y: cy), end: CGPoint(x: headX, y: cy), options: [])
-                cg.restoreGState()
+        let n = StyleFx.flowSteps
+        for (si, st) in StyleFx.flowStreams.enumerated() {
+            let step = Int(twinkleT / st.period * Double(n)) % n
+            guard step != lastFlowSteps[si] else { continue }
+            lastFlowSteps[si] = step
+            for part in StyleFx.flowParts {
+                guard let layer = style.layer(withIdentifier: StyleFx.flowLayerID(st.name, part.name)) as? MLNLineStyleLayer
+                else { continue }
+                let head = st.reverse ? ((n - step) % n + part.len) % n : step
+                layer.lineDashPattern = NSExpression(forConstantValue: StyleFx.flowDash(head: head, len: part.len, k: part.k))
             }
-            along(glowRGB, 0.55, width: 4.2, blur: 1.6) // 넓은 번짐
-            along(coreRGB, 1, width: 1.3, blur: 0)      // 가는 몸통
-            // 머리의 둥근 빛
-            let hr: CGFloat = 4.6
-            if let grad = CGGradient(colorsSpace: space,
-                                     colors: [col(coreRGB, 0.95), col(glowRGB, 0.5), col(glowRGB, 0.14), col(glowRGB, 0)] as CFArray,
-                                     locations: [0, 0.25, 0.55, 1]) {
-                let c = CGPoint(x: headX, y: cy)
-                cg.drawRadialGradient(grad, startCenter: c, startRadius: 0, endCenter: c, endRadius: hr, options: [])
-            }
-            // 작은 굽은 반짝(4갈래, 가운데로 오목)
-            let r: CGFloat = 3.4
-            let c = CGPoint(x: headX, y: cy)
-            let sp = CGMutablePath()
-            sp.move(to: CGPoint(x: c.x, y: c.y - r * 0.7))
-            sp.addQuadCurve(to: CGPoint(x: c.x + r, y: c.y), control: c)
-            sp.addQuadCurve(to: CGPoint(x: c.x, y: c.y + r * 0.7), control: c)
-            sp.addQuadCurve(to: CGPoint(x: c.x - r, y: c.y), control: c)
-            sp.addQuadCurve(to: CGPoint(x: c.x, y: c.y - r * 0.7), control: c)
-            sp.closeSubpath()
-            cg.setFillColor(UIColor.white.withAlphaComponent(0.85).cgColor)
-            cg.addPath(sp)
-            cg.fillPath()
         }
     }
 

@@ -1231,8 +1231,8 @@
       "minzoom": 11.0
     },
     {
-      "id": "flow-gold-0",
-      "type": "symbol",
+      "id": "flow-gold-glow",
+      "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
       "filter": [
@@ -1245,14 +1245,12 @@
       ],
       "minzoom": 12,
       "layout": {
-        "symbol-placement": "line",
-        "symbol-spacing": 200,
-        "icon-image": "flow-gold",
-        "icon-allow-overlap": true,
-        "icon-ignore-placement": true,
-        "icon-rotation-alignment": "map",
-        "icon-pitch-alignment": "map",
-        "icon-size": [
+        "line-cap": "butt",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#FFD694",
+        "line-width": [
           "interpolate",
           [
             "exponential",
@@ -1262,24 +1260,60 @@
             "zoom"
           ],
           12,
-          0.5,
-          15,
-          1.0,
+          2.7,
+          14,
+          4.5,
+          16,
+          7.65,
           18,
-          2.0
+          12.6
         ],
-        "icon-offset": [
+        "line-blur": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          1.56,
+          14,
+          2.6,
+          16,
+          4.42,
+          18,
+          7.28
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
           0,
-          0
+          12.8,
+          0.105,
+          14,
+          0.24,
+          16,
+          0.3
+        ],
+        "line-dasharray": [
+          0,
+          0.0,
+          4.444444444444445,
+          48.88888888888889
         ]
-      },
-      "paint": {
-        "icon-opacity": 0
       }
     },
     {
-      "id": "flow-gold-1",
-      "type": "symbol",
+      "id": "flow-gold-tail",
+      "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
       "filter": [
@@ -1292,14 +1326,12 @@
       ],
       "minzoom": 12,
       "layout": {
-        "symbol-placement": "line",
-        "symbol-spacing": 260,
-        "icon-image": "flow-gold",
-        "icon-allow-overlap": true,
-        "icon-ignore-placement": true,
-        "icon-rotation-alignment": "map",
-        "icon-pitch-alignment": "map",
-        "icon-size": [
+        "line-cap": "butt",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#FFD694",
+        "line-width": [
           "interpolate",
           [
             "exponential",
@@ -1309,24 +1341,60 @@
             "zoom"
           ],
           12,
-          0.5,
-          15,
-          1.0,
+          0.72,
+          14,
+          1.2,
+          16,
+          2.04,
           18,
-          2.0
+          3.36
         ],
-        "icon-offset": [
+        "line-blur": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.3,
+          14,
+          0.5,
+          16,
+          0.85,
+          18,
+          1.4
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
           0,
-          0
+          12.8,
+          0.14,
+          14,
+          0.32,
+          16,
+          0.4
+        ],
+        "line-dasharray": [
+          0,
+          0.0,
+          50.0,
+          150.0
         ]
-      },
-      "paint": {
-        "icon-opacity": 0
       }
     },
     {
-      "id": "flow-rose-0",
-      "type": "symbol",
+      "id": "flow-gold-body",
+      "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
       "filter": [
@@ -1339,14 +1407,12 @@
       ],
       "minzoom": 12,
       "layout": {
-        "symbol-placement": "line",
-        "symbol-spacing": 230,
-        "icon-image": "flow-rose",
-        "icon-allow-overlap": true,
-        "icon-ignore-placement": true,
-        "icon-rotation-alignment": "map",
-        "icon-pitch-alignment": "map",
-        "icon-size": [
+        "line-cap": "butt",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#FFE6B8",
+        "line-width": [
           "interpolate",
           [
             "exponential",
@@ -1356,24 +1422,60 @@
             "zoom"
           ],
           12,
-          0.5,
-          15,
-          1.0,
+          0.96,
+          14,
+          1.6,
+          16,
+          2.72,
           18,
-          2.0
+          4.48
         ],
-        "icon-offset": [
+        "line-blur": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.18,
+          14,
+          0.3,
+          16,
+          0.51,
+          18,
+          0.84
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
           0,
-          0
+          12.8,
+          0.245,
+          14,
+          0.56,
+          16,
+          0.7
+        ],
+        "line-dasharray": [
+          0,
+          0.0,
+          15.625,
+          134.375
         ]
-      },
-      "paint": {
-        "icon-opacity": 0
       }
     },
     {
-      "id": "flow-rose-1",
-      "type": "symbol",
+      "id": "flow-gold-head",
+      "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
       "filter": [
@@ -1386,14 +1488,12 @@
       ],
       "minzoom": 12,
       "layout": {
-        "symbol-placement": "line",
-        "symbol-spacing": 300,
-        "icon-image": "flow-rose",
-        "icon-allow-overlap": true,
-        "icon-ignore-placement": true,
-        "icon-rotation-alignment": "map",
-        "icon-pitch-alignment": "map",
-        "icon-size": [
+        "line-cap": "butt",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#FFF8EC",
+        "line-width": [
           "interpolate",
           [
             "exponential",
@@ -1403,19 +1503,379 @@
             "zoom"
           ],
           12,
-          0.5,
-          15,
-          1.0,
+          1.56,
+          14,
+          2.6,
+          16,
+          4.42,
           18,
-          2.0
+          7.28
         ],
-        "icon-offset": [
+        "line-blur": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.48,
+          14,
+          0.8,
+          16,
+          1.36,
+          18,
+          2.24
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
           0,
-          0
+          12.8,
+          0.35,
+          14,
+          0.8,
+          16,
+          1.0
+        ],
+        "line-dasharray": [
+          0,
+          0.0,
+          2.884615384615384,
+          89.42307692307692
         ]
+      }
+    },
+    {
+      "id": "flow-rose-glow",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": [
+        "in",
+        "class",
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary"
+      ],
+      "minzoom": 12,
+      "layout": {
+        "line-cap": "butt",
+        "line-join": "round"
       },
       "paint": {
-        "icon-opacity": 0
+        "line-color": "#FF8FA8",
+        "line-width": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          2.7,
+          14,
+          4.5,
+          16,
+          7.65,
+          18,
+          12.6
+        ],
+        "line-blur": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          1.56,
+          14,
+          2.6,
+          16,
+          4.42,
+          18,
+          7.28
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0,
+          12.8,
+          0.079,
+          14,
+          0.18,
+          16,
+          0.225
+        ],
+        "line-dasharray": [
+          0,
+          0.0,
+          4.444444444444445,
+          48.88888888888889
+        ]
+      }
+    },
+    {
+      "id": "flow-rose-tail",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": [
+        "in",
+        "class",
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary"
+      ],
+      "minzoom": 12,
+      "layout": {
+        "line-cap": "butt",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#FF9DB4",
+        "line-width": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.72,
+          14,
+          1.2,
+          16,
+          2.04,
+          18,
+          3.36
+        ],
+        "line-blur": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.3,
+          14,
+          0.5,
+          16,
+          0.85,
+          18,
+          1.4
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0,
+          12.8,
+          0.105,
+          14,
+          0.24,
+          16,
+          0.3
+        ],
+        "line-dasharray": [
+          0,
+          0.0,
+          50.0,
+          150.0
+        ]
+      }
+    },
+    {
+      "id": "flow-rose-body",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": [
+        "in",
+        "class",
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary"
+      ],
+      "minzoom": 12,
+      "layout": {
+        "line-cap": "butt",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#FFC9D6",
+        "line-width": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.96,
+          14,
+          1.6,
+          16,
+          2.72,
+          18,
+          4.48
+        ],
+        "line-blur": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.18,
+          14,
+          0.3,
+          16,
+          0.51,
+          18,
+          0.84
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0,
+          12.8,
+          0.184,
+          14,
+          0.42,
+          16,
+          0.525
+        ],
+        "line-dasharray": [
+          0,
+          0.0,
+          15.625,
+          134.375
+        ]
+      }
+    },
+    {
+      "id": "flow-rose-head",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": [
+        "in",
+        "class",
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary"
+      ],
+      "minzoom": 12,
+      "layout": {
+        "line-cap": "butt",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#FFF0F4",
+        "line-width": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          1.56,
+          14,
+          2.6,
+          16,
+          4.42,
+          18,
+          7.28
+        ],
+        "line-blur": [
+          "interpolate",
+          [
+            "exponential",
+            1.6
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0.48,
+          14,
+          0.8,
+          16,
+          1.36,
+          18,
+          2.24
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0,
+          12.8,
+          0.262,
+          14,
+          0.6,
+          16,
+          0.75
+        ],
+        "line-dasharray": [
+          0,
+          0.0,
+          2.884615384615384,
+          89.42307692307692
+        ]
       }
     }
   ]

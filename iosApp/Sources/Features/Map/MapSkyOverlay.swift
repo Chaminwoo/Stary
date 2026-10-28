@@ -3,8 +3,9 @@ import SwiftUI
 /// 지도 위 땅 빛 · 비네트(2026-10-28 "하나의 우주" 지도 시안 ground.js / world.js 를 수치 그대로 옮김).
 ///  - 땅 빛: (1) 먼 곳 보랏빛 반사(프레넬) (2) 화면을 비스듬히 가로지르는 넓은 빛띠 두 겹(아주 느리게 흐른다) (3) 한 곳에 모인 부드러운 반사광.
 ///  - 비네트: 아래쪽 어둠 + 가장자리 둥근 어둠.
-/// 2026-10-28 피드백: 하늘 띠 · 위쪽 안개 삭제. 땅 빛은 필터처럼 줌과 무관하게 같은 세기로 유지하고,
-/// 비네트만 줌을 빼면(11-) 예전 비네트로 `nearFactor` 를 따라 부드럽게 섞는다(스타일 JSON 의 전환 구간과 같다).
+/// 2026-10-28 피드백: 하늘 띠 · 위쪽 안개 삭제. 확대(줌 13+)에서만 켜지고 줌을 빼면(11-) 예전 지도처럼 꺼진다 —
+/// 그 사이는 `nearFactor` 로 부드럽게 섞는다(스타일 JSON 의 전환 구간과 같다).
+/// 열람 파장(DiaryWarpMeshView)은 이 뷰 **아래**에 깔리므로 연출 중에도 땅 빛이 유지된다(Android 는 스냅샷 위에 다시 그린다).
 /// ⚠️ 지도(MapLibre)는 별도 표면이라 더하기 합성이 지도와 섞이지 않는다 → 시안의 "더하기 빛 C" 는
 ///    C 를 가장 밝은 채널로 나눈 색을 불투명도 max(C) 로 덮어 근사한다(어두운 땅에서 ≈ +C).
 /// Android `MapSky.kt` 와 같은 수치.
@@ -19,7 +20,7 @@ struct MapSkyOverlay: View {
                 let near = MapSkyDraw.nearFactor(zoom)
                 // 저줌 글로브 전환 구간(줌 4.4→2.4)엔 0 으로 빠진다(Android `1 - hazeAlpha`).
                 let haze = 1 - min(max((4.4 - zoom) / 2.0, 0), 1)
-                MapSkyDraw.groundLight(&ctx, size, k: haze, t: t)
+                MapSkyDraw.groundLight(&ctx, size, k: near * haze, zoom: zoom, t: t)
                 MapSkyDraw.vignette(&ctx, size, near: near)
             }
         }
@@ -78,12 +79,13 @@ private enum MapSkyDraw {
 
     // MARK: 땅 빛
 
-    /// 땅 빛 — 줌에 따라 나타났다 사라지면 어색해서(2026-10-28) 필터처럼 줌과 무관하게 시안 줌 15 의 세기로 유지한다.
-    static func groundLight(_ ctx: inout GraphicsContext, _ size: CGSize, k: Double, t: Double) {
+    /// 땅 빛 — [k] 0..1(저줌 글로브 전환 · 줌을 뺀 예전 지도에선 0).
+    /// 시안: near = 1 - smoothstep(0.7, 3.2, 픽셀 하나가 덮는 m) — 줌 15 에서 거의 1, 13 에서 0.
+    static func groundLight(_ ctx: inout GraphicsContext, _ size: CGSize, k: Double, zoom: Double, t: Double) {
         guard k > 0.01 else { return }
         let w = size.width, h = size.height
         let full = Path(CGRect(origin: .zero, size: size))
-        let near = 1.0 // 필터처럼 줌과 무관(시안 줌 15 의 값)
+        let near = 1 - smooth(0.7, 3.2, pow(2, 15 - zoom))
 
         // (1) 먼 곳일수록 하늘빛(보랏빛)을 비춘다 — col += (0.07, 0.062, 0.19) · gl0² · 0.5
         let fres: [Gradient.Stop] = (0...8).map { i in

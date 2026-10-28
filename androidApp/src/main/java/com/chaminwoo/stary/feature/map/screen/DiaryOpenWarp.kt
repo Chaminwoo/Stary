@@ -118,7 +118,12 @@ internal class DiaryOpenWarpData(
  * 세부 화면 자체는 왜곡 없이 멀쩡하게 들어간다.
  */
 @Composable
-internal fun DiaryOpenWarp(data: DiaryOpenWarpData, onFinished: () -> Unit) {
+internal fun DiaryOpenWarp(
+    data: DiaryOpenWarpData,
+    /** 스냅샷 바로 위(링 아래)에 덧그릴 화면 필터 — 스냅샷엔 Compose 오버레이(땅 빛 · 비네트)가 안 찍히므로 같은 걸 다시 얹는다. */
+    overSnapshot: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {},
+    onFinished: () -> Unit,
+) {
     val progress = remember(data) { Animatable(0f) }
     LaunchedEffect(data) {
         progress.animateTo(1f, tween(1300, easing = FastOutSlowInEasing))
@@ -169,6 +174,7 @@ internal fun DiaryOpenWarp(data: DiaryOpenWarpData, onFinished: () -> Unit) {
             drawIntoCanvas { c ->
                 c.nativeCanvas.drawBitmapMesh(bmp, mw, mh, verts, 0, null, 0, meshPaint)
             }
+            overSnapshot()
         }
 
         // 합쳐진 별 파티클 — 파장 중심(별 위치)에서 각 멤버의 모양/색이 작은 별로 퍼져 나간다.

@@ -102,23 +102,34 @@ internal const val CONSTELLATION_SOURCE = "constellation-lines"
 internal const val CONSTELLATION_LAYER = "constellation-layer"
 internal const val CONSTELLATION_GLOW_LAYER = "constellation-glow-layer"
 internal const val CONSTELLATION_HALO_LAYER = "constellation-halo-layer"
-// 길 위를 흐르는 빛(지도 시안 ground.js 의 FS_FLOW) — 머리가 빛나는 작은 혜성이 큰길을 따라 가다 사라진다.
-// 혜성은 maplibre_style.json 의 심볼 레이어(symbol-placement line)가 길마다 일정 간격으로 놓고,
-// 루프가 icon-offset(길 방향 이동) · icon-opacity(sin 페이드)를 그룹별로 흘린다. 금빛은 앞으로, 장밋빛은 거꾸로.
-// ⚠️ 레이어 id 는 gen_style.py FLOW_GROUPS(간격은 거기) · iOS `StyleFx.flowGroups` 와 같아야 한다.
-internal class FlowGroup(val layerId: String, val rose: Boolean, val period: Float, val phase: Float)
-internal val FLOW_GROUPS = listOf(
-    FlowGroup("flow-gold-0", false, 9f, 0f),
-    FlowGroup("flow-gold-1", false, 11f, 0.45f),
-    FlowGroup("flow-rose-0", true, 10f, 0.2f),
-    FlowGroup("flow-rose-1", true, 12f, 0.7f),
+// 길 위를 흐르는 빛(지도 시안 ground.js 의 FS_FLOW) — 머리가 빛나는 작은 혜성이 큰길을 따라 흐른다. 금빛은 앞으로, 장밋빛은 거꾸로.
+// 한 혜성 = 같은 머리 위치에서 끝나는 점선 4겹(번짐 · 꼬리 · 몸통 · 머리, 짧을수록 밝다) — maplibre_style.json 의 flow-{줄기}-{겹} 선 레이어.
+// 점선은 길 선을 따라가므로 곡선에서도 길 밖으로 안 나간다(2026-10-28: 심볼을 icon-offset 으로 밀던 방식은 곡선에서 튀어나갔다).
+// 루프는 dasharray 위상만 흘린다(칸 단위로 양자화 — 금빛/장밋빛이 같은 점선 무늬 집합을 나눠 쓴다).
+// ⚠️ 폭 배율 · 길이(칸)는 gen_style.py FLOW_PARTS · iOS `StyleFx.flowParts` 와 같아야 한다.
+internal class FlowPart(val name: String, val k: Float, val len: Int)
+internal val FLOW_PARTS = listOf(
+    FlowPart("glow", 4.5f, 8), FlowPart("tail", 1.2f, 24), FlowPart("body", 1.6f, 10), FlowPart("head", 2.6f, 3),
 )
-internal const val FLOW_GOLD_ICON = "flow-gold"
-internal const val FLOW_ROSE_ICON = "flow-rose"
-/** 혜성 그림 크기(dp, icon-size 1 = 줌 15) · 한 번에 가는 거리(dp). 시안: 꼬리 16~30m, 속도 9~18m/s(줌 15 ≈ 5~10dp/초). */
-internal const val FLOW_SPRITE_W_DP = 26f
-internal const val FLOW_SPRITE_H_DP = 10f
-internal const val FLOW_TRAVEL_DP = 70f
+/** 흐름 줄기 — 이름, 거꾸로 흐르는지, 한 칸 주기(초) = 한 바퀴(혜성 간격)를 도는 시간. */
+internal class FlowStream(val name: String, val reverse: Boolean, val period: Float)
+internal val FLOW_STREAMS = listOf(FlowStream("gold", false, 8f), FlowStream("rose", true, 11f))
+/** 한 바퀴 칸 수 · 한 칸 길이(px, 줌 14 굵기 기준) — 96 × 2.5 = 240px 마다 혜성 하나. */
+internal const val FLOW_STEPS = 96
+internal const val FLOW_STEP_PX = 2.5f
+internal fun flowLayerId(stream: FlowStream, part: FlowPart) = "flow-${stream.name}-${part.name}"
+
+/**
+ * 머리가 [head] 칸에 있고 길이가 [len] 칸인 점선(선 폭 단위 = px / [k]). 배열 합 = 한 바퀴라 타일 경계에서 이어진다.
+ * 길이 0 의 대시는 butt 끝이라 그려지지 않는다. gen_style.py `flow_dash` · iOS `StyleFx.flowDash` 와 같은 식.
+ */
+internal fun flowDashArray(head: Int, len: Int, k: Float): Array<Float> {
+    val n = FLOW_STEPS
+    val u = FLOW_STEP_PX / k
+    val s0 = ((head - len) % n + n) % n
+    return if (s0 + len <= n) arrayOf(0f, s0 * u, len * u, (n - s0 - len) * u)
+    else arrayOf((s0 + len - n) * u, (n - len) * u, (n - s0) * u, 0f)
+}
 internal const val CONSTELLATION_HALO_OPACITY = 0.18f
 internal const val CONSTELLATION_GLOW_OPACITY = 0.42f
 internal const val CONSTELLATION_LINE_OPACITY = 0.95f
@@ -1093,69 +1104,6 @@ internal fun particleOpacityExpression(twinkle: Float): Expression =
         Expression.stop(9f, 0f),
         Expression.stop(12f, twinkle),
     )
-
-/** 흐르는 빛 불투명도 — 시안 u_flowA 줌 곡선(12.8 → 0.35, 14 → 0.8, 16 → 1) × [a](그룹의 sin 페이드). */
-internal fun flowOpacityExpression(a: Float): Expression =
-    Expression.interpolate(
-        Expression.linear(), Expression.zoom(),
-        Expression.stop(12f, 0f),
-        Expression.stop(12.8f, 0.35f * a),
-        Expression.stop(14f, 0.8f * a),
-        Expression.stop(16f, a),
-    )
-
-/**
- * 혜성 그림 — 시안 FS_FLOW: 꼬리에서 머리로 갈수록 밝아지는 가는 몸통(along²) + 넓은 번짐 + 머리의 둥근 빛 + 작은 굽은 반짝.
- * 머리는 +x(이동 방향). 장밋빛([rose])은 거꾸로 흐르므로 좌우를 뒤집어 그린다. iOS `flowImage` 와 같은 그림.
- */
-internal fun flowBitmap(density: Float, rose: Boolean): Bitmap {
-    val s = density
-    val w = (FLOW_SPRITE_W_DP * s).toInt()
-    val h = (FLOW_SPRITE_H_DP * s).toInt()
-    val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-    val cv = Canvas(out)
-    if (rose) cv.scale(-1f, 1f, w / 2f, h / 2f)
-    val (glowRgb, coreRgb) = if (rose) 0xFF8FA8 to 0xFFE2EA else 0xFFD694 to 0xFFF4DE
-    fun argb(rgb: Int, a: Float) = (((a.coerceIn(0f, 1f) * 255).toInt()) shl 24) or rgb
-    val cy = h / 2f
-    val tailX = 1.5f * s
-    val headX = w - 5.5f * s
-    fun along(rgb: Int, peak: Float) = android.graphics.LinearGradient(
-        tailX, cy, headX, cy,
-        intArrayOf(argb(rgb, 0f), argb(rgb, 0.06f * peak), argb(rgb, 0.25f * peak), argb(rgb, 0.56f * peak), argb(rgb, peak)),
-        floatArrayOf(0f, 0.25f, 0.5f, 0.75f, 1f), android.graphics.Shader.TileMode.CLAMP,
-    )
-    // 넓은 번짐
-    cv.drawLine(tailX, cy, headX, cy, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = along(glowRgb, 0.55f); strokeWidth = 4.2f * s; strokeCap = Paint.Cap.ROUND
-        maskFilter = android.graphics.BlurMaskFilter(1.6f * s, android.graphics.BlurMaskFilter.Blur.NORMAL)
-    })
-    // 가는 몸통
-    cv.drawLine(tailX, cy, headX, cy, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = along(coreRgb, 1f); strokeWidth = 1.3f * s; strokeCap = Paint.Cap.ROUND
-    })
-    // 머리의 둥근 빛
-    val hr = 4.6f * s
-    cv.drawCircle(headX, cy, hr, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = android.graphics.RadialGradient(
-            headX, cy, hr,
-            intArrayOf(argb(coreRgb, 0.95f), argb(glowRgb, 0.5f), argb(glowRgb, 0.14f), argb(glowRgb, 0f)),
-            floatArrayOf(0f, 0.25f, 0.55f, 1f), android.graphics.Shader.TileMode.CLAMP,
-        )
-    })
-    // 작은 굽은 반짝(4갈래, 가운데로 오목)
-    val r = 3.4f * s
-    val sp = android.graphics.Path().apply {
-        moveTo(headX, cy - r * 0.7f)
-        quadTo(headX, cy, headX + r, cy)
-        quadTo(headX, cy, headX, cy + r * 0.7f)
-        quadTo(headX, cy, headX - r, cy)
-        quadTo(headX, cy, headX, cy - r * 0.7f)
-        close()
-    }
-    cv.drawPath(sp, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = argb(0xFFFFFF, 0.85f) })
-    return out
-}
 
 /**
  * 별자리 선 1개 — 두 대표 별(a, b). [key] 는 두 id 를 정렬해 이은 것(방향 무관 동일성).
