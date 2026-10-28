@@ -53,6 +53,8 @@ struct RootView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active, !ScreenshotMode.isActive { Task { await AppUpdateChecker.shared.check() } }
         }
+        // 좌우 세이프 에어리어 여백을 0 으로(iPhone Duo 오른쪽 카메라/상태 영역 — Core/SideInsets.swift). 일반 아이폰은 영향 없음.
+        .background(SideInsetsReader().allowsHitTesting(false))
         .font(.minSans(15))   // 앱 기본 폰트(Android bodyLarge = MinSans 16sp 대응)
         // 시스템 글꼴 크기 상한 — 고정 높이 카드가 많아 그대로 두면 큰 글꼴에서 글자가 잘린다
         // (Android StaryResponsive.MAX_FONT_SCALE=1.15 대응).
@@ -106,6 +108,8 @@ struct MainTabView: View {
     @ObservedObject private var pushRouter = PushRouter.shared
     // 글로브/몰입 진입 시 상단바·FAB 를 숨긴다(#12).
     @ObservedObject private var chrome = MapChromeState.shared
+    /// 오른쪽 시스템 여백(Duo 카메라/상태 영역) — 상단바 버튼이 피한다. 일반 기기 0.
+    @ObservedObject private var sideInsets = SideInsets.shared
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var drawerOpen = false
@@ -627,6 +631,8 @@ struct MainTabView: View {
                 .foregroundStyle(Theme.textPrimary)
         )
         .padding(.horizontal, 4)
+        // 오른쪽 카메라/상태 영역(Duo)은 버튼만 피하고, 아래 스크림 배경은 화면 끝까지 간다.
+        .padding(.trailing, sideInsets.trailing)
         .frame(height: 56)
         // 반투명 스크림 — 위(상태바)는 거의 검정, 아래로 갈수록 투명해져 지도와 이어진다.
         // (Android `core.designsystem.TopBarScrim` 과 같은 값: 0xFF → 0xEC → 0xCC of 0x0D0D0D)
