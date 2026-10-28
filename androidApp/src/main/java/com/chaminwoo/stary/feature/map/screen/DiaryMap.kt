@@ -198,9 +198,12 @@ fun DiaryMap(
     var styleRef by remember { mutableStateOf<Style?>(null) }
     var locationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var diarySource by remember { mutableStateOf<GeoJsonSource?>(null) }
-    // 겹친 별 위성(멤버 별 부유) 소스 + 등장 페이드(머지 전환이 끝난 뒤 부드럽게 나타난다).
-    var orbitSource by remember { mutableStateOf<GeoJsonSource?>(null) }
+    // 겹친 별 멤버(대표 id → 둘레를 도는 멤버, 최대 MAX_ORBIT_STARS) + 등장 페이드(머지 전환이 끝난 뒤 부드럽게 나타난다).
+    // 그리기는 혜성 오버레이(MapComets.kt)가 매 프레임 이 값을 읽어서 한다.
+    val orbitMembers = remember { HashMap<String, List<Diary>>() }
     val orbitFade = remember { Animatable(0f) }
+    // 지금 source 에 들어 있는 별(마지막 setGeoJson 입력) — 순차 등장 직전 걷어내기 · 혜성 오버레이가 쓴다.
+    val lastShown = remember { ArrayList<ShownStar>() }
     var constellationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     // 별자리 선 머리 빛점 + 도착 플래시(선이 별에 닿는 순간 번지는 링)
     var constellationFxSource by remember { mutableStateOf<GeoJsonSource?>(null) }
@@ -225,6 +228,12 @@ fun DiaryMap(
     var cameraIdleTick by remember { mutableStateOf(0) }
     val clusterRadiusPx = remember { CLUSTER_RADIUS_DP * context.resources.displayMetrics.density }
     val screenDensity = remember { context.resources.displayMetrics.density }
+    // 별 둘레 혜성 오버레이(MapComets.kt)와 애니메이션 공용 시계 — 마커 루프(별 부유)와 오버레이(혜성)가 같은 시각을 써야
+    // 혜성이 별과 한 덩어리로 뜬다.
+    val comets = remember { MapComets(screenDensity) }
+    val animOrigin = remember { System.nanoTime() }
+    // 혜성 오버레이를 다시 그릴 프레임 시각(나노초) — -1 = 비움(숨김 줌 · 별 없음 · 후면 · 가려짐).
+    val cometClock = remember { androidx.compose.runtime.mutableLongStateOf(-1L) }
     // 별자리 최대 연결 거리(px) — 화면 짧은 변의 절반 정도까지만 이어 과한 장거리 연결 방지
     val constellationMaxLinkPx = remember {
         context.resources.displayMetrics.let { minOf(it.widthPixels, it.heightPixels) * 0.55f }
@@ -276,6 +285,18 @@ fun DiaryMap(
                 )
             )
         }
+    }
+
+    // 파장 연출(별 열람 · 생성 · 알림 포커스)의 지도 스냅샷엔 Compose 오버레이가 안 찍힌다 —
+    // 별 둘레 혜성을 같은 순간 그대로 스냅샷에 그려 넣어 지도와 함께 굴절되게 한다(지도 레이어였을 때와 같은 모습).
+    fun withComets(bmp: Bitmap): Bitmap {
+        val map = mapRef ?: return bmp
+        val out = if (bmp.isMutable) bmp else bmp.copy(Bitmap.Config.ARGB_8888, true) ?: return bmp
+        comets.draw(
+            Canvas(out), map, out.width.toFloat(), out.height.toFloat(),
+            (System.nanoTime() - animOrigin) / 1e9, lastShown, orbitMembers, orbitFade.value,
+        )
+        return out
     }
 
     // 다이어리 진입 직전 "지도 왜곡" 연출 — 스냅샷을 파장+울렁시킨 뒤 상세로([DiaryOpenWarp]).
@@ -467,7 +488,7 @@ fun DiaryMap(
                                 com.chaminwoo.stary.core.util.Haptics.warp() // 파장과 같은 결의 진동
 
                                 warpState.value = DiaryOpenWarpData(
-                                    bmp, ox, oy, id, diary.starColor, navigateAfter = true,
+                                    withComets(bmp), ox, oy, id, diary.starColor, navigateAfter = true,
                                     burstStars = if (group.size > 1) {
                                         group.take(12).map { it.starType to it.starColor }
                                     } else emptyList(),
@@ -481,7 +502,8 @@ fun DiaryMap(
                 map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
                     syncAtmosphereZoom(map.cameraPosition.zoom)
                     val start = initialLatLngRef.value
-                    // ── 레이어 순서(아래→위): 파티클 → 별자리 → 경로 → 바닥광 → 오오라 → 위성 → 별 → 스파클 ──
+                    // ── 레이어 순서(아래→위): 파티클 → 별자리 → 경로 → 바닥광 → 오오라 → 별 → 유리 결 빛 ──
+                    // (별 둘레 혜성 — 스파클 · 겹친 별 멤버 — 은 지도 레이어가 아니라 화면 오버레이: MapComets.kt)
 
                     // 별가루 파티클 — 생성 후 갱신 없음(반짝임은 레이어 opacity 만 루프에서 갱신).
                     style.addImage(PARTICLE_ICON_ID, particleBitmap())
@@ -643,30 +665,6 @@ fun DiaryMap(
                         )
                     }
 
-                    // 겹친 별 위성 — 대표 곁에 둥둥 떠 있는 머지 멤버 미니 크리스탈(별 아래에 깔린다).
-                    // satIndex × phaseGroup 레이어 — phaseGroup 이 대표 별과 같아야 같은 iconTranslate(float)를 공유한다.
-                    val oSrc = GeoJsonSource(ORBIT_SOURCE, FeatureCollection.fromFeatures(emptyList()))
-                    style.addSource(oSrc)
-                    for (i in 0 until MAX_ORBIT_STARS) {
-                        for (g in 0 until PHASE_GROUPS) {
-                            val layer = SymbolLayer(orbitLayerId(i, g), ORBIT_SOURCE).withProperties(
-                                PropertyFactory.iconImage(Expression.get("icon")),
-                                PropertyFactory.iconSize(orbitSizeExpression()),
-                                PropertyFactory.iconOpacity(0f),
-                                PropertyFactory.iconAllowOverlap(true),
-                                PropertyFactory.iconIgnorePlacement(true),
-                            )
-                            layer.setFilter(
-                                Expression.all(
-                                    Expression.eq(Expression.get("satIndex"), Expression.literal(i)),
-                                    Expression.eq(Expression.get("phaseGroup"), Expression.literal(g)),
-                                )
-                            )
-                            style.addLayer(layer)
-                        }
-                    }
-                    orbitSource = oSrc
-
                     // 별 마커 — 위상 그룹별 레이어(같은 source, phaseGroup 필터). iconOpacity = alpha(합쳐짐 보간).
                     for (g in 0 until PHASE_GROUPS) {
                         val layer = SymbolLayer(diaryLayerId(g), DIARY_SOURCE).withProperties(
@@ -690,33 +688,6 @@ fun DiaryMap(
                                 PropertyFactory.iconIgnorePlacement(true),
                             ).also { it.setFilter(Expression.eq(Expression.get("phaseGroup"), Expression.literal(g))) }
                         )
-                    }
-
-                    // 별 곁 마이크로 스파클 — 크기에 따라 1개 → 2개 → +위성(궤도/부유/게이트는 루프에서 갱신).
-                    // 큰 별 곁에선 미니 크리스탈(sparkleIcon)로 전환하되 위성(set 2)은 항상 흰 4꼭지.
-                    style.addImage(SPARKLE_ICON_ID, sparkleBitmap())
-                    val sparkleIconExpression = Expression.switchCase(
-                        Expression.gte(Expression.get("sizeMult"), Expression.literal(SPARKLE_BIG_STAR_THRESHOLD)),
-                        Expression.get("sparkleIcon"),
-                        Expression.literal(SPARKLE_ICON_ID)
-                    )
-                    for (s in 0 until SPARKLE_SETS) {
-                        for (g in 0 until PHASE_GROUPS) {
-                            val layer = SymbolLayer(sparkleLayerId(s, g), DIARY_SOURCE).withProperties(
-                                PropertyFactory.iconImage(
-                                    if (s == SPARKLE_SATELLITE_SET) Expression.literal(SPARKLE_ICON_ID)
-                                    else sparkleIconExpression
-                                ),
-                                PropertyFactory.iconSize(sparkleSizeExpression(s)),
-                                PropertyFactory.iconOpacity(0f),
-                                PropertyFactory.iconAllowOverlap(true),
-                                PropertyFactory.iconIgnorePlacement(true),
-                            )
-                            layer.setFilter(
-                                Expression.eq(Expression.get("phaseGroup"), Expression.literal(g))
-                            )
-                            style.addLayer(layer)
-                        }
                     }
 
                     diarySource = dSrc
@@ -795,6 +766,18 @@ fun DiaryMap(
                     styleRef = style
                     mapRef = map
                 }
+            }
+        }
+
+        // 별 둘레 혜성(스파클 · 겹친 별 멤버) — 매 프레임 그리는 화면 오버레이(MapComets.kt). 땅 빛 · 비네트 아래, 터치는 지도로 통과.
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val now = cometClock.longValue
+            val map = mapRef
+            if (now >= 0L && map != null) drawIntoCanvas { c ->
+                comets.draw(
+                    c.nativeCanvas, map, size.width, size.height,
+                    (now - animOrigin) / 1e9, lastShown, orbitMembers, orbitFade.value,
+                )
             }
         }
 
@@ -920,7 +903,7 @@ fun DiaryMap(
                                 navigateAfter = false, openCreate = true,
                             )
                             warpState.value = wd
-                            map.snapshot { bmp -> wd.bitmap = bmp }
+                            map.snapshot { bmp -> wd.bitmap = withComets(bmp) }
                         } else onCreateClick() // 지도 준비 전이면 연출 없이 바로 이동
                     },
                     shape = CircleShape,
@@ -986,8 +969,6 @@ fun DiaryMap(
     var prevSizeMult by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
     // 순차 등장 기준값 — 첫 컴포지션 값으로 시작하므로 앱 첫 진입엔 순차 등장이 없다(필터 전환 때만).
     var lastRevealKey by remember { mutableStateOf(revealKey) }
-    // 지금 source 에 들어 있는 별(마지막 setGeoJson 입력) — 순차 등장 직전 걷어내기에 쓴다.
-    val lastShown = remember { ArrayList<ShownStar>() }
     // 전이/등장이 도중에 끊겼는지(재시작이 같은 키로 조기 반환해 반쯤 투명한 별이 남는 것 방지).
     var needsSettle by remember { mutableStateOf(false) }
     // 별 고리(diaries/{id}.ring — 2026-10-26부터 별마다)를 두른 별이 하나라도 떠 있는지 — 고리 애니메이션을 돌릴지.
@@ -1044,14 +1025,6 @@ fun DiaryMap(
                 if (addedIcons.add(iconId)) {
                     style.addImage(iconId, starBitmap(type, color))
                 }
-                val sparkleIconId = sparkleStarIconId(type, color)
-                if (addedIcons.add(sparkleIconId)) {
-                    style.addImage(sparkleIconId, sparkleStarBitmap(type, color))
-                }
-                val orbitIconId = orbitStarIconId(type, color)
-                if (addedIcons.add(orbitIconId)) {
-                    style.addImage(orbitIconId, orbitStarBitmap(type, color))
-                }
                 // 유리 결 빛 프레임 — 모양별로 한 번(빈 그림 포함 N+1 장)
                 if (addedIcons.add("sheen-t$type")) {
                     for (f in 0..SHEEN_FRAMES) style.addImage(sheenIconId(type, f), sheenBitmap(type, f))
@@ -1087,9 +1060,13 @@ fun DiaryMap(
             needsSettle = false
         }
 
-        // 겹친 별 위성 — 정착 후 멤버 별들을 대표 곁에 띄우고 부드럽게 페이드 인.
+        // 겹친 별 멤버 혜성 — 정착 후 대표 둘레를 돌게 하고 부드럽게 페이드 인(그리기는 혜성 오버레이).
         suspend fun settleOrbits() {
-            orbitSource?.setGeoJson(orbitFeatures(reps, merged.groups, ::repSizeMult))
+            orbitMembers.clear()
+            for (rep in reps) {
+                val group = merged.groups[rep.id] ?: continue
+                if (group.size > 1) orbitMembers[rep.id] = group.drop(1).take(MAX_ORBIT_STARS)
+            }
             orbitFade.animateTo(1f, tween(650, easing = FastOutSlowInEasing))
         }
 
@@ -1143,7 +1120,7 @@ fun DiaryMap(
         // 전환 동안 위성은 감춘다(멤버 별이 직접 날아드는 연출과 겹치지 않게) — 정착 후 다시 등장.
         needsSettle = true
         orbitFade.snapTo(0f)
-        orbitSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+        orbitMembers.clear()
         val durationNanos = 320_000_000.0
         var startNanos = 0L
         var t = 0f
@@ -1209,7 +1186,7 @@ fun DiaryMap(
             if (revealWaves.runs.isEmpty()) revealWaves.base = glowTint
 
             orbitFade.snapTo(0f)
-            orbitSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
+            orbitMembers.clear()
 
             // 1) 이전 필터의 별을 짧게 걷어낸다(이미 퍼지고 있는 거품들은 그대로 계속 퍼진다).
             if (plan.oldStars.isNotEmpty()) {
@@ -1432,10 +1409,26 @@ fun DiaryMap(
         drawnGeometry.clear()
     }
 
-    // 마커 애니메이션 루프(20fps): float 부유 + pulse + 스파클 궤도 + 위성 공전 + 파티클 트윙클 + 도로 흐름.
-    // 카메라 이동(팬/줌) 중에도 **멈추지 않고 전부 계속 갱신**한다 — 별/스파클/위성 심볼 레이어는
-    // iconAllowOverlap+iconIgnorePlacement 라 충돌검사 없이 재배치가 싸므로 이동 중 갱신해도 끊김이 적다.
-    // (줌아웃 시엔 별·스파클 크기와 궤도 반경이 zoom 보간/orbitZoomScale 로 매 프레임 함께 작아진다.)
+    // 혜성 오버레이 시계 — 보일 게 있을 때만 매 프레임 다시 그린다
+    // (앱 후면 · 지도 가려짐 · 숨김 줌 · 별 없음 · 파장 스냅샷이 화면을 덮는 동안엔 쉬고 비운다).
+    LaunchedEffect(mapRef) {
+        val map = mapRef ?: return@LaunchedEffect
+        while (isActive) {
+            val live = com.chaminwoo.stary.core.util.AppForeground.isForeground && MapUiState.mapVisible &&
+                lastShown.isNotEmpty() && warpState.value?.bitmap == null &&
+                map.cameraPosition.zoom > COMET_MIN_ZOOM
+            if (!live) {
+                cometClock.longValue = -1L
+                delay(150)
+                continue
+            }
+            withFrameNanos { cometClock.longValue = it }
+        }
+    }
+
+    // 마커 애니메이션 루프(20fps): float 부유 + pulse + 유리 결 빛 + 파티클 트윙클 + 도로 흐름.
+    // 카메라 이동(팬/줌) 중에도 **멈추지 않고 전부 계속 갱신**한다. 시계는 혜성 오버레이와 같은 [animOrigin] 기준 —
+    // 별 부유와 그 둘레 혜성(MapComets.kt, 매 프레임)이 같은 위상으로 뜬다.
     LaunchedEffect(styleRef) {
         val style = styleRef ?: return@LaunchedEffect
         // 레이어는 스타일 초기화 때 전부 추가되고 제거되지 않으므로(styleRef 는 그 뒤 설정)
@@ -1452,21 +1445,16 @@ fun DiaryMap(
             Expression.product(Expression.literal((v * 32f).toInt() / 32f), Expression.get("alpha"))
         }
         val groundLayers = Array(PHASE_GROUPS) { style.getLayer(groundLightLayerId(it)) as? CircleLayer }
-        val sparkleLayers = Array(SPARKLE_SETS) { s -> Array(PHASE_GROUPS) { g -> style.getLayer(sparkleLayerId(s, g)) as? SymbolLayer } }
-        val orbitLayers = Array(MAX_ORBIT_STARS) { i -> Array(PHASE_GROUPS) { g -> style.getLayer(orbitLayerId(i, g)) as? SymbolLayer } }
         val particleLayers = Array(PHASE_GROUPS) { style.getLayer(particleLayerId(it)) as? SymbolLayer }
         val sheenLayers = Array(PHASE_GROUPS) { style.getLayer(sheenLayerId(it)) as? SymbolLayer }
         val sheenSizeCache = HashMap<Int, Expression>()
-        val sparkleSizeCache = HashMap<Int, Expression>()
         val flowLayers = FLOW_STREAMS.map { st -> FLOW_PARTS.map { style.getLayer(flowLayerId(st, it)) as? LineLayer } }
         val flowLastStep = IntArray(FLOW_STREAMS.size) { -1 }
         // 값이 연속 변하는 표현식은 양자화해 캐시(눈에 안 보이는 1/64 단위) — 매 틱 트리 재생성 방지.
         val sizeExprCache = HashMap<Int, Expression>()
         val groundExprCache = HashMap<Int, Expression>()
-        val sparkleOpExprCache = HashMap<Int, Expression>()
         val particleOpExprCache = HashMap<Int, Expression>()
         fun quant(v: Float) = (v * 64f).toInt()
-        var t = 0f
         while (isActive) {
             // 앱이 후면이면 스타일 갱신을 멈춰 배터리를 아낀다(전면 복귀 시 자동 재개).
             if (!com.chaminwoo.stary.core.util.AppForeground.isForeground) {
@@ -1486,7 +1474,7 @@ fun DiaryMap(
                 delay(250)
                 continue
             }
-            t += 0.05f
+            val t = ((System.nanoTime() - animOrigin) / 1_000_000L) / 1000f
             val zoomAmp = ((zoom - 6f) / (15f - 6f)).coerceIn(0.1f, 1f)
             for (g in 0 until PHASE_GROUPS) {
                 val layer = diaryLayers[g] ?: continue
@@ -1564,91 +1552,6 @@ fun DiaryMap(
                         }
                     )
                 )
-                // 스파클/위성 궤도 — icon-offset(layout) 이지만 allowOverlap+ignorePlacement 라 재배치가 싸므로
-                // 카메라 이동 중에도 계속 갱신한다(줌아웃 시 궤도 반경도 orbitZoomScale 로 매 프레임 함께 줄어든다).
-                run {
-                    // 스파클 — 타원 궤도(icon-offset) + 별 부유 동기(iconTranslate) + 개수 게이트(opacity).
-                    val sparkleZoom = sparkleZoomFactor(zoom)
-                    // 궤도 반경도 줌에 따라 함께 줄인다 — 줌 아웃 시 별이 작아지는데 궤도가 dp 로 고정이면
-                    // 파티클이 별에서 너무 멀어 보인다. sparkleZoom(줌 배율)에 비례시켜 별 크기와 함께 궤도를 좁힌다.
-                    // (줌 인 최대(sparkleZoom=1)에서는 ×1.0 이라 기존의 '자연스러운' 근접 배치를 그대로 유지.)
-                    val orbitZoomScale = 0.4f + 0.6f * sparkleZoom
-                    if (sparkleZoom > 0.01f) { // 숨김 줌에서는 갱신 자체를 건너뛴다
-                        // 궤도 위치(dp 단위 비율) — 시안 sparks: 납작한 타원(SPARKLE_ORBIT_FLAT)을 세트 · 그룹마다 기울여(tilt) 돈다.
-                        // 앞쪽(아래 반)에 올 땐 크고 밝게, 뒤쪽(위 반)에선 작고 흐리게 — 별 둘레를 입체로 도는 느낌.
-                        // 세 번째 값 = 앞쪽 정도(0 뒤 … 1 앞) — 옆을 지날 때 툭 바뀌지 않게 sin 으로 부드럽게 넘긴다(iOS 같은 식).
-                        fun orbitAt(set: Int, ang: Float): Triple<Float, Float, Float> {
-                            val tilt = sparkleOrbitTilt(set, g)
-                            val ox = kotlin.math.cos(ang)
-                            val oy = sin(ang) * SPARKLE_ORBIT_FLAT
-                            val ct = kotlin.math.cos(tilt)
-                            val st = sin(tilt)
-                            return Triple(ox * ct - oy * st, ox * st + oy * ct, sparkleFrontness(sin(ang)))
-                        }
-                        // 부모(set 1) 궤도 각 — 위성(set 2)이 이 위치를 중심으로 주전원 공전한다.
-                        val parentAng = t * -0.8f + phase + 1.9f
-                        val (parentUx, parentUy, _) = orbitAt(1, parentAng)
-                        val satAng = t * 3.4f + phase
-                        val satUx = kotlin.math.cos(satAng)
-                        val satUy = sin(satAng) * 0.55f
-
-                        for (s in 0 until SPARKLE_SETS) {
-                            val sl = sparkleLayers[s][g] ?: continue
-                            // 평소엔 작은 알갱이(0.26), 주기마다 한 번 번쩍(sparkleFlash) — 수정구 시안의 굽은 반짝임.
-                            val per = sparkleFlashPeriod(s)
-                            val u = (((t / per) + g * 0.25f + s * 0.37f) % 1f)
-                            val env = sparkleFlash(u)
-                            val ang = t * (if (s == 0) 1.1f else -0.8f) + phase + s * 1.9f
-                            val (ux, uy, front) = if (s == SPARKLE_SATELLITE_SET) Triple(0f, 0f, 1f) else orbitAt(s, ang)
-                            val depth = 0.6f + 0.4f * front
-                            val op = (0.26f + 0.74f * env) * depth
-                            // 크기도 살짝씩 — 번쩍일 때 커지고(시안 .16+.2·env), 뒤쪽에선 작아진다. 1/16 단위로 양자화(표현식 캐시).
-                            val mul = ((0.86f + 0.34f * env) * (0.8f + 0.2f * front) * 16f).toInt() / 16f
-                            // 세트별 목표 오프셋(dp) — 위성은 부모 파티클 위치 + 주전원(그 파티클을 공전).
-                            val dpAt: (Float) -> Pair<Float, Float> = when (s) {
-                                SPARKLE_SATELLITE_SET -> { tier ->
-                                    val pr = orbitTargetDp(1, tier) * orbitZoomScale
-                                    val sr = satelliteOrbitDp(tier) * orbitZoomScale
-                                    (parentUx * pr + satUx * sr) to (parentUy * pr + satUy * sr)
-                                }
-                                else -> { tier ->
-                                    val r = orbitTargetDp(s, tier) * orbitZoomScale
-                                    (ux * r) to (uy * r)
-                                }
-                            }
-                            sl.setProperties(
-                                PropertyFactory.iconSize(sparkleSizeCache.getOrPut(s * 1000 + (mul * 16f).toInt()) { sparkleSizeExpression(s, mul) }),
-                                PropertyFactory.iconOffset(
-                                    sparkleOffsetExpression(s, sparkleZoom, screenDensity, dpAt, mul)
-                                ),
-                                // 반짝이 자체도 천천히 돈다(번쩍일 때 조금 더 돌아간다 — 시안 sparkleR 의 회전).
-                                PropertyFactory.iconRotate((t * 24f + env * 70f + g * 37f + s * 53f) % 360f),
-                                PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                                PropertyFactory.iconOpacity(
-                                    sparkleOpExprCache.getOrPut(s * 100_000 + quant(op)) {
-                                        sparkleOpacityExpression(s, quant(op) / 64f)
-                                    }
-                                ),
-                            )
-                        }
-                    }
-                    // 겹친 별 위성 부유 — 회전(공전) 없이 고정 자리에서 위성마다 다른 주기로 잔잔히
-                    // 흔들리되, iconTranslate 는 대표 별과 같은 floatDy 를 그대로 물려받아 **대표 별과
-                    // 함께** 오르내린다(같은 phaseGroup 레이어라 가능).
-                    if (zoom > 11.1f) {
-                        for (i in 0 until MAX_ORBIT_STARS) {
-                            val ol = orbitLayers[i][g] ?: continue
-                            val driftX = sin(t * (0.7f + 0.14f * i) + i * 2.1f) * 0.8f
-                            val driftY = sin(t * (1.15f + 0.18f * i) + i * 1.4f) * 1.0f
-                            val op = orbitFade.value * (0.88f + 0.12f * sin(t * 1.7f + i * 1.3f))
-                            ol.setProperties(
-                                PropertyFactory.iconOffset(orbitOffsetExpression(i, driftX, driftY, screenDensity)),
-                                PropertyFactory.iconTranslate(arrayOf(0f, floatDy)),
-                                PropertyFactory.iconOpacity(op),
-                            )
-                        }
-                    }
-                }
             }
             // 별가루 반짝임: 위상 그룹별 레이어 opacity 만 갱신(icon-opacity=paint, 이동 중에도 계속).
             for (g in 0 until PHASE_GROUPS) {
@@ -1742,7 +1645,7 @@ fun DiaryMap(
                     // 카메라가 다이어리를 화면 중앙에 둔 상태 → 파장 중심도 화면 중앙(0.5,0.5)
                     map.snapshot { bmp ->
                         warpState.value = DiaryOpenWarpData(
-                            bmp, 0.5f, 0.5f, target.diaryId, target.colorIndex, navigateAfter = false
+                            withComets(bmp), 0.5f, 0.5f, target.diaryId, target.colorIndex, navigateAfter = false
                         )
                     }
                 }
@@ -1871,8 +1774,8 @@ private fun revealWavesFrame(
 /** 재생 루프가 매 프레임 읽는 대표 별 1개 — 배치 effect 가 계산한 근접 여부·표시 크기. */
 private class RevealStar(val d: Diary, val near: Boolean, val size: Float)
 
-/** 지도 source 에 넣은 별 1개의 입력값 — 마지막으로 무엇이 떠 있었는지 기억해 순차 등장 직전 걷어내는 데 쓴다. */
-private data class ShownStar(
+/** 지도 source 에 넣은 별 1개의 입력값 — 마지막으로 무엇이 떠 있었는지 기억해 순차 등장 직전 걷어내고, 혜성 오버레이가 그 둘레에 그린다. */
+internal data class ShownStar(
     val d: Diary,
     val lng: Double,
     val lat: Double,

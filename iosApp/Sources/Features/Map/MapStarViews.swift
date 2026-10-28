@@ -9,14 +9,16 @@ import UIKit
 // 뷰 계층(⚠️ 어노테이션 뷰 자신의 transform/layer.transform 은 **건드리지 않는다**):
 //   StarMarkerView(MLNAnnotationView)   ← MapLibre 가 scalesWithViewingDistance 로 layer.transform 에 기울기 원근 배율을 넣는 곳
 //     └ zoomHost    : 줌 단계별 별 크기 배율(transform). 뷰 bounds 도 같이 줄여 탭 영역이 별 크기를 따라가게 한다.
-//         └ floatHost   : 위아래 부유(CABasicAnimation, 별마다 다른 위상) — 스파클/위성/대표 별이 한 덩어리로 둥실
-//             ├ sparkleHost : 공전 스파클(줌 게이트 alpha) — 별마다 반경/속도/방향/기울기/위상/반짝임이 다 다르다
-//             ├ 위성(겹친 별) : 줌 게이트 alpha, 별마다 앵커 회전 + 떠다니는 위상
-//             ├ 대표 별 이미지
-//             └ 유리 결 빛(sheen) : 별 모양으로 오린 흰 사선 띠가 ↘ 로 훑고 작은 반짝이 건너간다(Android sheen 레이어)
+//         └ floatHost   : 위아래 부유(CABasicAnimation, 별마다 다른 위상) — 혜성/대표 별이 한 덩어리로 둥실
+//             ├ 대표 별 이미지(zPosition 0) + 유리 결 빛(sheen, 0.5) : 흰 사선 띠가 ↘ 로 훑고 작은 반짝이 건너간다
+//             └ 혜성(스파클 · 겹친 별 멤버) : 별 둘레 3D 원 궤도([Orbit3D]). zPosition 을 궤도 앞(+1)/뒤(-1)로 바꿔
+//                 별 뒤로 돌아 들어갔다 앞으로 나오고, 정면을 지날 때 크게 반짝인다. 줌 게이트 alpha 는 각 혜성의 gate 뷰에.
 // MapStarReveal 은 어노테이션 뷰의 alpha + layer.sublayerTransform 을 쓴다(위 구조와 충돌 없음).
 //
 // "별마다 다르게": 다이어리 id 의 **안정 해시(FNV-1a)** 로 시드한 난수. Swift `hashValue` 는 실행마다 달라지므로 쓰지 않는다.
+// ⚠️ Android 혜성 오버레이(`MapComets.kt` 의 SparkleSeed/MemberSeed)가 **같은 해시 · 같은 순서**로 뽑아 같은 별이 두 앱에서
+//    같은 방향 · 기울기 · 반경으로 돈다 — 여기서 rng 를 부르는 순서(부유 2 → 회전 방향 · 기울기 그룹 2 → 혜성 세트당 4 → 멤버 3)를
+//    바꾸면 양쪽을 같이 바꾼다.
 // 무한 애니메이션은 timeOffset 으로 위상을 주고(전역 시계에 동기화하지 않는다), 창에 붙을 때/포그라운드 복귀 때 다시 건다.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -75,10 +77,10 @@ enum MapSparkle {
     /// 큰 별 기준.
     static let bigStarThreshold: Double = 1.75
 
-    /// 최대 궤도 영역 비율.
-    static let maxOrbitExtentRatio: CGFloat = 0.62 + 0.16
+    /// 최대 궤도 영역 비율(가장 바깥 반경 × 최대 흔들림 + 머리).
+    static let maxOrbitExtentRatio: CGFloat = 0.66 * 1.08 + 0.16
 
-    /// 스파클이 보이기 시작하는 줌 / 완전히 드러나는 줌 — Android `sparkleSizeExpression`(줌 11 이하 크기 0, 13 에서 0.55 …) 대응.
+    /// 스파클이 보이기 시작하는 줌 / 완전히 드러나는 줌 — Android `COMET_MIN_ZOOM`/`COMET_FULL_ZOOM`(MapComets.kt) 과 같은 값.
     /// 멀리서는 별 곁 반짝이가 잡동사니로 보이므로 지운다.
     static let minZoom: Double = 11
     static let fullZoom: Double = 13
@@ -104,7 +106,8 @@ enum MapSparkle {
         return 1
     }
 
-    /// 공전 파티클 설치 — 별마다 다른 반경/속도/방향/기울기/위상/반짝임. 걸어야 할 애니메이션 목록을 돌려준다.
+    /// 별 곁 혜성 설치 — 별마다 다른 반경/속도/방향/기울기/위상. 줌 게이트용 뷰와 걸어야 할 애니메이션 목록을 돌려준다.
+    /// [host] 는 대표 별 이미지와 **같은 부모**여야 한다(zPosition 으로 별 앞/뒤를 바꾼다).
     static func install(
         on host: UIView,
         center: CGPoint,
@@ -113,167 +116,100 @@ enum MapSparkle {
         starType: Int,
         starColor: Int,
         rng: inout StarMotionRandom
-    ) -> [StarAnimJob] {
+    ) -> (gates: [UIView], jobs: [StarAnimJob]) {
 
         let count = particleCount(sizeMult: sizeMult)
         let big = sizeMult >= bigStarThreshold
 
-        let radii: [CGFloat] = [markerSize * 0.42, markerSize * 0.56, markerSize * 0.62]
+        // 궤도 반경 — 별 몸(반지름 = 마커의 0.39) 바로 바깥. Android `MapComets.kt` SPARKLE_RADIUS 와 같은 값(2026-10-28: 0.42/0.56/0.62 → 몸에 걸치지 않게).
+        let radii: [CGFloat] = [markerSize * 0.46, markerSize * 0.58, markerSize * 0.66]
         let sizes: [CGFloat] = [markerSize * 0.30, markerSize * 0.24, markerSize * 0.16]
-        let periods: [Double] = [2 * .pi / 1.1, 2 * .pi / 0.8, 2 * .pi / 1.5]
         let flashPeriods: [Double] = [2.6, 3.4, 4.3]
 
-        // 안쪽 궤도 방향은 별마다 랜덤, 바깥 궤도는 반대(Android 의 안/밖 역방향 관계 유지).
+        // 안쪽 궤도 방향은 별마다 랜덤, 가운데 궤도는 반대(Android 의 안/밖 역방향 관계 유지).
         let firstClockwise = rng.flip()
-
-        var jobs: [StarAnimJob] = []
-
-        // 궤도 기울기 그룹(0..3) — Android 는 위상 그룹마다 (g - 1.5) × 0.12 를 더한다. 여기선 별마다 시드로 고른다.
+        // 궤도면 기울기 그룹(0..3) — (g - 1.5) × 0.12 를 더한다. 별마다 시드로 고른다(Android SparkleSeed 와 같은 값).
         let tiltGroup = Int(rng.next() % 4)
+
+        var gates: [UIView] = []
+        var jobs: [StarAnimJob] = []
 
         for set in 0..<count {
 
             let size = sizes[set]
+            // 큰 별 곁은 그 별 모양 머리, 가장 바깥 작은 혜성(set 2)은 항상 흰 반짝이(Android 와 같이).
+            let image = (big && set != 2)
+                ? starComet(type: starType, colorIndex: starColor, head: size)
+                : whiteComet(head: size)
 
-            let image = big
-                ? StarImageRenderer.image(type: starType, colorIndex: starColor, size: size)
-                : whiteSparkle(size: size)
-
-            // wrapper(궤도 위치 · 앞뒤 깊이) → spinner(천천히 회전) → iv(번쩍임 · 번쩍일 때 커짐)
-            let wrapper = UIView(frame: CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size))
-            wrapper.isUserInteractionEnabled = false
-            let spinner = UIView(frame: wrapper.bounds)
-            spinner.isUserInteractionEnabled = false
-            let iv = UIImageView(image: image)
-            iv.frame = spinner.bounds
-            iv.alpha = 0.6 // 반짝임 애니메이션(0.26↔1)의 중간쯤 — 애니메이션이 빠져도 어색하지 않게
-            spinner.addSubview(iv)
-            wrapper.addSubview(spinner)
-            host.addSubview(wrapper)
-
-            let speed = rng.range(0.8, 1.25)
-            let radius = radii[set] * CGFloat(rng.range(0.88, 1.12))
-            let phase = rng.unit()
             let clockwise = (set == 1) ? !firstClockwise : firstClockwise
-            let period = periods[set] / speed
-
-            jobs.append(contentsOf: orbitJobs(
-                layer: wrapper.layer,
+            let orb = Orbit3D.install(
+                on: host,
+                image: image,
+                imageSize: CGSize(width: size * cometAspect, height: size),
                 center: center,
-                radius: radius,
-                tilt: orbitTilt(set: set, group: tiltGroup),
-                period: period,
-                clockwise: clockwise,
-                phase: phase
-            ))
+                radius: radii[set] * CGFloat(rng.range(0.94, 1.08)),
+                flat: Double(orbitFlat),
+                tilt: Double(orbitTilt(set: set, group: tiltGroup)),
+                period: 2 * .pi / (orbitSpeed(set) * rng.range(0.9, 1.1)),
+                dir: clockwise ? 1 : -1,
+                phase: rng.unit(),
+                backAlpha: 0.55,
+                glintAlpha: 0.55,
+                glintScale: 0.3
+            )
+            gates.append(orb.gate)
+            jobs.append(contentsOf: orb.jobs)
 
-            // 반짝이 자체도 천천히 돈다(Android iconRotate t·24°/s).
-            let spin = CABasicAnimation(keyPath: "transform.rotation.z")
-            spin.fromValue = 0
-            spin.toValue = 2 * Double.pi
-            spin.duration = 360.0 / 24.0
-            spin.repeatCount = .infinity
-            spin.timeOffset = rng.unit() * spin.duration
-            spin.isRemovedOnCompletion = false
-            jobs.append(StarAnimJob(layer: spinner.layer, key: "spin", anim: spin))
-
-            // Android 식 번쩍임(2026-10-28 수정구 시안) — 평소 0.26 의 작은 알갱이, 주기마다 한 번 flashEnv 로 번쩍.
-            // 번쩍일 때 크기도 0.86 → 1.2 로 커지고 70° 더 돌아간다(Android sparkle mul · iconRotate 의 env 항).
-            // 주기·곡선은 Android `sparkleFlashPeriod`/`sparkleFlash` 와 같은 값. 위상만 별마다 랜덤.
+            // 가끔 한 번 번쩍(수정구 시안 flashEnv) — 정면 반짝과 별개. 주기·곡선은 Android `sparkleFlashPeriod`/`sparkleFlash`.
             let twPeriod = flashPeriods[set]
             let twOffset = rng.unit() * twPeriod
             let steps = 48
             let envs = (0...steps).map { flashEnv(Double($0) / Double(steps)) }
             let keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
-
-            let tw = CAKeyframeAnimation(keyPath: "opacity")
-            tw.values = envs.map { 0.26 + 0.74 * $0 }
-            tw.keyTimes = keyTimes
-            tw.calculationMode = .linear
-            tw.duration = twPeriod
-            tw.repeatCount = .infinity
-            tw.timeOffset = twOffset
-            tw.isRemovedOnCompletion = false
-            jobs.append(StarAnimJob(layer: iv.layer, key: "twinkle", anim: tw))
-
-            let grow = CAKeyframeAnimation(keyPath: "transform")
-            grow.values = envs.map { env -> NSValue in
-                let k = CGFloat(0.86 + 0.34 * env)
-                return NSValue(caTransform3D: CATransform3DRotate(
-                    CATransform3DMakeScale(k, k, 1), CGFloat(env * 70 * .pi / 180), 0, 0, 1))
+            func flashAnim(_ keyPath: String, _ values: [Double]) -> CAKeyframeAnimation {
+                let a = CAKeyframeAnimation(keyPath: keyPath)
+                a.values = values
+                a.keyTimes = keyTimes
+                a.calculationMode = .linear
+                a.duration = twPeriod
+                a.repeatCount = .infinity
+                a.timeOffset = twOffset
+                a.isRemovedOnCompletion = false
+                return a
             }
-            grow.keyTimes = keyTimes
-            grow.calculationMode = .linear
-            grow.duration = twPeriod
-            grow.repeatCount = .infinity
-            grow.timeOffset = twOffset
-            grow.isRemovedOnCompletion = false
-            jobs.append(StarAnimJob(layer: iv.layer, key: "grow", anim: grow))
+            jobs.append(StarAnimJob(layer: orb.image.layer, key: "twinkle", anim: flashAnim("opacity", envs.map { 0.6 + 0.4 * $0 })))
+            jobs.append(StarAnimJob(layer: orb.image.layer, key: "grow", anim: flashAnim("transform.scale", envs.map { 0.92 + 0.12 * $0 })))
         }
 
-        return jobs
+        return (gates, jobs)
     }
 
-    /// 궤도 기울기(rad) — 지도 시안 sparks: 납작한 타원을 세트 · 그룹마다 조금씩 기울여 비스듬히 돈다.
-    /// Android `sparkleOrbitTilt` 와 같은 값.
+    /// 혜성 그림 가로 = 머리 크기 × 2.5(머리는 가운데, 꼬리는 -x). 꼬리는 곧게 진행 방향 반대로 눕는다
+    /// (Android 는 매 프레임 그리는 오버레이라 꼬리가 궤도를 따라 휜다 — MapComets.kt `drawComet`).
+    static let cometAspect: CGFloat = 2.5
+
+    /// 궤도면 기울기(rad) — 지도 시안 sparks: 세트 · 그룹마다 조금씩 비스듬히. Android `sparkleOrbitTilt` 와 같은 값.
     static func orbitTilt(set: Int, group: Int) -> CGFloat {
-        (set == 0 ? 0.36 : -0.30) + (CGFloat(group) - 1.5) * 0.12
+        (set == 1 ? -0.30 : 0.36) + (CGFloat(group) - 1.5) * 0.12
     }
 
-    /// 궤도 납작함(세로/가로) — Android `SPARKLE_ORBIT_FLAT`.
+    /// 궤도 납작함(= cos(궤도면이 누운 각)) — Android `SPARKLE_ORBIT_FLAT`.
     static let orbitFlat: CGFloat = 0.42
+
+    /// 세트별 공전 각속도(rad/초) — Android `sparkleOrbitSpeed`.
+    static func orbitSpeed(_ set: Int) -> Double {
+        switch set {
+        case 0: return 1.1
+        case 1: return 0.8
+        default: return 1.5
+        }
+    }
 
     /// 궤도 위 앞쪽 정도(0 = 뒤 … 1 = 앞) — Android `sparkleFrontness` 와 같은 식.
     static func frontness(_ sinAng: Double) -> Double {
         let x = min(max((sinAng + 0.3) / 0.6, 0), 1)
         return x * x * (3 - 2 * x)
-    }
-
-    /// 기울어진 납작 타원 궤도 — 위치는 등각속도로(Android 와 같이) 돌고, 앞쪽(아래 반)에선 크고 밝게 ·
-    /// 뒤쪽(위 반)에선 작고(0.8) 흐리게(0.6) — 별 둘레를 입체로 도는 느낌. 위상은 timeOffset.
-    private static func orbitJobs(
-        layer: CALayer,
-        center: CGPoint,
-        radius: CGFloat,
-        tilt: CGFloat,
-        period: Double,
-        clockwise: Bool,
-        phase: Double
-    ) -> [StarAnimJob] {
-
-        let steps = 48
-        let ct = cos(tilt), st = sin(tilt)
-        var points: [NSValue] = []
-        var scales: [NSNumber] = []
-        var alphas: [NSNumber] = []
-        for i in 0...steps {
-            let ang = (clockwise ? 1.0 : -1.0) * 2 * Double.pi * Double(i) / Double(steps)
-            let ox = CGFloat(cos(ang)) * radius
-            let oy = CGFloat(sin(ang)) * orbitFlat * radius
-            points.append(NSValue(cgPoint: CGPoint(x: center.x + ox * ct - oy * st, y: center.y + ox * st + oy * ct)))
-            let f = frontness(sin(ang))
-            scales.append(NSNumber(value: 0.8 + 0.2 * f))
-            alphas.append(NSNumber(value: 0.6 + 0.4 * f))
-        }
-        let keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
-
-        func keyframe(_ keyPath: String, _ values: [Any]) -> CAKeyframeAnimation {
-            let anim = CAKeyframeAnimation(keyPath: keyPath)
-            anim.values = values
-            anim.keyTimes = keyTimes
-            anim.calculationMode = .linear
-            anim.duration = period
-            anim.repeatCount = .infinity
-            anim.isRemovedOnCompletion = false
-            anim.timeOffset = phase * period
-            return anim
-        }
-
-        return [
-            StarAnimJob(layer: layer, key: "orbit", anim: keyframe("position", points)),
-            StarAnimJob(layer: layer, key: "orbit-depth", anim: keyframe("transform.scale", scales)),
-            StarAnimJob(layer: layer, key: "orbit-alpha", anim: keyframe("opacity", alphas)),
-        ]
     }
 
     // MARK: White Sparkle
@@ -305,7 +241,7 @@ enum MapSparkle {
                 height: body
             )
 
-            // 굽은 4갈래 반짝(중심을 지나는 2차 곡선 4개 — 수정구 시안 sparkleR, Android sparkleBitmap 과 같은 비율) + 평소에도 보이는 작은 알갱이.
+            // 굽은 4갈래 반짝(중심을 지나는 2차 곡선 4개 — 수정구 시안 sparkleR, Android `MapComets.rays` 와 같은 비율) + 평소에도 보이는 작은 알갱이.
             let c = CGPoint(x: rect.midX, y: rect.midY)
             let r = px * 0.46
             let k = r * 0.10
@@ -334,6 +270,183 @@ enum MapSparkle {
 
         return img
     }
+
+    // MARK: Comet
+
+    /// 혜성 꼬리 — 머리(hx, cy)에서 -x 로 [len] 만큼, 머리 쪽 폭 [w] 에서 끝으로 가늘어지며 사라진다(0 → 0.3α(60%) → α).
+    static func drawTail(_ cg: CGContext, hx: CGFloat, cy: CGFloat, len: CGFloat, w: CGFloat, color: UIColor, alpha: CGFloat) {
+        let tip = hx - len
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: hx, y: cy - w / 2))
+        path.addQuadCurve(to: CGPoint(x: tip, y: cy), control: CGPoint(x: hx - len * 0.45, y: cy - w * 0.26))
+        path.addQuadCurve(to: CGPoint(x: hx, y: cy + w / 2), control: CGPoint(x: hx - len * 0.45, y: cy + w * 0.26))
+        path.closeSubpath()
+        guard let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                    colors: [color.withAlphaComponent(0).cgColor,
+                                             color.withAlphaComponent(0.3 * alpha).cgColor,
+                                             color.withAlphaComponent(alpha).cgColor] as CFArray,
+                                    locations: [0, 0.6, 1]) else { return }
+        cg.saveGState()
+        cg.addPath(path)
+        cg.clip()
+        cg.drawLinearGradient(grad, start: CGPoint(x: tip, y: cy), end: CGPoint(x: hx, y: cy), options: [])
+        cg.restoreGState()
+    }
+
+    private static var cometCache: [String: UIImage] = [:]
+
+    /// 혜성 캔버스(머리 [head] × [cometAspect] 가로) 위에 꼬리를 그리고 머리 그림을 가운데 얹는다.
+    static func comet(key: String, head: CGFloat, tails: [(len: CGFloat, w: CGFloat, color: UIColor, alpha: CGFloat)],
+                      headImage: () -> UIImage) -> UIImage {
+        if let cached = cometCache[key] { return cached }
+        let w = head * cometAspect
+        let fmt = UIGraphicsImageRendererFormat()
+        fmt.opaque = false
+        let img = UIGraphicsImageRenderer(size: CGSize(width: w, height: head), format: fmt).image { ctx in
+            let cg = ctx.cgContext
+            for t in tails {
+                drawTail(cg, hx: w / 2, cy: head / 2, len: t.len * head, w: t.w * head, color: t.color, alpha: t.alpha)
+            }
+            headImage().draw(in: CGRect(x: (w - head) / 2, y: 0, width: head, height: head))
+        }
+        cometCache[key] = img
+        return img
+    }
+
+    /// 흰 혜성 — 굽은 4갈래 반짝 머리 + 따뜻한 흰 꼬리(Android `MapComets` 흰 반짝 머리의 꼬리 폭 · 색과 같은 값).
+    static func whiteComet(head: CGFloat) -> UIImage {
+        comet(key: "w\(Int((head * 4).rounded()))", head: head, tails: [
+            (0.94, 0.22, UIColor(red: 1, green: 0.914, blue: 0.784, alpha: 1), 0.45),
+            (0.81, 0.075, .white, 0.85),
+        ]) { whiteSparkle(size: head) }
+    }
+
+    /// 큰 별 곁 혜성 — 그 별 모양 미니 크리스탈 머리 + 그 빛깔 꼬리(Android `MapComets` HEAD_STAR).
+    static func starComet(type: Int, colorIndex: Int, head: CGFloat) -> UIImage {
+        let color = UIColor(StarStyle.color(colorIndex))
+        return comet(key: "s\(type)-\(colorIndex)-\(Int((head * 4).rounded()))", head: head, tails: [
+            (0.94, 0.25, color, 0.55),
+            (0.75, 0.075, UIColor(red: 1, green: 0.965, blue: 0.918, alpha: 1), 0.6),
+        ]) { StarImageRenderer.image(type: type, colorIndex: colorIndex, size: head) }
+    }
+
+    /// 겹친 별 멤버 혜성 — 그 멤버 별 머리 + 그 빛깔의 긴 꼬리(Android `MapComets.drawMembers`).
+    static func memberComet(type: Int, colorIndex: Int, head: CGFloat) -> UIImage {
+        let color = UIColor(StarStyle.color(colorIndex))
+        return comet(key: "m\(type)-\(colorIndex)-\(Int((head * 4).rounded()))", head: head, tails: [
+            (1.03, 0.31, color, 0.5),
+            (0.84, 0.078, UIColor(red: 1, green: 0.957, blue: 0.918, alpha: 1), 0.65),
+        ]) { StarImageRenderer.image(type: type, colorIndex: colorIndex, size: head) }
+    }
+}
+
+// MARK: - Orbit 3D
+
+/// 별 둘레 3D 원 궤도 — 궤도면이 화면 쪽으로 누워(납작함 flat) 앞쪽 반이 화면 아래로 온다. Android `MapComets.drawComet` 과 같은 식.
+/// 앞쪽 반은 별 위(zPosition +1) · 뒤쪽 반은 별 아래(-1), 원근으로 앞에선 크고 뒤에선 작고 흐리게,
+/// 정면을 지날 때 크게 반짝이고(glint), 꼬리는 진행 방향 반대로 눕는다.
+enum Orbit3D {
+
+    struct Point {
+        let x: Double, y: Double   // 화면 위치(반경 1, y 아래가 +)
+        let z: Double              // 깊이(+1 = 정면 가장 가까움)
+        let front: Double          // 앞쪽 정도(0 뒤 … 1 앞)
+        let headingDeg: Double     // 화면 진행 방향(°, 시계 방향)
+    }
+
+    static func point(_ ang: Double, flat: Double, tilt: Double, dir: Double) -> Point {
+        let ca = cos(ang), sa = sin(ang), ct = cos(tilt), st = sin(tilt)
+        let ox = ca, oy = sa * flat
+        let vx = -sa * dir, vy = ca * flat * dir
+        let hx = vx * ct - vy * st, hy = vx * st + vy * ct
+        return Point(x: ox * ct - oy * st, y: ox * st + oy * ct, z: sa,
+                     front: MapSparkle.frontness(sa), headingDeg: atan2(hy, hx) * 180 / .pi)
+    }
+
+    /// 정면을 지날 때의 반짝임(0..1) — Android `orbitGlint`.
+    static func glint(_ z: Double) -> Double {
+        let g = min(max((z - 0.5) / 0.5, 0), 1)
+        return g * g * (3 - 2 * g)
+    }
+
+    /// 원근 배율 — 뒤(0.86) … 앞(1.14). Android `orbitPerspective`.
+    static func perspective(_ z: Double) -> Double { 0.86 + 0.14 * (z + 1) }
+
+    /// 혜성 하나 설치 — wrapper(궤도 위치 · 원근 · 앞뒤 zPosition) → gate(줌 게이트 alpha) → rotator(진행 방향) → image.
+    /// [backAlpha] 뒤쪽 불투명도, [glintAlpha] 정면 반짝이 불투명도에 주는 몫, [glintScale] 정면에서 커지는 몫. 위상은 timeOffset.
+    static func install(
+        on host: UIView,
+        image: UIImage,
+        imageSize: CGSize,
+        center: CGPoint,
+        radius: CGFloat,
+        flat: Double,
+        tilt: Double,
+        period: Double,
+        dir: Double,
+        phase: Double,
+        backAlpha: Double,
+        glintAlpha: Double,
+        glintScale: Double
+    ) -> (gate: UIView, image: UIImageView, jobs: [StarAnimJob]) {
+
+        let wrapper = UIView(frame: CGRect(x: center.x - imageSize.width / 2, y: center.y - imageSize.height / 2,
+                                           width: imageSize.width, height: imageSize.height))
+        let gate = UIView(frame: wrapper.bounds)
+        let rotator = UIView(frame: gate.bounds)
+        let iv = UIImageView(image: image)
+        iv.frame = rotator.bounds
+        for v in [wrapper, gate, rotator, iv] as [UIView] { v.isUserInteractionEnabled = false }
+        rotator.addSubview(iv)
+        gate.addSubview(rotator)
+        wrapper.addSubview(gate)
+        host.addSubview(wrapper)
+
+        let steps = 72
+        var points: [NSValue] = [], scales: [Double] = [], alphas: [Double] = [], zs: [Double] = [], headings: [Double] = []
+        var prev: Double?
+        for i in 0...steps {
+            let p = point(dir * 2 * .pi * Double(i) / Double(steps), flat: flat, tilt: tilt, dir: dir)
+            points.append(NSValue(cgPoint: CGPoint(x: center.x + CGFloat(p.x) * radius, y: center.y + CGFloat(p.y) * radius)))
+            let g = glint(p.z)
+            scales.append(perspective(p.z) * (1 + glintScale * g))
+            alphas.append((backAlpha + (1 - backAlpha) * p.front) * ((1 - glintAlpha) + glintAlpha * g))
+            zs.append(p.front >= 0.5 ? 1 : -1)
+            // 진행 방향은 이어지게 풀어 둔다(359° → 1° 를 거꾸로 한 바퀴 돌지 않게).
+            var deg = p.headingDeg
+            if let pd = prev {
+                while deg - pd > 180 { deg -= 360 }
+                while deg - pd < -180 { deg += 360 }
+            }
+            prev = deg
+            headings.append(deg * .pi / 180)
+        }
+        let keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+        wrapper.layer.zPosition = CGFloat(zs[0])
+        wrapper.layer.position = points[0].cgPointValue
+
+        func keyframe(_ keyPath: String, _ values: [Any], discrete: Bool = false) -> CAKeyframeAnimation {
+            let a = CAKeyframeAnimation(keyPath: keyPath)
+            // discrete 는 keyTimes 가 값보다 하나 많아야 한다(마지막 칸의 끝 = 1).
+            a.values = discrete ? Array(values.dropLast()) : values
+            a.keyTimes = keyTimes
+            a.calculationMode = discrete ? .discrete : .linear
+            a.duration = period
+            a.repeatCount = .infinity
+            a.timeOffset = phase * period
+            a.isRemovedOnCompletion = false
+            return a
+        }
+
+        let jobs = [
+            StarAnimJob(layer: wrapper.layer, key: "orbit", anim: keyframe("position", points)),
+            StarAnimJob(layer: wrapper.layer, key: "orbit-depth", anim: keyframe("transform.scale", scales)),
+            StarAnimJob(layer: wrapper.layer, key: "orbit-alpha", anim: keyframe("opacity", alphas)),
+            StarAnimJob(layer: wrapper.layer, key: "orbit-z", anim: keyframe("zPosition", zs, discrete: true)),
+            StarAnimJob(layer: rotator.layer, key: "orbit-heading", anim: keyframe("transform.rotation.z", headings)),
+        ]
+        return (gate, iv, jobs)
+    }
 }
 
 // MARK: - Star Marker View
@@ -344,41 +457,18 @@ final class StarMarkerView: MLNAnnotationView {
     // ── 겹친 별 위성 ──
     private static let maxOrbitStars = 4
 
-    private static let anchorAngles: [CGFloat] = [-0.6, 2.3, 4.1, 1.1]
+    /// 멤버 혜성 공전 — 약 15초에 한 바퀴, 멤버 사이 2.4rad(황금각에 가까워 몇 개든 고르게 벌어진다). Android `MEMBER_ORBIT_*`.
+    private static let memberOrbitSpeed = 0.42
+    private static let memberOrbitSpacing = 2.4
 
-    // 위성 부유 주기/위상 — Android `DiaryMap` 의 위성 식과 같은 값(값 drift 금지):
-    //   driftX = sin(t × (0.7 + 0.14i) + i × 2.1) × 0.8
-    //   driftY = sin(t × (1.15 + 0.18i) + i × 1.4) × 1.0
-    // 주기 = 2π / 각속도, 위상 = (i × 위상상수) / 2π (0..1 비율). 여기에 **별마다 랜덤 오프셋**을 더해 다 다르게 만든다.
-    private static let driftPeriodsX: [Double] = [
-        2 * Double.pi / 0.70,
-        2 * Double.pi / 0.84,
-        2 * Double.pi / 0.98,
-        2 * Double.pi / 1.12
-    ]
-
-    private static let driftPeriodsY: [Double] = [
-        2 * Double.pi / 1.15,
-        2 * Double.pi / 1.33,
-        2 * Double.pi / 1.51,
-        2 * Double.pi / 1.69
-    ]
-
-    private static let driftPhasesX: [Double] = [0, 2.1, 4.2, 6.3].map {
-        ($0 / (2 * Double.pi)).truncatingRemainder(dividingBy: 1)
-    }
-
-    private static let driftPhasesY: [Double] = [0, 1.4, 2.8, 4.2].map {
-        ($0 / (2 * Double.pi)).truncatingRemainder(dividingBy: 1)
-    }
-
-    private static let satSize: CGFloat = 16
+    /// 멤버 혜성 머리 최소 크기(pt) — 별 크기의 40% 와 이것 중 큰 쪽.
+    private static let satSize: CGFloat = 14
 
     /// 위성 기본 불투명도(줌 게이트가 열렸을 때).
     static let satelliteAlpha: CGFloat = 0.92
 
     /// 위성이 보이기 시작하는 줌 / 완전히 드러나는 줌 —
-    /// Android `orbitSizeExpression`(줌 11 이하 0) + 부유 갱신 게이트(zoom > 11.1) 대응.
+    /// Android `COMET_MIN_ZOOM`/`COMET_FULL_ZOOM`(MapComets.kt) 대응.
     static let satelliteMinZoom: Double = 11
     static let satelliteFullZoom: Double = 13
 
@@ -389,9 +479,6 @@ final class StarMarkerView: MLNAnnotationView {
         let t = (zoom - satelliteMinZoom) / (satelliteFullZoom - satelliteMinZoom)
         return satelliteAlpha * CGFloat(t)
     }
-
-    private static let driftAmpX: CGFloat = 0.8
-    private static let driftAmpY: CGFloat = 1.0
 
     // ── 부유 — Android: 모든 별 sin(t·1.6 + phase)·4dp ──
     private static let floatAmp: CGFloat = 4.0
@@ -404,13 +491,15 @@ final class StarMarkerView: MLNAnnotationView {
     private let side: CGFloat
     private let zoomHost = UIView()
     private let floatHost = UIView()
-    private let sparkleHost = UIView()
-    private var satellites: [UIImageView] = []
+    /// 줌 게이트 alpha 를 받는 혜성들의 gate 뷰(스파클 / 겹친 별 멤버).
+    private var sparkleGates: [UIView] = []
+    private var memberGates: [UIView] = []
     private var jobs: [StarAnimJob] = []
     private var zoomScale: CGFloat = 1
 
+    /// 멤버 혜성 궤도 반경 — 스파클(0.56) 바깥에서 대표 별을 크게 감싼다. 멤버마다 조금씩 바깥으로.
     private static func satelliteRadius(markerSize: CGFloat, satIndex: Int) -> CGFloat {
-        markerSize * 0.09 + 0.5 + CGFloat(satIndex) * 1.0
+        markerSize * (0.75 + 0.05 * CGFloat(satIndex))
     }
 
     /// 뷰 한 변(줌 배율 1 기준) — 스파클 궤도/위성/부유 진폭이 다 들어가는 크기.
@@ -428,7 +517,7 @@ final class StarMarkerView: MLNAnnotationView {
             satIndex: max(members.count - 1, 0)
         )
 
-        let satExtent = maxRadius + satSize / 2 + driftAmpY + floatAmp
+        let satExtent = maxRadius + max(satSize, markerSize * 0.4) / 2 + floatAmp
         let orbitExtent = markerSize * MapSparkle.maxOrbitExtentRatio + floatAmp
 
         return max(satExtent, orbitExtent) * 1.8
@@ -451,14 +540,11 @@ final class StarMarkerView: MLNAnnotationView {
 
         zoomHost.frame = CGRect(x: 0, y: 0, width: side, height: side)
         floatHost.frame = zoomHost.bounds
-        sparkleHost.frame = floatHost.bounds
         zoomHost.isUserInteractionEnabled = false
         floatHost.isUserInteractionEnabled = false
-        sparkleHost.isUserInteractionEnabled = false
 
         addSubview(zoomHost)
         zoomHost.addSubview(floatHost)
-        floatHost.addSubview(sparkleHost)
 
         // 이 별만의 시드 — id 의 안정 해시(+ 좌표로 id 없는 합성 별도 구분).
         let repId = annotation.diary.id ?? "\(annotation.diary.latitude),\(annotation.diary.longitude)"
@@ -477,20 +563,22 @@ final class StarMarkerView: MLNAnnotationView {
             )
         ))
 
-        // 스파클 먼저(대표 별 아래에 깔린다).
-        jobs.append(contentsOf: MapSparkle.install(
-            on: sparkleHost,
+        // 별 곁 혜성 — 대표 별과 같은 부모(floatHost)에 두고 zPosition 으로 별 앞/뒤를 오간다.
+        let sparkles = MapSparkle.install(
+            on: floatHost,
             center: center,
             markerSize: markerSize,
             sizeMult: annotation.sizeMult,
             starType: annotation.diary.starType,
             starColor: annotation.diary.starColor,
             rng: &rng
-        ))
+        )
+        sparkleGates = sparkles.gates
+        jobs.append(contentsOf: sparkles.jobs)
 
-        // 겹친 별 위성.
+        // 겹친 별 멤버 혜성.
         if annotation.members.count > 1 {
-            installSatellites(annotation, center: center, markerSize: markerSize, rng: &rng)
+            installMembers(annotation, center: center, markerSize: markerSize, rng: &rng)
         }
 
         // 대표 별.
@@ -508,6 +596,7 @@ final class StarMarkerView: MLNAnnotationView {
             height: markerSize
         )
         rep.contentMode = .scaleAspectFit
+        rep.layer.zPosition = 0 // 혜성: 앞 +1 / 뒤 -1
         floatHost.addSubview(rep)
 
         // 유리 결 빛 — 흰 빛줄기가 별 몸을 왼쪽 위 → 오른쪽 아래로 훑고, 작은 반짝이 하나가 그 빛을 타고 건너간다.
@@ -525,64 +614,40 @@ final class StarMarkerView: MLNAnnotationView {
         fatalError("init(coder:) is not supported")
     }
 
-    private func installSatellites(
+    /// 겹친 별 멤버 혜성 — 대표 둘레를 천천히 도는 3D 원 궤도. 멤버끼리는 같은 속도라 고르게 벌어진 채 한 고리처럼 돌고,
+    /// 궤도면만 멤버마다 조금씩 달라(납작함 0.36 + 0.04i) 겹친 고리로 보인다. Android `MEMBER_ORBIT_*`/`memberOrbit*` 와 같은 값.
+    private func installMembers(
         _ annotation: DiaryAnnotation,
         center: CGPoint,
         markerSize: CGFloat,
         rng: inout StarMotionRandom
     ) {
-
         let members = Array(annotation.members.dropFirst().prefix(Self.maxOrbitStars))
-
-        // 별마다 앵커 전체를 같은 각도만큼 돌려 배치 자체가 달라 보이게.
-        let rotation = CGFloat(rng.range(0, 2 * Double.pi))
-        let offX = rng.unit()
-        let offY = rng.unit()
+        let head = max(Self.satSize, markerSize * 0.4)
+        let base = rng.unit()
+        let tilt = 0.22 + (Double(rng.next() % 4) - 1.5) * 0.10
+        let dir: Double = rng.flip() ? 1 : -1
+        let period = 2 * Double.pi / Self.memberOrbitSpeed
 
         for (i, m) in members.enumerated() {
-
-            let iv = UIImageView(
-                image: StarImageRenderer.image(
-                    type: m.starType,
-                    colorIndex: m.starColor,
-                    size: Self.satSize
-                )
+            let orb = Orbit3D.install(
+                on: floatHost,
+                image: MapSparkle.memberComet(type: m.starType, colorIndex: m.starColor, head: head),
+                imageSize: CGSize(width: head * MapSparkle.cometAspect, height: head),
+                center: center,
+                radius: Self.satelliteRadius(markerSize: markerSize, satIndex: i),
+                flat: 0.36 + 0.04 * Double(i),
+                tilt: tilt,
+                period: period,
+                dir: dir,
+                phase: (base + Double(i) * Self.memberOrbitSpacing / (2 * .pi)).truncatingRemainder(dividingBy: 1),
+                backAlpha: 0.7,
+                glintAlpha: 0.28,
+                glintScale: 0.18
             )
-            iv.bounds = CGRect(x: 0, y: 0, width: Self.satSize, height: Self.satSize)
-
-            let ang = Self.anchorAngles[i] + rotation
-            let r = Self.satelliteRadius(markerSize: markerSize, satIndex: i)
-
-            iv.center = CGPoint(
-                x: center.x + cos(ang) * r,
-                y: center.y + sin(ang) * 0.55 * r
-            )
-            iv.alpha = Self.satelliteAlpha
-
-            floatHost.addSubview(iv)
-            satellites.append(iv)
-
-            jobs.append(StarAnimJob(
-                layer: iv.layer,
-                key: "drift-x",
-                anim: Self.sway(
-                    keyPath: "transform.translation.x",
-                    amp: Self.driftAmpX,
-                    period: Self.driftPeriodsX[i],
-                    phase: (Self.driftPhasesX[i] + offX).truncatingRemainder(dividingBy: 1)
-                )
-            ))
-
-            jobs.append(StarAnimJob(
-                layer: iv.layer,
-                key: "drift-y",
-                anim: Self.sway(
-                    keyPath: "transform.translation.y",
-                    amp: Self.driftAmpY,
-                    period: Self.driftPeriodsY[i],
-                    phase: (Self.driftPhasesY[i] + offY).truncatingRemainder(dividingBy: 1)
-                )
-            ))
+            orb.gate.alpha = Self.satelliteAlpha
+            memberGates.append(orb.gate)
+            jobs.append(contentsOf: orb.jobs)
         }
     }
 
@@ -604,6 +669,7 @@ final class StarMarkerView: MLNAnnotationView {
         let host = UIView(frame: frame)
         host.isUserInteractionEnabled = false
         host.alpha = 0
+        host.layer.zPosition = 0.5 // 별 바로 위, 앞쪽 혜성 아래
         floatHost.addSubview(host)
 
         // 빛줄기 — 별 몸(이미지 78%) 모양으로 오린다.
@@ -774,10 +840,13 @@ final class StarMarkerView: MLNAnnotationView {
 
     /// 줌 게이트 반영 — 일정 줌 이하로 빼면 스파클/위성이 사라진다(Android 패리티).
     func applyZoomGate(sparkle: CGFloat, satellite: CGFloat) {
-        sparkleHost.alpha = sparkle
-        sparkleHost.isHidden = sparkle <= 0.001
-        for iv in satellites {
-            iv.alpha = satellite
+        for g in sparkleGates {
+            g.alpha = sparkle
+            g.isHidden = sparkle <= 0.001
+        }
+        for g in memberGates {
+            g.alpha = satellite
+            g.isHidden = satellite <= 0.001
         }
     }
 }

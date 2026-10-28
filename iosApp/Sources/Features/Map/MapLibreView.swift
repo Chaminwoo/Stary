@@ -519,7 +519,7 @@ struct MapLibreView: UIViewRepresentable {
             return CGFloat(s)
         }
 
-        /// 스파클/겹친 별 위성 표시·숨김 — 줌이 낮으면(멀리 보면) 지운다. Android `sparkleSizeExpression`/`orbitSizeExpression` 대응.
+        /// 스파클/겹친 별 위성 표시·숨김 — 줌이 낮으면(멀리 보면) 지운다. Android 혜성 오버레이(`MapComets.kt`)의 줌 게이트 대응.
         /// 값이 바뀔 때만 뷰를 순회한다. 방금 만든 뷰는 순회 대상이 아니므로 viewFor 에서 `applyZoomGate` 로 따로 맞춘다.
         func applyMarkerGate(
             _ mapView: MLNMapView
