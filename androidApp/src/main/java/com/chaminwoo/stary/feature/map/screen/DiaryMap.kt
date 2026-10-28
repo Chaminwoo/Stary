@@ -209,6 +209,15 @@ fun DiaryMap(
     val isCameraMoving = remember { mutableStateOf(false) }
     // 저줌 대기 헤이즈 강도(0..1) — 줌이 HAZE_START_ZOOM 밑으로 내려갈수록 1에 접근.
     val hazeAlpha = remember { mutableStateOf(0f) }
+    // 하늘 · 땅 빛 오버레이(MapSky.kt)가 쓰는 줌(0.05 단위) · 시계(초) — 오버레이만 다시 그린다.
+    val skyZoom = remember { androidx.compose.runtime.mutableFloatStateOf(DEFAULT_ZOOM.toFloat()) }
+    val skyT = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            if (com.chaminwoo.stary.core.util.AppForeground.isForeground) skyT.floatValue += 0.05f
+            delay(50)
+        }
+    }
     // 세계(웹메르카토르) 상하 타일 한계 밖 "빈 공간" 오버레이 상태 — (위쪽 빈 공간 끝 y,
     // 아래쪽 빈 공간 시작 y, 색 보간용 줌). 빈 공간이 안 보일 땐 고정 센티널로 리컴포지션 억제.
     val worldVoid = remember { mutableStateOf(Triple(0f, Float.MAX_VALUE, 0f)) }
@@ -374,6 +383,8 @@ fun DiaryMap(
                     val a = ((HAZE_START_ZOOM - z) / (HAZE_START_ZOOM - MAP_MIN_ZOOM))
                         .toFloat().coerceIn(0f, 1f)
                     if (a != hazeAlpha.value) hazeAlpha.value = a
+                    val sz = (z * 20).toInt() / 20f
+                    if (sz != skyZoom.floatValue) skyZoom.floatValue = sz
                     val cb = onGlobeAvailabilityRef.value ?: return@addOnCameraMoveListener
                     val c = map.cameraPosition.target
                     cb(c?.latitude ?: 0.0, c?.longitude ?: 0.0, z <= GLOBE_BUTTON_ZOOM)
@@ -523,30 +534,30 @@ fun DiaryMap(
                     val dSrc = GeoJsonSource(DIARY_SOURCE, FeatureCollection.fromFeatures(emptyList()))
                     style.addSource(dSrc)
 
-                    // 바닥 빛 웅덩이 — 지점 고정 광(부유하는 별과의 시차로 "떠 있음"이 읽힌다).
+                    // 바닥 빛 웅덩이 — 별 아래 땅에 누운 빛 타원(지점 고정, 부유하는 별과의 시차로 "떠 있음"이 읽힌다).
                     for (g in 0 until PHASE_GROUPS) {
                         val light = CircleLayer(groundLightLayerId(g), DIARY_SOURCE).withProperties(
                             PropertyFactory.circleColor(Expression.toColor(Expression.get("auraColor"))),
-                            PropertyFactory.circleRadius(groundLightRadiusExpression()),
+                            PropertyFactory.circleRadius(starBodyExpression(GROUND_LIGHT_K, screenDensity)),
                             PropertyFactory.circleOpacity(
                                 Expression.product(
                                     Expression.literal(GROUND_LIGHT_OPACITY), Expression.get("alpha")
                                 )
                             ),
-                            PropertyFactory.circleBlur(1.4f),
-                            PropertyFactory.circleTranslate(arrayOf(0f, GROUND_LIGHT_OFFSET_Y)),
+                            PropertyFactory.circleBlur(1f),
+                            PropertyFactory.circlePitchAlignment(Property.CIRCLE_PITCH_ALIGNMENT_MAP),
                         )
                         light.setFilter(Expression.eq(Expression.get("phaseGroup"), Expression.literal(g)))
                         style.addLayer(light)
                     }
 
-                    // 오오라(인기 별 글로우) — 위상 그룹별로 나눠 별과 같이 float.
+                    // 후광 — 모든 별(시안과 같이 인기와 무관). 위상 그룹별로 나눠 별과 같이 float.
                     for (g in 0 until PHASE_GROUPS) {
                         val aura = CircleLayer(auraLayerId(g), DIARY_SOURCE).withProperties(
                             PropertyFactory.circleColor(Expression.toColor(Expression.get("auraColor"))),
-                            PropertyFactory.circleRadius(auraRadiusExpression()),
+                            PropertyFactory.circleRadius(starBodyExpression(STAR_HALO_K, screenDensity)),
                             PropertyFactory.circleOpacity(
-                                Expression.product(auraOpacityExpression(), Expression.get("alpha"))
+                                Expression.product(Expression.literal(STAR_HALO_OPACITY), Expression.get("alpha"))
                             ),
                             PropertyFactory.circleBlur(1f),
                         )
@@ -756,8 +767,7 @@ fun DiaryMap(
             //    물 레이어와 같은 색(줌 보간)으로 덮어 바다가 이어진 것처럼 보이게 한다.
             val (voidTop, voidBottom, voidZoom) = worldVoid.value
             if (voidTop > 0f || voidBottom < size.height) {
-                val f = ((voidZoom - 6f) / 10f).coerceIn(0f, 1f)
-                val sea = lerp(Color(0xFF080617), Color(0xFF142229), f)
+                val sea = Color(0xFF04091A) // 물 레이어와 같은 깊은 남색(지도 시안)
                 if (voidTop > 0f) drawRect(sea, size = Size(size.width, voidTop))
                 if (voidBottom < size.height) drawRect(
                     sea,
@@ -765,18 +775,14 @@ fun DiaryMap(
                     size = Size(size.width, size.height - voidBottom),
                 )
             }
-            // 1) 상시 비네트: 가장자리를 살짝 어둡게 눌러 화면에 깊이감을 준다
-            drawRect(
-                brush = Brush.radialGradient(
-                    0.0f to Color.Transparent,
-                    0.62f to Color.Transparent,
-                    1.0f to Color.Black.copy(alpha = 0.30f),
-                    center = center,
-                    radius = r,
-                )
-            )
-            // 1.5) 하늘 안개 + 땅 광택(정적) — 저줌 글로브 전환 땐 헤이즈에 자리를 내준다.
-            drawMapSky(k = 1f - hazeAlpha.value.coerceIn(0f, 1f), density = screenDensity)
+            // 1) 땅 빛(먼 곳 보랏빛 · 비스듬한 빛띠 · 반사광) + 위쪽 안개 → 하늘 띠 → 비네트 (지도 시안 그대로, MapSky.kt).
+            //    저줌 글로브 전환 땐 헤이즈에 자리를 내준다.
+            val skyK = 1f - hazeAlpha.value.coerceIn(0f, 1f)
+            val zoomNow = skyZoom.floatValue
+            val tNow = skyT.floatValue
+            drawMapGroundLight(k = skyK, zoom = zoomNow, t = tNow)
+            drawMapSkyBand(k = skyK, zoom = zoomNow, t = tNow, density = screenDensity)
+            drawMapVignette()
             // 2) 글로브 근접 대기 헤이즈: 줌아웃할수록 파란 대기가 차올라 글로브 전환과 이어진다
             val a = hazeAlpha.value
             if (a > 0f) {
@@ -1444,11 +1450,13 @@ fun DiaryMap(
         val orbitLayers = Array(MAX_ORBIT_STARS) { i -> Array(PHASE_GROUPS) { g -> style.getLayer(orbitLayerId(i, g)) as? SymbolLayer } }
         val particleLayers = Array(PHASE_GROUPS) { style.getLayer(particleLayerId(it)) as? SymbolLayer }
         val roadGlintLayer = style.getLayer(ROAD_GLINT_LAYER) as? LineLayer
+        val roadGlintRoseLayer = style.getLayer(ROAD_GLINT_ROSE_LAYER) as? LineLayer
         val myRingLayer = style.getLayer(CURRENT_RING_LAYER) as? SymbolLayer
         val myWaveLayer = style.getLayer(CURRENT_WAVE_LAYER) as? CircleLayer
         val myWaveRadiusCache = HashMap<Int, Expression>()
         // 도로 글린트 불투명도는 줌 보간(1회 설치) — 흐름이 이음매 없이 이어지므로 페이드가 불필요하다.
         roadGlintLayer?.setProperties(PropertyFactory.lineOpacity(roadGlintOpacityExpression()))
+        roadGlintRoseLayer?.setProperties(PropertyFactory.lineOpacity(roadGlintOpacityExpression()))
         // 값이 연속 변하는 표현식은 양자화해 캐시(눈에 안 보이는 1/64 단위) — 매 틱 트리 재생성 방지.
         val sizeExprCache = HashMap<Int, Expression>()
         val groundExprCache = HashMap<Int, Expression>()
@@ -1645,6 +1653,8 @@ fun DiaryMap(
             if (p != lastDashOffset) {
                 lastDashOffset = p
                 roadGlintLayer?.setProperties(PropertyFactory.lineDasharray(roadGlintDashArray(p)))
+                // 장밋빛은 같은 단계 집합을 거꾸로 — 반대 방향으로 흐른다(아틀라스 캐시 공유)
+                roadGlintRoseLayer?.setProperties(PropertyFactory.lineDasharray(roadGlintDashArray(period - p)))
             }
             delay(50)
         }

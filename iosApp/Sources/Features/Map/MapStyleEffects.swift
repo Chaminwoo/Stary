@@ -6,7 +6,8 @@ import UIKit
 // 지도 스타일 이펙트 — Android DiaryMap/DiaryMapMarkers 패리티(#3, #7).
 //  · 별가루 파티클: 시작 위치 반경 20km 에 400개(시드 42, 위상 4그룹) + 트윙클 루프
 //  · 별자리 라인: 뷰포트의 대표 별들을 최근접 2개와 잇는 3겹(후광/글로우/밝은 선) 라인
-//  · 별 후광: 별색 바닥광 + 인기 별 오오라 2겹 CircleLayer(어노테이션 뷰 아래에 깔린다)
+//  · 별 빛: 땅에 누운 바닥 빛 + 모든 별 후광 2겹 CircleLayer(어노테이션 뷰 아래에 깔린다)
+//  · 길 위를 흐르는 빛: road-glint(금빛) · road-glint-rose(장밋빛) 대시 위상을 루프가 흘린다
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Android DiaryMapMarkers 상수 패리티.
@@ -34,15 +35,28 @@ private enum StyleFx {
     static let auraSourceID = "diary-aura-src"
     static let auraLayerID = "diary-aura"
     static let groundLightLayerID = "diary-ground-light"
-    /// 바닥 빛 웅덩이 불투명도(Android GROUND_LIGHT_OPACITY) + 지면 쪽 오프셋(GROUND_LIGHT_OFFSET_Y).
-    static let groundLightOpacity = 0.30
-    static let groundLightOffsetY = 8.0
+    /// 바닥 빛 웅덩이 불투명도(Android GROUND_LIGHT_OPACITY) — 별 아래 땅에 누운 빛 타원(circle-pitch-alignment=map).
+    static let groundLightOpacity = 0.24
     /// 필터가 걸려 있을 때(2026-10-10 "조금 더 밝게") 바닥 빛 불투명도 배율 — Android FILTER_GROUND_BOOST 와 같은 값.
-    /// (모든 별에 오오라 하한을 깔던 것은 지도에 반투명 원이 여러 개 생겨 2026-10-19 삭제 — Android 와 같이.)
     static let highlightGroundBoost = 1.6
-    /// 신규 별(24시간 이내) 오오라 — 좋아요 0개여도 옅게 발광(Android FRESH_WINDOW_MS / FRESH_AURA_OPACITY, 값 동일).
+    /// 지도 시안(2026-10-28)의 별 빛 — 별 본체 지름의 배수(Android GROUND_LIGHT_K / STAR_HALO_K / STAR_HALO_OPACITY).
+    ///  · 후광: 모든 별(인기와 무관) 본체 × 1.21, α 0.15  · 바닥 빛: 본체 × 1.05
+    /// 본체 지름 = 마커 40pt 의 78%(StarImageRenderer 본체 비율) × sizeMult × 줌 배율(starScale 과 같은 스톱).
+    static let starBodyPt = 40.0 * 0.78
+    static let haloK = 1.21
+    static let haloOpacity = 0.15
+    static let groundLightK = 1.05
+    /// 신규 별(24시간 이내) 판정 창(Android FRESH_WINDOW_MS).
     static let freshWindowMs: Int64 = 86_400_000
-    static let freshAuraOpacity = 0.08
+
+    /// 길 위를 흐르는 빛(금빛 앞으로 · 장밋빛 거꾸로) — Android ROAD_GLINT_* 와 같은 값.
+    /// ⚠️ dash/gap 은 maplibre_style.json 의 line-dasharray([5, 50])와 일치해야 한다.
+    static let roadGlintLayerID = "road-glint"
+    static let roadGlintRoseLayerID = "road-glint-rose"
+    static let roadGlintDash = 5.0
+    static let roadGlintGap = 50.0
+    static let roadGlintSpeed = 2.4
+    static let roadGlintSteps = 200.0
 
     /// 별빛 공방 오라(장착한 사람의 별) — Android sl-aura-glow/pulse/sprite 패리티(위상 그룹 없이 1벌).
     ///  · glow  : 은은한 빛(모든 패턴의 바탕, 숨 쉬듯 밝기만 변함)
@@ -109,6 +123,7 @@ extension MapLibreView.Coordinator {
         mapRef = mapView
         // 새 스타일엔 공방 오라 스프라이트 이미지가 없다 — 다음 갱신에서 다시 등록하게 키를 비운다.
         lastSlAuraKey = "|"
+        lastGlintPhase = -1
         ensureBaseTilt(mapView) // 기본 기울기(40°) — 프레임이 잡힌 뒤라 여기서부터 pitch 가 먹는다
         guard style.source(withIdentifier: StyleFx.particleSourceID) == nil else { return }
 
@@ -181,38 +196,31 @@ extension MapLibreView.Coordinator {
         tip.circleOpacity = NSExpression(forKeyPath: "a")
         style.addLayer(tip)
 
-        // ── 별 후광 — Android 바닥광+오오라 2겹 패리티(별색, 줌 보간 스톱 동일) ──
-        //  · 바닥 빛 웅덩이: 모든 별 밑에 은은하게(반경 0.6→7 × sizeMult, 지면 쪽 +8pt).
-        //  · 오오라: 인기(큰) 별만 발광(불투명도 sizeMult 1→0 / 1.4→0.12 / 3→0.42, 반경 2→26 × sizeMult).
+        // ── 별 빛 — 지도 시안(2026-10-28) 패리티: 땅에 누운 바닥 빛 타원 + 모든 별의 후광(본체 지름의 배수) ──
         // 색은 feature 의 auraColor(그 별의 팔레트 색) — 데이터 주도 표현식은 JSON 으로 만든다.
         let auraSource = MLNShapeSource(identifier: StyleFx.auraSourceID, features: [], options: nil)
         style.addSource(auraSource)
         let auraColorExpr = NSExpression(mglJSONObject: ["to-color", ["get", "auraColor"]] as [Any])
-        func radiusExpr(_ stops: [Double: Double]) -> NSExpression {
+        // 본체 지름 × k — 줌 스톱은 starScale(forZoom:) 과 같다(zoom 이 최상위 interpolate 입력이어야 연속 평가).
+        func bodyExpr(_ k: Double) -> NSExpression {
             var json: [Any] = ["interpolate", ["linear"], ["zoom"]]
-            for zoom in stops.keys.sorted() {
+            for (zoom, s) in [(6.0, 0.06), (10.0, 0.2), (13.0, 0.5), (15.0, 1.0)] {
                 json.append(zoom)
-                json.append(["*", stops[zoom]!, ["get", "sizeMult"] as [Any]] as [Any])
+                json.append(["*", StyleFx.starBodyPt * k * s, ["get", "sizeMult"] as [Any]] as [Any])
             }
             return NSExpression(mglJSONObject: json)
         }
         let ground = MLNCircleStyleLayer(identifier: StyleFx.groundLightLayerID, source: auraSource)
         ground.circleColor = auraColorExpr
-        ground.circleRadius = radiusExpr([6: 0.6, 10: 2, 13: 4.5, 15: 7])
+        ground.circleRadius = bodyExpr(StyleFx.groundLightK)
         ground.circleOpacity = NSExpression(forConstantValue: StyleFx.groundLightOpacity)
-        ground.circleBlur = NSExpression(forConstantValue: 1.4)
-        ground.circleTranslation = NSExpression(forConstantValue:
-            NSValue(cgVector: CGVector(dx: 0, dy: StyleFx.groundLightOffsetY)))
+        ground.circleBlur = NSExpression(forConstantValue: 1.0)
+        ground.circlePitchAlignment = NSExpression(forConstantValue: NSValue(mglCirclePitchAlignment: .map))
         style.addLayer(ground)
         let aura = MLNCircleStyleLayer(identifier: StyleFx.auraLayerID, source: auraSource)
         aura.circleColor = auraColorExpr
-        aura.circleRadius = radiusExpr([6: 2, 10: 6, 13: 14, 15: 26])
-        // 인기 곡선(sizeMult)과 신규 별 바닥값 중 큰 값 — Android auraOpacityExpression 패리티.
-        // fresh 는 숫자(1/0)로 넣는다(Bool↔NSNumber 비교 타입이 어긋나 항상 false 가 되는 일을 피하려고).
-        aura.circleOpacity = NSExpression(mglJSONObject:
-            ["max",
-             ["interpolate", ["linear"], ["get", "sizeMult"], 1, 0, 1.4, 0.12, 3, 0.42] as [Any],
-             ["*", ["get", "fresh"] as [Any], StyleFx.freshAuraOpacity] as [Any]] as [Any])
+        aura.circleRadius = bodyExpr(StyleFx.haloK)
+        aura.circleOpacity = NSExpression(forConstantValue: StyleFx.haloOpacity)
         aura.circleBlur = NSExpression(forConstantValue: 1.0)
         style.addLayer(aura)
 
@@ -524,6 +532,8 @@ extension MapLibreView.Coordinator {
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.twinkleT += 0.05
+            // 길 위를 흐르는 빛은 이동 중에도 흐른다(Android 와 같이 — line-dasharray 는 paint 라 가볍다).
+            if let style = self.styleRef { self.animateRoadGlint(style) }
             // 카메라 이동 중엔 스타일 변경을 멈춰 팬/줌 끊김을 방지(Android 동일).
             guard !self.isCameraMoving, let style = self.styleRef, let map = self.mapRef else { return }
             // 별빛 공방 오라 — 빛은 숨 쉬고, pulse 고리는 퍼지며 사라지고, ring 고리는 천천히 커졌다 작아진다.
@@ -550,6 +560,31 @@ extension MapLibreView.Coordinator {
         }
         twinkleTimer = timer
         RunLoop.main.add(timer, forMode: .common)
+    }
+
+    /// 길 위를 흐르는 빛 한 틱 — 대시 위상을 한 주기(dash+gap)에 걸쳐 흘린다. 위상은 roadGlintSteps 단계로 양자화(대시 아틀라스 재사용).
+    /// 장밋빛은 같은 단계 집합을 거꾸로(period − p) — 반대 방향으로 흐른다. Android 루프의 road-glint 부분과 같은 식.
+    private func animateRoadGlint(_ style: MLNStyle) {
+        let period = StyleFx.roadGlintDash + StyleFx.roadGlintGap
+        let raw = (twinkleT * StyleFx.roadGlintSpeed).truncatingRemainder(dividingBy: period)
+        let p = (raw / period * StyleFx.roadGlintSteps).rounded(.down) / StyleFx.roadGlintSteps * period
+        guard p != lastGlintPhase else { return }
+        lastGlintPhase = p
+        (style.layer(withIdentifier: StyleFx.roadGlintLayerID) as? MLNLineStyleLayer)?.lineDashPattern =
+            NSExpression(forConstantValue: Self.roadGlintDashArray(p))
+        (style.layer(withIdentifier: StyleFx.roadGlintRoseLayerID) as? MLNLineStyleLayer)?.lineDashPattern =
+            NSExpression(forConstantValue: Self.roadGlintDashArray(period - p))
+    }
+
+    /// 위상 [phase] 만큼 흘린 대시 배열 — 배열 합을 항상 한 주기로 맞춰 이음매 없이 반복(Android roadGlintDashArray 와 같은 식).
+    static func roadGlintDashArray(_ phase: Double) -> [NSNumber] {
+        let dash = StyleFx.roadGlintDash
+        let gap = StyleFx.roadGlintGap
+        let period = dash + gap
+        let u = ((period - phase.truncatingRemainder(dividingBy: period)).truncatingRemainder(dividingBy: period) + period)
+            .truncatingRemainder(dividingBy: period)
+        let a: [Double] = u < dash ? [dash - u, gap, u, 0] : [0, period - u, dash, u - dash]
+        return a.map { NSNumber(value: $0) }
     }
 
     /// 내 위치 고리 한 틱 — 밝은 호가 천천히 돌고(iconRotation), 부드러운 파장이 주기마다 하나 퍼진다. Android 루프의 myRing/myWave 부분과 같은 식.

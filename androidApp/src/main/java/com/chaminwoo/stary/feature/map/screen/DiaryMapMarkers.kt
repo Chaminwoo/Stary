@@ -102,16 +102,16 @@ internal const val CONSTELLATION_SOURCE = "constellation-lines"
 internal const val CONSTELLATION_LAYER = "constellation-layer"
 internal const val CONSTELLATION_GLOW_LAYER = "constellation-glow-layer"
 internal const val CONSTELLATION_HALO_LAYER = "constellation-halo-layer"
-// 도로 글린트 — 대시 위상을 흘려 빛이 도로를 따라 흐른다.
-// ⚠️ dash/gap 값(선 두께 배수)은 maplibre_style.json 의 line-dasharray 와 일치해야 한다.
+// 도로 위를 흐르는 빛(지도 시안 ground.js 의 flow) — 금빛은 앞으로, 장밋빛은 거꾸로 대시 위상을 흘린다.
+// ⚠️ dash/gap 값(선 두께 배수)은 maplibre_style.json 의 line-dasharray([5, 50])와 일치해야 한다. iOS `StyleFx.roadGlint*` 와 같은 값.
 internal const val ROAD_GLINT_LAYER = "road-glint"
-internal const val ROAD_GLINT_DASH = 0.5f
-internal const val ROAD_GLINT_GAP = 34f
-internal const val ROAD_GLINT_SPEED = 8.5f // 초당 위상 이동(선 두께 배수)
-// 위상 양자화 단계(대시 아틀라스 캐시 재사용). ⚠️ 단계가 프레임당 이동량보다 촘촘해야 매끄럽다 —
-// 프레임당 위상 이동 = SPEED×0.05 ≈ 0.43(주기 34.5) 이므로 34.5/STEPS < 0.43, 즉 STEPS ≥ 82 이어야
-// 매 프레임 최소 1단계 이동해 "프레임마다 순간이동"하는 끊김이 사라진다(100 → 단계폭 0.345).
-internal const val ROAD_GLINT_STEPS = 100
+internal const val ROAD_GLINT_ROSE_LAYER = "road-glint-rose"
+internal const val ROAD_GLINT_DASH = 5f
+internal const val ROAD_GLINT_GAP = 50f
+internal const val ROAD_GLINT_SPEED = 2.4f // 초당 위상 이동(선 두께 배수) — 줌 15 에서 약 8px/초(시안 9~18 m/s)
+// 위상 양자화 단계(대시 아틀라스 캐시 재사용 — 두 레이어가 같은 단계 집합을 쓴다). 단계폭 55/200 = 0.275(줌 15 에서 약 0.9px).
+// ⚠️ 흐름 레이어는 line-cap butt 여야 한다(둥근 끝 대시는 아틀라스를 15줄씩 먹어 200 단계를 못 담는다).
+internal const val ROAD_GLINT_STEPS = 200
 internal const val CONSTELLATION_HALO_OPACITY = 0.18f
 internal const val CONSTELLATION_GLOW_OPACITY = 0.42f
 internal const val CONSTELLATION_LINE_OPACITY = 0.95f
@@ -249,12 +249,11 @@ internal fun starZoomMult(zoom: Double): Float {
     }
 }
 
-/** 인기 별의 글로우 오오라(CircleLayer) id — 위상 그룹별(별과 같은 float 적용). */
+/** 별 후광(CircleLayer) id — 위상 그룹별(별과 같은 float 적용). */
 internal fun auraLayerId(group: Int) = "diary-aura-$group"
-/** 바닥 빛 웅덩이 id — 별과 달리 지점 고정이라 부유 시차로 "떠 있음"이 읽힌다. */
+/** 바닥 빛 웅덩이 id — 별과 달리 지점 고정 · 땅에 누운 타원이라 부유 시차로 "떠 있음"이 읽힌다. */
 internal fun groundLightLayerId(group: Int) = "diary-ground-light-$group"
-internal const val GROUND_LIGHT_OPACITY = 0.30f
-internal const val GROUND_LIGHT_OFFSET_Y = 8f // 별 중심보다 살짝 아래(지면 쪽)에 고인 빛
+internal const val GROUND_LIGHT_OPACITY = 0.24f
 /**
  * 필터가 걸려 있을 때(2026-10-10 "조금 더 밝게") 보이는 별을 돋보이게 하는 후광 강화 — iOS `StyleFx.highlightGroundBoost` 와 같은 값.
  * 바닥 빛 웅덩이 불투명도만 키운다. (모든 별에 오오라 하한을 깔던 것은 지도에 반투명 원이 여러 개 생겨 2026-10-19 삭제.)
@@ -266,9 +265,8 @@ internal const val CLUSTER_RADIUS_DP = 4f
 internal const val LIKES_FOR_MAX_SIZE = 100
 internal const val MAX_LIKE_SIZE_MULT = 3f
 
-/** 신규 별(24시간 이내) 오오라 — 인기 오오라 최대치(0.42)보다 은은하게, 업적 리빌과 같은 "발광" 톤을 옅게 차용. */
+/** 신규 별(24시간 이내) 판정 창. */
 internal const val FRESH_WINDOW_MS = 86_400_000L
-internal const val FRESH_AURA_OPACITY = 0.08f
 
 /**
  * float/pulse 위상 그룹 수 — ⚠️ iconTranslate 는 레이어 전체 일괄 적용이라,
@@ -431,83 +429,6 @@ internal fun myCrystalBitmap(): Bitmap {
     return out
 }
 
-/**
- * 지도 위쪽 "하늘" + 광택(2026-10-28 "하나의 우주"): 기울인 지도 윗부분이 안개 낀 밤하늘로 이어지고(탑바 영역까지 — 지도는 탑바 뒤까지 깔린다),
- * 땅은 알갱이 대신 넓은 빛띠가 천천히 비치는 매끈한 판처럼 보인다. 정적 그리기(프레임마다 재계산 없음)라 지도 성능에 영향이 없다.
- * [k] = 0..1 세기(저줌 글로브 전환 땐 0 으로 빠진다). iOS `SkyOverlay` 와 같은 수치.
- */
-internal const val SKY_HEIGHT_FRAC = 0.30f
-private val SKY_STARS: FloatArray = run {
-    val rnd = kotlin.random.Random(2810)
-    FloatArray(48 * 4) { i ->
-        when (i % 4) {
-            0 -> rnd.nextFloat()                            // x (0..1)
-            1 -> rnd.nextFloat().let { it * it } * 0.9f     // y (0..0.9 of sky, 위쪽에 몰림)
-            2 -> 0.5f + rnd.nextFloat() * 1.1f              // 반지름(dp)
-            else -> 0.35f + rnd.nextFloat() * 0.65f         // 밝기
-        }
-    }
-}
-
-internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMapSky(k: Float, density: Float) {
-    if (k <= 0.01f) return
-    val w = size.width
-    val h = size.height
-    val skyH = h * SKY_HEIGHT_FRAC
-    // 땅 광택: 비스듬한 넓은 빛띠 두 줄(아주 옅게) — 알갱이 없는 유리판 느낌
-    drawRect(
-        brush = Brush.linearGradient(
-            0.00f to Color.Transparent,
-            0.30f to Color.Transparent,
-            0.36f to Color(0xFFB4C0FF).copy(alpha = 0.045f * k),
-            0.42f to Color.Transparent,
-            0.64f to Color.Transparent,
-            0.68f to Color(0xFFB4C0FF).copy(alpha = 0.03f * k),
-            0.73f to Color.Transparent,
-            start = Offset(0f, h * 0.15f),
-            end = Offset(w, h * 0.95f),
-        )
-    )
-    // 하늘 안개: 위에서 아래로 짙은 남보라 → 투명
-    drawRect(
-        brush = Brush.verticalGradient(
-            0.00f to Color(0xFF04031A).copy(alpha = 0.86f * k),
-            0.40f to Color(0xFF0A0830).copy(alpha = 0.50f * k),
-            0.75f to Color(0xFF14104A).copy(alpha = 0.16f * k),
-            1.00f to Color.Transparent,
-            startY = 0f, endY = skyH,
-        ),
-        size = Size(w, skyH),
-    )
-    // 성운 두 덩이
-    drawRect(
-        brush = Brush.radialGradient(
-            0f to Color(0xFF7C5CFF).copy(alpha = 0.20f * k), 1f to Color.Transparent,
-            center = Offset(w * 0.82f, skyH * 0.12f), radius = w * 0.55f,
-        ),
-        size = Size(w, skyH),
-    )
-    drawRect(
-        brush = Brush.radialGradient(
-            0f to Color(0xFF3FD0C0).copy(alpha = 0.10f * k), 1f to Color.Transparent,
-            center = Offset(w * 0.14f, skyH * 0.30f), radius = w * 0.45f,
-        ),
-        size = Size(w, skyH),
-    )
-    // 별 점
-    var i = 0
-    while (i < SKY_STARS.size) {
-        val y = SKY_STARS[i + 1] * skyH
-        val fade = 1f - y / skyH
-        drawCircle(
-            Color.White.copy(alpha = (SKY_STARS[i + 3] * 0.8f * fade * k).coerceIn(0f, 1f)),
-            radius = SKY_STARS[i + 2] * density * 0.8f,
-            center = Offset(SKY_STARS[i] * w, y),
-        )
-        i += 4
-    }
-}
-
 /** 3D 글로브 "지구 보기" 버튼 노출 줌(이하로 줌아웃하면 버튼 표시 — 자동 전환 없음) / 지도 최소 줌. */
 internal const val GLOBE_BUTTON_ZOOM = 3.0
 internal const val MAP_MIN_ZOOM = 2.4
@@ -601,13 +522,13 @@ internal fun pioneerBeaconBitmap(): Bitmap {
  * ⚠️ MapLibre 는 ["zoom"] 이 최상위 interpolate 입력일 때만 연속 평가한다 —
  * sizeMult/near 분기는 반드시 각 stop 출력 "안"에 넣을 것(중첩 시 줌 보간이 멈춘 듯 보인다).
  */
-internal fun starSizeExpression(pulse: Float): Expression {
+internal fun starSizeExpression(pulse: Float, scale: Float = 1f): Expression {
     fun sized(zoomMult: Float): Expression {
         val near = Expression.product(
-            Expression.literal(STAR_SIZE_NEAR * pulse * zoomMult), Expression.get("sizeMult")
+            Expression.literal(STAR_SIZE_NEAR * pulse * zoomMult * scale), Expression.get("sizeMult")
         )
         val far = Expression.product(
-            Expression.literal(STAR_SIZE_FAR * zoomMult), Expression.get("sizeMult")
+            Expression.literal(STAR_SIZE_FAR * zoomMult * scale), Expression.get("sizeMult")
         )
         return Expression.switchCase(
             Expression.eq(Expression.get("near"), Expression.literal(true)),
@@ -623,18 +544,18 @@ internal fun starSizeExpression(pulse: Float): Expression {
     )
 }
 
-/** 인기 별 오오라 반경: 줌 보간 × sizeMult (zoom 최상위 규칙은 [starSizeExpression] 참고). */
-internal fun auraRadiusExpression(): Expression {
-    fun r(base: Float): Expression =
-        Expression.product(Expression.literal(base), Expression.get("sizeMult"))
-    return Expression.interpolate(
-        Expression.linear(), Expression.zoom(),
-        Expression.stop(6f, r(2f)),
-        Expression.stop(10f, r(6f)),
-        Expression.stop(13f, r(14f)),
-        Expression.stop(15f, r(26f)),
-    )
-}
+/**
+ * 별 본체 지름(dp) × [k] — 별 아이콘과 같은 줌 곡선. 본체는 비트맵의 78%([starBitmap]), 화면 dp = px/density.
+ * 시안(app.js)의 후광 · 바닥 빛은 별 크기의 배수라 이 값으로 반경을 잡는다(blur 1 원 ≈ 스프라이트 반경의 0.55).
+ */
+internal fun starBodyExpression(k: Float, density: Float): Expression =
+    starSizeExpression(1f, k * MARKER_SIDE_PX * 0.78f / density)
+
+/** 모든 별의 후광 — 시안 2.2×크기 · α.15 스프라이트(blur 원으로 본체 지름 × 1.21). */
+internal const val STAR_HALO_K = 1.21f
+internal const val STAR_HALO_OPACITY = 0.15f
+/** 바닥 빛 웅덩이 — 시안 rx 1.9×크기 · α.24 땅에 누운 타원(본체 지름 × 1.05, pitch-alignment map). */
+internal const val GROUND_LIGHT_K = 1.05f
 
 /**
  * 별빛 공방 오라 — 오라를 단 사람의 별 둘레(위상 그룹별, 별과 같이 float). 2026-10-22 리디자인.
@@ -695,39 +616,6 @@ internal fun slAuraOf(ringId: String): SlAura? {
     return SlAura(if (raw == "pulse") "pulse" else "halo", c1, c2, "", 0f, 0f, false)
 }
 
-/** 바닥 빛 웅덩이 반경: 오오라보다 작고 은은하게, 모든 별 공통(줌 보간 × sizeMult). */
-internal fun groundLightRadiusExpression(): Expression {
-    fun r(base: Float): Expression =
-        Expression.product(Expression.literal(base), Expression.get("sizeMult"))
-    return Expression.interpolate(
-        Expression.linear(), Expression.zoom(),
-        Expression.stop(6f, r(0.6f)),
-        Expression.stop(10f, r(2f)),
-        Expression.stop(13f, r(4.5f)),
-        Expression.stop(15f, r(7f)),
-    )
-}
-
-/**
- * 오오라 불투명도: sizeMult 보간(인기 별) 과 fresh 플래그(24시간 이내 신규 별) 중 **더 큰 값**.
- * 좋아요 0개인 신규 별도 sizeMult=1 이라 인기 곡선만으로는 오오라가 0 이었는데, fresh 바닥값을
- * 얹어 인기와 무관하게 옅게 빛나도록 한다(업적 리빌의 발광 톤을 정적으로 은은하게 차용 — 회전 등 모션은 없음).
- */
-internal fun auraOpacityExpression(): Expression {
-    return Expression.max(
-        Expression.interpolate(
-            Expression.linear(), Expression.get("sizeMult"),
-            Expression.stop(1f, 0f),
-            Expression.stop(1.4f, 0.12f),
-            Expression.stop(3f, 0.42f),
-        ),
-        Expression.switchCase(
-            Expression.eq(Expression.get("fresh"), Expression.literal(true)),
-            Expression.literal(FRESH_AURA_OPACITY),
-            Expression.literal(0f),
-        )
-    )
-}
 
 /** 좋아요 수 → 별 크기 배율(1..[MAX_LIKE_SIZE_MULT]). */
 internal fun likeSizeMult(likeCount: Int): Float =
@@ -1224,9 +1112,10 @@ internal fun particleOpacityExpression(twinkle: Float): Expression =
 internal fun roadGlintOpacityExpression(): Expression =
     Expression.interpolate(
         Expression.linear(), Expression.zoom(),
-        Expression.stop(13f, 0f),
-        Expression.stop(15f, 0.55f),
-        Expression.stop(17f, 0.7f),
+        Expression.stop(12f, 0f),
+        Expression.stop(12.8f, 0.35f),
+        Expression.stop(14f, 0.8f),
+        Expression.stop(16f, 1f),
     )
 
 /**
