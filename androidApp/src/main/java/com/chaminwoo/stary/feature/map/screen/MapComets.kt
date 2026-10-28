@@ -16,6 +16,7 @@ import com.chaminwoo.stary.core.model.Diary
 import org.maplibre.android.maps.MapLibreMap
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
@@ -36,6 +37,9 @@ import org.maplibre.android.geometry.LatLng as MlLatLng
 //   바깥(clipOutPath)에만 그려 별 뒤로 숨고, 앞쪽 반은 별 위로 지나며 정면에서 반짝인다.
 // 크기 · 반경은 별 마커 한 변(지도 기울기 원근 포함) 기준 — iOS `MapSparkle`/`StarMarkerView` 와 같은 비율 · 같은 시드.
 // 파장 연출의 지도 스냅샷엔 이 오버레이가 안 찍히므로 DiaryMap 이 스냅샷 위에 같은 순간을 그려 넣는다(withComets).
+// 2026-10-29: 줌 · 재클러스터에도 혜성을 지우지 않는다 — 멤버 고리는 줌과 무관한 30m 머지로 정하고([syncOrbitGroups]),
+//   합쳐짐/펼쳐짐 전환 중엔 자기 별을 따라 날아가며 그 별의 투명도로 옅어진다. 사라지는 건 줌 게이트(최소 줌 쪽)뿐.
+//   스파클 수 · 큰 별 머리처럼 크기 배율 문턱으로 갈리는 것은 툭 바뀌지 않게 [SPARKLE_SHIFT_SEC] 동안 따라간다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** 혜성이 보이기 시작하는 줌 / 다 드러나는 줌 — 멀리서는 별 곁 반짝이가 잡동사니로 보인다(iOS `MapSparkle.minZoom/fullZoom`). */
@@ -128,6 +132,40 @@ private const val MEMBER_BODY = 0.26f
 private const val MEMBER_BODY_MIN_DP = 7f
 private const val MEMBER_BODY_MAX_DP = 23f
 private const val MEMBER_TAIL_SPAN = 0.7f
+/** 멤버 고리가 새로 생기거나 바뀔 때 서서히 나타나는 시간(초). */
+private const val MEMBER_FADE_IN_SEC = 0.65
+/** 크기 배율이 문턱을 넘을 때 스파클 수 · 큰 별 머리가 바뀌는 데 걸리는 시간(초, 한 개당). */
+private const val SPARKLE_SHIFT_SEC = 0.45f
+
+/**
+ * 겹친 별 하나의 멤버 고리 — [members] = 둘레를 도는 멤버(대표 제외, 최대 [MAX_ORBIT_STARS]),
+ * [sparkles] = 고리 시드를 뽑기 전에 건너뛰는 스파클 수(30m 머지 크기로 정한다 — 줌 · 클러스터 크기 보너스와 무관해야
+ * 궤도가 튀지 않고, iOS `StarMarkerView` 와 같은 수열이 된다), [since] = 이 고리가 나타나기 시작한 시각(혜성 시계, 초).
+ */
+internal data class OrbitGroup(val members: List<Diary>, val sparkles: Int, val since: Double)
+
+/**
+ * 30m 머지 결과 → 대표 id 별 멤버 고리. 바뀐 고리만 새로 만들어 [nowSec] 부터 서서히 나타나게 하고, 그대로인 고리는 손대지 않는다.
+ * (2026-10-29 "줌인 · 줌아웃 뒤 혜성이 사라졌다 처음부터 다시 나온다" — 예전엔 카메라가 멈춰 재클러스터할 때마다 전부 지우고 다시 띄웠다.)
+ */
+internal fun syncOrbitGroups(orbits: HashMap<String, OrbitGroup>, merged: MergeResult, nowSec: Double) {
+    val keep = HashSet<String>()
+    for (rep in merged.reps) {
+        val group = merged.groups[rep.id] ?: continue
+        if (group.size < 2) continue
+        keep.add(rep.id)
+        val members = group.drop(1).take(MAX_ORBIT_STARS)
+        val sparkles = sparkleCount(mergeSizeMult(group))
+        val old = orbits[rep.id]
+        if (old != null && old.sparkles == sparkles && old.members.map { it.id } == members.map { it.id }) {
+            // 같은 고리 — 멤버 글(모양 · 색)만 바뀌었을 수 있어 목록만 갈아 끼우고 나타난 시각은 그대로 둔다.
+            if (old.members != members) orbits[rep.id] = old.copy(members = members)
+            continue
+        }
+        orbits[rep.id] = OrbitGroup(members, sparkles, nowSec)
+    }
+    orbits.keys.retainAll(keep)
+}
 
 /** MapLibre 카메라 → 화면 중심 거리 = 화면 높이 × 1.5 (0.5·H / tan(fov/2), 기본 fov = 2·atan(1/3)). */
 private const val CAMERA_DIST_PER_H = 1.5f
@@ -211,6 +249,12 @@ private class MemberSeed(id: String, val sparkles: Int) {
         dir = if (rng.flip()) 1f else -1f
     }
 }
+
+/**
+ * 별 하나의 스파클 표시 상태 — [level] = 보이는 스파클 수(1..3, 연속값), [big] = 큰 별 머리(미니 크리스탈) 정도(0..1),
+ * [seenAt] = 마지막으로 그린 시각. 재클러스터로 크기 배율이 바뀌어도 이 값이 천천히 따라가 혜성이 툭 생기거나 사라지지 않는다.
+ */
+private class SparkleState(var level: Float, var big: Float, var seenAt: Double)
 
 /** 그릴 혜성 하나 — 매번 새로 만들지 않고 이 한 벌을 고쳐 쓴다. */
 private class Comet {
@@ -341,6 +385,8 @@ internal class MapComets(private val density: Float) {
 
     private val sparkleSeeds = HashMap<String, SparkleSeed>()
     private val memberSeeds = HashMap<String, MemberSeed>()
+    private val sparkleStates = HashMap<String, SparkleState>()
+    private var lastT = Double.NaN
 
     private val comet = Comet()
     private val xs = FloatArray(MAX_TAIL + 1)
@@ -355,7 +401,8 @@ internal class MapComets(private val density: Float) {
 
     /**
      * 한 프레임 — [stars] = 지금 지도 source 에 든 별(위치 · 투명도 · 크기 보간 중인 값 그대로),
-     * [members] = 대표 id → 둘레를 도는 멤버, [memberFade] = 멤버 등장 페이드, [tSec] = 마커 루프와 같은 시계(초).
+     * [members] = 30m 머지 대표 id → 멤버 고리([syncOrbitGroups]), [memberFade] = 필터 전환 동안 멤버를 숨기는 전체 페이드,
+     * [tSec] = 마커 루프와 같은 시계(초).
      */
     fun draw(
         cv: Canvas,
@@ -364,7 +411,7 @@ internal class MapComets(private val density: Float) {
         viewH: Float,
         tSec: Double,
         stars: List<ShownStar>,
-        members: Map<String, List<Diary>>,
+        members: Map<String, OrbitGroup>,
         memberFade: Float,
     ) {
         if (stars.isEmpty() || viewH <= 0f) return
@@ -378,6 +425,10 @@ internal class MapComets(private val density: Float) {
         val proj = map.projection
         if (sparkleSeeds.size > 4096) sparkleSeeds.clear()
         if (memberSeeds.size > 4096) memberSeeds.clear()
+        if (sparkleStates.size > 4096) sparkleStates.clear()
+        // 스파클 수 · 머리 모양이 이번 프레임에 따라가는 몫(멈췄다 다시 그릴 땐 한 번에 따라잡지 않게 묶는다).
+        val shift = if (lastT.isNaN()) 1f else ((tSec - lastT).toFloat() / SPARKLE_SHIFT_SEC).coerceIn(0f, 1f)
+        lastT = tSec
 
         for (s in stars) {
             if (s.alpha < 0.01f) continue
@@ -398,37 +449,51 @@ internal class MapComets(private val density: Float) {
 
             val type = StarStyle.safeType(s.d.starType)
             val color = StarStyle.safeColor(s.d.starColor)
-            val count = sparkleCount(s.sizeMult)
             val seed = sparkleSeeds.getOrPut(id) { SparkleSeed(id) }
-            val group = members[id]
-            val mSeed = if (group.isNullOrEmpty() || memberFade < 0.004f) null
-            else memberSeeds[id]?.takeIf { it.sparkles == count } ?: MemberSeed(id, count).also { memberSeeds[id] = it }
+            // 스파클 수 · 큰 별 머리 — 클러스터 크기 보너스로 sizeMult 가 문턱을 넘나들면 천천히 따라간다.
+            // 처음 보는 별 · 한동안 안 그린 별은 바로 맞춘다(별 자체가 페이드로 나타난다).
+            val count = sparkleCount(s.sizeMult).toFloat()
+            val bigTarget = if (s.sizeMult >= SPARKLE_BIG_STAR_THRESHOLD) 1f else 0f
+            val state = sparkleStates[id]?.takeIf { tSec - it.seenAt <= 1.0 }?.apply {
+                level = approach(level, count, shift)
+                big = approach(big, bigTarget, shift)
+                seenAt = tSec
+            } ?: SparkleState(count, bigTarget, tSec).also { sparkleStates[id] = it }
             val alpha = s.alpha * gate
+            // 멤버 고리 — 고리가 새로 생기거나 바뀐 때부터만 서서히(그대로인 고리는 줌 · 재클러스터와 상관없이 계속 1).
+            val orbit = members[id]
+            val memberAlpha = if (orbit == null) 0f
+            else alpha * memberFade * smooth01(((tSec - orbit.since) / MEMBER_FADE_IN_SEC).toFloat())
+            val mSeed = if (orbit == null || memberAlpha < 0.004f) null
+            else memberSeeds[id]?.takeIf { it.sparkles == orbit.sparkles }
+                ?: MemberSeed(id, orbit.sparkles).also { memberSeeds[id] = it }
             // 가까운 별은 맥동한다(루프의 pulse) — 숨기는 실루엣만 같이 키운다.
             val pulse = if (s.near) 1f + 0.2f * ((sin(tSec * 3.2 + phase).toFloat() + 1f) / 2f) else 1f
 
             // 뒤쪽 반 — 별 몸 실루엣 바깥에만 그려 별 뒤로 숨는다. 큰 궤도(멤버)가 더 뒤라 먼저.
             cv.save()
             cv.clipOutPath(bodyClip(type, side * pulse * 0.78f, cx, cy))
-            if (mSeed != null) drawMembers(cv, true, cx, cy, side, tSec, mSeed, group!!, alpha * memberFade, headMul)
-            drawSparkles(cv, true, cx, cy, side, tSec, seed, count, s.sizeMult, type, color, alpha, headMul)
+            if (mSeed != null) drawMembers(cv, true, cx, cy, side, tSec, mSeed, orbit!!.members, memberAlpha, headMul)
+            drawSparkles(cv, true, cx, cy, side, tSec, seed, state, s.sizeMult, type, color, alpha, headMul)
             cv.restore()
             // 앞쪽 반 — 별 위로 지나며 정면에서 반짝인다. 큰 궤도(멤버)가 더 앞이라 나중에.
-            drawSparkles(cv, false, cx, cy, side, tSec, seed, count, s.sizeMult, type, color, alpha, headMul)
-            if (mSeed != null) drawMembers(cv, false, cx, cy, side, tSec, mSeed, group!!, alpha * memberFade, headMul)
+            drawSparkles(cv, false, cx, cy, side, tSec, seed, state, s.sizeMult, type, color, alpha, headMul)
+            if (mSeed != null) drawMembers(cv, false, cx, cy, side, tSec, mSeed, orbit!!.members, memberAlpha, headMul)
         }
     }
 
     private fun drawSparkles(
         cv: Canvas, back: Boolean, cx: Float, cy: Float, side: Float, tSec: Double,
-        seed: SparkleSeed, count: Int, sizeMult: Float, type: Int, color: Int, alpha: Float, headMul: Float,
+        seed: SparkleSeed, state: SparkleState, sizeMult: Float, type: Int, color: Int, alpha: Float, headMul: Float,
     ) {
-        val big = sizeMult >= SPARKLE_BIG_STAR_THRESHOLD
         val starRgb = StarStyle.colorOf(color).toArgb()
         // 머리는 별보다 덜 커진다(예전 iconSize 의 sizeMult^0.8).
         val headShrink = sizeMult.coerceAtLeast(1f).pow(-0.2f)
         val c = comet
-        for (set in 0 until count) {
+        for (set in 0 until ceil(state.level).toInt()) {
+            // 늘거나 줄어드는 중인 혜성은 level 의 소수부만큼만 보인다.
+            val shown = if (set == 0) 1f else (state.level - set).coerceIn(0f, 1f)
+            if (shown <= 0f) continue
             c.cx = cx
             c.cy = cy
             c.radius = side * SPARKLE_RADIUS[set] * seed.radius[set]
@@ -444,7 +509,6 @@ internal class MapComets(private val density: Float) {
             c.env = env
             c.flashMul = 0.6f + 0.4f * env
             c.flashGrow = 0.92f + 0.12f * env
-            c.alpha = alpha
             c.backDim = 0.55f
             c.glintAlpha = 0.55f
             c.glintScale = 0.3f
@@ -452,22 +516,28 @@ internal class MapComets(private val density: Float) {
             c.headSize = h
             c.haloScale = 0.5f
             c.haloAlpha = 0.16f
-            if (big && set != SPARKLE_SMALL_SET) {
+            // 갈래는 평소엔 제자리, 번쩍일 때 살짝 비틀린다(시안 sparkleR 회전 = env·1.2 + 위상).
+            c.spinDeg = Math.toDegrees(env * 1.2 + seed.phase[set] * 2.0 * PI).toFloat()
+            // 큰 별이면 안쪽 두 혜성 머리가 미니 크리스탈 — 크기가 문턱을 넘나드는 동안엔 흰 반짝과 서로 스며들며 바뀐다.
+            val star = if (set == SPARKLE_SMALL_SET) 0f else state.big
+            if (star > 0f) {
                 c.head = HEAD_STAR
                 c.headType = type
                 c.headColor = color
                 c.haloRgb = starRgb
                 c.glowW = h * 0.25f; c.glowRgb = starRgb; c.glowAlpha = 0.55f
                 c.coreW = h * 0.075f; c.coreRgb = 0xFFF6EA; c.coreAlpha = 0.6f
-            } else {
+                c.alpha = alpha * shown * star
+                drawComet(cv, back, c)
+            }
+            if (star < 1f) {
                 c.head = HEAD_WHITE
                 c.haloRgb = mixWhite(starRgb, 0.65f) // 시안: 별빛이 살짝 도는 흰 빛
                 c.glowW = h * 0.22f; c.glowRgb = 0xFFE9C8; c.glowAlpha = 0.45f
                 c.coreW = h * 0.075f; c.coreRgb = 0xFFFFFF; c.coreAlpha = 0.85f
+                c.alpha = alpha * shown * (1f - star)
+                drawComet(cv, back, c)
             }
-            // 갈래는 평소엔 제자리, 번쩍일 때 살짝 비틀린다(시안 sparkleR 회전 = env·1.2 + 위상).
-            c.spinDeg = Math.toDegrees(env * 1.2 + seed.phase[set] * 2.0 * PI).toFloat()
-            drawComet(cv, back, c)
         }
     }
 
@@ -615,6 +685,16 @@ internal class MapComets(private val density: Float) {
 }
 
 private fun frac(x: Double): Double = x - floor(x)
+
+/** [v] 를 [target] 쪽으로 [d] 만큼(넘지 않게). */
+private fun approach(v: Float, target: Float, d: Float): Float =
+    if (v < target) minOf(v + d, target) else maxOf(v - d, target)
+
+/** 0..1 을 양 끝이 부드러운 곡선으로. */
+private fun smooth01(x: Float): Float {
+    val t = x.coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
+}
 
 private fun argb(a: Float, rgb: Int): Int =
     ((a.coerceIn(0f, 1f) * 255f + 0.5f).toInt() shl 24) or (rgb and 0xFFFFFF)

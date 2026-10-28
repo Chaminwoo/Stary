@@ -198,9 +198,10 @@ fun DiaryMap(
     var styleRef by remember { mutableStateOf<Style?>(null) }
     var locationSource by remember { mutableStateOf<GeoJsonSource?>(null) }
     var diarySource by remember { mutableStateOf<GeoJsonSource?>(null) }
-    // 겹친 별 멤버(대표 id → 둘레를 도는 멤버, 최대 MAX_ORBIT_STARS) + 등장 페이드(머지 전환이 끝난 뒤 부드럽게 나타난다).
-    // 그리기는 혜성 오버레이(MapComets.kt)가 매 프레임 이 값을 읽어서 한다.
-    val orbitMembers = remember { HashMap<String, List<Diary>>() }
+    // 겹친 별 멤버 고리(30m 머지 대표 id → 둘레를 도는 멤버, 최대 MAX_ORBIT_STARS) — 줌과 무관한 30m 머지로 정해지므로
+    // 줌 · 재클러스터에도 지우지 않는다(바뀐 고리만 서서히 새로, syncOrbitGroups). [orbitFade] 는 필터 전환(빛의 고리) 동안
+    // 멤버를 숨겼다가 정착 후 다시 띄우는 전체 페이드. 그리기는 혜성 오버레이(MapComets.kt)가 매 프레임 이 값을 읽어서 한다.
+    val orbitMembers = remember { HashMap<String, OrbitGroup>() }
     val orbitFade = remember { Animatable(0f) }
     // 지금 source 에 들어 있는 별(마지막 setGeoJson 입력) — 순차 등장 직전 걷어내기 · 혜성 오버레이가 쓴다.
     val lastShown = remember { ArrayList<ShownStar>() }
@@ -987,6 +988,8 @@ fun DiaryMap(
 
         val merged = mergeByProximity(valid)
         mergeGroupsState.value = merged.groups
+        // 멤버 고리는 화면 클러스터와 무관 — 아래 "바뀐 게 없으면 끝" 보다 먼저 맞춘다(같은 대표에 멤버만 늘어도 반영).
+        syncOrbitGroups(orbitMembers, merged, (System.nanoTime() - animOrigin) / 1e9)
         val mergedReps = merged.reps
         val byId = mergedReps.associateBy { it.id }
 
@@ -1008,10 +1011,18 @@ fun DiaryMap(
             d.id to (if (assignment[d.id] == d.id) repSizeMult(d) else mergeMult(d))
         }
 
+        // 필터 전환(빛의 고리)으로 숨겨 둔 멤버 혜성을 정착 후 부드럽게 다시 띄운다(평소엔 이미 1 — 아무것도 안 한다).
+        suspend fun showOrbits() {
+            if (orbitFade.value < 1f) orbitFade.animateTo(1f, tween(650, easing = FastOutSlowInEasing))
+        }
+
         val reveal = revealKey != lastRevealKey
         // 고리는 별 문서에 실려 오고, 서버가 안 가진 고리를 만든 직후 지우기도 한다 — 대표 별의 고리까지 키에 넣는다.
         val key = Triple(reps.map { it.id + "|" + it.ring }, nearIds, slItems.size)
-        if (key == lastFeaturesKey && !reveal && !needsSettle) return@LaunchedEffect
+        if (key == lastFeaturesKey && !reveal && !needsSettle) {
+            showOrbits() // 앞선 실행이 멤버 페이드 도중 끊겼으면(카메라 멈춤 · 위치 갱신으로 재시작) 마저 띄운다
+            return@LaunchedEffect
+        }
         lastFeaturesKey = key
 
         // 전이 중 흡수되는 별도 잠깐 보이므로 valid 전체의 아이콘을 등록
@@ -1060,16 +1071,6 @@ fun DiaryMap(
             needsSettle = false
         }
 
-        // 겹친 별 멤버 혜성 — 정착 후 대표 둘레를 돌게 하고 부드럽게 페이드 인(그리기는 혜성 오버레이).
-        suspend fun settleOrbits() {
-            orbitMembers.clear()
-            for (rep in reps) {
-                val group = merged.groups[rep.id] ?: continue
-                if (group.size > 1) orbitMembers[rep.id] = group.drop(1).take(MAX_ORBIT_STARS)
-            }
-            orbitFade.animateTo(1f, tween(650, easing = FastOutSlowInEasing))
-        }
-
         // 재생 루프가 읽을 최신 대표 별(재생 중 데이터·위치가 바뀌어도 루프가 이 값을 따른다).
         revealStars.value = reps.map { RevealStar(it, it.id in nearIds, repSizeMult(it)) }
 
@@ -1109,18 +1110,18 @@ fun DiaryMap(
         // 최초 1회는 애니메이션 없이 바로 표시
         if (from.isEmpty()) {
             settle()
-            settleOrbits()
+            showOrbits()
             return@LaunchedEffect
         }
 
         fun lngOf(id: String) = byId[id]?.longitude
         fun latOf(id: String) = byId[id]?.latitude
 
-        // 합쳐짐/펼쳐짐 보간: 각 별을 (이전 대표 위치 ↔ 새 대표 위치) 로 이동 + 투명도 페이드
-        // 전환 동안 위성은 감춘다(멤버 별이 직접 날아드는 연출과 겹치지 않게) — 정착 후 다시 등장.
+        // 합쳐짐/펼쳐짐 보간: 각 별을 (이전 대표 위치 ↔ 새 대표 위치) 로 이동 + 투명도 페이드.
+        // 별 곁 혜성(스파클 · 멤버)은 그대로 둔다 — 혜성 오버레이가 매 프레임 그 별의 보간 위치 · 투명도를 따라 그리므로
+        // 흡수되는 별의 혜성은 별과 함께 날아가며 옅어지고, 펼쳐지는 별의 혜성은 함께 나타난다
+        // (2026-10-29 전엔 전환마다 모든 멤버 혜성을 지웠다가 다시 띄워 "줌 뒤 혜성이 사라졌다 처음부터 다시" 보였다).
         needsSettle = true
-        orbitFade.snapTo(0f)
-        orbitMembers.clear()
         val durationNanos = 320_000_000.0
         var startNanos = 0L
         var t = 0f
@@ -1154,7 +1155,7 @@ fun DiaryMap(
         } while (t < 1f)
 
         settle()
-        settleOrbits()
+        showOrbits()
     }
 
     // ── 필터 전환 "빛의 고리" 재생 ──
@@ -1185,8 +1186,8 @@ fun DiaryMap(
             // (예전엔 확정 색 = 아직 기본색으로 다시 시작해 이전 거품이 사라지고 기본색으로 돌아갔다).
             if (revealWaves.runs.isEmpty()) revealWaves.base = glowTint
 
+            // 멤버 혜성은 등장 연출 동안 숨긴다(고리 목록은 클러스터링 effect 가 새 필터 기준으로 맞춰 둔다) — 정착 후 다시 등장.
             orbitFade.snapTo(0f)
-            orbitMembers.clear()
 
             // 1) 이전 필터의 별을 짧게 걷어낸다(이미 퍼지고 있는 거품들은 그대로 계속 퍼진다).
             if (plan.oldStars.isNotEmpty()) {
