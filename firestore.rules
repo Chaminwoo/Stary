@@ -239,6 +239,25 @@ match /chats/{chatId} {
       allow read, update, delete: if false;
     }
 
+    // ── 의견 보내기(2026-11-02, 설정 > 고칠 점 보내기 · 평점 요청 카드) ─────────────────
+    //  생성만. uid 는 반드시 나 자신(appUserId — isMe 가 Google sub / 익명 uid 둘 다 인정, users/{uid} 와 같은 규칙).
+    //  message 는 1~2000자 문자열, 허용 키는 아래 6개뿐(이름·이메일 등 다른 필드 금지).
+    //  읽기/수정/삭제는 모두 불가 — 운영자가 Firebase Console 에서만 본다.
+    match /feedback/{feedbackId} {
+      allow create: if isSignedIn()
+        && isMe(request.resource.data.uid)
+        && request.resource.data.keys().hasOnly(['uid', 'message', 'platform', 'appVersion', 'locale', 'createdAt'])
+        && request.resource.data.keys().hasAll(['uid', 'message', 'platform', 'createdAt'])
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 1
+        && request.resource.data.message.size() <= 2000
+        && request.resource.data.platform in ['android', 'ios']
+        && (!('appVersion' in request.resource.data) || (request.resource.data.appVersion is string && request.resource.data.appVersion.size() <= 64))
+        && (!('locale' in request.resource.data) || (request.resource.data.locale is string && request.resource.data.locale.size() <= 16))
+        && request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
+
     // ── 히든 업적 선점(앱 전체 1명) ─────────────────────────────────────────
     //  생성 : 본인 명의(achieverId==나)로만(거짓 귀속 방지).
     //  수정 : 불가(도용/덮어쓰기 방지 — 선착순 트랜잭션은 read+create 만 사용).

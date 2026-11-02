@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -121,6 +122,9 @@ fun StaryEmptyState(
                             // 아주 미세한 크기 맥동(1.0 ~ 1.06).
                             val pulse = 1f + 0.06f * ((sin(phase * 1.7f) + 1f) / 2f)
                             scaleX = pulse; scaleY = pulse
+                            // alpha<1 의 기본(오프스크린 레이어)은 별 요소 크기(42dp)로 잘려 번진 후광이 네모로 깨진다.
+                            // ModulateAlpha 는 그리는 명령마다 알파를 곱해 레이어 경계 클립이 없다.
+                            compositingStrategy = CompositingStrategy.ModulateAlpha
                             alpha = 0.92f
                         },
                 )

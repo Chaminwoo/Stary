@@ -219,6 +219,8 @@ enum L10n: String {
     case starlogViewRing, starlogViewList
     /// 권한 안내 카드(S2 — PermissionAsk) — Android perm_* 문자열.
     case permLocTitle, permLocMsg, permNotifTitle, permNotifMsg, permAllow, permNotifAllow, permLater
+    // 의견 보내기(설정 > 고칠 점 보내기) — Android feedback_* / settings_feedback* 와 같은 문구
+    case feedbackTitle, feedbackHint, feedbackSend, feedbackSent, feedbackFailed, settingsFeedback, settingsFeedbackDesc
     // 별 목록 화면(iOS 전용 화면 — 빈 상태/가까운순 정렬).
     case listEmptyUnviewed, listEmpty, listSortNearby
     // 설정 > 도움말 다시 보기(Android settings_help* 패리티).
@@ -714,6 +716,13 @@ enum L10n: String {
         case .permAllow:            return ("허용하기", "Allow", "許可する")
         case .permNotifAllow:       return ("알림 받기", "Turn on", "通知を受け取る")
         case .permLater:            return ("나중에", "Later", "あとで")
+        case .feedbackTitle:        return ("고칠 점 보내기", "Send feedback", "改善点を送る")
+        case .feedbackHint:         return ("불편했던 점이나 바라는 점을 적어 주세요", "Tell us what bothered you or what you'd like to see", "不便だった点やご要望をご記入ください")
+        case .feedbackSend:         return ("보내기", "Send", "送信")
+        case .feedbackSent:         return ("의견을 보냈어요. 고마워요!", "Feedback sent. Thank you!", "ご意見を送信しました。ありがとうございます!")
+        case .feedbackFailed:       return ("보내지 못했어요. 네트워크를 확인하고 다시 시도해 주세요", "Couldn't send it. Check your connection and try again", "送信できませんでした。通信状況を確認して、もう一度お試しください")
+        case .settingsFeedback:     return ("고칠 점 보내기", "Send feedback", "改善点を送る")
+        case .settingsFeedbackDesc: return ("불편한 점이나 바라는 점을 알려 주세요", "Tell us what to fix or improve", "不便な点やご要望をお知らせください")
         case .listEmptyUnviewed:    return ("안 본 별이 없어요. 모두 둘러봤네요!", "No unviewed stars — you've seen them all!", "未読の星はありません。全部見ましたね！")
         case .listEmpty:            return ("아직 별이 없어요. 첫 별을 남겨보세요.", "No stars yet. Leave your first one.", "まだ星がありません。最初の星を残しましょう。")
         case .listSortNearby:       return ("가까운순", "Nearest", "近い順")

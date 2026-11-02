@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EditCalendar
+import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Vibration
@@ -128,6 +129,7 @@ fun SettingsScreen(
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showTermsDialog by remember { mutableStateOf(false) }
+    var showFeedbackDialog by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
 
     // 기기(시스템) 알림이 꺼져 있는지 — 설정 앱에서 켜고 돌아오면 다시 확인한다(iOS systemPushDenied 패리티).
@@ -259,6 +261,17 @@ fun SettingsScreen(
                     value = "",
                     onClick = { com.chaminwoo.stary.core.util.OnboardingReplayState.request() }
                 )
+                // 고칠 점 보내기 — 로그인한 사용자에게만(둘러보기 중엔 행 자체가 없다). feedback 컬렉션 규칙이 로그인 세션을 요구한다.
+                if (myId != null) {
+                    RowDivider()
+                    NavRow(
+                        icon = Icons.Filled.RateReview,
+                        label = stringResource(R.string.settings_feedback),
+                        description = stringResource(R.string.settings_feedback_desc),
+                        value = "",
+                        onClick = { showFeedbackDialog = true }
+                    )
+                }
             }
 
             // ── 안전 ── (차단 목록: 차단한 사용자의 별/댓글은 앱 전체에서 숨겨진다)
@@ -281,6 +294,9 @@ fun SettingsScreen(
                     value = "",
                     onClick = { showTermsDialog = true }
                 )
+            }
+            if (showFeedbackDialog && myId != null) {
+                com.chaminwoo.stary.core.ui.FeedbackDialog(onDismiss = { showFeedbackDialog = false })
             }
             if (showTermsDialog) {
                 com.chaminwoo.stary.core.ui.TermsDialog(requireAgreement = false, onDismiss = { showTermsDialog = false })

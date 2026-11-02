@@ -19,6 +19,7 @@ enum AppConfig {
         static let viewedDiaries = "viewedDiaries"
         static let blocked = "blocked"           // users/{uid} 하위 (차단한 사용자)
         static let reports = "reports"           // 최상위 (신고 접수)
+        static let feedback = "feedback"         // 최상위 (의견 보내기, 쓰기만 — Android FeedbackRepository.COLLECTION 과 같은 값)
         static let chats = "chats"
         static let messages = "messages"        // chats/{chatId} 하위
         /// users/{uid} 하위: 나에게서만 지운 채팅(문서 id = chatId, 본인 전용). StaryConfig.CHAT_HIDDEN 과 같은 값.

@@ -14,6 +14,7 @@ struct SettingsScreen: View {
     @State private var showLanguagePicker = false
     @State private var showDeleteConfirm = false
     @State private var showTerms = false
+    @State private var showFeedback = false
     @State private var showDeleteFailed = false
     @State private var deleting = false
     /// 기기 알림 권한이 "허용 안 함" 인가 — 화면이 뜰 때와 설정 앱에서 돌아올 때마다 다시 읽는다.
@@ -127,6 +128,27 @@ struct SettingsScreen: View {
                             .padding(.vertical, 12)
                         }
                         .buttonStyle(.plain)
+
+                        // 고칠 점 보내기 — 로그인한 사용자에게만(둘러보기 중엔 행 자체가 없다). feedback 컬렉션 규칙이 로그인 세션을 요구한다.
+                        if auth.uid != nil {
+                            divider
+                            Button { showFeedback = true } label: {
+                                HStack(spacing: 14) {
+                                    iconBadge("square.and.pencil", active: true)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(locale.t(.settingsFeedback))
+                                            .font(.minSans(17)).foregroundStyle(Theme.textPrimary)
+                                        Text(locale.t(.settingsFeedbackDesc))
+                                            .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption).foregroundStyle(Theme.textFaint)
+                                }
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
 
                     // ── 안전 ── (차단 목록: 차단한 사용자의 별/댓글은 앱 전체에서 숨겨진다)
@@ -216,6 +238,11 @@ struct SettingsScreen: View {
                            options: LocaleManager.supported.map { tag in
                                StaryDialogOption(languageLabel(tag), action: { locale.setLanguage(tag) })
                            })
+        .staryDialog(isPresented: $showFeedback) {
+            if let uid = auth.uid {
+                FeedbackDialogCard(uid: uid, onClose: { showFeedback = false })
+            }
+        }
         .staryDialog(isPresented: $showTerms) {
             TermsDialogCard(requireAgreement: false, onDismiss: { showTerms = false })
         }

@@ -1076,6 +1076,27 @@ fun MainScreen(
                 com.chaminwoo.stary.core.ui.PermissionAsk.celebrations == 0,
         )
 
+        // 평점/"고칠 점" 요청 카드 — 별 탄생 연출이 끝난 1.5초 뒤, 지도 위에 다른 안내가 하나도 없을 때만(있으면 줄 세우지 않고 건너뜀).
+        // 별 개수는 업적 감시자와 같은 DiaryViewModel 의 getMyDiaries 캐시를 같이 쓴다(새 쿼리 없음).
+        // 업적 팝업은 PermissionAsk.celebrations(HoldForCelebration)에 잡히고, 위치 카드·코치마크·안내·집중 모드·창(holdIdle)도 아래서 막는다.
+        if (userId != null && !showLogin) {
+            val reviewDiaryVm: com.chaminwoo.stary.feature.diary.DiaryViewModel =
+                viewModel(factory = com.chaminwoo.stary.feature.diary.DiaryViewModel.factory())
+            val reviewMyStars by reviewDiaryVm.getMyDiaries(userId).collectAsState()
+            com.chaminwoo.stary.core.ui.ReviewPromptHost(
+                canShow = {
+                    isMapRoute && termsAccepted && !showOnboarding && !locationAsk && !MapUiState.mapOnly &&
+                        MapUiState.idleHolds == 0 &&
+                        com.chaminwoo.stary.core.ui.StarBirthState.pending == null &&
+                        com.chaminwoo.stary.core.ui.PermissionAsk.celebrations == 0 &&
+                        !com.chaminwoo.stary.core.ui.PermissionAsk.notificationPending &&
+                        com.chaminwoo.stary.feature.quest.GuideUi.step == null &&
+                        !com.chaminwoo.stary.core.util.AppUpdateChecker.showPrompt
+                },
+                starCount = { reviewMyStars.size },
+            )
+        }
+
         // 별 탄생 연출(34-8) — 업로드 성공 직후 업로드 화면이 pop 되고 나서 지도 위에서 재생된다.
         com.chaminwoo.stary.core.ui.StarBirthHost()
         // 인앱 알림 배너(상단) — 모든 콘텐츠 위에 표시. 토스트(하단)와 별개 채널.

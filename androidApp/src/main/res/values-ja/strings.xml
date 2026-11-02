@@ -860,4 +860,15 @@
     <string name="perm_allow">許可する</string>
     <string name="perm_notif_allow">通知を受け取る</string>
     <string name="perm_later">あとで</string>
+    <string name="review_prompt_msg">Staryをもっと良くするために、ご協力ください</string>
+    <string name="review_prompt_rate">評価を送る</string>
+    <string name="review_prompt_feedback">改善点を送る</string>
+    <string name="review_prompt_close">閉じる</string>
+    <string name="feedback_title">改善点を送る</string>
+    <string name="feedback_hint">不便だった点やご要望をご記入ください</string>
+    <string name="feedback_send">送信</string>
+    <string name="feedback_sent">ご意見を送信しました。ありがとうございます!</string>
+    <string name="feedback_failed">送信できませんでした。通信状況を確認して、もう一度お試しください</string>
+    <string name="settings_feedback">改善点を送る</string>
+    <string name="settings_feedback_desc">不便な点やご要望をお知らせください</string>
 </resources>

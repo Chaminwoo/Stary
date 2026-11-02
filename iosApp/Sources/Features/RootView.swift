@@ -156,6 +156,8 @@ struct MainTabView: View {
     @ObservedObject private var birth = StarBirthStore.shared
     /// 알림 카드는 차례가 온 뒤 잠깐 기다렸다 띄운다(별 탄생 연출·저장 토스트가 지나간 뒤에).
     @State private var notificationAskReady = false
+    /// 이번 실행에서 별 탄생 연출을 본 적이 있는가 — 연출이 끝나는 순간(event → nil)에만 시스템 평점 창을 노린다(ReviewPromptStore).
+    @State private var reviewSawBirth = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -317,6 +319,16 @@ struct MainTabView: View {
             guard permissionAsk.notificationPending else { return }
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             notificationAskReady = true
+        }
+        // 시스템 평점 창 요청 — Android ReviewPromptHost 와 같은 시점·같은 가드(커스텀 카드는 5.6.1 금지라 시스템 창만).
+        // 별 탄생 연출이 끝나고 1.5초 뒤, 다른 안내가 하나라도 있으면 줄 세우지 않고 이번엔 건너뛴다.
+        .onChange(of: birth.event?.id) { id in
+            if id != nil {
+                reviewSawBirth = true
+            } else if reviewSawBirth {
+                reviewSawBirth = false
+                requestReviewIfClear()
+            }
         }
         // 전역 토스트(Android StaryToastHost) — NavigationStack 바깥이라 push 된 화면 위에도 보인다.
         .overlay { GlobalToastHost() }
@@ -523,6 +535,30 @@ struct MainTabView: View {
             !UserDefaults.standard.bool(forKey: "main_coach_seen")
         return path.isEmpty && chatTarget == nil && diaryTarget == nil && !drawerOpen && !showCoachMark &&
             !coachPending && (!auth.isSignedIn || TermsConsent.isAccepted) && permissionAsk.locationDue(location)
+    }
+
+    /// 시스템 평점 창을 띄워도 되는 화면 상태인가 — Android MainScreen 의 ReviewPromptHost `canShow` 와 같은 조건.
+    private var reviewGuardsClear: Bool {
+        let coachPending = auth.uid != nil && auth.returningAccount != true &&
+            !UserDefaults.standard.bool(forKey: "main_coach_seen")
+        return auth.uid != nil && TermsConsent.isAccepted &&
+            path.isEmpty && chatTarget == nil && diaryTarget == nil && !drawerOpen && !chrome.globeOpen &&
+            !showCoachMark && !coachPending && !locationAskVisible && !notificationAskVisible &&
+            !permissionAsk.notificationPending &&
+            !chrome.mapOnly && chrome.idleHolds == 0 && !chrome.questsOpen && chrome.guideStep == nil &&
+            achievementQueue.isEmpty && pendingAchievements.isEmpty && birth.event == nil &&
+            !AppUpdateChecker.shared.showPrompt
+    }
+
+    /// 별 탄생 연출이 끝난 뒤 [ReviewPromptStore.delayAfterBirthSeconds] 초 뒤에 조건을 다시 보고, 맞으면 시스템 평점 창을 요청한다.
+    /// 별 개수는 이미 구독 중인 `store`(DiaryStore)의 내 별 수 — 새 쿼리 없음(업적 계산과 같은 출처).
+    private func requestReviewIfClear() {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(ReviewPromptStore.delayAfterBirthSeconds * 1_000_000_000))
+            guard reviewGuardsClear,
+                  ReviewPromptStore.eligible(starCount: store.mine(uid: auth.uid).count) else { return }
+            ReviewPromptStore.requestSystemReview()
+        }
     }
 
     /// 알림 카드 — 차례가 왔고(별을 올렸거나 친구를 추가), 별 탄생 연출·업적 팝업·다른 안내가 끝났을 때.

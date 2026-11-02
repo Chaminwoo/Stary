@@ -863,4 +863,15 @@
     <string name="perm_allow">허용하기</string>
     <string name="perm_notif_allow">알림 받기</string>
     <string name="perm_later">나중에</string>
+    <string name="review_prompt_msg">Stary를 더 좋게 만드는 데 힘을 보태 주세요</string>
+    <string name="review_prompt_rate">평점 남기기</string>
+    <string name="review_prompt_feedback">고칠 점 보내기</string>
+    <string name="review_prompt_close">닫기</string>
+    <string name="feedback_title">고칠 점 보내기</string>
+    <string name="feedback_hint">불편했던 점이나 바라는 점을 적어 주세요</string>
+    <string name="feedback_send">보내기</string>
+    <string name="feedback_sent">의견을 보냈어요. 고마워요!</string>
+    <string name="feedback_failed">보내지 못했어요. 네트워크를 확인하고 다시 시도해 주세요</string>
+    <string name="settings_feedback">고칠 점 보내기</string>
+    <string name="settings_feedback_desc">불편한 점이나 바라는 점을 알려 주세요</string>
 </resources>

@@ -860,4 +860,15 @@
     <string name="perm_allow">Allow</string>
     <string name="perm_notif_allow">Turn on</string>
     <string name="perm_later">Later</string>
+    <string name="review_prompt_msg">Help us make Stary better</string>
+    <string name="review_prompt_rate">Rate the app</string>
+    <string name="review_prompt_feedback">Send feedback</string>
+    <string name="review_prompt_close">Close</string>
+    <string name="feedback_title">Send feedback</string>
+    <string name="feedback_hint">Tell us what bothered you or what you\'d like to see</string>
+    <string name="feedback_send">Send</string>
+    <string name="feedback_sent">Feedback sent. Thank you!</string>
+    <string name="feedback_failed">Couldn\'t send it. Check your connection and try again</string>
+    <string name="settings_feedback">Send feedback</string>
+    <string name="settings_feedback_desc">Tell us what to fix or improve</string>
 </resources>

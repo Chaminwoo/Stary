@@ -67,7 +67,7 @@ android {
         applicationId = "com.chaminwoo.stary_ios"
         minSdk = 26
         targetSdk = 36
-        versionCode = 33
+        versionCode = 34
         versionName = "1.6.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
