@@ -8,7 +8,7 @@ import com.google.firebase.analytics.FirebaseAnalytics
  * 사용 흐름 이벤트(Firebase Analytics, 2026-10-22) — "광고로 들어온 사람이 어디서 나가는지"를 숫자로 보려고 넣었다.
  * 이벤트 이름·파라미터는 iOS `StaryAnalytics.swift` 와 **같아야** 콘솔에서 한 퍼널로 합쳐 볼 수 있다.
  *
- * 퍼널: login_view → (login_google_tap → login_success | login_fail) / guest_browse → map_view
+ * 퍼널: login_view → (login_google_tap → login_success | login_fail) → map_view
  *      → guide_step(write) → upload_open → upload_success | upload_fail(reason)
  *      → guide_step(claim) → quest_open → quest_claim → guide_step(open) → detail_open(locked) → key_used → guide_done
  * 개인 정보(이름·이메일·글 내용·좌표)는 넣지 않는다.

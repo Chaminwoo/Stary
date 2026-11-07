@@ -2,7 +2,9 @@ package com.chaminwoo.stary.data.repository
 
 import androidx.compose.runtime.snapshotFlow
 import com.chaminwoo.stary.data.staryFirestore
+import android.util.Log
 import com.chaminwoo.stary.core.designsystem.StarCatalog
+import com.chaminwoo.stary.data.toDiaryOrNull
 import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.data.local.DiaryCache
 import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
@@ -10,11 +12,16 @@ import com.chaminwoo.stary.shared.config.StaryConfig
 import com.chaminwoo.stary.shared.data.repository.DiaryRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.ProducerScope
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
@@ -40,6 +47,11 @@ class FirebaseDiaryRepository : DiaryRepository {
          * 최신순 상한으로 잘라 가드(필요 시 추후 뷰포트/지오해시 쿼리로 대체).
          */
         private const val MAX_OBSERVED_DIARIES = 1000L
+        /** 나를 대상으로 한 친구 공개 글 구독 상한(공개 상한과 따로 — 합집합 뒤에는 자르지 않는다). */
+        private const val MAX_FRIEND_DIARIES = 300L
+        private const val RETRY_MIN_MS = 3_000L
+        private const val RETRY_MAX_MS = 60_000L
+        private const val TAG = "DiaryRepo"
 
         /**
          * 스냅샷 콜백 전용 백그라운드 실행자.
@@ -51,6 +63,10 @@ class FirebaseDiaryRepository : DiaryRepository {
         }
 
         /** 새 별 번호(네트워크 없이 만든다) — 업로드 화면이 들고 있다가 다시 시도할 때도 같은 번호로 쓴다. */
+        /** Firestore 문서 id 로 쓸 수 있는 모양인가 — 길이·문자 제한(경로 구분자 '/' 불가). 딥링크·알림 인자 방어용. */
+        fun isSafeDocId(id: String?): Boolean =
+            !id.isNullOrEmpty() && id.length <= 128 && id.all { it.isLetterOrDigit() || it == '_' || it == '-' }
+
         fun newId(): String = staryFirestore.collection(StaryConfig.Collections.DIARIES).document().id
     }
 
@@ -61,45 +77,181 @@ class FirebaseDiaryRepository : DiaryRepository {
             list.filter { it.visibilityType != "private" || it.userId == uid }
         }
 
+    /**
+     * 지도용 구독 = **세 리스너의 합집합**(id 로 중복 제거, 작성 시각 내림차순).
+     *  1. 공개 글 최신 [MAX_OBSERVED_DIARIES]건  2. 내 글  3. 나를 대상으로 한 친구 공개 글 최신 [MAX_FRIEND_DIARIES]건.
+     * 합집합 뒤에는 자르지 않는다(친구 글이 공개 글 상한에 밀려 사라지지 않게).
+     * 로그인(비익명 세션 + 사용자 id)이 확인되기 전에는 구독하지 않고, 인증 상태 · 사용자 id 가 바뀔 때마다 다시 건다.
+     * 첫 공개 목록이 오기 전에는 아무것도 내보내지 않는다(=불러오는 중). 로그아웃되면 빈 목록을 한 번 내보낸다.
+     */
     private fun observeAllDocs(): Flow<List<Diary>> = callbackFlow {
-        // 앱 시작 시 지도는 로그인 전(auth==null)에 미리 렌더된다. 그때 첫 구독이 시작되면
-        // 보안 규칙(request.auth!=null)에 막혀 PERMISSION_DENIED 로 Firestore 리스너가 죽고,
-        // 로그인 후에도 스스로 복구되지 않아 지도에 다이어리가 안 뜬다.
-        // → auth 상태가 바뀔 때마다(로그인/익명 완료) 리스너를 다시 건다.
-        var registration: ListenerRegistration? = null
+        val union = MapUnion(this)
+        union.update()
+        val auth = FirebaseAuth.getInstance()
+        // addAuthStateListener 는 등록 즉시 1회 + 이후 상태 변경마다 호출된다.
+        val authListener = FirebaseAuth.AuthStateListener { union.update() }
+        auth.addAuthStateListener(authListener)
+        // 사용자 id(Google sub)는 Firebase 로그인이 끝난 **뒤에** 채워진다 — 그때 다시 건다.
+        launch(Dispatchers.Main) {
+            snapshotFlow { GoogleAuthHelper.currentUserId }.distinctUntilChanged().collect { union.update() }
+        }
+        awaitClose {
+            auth.removeAuthStateListener(authListener)
+            union.close()
+        }
+    }
 
-        fun subscribe() {
-            registration?.remove()
-            registration = diaries
-                .orderBy("createdAt", Query.Direction.DESCENDING)
-                .limit(MAX_OBSERVED_DIARIES)
-                .addSnapshotListener(listenerExecutor) { snapshot, error ->
+    /**
+     * [observeAllDocs] 의 구독 묶음. 상태는 모두 [lock] 안에서만 바꾼다(스냅샷은 전용 스레드, 인증 변경은 메인 스레드에서 온다).
+     * 스냅샷 콜백은 처리되지 않은 예외가 앱을 끄므로 본문 전체를 try/catch 로 감싼다.
+     */
+    private inner class MapUnion(private val scope: ProducerScope<List<Diary>>) {
+        private val lock = Any()
+        private var registrations = ArrayList<ListenerRegistration>()
+        private var generation = 0
+        private var subscribedKey: String? = null
+        private var everSubscribed = false
+        private var retryJob: Job? = null
+        private var retryDelayMs = RETRY_MIN_MS
+        private var publicDocs: List<Diary> = emptyList()
+        private var mineDocs: List<Diary> = emptyList()
+        private var friendDocs: List<Diary> = emptyList()
+        private var publicLoaded = false
+
+        fun update(force: Boolean = false) {
+            synchronized(lock) {
+                val fbUser = FirebaseAuth.getInstance().currentUser
+                val me = GoogleAuthHelper.currentUserId
+                val key = if (fbUser == null || fbUser.isAnonymous || me == null) null else "${fbUser.uid}|$me"
+                if (!force && key == subscribedKey && (key == null || registrations.isNotEmpty())) return
+                clearLocked()
+                subscribedKey = key
+                val gen = generation
+                if (key == null || me == null) {
+                    // 로그인 전: 구독하지 않는다. 이전에 구독하던 계정이었다면 목록을 비운다.
+                    retryDelayMs = RETRY_MIN_MS
+                    if (everSubscribed) scope.trySend(emptyList())
+                    everSubscribed = false
+                    return
+                }
+                everSubscribed = true
+                listenPublic(gen, legacy = false)
+                listenMine(gen, me)
+                listenFriends(gen, me)
+            }
+        }
+
+        fun close() {
+            synchronized(lock) { clearLocked(); subscribedKey = null }
+        }
+
+        private fun clearLocked() {
+            registrations.forEach { it.remove() }
+            registrations = ArrayList()
+            retryJob?.cancel()
+            generation++
+            publicDocs = emptyList(); mineDocs = emptyList(); friendDocs = emptyList()
+            publicLoaded = false
+        }
+
+        private fun emitMergedLocked() {
+            if (!publicLoaded) return
+            val byId = LinkedHashMap<String, Diary>()
+            for (d in publicDocs) byId[d.id] = d
+            for (d in friendDocs) byId[d.id] = d
+            for (d in mineDocs) byId[d.id] = d
+            scope.trySend(byId.values.sortedByDescending { it.createdAt })
+        }
+
+        private fun decode(snapshot: QuerySnapshot?): List<Diary> {
+            val now = System.currentTimeMillis()
+            return snapshot?.documents?.mapNotNull { it.toDiaryOrNull(forMap = true, nowMs = now) } ?: emptyList()
+        }
+
+        private fun scheduleRetry(gen: Int) {
+            synchronized(lock) {
+                if (generation != gen) return
+                retryJob?.cancel()
+                val wait = retryDelayMs
+                retryDelayMs = (retryDelayMs * 2).coerceAtMost(RETRY_MAX_MS)
+                retryJob = scope.launch(Dispatchers.Main) {
+                    delay(wait)
+                    update(force = true)
+                }
+            }
+        }
+
+        // lock 안에서 호출
+        private fun listenPublic(gen: Int, legacy: Boolean) {
+            val query = if (legacy) {
+                diaries.orderBy("createdAt", Query.Direction.DESCENDING).limit(MAX_OBSERVED_DIARIES)
+            } else {
+                diaries.whereEqualTo("visibilityType", "public")
+                    .orderBy("createdAt", Query.Direction.DESCENDING).limit(MAX_OBSERVED_DIARIES)
+            }
+            registrations += query.addSnapshotListener(listenerExecutor) { snapshot, error ->
+                try {
                     if (error != null) {
-                        if (FirebaseAuth.getInstance().currentUser == null) {
-                            // 로그아웃 순간의 권한 거부 — 아무것도 안 보내면 이전 계정의 목록(나만 보기 포함)이 그대로 남았다.
-                            trySend(emptyList())
+                        if (!legacy && error.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION) {
+                            // 인덱스가 아직 없다 — 예전 전체 쿼리로 대신한다.
+                            synchronized(lock) { if (generation == gen) listenPublic(gen, legacy = true) }
                         } else {
-                            // 로그인 중인데 끊김(드문 일시 오류) — 끊긴 리스너는 스스로 살아나지 않으니 잠시 뒤 다시 건다.
-                            launch(Dispatchers.Main) { delay(3_000); subscribe() }
+                            scheduleRetry(gen)
                         }
                         return@addSnapshotListener
                     }
-                    val list = snapshot?.documents?.mapNotNull { doc ->
-                        doc.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = doc.id)
-                    } ?: emptyList()
-                    trySend(list)
+                    val list = decode(snapshot)
+                    synchronized(lock) {
+                        if (generation != gen) return@addSnapshotListener
+                        retryDelayMs = RETRY_MIN_MS
+                        publicDocs = list
+                        publicLoaded = true
+                        emitMergedLocked()
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "공개 목록 처리 실패: ${e.javaClass.simpleName}")
+                }
+            }
+        }
+
+        private fun listenMine(gen: Int, me: String) {
+            registrations += diaries.whereEqualTo("userId", me)
+                .addSnapshotListener(listenerExecutor) { snapshot, error ->
+                    try {
+                        if (error != null) {
+                            scheduleRetry(gen)
+                            return@addSnapshotListener
+                        }
+                        val list = decode(snapshot)
+                        synchronized(lock) {
+                            if (generation != gen) return@addSnapshotListener
+                            mineDocs = list
+                            emitMergedLocked()
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "내 글 처리 실패: ${e.javaClass.simpleName}")
+                    }
                 }
         }
 
-        subscribe()
-        val auth = FirebaseAuth.getInstance()
-        // addAuthStateListener 는 등록 즉시 1회 + 이후 상태 변경마다 호출된다.
-        val authListener = FirebaseAuth.AuthStateListener { subscribe() }
-        auth.addAuthStateListener(authListener)
-
-        awaitClose {
-            registration?.remove()
-            auth.removeAuthStateListener(authListener)
+        private fun listenFriends(gen: Int, me: String) {
+            registrations += diaries.whereEqualTo("visibilityType", "friends")
+                .whereArrayContains("audience", me)
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .limit(MAX_FRIEND_DIARIES)
+                .addSnapshotListener(listenerExecutor) { snapshot, error ->
+                    try {
+                        // 실패(인덱스 없음 등)는 빈 목록 — 지도가 죽지 않게.
+                        val list = if (error != null) emptyList() else decode(snapshot)
+                        synchronized(lock) {
+                            if (generation != gen) return@addSnapshotListener
+                            friendDocs = list
+                            emitMergedLocked()
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "친구 글 처리 실패: ${e.javaClass.simpleName}")
+                    }
+                }
         }
     }
 
@@ -161,81 +313,146 @@ class FirebaseDiaryRepository : DiaryRepository {
     }
 
     override suspend fun getDiaryById(diaryId: String): Diary? {
+        // 문서 id 에 '/' 가 있으면 document() 가 다른 경로를 가리키거나 예외를 던진다 — 형식이 아니면 없는 글로 본다.
+        if (!isSafeDocId(diaryId)) return null
         return try {
-            val doc = diaries.document(diaryId).get().await()
-            doc.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = doc.id)
+            diaries.document(diaryId).get().await().toDiaryOrNull()
         } catch (e: Exception) {
-            null
+            null // 거부(권한)·네트워크 모두 "못 찾음"
         }
     }
 
     override fun observeMyDiaries(userId: String): Flow<List<Diary>> = callbackFlow {
+        if (userId.isBlank()) {
+            trySend(emptyList())
+            awaitClose { }
+            return@callbackFlow
+        }
         // userId 동등 필터만 서버에서 수행하고 정렬은 클라이언트에서 처리한다.
         // (userId + createdAt 복합 인덱스를 새 DB 에 따로 만들 필요 없게 — 내 글은 소량이라 부담 없음)
+        // ⚠️ 내 id 일 때만 쓴다. 남의 글은 [observeUserDiaries].
         val listener = diaries
             .whereEqualTo("userId", userId)
             .addSnapshotListener(listenerExecutor) { snapshot, error ->
-                if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
-                val list = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = doc.id)
-                }?.sortedByDescending { it.createdAt } ?: emptyList()
-                trySend(list)
+                try {
+                    if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
+                    val list = snapshot?.documents?.mapNotNull { it.toDiaryOrNull() }
+                        ?.sortedByDescending { it.createdAt } ?: emptyList()
+                    trySend(list)
+                } catch (e: Exception) {
+                    Log.w(TAG, "내 글 처리 실패: ${e.javaClass.simpleName}")
+                }
             }
         awaitClose { listener.remove() }
+    }
+
+    /**
+     * **남의** 글 목록 — "공개" + "나를 대상으로 한 친구 공개" 두 쿼리의 합집합(작성 시각 내림차순).
+     * 나만 보기는 서버 규칙이 막으므로 아예 묻지 않는다. 친구 쿼리 실패(인덱스 없음 · 거부)는 그 몫만 빈 목록.
+     * 정렬은 클라이언트에서 한다(복합 인덱스 없이 동작).
+     */
+    override fun observeUserDiaries(userId: String): Flow<List<Diary>> = callbackFlow {
+        val me = GoogleAuthHelper.currentUserId
+        if (userId.isBlank() || me == null) {
+            trySend(emptyList())
+            awaitClose { }
+            return@callbackFlow
+        }
+        val lock = Any()
+        var publicDocs: List<Diary> = emptyList()
+        var friendDocs: List<Diary> = emptyList()
+        var publicReady = false
+        fun emitLocked() {
+            if (!publicReady) return
+            val byId = LinkedHashMap<String, Diary>()
+            for (d in publicDocs) byId[d.id] = d
+            for (d in friendDocs) byId[d.id] = d
+            trySend(byId.values.sortedByDescending { it.createdAt })
+        }
+        val base = diaries.whereEqualTo("userId", userId)
+        val pub = base.whereEqualTo("visibilityType", "public")
+            .addSnapshotListener(listenerExecutor) { snapshot, error ->
+                try {
+                    val list = if (error != null) emptyList() else snapshot?.documents?.mapNotNull { it.toDiaryOrNull() } ?: emptyList()
+                    synchronized(lock) { publicDocs = list; publicReady = true; emitLocked() }
+                } catch (e: Exception) {
+                    Log.w(TAG, "공개 글 처리 실패: ${e.javaClass.simpleName}")
+                }
+            }
+        val fri = base.whereEqualTo("visibilityType", "friends").whereArrayContains("audience", me)
+            .addSnapshotListener(listenerExecutor) { snapshot, error ->
+                try {
+                    val list = if (error != null) emptyList() else snapshot?.documents?.mapNotNull { it.toDiaryOrNull() } ?: emptyList()
+                    synchronized(lock) { friendDocs = list; emitLocked() }
+                } catch (e: Exception) {
+                    Log.w(TAG, "친구 글 처리 실패: ${e.javaClass.simpleName}")
+                }
+            }
+        awaitClose { pub.remove(); fri.remove() }
     }
 
     /**
      * [userId] 가 **가장 최근에 올린, 내가 볼 수 있는** 별 1개를 실시간 구독(없으면 null).
      * 친구 목록 행 우측의 "최근 별" 표시용(체크리스트 34-6).
      *
-     * 필터:
-     *  - `private`(나만보기)는 남에게 보이면 안 되므로 제외(`friends` 는 친구 목록에서 보는 것이므로 포함).
-     *  - 익명 다이어리 제외 — 이름 옆에 그 별을 띄우면 익명성이 깨진다.
-     *
-     * 쿼리: 정렬+limit(적은 읽기)이 1순위지만 이 경로엔 **복합 인덱스(userId, createdAt desc)** 가 필요하다.
-     * 인덱스가 없으면(첫 배포 등) 리스너가 에러로 죽어 별이 아예 안 뜨므로,
+     * 쿼리: 공개 + (나를 대상으로 한) 친구 공개 두 개의 합집합. 나만 보기는 묻지 않는다.
+     * 정렬+limit(적은 읽기)이 1순위지만 이 경로엔 복합 인덱스가 필요하다. 인덱스가 없으면(첫 배포 등)
      * 에러 시 **정렬 없는 쿼리 + 클라 정렬**로 자동 폴백한다(=인덱스 없어도 동작, 있으면 저렴).
+     * 친구 쿼리 실패는 그 몫만 비운다.
      */
     fun observeLatestVisibleDiaryOf(userId: String): Flow<Diary?> = callbackFlow {
-        if (userId.isBlank()) {
+        val me = GoogleAuthHelper.currentUserId
+        if (userId.isBlank() || me == null) {
             trySend(null)
             awaitClose { }
             return@callbackFlow
         }
-        fun visible(d: Diary): Boolean = d.visibilityType != "private"
-
-        var fallback: ListenerRegistration? = null
-        // 최신 몇 개만 받아 그중 "보이는" 첫 별을 고른다(맨 앞이 private/익명일 수 있어 여유분).
-        val primary = diaries
-            .whereEqualTo("userId", userId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .limit(6)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    if (fallback == null) {
-                        fallback = diaries
-                            .whereEqualTo("userId", userId)
-                            .addSnapshotListener { snap2, err2 ->
-                                if (err2 != null) return@addSnapshotListener
-                                val latest = snap2?.documents
-                                    ?.mapNotNull { d -> d.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = d.id) }
-                                    ?.filter(::visible)
-                                    ?.maxByOrNull { it.createdAt }
-                                trySend(latest)
-                            }
-                    }
-                    return@addSnapshotListener
-                }
-                val latest = snapshot?.documents
-                    ?.mapNotNull { d -> d.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = d.id) }
-                    ?.filter(::visible)
-                    ?.maxByOrNull { it.createdAt }
-                trySend(latest)
-            }
-        awaitClose {
-            primary.remove()
-            fallback?.remove()
+        val lock = Any()
+        val regs = ArrayList<ListenerRegistration>()
+        var publicLatest: Diary? = null
+        var friendLatest: Diary? = null
+        var publicReady = false
+        fun emitLocked() {
+            if (!publicReady) return
+            trySend(listOfNotNull(publicLatest, friendLatest).maxByOrNull { it.createdAt })
         }
+
+        fun listen(base: Query, onResult: (Diary?) -> Unit) {
+            fun attach(query: Query, fallbackToUnordered: Boolean) {
+                val reg = query.addSnapshotListener(listenerExecutor) { snapshot, error ->
+                    try {
+                        if (error != null) {
+                            if (fallbackToUnordered) {
+                                synchronized(lock) { attach(base, false) }
+                            } else {
+                                onResult(null)
+                            }
+                            return@addSnapshotListener
+                        }
+                        val latest = snapshot?.documents
+                            ?.mapNotNull { it.toDiaryOrNull() }
+                            ?.filter { it.visibilityType != "private" }
+                            ?.maxByOrNull { it.createdAt }
+                        onResult(latest)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "최근 별 처리 실패: ${e.javaClass.simpleName}")
+                    }
+                }
+                regs += reg
+            }
+            synchronized(lock) {
+                attach(base.orderBy("createdAt", Query.Direction.DESCENDING).limit(6), true)
+            }
+        }
+
+        val base = diaries.whereEqualTo("userId", userId)
+        listen(base.whereEqualTo("visibilityType", "public")) { d ->
+            synchronized(lock) { publicLatest = d; publicReady = true; emitLocked() }
+        }
+        listen(base.whereEqualTo("visibilityType", "friends").whereArrayContains("audience", me)) { d ->
+            synchronized(lock) { friendLatest = d; emitLocked() }
+        }
+        awaitClose { synchronized(lock) { regs.forEach { it.remove() } } }
     }
 
     override suspend fun incrementViewCount(diaryId: String) {
@@ -246,11 +463,10 @@ class FirebaseDiaryRepository : DiaryRepository {
 
     override suspend fun prefetchDiaries(diaryIds: List<String>) {
         diaryIds.forEach { id ->
-            if (DiaryCache.get(id) != null) return@forEach
+            if (!isSafeDocId(id) || DiaryCache.get(id) != null) return@forEach
             try {
-                val doc = diaries.document(id).get().await()
-                doc.toObject(Diary::class.java)?.also(StarCatalog::learn)?.copy(id = doc.id)?.let { DiaryCache.put(it) }
-            } catch (_: Exception) {}
+                diaries.document(id).get().await().toDiaryOrNull()?.let { DiaryCache.put(it) }
+            } catch (_: Exception) {} // 거부·네트워크는 건너뜀
         }
     }
 

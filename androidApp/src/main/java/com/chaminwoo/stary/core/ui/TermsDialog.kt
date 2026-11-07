@@ -28,7 +28,7 @@ import com.chaminwoo.stary.core.designsystem.StaryColors
 /**
  * 이용약관(EULA) 다이얼로그 — App Store Guideline 1.2 대응(2026-09-26). iOS `TermsDialogCard` 패리티.
  *
- * - [requireAgreement] = true : 로그인/둘러보기 전 동의 게이트. 바깥 탭·뒤로가기로 닫히지 않고
+ * - [requireAgreement] = true : 로그인 전 동의 게이트. 바깥 탭·뒤로가기로 닫히지 않고
  *   "동의하고 계속"([onAgree]) 또는 [declineLabel]([onDismiss]) 중 하나를 골라야 한다.
  * - false : 설정 > 이용약관 보기 전용(확인 버튼 하나).
  * 본문은 무관용 원칙 · 자동 필터 · 신고/차단 · 24시간 내 조치를 담는다(`terms_body` ko/en/ja).

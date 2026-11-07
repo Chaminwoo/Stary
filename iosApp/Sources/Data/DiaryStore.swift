@@ -23,6 +23,12 @@ final class DiaryStore: ObservableObject {
             loading = false
             return
         }
+        // 로그인 전에는 구독하지 않는다. 로그아웃이면 목록을 비운다(나만 보기 글이 남아 있으면 안 된다).
+        guard let uid, !uid.isEmpty else {
+            diaries = []
+            loading = true
+            return
+        }
         loading = true
         repo.observeAll(currentUid: uid) { [weak self] list in
             guard let self else { return }
@@ -37,11 +43,13 @@ final class DiaryStore: ObservableObject {
     /// 목록 창 밖이면 Firestore 에서 직접 읽는다.** 예전엔 목록에서만 찾고 없으면 아무 일도 하지 않아
     /// "알림을 눌러도 반응이 없다"로 보였다. 남의 나만 보기 글은 열지 않는다.
     func diary(id: String, viewerUid: String?) async -> Diary? {
-        guard !id.isEmpty else { return nil }
+        guard DiaryRepository.isValidDocId(id) else { return nil }
         if let d = diaries.first(where: { $0.id == id }) { return d }
-        guard let snap = try? await FirestoreService.diaries.document(id).getDocument(),
+        // 읽기가 거부되면(권한 없음) 못 찾은 것으로 처리 — 호출부가 "사라진 별" 안내를 띄운다.
+        guard let snap = try? await FirestoreService.diaries.safeDocument(id).getDocument(),
               snap.exists,
-              let d = try? snap.data(as: Diary.self) else { return nil }
+              let raw = try? snap.data(as: Diary.self),
+              let d = raw.sanitized() else { return nil }
         if d.visibilityType == "private" && d.userId != viewerUid { return nil }
         return d
     }
@@ -56,6 +64,7 @@ final class DiaryStore: ObservableObject {
     func delete(_ id: String) async throws { try await repo.delete(id) }
     func incrementView(_ id: String) async {
         guard !ScreenshotMode.isActive else { return } // 샘플 별은 서버에 없다
+        guard DiaryRepository.isValidDocId(id) else { return }
         await repo.incrementViewCount(id)
     }
 

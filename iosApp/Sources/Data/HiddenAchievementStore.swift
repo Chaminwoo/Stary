@@ -90,7 +90,7 @@ final class HiddenAchievementStore: ObservableObject {
         guard !id.isEmpty, !uid.isEmpty else { return false }
         // 어드민(테스트) 계정은 선점을 서버에 기록하지 않는다(실제 유저가 첫 달성자가 될 수 있게).
         if AppConfig.isAdminEmail(Auth.auth().currentUser?.email) { return false }
-        let ref = FirestoreService.hiddenAchievements.document(id)
+        let ref = FirestoreService.hiddenAchievements.safeDocument(id)
         return await withCheckedContinuation { cont in
             FirestoreService.db.runTransaction({ txn, errorPointer -> Any? in
                 let snap: DocumentSnapshot

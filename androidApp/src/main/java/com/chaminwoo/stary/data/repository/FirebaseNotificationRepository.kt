@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.safeToObject
 import android.util.Log
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.AppNotification
@@ -34,7 +35,9 @@ class FirebaseNotificationRepository : NotificationRepository {
                     return@addSnapshotListener
                 }
                 val list = (snap?.documents?.mapNotNull { doc ->
-                    doc.toObject(AppNotification::class.java)?.copy(id = doc.id)
+                    doc.safeToObject<AppNotification>()?.let { n ->
+                        n.copy(id = doc.id, diaryTitle = n.diaryTitle.take(100), actorName = n.actorName.take(60), content = n.content.take(300))
+                    }
                 } ?: emptyList()).sortedByDescending { it.createdAt }
                 trySend(list)
             }

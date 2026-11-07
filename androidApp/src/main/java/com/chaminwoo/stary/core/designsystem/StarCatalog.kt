@@ -27,6 +27,10 @@ import java.util.concurrent.ConcurrentHashMap
 object StarCatalog {
     private const val TAG = "StarCatalog"
     private const val MAX_STOPS = 3
+    /** 배울 수 있는 DB 정의 번호 상한 — 문서가 임의 번호를 싣더라도 표가 끝없이 커지지 않게. */
+    private const val MAX_CUSTOM_INDEX = 255
+    private const val MAX_PATH_LEN = 2000
+    private const val MAX_ENTRIES = 128
 
     private val shapeSvgs = ConcurrentHashMap<Int, String>()
     /** 단위(0~1) 경로 — [unitPath] 가 배율만 줘서 복사해 준다. */
@@ -45,20 +49,33 @@ object StarCatalog {
     }
 
     fun learnShape(type: Int, svg: String?) {
-        if (type < StarStyle.TYPE_COUNT || svg.isNullOrBlank() || shapeSvgs[type] == svg) return
+        if (type < StarStyle.TYPE_COUNT || type > MAX_CUSTOM_INDEX || svg.isNullOrBlank() || svg.length > MAX_PATH_LEN ||
+            shapeSvgs[type] == svg || (shapeSvgs.size >= MAX_ENTRIES && !shapeSvgs.containsKey(type))
+        ) return
         val path = try {
             PathParser.createPathFromPathData(svg)
         } catch (e: Exception) {
-            Log.w(TAG, "별 모양 $type 경로를 읽지 못함", e)
+            Log.w(TAG, "별 모양 $type 경로를 읽지 못함: ${e.javaClass.simpleName}")
             return
         }
+        // 값이 없는/비정상 경로(NaN 좌표 등)는 쓰지 않는다.
+        val bounds = android.graphics.RectF()
+        try {
+            @Suppress("DEPRECATION")
+            path.computeBounds(bounds, true)
+        } catch (e: Exception) {
+            return
+        }
+        if (bounds.isEmpty || !bounds.left.isFinite() || !bounds.right.isFinite() || !bounds.top.isFinite() || !bounds.bottom.isFinite()) return
         shapePaths[type] = path
         shapeSvgs[type] = svg
         revision++
     }
 
     fun learnColor(index: Int, hexes: List<String>?) {
-        if (index < StarStyle.COLOR_COUNT || hexes.isNullOrEmpty() || colorHex[index] == hexes) return
+        if (index < StarStyle.COLOR_COUNT || index > MAX_CUSTOM_INDEX || hexes.isNullOrEmpty() || colorHex[index] == hexes ||
+            (colorHex.size >= MAX_ENTRIES && !colorHex.containsKey(index))
+        ) return
         val parsed = hexes.take(MAX_STOPS).mapNotNull(::parseHex)
         if (parsed.isEmpty()) return
         colorValues[index] = parsed

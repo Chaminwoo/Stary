@@ -1,5 +1,7 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.safeDecode
+import com.chaminwoo.stary.data.safeToObject
 import android.util.Log
 import com.chaminwoo.stary.core.model.ChatHidden
 import com.chaminwoo.stary.core.model.ChatMessage
@@ -54,7 +56,7 @@ class FirebaseChatRepository : ChatRepository {
                     return@addSnapshotListener
                 }
 
-                val list = snapshot?.documents?.mapNotNull { doc ->
+                val list = snapshot?.documents?.mapNotNull { doc -> safeDecode("ChatSummary") {
                     @Suppress("UNCHECKED_CAST")
                     val participants =
                         (doc.get("participants") as? List<String>) ?: doc.id.split("_")
@@ -72,7 +74,7 @@ class FirebaseChatRepository : ChatRepository {
                         updatedAt = doc.getLong("updatedAt") ?: 0L,
                         lastReadAt = lastReadAt
                     )
-                } ?: emptyList()
+                } } ?: emptyList()
 
                 trySend(list)
             }
@@ -87,7 +89,9 @@ class FirebaseChatRepository : ChatRepository {
             .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
                 if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
                 val list = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(ChatMessage::class.java)?.copy(id = doc.id, pending = doc.metadata.hasPendingWrites())
+                    doc.safeToObject<ChatMessage>()?.let { m ->
+                        m.copy(id = doc.id, pending = doc.metadata.hasPendingWrites(), senderName = m.senderName.take(60), text = m.text.take(1000))
+                    }
                 } ?: emptyList()
                 trySend(list)
             }
@@ -177,7 +181,7 @@ class FirebaseChatRepository : ChatRepository {
                 trySend(emptyMap())
                 return@addSnapshotListener
             }
-            trySend(snapshot?.documents?.associate { it.id to it.toChatHidden() } ?: emptyMap())
+            trySend(snapshot?.documents?.mapNotNull { d -> safeDecode("ChatHidden") { d.id to d.toChatHidden() } }?.toMap() ?: emptyMap())
         }
         awaitClose { listener.remove() }
     }

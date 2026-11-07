@@ -54,7 +54,7 @@ enum ImageUploader {
     /// - 예전 URL 은 서버에서 읽는다. 우리 Storage 의 내 프로필 파일일 때만 지운다(구글 사진 URL 등은 그대로). 삭제 실패는 무시.
     static func uploadProfile(uid: String, data: Data) async throws -> String {
         let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.8) ?? data
-        let userRef = FirestoreService.users.document(uid)
+        let userRef = FirestoreService.users.safeDocument(uid)
         // 못 읽으면 지우지 않는다(잘못 지우는 것보다 남는 게 낫다)
         let oldUrl = (try? await userRef.getDocument(source: .server))?.get("profileImageUrl") as? String
 

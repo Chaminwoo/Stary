@@ -1,0 +1,13 @@
+{
+  "name": "stary-rules-test",
+  "private": true,
+  "description": "Firestore / Storage 보안 규칙 에뮬레이터 테스트 (demo- 프로젝트 — 실프로젝트에 접근하지 않는다)",
+  "scripts": {
+    "test": "node run-tests.js",
+    "build-stage2": "node build-stage2.js"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}

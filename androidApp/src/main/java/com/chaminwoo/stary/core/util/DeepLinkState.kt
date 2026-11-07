@@ -12,6 +12,11 @@ import androidx.compose.runtime.setValue
  * (singleTop 이라 앱이 살아있을 때 알림 탭도 onNewIntent 로 들어와 반영됨.)
  */
 object DeepLinkState {
+    private val SAFE_ID = Regex("^[A-Za-z0-9_-]{1,128}$")
+
+    /** 외부(푸시 · 링크)에서 온 id 가 문서 id 로 쓸 수 있는 모양인가 — 아니면 null(무시). */
+    fun safeId(raw: String?): String? = raw?.takeIf { SAFE_ID.matches(it) }
+
     var diaryId by mutableStateOf<String?>(null)
         private set
     /**
@@ -46,11 +51,13 @@ object DeepLinkState {
         openFriends: Boolean = false,
         openUpload: Boolean = false,
     ) {
-        if (!chatFriendId.isNullOrBlank()) {
-            this.chatFriendId = chatFriendId
-            this.chatFriendName = chatFriendName ?: ""
-        } else if (!diaryId.isNullOrBlank()) {
-            if (diaryOnMap) this.mapDiaryId = diaryId else this.diaryId = diaryId
+        val safeChat = safeId(chatFriendId)
+        val safeDiary = safeId(diaryId)
+        if (safeChat != null) {
+            this.chatFriendId = safeChat
+            this.chatFriendName = (chatFriendName ?: "").take(60)
+        } else if (safeDiary != null) {
+            if (diaryOnMap) this.mapDiaryId = safeDiary else this.diaryId = safeDiary
         } else if (openFriends) {
             friendsNonce += 1
         } else if (openUpload) {
@@ -60,7 +67,7 @@ object DeepLinkState {
 
     /** 초대 딥링크 등록 — 로그인 전에 들어와도 보관했다가 로그인 후 리딤한다. */
     fun requestInvite(inviterId: String?) {
-        if (!inviterId.isNullOrBlank()) this.inviterId = inviterId
+        safeId(inviterId)?.let { this.inviterId = it }
     }
 
     /** 초대자 uid 를 꺼내고 비운다(1회 소비). */

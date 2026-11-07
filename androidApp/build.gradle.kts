@@ -67,8 +67,8 @@ android {
         applicationId = "com.chaminwoo.stary_ios"
         minSdk = 26
         targetSdk = 36
-        versionCode = 34
-        versionName = "1.6.2"
+        versionCode = 35
+        versionName = "1.6.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // TODO: secrets.properties 에 실제 값 채우기 (커밋 금지)
@@ -191,6 +191,8 @@ dependencies {
     implementation(libs.firebase.storage.ktx)
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.analytics)
+    // App Check — 모니터링 전용(강제 없음). Play 무결성 공급자만 설치한다(StaryApplication).
+    implementation(libs.firebase.appcheck.playintegrity)
     implementation(libs.jwt.decode)
 
     implementation("io.coil-kt:coil-compose:2.6.0")

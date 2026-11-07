@@ -6,7 +6,7 @@ import Foundation
 /// (실행 인자 `-키 값` 은 UserDefaults 인자 도메인으로 들어오므로 그대로 읽는다 — `-app_language en` 처럼 언어도 같은 방식.)
 ///
 /// **네트워크·로그인에 기대지 않는다**(2026-10-28 재작성 — 1차 자동 촬영은 익명 인증이 꺼져 있어 별이 0개였다):
-/// 게스트로 바로 들어가고, 별은 서버 대신 [demoDiaries] 의 내장 샘플을 쓴다. 지도 타일만 인터넷이 필요하다.
+/// 로그인 없이 바로 지도로 들어가고(AuthManager.canEnterApp), 별은 서버 대신 [demoDiaries] 의 내장 샘플을 쓴다. 지도 타일만 인터넷이 필요하다.
 /// 실기기(Duo)에서도, 시뮬레이터에서도 같다 — 위치는 [coordinate] 로 고정한다.
 ///
 /// 장면(`-StaryShot` 값):
@@ -25,8 +25,8 @@ enum ScreenshotMode {
 
     static var isActive: Bool { scene != nil }
 
-    /// 둘러보기(게스트)로 바로 들어가는 장면인가(login 만 아니면).
-    static var entersAsGuest: Bool { isActive && scene != "login" }
+    /// 로그인 없이 바로 본 화면으로 들어가는 장면인가(login 만 아니면). 서버에 닿지 않는다.
+    static var entersWithoutLogin: Bool { isActive && scene != "login" }
 
     /// 지도 줌(`-StaryShotZoom`) — 없으면 장면 기본 14(샘플 별이 한 화면에 모이는 값).
     static var mapZoom: Double? { isActive ? (number("StaryShotZoom") ?? 14) : nil }

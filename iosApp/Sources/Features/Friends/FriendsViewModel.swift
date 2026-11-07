@@ -65,7 +65,10 @@ final class FriendsViewModel: ObservableObject {
                 Task { [weak self] in
                     var enriched: [Friend] = []
                     for friend in base {
-                        guard let doc = try? await FirestoreService.users.document(friend.userId).getDocument() else {
+                        // 문서 id(= 상대 uid)를 우선 — 필드 userId 가 비어 있거나 이상하면 document() 가 크래시한다.
+                        let friendUid = friend.id ?? friend.userId
+                        guard FirestoreService.isValidId(friendUid),
+                              let doc = try? await FirestoreService.users.safeDocument(friendUid).getDocument() else {
                             enriched.append(friend)
                             continue
                         }
@@ -98,6 +101,7 @@ final class FriendsViewModel: ObservableObject {
     func search(query: String, excluding uid: String) async {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { results = []; return }
+        let q = String(q.prefix(AppConfig.nicknameMaxLen)) // 검색어 상한(닉네임 상한과 같다)
         searching = true
         defer { searching = false }
         do {
@@ -133,6 +137,7 @@ final class FriendsViewModel: ObservableObject {
     /// 친구 요청 전송 — 성공(중복 포함) true / 실패 false. (Android sendRequest 반환값 패리티 — 토스트용)
     @discardableResult
     func sendRequest(fromId: String, fromName: String, to: UserProfile) async -> Bool {
+        guard FirestoreService.isValidId(fromId), FirestoreService.isValidId(to.userId) else { return false }
         do {
             let dup = try await FirestoreService.friendRequests
                 .whereField("fromId", isEqualTo: fromId)
@@ -140,9 +145,10 @@ final class FriendsViewModel: ObservableObject {
                 .getDocuments()
             guard dup.documents.isEmpty else { return true }
             // 보낸 사람 사진을 채워 빈 값으로 저장하지 않는다(상대 친구목록 아바타에 보이도록).
-            let myPhoto = ((try? await FirestoreService.users.document(fromId).getDocument())?
+            let myPhoto = ((try? await FirestoreService.users.safeDocument(fromId).getDocument())?
                 .get("profileImageUrl") as? String) ?? ""
-            let ref = FirestoreService.friendRequests.document()
+            // 고정 id("{from}_{to}") — 같은 쌍의 요청이 문서 하나로 합쳐진다.
+            let ref = FirestoreService.friendRequests.safeDocument(FirestoreService.friendRequestId(from: fromId, to: to.userId))
             try await ref.setData([
                 "fromId": fromId, "fromName": fromName,
                 "fromPhotoUrl": myPhoto,
@@ -164,7 +170,7 @@ final class FriendsViewModel: ObservableObject {
     /// 친구 요청 알림 문서(notifications/{id}) 생성 — 수신자 = toId.
     /// 필드/타입은 Android `AppNotification` 저장 형태와 동일해야 한다(양쪽이 같은 문서를 읽음).
     static func notifyFriendRequest(actorId: String, actorName: String, toId: String) async {
-        guard !actorId.isEmpty, !toId.isEmpty else { return }
+        guard FirestoreService.isValidId(actorId), FirestoreService.isValidId(toId) else { return }
         let ref = FirestoreService.notifications.document()
         try? await ref.setData([
             "id": ref.documentID,
@@ -181,32 +187,34 @@ final class FriendsViewModel: ObservableObject {
     }
 
     func accept(_ r: FriendRequest, myUid: String, myName: String) async {
-        guard let reqId = r.id else { return }
+        guard let reqId = r.id, FirestoreService.isValidId(reqId),
+              FirestoreService.isValidId(r.fromId), FirestoreService.isValidId(myUid) else { return }
         let now = FirestoreService.nowMillis
         let batch = FirestoreService.db.batch()
         // 내 친구 목록에 상대 추가
         batch.setData(["userId": r.fromId, "userName": r.fromName, "photoUrl": r.fromPhotoUrl, "createdAt": now],
-                      forDocument: FirestoreService.friends(of: myUid).document(r.fromId))
+                      forDocument: FirestoreService.friends(of: myUid).safeDocument(r.fromId))
         // 상대 친구 목록에 나 추가 — 내 사진을 채워 빈 값으로 저장하지 않는다.
-        let myPhoto = ((try? await FirestoreService.users.document(myUid).getDocument())?
+        let myPhoto = ((try? await FirestoreService.users.safeDocument(myUid).getDocument())?
             .get("profileImageUrl") as? String) ?? ""
         batch.setData(["userId": myUid, "userName": myName, "photoUrl": myPhoto, "createdAt": now],
-                      forDocument: FirestoreService.friends(of: r.fromId).document(myUid))
-        batch.deleteDocument(FirestoreService.friendRequests.document(reqId))
+                      forDocument: FirestoreService.friends(of: r.fromId).safeDocument(myUid))
+        batch.deleteDocument(FirestoreService.friendRequests.safeDocument(reqId))
         try? await batch.commit()
         QuestStore.report(.friendAdd, key: r.fromId)
         PermissionAsk.shared.requestNotificationAsk()
     }
 
     func decline(_ r: FriendRequest) async {
-        guard let id = r.id else { return }
-        try? await FirestoreService.friendRequests.document(id).delete()
+        guard let id = r.id, FirestoreService.isValidId(id) else { return }
+        try? await FirestoreService.friendRequests.safeDocument(id).delete()
     }
 
     func remove(uid: String, friendId: String) async {
+        guard FirestoreService.isValidId(uid), FirestoreService.isValidId(friendId) else { return }
         let batch = FirestoreService.db.batch()
-        batch.deleteDocument(FirestoreService.friends(of: uid).document(friendId))
-        batch.deleteDocument(FirestoreService.friends(of: friendId).document(uid))
+        batch.deleteDocument(FirestoreService.friends(of: uid).safeDocument(friendId))
+        batch.deleteDocument(FirestoreService.friends(of: friendId).safeDocument(uid))
         try? await batch.commit()
     }
 

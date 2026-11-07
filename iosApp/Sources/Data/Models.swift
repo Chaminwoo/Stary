@@ -154,7 +154,7 @@ struct Diary: Identifiable, Codable, Hashable {
         func int(_ k: CodingKeys) -> Int? {
             if let v = try? c.decodeIfPresent(Int.self, forKey: k) { return v }
             if let v = try? c.decodeIfPresent(Int64.self, forKey: k) { return Int(v) }
-            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return Int(v) }
+            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return v.safeInt }
             if let v = try? c.decodeIfPresent(String.self, forKey: k) { return Int(v) }
             return nil
         }
@@ -168,10 +168,8 @@ struct Diary: Identifiable, Codable, Hashable {
         /// epoch millis(Int64) — Long/Double 또는 Firestore Timestamp 모두 허용.
         func millis(_ k: CodingKeys) -> Int64? {
             if let v = try? c.decodeIfPresent(Int64.self, forKey: k) { return v }
-            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return Int64(v) }
-            if let ts = try? c.decodeIfPresent(Timestamp.self, forKey: k) {
-                return Int64(ts.seconds) * 1000 + Int64(ts.nanoseconds) / 1_000_000
-            }
+            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return v.safeInt64 }
+            if let ts = try? c.decodeIfPresent(Timestamp.self, forKey: k) { return ts.safeMillis }
             return nil
         }
 
@@ -354,6 +352,37 @@ struct Diary: Identifiable, Codable, Hashable {
                 Double(createdAt) / 1000
         )
     }
+
+    // MARK: - 외부 데이터 방어 (Android 와 같은 기준)
+
+    /// 표시 길이 상한(입력 상한보다 넉넉하게 — 다른 경로로 들어온 비정상 글만 자른다).
+    static let displayTitleCap = 100
+    static let displayContentCap = 5000
+    static let displayNameCap = 100
+    private static let countCap = 1_000_000_000
+    private static let styleIndexCap = 100_000
+
+    /// 화면에 올려도 안전한 글로 정리한다. 못 쓰는 글이면 nil(목록에서 뺀다).
+    ///  - 좌표가 유한하지 않거나 위도 ±90 · 경도 ±180 밖이면 제외(지도에 올릴 수 없다)
+    ///  - createdAt 이 지금 + 1일보다 미래면 제외(정렬·시각 표시 오염 방지), 음수는 0
+    ///  - 카운트는 0 이상, 별 모양·색 번호는 0 이상
+    ///  - 제목·본문·이름은 표시 길이 상한으로 자른다
+    func sanitized(now: Int64 = FirestoreService.nowMillis) -> Diary? {
+        guard latitude.isFinite, longitude.isFinite,
+              latitude >= -90, latitude <= 90, longitude >= -180, longitude <= 180 else { return nil }
+        guard createdAt <= now + 86_400_000 else { return nil }
+        var d = self
+        d.createdAt = max(0, createdAt)
+        d.likeCount = min(max(0, likeCount), Self.countCap)
+        d.commentCount = min(max(0, commentCount), Self.countCap)
+        d.viewCount = min(max(0, viewCount), Self.countCap)
+        d.starType = min(max(0, starType), Self.styleIndexCap)
+        d.starColor = min(max(0, starColor), Self.styleIndexCap)
+        if d.title.count > Self.displayTitleCap { d.title = String(d.title.prefix(Self.displayTitleCap)) }
+        if d.content.count > Self.displayContentCap { d.content = String(d.content.prefix(Self.displayContentCap)) }
+        if d.userName.count > Self.displayNameCap { d.userName = String(d.userName.prefix(Self.displayNameCap)) }
+        return d
+    }
 }
 
 
@@ -388,10 +417,13 @@ struct Comment: Identifiable, Codable {
             ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         diaryId = c.flexString(.diaryId) ?? ""
         userId = c.flexString(.userId) ?? ""
-        userName = c.flexString(.userName) ?? ""
-        content = c.flexString(.content) ?? ""
-        createdAt = c.flexMillis(.createdAt) ?? 0
+        userName = (c.flexString(.userName) ?? "").cappedForDisplay(Diary.displayNameCap)
+        content = (c.flexString(.content) ?? "").cappedForDisplay(Comment.displayContentCap)
+        createdAt = max(0, c.flexMillis(.createdAt) ?? 0)
     }
+
+    /// 표시 길이 상한(입력 상한 300 보다 넉넉하게).
+    static let displayContentCap = 1000
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -456,12 +488,12 @@ struct AppNotification: Identifiable, Codable {
             ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         type = c.flexString(.type) ?? "LIKE"
         diaryId = c.flexString(.diaryId) ?? ""
-        diaryTitle = c.flexString(.diaryTitle) ?? ""
+        diaryTitle = (c.flexString(.diaryTitle) ?? "").cappedForDisplay(Diary.displayTitleCap)
         diaryOwnerId = c.flexString(.diaryOwnerId) ?? ""
         actorId = c.flexString(.actorId) ?? ""
-        actorName = c.flexString(.actorName) ?? ""
-        content = c.flexString(.content) ?? ""
-        createdAt = c.flexMillis(.createdAt) ?? 0
+        actorName = (c.flexString(.actorName) ?? "").cappedForDisplay(Diary.displayNameCap)
+        content = (c.flexString(.content) ?? "").cappedForDisplay(Comment.displayContentCap)
+        createdAt = max(0, c.flexMillis(.createdAt) ?? 0)
         if let b = try? c.decodeIfPresent(Bool.self, forKey: .read) {
             read = b
         } else if let i = try? c.decodeIfPresent(Int.self, forKey: .read) {
@@ -544,10 +576,10 @@ struct Friend: Identifiable, Codable {
         _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
             ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         userId = c.flexString(.userId) ?? ""
-        userName = c.flexString(.userName) ?? ""
+        userName = (c.flexString(.userName) ?? "").cappedForDisplay(Diary.displayNameCap)
         // Android 가 photoUrl / profileImageUrl 중 무엇으로 저장해도 받는다.
         photoUrl = c.flexString(.photoUrl) ?? c.flexString(.profileImageUrl) ?? ""
-        createdAt = c.flexMillis(.createdAt) ?? 0
+        createdAt = max(0, c.flexMillis(.createdAt) ?? 0)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -591,11 +623,11 @@ struct FriendRequest: Identifiable, Codable {
         _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
             ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         fromId = c.flexString(.fromId) ?? ""
-        fromName = c.flexString(.fromName) ?? ""
+        fromName = (c.flexString(.fromName) ?? "").cappedForDisplay(Diary.displayNameCap)
         fromPhotoUrl = c.flexString(.fromPhotoUrl) ?? ""
         toId = c.flexString(.toId) ?? ""
-        toName = c.flexString(.toName) ?? ""
-        createdAt = c.flexMillis(.createdAt) ?? 0
+        toName = (c.flexString(.toName) ?? "").cappedForDisplay(Diary.displayNameCap)
+        createdAt = max(0, c.flexMillis(.createdAt) ?? 0)
     }
 }
 
@@ -635,7 +667,7 @@ struct UserProfile: Identifiable, Codable {
         _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
             ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         userId = c.flexString(.userId) ?? ""
-        userName = c.flexString(.userName) ?? ""
+        userName = (c.flexString(.userName) ?? "").cappedForDisplay(Diary.displayNameCap)
         profileImageUrl = c.flexString(.profileImageUrl)
         equippedTitle = c.flexString(.equippedTitle)
     }
@@ -677,9 +709,9 @@ struct ChatMessage: Identifiable, Codable {
         _id = (try? c.decode(DocumentID<String>.self, forKey: .id))
             ?? DocumentID(wrappedValue: (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil)
         senderId = c.flexString(.senderId) ?? ""
-        senderName = c.flexString(.senderName) ?? ""
-        text = c.flexString(.text) ?? ""
-        createdAt = c.flexMillis(.createdAt) ?? 0
+        senderName = (c.flexString(.senderName) ?? "").cappedForDisplay(Diary.displayNameCap)
+        text = (c.flexString(.text) ?? "").cappedForDisplay(Comment.displayContentCap)
+        createdAt = max(0, c.flexMillis(.createdAt) ?? 0)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -790,16 +822,39 @@ extension KeyedDecodingContainer {
     func flexInt(_ k: Key) -> Int? {
         if let v = try? decodeIfPresent(Int.self, forKey: k) { return v }
         if let v = try? decodeIfPresent(Int64.self, forKey: k) { return Int(v) }
-        if let v = try? decodeIfPresent(Double.self, forKey: k) { return Int(v) }
+        if let v = try? decodeIfPresent(Double.self, forKey: k) { return v.safeInt }
         if let v = try? decodeIfPresent(String.self, forKey: k) { return Int(v) }
         return nil
     }
     func flexMillis(_ k: Key) -> Int64? {
         if let v = try? decodeIfPresent(Int64.self, forKey: k) { return v }
-        if let v = try? decodeIfPresent(Double.self, forKey: k) { return Int64(v) }
-        if let ts = try? decodeIfPresent(Timestamp.self, forKey: k) {
-            return Int64(ts.seconds) * 1000 + Int64(ts.nanoseconds) / 1_000_000
-        }
+        if let v = try? decodeIfPresent(Double.self, forKey: k) { return v.safeInt64 }
+        if let ts = try? decodeIfPresent(Timestamp.self, forKey: k) { return ts.safeMillis }
         return nil
+    }
+}
+
+extension String {
+    /// 표시용 길이 상한 — 비정상적으로 긴 외부 문자열이 화면·레이아웃을 무너뜨리지 않게 자른다.
+    func cappedForDisplay(_ limit: Int) -> String { count > limit ? String(prefix(limit)) : self }
+}
+
+// MARK: - 범위 밖 숫자 방어
+
+/// Swift 의 Double → 정수 변환은 NaN·무한대·범위 초과에서 **앱이 종료**된다. 외부(Firestore) 값은 이 변환기로만 바꾼다.
+extension Double {
+    /// 유한하고 Int64 범위 안일 때만 변환, 아니면 nil.
+    var safeInt64: Int64? {
+        guard isFinite, self > -9.0e18, self < 9.0e18 else { return nil }
+        return Int64(self)
+    }
+    var safeInt: Int? { safeInt64.map { Int($0) } }
+}
+
+extension Timestamp {
+    /// epoch millis — 곱셈이 넘치지 않는 범위(약 ±9e15 초)만.
+    var safeMillis: Int64? {
+        guard seconds > -9_000_000_000_000_000, seconds < 9_000_000_000_000_000 else { return nil }
+        return seconds * 1000 + Int64(nanoseconds) / 1_000_000
     }
 }

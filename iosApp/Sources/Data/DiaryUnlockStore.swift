@@ -14,7 +14,7 @@ import SwiftUI
 /// 기기 로컬(UserDefaults)이 1차 저장소이고, **서버 사본**(`users/{uid}/viewedDiaries/{id}.unlockedAt`)에도 남긴다
 /// (2026-09-26 별 도감 "열람한 모든 다이어리" 요청). `syncWithServer` 가 앱 시작 시 둘을 합친다 —
 /// 기기를 바꿔도 복원되고, 잠금이 생기기 전(2026-09-21)에 열람한 글도 "연 것"으로 들어온다.
-/// ⚠️ 로컬 저장소는 **계정(앱 uid)마다 따로**(`ad_unlock_store_u_{uid}`, 둘러보기는 `_guest`) — 2026-10-22 수정.
+/// ⚠️ 로컬 저장소는 **계정(앱 uid)마다 따로**(`ad_unlock_store_u_{uid}`, 로그인 전 폴백은 `_guest`) — 2026-10-22 수정.
 ///    예전엔 기기에 하나라 다른 계정으로 로그인해도 별 도감·해금이 그대로 보였다. 로그인 상태가 바뀌면 그 계정 저장소로 갈아탄다.
 ///    서버 사본도 **앱 uid**(`AuthManager.appUserId` = 구글 sub) 아래 — 예전 `unlock` 은 FirebaseAuth uid 로 써서 구글 계정은 다시 읽히지 않았다.
 @MainActor

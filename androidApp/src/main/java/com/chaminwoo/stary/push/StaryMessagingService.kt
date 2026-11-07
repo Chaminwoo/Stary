@@ -37,6 +37,15 @@ class StaryMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // 알림 데이터는 외부 입력 — 누락·이상값이어도 서비스가 죽지 않게 통째로 감싼다.
+        try {
+            showNotification(message)
+        } catch (e: Exception) {
+            Log.w(TAG, "알림 표시 실패: ${e.javaClass.simpleName}")
+        }
+    }
+
+    private fun showNotification(message: RemoteMessage) {
         // 앱이 전면이면 인앱 배너(InAppBanner)가 처리하므로 시스템 알림을 띄우지 않는다(이중 표시 방지).
         // 후면/종료 상태에서만 상단 heads-up 시스템 알림을 띄운다.
         if (com.chaminwoo.stary.core.util.AppForeground.isForeground) return
@@ -49,16 +58,16 @@ class StaryMessagingService : FirebaseMessagingService() {
             return
         }
 
-        val diaryId = message.data["diaryId"]
-        val chatFriendId = message.data["chatFriendId"]
-        val chatFriendName = message.data["chatFriendName"]
+        val diaryId = com.chaminwoo.stary.core.util.DeepLinkState.safeId(message.data["diaryId"])
+        val chatFriendId = com.chaminwoo.stary.core.util.DeepLinkState.safeId(message.data["chatFriendId"])
+        val chatFriendName = message.data["chatFriendName"]?.take(60)
         // 친구 요청 알림은 대상 다이어리가 없다 → 탭하면 친구 화면(받은 요청)으로.
         val isFriendRequest = message.data["type"] ==
             com.chaminwoo.stary.core.model.NotificationType.FRIEND_REQUEST.name
-        val title = message.data["title"] ?: message.notification?.title ?: "Stary"
-        val body = message.data["body"] ?: message.notification?.body
+        val title = (message.data["title"] ?: message.notification?.title ?: "Stary").take(100)
+        val body = (message.data["body"] ?: message.notification?.body
             ?: com.chaminwoo.stary.core.util.LocaleManager.wrap(this)
-                .getString(com.chaminwoo.stary.R.string.push_fallback_body)
+                .getString(com.chaminwoo.stary.R.string.push_fallback_body)).take(300)
 
         // heads-up 채널 보장(앱 시작 시 이미 만들지만 방어적으로).
         ensureStaryNotificationChannel(this)
@@ -75,7 +84,7 @@ class StaryMessagingService : FirebaseMessagingService() {
             } else {
                 diaryId?.let { putExtra(MainActivity.EXTRA_DIARY_ID, it) }
                 // 좋아요·댓글 = 상세 / 그 외(친구 새 글·첫 별 공지) = 지도 포커스 — MainActivity 가 type 으로 가른다.
-                message.data["type"]?.let { putExtra(MainActivity.EXTRA_PUSH_TYPE, it) }
+                message.data["type"]?.take(32)?.let { putExtra(MainActivity.EXTRA_PUSH_TYPE, it) }
             }
         }
         val pending = PendingIntent.getActivity(
@@ -86,7 +95,7 @@ class StaryMessagingService : FirebaseMessagingService() {
         )
 
         // 알림 id: 채팅은 방(chatId)별로 묶어 누적되지 않게, 그 외는 diaryId 기준.
-        val tag = message.data["chatId"] ?: diaryId
+        val tag = message.data["chatId"]?.take(128) ?: diaryId
         val notification = NotificationCompat.Builder(this, STARY_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)

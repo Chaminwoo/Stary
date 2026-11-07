@@ -10,7 +10,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
 
         // StaryApp.init 이 먼저 돌면 이미 설정돼 있다(순서에 의존하지 않도록 방어).
-        if FirebaseApp.app() == nil { FirebaseApp.configure() }
+        if FirebaseApp.app() == nil {
+            StaryAppCheck.install() // configure 이전에(모니터링 전용 — Core/AppCheckSetup.swift)
+            FirebaseApp.configure()
+        }
         // 푸시(FCM/APNs) 델리게이트 연결. 권한 요청/토큰 저장은 로그인 후 PushManager.setUser 에서.
         PushManager.shared.configure()
 

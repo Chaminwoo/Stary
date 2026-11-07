@@ -29,13 +29,13 @@ final class DetailViewModel: ObservableObject {
                 }
         )
         regs.append(
-            FirestoreService.diaries.document(id).addSnapshotListener { [weak self] snap, _ in
-                if let n = snap?.get("likeCount") as? NSNumber { self?.likeCount = n.intValue }
+            FirestoreService.diaries.safeDocument(id).addSnapshotListener { [weak self] snap, _ in
+                if let n = snap?.get("likeCount") as? NSNumber { self?.likeCount = max(0, n.intValue) }
             }
         )
         if let uid {
             regs.append(
-                FirestoreService.likes(of: id).document(uid).addSnapshotListener { [weak self] snap, _ in
+                FirestoreService.likes(of: id).safeDocument(uid).addSnapshotListener { [weak self] snap, _ in
                     self?.isLiked = snap?.exists ?? false
                 }
             )
@@ -52,8 +52,8 @@ final class DetailViewModel: ObservableObject {
         guard !likeBusy else { return true } // 연타는 앞의 처리로 충분
         likeBusy = true
         defer { likeBusy = false }
-        let diaryRef = FirestoreService.diaries.document(diaryId)
-        let likeRef = FirestoreService.likes(of: diaryId).document(uid)
+        let diaryRef = FirestoreService.diaries.safeDocument(diaryId)
+        let likeRef = FirestoreService.likes(of: diaryId).safeDocument(uid)
         let notifRef: DocumentReference? = diary.userId != uid ? FirestoreService.notifications.document() : nil
         let notifData = notif(type: "LIKE", actorId: uid, actorName: userName, content: "")
         let now = FirestoreService.nowMillis
@@ -86,9 +86,9 @@ final class DetailViewModel: ObservableObject {
 
     /// 댓글 등록 — 실패(권한 거부 등)면 false. 오프라인이면 실패하지 않고 연결될 때까지 기다린다(목록엔 바로 보임).
     func addComment(uid: String?, userName: String, text: String) async -> Bool {
-        let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let uid, let diaryId = diary.id, !body.isEmpty else { return false }
-        let diaryRef = FirestoreService.diaries.document(diaryId)
+        let body = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(AppConfig.commentMaxLen))
+        guard let uid, let diaryId = diary.id, FirestoreService.isValidId(diaryId), !body.isEmpty else { return false }
+        let diaryRef = FirestoreService.diaries.safeDocument(diaryId)
         let commentRef = FirestoreService.comments(of: diaryId).document()
         let batch = FirestoreService.db.batch()
         batch.setData([
@@ -108,9 +108,9 @@ final class DetailViewModel: ObservableObject {
 
     func deleteComment(_ c: Comment) async -> Bool {
         guard let diaryId = diary.id, let cid = c.id else { return false }
-        let diaryRef = FirestoreService.diaries.document(diaryId)
+        let diaryRef = FirestoreService.diaries.safeDocument(diaryId)
         let batch = FirestoreService.db.batch()
-        batch.deleteDocument(FirestoreService.comments(of: diaryId).document(cid))
+        batch.deleteDocument(FirestoreService.comments(of: diaryId).safeDocument(cid))
         batch.updateData(["commentCount": FieldValue.increment(Int64(-1))], forDocument: diaryRef)
         do { try await batch.commit(); return true } catch { return false }
     }

@@ -18,10 +18,8 @@ import com.google.firebase.auth.FirebaseAuth
 /**
  * Firebase 는 google-services.json 기반 자동 초기화 사용.
  *
- * Firestore/Storage 보안 규칙(request.auth != null)을 통과하려면 항상 Firebase Auth
- * 세션이 필요하므로, 로그인 전(둘러보기 포함)에는 **익명 로그인**으로 세션을 만든다.
- * (Firebase Console > Authentication > Sign-in method 에서 '익명' 활성화 필요)
- * Google 로그인 시 GoogleAuthHelper 가 signInWithCredential 로 교체한다.
+ * 익명 로그인은 쓰지 않는다. 로그인(Google)한 사용자만 서버 데이터를 읽고 쓸 수 있고,
+ * 옛 버전이 남긴 익명 세션이 있으면 시작할 때 로그아웃시킨다.
  */
 class StaryApplication : Application(), ImageLoaderFactory {
 
@@ -50,6 +48,17 @@ class StaryApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        // App Check(모니터링만) — Firebase 를 쓰기 전에 설치한다. 실패해도 앱 동작에는 영향이 없다.
+        // 디버그 빌드는 설치하지 않는다(디버그 토큰 등록·로그 노출 방지).
+        if (!BuildConfig.DEBUG) {
+            try {
+                com.google.firebase.appcheck.FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
+                    com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory.getInstance()
+                )
+            } catch (e: Exception) {
+                Log.w("StaryApplication", "App Check 설치 실패: ${e.javaClass.simpleName}")
+            }
+        }
         com.chaminwoo.stary.core.util.StaryAnalytics.init(this)
 
         // 앱 전역 **다크 고정** — 이 앱은 라이트 팔레트가 없다(Color.kt/StaryTheme 모두 다크 단일).
@@ -88,12 +97,12 @@ class StaryApplication : Application(), ImageLoaderFactory {
             override fun onActivityDestroyed(activity: Activity) {}
         })
 
-        val auth = FirebaseAuth.getInstance()
-        if (auth.currentUser == null) {
-            auth.signInAnonymously()
-                .addOnFailureListener { e ->
-                    Log.w("StaryApplication", "익명 로그인 실패(콘솔에서 익명 인증 활성화 필요): ${e.localizedMessage}")
-                }
+        // 이전 버전이 만든 익명 세션 정리 — 로그인 화면부터 다시 시작한다.
+        try {
+            val auth = FirebaseAuth.getInstance()
+            if (auth.currentUser?.isAnonymous == true) auth.signOut()
+        } catch (e: Exception) {
+            Log.w("StaryApplication", "익명 세션 정리 실패: ${e.javaClass.simpleName}")
         }
     }
 }

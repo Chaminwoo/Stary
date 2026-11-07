@@ -59,10 +59,12 @@ object UserDirectory {
                     return@addSnapshotListener
                 }
                 if (snap != null && snap.exists()) {
-                    cache[userId] = Info(
-                        name = snap.getString("userName")?.takeIf { it.isNotBlank() },
-                        photoUrl = snap.getString("profileImageUrl")?.takeIf { it.isNotBlank() },
-                    )
+                    com.chaminwoo.stary.data.safeDecode("UserInfo") {
+                        cache[userId] = Info(
+                            name = snap.getString("userName")?.takeIf { it.isNotBlank() }?.take(60),
+                            photoUrl = snap.getString("profileImageUrl")?.takeIf { it.isNotBlank() && it.length <= 2048 && it.startsWith("https://") },
+                        )
+                    }
                 }
             }
     }

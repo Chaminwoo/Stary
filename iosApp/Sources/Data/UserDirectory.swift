@@ -39,7 +39,7 @@ final class UserDirectory: ObservableObject {
             }
         }
         guard listening[userId] == nil else { return }
-        listening[userId] = FirestoreService.users.document(userId).addSnapshotListener { [weak self] snap, err in
+        listening[userId] = FirestoreService.users.safeDocument(userId).addSnapshotListener { [weak self] snap, err in
             if err != nil {
                 // 오류(인증 전·로그아웃 순간의 권한 거부)로 끊긴 리스너는 다시 오지 않는다 — 예전엔 '구독 중'으로 남아
                 // 앱을 다시 켤 때까지 이름·사진이 안 바뀌었다. 표시를 지우고 3초 뒤(로그인돼 있으면) 다시 붙인다.

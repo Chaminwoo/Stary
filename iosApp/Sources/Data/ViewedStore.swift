@@ -9,7 +9,7 @@ enum ViewedRepository {
     static func markViewed(uid: String, diaryId: String) async {
         // merge — 덮어쓰면 unlockedAt(해금 기록)이 지워진다.
         try? await FirestoreService.viewedDiaries(of: uid)
-            .document(diaryId)
+            .safeDocument(diaryId)
             .setData(["viewedAt": FirestoreService.nowMillis], merge: true)
     }
 
@@ -21,7 +21,7 @@ enum ViewedRepository {
         for start in stride(from: 0, to: entries.count, by: 400) {
             let batch = FirestoreService.db.batch()
             for (id, at) in entries[start..<min(start + 400, entries.count)] {
-                batch.setData(["unlockedAt": at], forDocument: col.document(id), merge: true)
+                batch.setData(["unlockedAt": at], forDocument: col.safeDocument(id), merge: true)
             }
             try? await batch.commit()
         }

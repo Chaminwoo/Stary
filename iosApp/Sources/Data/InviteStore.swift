@@ -14,7 +14,7 @@ enum InviteStore {
 
     /// stary://invite/{uid} 딥링크 수신 시 호출.
     static func handleDeepLink(inviterId: String) {
-        guard !inviterId.isEmpty else { return }
+        guard !inviterId.isEmpty, inviterId.count <= 128, FirestoreService.isValidId(inviterId) else { return }
         pendingInviterId = inviterId
         Task { await redeemPendingIfPossible(uid: AuthManager.appUserId(of: Auth.auth().currentUser)) }
     }
@@ -54,7 +54,7 @@ enum InviteStore {
            Date().timeIntervalSince(created) * 1000 > Double(AppConfig.inviteRedeemWindowMs) {
             return .tooOld
         }
-        let doc = FirestoreService.invites.document(redeemerId)
+        let doc = FirestoreService.invites.safeDocument(redeemerId)
         do {
             if try await doc.getDocument().exists { return .already }
             try await doc.setData([
@@ -72,7 +72,7 @@ enum InviteStore {
     static func fetchStats(uid: String) async -> (invited: Int, redeemed: Bool) {
         let invited = (try? await FirestoreService.invites
             .whereField("inviterId", isEqualTo: uid).getDocuments())?.documents.count ?? 0
-        let redeemed = ((try? await FirestoreService.invites.document(uid).getDocument())?.exists) ?? false
+        let redeemed = ((try? await FirestoreService.invites.safeDocument(uid).getDocument())?.exists) ?? false
         return (invited, redeemed)
     }
 }

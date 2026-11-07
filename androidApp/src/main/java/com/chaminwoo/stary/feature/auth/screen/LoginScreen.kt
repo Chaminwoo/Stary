@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -90,7 +89,7 @@ fun LoginScreen(
     LaunchedEffect(Unit) { com.chaminwoo.stary.core.util.StaryAnalytics.log("login_view") }
 
     // ── 이용약관(EULA) 동의 게이트 — App Store Guideline 1.2(2026-09-26) ──
-    // 로그인/둘러보기 버튼을 누르면, 아직 동의하지 않았을 때 약관을 먼저 띄우고 "동의하고 계속" 뒤에 원래 동작을 잇는다.
+    // 로그인 버튼을 누르면, 아직 동의하지 않았을 때 약관을 먼저 띄우고 "동의하고 계속" 뒤에 원래 동작을 잇는다.
     var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showTermsView by remember { mutableStateOf(false) }
     val withConsent: (() -> Unit) -> Unit = { action ->
@@ -334,19 +333,6 @@ fun LoginScreen(
                         )
                     }
 
-                    TextButton(
-                        onClick = { withConsent {
-                            com.chaminwoo.stary.core.util.StaryAnalytics.log("guest_browse")
-                            onLoginClick()
-                        } },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.login_browse),
-                            color = MaterialTheme.colorScheme.secondary,
-                            fontSize = 14.sp
-                        )
-                    }
                     // 약관은 동의 전에도 언제든 읽어 볼 수 있게 — 작은 링크.
                     Text(
                         text = stringResource(R.string.terms_view),

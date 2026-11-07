@@ -54,7 +54,7 @@ struct UploadScreen: View {
     /// 업로드 위치 실패 이유 — 안내 팝업 내용(팝업이 닫히는 동안 문구가 바뀌지 않게 표시 여부와 따로 둔다).
     @State private var locationProblem: LocationManager.UploadFix = .notFound
     @State private var showLocationProblem = false
-    /// 권한 팝업에서 "허용하기" → 시스템 창에서 허용되면 바로 다시 올린다(Android 권한 요청 후 submit() 패리티).
+    /// 올리기에서 시스템 위치 창을 띄웠을 때 — 허용되면 바로 다시 올린다(Android 권한 요청 후 submit() 패리티).
     @State private var retryAfterAuth = false
     /// 키보드 내리기용 포커스 — 제목/내용 입력 후 키보드가 안 내려가던 문제(#3) 대응.
     @FocusState private var focusedField: Field?
@@ -619,7 +619,7 @@ struct UploadScreen: View {
     // MARK: - 올리기
 
     private func save() async {
-        // 둘러보기(게스트)는 작성 불가 — Android common_login_required 안내와 동일.
+        // 로그인 세션이 없으면 작성 불가 — Android common_login_required 안내와 동일.
         guard let uid = auth.uid else {
             showToast(LocaleManager.shared.t(.commonLoginRequired)); return
         }
@@ -659,6 +659,12 @@ struct UploadScreen: View {
             case .locationOff: uploadFail("no_location_off")
             case .mock: uploadFail("no_location_mock")
             default: uploadFail("no_location")
+            }
+            // 아직 안 물었으면 안내 없이 바로 시스템 창 — 앞에 취소할 수 있는 안내를 두면 심사 5.1.1(iv) 위반(PermissionAsk.swift 참고).
+            if case .noPermission = fix, location.permissionNotDetermined {
+                retryAfterAuth = true
+                location.requestPermission()
+                return
             }
             locationProblem = fix
             showLocationProblem = true
@@ -702,8 +708,8 @@ struct UploadScreen: View {
         let diary = Diary(
             userId: uid,
             userName: authorName,
-            title: title,
-            content: content,
+            title: String(title.prefix(AppConfig.diaryTitleMaxLen)),
+            content: String(content.prefix(AppConfig.diaryContentMaxLen)),
             imageUrl: imageUrl,
             videoUrl: videoUrl,
             latitude: coord.latitude,
@@ -723,7 +729,7 @@ struct UploadScreen: View {
             pendingDraft = nil
             // 전체/친구 공개 글이면 친구들에게 알림(나만보기는 제외).
             if visibility != .privateOnly {
-                await store.notifyFriends(uid: uid, name: authorName, diaryId: newId, title: title)
+                await store.notifyFriends(uid: uid, name: authorName, diaryId: newId, title: diary.title)
             }
             title = ""; content = ""; clearMedia()
             showToast(LocaleManager.shared.t(.uploadDone))
@@ -761,9 +767,6 @@ struct UploadScreen: View {
 
     private func handleLocationProblem() {
         switch locationProblem {
-        case .noPermission where location.permissionNotDetermined:
-            retryAfterAuth = true
-            location.requestPermission()
         case .noPermission, .locationOff:
             // 이미 거부했으면 시스템 창이 다시 안 뜬다 → 설정 앱(이 앱 화면)에서 위치를 허용하게.
             if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }

@@ -221,6 +221,7 @@ object GoogleAuthHelper {
     fun restoreSession(context: Context): Boolean {
         if (currentUserId != null) return true
         val user = FirebaseAuth.getInstance().currentUser ?: return false
+        if (user.isAnonymous) return false // 익명 세션은 로그인으로 치지 않는다
         val google = user.providerData.firstOrNull { it.providerId == GoogleAuthProvider.PROVIDER_ID }
         val uid = (google?.uid ?: user.uid).takeIf { it.isNotBlank() } ?: return false
         sessionGeneration.incrementAndGet()

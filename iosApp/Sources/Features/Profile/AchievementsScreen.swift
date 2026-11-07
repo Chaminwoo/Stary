@@ -125,7 +125,7 @@ struct AchievementsScreen: View {
                 myPioneerCodes = snap.documents.map { $0.documentID }.sorted()
             }
             if equippedTitleId == nil,
-               let doc = try? await FirestoreService.users.document(uid).getDocument() {
+               let doc = try? await FirestoreService.users.safeDocument(uid).getDocument() {
                 equippedTitleId = doc.get("equippedTitle") as? String
             }
             runHiddenClaims()
@@ -607,7 +607,7 @@ struct AchievementsScreen: View {
             UserDefaults.standard.removeObject(forKey: "equipped_title_\(uid)")
         }
         Task {
-            try? await FirestoreService.users.document(uid)
+            try? await FirestoreService.users.safeDocument(uid)
                 .setData(["equippedTitle": id ?? ""], merge: true)
         }
     }

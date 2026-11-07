@@ -240,7 +240,7 @@ struct ProfileScreen: View {
                 // ⚠️ 기본 getDocument() 는 서버에 못 닿으면 **불완전한 캐시 문서**를 돌려줘 사진이 사라진 것처럼 보였다
                 //    (AuthManager.fetchServerProfile 주석 참고) — 서버 우선으로 읽고, 값이 비어 있으면 기존 표시를 지우지 않는다.
                 if profileImageUrl == nil { profileImageUrl = auth.photoUrl }
-                let userRef = FirestoreService.users.document(uid)
+                let userRef = FirestoreService.users.safeDocument(uid)
                 // (await 는 `??` 오른쪽에 쓸 수 없어 두 줄로 푼다)
                 var userDoc = try? await userRef.getDocument(source: .server)
                 if userDoc == nil { userDoc = try? await userRef.getDocument() }
@@ -386,7 +386,7 @@ struct ProfileScreen: View {
         guard let uid = auth.uid else { return }
         if !ids.isEmpty { QuestStore.report(.pinStar) }
         Task {
-            try? await FirestoreService.users.document(uid)
+            try? await FirestoreService.users.safeDocument(uid)
                 .setData(["pinnedDiaries": Array(ids.prefix(3))], merge: true)
         }
     }

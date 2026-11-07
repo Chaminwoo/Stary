@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.Flow
 interface DiaryRepository {
     fun observeAllDiaries(): Flow<List<Diary>>
     fun observeMyDiaries(userId: String): Flow<List<Diary>>
+    /** 남의 글(공개 + 나를 대상으로 한 친구 공개). 내 글은 [observeMyDiaries]. */
+    fun observeUserDiaries(userId: String): Flow<List<Diary>>
     suspend fun saveDiary(diary: Diary): Boolean
     suspend fun deleteDiary(diaryId: String): Boolean
     suspend fun getDiaryById(diaryId: String): Diary?

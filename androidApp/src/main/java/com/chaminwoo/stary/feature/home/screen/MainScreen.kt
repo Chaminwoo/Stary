@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
@@ -203,16 +202,15 @@ fun MainScreen(
 
     // 로그인은 라우트가 아니라 오버레이 — 뒤에서 지도가 미리 렌더링되어
     // 로그인 직후 바로 지도가 보인다. 로그아웃 시 다시 true.
-    // (푸시 딥링크로 진입했거나 이미 로그인 상태면 오버레이 생략)
-    val deepLinked = initialDiaryId != null || initialChatFriendId != null
+    // 로그인 세션이 없으면 푸시 딥링크로 들어와도 항상 로그인 화면부터 보여 준다(딥링크 이동은 로그인 뒤 awaitNavReady 가 처리).
     var showLogin by androidx.compose.runtime.saveable.rememberSaveable {
-        mutableStateOf(!deepLinked && !alreadyLoggedIn)
+        mutableStateOf(!alreadyLoggedIn)
     }
 
     // 지도(NavGraph) 로드 시점 제어 — 로그인 영상이 먼저 시작된 뒤에 지도를 로드한다(영상 우선).
-    // 딥링크 진입/이미 로그인 상태면 즉시 로드. 한 번 true 가 되면 유지.
+    // 이미 로그인 상태면 즉시 로드. 한 번 true 가 되면 유지.
     var contentReady by androidx.compose.runtime.saveable.rememberSaveable {
-        mutableStateOf(deepLinked || alreadyLoggedIn)
+        mutableStateOf(alreadyLoggedIn)
     }
 
     // 로그아웃으로 로그인 화면에 진입했는지 — 이 경우 인트로 영상을 건너뛰고 로그인 UI 를 즉시 표시.
@@ -223,7 +221,7 @@ fun MainScreen(
     // 딥링크 이동은 앱에 들어온 뒤(로그인 화면이 닫힘) + NavHost 가 그래프를 붙인 뒤에만 한다.
     // 비로그인으로 켜면 NavHost 는 contentReady(인트로 영상 끝/로그인)까지 없어서, 그 전에 navigate 하면
     // "You must call setGraph() before calling getGraph()" 로 앱이 꺼졌다(1.6.1 Play 크래시 — 비로그인 상태에서 일일 알림 탭).
-    // 예전엔 알림 탭이 로그인 화면을 강제로 닫아 약관·로그인도 건너뛰었다 → 이제 로그인/둘러보기로 들어올 때까지 미룬다
+    // 예전엔 알림 탭이 로그인 화면을 강제로 닫아 약관·로그인도 건너뛰었다 → 이제 로그인으로 들어올 때까지 미룬다
     // (iOS 는 MainTabView 가 뜬 뒤에야 PushRouter 요청을 받아 원래 이렇게 동작). 미루는 동안 키가 바뀌지 않게 소비는 기다린 뒤에.
     suspend fun awaitNavReady() {
         androidx.compose.runtime.snapshotFlow { showLogin }.first { !it }
@@ -366,7 +364,7 @@ fun MainScreen(
         !(userId != null && showOnboarding && returningAccount != true) &&
         com.chaminwoo.stary.core.ui.PermissionAsk.locationDue(context)
 
-    // 지도 진입(실행당 1회) — 로그인/둘러보기 뒤 실제로 지도를 본 사람 수.
+    // 지도 진입(실행당 1회) — 로그인 뒤 실제로 지도를 본 사람 수.
     androidx.compose.runtime.LaunchedEffect(showLogin, isMapRoute) {
         if (!showLogin && isMapRoute) {
             com.chaminwoo.stary.core.util.StaryAnalytics.logOnce("map_view", "map_view", "logged_in" to (userId != null))
@@ -420,6 +418,27 @@ fun MainScreen(
         coroutineScope.launch {
             drawerState.close()
             GoogleAuthHelper.signOut(context)
+        }
+    }
+
+    // 로그인 중 세션이 끊기면(계정 정지·토큰 만료로 Firebase 가 로그아웃시킴) 로그인 화면으로 돌아간다.
+    // 앱 시작 직후엔 MainActivity 가 세션을 먼저 복원하므로(currentUserId 가 채워진 뒤에만 여기 도달) 복원 중 null 로 오작동하지 않는다.
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val listener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { fa ->
+            if (fa.currentUser == null && GoogleAuthHelper.currentUserId != null) {
+                coroutineScope.launch { GoogleAuthHelper.signOut(context) }
+            }
+        }
+        val fa = com.google.firebase.auth.FirebaseAuth.getInstance()
+        fa.addAuthStateListener(listener)
+        onDispose { fa.removeAuthStateListener(listener) }
+    }
+    // 로그아웃 상태(currentUserId == null)인데 로그인 화면이 없으면 다시 띄운다(세션 끊김 · 프로세스 복원 보정).
+    androidx.compose.runtime.LaunchedEffect(GoogleAuthHelper.currentUserId, showLogin) {
+        if (GoogleAuthHelper.currentUserId == null && !showLogin) {
+            loginImmediate = false
+            showLogin = true
+            if (contentReady) navController.navigate(NavRoute.Main) { popUpTo(0) { inclusive = true } }
         }
     }
 
@@ -568,19 +587,7 @@ fun MainScreen(
                             currentRoute is NavRoute.Settings,
                             reveal = drawerItemReveal(rv, 7),
                         ) { onNavigate(NavRoute.Settings) }
-                        // 로그인 상태면 로그아웃, 아니면 로그인 항목 노출
-                        if (GoogleAuthHelper.currentUserId == null) {
-                            DrawerItem(
-                                stringResource(R.string.drawer_login),
-                                Icons.AutoMirrored.Filled.Login,
-                                selected = false,
-                                alwaysAccent = true,
-                                reveal = drawerItemReveal(rv, 8),
-                            ) {
-                                coroutineScope.launch { drawerState.close() }
-                                showLogin = true
-                            }
-                        } else {
+                        if (GoogleAuthHelper.currentUserId != null) {
                             DrawerItem(
                                 stringResource(R.string.drawer_logout),
                                 Icons.AutoMirrored.Filled.Logout,

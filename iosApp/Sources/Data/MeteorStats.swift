@@ -37,7 +37,7 @@ final class MeteorStats: ObservableObject {
         bestStreak = 0
         questClears = 0
         guard let uid, !uid.isEmpty else { return }
-        listener = FirestoreService.users.document(uid).addSnapshotListener { [weak self] snap, error in
+        listener = FirestoreService.users.safeDocument(uid).addSnapshotListener { [weak self] snap, error in
             guard let self, error == nil, let snap else { return }
             let seen = (snap.get(Self.fieldSeen) as? NSNumber)?.intValue ?? 0
             let best = ((snap.get(Self.fieldStreaks) as? [Any]) ?? [])
@@ -54,7 +54,7 @@ final class MeteorStats: ObservableObject {
     /// 유성 1개를 봤다 — `streak` = 이번 유성까지의 연속 횟수(1 = 연속 아님). 비로그인이면 무시. 어느 스레드에서 불러도 된다.
     static func record(streak: Int) {
         guard let uid = AuthManager.appUserId(of: Auth.auth().currentUser), !uid.isEmpty else { return }
-        FirestoreService.users.document(uid).setData([
+        FirestoreService.users.safeDocument(uid).setData([
             fieldSeen: FieldValue.increment(Int64(1)),
             fieldStreaks: FieldValue.arrayUnion([streak]),
         ], merge: true)

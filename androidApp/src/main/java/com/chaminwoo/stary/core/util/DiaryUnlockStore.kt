@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
  * - 기기 로컬(prefs)이 1차 저장소이고, **서버 사본**(`users/{uid}/viewedDiaries/{id}.unlockedAt`)에도 남긴다
  *   (2026-09-26 별 도감 "열람한 모든 다이어리" 요청). [syncWithServer] 가 앱 시작 시 둘을 합친다 —
  *   기기를 바꿔도 복원되고, 잠금이 생기기 전(2026-09-21)에 열람한 글도 "연 것"으로 들어온다.
- * - ⚠️ 로컬 저장소는 **계정(uid)마다 따로**(`ad_unlock_store_u_{uid}`, 둘러보기는 `_guest`) — 2026-10-22 수정.
+ * - ⚠️ 로컬 저장소는 **계정(uid)마다 따로**(`ad_unlock_store_u_{uid}`, 비로그인 폴백은 `_guest`) — 2026-10-22 수정.
  *   예전엔 기기에 하나라 다른 계정으로 로그인해도 별 도감·해금이 그대로 보였고, 동기화가 계정 서버 기록을 한데 섞었다.
  *   읽을 때마다 [GoogleAuthHelper.currentUserId] 를 보고 계정이 바뀌었으면 그 계정 저장소로 갈아탄다.
  */

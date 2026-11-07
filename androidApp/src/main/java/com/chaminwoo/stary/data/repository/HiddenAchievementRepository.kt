@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.safeDecode
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.feature.profile.HiddenClaim
 import com.chaminwoo.stary.shared.config.StaryConfig
@@ -70,13 +71,13 @@ class HiddenAchievementRepository {
     fun observe(): Flow<Map<String, HiddenClaim>> = callbackFlow {
         val reg = col.addSnapshotListener { snap, err ->
             if (err != null) return@addSnapshotListener // 권한/네트워크 에러로 죽지 않게 무시
-            val map = snap?.documents?.associate { d ->
+            val map = snap?.documents?.mapNotNull { d -> safeDecode("HiddenClaim") {
                 d.id to HiddenClaim(
                     achieverId = d.getString("achieverId") ?: "",
                     achieverName = d.getString("achieverName") ?: "",
                     claimedAt = d.getLong("claimedAt") ?: 0L,
                 )
-            } ?: emptyMap()
+            } }?.toMap() ?: emptyMap()
             trySend(map)
         }
         awaitClose { reg.remove() }

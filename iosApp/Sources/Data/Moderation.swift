@@ -14,7 +14,7 @@ enum ModerationRepository {
     static func block(userId: String, targetId: String, targetName: String, targetPhotoUrl: String = "",
                       context: [String: Any] = [:]) async {
         guard !userId.isEmpty, !targetId.isEmpty, userId != targetId else { return }
-        try? await FirestoreService.blocked(of: userId).document(targetId).setData([
+        try? await FirestoreService.blocked(of: userId).safeDocument(targetId).setData([
             "userName": targetName,
             "photoUrl": targetPhotoUrl,
             "createdAt": FirestoreService.nowMillis,
@@ -28,12 +28,12 @@ enum ModerationRepository {
     /// 차단 해제.
     static func unblock(userId: String, targetId: String) async {
         guard !userId.isEmpty, !targetId.isEmpty else { return }
-        try? await FirestoreService.blocked(of: userId).document(targetId).delete()
+        try? await FirestoreService.blocked(of: userId).safeDocument(targetId).delete()
     }
 
     static func isBlocked(userId: String, targetId: String) async -> Bool {
         guard !userId.isEmpty, !targetId.isEmpty else { return false }
-        let doc = try? await FirestoreService.blocked(of: userId).document(targetId).getDocument()
+        let doc = try? await FirestoreService.blocked(of: userId).safeDocument(targetId).getDocument()
         return doc?.exists ?? false
     }
 
@@ -93,7 +93,7 @@ final class BlockStore: ObservableObject {
                     userId: doc.documentID,
                     userName: doc.get("userName") as? String ?? "",
                     photoUrl: doc.get("photoUrl") as? String ?? "",
-                    createdAt: (doc.get("createdAt") as? Int64) ?? Int64(doc.get("createdAt") as? Double ?? 0)
+                    createdAt: (doc.get("createdAt") as? Int64) ?? (doc.get("createdAt") as? Double)?.safeInt64 ?? 0
                 )
             }
             .sorted { $0.createdAt > $1.createdAt }

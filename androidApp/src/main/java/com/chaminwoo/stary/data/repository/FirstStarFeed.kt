@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.safeDecode
 import android.content.Context
 import android.content.SharedPreferences
 import com.chaminwoo.stary.core.model.AppNotification
@@ -75,9 +76,9 @@ object FirstStarFeed {
                     return@addSnapshotListener
                 }
                 val since = System.currentTimeMillis() - MAX_AGE_MS
-                trySend(snap?.documents.orEmpty().mapNotNull { doc ->
-                    val createdAt = doc.getLong("createdAt") ?: return@mapNotNull null
-                    if (createdAt < since) return@mapNotNull null
+                trySend(snap?.documents.orEmpty().mapNotNull { doc -> safeDecode("FirstStar") {
+                    val createdAt = doc.getLong("createdAt") ?: return@safeDecode null
+                    if (createdAt < since) return@safeDecode null
                     AppNotification(
                         id = ID_PREFIX + doc.id,
                         type = NotificationType.FIRST_STAR.name,
@@ -87,7 +88,7 @@ object FirstStarFeed {
                         actorName = doc.getString("actorName").orEmpty(),
                         createdAt = createdAt,
                     )
-                })
+                } })
             }
         awaitClose { listener.remove() }
     }

@@ -4,16 +4,15 @@ rules_version = '2';
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // [보안 모델 — firestore.rules 와 동일]
-//  - 로그인은 Google 또는 익명. "request.auth != null" 만으로는 게이팅이 안 된다(누구나 익명 로그인 가능).
+//  - 로그인은 Google · Apple 또는 이메일/비밀번호(심사용 계정)뿐. isSignedIn() 은 sign_in_provider 가 이 셋일 때만 참이고,
+//    그 밖의 세션은 읽기도 쓰기도 할 수 없다.
 //  - profile_images 경로는 profile_images/{appUserId}_{시각}.jpg(2026-10-19~, 교체할 때마다 새 파일) 또는
 //    예전 고정 경로 profile_images/{appUserId}.jpg(구버전 앱). Android UserRepository / iOS ImageUploader 동일.
-//    appUserId = Google sub(구글) 또는 FirebaseAuth uid(익명). 규칙에서 위조 불가하게 읽어 **본인 경로에만 쓰기·삭제** 허용.
-//    앱은 새 사진을 연결한 뒤 예전 사진 파일을 지운다(그래서 본인 파일 delete 허용이 필요 — 예전 규칙은 write 에
-//    isValidImage() 가 걸려 있어 delete(request.resource 없음)가 항상 거부됐다).
-//    (예전 규칙은 누구나 남의 프로필 사진을 덮어쓸 수 있었음.)
-//  - 읽기는 로그인 세션이면 허용(익명 둘러보기 포함). 앱은 항상 토큰이 붙은 다운로드 URL 로 이미지를 불러오므로
-//    이 게이팅이 정상 표시를 막지 않는다. (예전 `read: if true` 는 인증 없는 임의 경로 열람 + 예측 가능한
-//    profile_images/{id}.jpg 경로 열거를 허용했음.)
+//    appUserId = Google sub(구글) 또는 FirebaseAuth uid(Apple · 이메일). 규칙에서 위조 불가하게 읽어 **본인 경로에만 쓰기·삭제** 허용.
+//    앱은 새 사진을 연결한 뒤 예전 사진 파일을 지운다(그래서 본인 파일 delete 허용이 필요).
+//  - diary_images / diary_videos 는 **새 파일 만들기만** 허용한다(덮어쓰기 · 삭제 불가 — 올라간 별의 사진을 바꿔치지 못하게).
+//    파일명은 앱이 만든 무작위 UUID 이고, 지우는 것은 서버(신고 조치 · 계정 삭제)가 Admin SDK 로 한다.
+//  - 읽기는 로그인 세션이면 허용. 앱은 항상 토큰이 붙은 다운로드 URL 로 이미지를 불러온다.
 //
 // 배포: firebase deploy --only storage
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,7 +20,8 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider in ['google.com', 'apple.com', 'password'];
     }
 
     // 파일명이 base(내 id)의 프로필 사진인지 — {base}.jpg(예전 고정) 또는 {base}_{숫자}.jpg(교체마다 새 파일).
@@ -30,35 +30,41 @@ service firebase.storage {
       return imageId == base + '.jpg' || imageId.matches(base + '_[0-9]+[.]jpg');
     }
 
-    // profile_images/{imageId} 가 "내 것"인지 — 익명(FirebaseAuth uid)과 Google(sub) 를 모두 인정.
+    // profile_images/{imageId} 가 "내 것"인지 — FirebaseAuth uid 와 Google(sub) 를 모두 인정.
     function isMyProfilePath(imageId) {
-      return request.auth != null && (
+      return isSignedIn() && (
         isProfileFileOf(imageId, request.auth.uid)
         || (request.auth.token.firebase.sign_in_provider == 'google.com'
             && isProfileFileOf(imageId, request.auth.token.firebase.identities['google.com'][0]))
       );
     }
 
+    // 앱이 올리는 이미지 형식(SVG 등 스크립트를 품을 수 있는 형식은 제외).
+    function isImageType() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp|gif|heic|heif|heic-sequence|heif-sequence|avif|bmp)');
+    }
+
     function isValidImage() {
-      return request.resource.size < 10 * 1024 * 1024
-          && request.resource.contentType.matches('image/.*');
+      return request.resource.size < 10 * 1024 * 1024 && isImageType();
     }
 
     // 3초 이내 짧은 영상. 길이 검증은 클라이언트가, 여기서는 타입 + 용량(20MB)만.
     function isValidVideo() {
       return request.resource.size < 20 * 1024 * 1024
-          && request.resource.contentType.matches('video/.*');
+          && request.resource.contentType.matches('video/(mp4|quicktime|3gpp|3gpp2|webm|x-m4v|mpeg)');
     }
 
-    // 다이어리 이미지/영상: 파일명이 무작위 UUID 라 소유자 귀속이 불가 → 로그인 세션 + 타입/용량 제한.
+    // 다이어리 이미지/영상: 로그인 세션 + 타입/용량 제한, 새 파일만(update · delete 불가).
     match /diary_images/{imageId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidImage();
+      allow create: if isSignedIn() && isValidImage();
+      allow update, delete: if false;
     }
 
     match /diary_videos/{videoId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && isValidVideo();
+      allow create: if isSignedIn() && isValidVideo();
+      allow update, delete: if false;
     }
 
     // 프로필 사진: 본인 파일에만 쓰기(남의 프로필 사진 변조 차단) + 본인 파일 삭제(교체 시 예전 사진 정리).

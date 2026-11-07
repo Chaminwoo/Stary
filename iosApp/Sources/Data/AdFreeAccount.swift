@@ -26,7 +26,7 @@ final class AdFreeAccount: ObservableObject {
         watchingUid = uid
         active = false
         guard let uid, !uid.isEmpty else { return }
-        reg = FirestoreService.db.collection(AppConfig.Collections.adFree).document(uid)
+        reg = FirestoreService.db.collection(AppConfig.Collections.adFree).safeDocument(uid)
             .addSnapshotListener { [weak self] snap, _ in
                 self?.active = snap?.exists == true
             }

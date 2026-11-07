@@ -186,7 +186,7 @@ enum L10n: String {
     // 친구 요청 상태/토스트(Android friend_status_* + FriendViewModel 토스트 대응 — %@ = 상대 이름).
     case friendStatusFriend, friendStatusRequested, friendRequestSent, friendRequestFail
     case chatInputPlaceholder, commonFriend, chatSendFailed, chatSending
-    case loginGoogle, loginBrowse, notifEmpty
+    case loginGoogle, notifEmpty
     // 업적 화면(장착 버튼/히든 달성 알림).
     case achEquip, achEquipped, hiddenWonTitle, hiddenWonFirst, commonOk
     /// 업적 달성 팝업 — Android ach_unlocked / ach_reward_* 패리티.
@@ -218,7 +218,7 @@ enum L10n: String {
     /// 별 도감 보기 방식 전환(별 고리 / 목록) — Android starlog_view_ring / starlog_view_list.
     case starlogViewRing, starlogViewList
     /// 권한 안내 카드(S2 — PermissionAsk) — Android perm_* 문자열.
-    case permLocTitle, permLocMsg, permNotifTitle, permNotifMsg, permAllow, permNotifAllow, permLater
+    case permLocTitle, permLocMsg, permNotifTitle, permNotifMsg, permContinue
     // 의견 보내기(설정 > 고칠 점 보내기) — Android feedback_* / settings_feedback* 와 같은 문구
     case feedbackTitle, feedbackHint, feedbackSend, feedbackSent, feedbackFailed, settingsFeedback, settingsFeedbackDesc
     // 별 목록 화면(iOS 전용 화면 — 빈 상태/가까운순 정렬).
@@ -581,10 +581,10 @@ enum L10n: String {
                                             "Couldn't find your current location. Turn on location permission and GPS, then try again",
                                             "現在地を確認できません。位置情報の許可とGPSをオンにしてもう一度お試しください")
         case .uploadLocPermTitle:   return ("위치 권한이 필요해요", "Location permission needed", "位置情報の許可が必要です")
-        case .uploadLocPermMsg:     return ("별은 지금 있는 자리에 남겨져요. 위치 권한을 허용해 주세요. (대략적인 위치도 괜찮아요)",
-                                            "Your star is placed where you are now. Please allow location access — approximate is fine too.",
-                                            "星は今いる場所に残ります。位置情報へのアクセスを許可してください（おおよその位置でも大丈夫です）。")
-        case .uploadLocPermBtn:     return ("허용하기", "Allow", "許可する")
+        case .uploadLocPermMsg:     return ("별은 지금 있는 자리에 남겨져요. 설정에서 위치를 허용하면 올릴 수 있어요. (대략적인 위치도 괜찮아요)",
+                                            "Your star is placed where you are now. You can post it after allowing location in Settings — approximate is fine too.",
+                                            "星は今いる場所に残ります。設定で位置情報を許可すると投稿できます（おおよその位置でも大丈夫です）。")
+        case .uploadLocPermBtn:     return ("설정 열기", "Open Settings", "設定を開く")
         case .uploadLocOffTitle:    return ("위치가 꺼져 있어요", "Location is turned off", "位置情報がオフになっています")
         case .uploadLocOffMsg:      return ("기기의 위치(GPS)를 켜야 지금 자리에 별을 남길 수 있어요.",
                                             "Turn on your device's location to leave a star where you are.",
@@ -630,7 +630,6 @@ enum L10n: String {
         case .chatSending:          return ("보내는 중", "Sending", "送信中")
         case .commonFriend:         return ("친구", "Friend", "友達")
         case .loginGoogle:          return ("Google 계정으로 로그인", "Sign in with Google", "Googleでログイン")
-        case .loginBrowse:          return ("로그인 없이 둘러보기", "Browse without signing in", "ログインせずに見る")
         case .notifEmpty:           return ("알림이 없어요", "No notifications", "通知はありません")
         case .achEquip:             return ("장착", "Equip", "装着")
         case .achEquipped:          return ("장착됨", "Equipped", "装着中")
@@ -709,13 +708,11 @@ enum L10n: String {
         case .permLocMsg:           return ("지금 있는 자리에 별을 남기고, 가까운 별을 열 때 써요. 대략적인 위치도 괜찮아요.",
                                             "It's used to leave a star where you are and to open stars nearby. Approximate location works too.",
                                             "今いる場所に星を残したり、近くの星を開いたりするときに使います。おおよその位置でも大丈夫です。")
-        case .permNotifTitle:       return ("새 소식을 알림으로 받을까요?", "Turn on notifications?", "新しいお知らせを通知で受け取りますか？")
+        case .permNotifTitle:       return ("새 소식은 알림으로 전해 드려요", "Notifications keep you posted", "新しいお知らせは通知でお届けします")
         case .permNotifMsg:         return ("내 별에 좋아요나 댓글이 달리거나, 친구가 새 별을 남기거나, 친구 요청이 오면 알려 드려요.",
                                             "We'll let you know when your star gets a like or comment, a friend leaves a new star, or you get a friend request.",
                                             "あなたの星にいいねやコメントがついたとき、友だちが新しい星を残したとき、友だち申請が届いたときにお知らせします。")
-        case .permAllow:            return ("허용하기", "Allow", "許可する")
-        case .permNotifAllow:       return ("알림 받기", "Turn on", "通知を受け取る")
-        case .permLater:            return ("나중에", "Later", "あとで")
+        case .permContinue:         return ("계속", "Continue", "続ける")
         case .feedbackTitle:        return ("고칠 점 보내기", "Send feedback", "改善点を送る")
         case .feedbackHint:         return ("불편했던 점이나 바라는 점을 적어 주세요", "Tell us what bothered you or what you'd like to see", "不便だった点やご要望をご記入ください")
         case .feedbackSend:         return ("보내기", "Send", "送信")

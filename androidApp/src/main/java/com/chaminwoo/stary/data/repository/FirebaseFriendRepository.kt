@@ -1,5 +1,7 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.safeImageUrl
+import com.chaminwoo.stary.data.safeToObject
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.Friend
 import com.chaminwoo.stary.core.model.FriendRequest
@@ -37,7 +39,7 @@ class FirebaseFriendRepository : FriendRepository {
         if (userId.isBlank()) return null
         return try {
             val doc = users.document(userId).get().await()
-            doc.toObject(UserProfile::class.java)?.copy(userId = doc.id)
+            doc.safeToObject<UserProfile>()?.let { it.copy(userId = doc.id, userName = it.userName.take(60), profileImageUrl = safeImageUrl(it.profileImageUrl)) }
         } catch (_: Exception) {
             null
         }
@@ -107,7 +109,7 @@ class FirebaseFriendRepository : FriendRepository {
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
                 val list = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Friend::class.java)?.copy(userId = doc.id)
+                    doc.safeToObject<Friend>()?.let { it.copy(userId = doc.id, userName = it.userName.take(60), photoUrl = safeImageUrl(it.photoUrl)) }
                 } ?: emptyList()
                 // friends 문서는 요청/수락 시점의 스냅샷이라 이후 상대가 이름/사진을 바꾸면 낡은 값이 남는다.
                 // users/{friendUid} 의 현재 공개 프로필로 덮어써서 항상 최신 이름/사진이 보이게 한다.
@@ -121,8 +123,8 @@ class FirebaseFriendRepository : FriendRepository {
                                         val name = profile.getString("userName")
                                         val photo = profile.getString("profileImageUrl")
                                         friend.copy(
-                                            userName = name?.takeIf { it.isNotBlank() } ?: friend.userName,
-                                            photoUrl = photo?.takeIf { it.isNotBlank() } ?: friend.photoUrl
+                                            userName = name?.takeIf { it.isNotBlank() }?.take(60) ?: friend.userName,
+                                            photoUrl = safeImageUrl(photo).ifBlank { friend.photoUrl }
                                         )
                                     } catch (_: Exception) {
                                         friend
@@ -144,7 +146,7 @@ class FirebaseFriendRepository : FriendRepository {
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
                 val list = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(FriendRequest::class.java)?.copy(id = doc.id)
+                    doc.safeToObject<FriendRequest>()?.let { it.copy(id = doc.id, fromName = it.fromName.take(60), toName = it.toName.take(60), fromPhotoUrl = safeImageUrl(it.fromPhotoUrl)) }
                 } ?: emptyList()
                 trySend(list)
             }
@@ -156,7 +158,7 @@ class FirebaseFriendRepository : FriendRepository {
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener // 권한/네트워크 에러로 앱이 죽지 않게 무시
                 val list = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(FriendRequest::class.java)?.copy(id = doc.id)
+                    doc.safeToObject<FriendRequest>()?.let { it.copy(id = doc.id, fromName = it.fromName.take(60), toName = it.toName.take(60), fromPhotoUrl = safeImageUrl(it.fromPhotoUrl)) }
                 } ?: emptyList()
                 trySend(list)
             }
@@ -171,7 +173,7 @@ class FirebaseFriendRepository : FriendRepository {
                 .limit(20)
                 .get().await()
                 .documents
-                .mapNotNull { it.toObject(UserProfile::class.java)?.copy(userId = it.id) }
+                .mapNotNull { d -> d.safeToObject<UserProfile>()?.let { it.copy(userId = d.id, userName = it.userName.take(60), profileImageUrl = safeImageUrl(it.profileImageUrl)) } }
                 .filter { it.userId != excludeUserId && it.userName.isNotBlank() }
             if (results.size < 2 || excludeUserId.isBlank()) return results
             // 2명 이상이면 "나와 겹치는 친구가 많은 순"으로 정렬(동률은 이름 순 유지).
@@ -203,7 +205,8 @@ class FirebaseFriendRepository : FriendRepository {
                 .whereEqualTo("toId", to.userId)
                 .get().await()
             if (!dup.isEmpty) return true
-            val doc = requests.document()
+            // 문서 id 는 "{보낸 사람}_{받는 사람}" — 같은 쌍의 요청이 두 번 생기지 않는다. 옛 임의 id 문서도 읽기·수락·거절은 그대로 된다.
+            val doc = requests.document("${from.userId}_${to.userId}")
             doc.set(
                 FriendRequest(
                     id = doc.id,

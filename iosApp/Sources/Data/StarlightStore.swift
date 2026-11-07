@@ -244,7 +244,7 @@ final class StarlightStore: ObservableObject {
 
     private func subscribe(_ uid: String) {
         let db = FirestoreService.db
-        regs.append(db.collection(Self.wallets).document(uid).addSnapshotListener { snap, err in
+        regs.append(db.collection(Self.wallets).safeDocument(uid).addSnapshotListener { snap, err in
             if err != nil { Task { @MainActor in StarlightStore.shared.retry(uid) }; return }
             guard let snap else { return }
             let w = Self.parseWallet(snap)
@@ -272,7 +272,7 @@ final class StarlightStore: ObservableObject {
                 s.itemIndex = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             }
         })
-        regs.append(db.collection(Self.equipsCol).document(uid).addSnapshotListener { snap, err in
+        regs.append(db.collection(Self.equipsCol).safeDocument(uid).addSnapshotListener { snap, err in
             if err != nil { Task { @MainActor in StarlightStore.shared.retry(uid) }; return }
             guard let snap else { return }
             let e = Self.parseEquips(snap)
@@ -281,7 +281,7 @@ final class StarlightStore: ObservableObject {
                 StarlightStore.shared.myEquips = e
             }
         })
-        regs.append(db.collection(Self.configCol).document("main").addSnapshotListener { snap, err in
+        regs.append(db.collection(Self.configCol).safeDocument("main").addSnapshotListener { snap, err in
             if err != nil { Task { @MainActor in StarlightStore.shared.retry(uid) }; return }
             guard let snap else { return }
             let c = Self.parseConfig(snap)
@@ -407,7 +407,7 @@ final class StarlightStore: ObservableObject {
 
     /// 다른 사람(또는 나)의 장착 상태 구독 — 프로필 화면용. 반환값으로 해제.
     nonisolated static func watchEquips(_ uid: String, _ onChange: @escaping @MainActor (Equips) -> Void) -> ListenerRegistration {
-        FirestoreService.db.collection(equipsCol).document(uid).addSnapshotListener { snap, _ in
+        FirestoreService.db.collection(equipsCol).safeDocument(uid).addSnapshotListener { snap, _ in
             guard let snap else { return }
             let e = parseEquips(snap)
             Task { @MainActor in onChange(e) }
@@ -459,7 +459,7 @@ final class StarlightStore: ObservableObject {
     /// 요청은 이미 남아 있어 망이 돌아오면 서버가 처리하고, 지갑 구독으로 결과가 반영된다.
     func request(_ op: String, _ args: [String: Any] = [:]) async -> OpResult {
         guard let uid else { return .failed("offline") }
-        let ref = FirestoreService.users.document(uid).collection(Self.opsCol).document()
+        let ref = FirestoreService.users.safeDocument(uid).collection(Self.opsCol).document()
         var body = args
         body["op"] = op
         body["status"] = "pending"

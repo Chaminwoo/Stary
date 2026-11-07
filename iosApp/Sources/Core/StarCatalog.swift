@@ -16,6 +16,10 @@ final class StarCatalog: @unchecked Sendable {
     private init() {}
 
     private static let maxStops = 3
+    /// 외부(문서)에서 온 정의의 상한 — 깨진/비정상 입력이 메모리·CPU 를 쓰지 못하게.
+    private static let maxSvgLength = 4000
+    private static let maxEntries = 2000
+    private static let maxIndex = 100_000
     private let lock = NSLock()
     private var shapeSvgs: [Int: String] = [:]
     private var shapePaths: [Int: CGPath] = [:]   // 단위(0~1) 경로
@@ -29,14 +33,20 @@ final class StarCatalog: @unchecked Sendable {
     }
 
     func learnShape(_ type: Int, _ svg: String) {
-        guard type >= StarStyle.typeCount, !svg.isEmpty else { return }
-        lock.lock(); let same = shapeSvgs[type] == svg; lock.unlock()
-        guard !same, let p = Self.parse(svg) else { return }
+        guard type >= StarStyle.typeCount, type < Self.maxIndex,
+              !svg.isEmpty, svg.count <= Self.maxSvgLength else { return }
+        lock.lock()
+        let same = shapeSvgs[type] == svg
+        let full = shapeSvgs.count >= Self.maxEntries && shapeSvgs[type] == nil
+        lock.unlock()
+        guard !same, !full, let p = Self.parse(svg) else { return }
         lock.lock(); shapeSvgs[type] = svg; shapePaths[type] = p; lock.unlock()
     }
 
     func learnColor(_ index: Int, _ hexes: [String]) {
-        guard index >= StarStyle.colorCount, !hexes.isEmpty else { return }
+        guard index >= StarStyle.colorCount, index < Self.maxIndex, !hexes.isEmpty else { return }
+        lock.lock(); let full = colorHex.count >= Self.maxEntries && colorHex[index] == nil; lock.unlock()
+        guard !full else { return }
         let stops = Array(hexes.prefix(Self.maxStops))
         let parsed = stops.compactMap(Self.parseHex)
         guard !parsed.isEmpty else { return }
@@ -91,7 +101,7 @@ final class StarCatalog: @unchecked Sendable {
             let rel = c.isLowercase
             func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { rel ? CGPoint(x: cur.x + x, y: cur.y + y) : CGPoint(x: x, y: y) }
 
-            switch c.uppercased().first! {
+            switch c.uppercased().first ?? "?" {
             case "M":
                 guard let x = tokens.number(), let y = tokens.number() else { return nil }
                 cur = pt(x, y); start = cur
@@ -187,7 +197,8 @@ private struct SVGTokens {
                 while i < chars.count, chars[i].isNumber { i += 1 }
             }
         }
-        guard sawDigit, let v = Double(String(chars[startIndex..<i])) else { i = startIndex; return nil }
+        // 비정상 값(무한대·NaN·터무니없이 큰 수)은 경로 전체를 버리게 nil — CoreGraphics 에 NaN 이 가지 않게.
+        guard sawDigit, let v = Double(String(chars[startIndex..<i])), v.isFinite, abs(v) < 1.0e6 else { i = startIndex; return nil }
         return CGFloat(v)
     }
 }

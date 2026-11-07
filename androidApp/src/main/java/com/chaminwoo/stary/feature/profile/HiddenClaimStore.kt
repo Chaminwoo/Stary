@@ -47,11 +47,13 @@ object HiddenClaimStore {
                 if (snap == null) return@addSnapshotListener
                 claims.clear()
                 for (d in snap.documents) {
-                    claims[d.id] = HiddenClaim(
-                        achieverId = d.getString("achieverId") ?: "",
-                        achieverName = d.getString("achieverName") ?: "",
-                        claimedAt = d.getLong("claimedAt") ?: 0L,
-                    )
+                    com.chaminwoo.stary.data.safeDecode("HiddenClaim") {
+                        claims[d.id] = HiddenClaim(
+                            achieverId = d.getString("achieverId") ?: "",
+                            achieverName = d.getString("achieverName") ?: "",
+                            claimedAt = d.getLong("claimedAt") ?: 0L,
+                        )
+                    }
                 }
             }
     }

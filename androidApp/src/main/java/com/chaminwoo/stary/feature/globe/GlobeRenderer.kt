@@ -23,11 +23,15 @@ import java.nio.ShortBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.abs
+import kotlin.math.acos
+import kotlin.math.asin
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.math.tan
 
 /**
  * 3D 행성(지구) 렌더러 — 지도 줌 최소 진입 시 보이는 "밤의 지구" 뷰.
@@ -91,6 +95,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         var fade: Float = 1f,           // 장면 밝기 0..1
         var ndcShiftY: Float = 0f,      // 지구를 화면 아래(음수)/위로 옮기는 클립 시프트(투영 뒤라 크기는 그대로)
         var sunDir: FloatArray? = null, // 지구 좌표계 태양 방향(null = 실제 UTC 태양)
+        var warmSun: Boolean = false,   // true = 실시간 글로브처럼 해·빛번짐·햇빛을 함께 그린다(공유 영상은 false 라 예전 그대로)
     )
     var script: Script? = null
 
@@ -136,6 +141,18 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var sunTex = 0              // 태양 전용 텍스처(원반+코로나 합성 — 인위적 십자 광선 없음)
     private var sunVbo = 0
     private var sunBuiltFrac = -1f      // 태양 스프라이트를 빌드한 시각(dayFrac) — 1분 넘게 지나면 재배치
+    private var glareProgram = 0        // 해 빛번짐·빛살 — 지구 위에까지 번지는 화면 공간 사각형
+    private var glareVbo = 0
+    private var raysTex = 0
+    private var surfaceW = 1
+    private var surfaceH = 1
+    private var warmOn = 1f             // 햇빛 표현 스위치(uWarm) — 실시간 1, 공유 영상 0
+    private var sunVis = 0f             // 해가 지구 뒤에서 얼마나 나와 있나 0..1
+    private var sunArc = 0f             // 지구 윤곽의 금·분홍 호 세기 0..1
+    private val sunPerp = FloatArray(3) // 화면에서 지구 중심 → 해 방향(지구 좌표계 단위벡터)
+    private val sunWorld = FloatArray(4)
+    private val sunClip = FloatArray(4)
+    private val sunIn = FloatArray(4)
 
     /** 자유 원호 트레일(지구 좌표계 — 구와 함께 회전).
      *  phase: 트레일별 파동 위상(불규칙성), intensity: 트레일별 투명도 차등(1=기준). */
@@ -214,6 +231,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         skyProgram = buildProgram(SKY_VS, SKY_FS)
         atmoProgram = buildProgram(ATMO_VS, ATMO_FS)
         pinProgram = buildProgram(SPRITE_VS, PIN_FS)
+        glareProgram = buildProgram(GLARE_VS, GLARE_FS)
 
         buildEarthMesh()
         earthTex = loadEarthTexture()
@@ -229,6 +247,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sunTex = uploadTexture(makeSunBitmap())
         sunVbo = genBuffer()
         sunBuiltFrac = -1f
+        raysTex = uploadTexture(makeRaysBitmap())
+        glareVbo = genBuffer()
+        uploadBuffer(glareVbo, toFloatBuffer(arrayListOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)))
         meteorVbo = genBuffer()
         meteorStartT = -1f
         meteorStreak = 0
@@ -246,6 +267,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         GLES20.glViewport(0, 0, width, height)
+        surfaceW = width.coerceAtLeast(1)
+        surfaceH = height.coerceAtLeast(1)
         val aspect = width.toFloat() / height.coerceAtLeast(1)
         screenAspect = aspect
         // near 는 깊이 정밀도를 지배한다(해상도 ∝ z²·(1/near)). 0.1 로 두면 16비트 깊이버퍼에서
@@ -283,6 +306,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         // 카메라 위치를 지구 좌표계로(모델은 순수 회전이라 역행렬 = 전치) — 대기 테두리·대기광이 시점을 따라간다.
         Matrix.transposeM(tmp, 0, model, 0)
         Matrix.multiplyMV(camObj, 0, tmp, 0, floatArrayOf(0f, 0f, camDist, 1f), 0)
+        // 해·빛번짐·햇빛은 실시간 글로브 전용 — 공유 영상(warmSun = false)은 예전 그림 그대로.
+        val warm = sc == null || sc.warmSun
+        warmOn = if (warm) 1f else 0f
+        if (warm) updateSunLight() else { sunVis = 0f; sunArc = 0f }
 
         // 0) 은하수 성운 하늘 — 가장 먼 배경(검은 클리어 색을 덮는다). 별밭과 같이 모델 회전을 따른다.
         drawSky()
@@ -301,7 +328,7 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         // (스크립트 모드에서는 둘 다 생략 — 무작위 유성과 화면을 가로지르는 해가 공유 영상에 끼어들지 않게)
         if (sc == null) drawMeteor(camPos, t, dt)
         // 1.8) 태양 — 광원 방향 하늘의 해(원반+코로나, 십자 광선 없음). 하루 주기로 광원과 함께 돈다
-        if (sc == null) drawSun(camPos, t)
+        if (warm) drawSun(camPos, t)
 
         // 2) 지구 본체 (불투명, 깊이 기록)
         GLES20.glDisable(GLES20.GL_BLEND)
@@ -336,6 +363,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (glowVertexCount > 0) drawSprites(glowVbo, glowVertexCount, sparkTex, camPos, t, depthTest = false, program = pinProgram, gain = GLOW_PIN_GAIN, sparkle = 1f)
         if (flareVertexCount > 0) drawSprites(flareVbo, flareVertexCount, starTex, camPos, t, depthTest = false, program = pinProgram, gain = FLARE_PIN_GAIN, sparkle = 1f)
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE)
+
+        // 6) 해 빛번짐·빛살 — 지구와 별 위까지 번진다(해 원반 자체는 1.8 에서 그려 지구에 가려진다).
+        if (warm) drawSunGlare(t)
 
         GLES20.glDepthMask(true)
         GLES20.glDisable(GLES20.GL_BLEND)
@@ -373,6 +403,9 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val sun = sunDirection()
         GLES20.glUniform3f(uLoc(earthProgram, "uSunDir"), sun[0], sun[1], sun[2])
         GLES20.glUniform3f(uLoc(earthProgram, "uCamObj"), camObj[0], camObj[1], camObj[2])
+        GLES20.glUniform1f(uLoc(earthProgram, "uWarm"), warmOn)
+        GLES20.glUniform1f(uLoc(earthProgram, "uArc"), sunArc)
+        GLES20.glUniform3f(uLoc(earthProgram, "uSunPerp"), sunPerp[0], sunPerp[1], sunPerp[2])
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, earthTex)
         GLES20.glUniform1i(uLoc(earthProgram, "uTex"), 0)
@@ -424,6 +457,8 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val sun = sunDirection()
         GLES20.glUniform3f(uLoc(atmoProgram, "uSunDir"), sun[0], sun[1], sun[2])
         GLES20.glUniform1f(uLoc(atmoProgram, "uFade"), fade)
+        GLES20.glUniform1f(uLoc(atmoProgram, "uArc"), sunArc)
+        GLES20.glUniform3f(uLoc(atmoProgram, "uSunPerp"), sunPerp[0], sunPerp[1], sunPerp[2])
         drawEarthMesh(atmoProgram)
     }
 
@@ -470,15 +505,106 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
      *  재빌드(그 사이 이동량은 시각적으로 0에 수렴 — 매 프레임 버퍼 재업로드 낭비 방지). */
     private fun drawSun(camPos: FloatArray, t: Float) {
         val dayFrac = (System.currentTimeMillis() % 86_400_000L) / 86_400_000f
-        if (sunBuiltFrac < 0f || kotlin.math.abs(dayFrac - sunBuiltFrac) > 1f / 1440f) {
+        if (script != null || sunBuiltFrac < 0f || kotlin.math.abs(dayFrac - sunBuiltFrac) > 1f / 1440f) {
             sunBuiltFrac = dayFrac
             val dir = sunDirection()
             val p = floatArrayOf(dir[0] * SUN_DIST, dir[1] * SUN_DIST, dir[2] * SUN_DIST)
             val list = ArrayList<Float>(6 * SPRITE_FLOATS)
-            addSprite(list, p, r = 1f, g = 1f, b = 1f, a = 1f, size = 1.5f, phase = 0.13f, mode = 2f)
+            addSprite(list, p, r = 1f, g = 1f, b = 1f, a = 1f, size = SUN_SPRITE_SIZE, phase = 0.13f, mode = 2f)
             uploadBuffer(sunVbo, toFloatBuffer(list))
         }
         drawSprites(sunVbo, 6, sunTex, camPos, t, depthTest = false)
+    }
+
+    /**
+     * 해가 지금 화면 어디 있고 지구에 얼마나 가려졌는지 — 빛번짐([drawSunGlare])과 윤곽의 호(uArc, uSunPerp)가 같이 쓴다.
+     * 지구 윤곽은 원이므로 각도만으로 계산한다(픽셀을 읽지 않는다). 카메라 뒤에 있으면 sunVis = sunArc = 0.
+     */
+    private fun updateSunLight() {
+        val d = sunDirection()
+        val cx = camObj[0]; val cy = camObj[1]; val cz = camObj[2]
+        val dist = sqrt(cx * cx + cy * cy + cz * cz).coerceAtLeast(1.001f)
+        val vx = cx / dist; val vy = cy / dist; val vz = cz / dist
+        val rx = d[0] * SUN_DIST - cx; val ry = d[1] * SUN_DIST - cy; val rz = d[2] * SUN_DIST - cz
+        val rl = sqrt(rx * rx + ry * ry + rz * rz)
+        val along = -(rx * vx + ry * vy + rz * vz) / rl // 1 = 해가 지구 정중앙 뒤, 0 = 옆, 음수 = 카메라 뒤
+        val gap = acos(along.coerceIn(-1f, 1f)) - asin(1f / dist) // 양수 = 지구 바깥(라디안)
+        val k = -(rx * vx + ry * vy + rz * vz)
+        val px = rx + vx * k; val py = ry + vy * k; val pz = rz + vz * k
+        val pl = sqrt(px * px + py * py + pz * pz)
+        if (pl > 1e-4f) { sunPerp[0] = px / pl; sunPerp[1] = py / pl; sunPerp[2] = pz / pl } else { sunPerp[0] = 0f; sunPerp[1] = 0f; sunPerp[2] = 0f }
+        val a = SUN_DISC_RAD
+        sunVis = if (along > 0f) sunStep(-1.1f * a, 0.9f * a, gap) else 0f
+        val pre = sunStep(-9f * a, -1.2f * a, gap)      // 해가 지평선 바로 뒤까지 오면 호가 먼저 환해진다
+        val far = 1f - sunStep(0.16f, 0.70f, gap)       // 해가 지구에서 멀어지면 호는 사라진다
+        val centered = sunStep(0f, 0.02f, pl / rl)      // 지구 정중앙 뒤면 방향이 없다
+        sunArc = (0.10f + 0.90f * pre) * far * centered
+    }
+
+    private fun sunStep(a: Float, b: Float, x: Float): Float {
+        val u = ((x - a) / (b - a)).coerceIn(0f, 1f)
+        return u * u * (3f - 2f * u)
+    }
+
+    /** 해 빛번짐·빛살 — 해를 중심으로 한 화면 공간 사각형을 더하기 합성. 크기는 지구 윤곽에 맞춰 키우되 화면 폭 기준으로 제한한다. */
+    private fun drawSunGlare(t: Float) {
+        if (sunVis <= 0.004f || glareVbo == 0) return
+        val d = sunDirection()
+        sunIn[0] = d[0] * SUN_DIST; sunIn[1] = d[1] * SUN_DIST; sunIn[2] = d[2] * SUN_DIST; sunIn[3] = 1f
+        Matrix.multiplyMV(sunWorld, 0, model, 0, sunIn, 0)
+        Matrix.multiplyMV(sunClip, 0, vp, 0, sunWorld, 0)
+        if (sunClip[3] <= 0.001f) return
+        val w = surfaceW.toFloat(); val h = surfaceH.toFloat()
+        val minDim = min(w, h)
+        val dist = camDist.coerceAtLeast(1.001f)
+        val earthPx = tan(asin(1f / dist)) / TAN_HALF_FOV * h / 2f
+        val r = (earthPx * GLARE_EARTH_RATIO).coerceIn(minDim * GLARE_MIN, minDim * GLARE_MAX)
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST)
+        GLES20.glUseProgram(glareProgram)
+        GLES20.glUniform4f(uLoc(glareProgram, "uRect"), sunClip[0] / sunClip[3], sunClip[1] / sunClip[3], r / (w / 2f), r / (h / 2f))
+        GLES20.glUniform1f(uLoc(glareProgram, "uVis"), sunVis)
+        GLES20.glUniform1f(uLoc(glareProgram, "uFade"), fade)
+        GLES20.glUniform1f(uLoc(glareProgram, "uRot"), t * 0.012f)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, raysTex)
+        GLES20.glUniform1i(uLoc(glareProgram, "uTex"), 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, glareVbo)
+        val aCorner = aLoc(glareProgram, "aCorner")
+        GLES20.glEnableVertexAttribArray(aCorner)
+        GLES20.glVertexAttribPointer(aCorner, 2, GLES20.GL_FLOAT, false, 8, 0)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDisableVertexAttribArray(aCorner)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+    }
+
+    /**
+     * 빛살 텍스처 — 해에서 뻗는 가는 쐐기들(중심에서 끝으로 옅어진다). 번짐은 셰이더가 계산하고 여기엔 빛살만 굽는다.
+     * 난수는 Random(9) — iOS 도 같은 순서(JavaRandom)라 같은 모양이 나온다. 값은 [RAYS_GAIN] 배로 구워 8비트 계단을 줄이고 셰이더가 나눈다.
+     */
+    private fun makeRaysBitmap(): Bitmap {
+        val s = RAYS_TEX_SIZE
+        val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val cx = s / 2f
+        val rnd = java.util.Random(9)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
+        val tau = (2.0 * Math.PI).toFloat()
+        repeat(RAYS_COUNT) {
+            val a = rnd.nextFloat() * tau
+            val l = (0.19f + rnd.nextFloat().pow(3) * 0.79f) * cx
+            val wid = 0.006f + rnd.nextFloat() * 0.018f
+            val pa = (0.05f + rnd.nextFloat() * 0.16f) * RAYS_GAIN
+            val alpha = (pa * 255f).toInt().coerceIn(0, 255)
+            paint.shader = RadialGradient(cx, cx, l, (alpha shl 24) or 0xFFE9C4, 0x00FFD27A, Shader.TileMode.CLAMP)
+            val path = android.graphics.Path().apply {
+                moveTo(cx, cx)
+                lineTo(cx + cos(a - wid) * l, cx + sin(a - wid) * l)
+                lineTo(cx + cos(a + wid) * l, cx + sin(a + wid) * l)
+                close()
+            }
+            c.drawPath(path, paint)
+        }
+        return bmp
     }
 
     /** 태양 텍스처 — 원경 산광 → 금빛 코로나 → 백열 원반을 부드러운 다단 그라데이션으로 겹쳐
@@ -1654,6 +1780,19 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         const val STAR_DIAG_WEIGHT = 0.50f
         private const val TRAIL_COUNT = 5
         private const val SUN_DIST = 45f // 태양 위치 반지름(원경 별밭 너머, far plane 안)
+        /** 해 스프라이트 크기(월드) — 원반 반지름은 텍스처의 0.20배. [SUN_DISC_RAD] 와 같이 볼 것. */
+        private const val SUN_SPRITE_SIZE = 2.0f
+        /** 해 원반의 각반지름(라디안) = 크기 × 0.20 / 거리. 지평선에 걸리는 판정의 단위. */
+        private const val SUN_DISC_RAD = SUN_SPRITE_SIZE * 0.20f / SUN_DIST
+        /** tan(fovy 42° / 2) — 지구 윤곽의 화면 반지름 계산용. */
+        private const val TAN_HALF_FOV = 0.38386f
+        /** 빛번짐 반지름 = 지구 화면 반지름 × 이 값(화면 짧은 변 대비 [GLARE_MIN]~[GLARE_MAX] 로 제한). */
+        private const val GLARE_EARTH_RATIO = 1.4f
+        private const val GLARE_MIN = 0.62f
+        private const val GLARE_MAX = 0.85f
+        private const val RAYS_TEX_SIZE = 1024
+        private const val RAYS_COUNT = 24
+        private const val RAYS_GAIN = 2.5f
 
         /** 유성 — 꼬리 스프라이트 수 / 확률 판정 주기(초) / 판정 성공 확률 / 꼬리 길이(경로 비율). */
         private const val METEOR_SPRITES = 34
@@ -1688,6 +1827,57 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             floatArrayOf(1.00f, 0.80f, 0.45f), // 금색
         )
         // ── 셰이더 (ES 2.0) ──
+        /** 지구 윤곽의 호 색 — a = 화면에서 해 쪽과 이루는 각의 코사인(1 = 해 바로 앞). 백열 → 금 → 분홍 → 푸른빛 → 0. EARTH_FS 와 ATMO_FS 가 함께 쓴다. */
+        private const val SUN_ARC_GLSL = """
+            vec3 sunArcColor(float a) {
+                vec3 c = vec3(0.29, 0.55, 1.0) * 0.55 * smoothstep(0.55, 0.78, a);
+                c = mix(c, vec3(1.0, 0.50, 0.66) * 0.90, smoothstep(0.76, 0.90, a));
+                c = mix(c, vec3(1.0, 0.82, 0.48), smoothstep(0.90, 0.972, a));
+                return mix(c, vec3(1.0, 0.96, 0.86), smoothstep(0.972, 0.997, a));
+            }
+        """
+
+        /** 해 빛번짐·빛살 — uRect = 해의 NDC 중심(xy)과 반지름(zw). vP 는 해 기준 −1..1. */
+        private const val GLARE_VS = """
+            uniform vec4 uRect;
+            attribute vec2 aCorner;
+            varying vec2 vP;
+            void main() { vP = aCorner; gl_Position = vec4(uRect.xy + aCorner * uRect.zw, 0.0, 1.0); }
+        """
+
+        private const val GLARE_FS = """
+            #ifdef GL_FRAGMENT_PRECISION_HIGH
+            precision highp float;
+            #else
+            precision mediump float;
+            #endif
+            uniform sampler2D uTex; uniform float uVis; uniform float uFade; uniform float uRot;
+            varying vec2 vP;
+            float grain(vec2 p) {
+                vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+                p3 += dot(p3, p3.yzx + 33.33);
+                return fract((p3.x + p3.y) * p3.z);
+            }
+            vec2 turn(vec2 p, float a) { float c = cos(a); float s = sin(a); return vec2(c * p.x - s * p.y, s * p.x + c * p.y); }
+            void main() {
+                float d = length(vP);
+                // 큰 빛번짐 — 크림 → 분홍 → 옅은 보라. 가우시안이라 경계가 없다(주황 구간을 두면 갈색 원판처럼 보인다).
+                float d2 = d * d;
+                vec3 g = vec3(1.0, 0.851, 0.627) * 0.46 * exp(-d2 / 0.012);
+                g += vec3(1.0, 0.50, 0.58) * 0.135 * exp(-d2 / 0.070);
+                g += vec3(0.60, 0.40, 1.0) * 0.060 * exp(-d2 / 0.260);
+                g *= 1.0 - smoothstep(0.62, 1.0, d);
+                // 해 바로 둘레 — 지구 끝을 넘어 번지는 백열
+                g += vec3(1.0, 0.93, 0.80) * pow(max(1.0 - d / 0.14, 0.0), 3.0) * 0.85;
+                // 빛살 — 같은 그림을 서로 반대로 아주 천천히 돌려 겹친다. 해가 가려질수록 짧아진다.
+                vec2 q = vP / (0.5 + 0.5 * uVis);
+                vec3 r = texture2D(uTex, turn(q, uRot) * 0.5 + 0.5).rgb + texture2D(uTex, turn(q, 1.31 - uRot) * 0.5 + 0.5).rgb;
+                vec3 c = (g + r / $RAYS_GAIN) * uVis * uFade;
+                c += (grain(gl_FragCoord.xy) - 0.5) / 255.0 * (1.0 - smoothstep(0.7, 1.0, d));
+                gl_FragColor = vec4(max(c, vec3(0.0)), 1.0);
+            }
+        """
+
         private const val EARTH_VS = """
             uniform mat4 uMVP;
             attribute vec3 aPos; attribute vec2 aUV;
@@ -1713,7 +1903,10 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
             uniform sampler2D uTex; uniform float uFade;
             uniform vec3 uSunDir; // 태양 방향(지구 좌표계 단위벡터) — UTC 하루 기준 360도 회전
             uniform vec3 uCamObj; // 카메라 위치(지구 좌표계)
+            uniform float uWarm;  // 햇빛 표현 — 실시간 글로브 1, 공유 영상 0
+            uniform float uArc; uniform vec3 uSunPerp; // 윤곽의 호 세기, 화면에서 해 쪽 방향
             varying vec2 vUV; varying vec3 vN;
+            $SUN_ARC_GLSL
             float grain(vec2 p) {
                 vec3 p3 = fract(vec3(p.xyx) * 0.1031);
                 p3 += dot(p3, p3.yzx + 33.33);
@@ -1761,12 +1954,29 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 vec3 n2 = normalize(n + 0.30 * nz);
                 vec3 Rv = reflect(-V, n2);
                 float refl = pow(clamp(dot(Rv, uSunDir), 0.0, 1.0), 2.6) * (0.30 + 0.70 * vnoise(n * 46.0 + 2.2)) * smoothstep(-0.1, 0.4, sunD);
-                c += fill * refl * 0.48 * vec3(0.60, 0.80, 1.0);
+                c += fill * refl * 0.48 * mix(vec3(0.60, 0.80, 1.0), vec3(1.0, 0.84, 0.60), 0.55 * uWarm);
                 c += fill * pow(edge, 1.8) * (0.30 + 0.70 * day) * 0.42 * vec3(0.45, 0.68, 1.0);      // 육지 프레넬 코팅
                 // 림 — 태양 쪽 가장자리가 훨씬 밝다
                 float rimLit = 0.30 + 0.70 * smoothstep(-0.35, 0.65, sunD);
                 c += pow(edge, 2.6) * rimLit * 1.5 * vec3(0.20, 0.38, 0.90);
                 c += pow(smoothstep(0.72, 1.0, edge), 2.0) * 1.05 * rimLit * vec3(0.50, 0.75, 1.0);   // 윤곽선(굴절 가장자리)
+                // 햇빛 — 낮 쪽 표면에 따뜻한 빛(넓게, 둥근 점 없이) + 밤낮 경계의 노을 띠 + 해 쪽 윤곽의 금·분홍 호
+                float lit = day * day;
+                c += uWarm * fill * lit * vec3(0.090, 0.052, 0.0);
+                c += uWarm * lit * vec3(0.014, 0.022, 0.048);
+                c += uWarm * pow(max(sunD, 0.0), 3.0) * vec3(0.030, 0.019, 0.006);
+                c += uWarm * lit * pow(edge, 2.4) * vec3(0.42, 0.27, 0.10);
+                float dusk = (sunD - 0.02) / 0.16;
+                c += uWarm * exp(-dusk * dusk) * vec3(0.042, 0.015, 0.030);
+                vec3 axis = normalize(uCamObj);
+                vec3 np = n - axis * dot(n, axis);
+                float npLen = length(np);                         // 0 = 화면 중심, 1 = 지구 끝
+                float arcA = dot(np, uSunPerp) / max(npLen, 0.001);
+                float arcE = smoothstep(0.45, 1.0, edge);
+                c += sunArcColor(arcA) * uArc * (arcE * arcE * arcE * 1.6 + pow(edge, 2.0) * 0.10);
+                // 역광 — 해가 지구 끝에 걸리면 표면 전체가 푸르게 살짝 뜨고, 해 쪽으로 분홍·보랏빛이 번진다
+                float toward = pow(clamp(arcA * 0.5 + 0.5, 0.0, 1.0), 14.0) * smoothstep(0.30, 1.0, npLen);
+                c += uArc * (vec3(0.010, 0.020, 0.070) + toward * vec3(0.26, 0.11, 0.27));
                 c += (grain(gl_FragCoord.xy) - 0.5) * (1.5 / 255.0);
                 gl_FragColor = vec4(max(c, vec3(0.0)) * uFade, 1.0);
             }
@@ -1812,13 +2022,21 @@ class GlobeRenderer(private val context: Context) : GLSurfaceView.Renderer {
         private const val ATMO_FS = """
             precision mediump float;
             uniform vec3 uCamObj; uniform vec3 uSunDir; uniform float uFade;
+            uniform float uArc; uniform vec3 uSunPerp; // 해 쪽 윤곽의 금·분홍 호
             varying vec3 vN; varying vec3 vP;
+            $SUN_ARC_GLSL
             void main() {
-                float d = -dot(normalize(vN), normalize(uCamObj - vP));
+                vec3 n = normalize(vN);
+                float d = -dot(n, normalize(uCamObj - vP));
                 if (d <= 0.0) discard;
-                float i = pow(clamp(d / 0.5, 0.0, 1.0), 3.2);
-                float side = 0.30 + 0.70 * smoothstep(-0.2, 0.8, dot(normalize(vN), uSunDir)); // 태양 쪽 가장자리가 더 환하다
-                gl_FragColor = vec4(vec3(0.42, 0.62, 1.0) * i * 0.34 * side * uFade, 1.0); // 푸른 대기광(유리 지구의 림 빛과 이어진다)
+                float e = clamp(d / 0.5, 0.0, 1.0);
+                float i = pow(e, 3.2);
+                float side = 0.30 + 0.70 * smoothstep(-0.2, 0.8, dot(n, uSunDir)); // 태양 쪽 가장자리가 더 환하다
+                vec3 axis = normalize(uCamObj);
+                vec3 np = n - axis * dot(n, axis);
+                float arcA = dot(np, uSunPerp) / max(length(np), 0.001);
+                vec3 arc = sunArcColor(arcA) * uArc * (pow(e, 2.4) * 0.36 + pow(e, 9.0) * 0.72);
+                gl_FragColor = vec4((vec3(0.42, 0.62, 1.0) * i * 0.34 * side + arc) * uFade, 1.0); // 푸른 대기광(유리 지구의 림 빛과 이어진다) + 호
             }
         """
 

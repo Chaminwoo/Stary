@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.safeToObject
 import android.util.Log
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.core.model.AppNotification
@@ -28,7 +29,7 @@ class FirebaseCommentRepository : CommentRepository {
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, _ ->
                 val list = snap?.documents?.mapNotNull { doc ->
-                    doc.toObject(Comment::class.java)?.copy(id = doc.id)
+                    doc.safeToObject<Comment>()?.let { c -> c.copy(id = doc.id, userName = c.userName.take(60), content = c.content.take(1000)) }
                 } ?: emptyList()
                 trySend(list)
             }

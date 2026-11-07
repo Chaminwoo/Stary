@@ -32,9 +32,13 @@ class MainActivity : ComponentActivity() {
         // 지도에 들어왔을 때 / 별을 올리거나 친구를 추가한 뒤에 이유 카드부터 보여 준다(core/ui/PermissionAsk.kt, 2026-10 S2).
 
         // 푸시 알림 탭 → 채팅방/다이어리 상세로 딥링크. (콜드 스타트: onCreate, 살아있을 때: onNewIntent)
-        handleDeepLinkIntent(intent)
-        val initialDiaryId = intent?.getStringExtra(EXTRA_DIARY_ID) ?: diaryIdFromUri(intent)
-        val initialChatFriendId = intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID)
+        runCatching { handleDeepLinkIntent(intent) }
+        val initialDiaryId = runCatching {
+            com.chaminwoo.stary.core.util.DeepLinkState.safeId(intent?.getStringExtra(EXTRA_DIARY_ID)) ?: diaryIdFromUri(intent)
+        }.getOrNull()
+        val initialChatFriendId = runCatching {
+            com.chaminwoo.stary.core.util.DeepLinkState.safeId(intent?.getStringExtra(EXTRA_CHAT_FRIEND_ID))
+        }.getOrNull()
 
         // 시스템 바를 **항상 다크**로 고정한다(앱에 라이트 테마가 없다).
         // 인자 없는 enableEdgeToEdge() 는 SystemBarStyle.auto — 기기가 라이트 모드면 하단
@@ -64,7 +68,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleDeepLinkIntent(intent)
+        runCatching { handleDeepLinkIntent(intent) }
     }
 
     private fun handleDeepLinkIntent(intent: Intent?) {
@@ -115,7 +119,7 @@ class MainActivity : ComponentActivity() {
         val config = com.chaminwoo.stary.shared.config.StaryConfig
         if (uri.scheme == config.DEEP_LINK_SCHEME) {
             if (uri.host != host) return null
-            return uri.lastPathSegment?.takeIf { it.isNotBlank() }
+            return com.chaminwoo.stary.core.util.DeepLinkState.safeId(uri.lastPathSegment)
         }
         if (uri.scheme == "https" && uri.host == config.SHARE_HOST) {
             val prefix = when (host) {
@@ -125,7 +129,7 @@ class MainActivity : ComponentActivity() {
             }
             val segments = uri.pathSegments
             if (segments.size >= 2 && segments[0] == prefix) {
-                return segments[1].takeIf { it.isNotBlank() }
+                return com.chaminwoo.stary.core.util.DeepLinkState.safeId(segments[1])
             }
         }
         return null

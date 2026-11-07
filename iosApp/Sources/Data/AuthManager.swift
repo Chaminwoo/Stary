@@ -8,7 +8,7 @@ import Security
 import SwiftUI
 
 /// 로그인 상태 단일 소스.
-/// - 익명 로그인(빠른 시작) + 구글 로그인 + **Sign in with Apple**(Firebase Auth credential, iOS 전용
+/// - 구글 로그인 + **Sign in with Apple**(Firebase Auth credential, iOS 전용
 ///   — App Store 심사 Guideline 4.8 대응, Android 는 Google 로그인만 유지) 지원.
 /// - users/{uid} 프로필 문서를 보장한다.
 @MainActor
@@ -25,10 +25,6 @@ final class AuthManager: ObservableObject {
     @Published private(set) var returningAccount: Bool?
     @Published var isBusy = false
     @Published var errorMessage: String?
-    /// "로그인 없이 둘러보기"(게스트) 모드 — Android `GoogleAuthHelper.currentUserId == null` 상태 대응.
-    /// 익명 FirebaseAuth 세션은 규칙(request.auth != null) 통과용일 뿐 앱 사용자로 치지 않는다.
-    @Published var isGuest = false
-
     private var handle: AuthStateDidChangeListenerHandle?
 
     init() {
@@ -37,7 +33,13 @@ final class AuthManager: ObservableObject {
                 self?.uid = Self.appUserId(of: user)
                 self?.confirmedName = nil
                 self?.returningAccount = nil
-                if let user, !user.isAnonymous {
+                if let user, user.isAnonymous {
+                    // 이전 버전이 남긴 익명 세션 — 더 이상 지원하지 않으므로 로그아웃시켜 로그인 화면으로 보낸다.
+                    self?.displayName = ""
+                    self?.photoUrl = nil
+                    self?.profileSyncPending = false
+                    try? Auth.auth().signOut()
+                } else if let user {
                     let appUid = Self.appUserId(of: user) ?? user.uid
                     // 캐시된 커스텀 닉네임이 있으면 즉시 반영(기본=구글 이름). Firestore 값으로 ensureProfile 에서 확정.
                     let cached = UserDefaults.standard.string(forKey: "nickname_\(appUid)")
@@ -55,8 +57,7 @@ final class AuthManager: ObservableObject {
     /// 앱 데이터 식별자(userId) — **Google sub**(providerData google.com 의 uid).
     /// Android `GoogleAuthHelper` 가 userId = Google sub 를 쓰므로, 같은 구글 계정이 OS 와 무관하게
     /// 같은 계정으로 묶이려면 iOS 도 같은 값을 써야 한다(FirebaseAuth uid 는 프로젝트별 발급이라 별개 값).
-    /// ⚠️ **익명 세션은 nil** — Android 는 둘러보기에서 userId 가 null 이고(작성/댓글/친구 잠금),
-    ///    익명 로그인은 보안 규칙 통과용 세션일 뿐이다. iOS 도 같은 의미로 맞춘다.
+    /// ⚠️ **익명 세션은 nil** — 앱 사용자로 치지 않는다(옛 설치본 잔여 세션 방어).
     nonisolated static func appUserId(of user: User?) -> String? {
         guard let user, !user.isAnonymous else { return nil }
         if let sub = user.providerData.first(where: { $0.providerID == "google.com" })?.uid,
@@ -68,31 +69,8 @@ final class AuthManager: ObservableObject {
 
     var isSignedIn: Bool { uid != nil }
 
-    /// 본 화면(지도)에 들어갈 수 있는가 — 로그인했거나 게스트(둘러보기)면 true.
-    var canEnterApp: Bool { isSignedIn || isGuest }
-
-    /// 로그인 없이 둘러보기 — **Android 와 동일하게 로그인 없이 바로 진입한다.**
-    /// Firestore/Storage 규칙(`request.auth != null`)을 통과하려면 세션이 필요해 익명 로그인을 시도하지만
-    /// (Android `StaryApplication` 과 동일한 best-effort), 콘솔에서 익명 인증이 꺼져 있어 실패해도 **진입을 막지 않는다**.
-    /// (예전엔 실패 시 빨간 에러만 뜨고 화면이 넘어가지 않았다 — 2026-08-15 수정.)
-    func browseAsGuest() async {
-        isBusy = true
-        errorMessage = nil
-        // 스크린샷 촬영 모드는 서버에 닿지 않는다(익명 인증도 건너뜀 — Core/ScreenshotMode.swift).
-        if Auth.auth().currentUser == nil, !ScreenshotMode.isActive {
-            _ = try? await Auth.auth().signInAnonymously()
-        }
-        // anon = 익명 세션이 생겼는지 — 콘솔에서 익명 인증이 꺼져 있으면 0(둘러보기 지도가 비어 보인다).
-        StaryAnalytics.log("guest_browse", ["anon": Auth.auth().currentUser != nil])
-        isBusy = false
-        isGuest = true
-    }
-
-    /// 게스트 → 로그인 화면으로 되돌리기(드로어의 "로그인"). Android 드로어 `drawer_login` 대응.
-    func exitGuest() {
-        isGuest = false
-        try? Auth.auth().signOut()
-    }
+    /// 본 화면(지도)에 들어갈 수 있는가 — 로그인했거나 스크린샷 촬영 모드(서버에 닿지 않는 샘플 데이터)면 true.
+    var canEnterApp: Bool { isSignedIn || ScreenshotMode.entersWithoutLogin }
 
     /// 구글 로그인 → Firebase Auth credential 교환.
     func signInWithGoogle() async {
@@ -271,7 +249,6 @@ final class AuthManager: ObservableObject {
     }
 
     func signOut() {
-        isGuest = false
         // ⚠️ 인증이 살아 있는 지금 이 기기 토큰을 떼어낸다 — 로그아웃 뒤엔 규칙에 막혀 못 지운다.
         //    네트워크가 느려도 로그아웃이 막히지 않게 짧게(1.5초) 기다린 뒤 진행한다.
         let user = Auth.auth().currentUser
@@ -297,7 +274,7 @@ final class AuthManager: ObservableObject {
         isBusy = true
         defer { isBusy = false }
         do {
-            try await FirestoreService.users.document(uid).setData([
+            try await FirestoreService.users.safeDocument(uid).setData([
                 "deletionRequestedAt": FirestoreService.nowMillis,
                 "authUid": user.uid,
             ], merge: true)
@@ -312,7 +289,7 @@ final class AuthManager: ObservableObject {
     /// 삭제 예약 취소 — 유예 기간 내 재로그인 시 호출(fire-and-forget).
     static func cancelPendingDeletion(uid: String) async {
         guard !uid.isEmpty else { return }
-        try? await FirestoreService.users.document(uid).updateData([
+        try? await FirestoreService.users.safeDocument(uid).updateData([
             "deletionRequestedAt": FieldValue.delete()
         ])
     }
@@ -378,7 +355,7 @@ final class AuthManager: ObservableObject {
         isSyncingProfile = true
         defer { isSyncingProfile = false }
         let appUid = Self.appUserId(of: user) ?? user.uid
-        let ref = FirestoreService.users.document(appUid)
+        let ref = FirestoreService.users.safeDocument(appUid)
         // ⚠️ **"읽기 실패"와 "문서 없음"을 반드시 구분한다.** 그리고 읽기는 반드시 서버에서(fetchServerProfile 주석 참고).
         //    뭉뚱그리거나 캐시를 믿으면 아래 setData 가 커스텀 닉네임/사진을 **구글 기본값으로 덮어써** 버린다
         //    (다른 사람 화면에도 그 값이 그대로 나간다). Android `GoogleAuthHelper.signInWithGoogle` 과 동일한 방어.
@@ -446,14 +423,14 @@ final class AuthManager: ObservableObject {
     /// 기본값은 구글 닉네임이고 여기서 정한 값이 이후 우선한다. 빈 값은 무시. (Android setNickname 패리티)
     @discardableResult
     func setNickname(_ name: String) async -> Bool {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(AppConfig.nicknameMaxLen))
         guard let uid = uid, !trimmed.isEmpty else { return false }
         displayName = trimmed
         confirmedName = trimmed
         UserDefaults.standard.set(trimmed, forKey: "nickname_\(uid)")
         // 오프라인이면 서버 응답이 오지 않아 끝없이 기다렸다 — 쓰기는 이미 기기에 쌓였으니(연결되면 올라간다) 8초 뒤 안내만.
         // (Android GoogleAuthHelper.setNickname 과 같다)
-        let ref = FirestoreService.users.document(uid)
+        let ref = FirestoreService.users.safeDocument(uid)
         switch await withDeadline(seconds: 8, { try await ref.setData(["userName": trimmed], merge: true) }) {
         case .done: return true
         case .failed: return false

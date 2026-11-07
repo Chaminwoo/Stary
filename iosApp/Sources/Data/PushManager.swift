@@ -217,7 +217,7 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
             // 두 문서는 서로 독립적으로 쓴다 — 예전엔 앞 쓰기가 실패하면 서버가 실제로 쓰는 기기별 문서(fcmTokens)까지 건너뛰었다.
             var ok = true
             do {
-                try await FirestoreService.users.document(uid).setData([
+                try await FirestoreService.users.safeDocument(uid).setData([
                     "fcmToken": token,
                     "authUid": authUid,
                 ], merge: true)
@@ -226,7 +226,7 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
                 print("⚠️ fcmToken(users) 저장 실패: \(error.localizedDescription)")
             }
             do {
-                try await FirestoreService.fcmTokens(of: uid).document(token).setData([
+                try await FirestoreService.fcmTokens(of: uid).safeDocument(token).setData([
                     "platform": "ios",
                     "updatedAt": FirestoreService.nowMillis,
                     "lang": lang,
@@ -261,11 +261,11 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
     func clearToken(for uid: String) async {
         guard !uid.isEmpty, let token = fcmToken, !token.isEmpty else { return }
         do {
-            try await FirestoreService.fcmTokens(of: uid).document(token).delete()
+            try await FirestoreService.fcmTokens(of: uid).safeDocument(token).delete()
             // 예전 단일 필드는 값이 이 기기 것일 때만 지운다(다른 기기가 나중에 쓴 값은 보존).
-            let snap = try await FirestoreService.users.document(uid).getDocument()
+            let snap = try await FirestoreService.users.safeDocument(uid).getDocument()
             if snap.get("fcmToken") as? String == token {
-                try await FirestoreService.users.document(uid)
+                try await FirestoreService.users.safeDocument(uid)
                     .updateData(["fcmToken": FieldValue.delete()])
             }
             print("✅ fcmToken 해제 완료 users/\(uid) …\(token.suffix(8))")
@@ -313,15 +313,20 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
         if !recipientId.isEmpty, let mine = appUserId, recipientId != mine {
             completionHandler(); return
         }
-        let type = info["type"] as? String ?? ""
-        let chatFriendId = info["chatFriendId"] as? String ?? ""
-        let diaryId = info["diaryId"] as? String ?? ""
+        // 푸시 페이로드는 외부 값 — 누락·이상값·경로 문자가 든 id 는 비어 있는 것으로 본다.
+        func cleanId(_ key: String) -> String {
+            guard let v = info[key] as? String, v.count <= 128, FirestoreService.isValidId(v) else { return "" }
+            return v
+        }
+        let type = String((info["type"] as? String ?? "").prefix(40))
+        let chatFriendId = cleanId("chatFriendId")
+        let diaryId = cleanId("diaryId")
 
         if type == "DAILY_REMINDER" {
             PushRouter.shared.request(.upload)
         } else if !chatFriendId.isEmpty {
             PushRouter.shared.request(.chat(friendId: chatFriendId,
-                                            friendName: info["chatFriendName"] as? String ?? ""))
+                                            friendName: String((info["chatFriendName"] as? String ?? "").prefix(100))))
         } else if type == "FRIEND_REQUEST" {
             PushRouter.shared.request(.friends)
         } else if !diaryId.isEmpty {

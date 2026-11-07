@@ -83,7 +83,7 @@ final class NotificationsViewModel: ObservableObject {
             return
         }
         guard let id = n.id else { return }
-        try? await FirestoreService.notifications.document(id).delete()
+        try? await FirestoreService.notifications.safeDocument(id).delete()
     }
 
     func stop() {

@@ -39,7 +39,7 @@ final class ChatViewModel: ObservableObject {
                 } ?? []
             }
         guard !myUid.isEmpty else { return }
-        hiddenReg = FirestoreService.chatHidden(of: myUid).document(chatId)
+        hiddenReg = FirestoreService.chatHidden(of: myUid).safeDocument(chatId)
             .addSnapshotListener { [weak self] snap, error in
                 // 규칙 미배포(chatHidden 경로)면 권한 오류 — 숨김 없이 보여 주고 채팅은 계속 동작.
                 if let error { print("⚠️ chatHidden 구독 실패: \(error.localizedDescription)") }
@@ -56,7 +56,7 @@ final class ChatViewModel: ObservableObject {
     /// "보냈는데 안 가는" 상태를 알 수 없었다.
     @discardableResult
     func send(senderId: String, senderName: String, text: String) async -> Bool {
-        let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(AppConfig.chatMessageMaxLen))
         guard !body.isEmpty, !senderId.isEmpty else { return false }
         let now = FirestoreService.nowMillis
         // 방 메타 + 메시지를 **한 묶음**으로 쓴다(Android FirebaseChatRepository 와 같다). 예전엔 방 메타의 서버 응답을
@@ -70,7 +70,7 @@ final class ChatViewModel: ObservableObject {
             "lastSenderName": senderName, // 인앱 채팅 배너 발신자명
             "updatedAt": now,
             "lastReadAt": [senderId: now], // 보낸 사람은 읽은 것으로(Android 패리티)
-        ], forDocument: FirestoreService.chats.document(chatId), merge: true)
+        ], forDocument: FirestoreService.chats.safeDocument(chatId), merge: true)
         batch.setData([
             "senderId": senderId, "senderName": senderName, "text": body, "createdAt": now,
         ], forDocument: FirestoreService.messages(of: chatId).document())
@@ -94,7 +94,7 @@ final class ChatViewModel: ObservableObject {
     func deleteMessage(_ message: ChatMessage, myUid: String?) async -> Bool {
         guard canDelete(message, myUid: myUid), let id = message.id else { return false }
         do {
-            try await FirestoreService.messages(of: chatId).document(id).delete()
+            try await FirestoreService.messages(of: chatId).safeDocument(id).delete()
             return true
         } catch {
             print("⚠️ 메시지 삭제 실패: \(error.localizedDescription)")
@@ -111,7 +111,7 @@ final class ChatViewModel: ObservableObject {
         let remaining = allMessages.last { !after.hides($0) }
         let latestAt = max(allMessages.map(\.createdAt).max() ?? 0, message.createdAt)
         do {
-            try await FirestoreService.chatHidden(of: myUid).document(chatId).setData([
+            try await FirestoreService.chatHidden(of: myUid).safeDocument(chatId).setData([
                 "messageIds": FieldValue.arrayUnion([id]),
                 "previewFor": latestAt,
                 "previewText": remaining?.text ?? "",
@@ -139,12 +139,12 @@ final class ChatViewModel: ObservableObject {
     /// clearedAt 이 그 이전 것을 전부 가리므로 개별 숨김 id·미리보기 대체값은 비운다(문서가 계속 커지지 않게).
     static func clearChatForMe(myUid: String, chatId: String, upTo: Int64) async -> Bool {
         guard !myUid.isEmpty else { return false }
-        let meta = try? await FirestoreService.chats.document(chatId).getDocument()
+        let meta = try? await FirestoreService.chats.safeDocument(chatId).getDocument()
         let metaAt = (meta?.get("updatedAt") as? NSNumber)?.int64Value ?? 0
         let cut = max(upTo, metaAt)
         guard cut > 0 else { return true }
         do {
-            try await FirestoreService.chatHidden(of: myUid).document(chatId).setData([
+            try await FirestoreService.chatHidden(of: myUid).safeDocument(chatId).setData([
                 "clearedAt": cut,
                 "messageIds": [String](),
                 "previewFor": Int64(0),

@@ -261,7 +261,7 @@ fun SettingsScreen(
                     value = "",
                     onClick = { com.chaminwoo.stary.core.util.OnboardingReplayState.request() }
                 )
-                // 고칠 점 보내기 — 로그인한 사용자에게만(둘러보기 중엔 행 자체가 없다). feedback 컬렉션 규칙이 로그인 세션을 요구한다.
+                // 고칠 점 보내기 — 로그인한 사용자에게만. feedback 컬렉션 규칙이 로그인 세션을 요구한다.
                 if (myId != null) {
                     RowDivider()
                     NavRow(

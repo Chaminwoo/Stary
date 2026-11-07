@@ -32,7 +32,7 @@ enum ShareVideo {
         return await withTaskGroup(of: [Diary]?.self) { group in
             group.addTask {
                 let snap = try? await FirestoreService.diaries.whereField("userId", isEqualTo: uid).getDocuments()
-                return (snap?.documents ?? []).compactMap { try? $0.data(as: Diary.self) }
+                return (snap?.documents ?? []).compactMap { try? $0.data(as: Diary.self).sanitized() }
             }
             group.addTask {
                 try? await Task.sleep(nanoseconds: 2_500_000_000)

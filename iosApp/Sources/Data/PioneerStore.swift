@@ -17,14 +17,12 @@ final class PioneerStore: ObservableObject {
 
     private static var collection: CollectionReference { FirestoreService.db.collection(PioneerQuest.collection) }
 
+    /// 구독이 끊겨(권한 거부·인증 전환) 다시 붙인 횟수 — 상한을 두어 거부 상태에서 끝없이 돌지 않게 한다.
+    private var listenRetries = 0
+
     func start() {
         guard reg == nil else { return }
-        reg = Self.collection.addSnapshotListener { [weak self] snap, _ in
-            let map = snap?.documents.reduce(into: [String: String]()) { acc, d in
-                acc[d.documentID] = d.get("userId") as? String ?? ""
-            } ?? [:]
-            Task { @MainActor in self?.claimedBy = map }
-        }
+        listen()
         // 주 경계가 지나면 활성 대상국이 바뀌므로 남은 시간만큼 자고 일어나 재평가시킨다
         // (시계 어긋남 방어로 1분~1시간 캡 — Android 비콘 루프와 동일 규칙).
         weekTask = Task { [weak self] in
@@ -33,6 +31,31 @@ final class PioneerStore: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(waitMs) * 1_000_000)
                 if Task.isCancelled { return }
                 self?.weekTick &+= 1
+            }
+        }
+    }
+
+    private func listen() {
+        reg = Self.collection.addSnapshotListener { [weak self] snap, err in
+            if err != nil {
+                // 끊긴 리스너는 다시 오지 않는다 — 로그인돼 있으면 몇 번만 천천히 다시 붙인다.
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.reg?.remove()
+                    self.reg = nil
+                    self.listenRetries += 1
+                    guard self.listenRetries <= 5, Auth.auth().currentUser != nil else { return }
+                    try? await Task.sleep(nanoseconds: UInt64(min(60, 3 * self.listenRetries * self.listenRetries)) * 1_000_000_000)
+                    if self.reg == nil, Auth.auth().currentUser != nil { self.listen() }
+                }
+                return
+            }
+            let map = snap?.documents.reduce(into: [String: String]()) { acc, d in
+                acc[d.documentID] = d.get("userId") as? String ?? ""
+            } ?? [:]
+            Task { @MainActor in
+                self?.listenRetries = 0
+                self?.claimedBy = map
             }
         }
     }
@@ -67,7 +90,7 @@ final class PioneerStore: ObservableObject {
         let active = PioneerQuest.activeCountry(nowMs: FirestoreService.nowMillis, claimedCodes: claimed)
         guard active?.code == code else { return }
         // 트랜잭션 선점 — 이미 주인이 있으면 아무 것도 하지 않는다.
-        let ref = collection.document(code)
+        let ref = collection.safeDocument(code)
         _ = try? await FirestoreService.db.runTransaction { tx, _ in
             let doc = try? tx.getDocument(ref)
             let owner = doc?.get("userId") as? String

@@ -94,6 +94,19 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     private static let nearPlane: Float = 0.3
     private static let trailCount = 5
     private static let sunDist: Float = 45
+    /// 해 스프라이트 크기(월드) — 원반 반지름은 텍스처의 0.20배. sunDiscRad 와 같이 볼 것. (Android SUN_SPRITE_SIZE)
+    private static let sunSpriteSize: Float = 2.0
+    /// 해 원반의 각반지름(라디안) — 지평선에 걸리는 판정의 단위. (Android SUN_DISC_RAD)
+    private static let sunDiscRad: Float = GlobeRenderer.sunSpriteSize * 0.20 / GlobeRenderer.sunDist
+    /// tan(fovy 42° / 2) — 지구 윤곽의 화면 반지름 계산용.
+    private static let tanHalfFov: Float = 0.38386
+    /// 빛번짐 반지름 = 지구 화면 반지름 × 이 값(화면 짧은 변 대비 glareMin~glareMax 로 제한).
+    private static let glareEarthRatio: Float = 1.4
+    private static let glareMin: Float = 0.62
+    private static let glareMax: Float = 0.85
+    private static let raysCount = 24
+    /// 빛살 텍스처를 이 배수로 구워 8비트 계단을 줄이고 셰이더가 나눈다. glareFragment 의 2.5 와 같은 값.
+    private static let raysGain: CGFloat = 2.5
     /// 대기광 셸 반지름(지구=1) / 성운 하늘 구 반지름 / 다이어리 불빛 덮어 그리기 불투명도(Android ATMO_SCALE·SKY_RADIUS·*_PIN_GAIN).
     private static let atmoScale: Float = 1.16
     private static let skyRadius: Float = 80
@@ -162,6 +175,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     private let skyPipeline: MTLRenderPipelineState    // 은하수 성운 하늘 구(불투명, 깊이 무시)
     private let atmoPipeline: MTLRenderPipelineState   // 푸른 대기광(더하기)
     private let pinPipeline: MTLRenderPipelineState    // 다이어리 불빛 덮어 그리기(ONE, ONE_MINUS_SRC_ALPHA)
+    private let glarePipeline: MTLRenderPipelineState  // 해 빛번짐·빛살 — 지구 위까지 번지는 화면 공간 사각형(더하기)
     private let depthOff: MTLDepthStencilState
     private let depthTestWrite: MTLDepthStencilState
     private let depthTestOnly: MTLDepthStencilState
@@ -174,6 +188,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     private var sparkTex: MTLTexture?   // 다이어리 점광 — 또렷한 심지 + 가는 십자 광선(퍼지는 원형 글로우 대신)
     private var starTex: MTLTexture?    // 다이어리 인기 별 — 같은 계열의 큰 4-포인트 별빛
     private var sunTex: MTLTexture?
+    private var raysTex: MTLTexture?
     private var skyTex: MTLTexture?
 
     private var earthVB: MTLBuffer?
@@ -310,7 +325,8 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
               let ring = pipeline("ringVertex", "ringFragment", 1),
               let sky = pipeline("earthVertex", "skyFragment", 0),
               let atmo = pipeline("earthVertex", "atmoFragment", 1),
-              let pin = pipeline("spriteVertex", "pinFragment", 3)
+              let pin = pipeline("spriteVertex", "pinFragment", 3),
+              let glare = pipeline("glareVertex", "glareFragment", 1)
         else { return nil }
         spritePipeline = sprite
         linePipeline = line
@@ -319,6 +335,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         skyPipeline = sky
         atmoPipeline = atmo
         pinPipeline = pin
+        glarePipeline = glare
 
         func depth(_ test: Bool, _ write: Bool) -> MTLDepthStencilState? {
             let d = MTLDepthStencilDescriptor()
@@ -360,6 +377,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
                                            crossLen: GlobeRenderer.starCrossLen, diagWeight: GlobeRenderer.starDiagWeight)
         }
         sunTex = makeGeneratedTexture(size: 256, draw: GlobeRenderer.drawSunTexture)
+        raysTex = makeGeneratedTexture(size: 1024, draw: GlobeRenderer.drawRaysTexture)
         buildStarfield()
         buildTrails()
         // 글로브 입장 30초 뒤 첫 확률 판정(Android onSurfaceCreated 동일).
@@ -474,6 +492,9 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         // 카메라 위치를 지구 좌표계로(모델은 순수 회전 → 역행렬 = 전치) — 대기 테두리·대기광이 시점을 따라간다.
         let camObj4 = model.transpose * SIMD4<Float>(0, 0, camDist, 1)
         let camObj = SIMD3<Float>(camObj4.x, camObj4.y, camObj4.z)
+        // 해·빛번짐·햇빛은 실시간 글로브 전용 — 공유 영상(스크립트)은 예전 그림 그대로.
+        let warm: Float = script == nil ? 1 : 0
+        let light = script == nil ? sunLight(sun: sun, camObj: camObj) : SunLight()
 
         // 0) 은하수 성운 하늘 — 가장 먼 배경(불투명, 깊이 무시). 별밭과 같이 모델 회전을 따른다.
         drawSky(enc, mvp: mvp)
@@ -489,9 +510,9 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         }
 
         // 2) 지구(불투명, 깊이 기록)
-        drawEarth(enc, mvp: mvp, sun: sun, camObj: camObj)
+        drawEarth(enc, mvp: mvp, sun: sun, camObj: camObj, warm: warm, light: light)
         // 2.7) 대기광 — 지구 윤곽에서 푸른빛이 번져 나가며 사라진다
-        drawAtmosphere(enc, mvp: mvp, camObj: camObj, sun: sun)
+        drawAtmosphere(enc, mvp: mvp, camObj: camObj, sun: sun, light: light)
 
         // 3) 트레일(깊이 테스트만 — 행성 뒤로 가려짐)
         for tr in trails { drawTrail(enc, tr, mvp: mvp, t: t) }
@@ -503,6 +524,9 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
                     pipeline: pinPipeline, gain: GlobeRenderer.glowPinGain, sparkle: 1)
         drawSprites(enc, flareVB, flareCount, starTex, vp: vp, model: model, t: t,
                     pipeline: pinPipeline, gain: GlobeRenderer.flarePinGain, sparkle: 1)
+
+        // 6) 해 빛번짐·빛살 — 지구와 별 위까지 번진다(해 원반 자체는 1.8 에서 그려 지구에 가려진다).
+        if script == nil { drawSunGlare(enc, vp: vp, model: model, sun: sun, vis: light.vis, t: t) }
 
         enc.endEncoding()
         return true
@@ -562,7 +586,8 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: count)
     }
 
-    private func drawEarth(_ enc: MTLRenderCommandEncoder, mvp: simd_float4x4, sun: SIMD3<Float>, camObj: SIMD3<Float>) {
+    private func drawEarth(_ enc: MTLRenderCommandEncoder, mvp: simd_float4x4, sun: SIMD3<Float>, camObj: SIMD3<Float>,
+                           warm: Float, light: SunLight) {
         guard let vb = earthVB, let ib = earthIB, let tex = earthTex, earthIndexCount > 0 else { return }
         enc.setRenderPipelineState(earthPipeline)
         enc.setDepthStencilState(depthTestWrite)
@@ -571,7 +596,8 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         GlobeRenderer.append(mvp, to: &u)
         u.append(1.0)
         setBytes(enc, vertex: u, index: 1)
-        setBytes(enc, fragment: [sun.x, sun.y, sun.z, fade, camObj.x, camObj.y, camObj.z], index: 0)
+        setBytes(enc, fragment: [sun.x, sun.y, sun.z, fade, camObj.x, camObj.y, camObj.z,
+                                 warm, light.arc, light.perp.x, light.perp.y, light.perp.z], index: 0)
         enc.setFragmentTexture(tex, index: 0)
         enc.setFragmentSamplerState(samplerRepeat, index: 0)
         enc.drawIndexedPrimitives(type: .triangle, indexCount: earthIndexCount, indexType: .uint32,
@@ -596,7 +622,8 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     }
 
     /// 대기광 — atmoScale 배 셸의 뒷면만 더하기 합성, 깊이 테스트로 지구 뒤는 가려진다(Android drawAtmosphere).
-    private func drawAtmosphere(_ enc: MTLRenderCommandEncoder, mvp: simd_float4x4, camObj: SIMD3<Float>, sun: SIMD3<Float>) {
+    private func drawAtmosphere(_ enc: MTLRenderCommandEncoder, mvp: simd_float4x4, camObj: SIMD3<Float>, sun: SIMD3<Float>,
+                                light: SunLight) {
         guard let vb = earthVB, let ib = earthIB, earthIndexCount > 0 else { return }
         enc.setRenderPipelineState(atmoPipeline)
         enc.setDepthStencilState(depthTestOnly)
@@ -605,7 +632,8 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         GlobeRenderer.append(mvp, to: &u)
         u.append(GlobeRenderer.atmoScale)
         setBytes(enc, vertex: u, index: 1)
-        setBytes(enc, fragment: [camObj.x, camObj.y, camObj.z, fade, GlobeRenderer.atmoScale, sun.x, sun.y, sun.z], index: 0)
+        setBytes(enc, fragment: [camObj.x, camObj.y, camObj.z, fade, GlobeRenderer.atmoScale, sun.x, sun.y, sun.z,
+                                 light.arc, light.perp.x, light.perp.y, light.perp.z], index: 0)
         enc.drawIndexedPrimitives(type: .triangle, indexCount: earthIndexCount, indexType: .uint32,
                                   indexBuffer: ib, indexBufferOffset: 0)
     }
@@ -651,10 +679,64 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         if sunBuiltFrac < 0 || abs(dayFrac - sunBuiltFrac) > 1 / 1440 {
             sunBuiltFrac = dayFrac
             var list: [Float] = []
-            GlobeGeometry.addSprite(&list, sun * GlobeRenderer.sunDist, 1, 1, 1, 1, size: 1.5, phase: 0.13, mode: 2)
+            GlobeGeometry.addSprite(&list, sun * GlobeRenderer.sunDist, 1, 1, 1, 1, size: GlobeRenderer.sunSpriteSize, phase: 0.13, mode: 2)
             sunVB = makeBuffer(list)
         }
         drawSprites(enc, sunVB, 6, sunTex, vp: vp, model: model, t: t)
+    }
+
+    /// 해가 얼마나 나와 있나(vis 0..1), 윤곽의 호 세기(arc 0..1), 화면에서 지구 중심 → 해 방향(perp, 지구 좌표계 단위벡터).
+    private struct SunLight {
+        var vis: Float = 0
+        var arc: Float = 0
+        var perp = SIMD3<Float>(0, 0, 0)
+    }
+
+    /// 지구 윤곽은 원이므로 각도만으로 계산한다(픽셀을 읽지 않는다). 카메라 뒤에 있으면 vis = arc = 0. Android updateSunLight 와 같은 식.
+    private func sunLight(sun: SIMD3<Float>, camObj: SIMD3<Float>) -> SunLight {
+        func step(_ a: Float, _ b: Float, _ x: Float) -> Float {
+            let u = min(max((x - a) / (b - a), 0), 1)
+            return u * u * (3 - 2 * u)
+        }
+        let dist = max(simd_length(camObj), 1.001)
+        let v = camObj / dist
+        let r = sun * GlobeRenderer.sunDist - camObj
+        let rl = simd_length(r)
+        let k = -simd_dot(r, v)
+        let along = k / rl                                   // 1 = 해가 지구 정중앙 뒤, 0 = 옆, 음수 = 카메라 뒤
+        let gap = acos(min(max(along, -1), 1)) - asin(1 / dist) // 양수 = 지구 바깥(라디안)
+        let p = r + v * k
+        let pl = simd_length(p)
+        let a = GlobeRenderer.sunDiscRad
+        var out = SunLight()
+        if pl > 1e-4 { out.perp = p / pl }
+        out.vis = along > 0 ? step(-1.1 * a, 0.9 * a, gap) : 0
+        let pre = step(-9 * a, -1.2 * a, gap)                // 해가 지평선 바로 뒤까지 오면 호가 먼저 환해진다
+        let farOff = 1 - step(0.16, 0.70, gap)               // 해가 지구에서 멀어지면 호는 사라진다
+        let centered = step(0, 0.02, pl / rl)                // 지구 정중앙 뒤면 방향이 없다
+        out.arc = (0.10 + 0.90 * pre) * farOff * centered
+        return out
+    }
+
+    /// 해 빛번짐·빛살 — 해를 중심으로 한 화면 공간 사각형을 더하기 합성. 크기는 지구 윤곽에 맞춰 키우되 화면 폭 기준으로 제한한다. Android drawSunGlare.
+    private func drawSunGlare(_ enc: MTLRenderCommandEncoder, vp: simd_float4x4, model: simd_float4x4,
+                              sun: SIMD3<Float>, vis: Float, t: Float) {
+        guard vis > 0.004, let tex = raysTex else { return }
+        let s = sun * GlobeRenderer.sunDist
+        let clip = vp * model * SIMD4<Float>(s.x, s.y, s.z, 1)
+        guard clip.w > 0.001 else { return }
+        let w = viewportSize.x
+        let h = viewportSize.y
+        let minDim = min(w, h)
+        let earthPx = tan(asin(1 / max(camDist, 1.001))) / GlobeRenderer.tanHalfFov * h / 2
+        let radius = min(max(earthPx * GlobeRenderer.glareEarthRatio, minDim * GlobeRenderer.glareMin), minDim * GlobeRenderer.glareMax)
+        enc.setRenderPipelineState(glarePipeline)
+        enc.setDepthStencilState(depthOff)
+        setBytes(enc, vertex: [clip.x / clip.w, clip.y / clip.w, radius / (w / 2), radius / (h / 2)], index: 1)
+        setBytes(enc, fragment: [vis, fade, t * 0.012], index: 0)
+        enc.setFragmentTexture(tex, index: 0)
+        enc.setFragmentSamplerState(samplerClamp, index: 0)
+        enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
     }
 
     // MARK: 유성 (Android drawMeteor / emitSparks / spawnMeteor)
@@ -1306,6 +1388,34 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         glow(0.20, [0xFFFF_F8E8, 0xFFFF_EFC8, 0xE8FF_D9A0, 0x60E8_B060, 0x0000_0000], [0, 0.55, 0.80, 0.94, 1])
     }
 
+    /// 빛살 — 해에서 뻗는 가는 쐐기들(중심에서 끝으로 옅어진다). 번짐은 셰이더가 계산하고 여기엔 빛살만 굽는다.
+    /// JavaRandom(9) 로 Android makeRaysBitmap 과 같은 순서로 뽑는다. CG 는 y 가 위로 커지고 텍스처 윗줄은 y 최대라 sin 부호를 뒤집어 같은 방향을 맞춘다.
+    private static func drawRaysTexture(_ cg: CGContext, _ s: CGFloat) {
+        var rnd = JavaRandom(9)
+        let cx = s / 2
+        let center = CGPoint(x: cx, y: cx)
+        let space = CGColorSpaceCreateDeviceRGB()
+        cg.setBlendMode(.plusLighter)
+        for _ in 0..<raysCount {
+            let a = CGFloat(rnd.nextFloat()) * 2 * .pi
+            let u = CGFloat(rnd.nextFloat())
+            let l = (0.19 + u * u * u * 0.79) * cx
+            let wid = 0.006 + CGFloat(rnd.nextFloat()) * 0.018
+            let pa = min((0.05 + CGFloat(rnd.nextFloat()) * 0.16) * raysGain, 1)
+            let colors = [UIColor(red: 1, green: 0xE9 / 255.0, blue: 0xC4 / 255.0, alpha: pa).cgColor,
+                          UIColor(red: 1, green: 0xD2 / 255.0, blue: 0x7A / 255.0, alpha: 0).cgColor] as CFArray
+            guard let g = CGGradient(colorsSpace: space, colors: colors, locations: [0, 1]) else { continue }
+            cg.saveGState()
+            cg.move(to: center)
+            cg.addLine(to: CGPoint(x: cx + cos(a - wid) * l, y: cx - sin(a - wid) * l))
+            cg.addLine(to: CGPoint(x: cx + cos(a + wid) * l, y: cx - sin(a + wid) * l))
+            cg.closePath()
+            cg.clip()
+            cg.drawRadialGradient(g, startCenter: center, startRadius: 0, endCenter: center, endRadius: l, options: [])
+            cg.restoreGState()
+        }
+    }
+
     // MARK: 셰이더 (Metal Shading Language — Android GLSL 과 같은 식)
 
     private static let shaderSource = """
@@ -1422,7 +1532,7 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
     //  ① 태양 방향 조명이 핵심(낮 = 밝은 푸른 유리 + 림, 밤 = 훨씬 어둡다)  ② 바다 = 깊고 어둡고 반사 없음(정면이 가장 깊고, 해안 근처만 대륙붕처럼 옅게)
     //  ③ 육지 = 얼음 유리(조금 어둡게) + 해안 모서리 빛 + 서리 + 환경 반사(노이즈로 흔든 법선의 반사 벡터, 동그란 하이라이트 없음)
     //  ④ 림은 태양 쪽이 0.18 → 1.0 으로 밝다. 도시 불빛은 제거.
-    // f: [0..2] 태양 방향(지구 좌표계) [3] 페이드 [4..6] 카메라 위치(지구 좌표계)
+    // f: [0..2] 태양 방향(지구 좌표계) [3] 페이드 [4..6] 카메라 위치(지구 좌표계) [7] 햇빛 표현(실시간 1, 공유 영상 0) [8] 호 세기 [9..11] 화면에서 해 쪽 방향
     static float hash3(float3 p) { return fract(sin(dot(p, float3(127.1, 311.7, 74.7))) * 43758.5453); }
     static float vnoise(float3 p) {
         float3 i = floor(p);
@@ -1434,6 +1544,14 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
                        mix(hash3(i + float3(0.0, 1.0, 1.0)), hash3(i + float3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
     }
     static float fbm(float3 p) { return 0.55 * vnoise(p) + 0.30 * vnoise(p * 2.07 + 3.1) + 0.15 * vnoise(p * 4.3 + 7.7); }
+
+    // 지구 윤곽의 호 색 — a = 화면에서 해 쪽과 이루는 각의 코사인(1 = 해 바로 앞). 백열 → 금 → 분홍 → 푸른빛 → 0. Android SUN_ARC_GLSL.
+    static float3 sunArcColor(float a) {
+        float3 c = float3(0.29, 0.55, 1.0) * 0.55 * smoothstep(0.55, 0.78, a);
+        c = mix(c, float3(1.0, 0.50, 0.66) * 0.90, smoothstep(0.76, 0.90, a));
+        c = mix(c, float3(1.0, 0.82, 0.48), smoothstep(0.90, 0.972, a));
+        return mix(c, float3(1.0, 0.96, 0.86), smoothstep(0.972, 0.997, a));
+    }
 
     fragment float4 earthFragment(EarthOut in [[stage_in]],
                                   texture2d<float> tex [[texture(0)]],
@@ -1471,12 +1589,32 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         float3 n2 = normalize(n + 0.30 * nz);
         float3 Rv = reflect(-V, n2);
         float refl = pow(clamp(dot(Rv, sunDir), 0.0, 1.0), 2.6) * (0.30 + 0.70 * vnoise(n * 46.0 + 2.2)) * smoothstep(-0.1, 0.4, sunD);
-        c += fill * refl * 0.48 * float3(0.60, 0.80, 1.0);
+        float uWarm = f[7];
+        float uArc = f[8];
+        float3 uSunPerp = float3(f[9], f[10], f[11]);
+        c += fill * refl * 0.48 * mix(float3(0.60, 0.80, 1.0), float3(1.0, 0.84, 0.60), 0.55 * uWarm);
         c += fill * pow(edge, 1.8) * (0.30 + 0.70 * day) * 0.42 * float3(0.45, 0.68, 1.0);       // 육지 프레넬 코팅
         // 림 — 태양 쪽 가장자리가 훨씬 밝다
         float rimLit = 0.30 + 0.70 * smoothstep(-0.35, 0.65, sunD);
         c += pow(edge, 2.6) * rimLit * 1.5 * float3(0.20, 0.38, 0.90);
         c += pow(smoothstep(0.72, 1.0, edge), 2.0) * 1.05 * rimLit * float3(0.50, 0.75, 1.0);    // 윤곽선(굴절 가장자리)
+        // 햇빛 — 낮 쪽 표면에 따뜻한 빛(넓게, 둥근 점 없이) + 밤낮 경계의 노을 띠 + 해 쪽 윤곽의 금·분홍 호
+        float lit = day * day;
+        c += uWarm * fill * lit * float3(0.090, 0.052, 0.0);
+        c += uWarm * lit * float3(0.014, 0.022, 0.048);
+        c += uWarm * pow(max(sunD, 0.0), 3.0) * float3(0.030, 0.019, 0.006);
+        c += uWarm * lit * pow(edge, 2.4) * float3(0.42, 0.27, 0.10);
+        float dusk = (sunD - 0.02) / 0.16;
+        c += uWarm * exp(-dusk * dusk) * float3(0.042, 0.015, 0.030);
+        float3 axis = normalize(camObj);
+        float3 np = n - axis * dot(n, axis);
+        float npLen = length(np);                         // 0 = 화면 중심, 1 = 지구 끝
+        float arcA = dot(np, uSunPerp) / max(npLen, 0.001);
+        float arcE = smoothstep(0.45, 1.0, edge);
+        c += sunArcColor(arcA) * uArc * (arcE * arcE * arcE * 1.6 + pow(edge, 2.0) * 0.10);
+        // 역광 — 해가 지구 끝에 걸리면 표면 전체가 푸르게 살짝 뜨고, 해 쪽으로 분홍·보랏빛이 번진다
+        float toward = pow(clamp(arcA * 0.5 + 0.5, 0.0, 1.0), 14.0) * smoothstep(0.30, 1.0, npLen);
+        c += uArc * (float3(0.010, 0.020, 0.070) + toward * float3(0.26, 0.11, 0.27));
         c += (grain(in.position.xy) - 0.5) * (1.5 / 255.0);
         return float4(max(c, float3(0.0)) * f[3], 1.0);
     }
@@ -1490,16 +1628,65 @@ final class GlobeRenderer: NSObject, MTKViewDelegate {
         return float4(max(c, float3(0.0)), 1.0);
     }
 
-    // 대기광 — 셸의 뒷면(지구 너머)만. d: 셸 윤곽 0 → 지구 윤곽 ≈ 0.5. f: [0..2] 카메라(지구 좌표계) [3] 페이드 [4] 셸 배율
+    // 대기광 — 셸의 뒷면(지구 너머)만. d: 셸 윤곽 0 → 지구 윤곽 ≈ 0.5. f: [0..2] 카메라(지구 좌표계) [3] 페이드 [4] 셸 배율 [5..7] 태양 방향 [8] 호 세기 [9..11] 화면에서 해 쪽 방향
     fragment float4 atmoFragment(EarthOut in [[stage_in]],
                                  constant float *f [[buffer(0)]]) {
         float3 camObj = float3(f[0], f[1], f[2]);
         float3 p = in.n * f[4];
         float d = -dot(normalize(in.n), normalize(camObj - p));
         if (d <= 0.0) { discard_fragment(); }
-        float i = pow(clamp(d / 0.5, 0.0, 1.0), 3.2);
-        float side = 0.30 + 0.70 * smoothstep(-0.2, 0.8, dot(normalize(in.n), float3(f[5], f[6], f[7]))); // 태양 쪽 가장자리가 더 환하다
-        return float4(float3(0.42, 0.62, 1.0) * i * 0.34 * side * f[3], 1.0); // 푸른 대기광(유리 지구의 림 빛과 이어진다 — Android ATMO_FS 와 같은 값)
+        float e = clamp(d / 0.5, 0.0, 1.0);
+        float i = pow(e, 3.2);
+        float3 n = normalize(in.n);
+        float side = 0.30 + 0.70 * smoothstep(-0.2, 0.8, dot(n, float3(f[5], f[6], f[7]))); // 태양 쪽 가장자리가 더 환하다
+        float3 axis = normalize(camObj);
+        float3 np = n - axis * dot(n, axis);
+        float arcA = dot(np, float3(f[9], f[10], f[11])) / max(length(np), 0.001);
+        float3 arc = sunArcColor(arcA) * f[8] * (pow(e, 2.4) * 0.36 + pow(e, 9.0) * 0.72);
+        return float4((float3(0.42, 0.62, 1.0) * i * 0.34 * side + arc) * f[3], 1.0); // 푸른 대기광(유리 지구의 림 빛과 이어진다) + 호 — Android ATMO_FS 와 같은 값
+    }
+
+    // ── 해 빛번짐·빛살 — GLARE_VS / GLARE_FS. u: [0,1] 해의 NDC 중심 [2,3] 반지름. p 는 해 기준 -1..1. ──
+    struct GlareOut {
+        float4 position [[position]];
+        float2 p;
+    };
+
+    vertex GlareOut glareVertex(uint vid [[vertex_id]],
+                                constant float *u [[buffer(1)]]) {
+        float2 corner = float2((vid & 1) != 0 ? 1.0 : -1.0, (vid & 2) != 0 ? 1.0 : -1.0);
+        GlareOut o;
+        o.p = corner;
+        o.position = float4(u[0] + corner.x * u[2], u[1] + corner.y * u[3], 0.0, 1.0);
+        return o;
+    }
+
+    static float2 turn(float2 p, float a) {
+        float c = cos(a);
+        float s = sin(a);
+        return float2(c * p.x - s * p.y, s * p.x + c * p.y);
+    }
+
+    // f: [0] 해가 나온 정도 [1] 페이드 [2] 빛살 회전
+    fragment float4 glareFragment(GlareOut in [[stage_in]],
+                                  texture2d<float> tex [[texture(0)]],
+                                  sampler smp [[sampler(0)]],
+                                  constant float *f [[buffer(0)]]) {
+        float d = length(in.p);
+        // 큰 빛번짐 — 크림 → 분홍 → 옅은 보라. 가우시안이라 경계가 없다(주황 구간을 두면 갈색 원판처럼 보인다).
+        float d2 = d * d;
+        float3 g = float3(1.0, 0.851, 0.627) * 0.46 * exp(-d2 / 0.012);
+        g += float3(1.0, 0.50, 0.58) * 0.135 * exp(-d2 / 0.070);
+        g += float3(0.60, 0.40, 1.0) * 0.060 * exp(-d2 / 0.260);
+        g *= 1.0 - smoothstep(0.62, 1.0, d);
+        // 해 바로 둘레 — 지구 끝을 넘어 번지는 백열
+        g += float3(1.0, 0.93, 0.80) * pow(max(1.0 - d / 0.14, 0.0), 3.0) * 0.85;
+        // 빛살 — 같은 그림을 서로 반대로 아주 천천히 돌려 겹친다. 해가 가려질수록 짧아진다. 2.5 = raysGain.
+        float2 q = in.p / (0.5 + 0.5 * f[0]);
+        float3 r = tex.sample(smp, turn(q, f[2]) * 0.5 + 0.5).rgb + tex.sample(smp, turn(q, 1.31 - f[2]) * 0.5 + 0.5).rgb;
+        float3 c = (g + r / 2.5) * f[0] * f[1];
+        c += (grain(in.position.xy) - 0.5) / 255.0 * (1.0 - smoothstep(0.7, 1.0, d));
+        return float4(max(c, float3(0.0)), 1.0);
     }
 
     // ── 궤적 트레일 — RING_VS / RING_FS ──

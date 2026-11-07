@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.feature.starlight
 
+import com.chaminwoo.stary.data.safeDecode
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -239,7 +240,7 @@ object StarlightStore {
         itemsReg = db().collection(ITEMS).addSnapshotListener { q, e ->
             if (e != null) return@addSnapshotListener retry(uid, "뽑기 풀", e)
             if (q == null || this.uid != uid) return@addSnapshotListener
-            items = q.documents.mapNotNull(::parseItem).sortedWith(compareBy({ RARITIES.indexOf(it.rarity) }, { it.order }))
+            items = q.documents.mapNotNull { d -> safeDecode("StarlightItem") { parseItem(d) } }.sortedWith(compareBy({ RARITIES.indexOf(it.rarity) }, { it.order }))
             itemIndex = items.associateBy { it.id }
             items.forEach(::teach)
         }

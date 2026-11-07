@@ -14,6 +14,7 @@ struct StaryApp: App {
     
     init() {
         if FirebaseApp.app() == nil {
+            StaryAppCheck.install() // configure 이전에(모니터링 전용 — Core/AppCheckSetup.swift)
             FirebaseApp.configure()
         }
 
@@ -108,7 +109,8 @@ struct StaryApp: App {
                 .tint(Theme.navyAccent)
                 .onOpenURL { url in
                     if let link = Self.appLink(url) {
-                        guard !link.id.isEmpty, link.id != "/" else { return }
+                        // 링크 id 는 외부 값 — 경로 문자가 든 것·너무 긴 것은 버린다(Firestore 경로 크래시 방어).
+                        guard link.id.count <= 128, FirestoreService.isValidId(link.id) else { return }
                         switch link.host {
                         case AppConfig.deepLinkHostDiary:
                             // 공유 랜딩 딥링크 → 지도 탭 전환 + 그 별로 포커스(체크리스트 30).

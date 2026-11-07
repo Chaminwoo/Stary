@@ -87,3 +87,82 @@ fun Diary.localizedContent(lang: String): String =
 /** [lang] 로 보여 주는 글이 원문과 다른가(= "번역됨" 표시/원문 보기 토글이 필요한가). */
 fun Diary.isTranslatedFor(lang: String): Boolean =
     localizedTitle(lang) != title || localizedContent(lang) != content
+
+/**
+ * 서버에서 읽은 다이어리를 화면·지도에 쓰기 전에 거르는 방어선 한도.
+ * 앱의 입력 제한(제목 30 · 본문 2000 — [com.chaminwoo.stary.shared.config.StaryConfig])보다 넉넉하게 잡아, 정상 글은 그대로 두고
+ * 비정상적으로 큰 값만 잘라 메모리·렌더 부담을 막는다.
+ */
+object DiaryLimits {
+    const val TITLE = 100
+    const val CONTENT = 4000
+    const val USER_NAME = 60
+    const val URL = 2048
+    const val STAR_PATH = 2000
+    const val STAR_COLORS = 3
+    const val RING = 64
+    const val TRANSLATION_ENTRIES = 8
+    const val LANG_KEY = 12
+    const val COUNT_MAX = 1_000_000_000
+    /** 지도 정렬에서 "미래"로 보아 제외하는 여유(하루). */
+    const val FUTURE_SLACK_MS = 24L * 60 * 60 * 1000
+}
+
+private fun String.clip(max: Int): String {
+    if (length <= max) return this
+    // 서로게이트 쌍 한가운데를 자르지 않는다.
+    val cut = if (this[max - 1].isHighSurrogate()) max - 1 else max
+    return substring(0, cut)
+}
+
+private val HEX_COLOR = Regex("^#[0-9A-Fa-f]{6}$")
+
+/** 위도·경도가 유한하고 범위 안인가 — 아니면 지도에 올리지 않는다. */
+fun Diary.hasValidLocation(): Boolean =
+    latitude.isFinite() && longitude.isFinite() &&
+        latitude >= -90.0 && latitude <= 90.0 && longitude >= -180.0 && longitude <= 180.0
+
+/** 작성 시각이 [nowMs] 보다 하루 넘게 미래인가 — 지도 정렬 맨 위에 고정되는 것을 막으려고 지도에서 제외한다. */
+fun Diary.isFutureDated(nowMs: Long): Boolean = createdAt > nowMs + DiaryLimits.FUTURE_SLACK_MS
+
+private fun Map<String, String>.clipMap(max: Int): Map<String, String> =
+    entries.asSequence()
+        .filter { it.key.length <= DiaryLimits.LANG_KEY }
+        .take(DiaryLimits.TRANSLATION_ENTRIES)
+        .associate { it.key to it.value.clip(max) }
+
+/**
+ * 외부(Firestore)에서 온 값을 안전한 범위로 정리한 복사본. 던지지 않는다.
+ *  - 좌표가 비정상이면 0/0 으로 둔다(지도 사용 여부는 [hasValidLocation] 으로 따로 판단 — 이 함수 호출 **전** 원본에서).
+ *  - 음수 카운트 → 0, 문자열 길이 상한, 알 수 없는 공개 범위는 "private"(남에게 보이지 않는 쪽).
+ *  - 미디어 URL 은 https 만, 별 경로·색·고리·번역 맵은 개수·길이를 제한한다.
+ */
+fun Diary.sanitized(): Diary = copy(
+    userId = userId.clip(128),
+    userName = userName.clip(DiaryLimits.USER_NAME),
+    title = title.clip(DiaryLimits.TITLE),
+    content = content.clip(DiaryLimits.CONTENT),
+    imageUrl = imageUrl.takeIf { it.length <= DiaryLimits.URL && it.startsWith("https://") }.orEmpty(),
+    videoUrl = videoUrl.takeIf { it.length <= DiaryLimits.URL && it.startsWith("https://") }.orEmpty(),
+    latitude = if (hasValidLocation()) latitude else 0.0,
+    longitude = if (hasValidLocation()) longitude else 0.0,
+    createdAt = createdAt.coerceAtLeast(0L),
+    likeCount = likeCount.coerceIn(0, DiaryLimits.COUNT_MAX),
+    commentCount = commentCount.coerceIn(0, DiaryLimits.COUNT_MAX),
+    viewCount = viewCount.coerceIn(0, DiaryLimits.COUNT_MAX),
+    starType = starType.coerceIn(0, 9999),
+    starColor = starColor.coerceIn(0, 9999),
+    starPath = starPath.takeIf { it.length <= DiaryLimits.STAR_PATH }.orEmpty(),
+    starColors = starColors.asSequence().filter { HEX_COLOR.matches(it) }.take(DiaryLimits.STAR_COLORS).toList(),
+    visibilityType = if (visibilityType == "public" || visibilityType == "friends" || visibilityType == "private") visibilityType else "private",
+    ring = ring.clip(DiaryLimits.RING),
+    translations = translations?.let { t ->
+        t.copy(
+            sourceLang = t.sourceLang.clip(DiaryLimits.LANG_KEY),
+            title = t.title.clipMap(DiaryLimits.TITLE),
+            content = t.content.clipMap(DiaryLimits.CONTENT),
+            status = t.status.clip(16),
+            srcHash = t.srcHash.clip(64),
+        )
+    },
+)

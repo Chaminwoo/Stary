@@ -3,6 +3,7 @@ package com.chaminwoo.stary.core.util
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.chaminwoo.stary.R
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.ktx.storage
@@ -22,14 +23,12 @@ object ImageUploadHelper {
     }
 
     suspend fun uploadImageResult(context: Context, imageUri: Uri): Result {
-        // Storage 보안 규칙(request.auth != null)을 통과하려면 인증 세션이 필요하다.
-        // 익명 로그인이 Application 에서 fire-and-forget 로 시작되므로 업로드 시점엔
-        // 아직 세션이 없을 수 있다 → 여기서 보장한다.
+        // 업로드는 로그인한 사용자만 가능하다.
         try {
             ensureAuthenticated()
         } catch (e: Exception) {
-            Log.e(TAG, "인증 세션 확보 실패", e)
-            return Result(null, "로그인 세션을 만들 수 없어요(콘솔에서 익명 인증 활성화 필요): ${e.localizedMessage}")
+            Log.w(TAG, "인증 세션 없음")
+            return Result(null, context.getString(R.string.common_login_required))
         }
 
         return try {
@@ -56,8 +55,8 @@ object ImageUploadHelper {
         try {
             ensureAuthenticated()
         } catch (e: Exception) {
-            Log.e(TAG, "인증 세션 확보 실패", e)
-            return Result(null, "로그인 세션을 만들 수 없어요(콘솔에서 익명 인증 활성화 필요): ${e.localizedMessage}")
+            Log.w(TAG, "인증 세션 없음")
+            return Result(null, context.getString(R.string.common_login_required))
         }
         return try {
             val contentType = context.contentResolver.getType(videoUri) ?: "video/mp4"
@@ -85,8 +84,8 @@ object ImageUploadHelper {
         try {
             ensureAuthenticated()
         } catch (e: Exception) {
-            Log.e(TAG, "인증 세션 확보 실패", e)
-            return Result(null, "로그인 세션을 만들 수 없어요(콘솔에서 익명 인증 활성화 필요): ${e.localizedMessage}")
+            Log.w(TAG, "인증 세션 없음")
+            return Result(null, context.getString(R.string.common_login_required))
         }
         return try {
             val ref = Firebase.storage.reference.child("diary_images/${UUID.randomUUID()}.gif")
@@ -101,11 +100,9 @@ object ImageUploadHelper {
         }
     }
 
-    /** Firebase Auth 세션이 없으면 익명 로그인으로 만든다(이미 있으면 즉시 반환). */
-    suspend fun ensureAuthenticated() {
-        val auth = FirebaseAuth.getInstance()
-        if (auth.currentUser == null) {
-            auth.signInAnonymously().await()
-        }
+    /** 로그인(비익명) 세션이 아니면 예외. */
+    fun ensureAuthenticated() {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || user.isAnonymous) throw IllegalStateException("not signed in")
     }
 }

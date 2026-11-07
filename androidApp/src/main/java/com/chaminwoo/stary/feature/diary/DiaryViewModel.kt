@@ -7,6 +7,7 @@ import com.chaminwoo.stary.core.model.Diary
 import com.chaminwoo.stary.core.util.LocationHelper
 import com.chaminwoo.stary.core.util.launchSafely
 import com.chaminwoo.stary.data.repository.FirebaseDiaryRepository
+import com.chaminwoo.stary.feature.auth.GoogleAuthHelper
 import com.chaminwoo.stary.shared.data.repository.DiaryRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,7 +81,8 @@ class DiaryViewModel(
     fun getMyDiaries(userId: String): StateFlow<List<Diary>> =
         myDiariesCache.getOrPut(userId) {
             val ready = myReadyFlags.getOrPut(userId) { MutableStateFlow(false) }
-            repository.observeMyDiaries(userId)
+            // 내 글은 userId 동등 쿼리, 남의 글은 공개 + 친구 공개 두 쿼리(서버 규칙이 나만 보기를 막는다).
+            (if (userId == GoogleAuthHelper.currentUserId) repository.observeMyDiaries(userId) else repository.observeUserDiaries(userId))
                 .onEach { ready.value = true }
                 .stateIn(
                     scope = viewModelScope,

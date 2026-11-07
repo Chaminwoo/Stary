@@ -5,7 +5,7 @@ import SwiftUI
 /// 번들에 담긴 로고 이미지(에셋 카탈로그가 아닌 loose png 라 UIImage 로 로드).
 private let appLogo: UIImage = UIImage(named: "logo") ?? UIImage()
 
-/// 첫 진입 — 인트로 영상 후 구글 로그인 / 둘러보기.
+/// 첫 진입 — 인트로 영상 후 구글·Apple 로그인.
 /// Android `LoginScreen` 대응: 무음 인트로 영상 1회 재생 → 페이드인 → 빛나는 후광 로고 + 하단 버튼.
 ///
 /// ⚠️ 인트로는 **로그인 화면에 들어올 때마다**(로그아웃 후 재입장 포함) 처음부터 재생하고,
@@ -21,7 +21,7 @@ struct LoginView: View {
     @State private var haloScale: CGFloat = 1
 
     // ── 이용약관(EULA) 동의 게이트 — App Store Guideline 1.2(2026-09-26), Android LoginScreen 패리티 ──
-    // 로그인/둘러보기를 누르면, 아직 동의하지 않았을 때 약관을 먼저 띄우고 "동의하고 계속" 뒤에 원래 동작을 잇는다.
+    // 로그인 버튼을 누르면, 아직 동의하지 않았을 때 약관을 먼저 띄우고 "동의하고 계속" 뒤에 원래 동작을 잇는다.
     @State private var termsAccepted = TermsConsent.isAccepted
     @State private var pendingAction: (() -> Void)?
     @State private var showTermsView = false
@@ -147,17 +147,6 @@ struct LoginView: View {
                             .contentShape(Capsule())
                             .onTapGesture { withConsent { StaryAnalytics.log("login_apple_tap"); auth.startAppleSignIn() } }
                     }
-                }
-
-                Button {
-                    // 로그인 없이 둘러보기 — 익명 세션은 best-effort, 실패해도 진입한다(Android 동일).
-                    withConsent { Task { await auth.browseAsGuest() } }
-                } label: {
-                    Text(LocaleManager.shared.t(.loginBrowse))
-                        .font(.minSans(14))
-                        .foregroundStyle(Theme.mint)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
                 }
 
                 // 이메일 로그인(심사용 데모 계정 — Guideline 2.1) · 이용약관 보기. 작은 글씨 링크 한 줄.

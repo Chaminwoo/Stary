@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.safeDecode
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.shared.config.PioneerQuest
 import com.chaminwoo.stary.shared.config.StaryConfig
@@ -27,19 +28,32 @@ class FirebasePioneerRepository {
 
     /** 모든 나라의 개척 현황 실시간 구독. (countryCode → 기록) */
     fun observeClaims(): Flow<Map<String, PioneerClaim>> = callbackFlow {
-        val reg = col.addSnapshotListener { snap, err ->
+        // 지도는 로그인 화면 뒤에서 먼저 그려질 수 있다 — 로그인 전에는 구독하지 않고, 인증 상태가 바뀔 때마다 다시 건다.
+        var reg: com.google.firebase.firestore.ListenerRegistration? = null
+        fun attach() {
+            reg?.remove()
+            reg = null
+            val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            if (user == null || user.isAnonymous) return
+            reg = col.addSnapshotListener { snap, err ->
             if (err != null) return@addSnapshotListener // 권한/네트워크 에러로 죽지 않게 무시
-            val map = snap?.documents?.associate { d ->
+            val map = snap?.documents?.mapNotNull { d -> safeDecode("PioneerClaim") {
                 d.id to PioneerClaim(
                     userId = d.getString("userId") ?: "",
                     userName = d.getString("userName") ?: "",
                     weekIndex = (d.getLong("weekIndex") ?: 0L).toInt(),
                     claimedAt = d.getLong("claimedAt") ?: 0L,
                 )
-            } ?: emptyMap()
+            } }?.toMap() ?: emptyMap()
             trySend(map)
+            }
         }
-        awaitClose { reg.remove() }
+        val authListener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { attach() }
+        com.google.firebase.auth.FirebaseAuth.getInstance().addAuthStateListener(authListener)
+        awaitClose {
+            com.google.firebase.auth.FirebaseAuth.getInstance().removeAuthStateListener(authListener)
+            reg?.remove()
+        }
     }
 
     /**

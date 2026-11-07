@@ -1,3 +1,4 @@
+import FirebaseAuth
 import FirebaseFirestore
 import Foundation
 
@@ -92,7 +93,7 @@ final class DailyQuests: ObservableObject {
     func watch(onLoaded: @escaping @MainActor () -> Void) {
         self.onLoaded = onLoaded
         guard listener == nil else { return }
-        listener = FirestoreService.db.collection("starlightConfig").document("quests").addSnapshotListener { snap, error in
+        listener = FirestoreService.db.collection("starlightConfig").safeDocument("quests").addSnapshotListener { snap, error in
             if error != nil {
                 // 거부된 구독은 다시 살아나지 않는다 — 잠시 뒤 다시 붙인다.
                 Task { @MainActor in
@@ -101,6 +102,8 @@ final class DailyQuests: ObservableObject {
                     q.listener = nil
                     if q.catalog == nil { q.unavailable = true }
                     try? await Task.sleep(nanoseconds: 10_000_000_000)
+                    // 로그아웃 상태면 다시 붙이지 않는다(거부만 반복) — 로그인 뒤 QuestStore.start 가 다시 붙인다.
+                    guard Auth.auth().currentUser != nil else { return }
                     if q.listener == nil, let cb = q.onLoaded { q.watch(onLoaded: cb) }
                 }
                 return
@@ -150,7 +153,7 @@ final class DailyQuests: ObservableObject {
                 tier: (m["tier"] as? String) ?? "easy",
                 target: max(1, (m["target"] as? NSNumber)?.intValue ?? 1),
                 group: m["group"] as? String,
-                hours: hours.count == 2 ? hours[0]...hours[1] : nil,
+                hours: (hours.count == 2 && hours[0] <= hours[1]) ? hours[0]...hours[1] : nil, // 거꾸로 된 범위는 ClosedRange 가 앱을 종료시킨다
                 daily: (m["daily"] as? Bool) ?? true,
                 title: strMap(m["title"]),
                 hint: strMap(m["hint"])
@@ -206,7 +209,7 @@ final class DailyQuests: ObservableObject {
         for _ in 0..<(perDay - 1) {
             // 굴림은 항상 한 번씩(일차와 무관) — 두 앱의 난수 흐름이 같게.
             let roll = rng.nextInt(1000)
-            let useHard = dayNo >= cat.hardFromDay && roll < Int(cat.hardChance * 1000)
+            let useHard = dayNo >= cat.hardFromDay && roll < ((min(max(cat.hardChance, 0), 1) * 1000).safeInt ?? 350)
             let first = useHard ? hard : normal
             let second = useHard ? normal : hard
             if !takeFrom(first) && !(dayNo >= cat.hardFromDay && takeFrom(second)) { _ = takeFrom(easy) }
@@ -234,7 +237,7 @@ final class DailyQuests: ObservableObject {
             return z ^ (z >> 31)
         }
         /// 0..<n — `(next >> 1) % n`(Android `(next() ushr 1) % n` 과 같다).
-        mutating func nextInt(_ n: Int) -> Int { Int((next() >> 1) % UInt64(n)) }
+        mutating func nextInt(_ n: Int) -> Int { n > 0 ? Int((next() >> 1) % UInt64(n)) : 0 }
     }
 }
 
@@ -321,7 +324,7 @@ final class QuestStore: ObservableObject {
         DailyQuests.shared.watch { QuestStore.shared.ensureToday() }
         // includeMetadataChanges — 캐시 값이 서버와 같으면 "서버 확인됨"은 메타데이터만 바뀐 이벤트로 온다.
         // 이걸 안 받으면 serverSeen 이 영영 false 라 오늘 목록을 못 만들어 퀘스트 창이 무한 로딩이었다(2026-10-19).
-        listener = FirestoreService.users.document(uid).addSnapshotListener(includeMetadataChanges: true) { snap, error in
+        listener = FirestoreService.users.safeDocument(uid).addSnapshotListener(includeMetadataChanges: true) { snap, error in
             guard error == nil, let snap else { return }
             // 값만 꺼내 메인 액터로 넘긴다(스냅샷 객체는 넘기지 않는다).
             let parsed = Self.parse(snap)
@@ -388,7 +391,7 @@ final class QuestStore: ObservableObject {
         let ids = DailyQuests.pick(cat, uid: uid, day: today, dayNo: dayNo, previous: daily?.ids ?? [])
         daily = Daily(day: today, dayNo: dayNo, ids: ids, progress: [:], claimed: [], bonus: false)
         // mergeFields = quest 필드만 통째로 교체(어제 progress/claimed 가 섞이지 않게).
-        FirestoreService.users.document(uid).setData([
+        FirestoreService.users.safeDocument(uid).setData([
             questFieldQuest: [
                 "day": today, "dayNo": dayNo, "ids": ids,
                 "progress": [String: Int](), "claimed": [String](), "bonus": false,
@@ -421,7 +424,7 @@ final class QuestStore: ObservableObject {
         guard !updates.isEmpty else { return }
         for (k, v) in updates { d.progress[k] = v }
         daily = d
-        FirestoreService.users.document(uid).setData([questFieldQuest: ["progress": updates]], merge: true)
+        FirestoreService.users.safeDocument(uid).setData([questFieldQuest: ["progress": updates]], merge: true)
         if let q = finished {
             Haptics.medium()
             let l = LocaleManager.shared
@@ -478,7 +481,7 @@ final class QuestStore: ObservableObject {
     func grantAdKey() {
         guard let uid else { return }
         keys += 1
-        FirestoreService.users.document(uid).setData([questFieldKeys: FieldValue.increment(Int64(1))], merge: true)
+        FirestoreService.users.safeDocument(uid).setData([questFieldKeys: FieldValue.increment(Int64(1))], merge: true)
     }
 
     /// 열쇠 1개를 쓴다(별 해금). 없으면 false.
@@ -490,7 +493,7 @@ final class QuestStore: ObservableObject {
         var data: [String: Any] = [questFieldKeys: FieldValue.increment(Int64(-1))]
         // 열쇠를 처음 쓰면 첫 별 안내(FirstStarGuide)도 끝난다.
         if firstUse { data[Self.fieldGuideDone] = true }
-        FirestoreService.users.document(uid).setData(data, merge: true)
+        FirestoreService.users.safeDocument(uid).setData(data, merge: true)
         StaryAnalytics.log("key_used", ["first": firstUse])
         if firstUse && guideOpenShown {
             StaryAnalytics.log("guide_done", ["via": "key"])
@@ -518,7 +521,7 @@ final class QuestStore: ObservableObject {
         guard let uid, !guideDone else { return }
         guideDone = true
         StaryAnalytics.log("guide_done", ["via": via])
-        FirestoreService.users.document(uid).setData([Self.fieldGuideDone: true], merge: true)
+        FirestoreService.users.safeDocument(uid).setData([Self.fieldGuideDone: true], merge: true)
     }
 
     /// 첫 별을 올렸는데 오늘 퀘스트에 "올리기"가 없어 받을 열쇠가 없을 때 — 안내용 열쇠 1개(계정당 1회).
@@ -526,7 +529,7 @@ final class QuestStore: ObservableObject {
         guard let uid, !guideKeyGranted else { return false }
         guideKeyGranted = true
         keys += 1
-        FirestoreService.users.document(uid).setData([
+        FirestoreService.users.safeDocument(uid).setData([
             questFieldKeys: FieldValue.increment(Int64(1)),
             Self.fieldGuideKey: true,
         ], merge: true)

@@ -178,7 +178,7 @@ struct UserProfileScreen: View {
                             destructive: true) { Task { await toggleBlock() } }
         .task {
             hidden.start()
-            if let doc = try? await FirestoreService.users.document(userId).getDocument() {
+            if let doc = try? await FirestoreService.users.safeDocument(userId).getDocument() {
                 profileImageUrl = doc.get("profileImageUrl") as? String
                 equippedTitleId = doc.get("equippedTitle") as? String
                 pinnedIds = (doc.get("pinnedDiaries") as? [String]) ?? []
@@ -187,7 +187,7 @@ struct UserProfileScreen: View {
             let fsnap = try? await FirestoreService.friends(of: userId).getDocuments()
             friendsCount = fsnap?.documents.count ?? 0
             if let myUid = auth.uid, !isMe {
-                let f = try? await FirestoreService.friends(of: myUid).document(userId).getDocument()
+                let f = try? await FirestoreService.friends(of: myUid).safeDocument(userId).getDocument()
                 isFriend = f?.exists ?? false
                 isBlocked = await ModerationRepository.isBlocked(userId: myUid, targetId: userId)
             }
@@ -204,8 +204,8 @@ struct UserProfileScreen: View {
             await ModerationRepository.block(userId: myUid, targetId: userId, targetName: shownName,
                                              targetPhotoUrl: shownPhoto ?? "")
             isBlocked = true
-            try? await FirestoreService.friends(of: myUid).document(userId).delete()
-            try? await FirestoreService.friends(of: userId).document(myUid).delete()
+            try? await FirestoreService.friends(of: myUid).safeDocument(userId).delete()
+            try? await FirestoreService.friends(of: userId).safeDocument(myUid).delete()
             isFriend = false
         }
     }
@@ -352,7 +352,7 @@ struct UserProfileScreen: View {
 
     /// 친구 요청 전송(중복 방지) — FriendsViewModel.sendRequest 와 동일 스키마.
     private func sendRequest() async {
-        guard let myUid = auth.uid, !isMe else { return }
+        guard let myUid = auth.uid, !isMe, FirestoreService.isValidId(userId) else { return }
         requested = true
         // 요청에 박히는 내 이름은 서버 확인값 — 끝내 모르면 보내지 않고 버튼을 되돌린다(CLAUDE.md §2.6).
         guard let myName = await auth.confirmedNameOrWait() else { requested = false; return }
@@ -361,7 +361,8 @@ struct UserProfileScreen: View {
             .whereField("toId", isEqualTo: userId)
             .getDocuments()
         if let dup, !dup.documents.isEmpty { return } // 이미 요청됨
-        let ref = FirestoreService.friendRequests.document()
+        // 고정 id("{from}_{to}") — FriendsViewModel.sendRequest 와 같다.
+        let ref = FirestoreService.friendRequests.safeDocument(FirestoreService.friendRequestId(from: myUid, to: userId))
         try? await ref.setData([
             "fromId": myUid, "fromName": myName,
             "fromPhotoUrl": "",

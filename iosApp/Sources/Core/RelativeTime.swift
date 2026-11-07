@@ -5,7 +5,9 @@ import Foundation
 enum RelativeTime {
     @MainActor
     static func string(fromMillis millis: Int64) -> String {
-        let seconds = Int(Double(FirestoreService.nowMillis - millis) / 1000)
+        // Int64 뺄셈은 넘치면 앱이 종료된다 — 외부 시각은 Double 로 계산하고 범위를 가둔다.
+        let diff = (Double(FirestoreService.nowMillis) - Double(millis)) / 1000
+        let seconds = diff.isFinite ? Int(max(-1.0e9, min(1.0e12, diff))) : 0
         let l = LocaleManager.shared
         switch seconds {
         case ..<60: return l.t(.timeJustNow)

@@ -32,6 +32,7 @@
 const crypto = require("crypto");
 const { FieldValue } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
+const { consumeQuota } = require("./limits");
 
 const DIARIES = "diaries";
 
@@ -46,6 +47,17 @@ const LEASE_MS = 3 * 60 * 1000;
 
 /** 언어 감지에 쓰는 앞부분 길이(글자 수) — 감지는 짧아도 충분하고 글자 수만큼 과금된다. */
 const DETECT_SAMPLE_CHARS = 300;
+
+/** 제목+본문이 이 글자 수(코드포인트)를 넘으면 번역 API 를 부르지 않는다. */
+const MAX_TRANSLATE_CHARS = 5000;
+/** 작성자 1명이 하루에 번역을 일으킬 수 있는 횟수. */
+const USER_DAILY_TRANSLATIONS = 30;
+/** 전체 서비스의 하루 번역 글자 상한 = 글자 수 x 대상 언어 수의 합. 번역 비용의 상한선. */
+const GLOBAL_DAILY_CHARS = 1000000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** 번역 대상 글자 수(코드포인트). */
+const charCount = (title, content) => [...title].length + [...content].length;
 
 const str = (v) => (typeof v === "string" ? v : "");
 
@@ -134,11 +146,11 @@ function claim(db, ref) {
       if (t.sourceLang && missingLangs(t.sourceLang, t).length === 0) return { reason: "이미 완료" };
       // 이전 시도가 실패/중단된 경우 — 있는 언어는 두고 빠진 언어만 이어서 번역한다.
       tx.update(ref, { "translations.status": "processing", "translations.startedAt": now });
-      return { run: true, title, content, hash, have: t };
+      return { run: true, title, content, hash, have: t, userId: str(d.userId) };
     }
     // 처음이거나 원문이 수정됨 → 낡은 번역을 버리고 새로 시작.
     tx.update(ref, { translations: { srcHash: hash, status: "processing", startedAt: now } });
-    return { run: true, title, content, hash, have: null };
+    return { run: true, title, content, hash, have: null, userId: str(d.userId) };
   });
 }
 
@@ -166,7 +178,7 @@ function commit(db, ref, hash, fields) {
  * 같은 원문에 대해 여러 번 불려도(이벤트 중복 전달·재시도) API 는 한 번만 호출된다.
  * @returns 처리 결과 요약(로그/테스트용)
  */
-async function translateDiary(db, diaryId, translator) {
+async function translateDiary(db, diaryId, translator, quota) {
   const ref = db.collection(DIARIES).doc(diaryId);
   let job = null;
   try {
@@ -177,6 +189,29 @@ async function translateDiary(db, diaryId, translator) {
     }
 
     const { title, content, hash } = job;
+
+    // 비용 게이트 — 번역 API 호출 전에 길이·쿼터를 본다. 걸리면 skipped 로 표시하고 조용히 끝낸다(throw 안 함).
+    const skipWith = async (reason) => {
+      await commit(db, ref, hash, {
+        "translations.status": "skipped",
+        "translations.skipReason": reason,
+        "translations.updatedAt": Date.now(),
+      });
+      logger.info(`translate ${diaryId}: 번역 생략 (${reason})`);
+      return `skipped:${reason}`;
+    };
+    const chars = charCount(title, content);
+    if (chars > MAX_TRANSLATE_CHARS) return await skipWith("too_long");
+    const q = quota || consumeQuota;
+    if (!(await q(db, `tr_user_${job.userId || "unknown"}`, DAY_MS, USER_DAILY_TRANSLATIONS, "deny"))) {
+      return await skipWith("user_quota");
+    }
+    const langCount = job.have && job.have.sourceLang
+      ? missingLangs(job.have.sourceLang, job.have).length
+      : TRANSLATION_LANGS.length - 1;
+    if (langCount > 0 && !(await q(db, "tr_global_chars", DAY_MS, GLOBAL_DAILY_CHARS, { onError: "deny", amount: chars * langCount }))) {
+      return await skipWith("global_quota");
+    }
     const api = translator || googleTranslator();
     const have = job.have || {};
 
@@ -237,4 +272,4 @@ async function translateDiary(db, diaryId, translator) {
   }
 }
 
-module.exports = { translateDiary, TRANSLATION_LANGS };
+module.exports = { translateDiary, TRANSLATION_LANGS, MAX_TRANSLATE_CHARS, USER_DAILY_TRANSLATIONS, GLOBAL_DAILY_CHARS, charCount };

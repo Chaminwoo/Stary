@@ -1,5 +1,6 @@
 package com.chaminwoo.stary.data.repository
 
+import com.chaminwoo.stary.data.safeDecode
 import com.chaminwoo.stary.core.model.BlockedUser
 import com.chaminwoo.stary.data.staryFirestore
 import com.chaminwoo.stary.shared.config.StaryConfig
@@ -56,14 +57,14 @@ class FirebaseModerationRepository {
         }
         val listener = blockedCol(userId).addSnapshotListener { snapshot, error ->
             if (error != null) { trySend(emptyList()); return@addSnapshotListener }
-            val list = snapshot?.documents?.map { doc ->
+            val list = snapshot?.documents?.mapNotNull { doc -> safeDecode("BlockedUser") {
                 BlockedUser(
                     userId = doc.id,
                     userName = doc.getString("userName") ?: "",
                     photoUrl = doc.getString("photoUrl") ?: "",
                     createdAt = doc.getLong("createdAt") ?: 0L,
                 )
-            }?.sortedByDescending { it.createdAt } ?: emptyList()
+            } }?.sortedByDescending { it.createdAt } ?: emptyList()
             trySend(list)
         }
         awaitClose { listener.remove() }

@@ -10,7 +10,7 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            // 로그인 또는 "로그인 없이 둘러보기"(게스트)면 본 화면으로 — Android 는 둘러보기도 지도로 들어간다.
+            // 로그인했거나 스크린샷 촬영 모드면 본 화면으로. 로그인 세션이 사라지면 canEnterApp 이 false 가 되어 로그인 화면으로 돌아간다.
             if auth.canEnterApp {
                 MainTabView()
             } else {
@@ -42,12 +42,9 @@ struct RootView: View {
         // 새 버전 안내 — 로그인/메인 어느 화면이든 맨 위에(Android MainScreen AppUpdatePromptHost 패리티).
         .overlay { AppUpdatePromptOverlay() }
         // 앱을 열 때와 앞으로 돌아올 때마다 App Store 에 새 버전이 있는지 확인 — 있으면 닫을 수 없는 강제 업데이트 팝업.
-        // (스크린샷 촬영 모드에선 업데이트 팝업 대신 둘러보기로 바로 진입 — Core/ScreenshotMode.swift)
+        // (스크린샷 촬영 모드에선 업데이트 팝업 없이 로그인 없이 바로 진입 — Core/ScreenshotMode.swift)
         .task {
-            if ScreenshotMode.isActive {
-                if ScreenshotMode.entersAsGuest && !auth.canEnterApp { await auth.browseAsGuest() }
-                return
-            }
+            if ScreenshotMode.isActive { return }
             await AppUpdateChecker.shared.check()
         }
         .onChange(of: scenePhase) { phase in
@@ -422,7 +419,7 @@ struct MainTabView: View {
         .environmentObject(viewed)
         .environmentObject(blocks)
         .onAppear {
-            // 위치 권한은 여기서 묻지 않는다 — 지도의 이유 카드(PermissionAsk)가 "허용하기"를 눌렀을 때 묻는다(S2).
+            // 위치 권한은 여기서 묻지 않는다 — 지도의 이유 카드(PermissionAsk)에서 "계속"을 누르면 묻는다(S2).
             // 이미 허용돼 있으면 위치 관리자가 권한 콜백에서 바로 추적을 시작한다.
             location.start()
             chrome.coachMarkShowing = showCoachMark || locationAskVisible
@@ -434,7 +431,7 @@ struct MainTabView: View {
                 notifications.start(ownerId: uid)
             }
             MusicManager.shared.resume() // 로그인 후 메인 진입 시 배경음악 시작
-            // 지도 진입(실행당 1회) — 로그인/둘러보기 뒤 실제로 지도를 본 사람 수(Android MainScreen map_view 패리티).
+            // 지도 진입(실행당 1회) — 로그인 뒤 실제로 지도를 본 사람 수(Android MainScreen map_view 패리티).
             StaryAnalytics.logOnce("map_view", "map_view", ["logged_in": auth.uid != nil])
             startWatcher()
             loadFriendsCount()
@@ -500,7 +497,7 @@ struct MainTabView: View {
 
             // 로그인 전에 들어온 친구 초대 딥링크가 있으면 이제 리딤(체크리스트 31).
             Task { await InviteStore.redeemPendingIfPossible(uid: newUid) }
-            // 둘러보기 → 로그인한 경우에도 첫 코치마크(Android: userId != null 이 되는 순간 표시).
+            // 로그인이 끝나는 순간 첫 코치마크(Android: userId != null 이 되는 순간 표시).
             maybeStartCoachMark()
         }
         // 업적 해금 감시 — 내 통계(작성/좋아요/조회/친구/열람) 변화마다 재계산(내 것만 반영하는 Int 시그니처).
@@ -569,34 +566,30 @@ struct MainTabView: View {
 
     @ViewBuilder private var permissionCards: some View {
         if locationAskVisible {
-            permissionCard(locale.t(.permLocTitle), message: locale.t(.permLocMsg), allow: locale.t(.permAllow),
-                           onAllow: {
-                               permissionAsk.answerLocation(later: false)
-                               location.requestPermission()
-                           },
-                           onLater: { permissionAsk.answerLocation(later: true) })
+            permissionCard(locale.t(.permLocTitle), message: locale.t(.permLocMsg)) {
+                permissionAsk.answerLocation()
+                location.requestPermission()
+            }
         } else if notificationAskVisible {
-            permissionCard(locale.t(.permNotifTitle), message: locale.t(.permNotifMsg), allow: locale.t(.permNotifAllow),
-                           onAllow: {
-                               permissionAsk.answerNotification(later: false)
-                               PushManager.shared.requestAuthorization()
-                           },
-                           onLater: { permissionAsk.answerNotification(later: true) })
+            permissionCard(locale.t(.permNotifTitle), message: locale.t(.permNotifMsg)) {
+                permissionAsk.answerNotification()
+                PushManager.shared.requestAuthorization()
+            }
         }
     }
 
-    /// 확인 창과 같은 유리 카드. 바깥을 누르면 "나중에".
-    private func permissionCard(_ title: String, message: String, allow: String,
-                                onAllow: @escaping () -> Void, onLater: @escaping () -> Void) -> some View {
+    /// 확인 창과 같은 유리 카드. 버튼은 "계속" 하나 — 누르면 항상 시스템 권한 창으로 이어진다(심사 5.1.1(iv), PermissionAsk.swift 참고).
+    /// 닫는 길을 두지 않는다. 바깥 탭은 아래 화면으로 새지 않게 막기만 한다.
+    private func permissionCard(_ title: String, message: String,
+                                onContinue: @escaping () -> Void) -> some View {
         ZStack {
             Color.black.opacity(StaryDialogStyle.scrimOpacity)
                 .ignoresSafeArea()
-                .onTapGesture(perform: onLater)
+                .onTapGesture {}
             StaryDialogCard(title: title, message: message) {
                 EmptyView()
             } actions: {
-                StaryButton(locale.t(.permLater), kind: .ghost, compact: true, action: onLater)
-                StaryButton(allow, compact: true, action: onAllow)
+                StaryButton(locale.t(.permContinue), compact: true, action: onContinue)
             }
         }
         .transition(.opacity)
@@ -822,17 +815,9 @@ struct MainTabView: View {
             drawerItem(locale.t(.navMusic), "music.note", index: 4 + ws) { open(.music) }
             drawerItem(locale.t(.tabFriends), "person.2.fill", index: 5 + ws) { open(.friends) }
             drawerItem(locale.t(.navSettings), "gearshape.fill", index: 6 + ws) { open(.settings) }
-            // 둘러보기(게스트)면 "로그인" — 로그인 화면으로 되돌아간다. Android 드로어와 동일.
-            if auth.isGuest && !auth.isSignedIn {
-                drawerItem(locale.t(.drawerLogin), "rectangle.portrait.and.arrow.right", index: 7 + ws) {
-                    withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
-                    auth.exitGuest()
-                }
-            } else {
-                drawerItem(locale.t(.drawerLogout), "rectangle.portrait.and.arrow.right", index: 7 + ws, danger: true) {
-                    withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
-                    auth.signOut()
-                }
+            drawerItem(locale.t(.drawerLogout), "rectangle.portrait.and.arrow.right", index: 7 + ws, danger: true) {
+                withAnimation(.easeOut(duration: 0.25)) { drawerOpen = false }
+                auth.signOut()
             }
 
             Spacer()

@@ -226,7 +226,7 @@ fun DetailScreen(
     }
     val hasMedia = currentDiary.videoUrl.isNotEmpty() || currentDiary.imageUrl.isNotEmpty()
     val userId = GoogleAuthHelper.currentUserId ?: ""
-    // 비로그인(둘러보기) 상태 — 댓글/좋아요/신고 등 상호작용은 잠그고 안내만 띄운다.
+    // 비로그인(세션 끊김 등) 방어 — 댓글/좋아요/신고 등 상호작용은 잠그고 안내만 띄운다.
     val isLoggedIn = userId.isNotBlank()
     val requireLogin: () -> Unit = {
         com.chaminwoo.stary.core.ui.StaryToast.show(context.getString(R.string.common_login_required))

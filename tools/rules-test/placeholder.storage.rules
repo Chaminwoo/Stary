@@ -1,0 +1,3 @@
+rules_version = '2';
+// 에뮬레이터 기동용 자리표시자 — 테스트가 실제 규칙(루트의 storage.rules)을 직접 주입한다.
+service firebase.storage { match /b/{bucket}/o { match /{allPaths=**} { allow read, write: if false; } } }

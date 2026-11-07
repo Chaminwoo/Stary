@@ -74,8 +74,8 @@ struct DetailScreen: View {
     private func observeLive() async {
         guard let id = initialDiary.id, !id.isEmpty else { return }
         let updates = AsyncStream<Diary> { cont in
-            let reg = FirestoreService.diaries.document(id).addSnapshotListener { snap, _ in
-                guard let snap, snap.exists, let d = try? snap.data(as: Diary.self) else { return }
+            let reg = FirestoreService.diaries.safeDocument(id).addSnapshotListener { snap, _ in
+                guard let snap, snap.exists, let raw = try? snap.data(as: Diary.self), let d = raw.sanitized() else { return }
                 cont.yield(d)
             }
             cont.onTermination = { _ in reg.remove() }
@@ -936,7 +936,7 @@ final class ProfileImageCache {
     func url(for userId: String) async -> String? {
         guard !userId.isEmpty else { return nil }
         if let cached = cache[userId] { return cached.isEmpty ? nil : cached }
-        let url = ((try? await FirestoreService.users.document(userId).getDocument())?
+        let url = ((try? await FirestoreService.users.safeDocument(userId).getDocument())?
             .get("profileImageUrl") as? String) ?? ""
         cache[userId] = url
         return url.isEmpty ? nil : url
