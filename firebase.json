@@ -60,6 +60,14 @@
         "destination": "/support.html"
       },
       {
+        "source": "/privacy",
+        "destination": "/privacy.html"
+      },
+      {
+        "source": "/location-terms",
+        "destination": "/location-terms.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

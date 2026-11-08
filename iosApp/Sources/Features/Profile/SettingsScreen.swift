@@ -84,6 +84,12 @@ struct SettingsScreen: View {
                                   label: locale.t(.settingsDailyReminder),
                                   description: locale.t(.settingsDailyReminderDesc),
                                   isOn: settings.dailyReminderEnabled) { settings.updateDailyReminderEnabled($0) }
+                        divider
+                        // 새 별 소식(첫 별 공지 — 모든 사용자에게 가는 푸시)을 따로 끌 수 있게(Apple 4.5.4, 2026-11-08). Android 패리티.
+                        toggleRow(icon: "sparkles",
+                                  label: locale.t(.settingsFirstStarPush),
+                                  description: locale.t(.settingsFirstStarPushDesc),
+                                  isOn: settings.firstStarPushEnabled) { settings.updateFirstStarPushEnabled($0) }
                     }
 
                     // ── 언어 ──
@@ -195,6 +201,13 @@ struct SettingsScreen: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        divider
+                        // 개인정보 처리방침 · 위치기반서비스 이용약관 — 앱 안에서 바로 열 수 있어야 한다(Apple 5.1.1(i), 2026-11-08). Android 패리티.
+                        linkRow(icon: "lock.shield", label: locale.t(.settingsPrivacy),
+                                description: locale.t(.settingsPrivacyDesc), url: AppConfig.privacyPolicyUrl)
+                        divider
+                        linkRow(icon: "location.circle", label: locale.t(.settingsLocationTerms),
+                                description: locale.t(.settingsLocationTermsDesc), url: AppConfig.locationTermsUrl)
                     }
 
                     // ── 계정 ──
@@ -251,6 +264,30 @@ struct SettingsScreen: View {
                             confirmTitle: locale.t(.settingsDeleteAccount),
                             destructive: true) { performDelete() }
         .staryInfoDialog(locale.t(.settingsDeleteFailed), isPresented: $showDeleteFailed)
+    }
+
+    /// 바깥 웹 페이지로 가는 행(사파리) — 생김새는 다른 이동 행과 같다.
+    @ViewBuilder
+    private func linkRow(icon: String, label: String, description: String, url: String) -> some View {
+        if let dest = URL(string: url) {
+            Link(destination: dest) {
+                HStack(spacing: 14) {
+                    iconBadge(icon, active: true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(label)
+                            .font(.minSans(17)).foregroundStyle(Theme.textPrimary)
+                        Text(description)
+                            .font(.minSans(12)).foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption).foregroundStyle(Theme.textFaint)
+                }
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private func performDelete() {

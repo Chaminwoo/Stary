@@ -16,6 +16,7 @@ final class AppSettings: ObservableObject {
     private let keyNotif = "notifications_enabled"
     private let keyHaptics = "haptics_enabled"
     private let keyDailyReminder = "daily_reminder_enabled"
+    private let keyFirstStarPush = "first_star_push_enabled"
 
     /// 인앱 알림 팝업 on/off (기본 켜짐).
     @Published private(set) var notificationsEnabled: Bool
@@ -23,11 +24,14 @@ final class AppSettings: ObservableObject {
     @Published private(set) var hapticsEnabled: Bool
     /// 일일 알림(오늘 기록 유도) on/off (기본 켜짐).
     @Published private(set) var dailyReminderEnabled: Bool
+    /// 새 별 소식(첫 별 공지 푸시) on/off (기본 켜짐) — 기기 토큰 문서 `firstStar` 로 서버에 알린다(2026-11-08, Apple 4.5.4).
+    @Published private(set) var firstStarPushEnabled: Bool
 
     private init() {
         notificationsEnabled = (UserDefaults.standard.object(forKey: keyNotif) as? Bool) ?? true
         hapticsEnabled = (UserDefaults.standard.object(forKey: keyHaptics) as? Bool) ?? true
         dailyReminderEnabled = (UserDefaults.standard.object(forKey: keyDailyReminder) as? Bool) ?? true
+        firstStarPushEnabled = (UserDefaults.standard.object(forKey: keyFirstStarPush) as? Bool) ?? true
     }
 
     func updateNotificationsEnabled(_ value: Bool) {
@@ -48,5 +52,12 @@ final class AppSettings: ObservableObject {
         dailyReminderEnabled = value
         UserDefaults.standard.set(value, forKey: keyDailyReminder)
         if value { DailyReminderScheduler.scheduleNext() } // 꺼져 있던 동안 지난 예약을 즉시 다시 잡는다
+    }
+
+    func updateFirstStarPushEnabled(_ value: Bool) {
+        guard firstStarPushEnabled != value else { return }
+        firstStarPushEnabled = value
+        UserDefaults.standard.set(value, forKey: keyFirstStarPush)
+        PushManager.shared.resaveToken() // 서버는 토큰 문서의 firstStar 를 보고 이 기기를 뺀다
     }
 }

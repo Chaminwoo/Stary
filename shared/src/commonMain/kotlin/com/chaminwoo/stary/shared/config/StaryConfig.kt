@@ -127,6 +127,18 @@ object StaryConfig {
     const val SHARE_BASE_URL: String = "https://momentdiary-f26c8.web.app"
 
     /**
+     * 개인정보 처리방침 · 위치기반서비스 이용약관(2026-11-08, Apple 5.1.1(i) · 개인정보보호법 §30 · 위치정보법 §18).
+     * 페이지는 `web/privacy.html` · `web/location-terms.html`(firebase.json 리라이트). iOS AppConfig 와 동기화.
+     * ⚠️ 앱 출시 전에 `firebase deploy --only hosting` — 안 올리면 설정·약관 창의 링크가 빈 페이지로 간다.
+     */
+    const val PRIVACY_POLICY_URL: String = "$SHARE_BASE_URL/privacy"
+    const val LOCATION_TERMS_URL: String = "$SHARE_BASE_URL/location-terms"
+
+    /** 지도 데이터 저작자 표시(MapTiler 약관 · OpenStreetMap ODbL) — 지도 위에 항상 보여야 한다. 누르면 [MAP_ATTRIBUTION_URL]. */
+    const val MAP_ATTRIBUTION: String = "© MapTiler © OpenStreetMap contributors"
+    const val MAP_ATTRIBUTION_URL: String = "https://www.openstreetmap.org/copyright"
+
+    /**
      * App Links(https) 매칭용 호스트/경로. `SHARE_BASE_URL` 을 쪼갠 값이라 **함께 바꿔야 한다.**
      * AndroidManifest 의 autoVerify intent-filter, `web/.well-known/assetlinks.json`,
      * iOS `apple-app-site-association` 이 모두 이 호스트를 가리킨다.

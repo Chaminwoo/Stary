@@ -207,6 +207,11 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
     ///
     /// 여기에 아무것도 없으면 서버(Cloud Functions)는 그 사용자를 **조용히 건너뛴다**
     /// → "푸시가 안 온다"의 1순위 확인 지점.
+    /// 설정이 바뀌어 토큰 문서를 곧바로 다시 써야 할 때(새 별 소식 끄기 등) — [refreshRegistration] 의 간격 제한 없이.
+    func resaveToken() {
+        saveTokenIfPossible()
+    }
+
     private func saveTokenIfPossible() {
         guard let uid = appUserId, !uid.isEmpty,
               let token = fcmToken, !token.isEmpty else { return }
@@ -214,6 +219,9 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
         Task {
             // 이 기기의 앱 언어 — 서버가 전체 공지 푸시(첫 별)를 기기 언어로 보낼 때 쓴다(Android 패리티).
             let lang = await MainActor.run { LocaleManager.shared.effectiveLanguage }
+            // 새 별 소식(첫 별 공지) 수신 여부 · 시간대 — 서버가 끈 기기를 빼고, 받는 사람 현지 21~08시엔 보내지 않는다(2026-11-08).
+            let firstStar = await MainActor.run { AppSettings.shared.firstStarPushEnabled }
+            let tz = TimeZone.current.identifier
             // 두 문서는 서로 독립적으로 쓴다 — 예전엔 앞 쓰기가 실패하면 서버가 실제로 쓰는 기기별 문서(fcmTokens)까지 건너뛰었다.
             var ok = true
             do {
@@ -230,6 +238,8 @@ final class PushManager: NSObject, MessagingDelegate, UNUserNotificationCenterDe
                     "platform": "ios",
                     "updatedAt": FirestoreService.nowMillis,
                     "lang": lang,
+                    "firstStar": firstStar,
+                    "tz": tz,
                 ])
             } catch {
                 ok = false

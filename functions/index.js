@@ -38,6 +38,7 @@ const REPORTS = "reports";
 const FCM_TOKENS = "fcmTokens";
 const REGION = "asia-northeast3"; // stary-db 리전에 맞출 것
 const GRACE_MS = 7 * 24 * 60 * 60 * 1000; // 계정 삭제 유예 7일
+const REPORT_KEEP_MS = 365 * 24 * 60 * 60 * 1000; // 처리 끝난 신고 보관 1년(개인정보 처리방침과 같게)
 
 /** FCM multicast 1회 최대 토큰 수 */
 const FCM_BATCH = 500;
@@ -179,7 +180,33 @@ const FIRST_STAR_TEXT = {
 };
 
 /**
+ * 전체 공지 푸시를 보내지 않는 받는 사람 현지 시각 — 21시~다음 날 8시(정보통신망법 §50 의 야간 기준과 같다, 2026-11-08).
+ * 시간대는 기기 토큰 문서의 `tz`(앱이 토큰 저장 때 기록). 없으면(구버전 앱) 언어로 짐작하고, 그것도 모르면 서울.
+ */
+const QUIET_START_HOUR = 21;
+const QUIET_END_HOUR = 8;
+const LANG_TZ = { ko: "Asia/Seoul", ja: "Asia/Tokyo" };
+
+function localHour(zone, now) {
+  return Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", hourCycle: "h23" }).format(now)
+  );
+}
+
+function inQuietHours(tz, lang, now = new Date()) {
+  let hour;
+  try {
+    hour = localHour(tz || LANG_TZ[lang] || "Asia/Seoul", now);
+  } catch (_) {
+    hour = localHour("Asia/Seoul", now); // 알 수 없는 시간대 문자열
+  }
+  return hour >= QUIET_START_HOUR || hour < QUIET_END_HOUR;
+}
+
+/**
  * 첫 별 공지(2026-10-02) — 사용자가 **처음으로 전체 공개** 별을 올리면 모든 사용자에게 알린다.
+ *  - 받지 않는 기기(2026-11-08): 설정 "새 별 소식"을 끈 기기(토큰 문서 firstStar == false),
+ *    받는 사람 현지 시각 21~08시인 기기([inQuietHours]) — 그 시간대 사람에게는 이 공지를 아예 보내지 않는다(나중에 몰아 보내지 않음).
  *  - 공개 범위: 전체 공개만. 친구 공개는 친구에게만(notifyFriendsOnDiaryCreate), 나만 보기는 아무에게도.
  *  - 판정: 이 작성자의 다른 전체 공개 별이 이미 있으면 첫 별이 아니다(기능 도입 전에 올린 별 포함).
  *  - 계정당 1번: firstStars/{작성자} 를 create() — 이미 있으면 실패하므로 재시도·동시 업로드에도 한 번만.
@@ -239,6 +266,8 @@ exports.announceFirstStar = onDocumentCreated(
       const owner = d.ref.parent.parent;
       if (!owner || excludedUids.has(owner.id) || authorTokens.has(d.id) || seen.has(d.id)) return;
       seen.add(d.id);
+      if (d.get("firstStar") === false) return; // 설정 > 알림 > 새 별 소식 끔
+      if (inQuietHours(d.get("tz"), d.get("lang"))) return; // 받는 사람 현지 밤 9시~아침 8시
       const lang = byLang[d.get("lang")] ? d.get("lang") : "ko";
       byLang[lang].push({ uid: owner.id, token: d.id });
     });
@@ -290,6 +319,33 @@ exports.announceFirstStar = onDocumentCreated(
  *    아래 비교에서 걸러져 즉시 종료되므로 무한 루프가 없다.
  */
 const TRANSLATE_OPTS = { database: DATABASE_ID, region: REGION, timeoutSeconds: 120 };
+
+/**
+ * 위치정보 이용 확인자료(위치정보법 §16②, 2026-11-08) — 별이 위치와 함께 저장될 때마다 한 줄 남긴다.
+ *  - 관리자 전용 컬렉션(클라이언트 규칙 기본 거부). 좌표는 담지 않는다(누가 · 언제 · 무엇에 · 누구에게 보이게 썼는지만).
+ *  - 6개월 이상 보관: expireAt(약 7개월 뒤)에 Firestore TTL 정책을 콘솔에서 건다(locationLogs.expireAt).
+ *  - 계정을 지워도 법정 보관 기간 동안은 남는다(deleteUserData 대상 아님) — 위치기반서비스 이용약관 제8조와 같게.
+ */
+const LOCATION_LOGS = "locationLogs";
+const LOCATION_LOG_KEEP_MS = 210 * 24 * 60 * 60 * 1000;
+exports.logLocationUse = onDocumentCreated(
+  { document: "diaries/{diaryId}", database: DATABASE_ID, region: REGION },
+  async (event) => {
+    const d = event.data && event.data.data();
+    if (!d || !d.userId) return;
+    const now = Date.now();
+    await getFirestore(DATABASE_ID)
+      .collection(LOCATION_LOGS)
+      .add({
+        userId: d.userId,
+        diaryId: event.params.diaryId,
+        purpose: "star_create",
+        visibility: d.visibilityType || "public",
+        createdAt: now,
+        expireAt: new Date(now + LOCATION_LOG_KEEP_MS),
+      });
+  }
+);
 
 exports.translateDiaryOnCreate = onDocumentCreated(
   { document: "diaries/{diaryId}", ...TRANSLATE_OPTS },
@@ -526,6 +582,15 @@ exports.purgeExpiredDeletions = onSchedule(
   async () => {
     const db = getFirestore(DATABASE_ID);
     const cutoff = Date.now() - GRACE_MS;
+    // 처리 끝난 지 1년이 지난 신고는 지운다(개인정보 처리방침의 보관 기간과 같다, 2026-11-08).
+    try {
+      await forEachDoc(
+        db.collection(REPORTS).where("resolvedAt", "<=", Date.now() - REPORT_KEEP_MS),
+        (doc) => doc.ref.delete()
+      );
+    } catch (e) {
+      logger.warn(`오래된 신고 정리 실패: ${e.message}`);
+    }
     const snap = await db
       .collection(USERS)
       .where("deletionRequestedAt", "<=", cutoff)
@@ -557,12 +622,92 @@ exports.purgeExpiredDeletions = onSchedule(
   }
 );
 
-/** 한 사용자의 Firestore 데이터 정리(다이어리 / 친구 양방향 / 열람·차단 하위 / 프로필 문서). */
+/**
+ * 한 사용자의 데이터 전부 정리 — 계정 삭제(7일 유예 뒤 purgeExpiredDeletions) · 제재(onReportAction action_ban) 공용.
+ * 개인정보보호법 §21(파기) · Apple 5.1.1(v)(계정과 관련 데이터 삭제) 대응으로 2026-11-08 범위를 넓혔다. 새 컬렉션에 사용자 데이터를 쓰기 시작하면 **여기에도 추가할 것.**
+ *  1. 내 다이어리: Storage 사진 · 영상 + 문서와 하위(남이 단 댓글 · 좋아요 포함 — 글이 사라지면 같이 사라진다)
+ *  2. 남의 글에 남긴 내 댓글 · 좋아요(컬렉션 그룹 — firestore.indexes.json fieldOverrides 필요) + 그 글의 개수 -1
+ *  3. 채팅: 내가 보낸 메시지 삭제, 남은 메시지가 없으면 방도 삭제(상대가 보낸 메시지는 상대의 것이라 남긴다)
+ *  4. 알림(받은 것 · 내가 행위자인 것), 친구 요청(보낸 · 받은), 의견(feedback), 히든 업적 · 개척 선점 · 초대 · 첫 별 공지 · 광고 제거 · 지갑 · 장착
+ *  5. 친구 양방향, users/{uid} 와 모든 하위 컬렉션(fcmTokens · viewedDiaries · blocked · chatHidden · starlightOps …)
+ *  6. 내가 낸 신고: 신고자 id 만 지운다(신고 자체는 운영 기록 — 처리 후 1년 뒤 purgeExpiredDeletions 가 지운다)
+ * 남에 대한 신고(targetOwnerId == 나)는 제재 기록이라 남긴다(위와 같은 1년 보관).
+ */
 async function deleteUserData(db, uid) {
+  // 1) 내 다이어리
   const diaries = await db.collection(DIARIES).where("userId", "==", uid).get();
   for (const d of diaries.docs) {
-    await d.ref.delete();
+    for (const field of ["imageUrl", "videoUrl"]) {
+      const path = storagePathFromUrl(d.get(field));
+      if (!path) continue;
+      try {
+        await getStorage().bucket().file(path).delete();
+      } catch (_) {
+        /* 파일 없음/이미 삭제됨 무시 */
+      }
+    }
+    await db.recursiveDelete(d.ref);
   }
+
+  // 2) 남의 글에 남긴 댓글 · 좋아요 — 글의 개수도 함께 줄인다(앱이 쓸 때 increment 로 올린 값).
+  const counters = [
+    ["comments", "commentCount"],
+    ["likes", "likeCount"],
+  ];
+  for (const [sub, countField] of counters) {
+    await forEachDoc(db.collectionGroup(sub).where("userId", "==", uid), async (doc) => {
+      const diaryRef = doc.ref.parent.parent;
+      await doc.ref.delete();
+      if (diaryRef) {
+        try {
+          await diaryRef.update({ [countField]: FieldValue.increment(-1) });
+        } catch (_) {
+          /* 글이 이미 없음 */
+        }
+      }
+    });
+  }
+
+  // 3) 채팅 — 내가 보낸 메시지만 지우고, 빈 방은 방째로.
+  const chats = await db.collection(CHATS).where("participants", "array-contains", uid).get();
+  for (const chat of chats.docs) {
+    await forEachDoc(chat.ref.collection("messages").where("senderId", "==", uid), (m) => m.ref.delete());
+    const left = await chat.ref.collection("messages").limit(1).get();
+    if (left.empty) {
+      await db.recursiveDelete(chat.ref);
+    } else if (chat.get("lastSenderId") === uid) {
+      await chat.ref.update({ lastMessage: "", lastSenderName: "" });
+    }
+  }
+
+  // 4) 나를 가리키는 최상위 문서들
+  const byField = [
+    [NOTIFICATIONS, "diaryOwnerId"],
+    [NOTIFICATIONS, "actorId"],
+    ["friendRequests", "fromId"],
+    ["friendRequests", "toId"],
+    ["feedback", "uid"],
+    ["hiddenAchievements", "achieverId"],
+    ["pioneerClaims", "userId"],
+    ["invites", "inviterId"],
+  ];
+  for (const [col, field] of byField) {
+    await forEachDoc(db.collection(col).where(field, "==", uid), (doc) => doc.ref.delete());
+  }
+  for (const col of ["invites", FIRST_STARS, "adFree", "wallets", "starlightEquips"]) {
+    try {
+      await db.collection(col).doc(uid).delete();
+    } catch (_) {
+      /* 없음 */
+    }
+  }
+
+  // 6) 내가 낸 신고 — 신고자 id 만 지운다.
+  await forEachDoc(db.collection(REPORTS).where("reporterId", "==", uid), (doc) =>
+    doc.ref.update({ reporterId: "deleted", reporterName: FieldValue.delete() })
+  );
+
+  // 5) 친구 양방향 + 사용자 문서와 모든 하위 컬렉션
   const friends = await db.collection(USERS).doc(uid).collection(FRIENDS).get();
   for (const f of friends.docs) {
     try {
@@ -570,15 +715,18 @@ async function deleteUserData(db, uid) {
     } catch (_) {
       /* 상대 목록 정리 실패 무시 */
     }
-    await f.ref.delete();
   }
-  for (const sub of [VIEWED_DIARIES, BLOCKED]) {
-    const s = await db.collection(USERS).doc(uid).collection(sub).get();
-    for (const x of s.docs) {
-      await x.ref.delete();
-    }
+  await db.recursiveDelete(db.collection(USERS).doc(uid));
+}
+
+/** 쿼리 결과를 300개씩 끊어 하나씩 처리(지운 문서는 다음 페이지에서 빠지므로 처음부터 다시 읽는다). */
+async function forEachDoc(query, fn) {
+  for (let guard = 0; guard < 1000; guard++) {
+    const snap = await query.limit(300).get();
+    if (snap.empty) return;
+    for (const doc of snap.docs) await fn(doc);
+    if (snap.size < 300) return;
   }
-  await db.collection(USERS).doc(uid).delete();
 }
 
 /**

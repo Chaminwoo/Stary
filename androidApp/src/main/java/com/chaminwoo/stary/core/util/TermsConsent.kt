@@ -15,7 +15,8 @@ import com.google.firebase.firestore.SetOptions
  * iOS: `Data/TermsConsent.swift`(같은 키·버전).
  */
 object TermsConsent {
-    const val VERSION = 1
+    /** 2(2026-11-08): 위치기반서비스 이용약관 · 만 14세 이상 · 개인정보 처리방침 확인을 같은 동의에 묶었다 → 기존 사용자도 한 번 다시 동의한다. */
+    const val VERSION = 2
     private const val PREFS = "stary_prefs"
     private const val KEY = "terms_accepted_v$VERSION"
 

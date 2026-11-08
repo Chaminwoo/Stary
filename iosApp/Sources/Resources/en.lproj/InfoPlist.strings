@@ -1,0 +1,7 @@
+/* 시스템 권한 창 문구(en) — Info.plist 의 같은 키를 이 언어로 덮는다. 바꾸면 ko/en/ja 세 파일과 Info.plist · project.yml(한국어 기본값)을 함께(2026-11-08). */
+
+"NSLocationWhenInUseUsageDescription" = "Stary uses your location to show nearby stars (diaries) on the map and to save the spot where you leave a star. Depending on who can see the star, that location appears on other users' maps.";
+"NSCameraUsageDescription" = "Stary uses the camera so you can take photos and short videos for your diary.";
+"NSPhotoLibraryUsageDescription" = "Stary needs access to your photo library so you can choose photos for your diary.";
+"NSPhotoLibraryAddUsageDescription" = "Stary saves the share videos you create to your Photos library.";
+"NSUserTrackingUsageDescription" = "Stary uses your device's advertising identifier to show personalized ads and improve ad quality. You can keep using the app even if you don't allow it.";

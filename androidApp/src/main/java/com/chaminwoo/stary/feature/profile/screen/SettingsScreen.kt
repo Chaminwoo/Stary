@@ -34,6 +34,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteForever
@@ -237,6 +240,19 @@ fun SettingsScreen(
                     checked = AppSettings.dailyReminderEnabled,
                     onCheckedChange = { AppSettings.updateDailyReminderEnabled(it) }
                 )
+                RowDivider()
+                // 새 별 소식(첫 별 공지 — 모든 사용자에게 가는 푸시)을 따로 끌 수 있게(Apple 4.5.4, 2026-11-08). iOS 패리티.
+                ToggleRow(
+                    icon = Icons.Filled.AutoAwesome,
+                    label = stringResource(R.string.settings_first_star_push),
+                    description = stringResource(R.string.settings_first_star_push_desc),
+                    checked = AppSettings.firstStarPushEnabled,
+                    onCheckedChange = {
+                        AppSettings.updateFirstStarPushEnabled(it)
+                        // 서버는 토큰 문서의 firstStar 를 보고 이 기기를 뺀다 — 로그인 중이면 바로 다시 쓴다.
+                        myId?.let { uid -> scope.launch { GoogleAuthHelper.syncFcmToken(uid) } }
+                    }
+                )
             }
 
             // ── 언어 ──
@@ -293,6 +309,24 @@ fun SettingsScreen(
                     description = stringResource(R.string.terms_view_desc),
                     value = "",
                     onClick = { showTermsDialog = true }
+                )
+                // 개인정보 처리방침 · 위치기반서비스 이용약관 — 앱 안에서 바로 열 수 있게(Apple 5.1.1(i), 2026-11-08). iOS 패리티.
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                RowDivider()
+                NavRow(
+                    icon = Icons.Filled.PrivacyTip,
+                    label = stringResource(R.string.settings_privacy),
+                    description = stringResource(R.string.settings_privacy_desc),
+                    value = "",
+                    onClick = { runCatching { uriHandler.openUri(com.chaminwoo.stary.shared.config.StaryConfig.PRIVACY_POLICY_URL) } }
+                )
+                RowDivider()
+                NavRow(
+                    icon = Icons.Filled.LocationOn,
+                    label = stringResource(R.string.settings_location_terms),
+                    description = stringResource(R.string.settings_location_terms_desc),
+                    value = "",
+                    onClick = { runCatching { uriHandler.openUri(com.chaminwoo.stary.shared.config.StaryConfig.LOCATION_TERMS_URL) } }
                 )
             }
             if (showFeedbackDialog && myId != null) {

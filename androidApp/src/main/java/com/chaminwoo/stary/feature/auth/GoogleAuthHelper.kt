@@ -479,6 +479,9 @@ object GoogleAuthHelper {
                     "updatedAt" to System.currentTimeMillis(),
                     // 이 기기의 앱 언어 — 서버가 전체 공지 푸시(첫 별)를 기기 언어로 보낼 때 쓴다(없으면 한국어).
                     "lang" to com.chaminwoo.stary.core.util.LocaleManager.pushLanguage(),
+                    // 새 별 소식(첫 별 공지) 수신 여부 · 시간대 — 서버가 끈 기기를 빼고, 받는 사람 현지 21~08시엔 보내지 않는다(2026-11-08).
+                    "firstStar" to com.chaminwoo.stary.core.util.AppSettings.firstStarPushEnabled,
+                    "tz" to java.util.TimeZone.getDefault().id,
                 )
             )
             .await()

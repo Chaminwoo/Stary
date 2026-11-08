@@ -21,6 +21,7 @@ object AppSettings {
     private const val KEY_NOTIF = "notifications_enabled"
     private const val KEY_HAPTICS = "haptics_enabled"
     private const val KEY_DAILY_REMINDER = "daily_reminder_enabled"
+    private const val KEY_FIRST_STAR_PUSH = "first_star_push_enabled"
 
     private var appContext: Context? = null
 
@@ -36,6 +37,13 @@ object AppSettings {
     var dailyReminderEnabled by mutableStateOf(true)
         private set
 
+    /**
+     * 새 별 소식(첫 별 공지 푸시) on/off (기본 켜짐) — 기기 토큰 문서 `firstStar` 로 서버에 알린다(2026-11-08, Apple 4.5.4 · iOS 패리티).
+     * 바꾼 뒤 토큰 문서를 다시 쓰는 건 호출하는 쪽(SettingsScreen → GoogleAuthHelper.syncFcmToken) 몫이다.
+     */
+    var firstStarPushEnabled by mutableStateOf(true)
+        private set
+
     fun init(context: Context) {
         val ctx = context.applicationContext
         appContext = ctx
@@ -43,6 +51,7 @@ object AppSettings {
         notificationsEnabled = prefs.getBoolean(KEY_NOTIF, true)
         hapticsEnabled = prefs.getBoolean(KEY_HAPTICS, true)
         dailyReminderEnabled = prefs.getBoolean(KEY_DAILY_REMINDER, true)
+        firstStarPushEnabled = prefs.getBoolean(KEY_FIRST_STAR_PUSH, true)
         Haptics.init(ctx)
     }
 
@@ -67,5 +76,12 @@ object AppSettings {
         dailyReminderEnabled = value
         appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             ?.edit()?.putBoolean(KEY_DAILY_REMINDER, value)?.apply()
+    }
+
+    fun updateFirstStarPushEnabled(value: Boolean) {
+        if (firstStarPushEnabled == value) return
+        firstStarPushEnabled = value
+        appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            ?.edit()?.putBoolean(KEY_FIRST_STAR_PUSH, value)?.apply()
     }
 }

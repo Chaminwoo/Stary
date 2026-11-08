@@ -273,6 +273,17 @@ final class AuthManager: ObservableObject {
         guard let user = Auth.auth().currentUser, let uid = Self.appUserId(of: user) else { return false }
         isBusy = true
         defer { isBusy = false }
+        // Sign in with Apple 로 가입한 계정이면 Apple 토큰을 먼저 철회한다(Apple 계정 삭제 요구사항, 2026-11-08).
+        // 철회하려면 Apple 이 새 authorization code 를 줘야 해서 Apple 확인 창이 한 번 뜬다. 취소하면 삭제도 멈춘다.
+        // 철회 자체가 실패하면(Firebase 콘솔 Apple 제공업체에 OAuth 코드 흐름 키가 없을 때 등) 삭제 요청은 그대로 진행한다.
+        if user.providerData.contains(where: { $0.providerID == "apple.com" }) {
+            guard let code = await appleAuthorizationCode() else { return false }
+            do {
+                try await Auth.auth().revokeToken(withAuthorizationCode: code)
+            } catch {
+                print("⚠️ Apple 토큰 철회 실패(삭제 요청은 계속): \(error.localizedDescription)")
+            }
+        }
         do {
             try await FirestoreService.users.safeDocument(uid).setData([
                 "deletionRequestedAt": FirestoreService.nowMillis,
@@ -283,6 +294,29 @@ final class AuthManager: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
             return false
+        }
+    }
+
+    /// Apple 토큰 철회용 authorization code — Apple 확인 창을 띄워 받는다(취소/실패면 nil). 이름 · 이메일은 다시 묻지 않는다.
+    private func appleAuthorizationCode() async -> String? {
+        await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = []
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            let delegate = AppleSignInDelegate { [weak self] result in
+                var code: String?
+                if case .success(let authorization) = result,
+                   let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                   let data = credential.authorizationCode {
+                    code = String(data: data, encoding: .utf8)
+                }
+                cont.resume(returning: code)
+                Task { @MainActor in self?.appleDelegate = nil }
+            }
+            appleDelegate = delegate
+            controller.delegate = delegate
+            controller.presentationContextProvider = delegate
+            controller.performRequests()
         }
     }
 

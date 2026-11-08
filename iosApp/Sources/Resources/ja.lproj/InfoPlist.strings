@@ -1,0 +1,7 @@
+/* 시스템 권한 창 문구(ja) — Info.plist 의 같은 키를 이 언어로 덮는다. 바꾸면 ko/en/ja 세 파일과 Info.plist · project.yml(한국어 기본값)을 함께(2026-11-08). */
+
+"NSLocationWhenInUseUsageDescription" = "周辺の星(日記)を地図に表示し、星を残すときにその場所を一緒に保存するために使います。保存された位置は公開範囲に応じてほかのユーザーの地図に表示されます。";
+"NSCameraUsageDescription" = "日記に入れる写真や短い動画を撮るためにカメラを使います。";
+"NSPhotoLibraryUsageDescription" = "日記に入れる写真を選ぶために写真ライブラリへのアクセスが必要です。";
+"NSPhotoLibraryAddUsageDescription" = "作成したシェア動画を写真アプリに保存するために必要です。";
+"NSUserTrackingUsageDescription" = "パーソナライズされた広告の表示と広告品質の改善のために広告識別子を使います。許可しなくてもアプリはそのまま使えます。";

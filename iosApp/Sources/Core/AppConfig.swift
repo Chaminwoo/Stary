@@ -87,6 +87,15 @@ enum AppConfig {
     /// 다이어리 공유 웹 랜딩 베이스 URL. (StaryConfig.SHARE_BASE_URL 와 동기화)
     static let shareBaseUrl = "https://momentdiary-f26c8.web.app"
 
+    /// 개인정보 처리방침 · 위치기반서비스 이용약관(StaryConfig.PRIVACY_POLICY_URL / LOCATION_TERMS_URL 와 동기화).
+    /// 페이지는 web/privacy.html · web/location-terms.html — 앱 출시 전에 hosting 배포 필요.
+    static let privacyPolicyUrl = "\(shareBaseUrl)/privacy"
+    static let locationTermsUrl = "\(shareBaseUrl)/location-terms"
+
+    /// 지도 데이터 저작자 표시(MapTiler 약관 · OpenStreetMap ODbL) — 지도 위에 항상 보인다(StaryConfig.MAP_ATTRIBUTION 와 동기화).
+    static let mapAttribution = "© MapTiler © OpenStreetMap contributors"
+    static let mapAttributionUrl = "https://www.openstreetmap.org/copyright"
+
     /// Universal Links(https) 매칭용 호스트/경로. shareBaseUrl 을 쪼갠 값이라 함께 바꿔야 한다.
     /// (StaryConfig.SHARE_HOST / SHARE_PATH_* 와 동기화)
     static let shareHost = "momentdiary-f26c8.web.app"

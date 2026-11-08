@@ -209,8 +209,8 @@ targets:
           - poetsen_one_regular.ttf
           - min_sans.ttf
         # 런타임 권한 사용 설명(심사 필수)
-        NSLocationWhenInUseUsageDescription: 주변의 별(다이어리)을 지도에 표시하기 위해 위치가 필요해요.
-        NSCameraUsageDescription: 다이어리에 넣을 사진을 촬영하기 위해 카메라가 필요해요.
+        NSLocationWhenInUseUsageDescription: 주변의 별(다이어리)을 지도에 보여 주고, 별을 남길 때 그 위치를 함께 저장하기 위해 필요해요. 저장된 위치는 공개 범위에 따라 다른 사람의 지도에 보여요.
+        NSCameraUsageDescription: 다이어리에 넣을 사진과 짧은 영상을 찍기 위해 카메라가 필요해요.
         NSPhotoLibraryUsageDescription: 다이어리에 넣을 사진을 선택하기 위해 사진 보관함 접근이 필요해요.
         # 공유 영상을 사진 앱에 저장(추가 전용 권한) — Features/Share/ShareVideo.swift.
         NSPhotoLibraryAddUsageDescription: 만든 공유 영상을 사진 앱에 저장하기 위해 필요해요.

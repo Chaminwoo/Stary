@@ -781,6 +781,26 @@ fun MainListScreen(
             }
         }
 
+        // ── 지도 저작자 표시(MapTiler 약관 · OpenStreetMap ODbL, 2026-11-08) — 지도가 보이는 동안 항상(지도만 보기 포함).
+        //    MapLibre 기본 표시는 꺼 두었으므로(DiaryMap isAttributionEnabled=false) 이 글자를 지우면 라이선스 위반이다. iOS MapScreen 패리티.
+        if (globeCenter == null) {
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+            Text(
+                text = com.chaminwoo.stary.shared.config.StaryConfig.MAP_ATTRIBUTION,
+                color = Color.White.copy(alpha = 0.38f),
+                fontSize = 9.sp,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 4.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable {
+                        runCatching { uriHandler.openUri(com.chaminwoo.stary.shared.config.StaryConfig.MAP_ATTRIBUTION_URL) }
+                    }
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
+            )
+        }
+
         // ── 3D 행성(글로브) 오버레이 — 버튼으로 진입, X 버튼/뒤로가기로 그 지점 지도 복귀 ──
         globeCenter?.let { (lat, lng) ->
             GlobeScreen(

@@ -710,6 +710,19 @@ struct MapScreen: View {
                 .transition(.opacity)
             }
 
+            // ── 지도 저작자 표시(MapTiler 약관 · OpenStreetMap ODbL, 2026-11-08) — 지도가 보이는 동안 항상(지도만 보기 포함).
+            //    MapLibre 기본 버튼은 숨겨 두었으므로(MapLibreView) 이 글자를 지우면 라이선스 위반이다. Android MainListScreen 패리티.
+            if globeCenter == nil, let url = URL(string: AppConfig.mapAttributionUrl) {
+                Link(destination: url) {
+                    Text(AppConfig.mapAttribution)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color.white.opacity(0.38))
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 4)
+            }
+
             // ── 3D 행성(글로브) 오버레이 — 지도와 지도 위 버튼을 덮는다(상단바는 RootView 소속이라 그대로 보인다) ──
             if let center = globeCenter {
                 GlobeScreen(

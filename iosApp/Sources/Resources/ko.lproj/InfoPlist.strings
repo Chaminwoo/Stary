@@ -1,0 +1,7 @@
+/* 시스템 권한 창 문구(ko) — Info.plist 의 같은 키를 이 언어로 덮는다. 바꾸면 ko/en/ja 세 파일과 Info.plist · project.yml(한국어 기본값)을 함께(2026-11-08). */
+
+"NSLocationWhenInUseUsageDescription" = "주변의 별(다이어리)을 지도에 보여 주고, 별을 남길 때 그 위치를 함께 저장하기 위해 필요해요. 저장된 위치는 공개 범위에 따라 다른 사람의 지도에 보여요.";
+"NSCameraUsageDescription" = "다이어리에 넣을 사진과 짧은 영상을 찍기 위해 카메라가 필요해요.";
+"NSPhotoLibraryUsageDescription" = "다이어리에 넣을 사진을 고르기 위해 사진 보관함 접근이 필요해요.";
+"NSPhotoLibraryAddUsageDescription" = "만든 공유 영상을 사진 앱에 저장하기 위해 필요해요.";
+"NSUserTrackingUsageDescription" = "맞춤 광고를 보여주고 광고 품질을 개선하기 위해 광고 식별자를 사용해요. 허용하지 않아도 앱은 그대로 쓸 수 있어요.";
